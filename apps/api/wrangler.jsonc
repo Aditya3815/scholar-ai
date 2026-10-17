@@ -20,7 +20,6 @@
   "queues": {
     "producers": [{ "queue": "scholar-jobs", "binding": "JOBS" }]
   },
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "scholar-files" }],
   "observability": { "enabled": true }
-  // R2 binding add karna hai jab R2 dashboard se enable ho jaye:
-  // "r2_buckets": [{ "binding": "FILES", "bucket_name": "scholar-files" }]
 }

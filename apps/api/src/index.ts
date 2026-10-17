@@ -4,6 +4,7 @@ import type { HealthResponse } from "@scholar/shared";
 type Bindings = {
   DB: D1Database;
   JOBS: Queue;
+  FILES: R2Bucket;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
