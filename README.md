@@ -23,5 +23,8 @@ Needs Node 20.19+ locally (wrangler is pinned to 4.86.0; CI uses Node 22).
 
 ## Deploy
 
-`npm run deploy` (needs `npx wrangler login`), or push to `main` (GitHub Actions needs the
-`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets).
+`npm run deploy` (needs `npx wrangler login`).
+
+CI/CD: the workflow lives at `docs/ci.yml.template` because the pushing token had no `workflow`
+scope. Copy it to `.github/workflows/ci.yml` once that is sorted, and add the
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets.
