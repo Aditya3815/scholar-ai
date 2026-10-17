@@ -6,3 +6,9 @@ S2_API_KEY=
 CROSSREF_MAILTO=
 GEMINI_API_KEY=
 # Local only (never in production): ENABLE_DEV_ROUTES=1
+# Sign-in (see docs/auth-setup.md). Providers appear in the UI only when their pair is set.
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+ORCID_CLIENT_ID=
+ORCID_CLIENT_SECRET=
+# ORCID_BASE_URL=https://sandbox.orcid.org

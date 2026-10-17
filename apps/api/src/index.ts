@@ -3,8 +3,10 @@ import { streamSSE } from "hono/streaming";
 import type { HealthResponse } from "@scholar/shared";
 import { MAX_QUERY_LENGTH, runSearch } from "./search";
 import { AllProvidersFailedError, NoRouteError, PolicyError, QuotaError, gatewayFromEnv, type LlmRequest } from "./llm";
+import { authRoutes } from "./auth/routes";
+import type { AuthEnv } from "./auth/providers";
 
-type Bindings = {
+type Bindings = AuthEnv & {
   DB: D1Database;
   JOBS: Queue;
   FILES: R2Bucket;
@@ -20,6 +22,8 @@ type Bindings = {
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
+
+app.route("/api/v1/auth", authRoutes);
 
 app.get("/api/v1/health", async (c) => {
   let db: HealthResponse["db"] = "ok";

@@ -7,6 +7,19 @@ export type HealthResponse = {
 
 export type Theme = "light" | "dark" | "read";
 
+/** Signed-in user as returned by GET /api/v1/auth/me (never contains tokens). */
+export type AuthUser = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  orcid: string | null;
+  avatarUrl: string | null;
+  role: "scholar" | "professor" | "admin";
+  providers: ("google" | "orcid")[];
+};
+
+export type AuthProviderInfo = { id: "google" | "orcid"; label: string };
+
 /** Ek deduplicated paper. Sab fields kisi API record se aate hain, LLM se kabhi nahi. */
 export type Paper = {
   /** doi:<doi> | pmid:<pmid> | t:<hash>; stable dedup key */

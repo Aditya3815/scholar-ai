@@ -7,6 +7,7 @@
 html {
   font-size: 100%; /* rem units: user ka browser text-size respect hota hai */
   -webkit-text-size-adjust: 100%;
+  overflow-x: clip; /* decorative glows must never widen the mobile layout viewport */
 }
 
 body {

@@ -329,16 +329,16 @@
   will-change: transform;
 }
 .orb-1 {
-  width: 38rem;
-  height: 38rem;
+  width: min(38rem, 100vw);
+  height: min(38rem, 100vw);
   left: -4%;
   top: -8rem;
   background: radial-gradient(closest-side, var(--orb-1), transparent);
   animation: drift-a 22s ease-in-out infinite alternate;
 }
 .orb-2 {
-  width: 32rem;
-  height: 32rem;
+  width: min(32rem, 90vw);
+  height: min(32rem, 90vw);
   right: -4%;
   top: -2rem;
   background: radial-gradient(closest-side, var(--orb-2), transparent);
@@ -886,6 +886,138 @@
   margin-top: 0.2rem;
   color: var(--muted);
   font-size: 0.8125rem;
+}
+
+/* ============ Account, sign-in modal, notices ============ */
+.signin-trigger {
+  min-height: 44px;
+}
+.avatar-btn,
+.avatar-skeleton {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+}
+.avatar-btn {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+.avatar-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-skeleton {
+  background: var(--surface-2);
+}
+.acct {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 14rem;
+}
+.acct-name {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.acct-line {
+  color: var(--muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.acct-role {
+  text-transform: capitalize;
+}
+.acct-btn {
+  justify-content: flex-start;
+  margin-top: 0.25rem;
+}
+.modal-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  pointer-events: none;
+}
+.modal {
+  position: relative;
+  pointer-events: auto;
+  width: min(26rem, 100%);
+  padding: 1.75rem 1.5rem 1.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+.modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+}
+.modal-title {
+  font-size: 1.5rem;
+  padding-right: 3rem;
+}
+.modal-sub {
+  margin-top: 0.4rem;
+  color: var(--muted);
+}
+.modal-actions {
+  display: grid;
+  gap: 0.6rem;
+  margin: 1.4rem 0 1.1rem;
+}
+.provider-btn {
+  min-height: 48px;
+  font-size: 1rem;
+}
+.modal-fine {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.modal-fine svg {
+  flex: none;
+  margin-top: 0.15rem;
+  color: var(--ok);
+}
+.notice {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  max-width: 64rem;
+  margin: 0.75rem auto 0;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  font-size: 0.9375rem;
+}
+@media (max-width: 720px) {
+  .signin-label {
+    display: none;
+  }
+  .signin-trigger {
+    width: 44px;
+    padding: 0;
+  }
+}
+@media (max-width: 430px) {
+  .logo-word {
+    display: none;
+  }
 }
 
 /* ============ Responsive ============ */

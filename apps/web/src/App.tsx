@@ -1,6 +1,7 @@
 import { AnimatePresence, LazyMotion, MotionConfig, m } from "motion/react";
 import { SearchX, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AccountMenu } from "./components/AccountMenu";
 import { Hero } from "./components/Hero";
 import { LibraryDrawer } from "./components/LibraryDrawer";
 import { Logo } from "./components/Logo";
@@ -9,6 +10,7 @@ import { ResultCard, SkeletonCard } from "./components/ResultCard";
 import { SearchBox } from "./components/SearchBox";
 import { SourceStatus } from "./components/SourceStatus";
 import { ThemeSwitch } from "./components/ThemeSwitch";
+import { takeAuthError } from "./lib/auth";
 import { easeOut } from "./lib/motion";
 import { useSearch } from "./lib/search";
 
@@ -37,6 +39,7 @@ export function App() {
   const [openOnly, setOpenOnly] = useState(false);
   const [hideRetracted, setHideRetracted] = useState(false);
   const [sort, setSort] = useState<Sort>("relevance");
+  const [authError, setAuthError] = useState<string | null>(() => takeAuthError());
   const inputRef = useRef<HTMLInputElement>(null);
 
   const submit = useCallback(
@@ -106,9 +109,19 @@ export function App() {
               <ReadingControls />
               <ThemeSwitch />
               <LibraryDrawer />
+              <AccountMenu />
             </div>
           </div>
         </header>
+
+        <AnimatePresence>
+          {authError && (
+            <m.div className="notice" role="alert" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.25, ease: easeOut }}>
+              <span>{authError}</span>
+              <button type="button" className="link-btn" onClick={() => setAuthError(null)}>Dismiss</button>
+            </m.div>
+          )}
+        </AnimatePresence>
 
         <main id="main" className="main">
           <AnimatePresence mode="wait" initial={false}>
