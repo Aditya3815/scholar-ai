@@ -8,6 +8,7 @@ type Bindings = {
   FILES: R2Bucket;
   OPENALEX_API_KEY?: string;
   NCBI_API_KEY?: string;
+  S2_API_KEY?: string;
   CORE_API_KEY?: string;
   CROSSREF_MAILTO: string;
 };

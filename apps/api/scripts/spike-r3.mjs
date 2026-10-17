@@ -48,7 +48,8 @@ async function search(q) {
 async function runAll(label) {
   const out = [];
   const queue = [...QUERIES];
-  const workers = Array.from({ length: 3 }, async () => {
+  // S2 key = 1 req/s, isliye default concurrency 1 (CONC=3 se stress test).
+  const workers = Array.from({ length: Number(process.env.CONC ?? 1) }, async () => {
     while (queue.length) {
       const q = queue.shift();
       out.push(await search(q));
@@ -62,7 +63,7 @@ async function runAll(label) {
 function summarize(runs, label) {
   const ok = runs.filter((r) => !r.error);
   const walls = ok.map((r) => r.wall);
-  const names = ["openalex", "crossref", "pubmed"];
+  const names = ["openalex", "s2", "crossref", "pubmed"];
   console.log(`requests ok: ${ok.length}/${runs.length}`);
   console.log(`latency ms  p50=${pct(walls, 50)}  p95=${pct(walls, 95)}  max=${Math.max(...walls)}`);
   for (const n of names) {

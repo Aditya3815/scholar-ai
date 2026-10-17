@@ -5,9 +5,10 @@ import { mergeAndRank } from "./merge";
 import { openalex } from "./openalex";
 import { pubmed } from "./pubmed";
 import { findRetracted } from "./retraction";
+import { s2 } from "./s2";
 import type { Provider, ProviderPaper, SearchEnv } from "./types";
 
-const PROVIDERS: Provider[] = [openalex, crossref, pubmed];
+const PROVIDERS: Provider[] = [openalex, s2, crossref, pubmed];
 const PROVIDER_TIMEOUT_MS = 6000;
 const SEARCH_TTL_S = 24 * 3600;
 const RETRACTION_TTL_S = 24 * 3600;

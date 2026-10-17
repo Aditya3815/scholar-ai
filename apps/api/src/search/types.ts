@@ -2,6 +2,7 @@ export type SearchEnv = {
   DB: D1Database;
   OPENALEX_API_KEY?: string;
   NCBI_API_KEY?: string;
+  S2_API_KEY?: string;
   CROSSREF_MAILTO: string;
 };
 
