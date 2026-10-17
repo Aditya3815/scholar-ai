@@ -11,12 +11,15 @@ Smoke test: `gemini-3.5-flash-lite` answered in about 2.1 s, `gemini-3.8-flash` 
 
 Whether a given model is actually on the free quota (and its per-minute/day limits) is only visible in AI Studio; Google no longer publishes them in the docs. Pro models were reported removed from the free tier in 2026. Check before relying on one.
 
-## Intended routing (to be validated in spike R2)
+## Status (2026-10-17)
+The LLM Gateway is implemented in `apps/api/src/llm/` (policy, fallback chain, quota ledger, public-only cache) with 13 tests, including: private requests never reach a non-`privateOk` provider, and a private route containing only Gemini fails with `NoRouteError` instead of downgrading. Spike R2 results and the cost estimate are in `docs/spikes/R2-llm.md`. Workers AI is `privateOk` because Cloudflare states it does not train on Customer Content or retain standard-inference inputs/outputs (checked 2026-10-17); do not route it through AI Gateway to other vendors.
+
+## Intended routing (as shipped in `src/llm/config.ts`; models changed only after re-running the R2 harness)
 | Task | Sensitivity | First choice | Fallback |
 | --- | --- | --- | --- |
-| Query expansion, intent classification | public | `gemini-3.5-flash-lite` | Groq gpt-oss-20b |
-| Search-result summaries (abstracts only) | public | `gemini-3.8-flash` | OpenRouter `:free` |
-| Paper Q&A, review, similarity explanation | **private** | Workers AI open model | paid API (Claude) |
+| Query expansion, intent classification | public | `gemini-3.5-flash-lite` | Workers AI `gpt-oss-120b` |
+| Search-result summaries (abstracts only) | public | `gemini-3.5-flash-lite` | Workers AI `gpt-oss-120b` |
+| Paper Q&A, review, similarity explanation | **private** | Workers AI `gpt-oss-120b` (schema-enforced) | none yet (benchmark a second model first) |
 | Embeddings | private | Workers AI `bge-m3` | Gemini embedding (public text only) |
 
 Keys live in `apps/api/.dev.vars` (gitignored) and Worker secrets; never in the repo or chat.

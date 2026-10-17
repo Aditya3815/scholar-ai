@@ -21,5 +21,6 @@
     "producers": [{ "queue": "scholar-jobs", "binding": "JOBS" }]
   },
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "scholar-files" }],
+  "ai": { "binding": "AI" },
   "observability": { "enabled": true }
 }

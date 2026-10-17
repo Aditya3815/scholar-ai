@@ -7,6 +7,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "cf-typegen": "wrangler types",
     "db:migrate:local": "wrangler d1 migrations apply scholar-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply scholar-db --remote"
@@ -18,6 +19,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",
     "typescript": "^7.0.2",
+    "vitest": "^5.0.5",
     "wrangler": "4.86.0"
   }
 }

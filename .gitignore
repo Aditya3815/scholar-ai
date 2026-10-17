@@ -13,3 +13,6 @@ START HERE*
 
 apps/web/e2e/shots/
 Framer X*
+
+apps/api/scripts/r2/.cache/
+apps/api/scripts/r2/results/

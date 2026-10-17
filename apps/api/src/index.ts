@@ -2,11 +2,16 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { HealthResponse } from "@scholar/shared";
 import { MAX_QUERY_LENGTH, runSearch } from "./search";
+import { AllProvidersFailedError, NoRouteError, PolicyError, QuotaError, gatewayFromEnv, type LlmRequest } from "./llm";
 
 type Bindings = {
   DB: D1Database;
   JOBS: Queue;
   FILES: R2Bucket;
+  AI: Ai;
+  GEMINI_API_KEY?: string;
+  /** "1" only in local .dev.vars; never set as a production secret. Enables /api/v1/dev/* smoke routes. */
+  ENABLE_DEV_ROUTES?: string;
   OPENALEX_API_KEY?: string;
   NCBI_API_KEY?: string;
   S2_API_KEY?: string;
@@ -75,6 +80,31 @@ app.get("/api/v1/search/stream", (c) => {
       await send("error", { type: "internal_error", title: "Search failed" });
     }
   });
+});
+
+/**
+ * Local smoke test for the LLM Gateway. Returns 404 unless ENABLE_DEV_ROUTES=1, so it can never be used as a free,
+ * anonymous LLM endpoint in production. Real Q&A endpoints arrive in Phase 1 behind auth.
+ */
+app.post("/api/v1/dev/llm", async (c) => {
+  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.json({ type: "not_found", title: "Not found" }, 404);
+  const body = await c.req.json<Partial<LlmRequest>>().catch(() => ({}) as Partial<LlmRequest>);
+  try {
+    const result = await gatewayFromEnv(c.env).complete({
+      task: body.task ?? "classify",
+      sensitivity: body.sensitivity ?? "private",
+      subject: "dev",
+      system: body.system ?? "",
+      user: body.user ?? "",
+      schema: body.schema,
+      maxTokens: body.maxTokens,
+    });
+    return c.json(result);
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    const status = e instanceof PolicyError ? 403 : e instanceof NoRouteError ? 422 : e instanceof QuotaError ? 429 : e instanceof AllProvidersFailedError ? 502 : 400;
+    return c.json({ type: e instanceof Error ? e.name : "error", title: "LLM request failed", detail }, status);
+  }
 });
 
 app.notFound((c) =>

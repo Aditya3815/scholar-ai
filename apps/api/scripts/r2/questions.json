@@ -1,0 +1,51 @@
+{
+  "_note": "35 questions over 5 arXiv papers. answerable=false means the paper does NOT contain the answer (absence verified by grep). `must` regexes must ALL match the model's answer (case-insensitive); `evidence` marks the passage that proves the answer (used for retrieval recall). hi = Hindi question about an English paper.",
+  "papers": {
+    "attention": { "arxiv": "1706.03762", "title": "Attention Is All You Need" },
+    "milk": { "arxiv": "2106.03643", "title": "Prevention Is Better Than Cure: Experimental Evidence From Milk Fever Incidence in Dairy Animals of Haryana, India" },
+    "cholera": { "arxiv": "1810.05823", "title": "A cholera mathematical model with vaccination and the biggest outbreak of world's history" },
+    "physed": { "arxiv": "1603.03478", "title": "Surveying Graduate Students' Attitudes and Approaches to Problem Solving" },
+    "pilot": { "arxiv": "2105.05483", "title": "Sample size planning for pilot studies" }
+  },
+  "questions": [
+    { "id": "a1", "paper": "attention", "lang": "en", "answerable": true, "q": "What BLEU score did the Transformer achieve on the WMT 2014 English-to-German translation task?", "must": ["28\\.4"], "evidence": "28\\.4 BLEU" },
+    { "id": "a2", "paper": "attention", "lang": "en", "answerable": true, "q": "How many GPUs, and of what type, were used to train the models?", "must": ["P100", "(eight|\\b8\\b)"], "evidence": "eight P100 GPUs" },
+    { "id": "a3", "paper": "attention", "lang": "en", "answerable": true, "q": "What value of label smoothing was used during training?", "must": ["0\\.1"], "evidence": "label smoothing of value" },
+    { "id": "a4", "paper": "attention", "lang": "en", "answerable": true, "q": "What is the output dimension (d_model) of the sub-layers and embedding layers in the model?", "must": ["512"], "evidence": "dmodel = 512" },
+    { "id": "au1", "paper": "attention", "lang": "en", "answerable": false, "q": "How much electricity (in kWh) did training the Transformer consume?" },
+    { "id": "au2", "paper": "attention", "lang": "en", "answerable": false, "q": "What accuracy did the Transformer achieve on the GLUE benchmark?" },
+    { "id": "ah1", "paper": "attention", "lang": "hi", "answerable": true, "q": "अंग्रेज़ी-से-फ़्रेंच अनुवाद में Transformer का BLEU स्कोर कितना था?", "must": ["41\\.8|४१\\.८"], "evidence": "41\\.8" },
+
+    { "id": "m1", "paper": "milk", "lang": "en", "answerable": true, "q": "How many dairy farms and animals were in the study, and how many were cows versus buffaloes?", "must": ["200", "100"], "evidence": "100 cows and 100 buffaloes" },
+    { "id": "m2", "paper": "milk", "lang": "en", "answerable": true, "q": "By how much did milk fever incidence fall from baseline to follow-up in treated animals?", "must": ["21\\s?%", "\\b2\\s?%"], "evidence": "decreases from 21%" },
+    { "id": "m3", "paper": "milk", "lang": "en", "answerable": true, "q": "How much did the anionic mineral mixture increase farmers' net income?", "must": ["38\\s?%"], "evidence": "12% and 38%" },
+    { "id": "m4", "paper": "milk", "lang": "en", "answerable": true, "q": "What are the annual economic losses from milk fever in Haryana?", "must": ["1,?000\\s*crores?"], "evidence": "1,000 crores" },
+    { "id": "mu1", "paper": "milk", "lang": "en", "answerable": false, "q": "Which pharmaceutical company manufactures the anionic mineral mixture used in the trial?" },
+    { "id": "mu2", "paper": "milk", "lang": "en", "answerable": false, "q": "What was the grant number that funded this study?" },
+    { "id": "mh1", "paper": "milk", "lang": "hi", "answerable": true, "q": "इस अध्ययन में कितने गांवों में काम किया गया?", "must": ["(five|\\b5\\b|पाँच|पांच)"], "evidence": "five villages" },
+
+    { "id": "c1", "paper": "cholera", "lang": "en", "answerable": true, "q": "How many deaths were caused by the Yemen cholera epidemic between 27 April 2017 and 15 April 2018?", "must": ["2[ ,]?275"], "evidence": "2275 deaths" },
+    { "id": "c2", "paper": "cholera", "lang": "en", "answerable": true, "q": "When did the 2018 vaccination campaign in Yemen begin and end?", "must": ["(6\\s?(th)?\\s?May|May\\s?6)", "(15\\s?(th)?\\s?May|May\\s?15)"], "evidence": "began on 6\\s?th May 2018" },
+    { "id": "c3", "paper": "cholera", "lang": "en", "answerable": true, "q": "What is the name of the proposed cholera model that includes vaccination?", "must": ["SITRV"], "evidence": "SITRV \\(Susceptible" },
+    { "id": "c4", "paper": "cholera", "lang": "en", "answerable": true, "q": "How many individuals were vaccinated in that campaign?", "must": ["350[ ,]?000"], "evidence": "350 000 individuals" },
+    { "id": "cu1", "paper": "cholera", "lang": "en", "answerable": false, "q": "What was the case fatality rate computed by the authors?" },
+    { "id": "cu2", "paper": "cholera", "lang": "en", "answerable": false, "q": "What was the total cost of the vaccination campaign in US dollars?" },
+    { "id": "ch1", "paper": "cholera", "lang": "hi", "answerable": true, "q": "27 अप्रैल 2017 से 15 अप्रैल 2018 के बीच यमन की हैजा महामारी में कितने लोगों की मौत हुई?", "must": ["2[ ,]?275|२,?२७५"], "evidence": "2275 deaths" },
+
+    { "id": "p1", "paper": "physed", "lang": "en", "answerable": true, "q": "What is the name of the survey that the authors developed and validated?", "must": ["(Attitudes and Approaches to Problem Solving|AAPS)"], "evidence": "AAPS" },
+    { "id": "p2", "paper": "physed", "lang": "en", "answerable": true, "q": "What response scale did students use to answer the survey statements?", "must": ["strongly agree", "strongly disagree", "\\b5\\b"], "evidence": "1 \\(strongly agree\\) to 5" },
+    { "id": "p3b", "paper": "physed", "lang": "en", "answerable": true, "q": "The year after the first survey, how many graduate students took it at the end of the graduate-level TA training course?", "must": ["\\b18\\b"], "evidence": "administered to 18 graduate students" },
+    { "id": "p4", "paper": "physed", "lang": "en", "answerable": true, "q": "Whose survey responses were the graduate students' responses compared with?", "must": ["faculty", "introductory"], "evidence": "compared with those of introductory" },
+    { "id": "pu1", "paper": "physed", "lang": "en", "answerable": false, "q": "Which Institutional Review Board approved the study, and what was the protocol number?" },
+    { "id": "pu2", "paper": "physed", "lang": "en", "answerable": false, "q": "How much funding did the National Science Foundation provide for this study?" },
+    { "id": "ph1b", "paper": "physed", "lang": "hi", "answerable": true, "q": "पहले सर्वे के अगले साल, TA प्रशिक्षण कोर्स के अंत में कितने graduate students ने सर्वे भरा?", "must": ["18|१८"], "evidence": "administered to 18 graduate students" },
+
+    { "id": "s1", "paper": "pilot", "lang": "en", "answerable": true, "q": "What statistical power (1 − β) does the main study aim for in the numerical examples?", "must": ["80\\s?%"], "evidence": "1 − β = 80%" },
+    { "id": "s2", "paper": "pilot", "lang": "en", "answerable": true, "q": "Which pilot study sample sizes correspond to 30%, 20% and 10% underpower probability at the 60% power threshold?", "must": ["\\b5\\b", "\\b12\\b", "\\b25\\b"], "evidence": "sample sizes of 5, 12, and 25" },
+    { "id": "s3", "paper": "pilot", "lang": "en", "answerable": true, "q": "What per-group pilot sample size did an earlier cited work propose, based on feasibility and precision?", "must": ["\\b12\\b"], "evidence": "12 per group" },
+    { "id": "s4", "paper": "pilot", "lang": "en", "answerable": true, "q": "How many subjects per group (NL) does the main study need in the RMDQ example?", "must": ["158"], "evidence": "NL = 158" },
+    { "id": "su1", "paper": "pilot", "lang": "en", "answerable": false, "q": "Which funding agency supported this research?" },
+    { "id": "su2", "paper": "pilot", "lang": "en", "answerable": false, "q": "What exact pilot sample size is recommended for veterinary research?" },
+    { "id": "sh1", "paper": "pilot", "lang": "hi", "answerable": true, "q": "पहले के शोध ने पायलट स्टडी के लिए प्रति समूह कितने प्रतिभागियों का सुझाव दिया था?", "must": ["12|१२"], "evidence": "12 per group" }
+  ]
+}
