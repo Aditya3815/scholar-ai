@@ -19,6 +19,15 @@ npm run dev:api        # http://localhost:8787 (API + built web)
 npm run dev:web        # Vite dev server with /api proxied to :8787
 ```
 
+Secrets: copy `apps/api/.dev.vars.example` to `apps/api/.dev.vars` (gitignored) and fill the keys
+(OpenAlex, Semantic Scholar, NCBI, CORE, Crossref contact email, optional Gemini). For production use `wrangler secret bulk`.
+
+Checks: `npm run typecheck`, `npm run contrast -w apps/web` (WCAG pairs for the 3 themes),
+`npm run e2e -w apps/web` (Edge headless: screenshots in `apps/web/e2e/shots`, axe accessibility scan, mobile overflow;
+needs the local server from `npm run dev:api` running).
+
+Docs: `docs/design/UI-direction.md`, `docs/spikes/`, `docs/llm-providers.md`, `docs/adr/`.
+
 Needs Node 20.19+ locally (wrangler is pinned to 4.86.0; CI uses Node 22).
 
 ## Deploy

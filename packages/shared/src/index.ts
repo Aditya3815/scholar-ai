@@ -37,6 +37,20 @@ export type ProviderStatus = {
   error?: string;
 };
 
+/** Search providers: id (API ke status keys) aur UI label. */
+export const PROVIDER_LABELS = {
+  openalex: "OpenAlex",
+  s2: "Semantic Scholar",
+  crossref: "Crossref",
+  pubmed: "PubMed",
+} as const;
+
+/** SSE `snapshot` event payload: har provider ke baad merged results (retraction flags `done` mein aate hain). */
+export type SearchSnapshot = {
+  results: Paper[];
+  providers: Record<string, ProviderStatus>;
+};
+
 export type SearchResponse = {
   query: string;
   results: Paper[];

@@ -1,74 +1,147 @@
-/* Design tokens: Light (default), Dark, Read. Contrast pairs Phase 0 mein checker se verify karne hain. */
+/*
+ * Design tokens. Teen themes: Light (default), Dark, Read (sepia). Har text/background pair WCAG AA (>= 4.5:1)
+ * verify ki gayi hai; palette badalne par contrast checker dobara chalao (docs/design/UI-direction.md).
+ */
 :root {
-  --bg: #ffffff;
-  --surface: #f7f7f5;
-  --text: #1a1a1a;
-  --muted: #5b5b57;
-  --border: #e4e4df;
-  --accent: #2f5bea;
-  --accent-contrast: #ffffff;
-  --ok: #14794a;
-  --warn: #9a5b00;
-  --danger: #b3261e;
-  --info: #1d5fa8;
+  /* surfaces + text */
+  --bg: #fbfaf7;
+  --surface: #ffffff;
+  --surface-2: #f3f1eb;
+  --text: #16181d;
+  --muted: #565a63;
+  --border: #e5e1d8;
+  --border-strong: #cfc9bb;
 
-  --radius: 10px;
+  /* brand + status */
+  --accent: #3548c8;
+  --accent-fg: #ffffff;
+  --accent-soft: #e8ebfa;
+  --ok: #0f7a4a;
+  --warn: #8f5200;
+  --danger: #b3261e;
+  --danger-soft: #fbeceb;
+  --ok-soft: #e6f4ec;
+
+  --shadow-1: 0 1px 2px rgb(22 24 29 / 0.06), 0 1px 1px rgb(22 24 29 / 0.04);
+  --shadow-2: 0 8px 24px -8px rgb(22 24 29 / 0.18), 0 2px 6px rgb(22 24 29 / 0.06);
+  --orb-1: rgb(53 72 200 / 0.14);
+  --orb-2: rgb(214 150 60 / 0.16);
+
+  /* shape + motion */
+  --radius-s: 8px;
+  --radius: 14px;
+  --radius-l: 22px;
+  --dur-fast: 120ms;
+  --dur: 220ms;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* type */
   --font-ui: "Inter Variable", "Noto Sans Devanagari", "Noto Sans Oriya", system-ui, sans-serif;
-  --font-read: "Source Serif 4 Variable", Georgia, serif;
+  --font-serif: "Source Serif 4 Variable", "Noto Serif Devanagari", Georgia, serif;
+  --font-easy: "Atkinson Hyperlegible", "Noto Sans Devanagari", system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
 
-  --read-size: 18px;
+  /* reading preferences (Reading controls inhe badalte hain) */
+  --read-font: var(--font-serif);
+  --read-size: 1.0625rem;
   --read-leading: 1.7;
-  --read-measure: 65ch;
+  --read-measure: 66ch;
+
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  --bg: #121316;
-  --surface: #1b1d22;
-  --text: #e8e8e6;
-  --muted: #a2a29c;
-  --border: #2b2e35;
-  --accent: #8aa4ff;
-  --accent-contrast: #0c1020;
+  --bg: #0f1115;
+  --surface: #171a20;
+  --surface-2: #1f232b;
+  --text: #ecece8;
+  --muted: #a3a6ae;
+  --border: #2a2f39;
+  --border-strong: #3a4150;
+  --accent: #93a6ff;
+  --accent-fg: #0b1030;
+  --accent-soft: #1d2447;
   --ok: #5fd39b;
   --warn: #f0b95c;
   --danger: #ff8a80;
-  --info: #7db7f5;
+  --danger-soft: #3a1f1d;
+  --ok-soft: #14301f;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 10px 28px -8px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
+  --orb-1: rgb(147 166 255 / 0.12);
+  --orb-2: rgb(240 185 92 / 0.08);
   color-scheme: dark;
 }
 
 :root[data-theme="read"] {
   --bg: #f4ecd8;
-  --surface: #ede3cb;
+  --surface: #faf4e4;
+  --surface-2: #ede3cb;
   --text: #3b3226;
-  --muted: #6d5f4b;
+  --muted: #6b5d49;
   --border: #d9cdb0;
+  --border-strong: #c2b48f;
   --accent: #7a4b16;
-  --accent-contrast: #ffffff;
+  --accent-fg: #ffffff;
+  --accent-soft: #ebddbe;
+  --ok: #2f6b3c;
+  --warn: #7a4b00;
+  --danger: #9e2a20;
+  --danger-soft: #f3dcd0;
+  --ok-soft: #e3ead0;
+  --shadow-1: 0 1px 2px rgb(59 50 38 / 0.08);
+  --shadow-2: 0 8px 22px -8px rgb(59 50 38 / 0.22), 0 2px 6px rgb(59 50 38 / 0.08);
+  --orb-1: rgb(122 75 22 / 0.10);
+  --orb-2: rgb(180 120 40 / 0.12);
+  --read-font: var(--font-serif);
   color-scheme: light;
 }
 
+/* System dark, jab user ne explicit theme nahi chuna */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --bg: #121316;
-    --surface: #1b1d22;
-    --text: #e8e8e6;
-    --muted: #a2a29c;
-    --border: #2b2e35;
-    --accent: #8aa4ff;
-    --accent-contrast: #0c1020;
+    --bg: #0f1115;
+    --surface: #171a20;
+    --surface-2: #1f232b;
+    --text: #ecece8;
+    --muted: #a3a6ae;
+    --border: #2a2f39;
+    --border-strong: #3a4150;
+    --accent: #93a6ff;
+    --accent-fg: #0b1030;
+    --accent-soft: #1d2447;
     --ok: #5fd39b;
     --warn: #f0b95c;
     --danger: #ff8a80;
-    --info: #7db7f5;
+    --danger-soft: #3a1f1d;
+    --ok-soft: #14301f;
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-2: 0 10px 28px -8px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
+    --orb-1: rgb(147 166 255 / 0.12);
+    --orb-2: rgb(240 185 92 / 0.08);
     color-scheme: dark;
   }
 }
 
+/* Theme badalte waqt chhota cross-fade (JS temporarily .theme-anim lagata hai) */
+html.theme-anim,
+html.theme-anim *,
+html.theme-anim *::before,
+html.theme-anim *::after {
+  transition:
+    background-color 260ms var(--ease),
+    color 260ms var(--ease),
+    border-color 260ms var(--ease),
+    box-shadow 260ms var(--ease) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  * {
-    animation: none !important;
-    transition: none !important;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
   }
 }
