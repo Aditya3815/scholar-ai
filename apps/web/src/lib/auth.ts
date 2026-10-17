@@ -15,6 +15,12 @@ const set = (next: AuthState) => {
   listeners.forEach((l) => l());
 };
 
+export const getAuthState = (): AuthState => state;
+export function subscribeAuth(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 export async function refreshAuth(): Promise<void> {
   try {
     const [me, prov] = await Promise.all([

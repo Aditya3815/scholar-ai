@@ -12,6 +12,7 @@ import { SourceStatus } from "./components/SourceStatus";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { takeAuthError } from "./lib/auth";
 import { easeOut } from "./lib/motion";
+import { clearNotice, showNotice, useNotice } from "./lib/notice";
 import { useSearch } from "./lib/search";
 
 const loadFeatures = () => import("./lib/motion-features").then((mod) => mod.default);
@@ -39,8 +40,14 @@ export function App() {
   const [openOnly, setOpenOnly] = useState(false);
   const [hideRetracted, setHideRetracted] = useState(false);
   const [sort, setSort] = useState<Sort>("relevance");
-  const [authError, setAuthError] = useState<string | null>(() => takeAuthError());
+  const notice = useNotice();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // ?auth_error=... left by the server redirect becomes a dismissible banner
+  useEffect(() => {
+    const message = takeAuthError();
+    if (message) showNotice(message);
+  }, []);
 
   const submit = useCallback(
     (q: string) => {
@@ -115,10 +122,10 @@ export function App() {
         </header>
 
         <AnimatePresence>
-          {authError && (
+          {notice && (
             <m.div className="notice" role="alert" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.25, ease: easeOut }}>
-              <span>{authError}</span>
-              <button type="button" className="link-btn" onClick={() => setAuthError(null)}>Dismiss</button>
+              <span>{notice}</span>
+              <button type="button" className="link-btn" onClick={clearNotice}>Dismiss</button>
             </m.div>
           )}
         </AnimatePresence>

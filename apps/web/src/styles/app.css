@@ -992,6 +992,85 @@
   margin-top: 0.15rem;
   color: var(--ok);
 }
+/* Settings dialog */
+.modal-wide {
+  width: min(34rem, 100%);
+  max-height: min(90vh, 46rem);
+  overflow-y: auto;
+}
+.settings-sec {
+  margin-top: 1.4rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--border);
+}
+.settings-h {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+  font-size: 1.05rem;
+}
+.settings-p {
+  margin-bottom: 0.8rem;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+.kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0;
+  font-size: 0.9375rem;
+}
+.kv dt {
+  color: var(--muted);
+}
+.kv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.danger-zone {
+  padding: 1.1rem 1rem 1rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+}
+.danger-zone .settings-h {
+  color: var(--text);
+}
+.danger-zone .settings-h svg {
+  color: var(--danger);
+}
+.danger-zone .settings-p {
+  color: var(--text);
+}
+.field {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.9375rem;
+}
+.text-input {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 0.8rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+.field-error {
+  margin: -0.4rem 0 0.7rem;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+.btn-danger {
+  background: var(--danger);
+  color: var(--danger-fg);
+}
+.btn-danger:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
 .notice {
   display: flex;
   justify-content: space-between;

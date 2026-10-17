@@ -4,6 +4,8 @@ import type { HealthResponse } from "@scholar/shared";
 import { MAX_QUERY_LENGTH, runSearch } from "./search";
 import { AllProvidersFailedError, NoRouteError, PolicyError, QuotaError, gatewayFromEnv, type LlmRequest } from "./llm";
 import { authRoutes } from "./auth/routes";
+import { libraryRoutes } from "./library/routes";
+import { accountRoutes } from "./account/routes";
 import type { AuthEnv } from "./auth/providers";
 
 type Bindings = AuthEnv & {
@@ -24,6 +26,8 @@ type Bindings = AuthEnv & {
 const app = new Hono<{ Bindings: Bindings }>();
 
 app.route("/api/v1/auth", authRoutes);
+app.route("/api/v1/library", libraryRoutes);
+app.route("/api/v1/account", accountRoutes);
 
 app.get("/api/v1/health", async (c) => {
   let db: HealthResponse["db"] = "ok";

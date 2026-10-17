@@ -2,6 +2,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
 import { Download, Library, Trash2, X } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "../lib/auth";
 import { formatCitation } from "../lib/cite";
 import { removeSaved, useLibrary } from "../lib/library";
 import { easeOut, spring, springPop } from "../lib/motion";
@@ -19,6 +20,7 @@ function downloadBib(text: string) {
 export function LibraryDrawer() {
   const [open, setOpen] = useState(false);
   const items = useLibrary();
+  const signedIn = !!useAuth().user;
   const bib = items.map((p) => formatCitation(p, "bibtex")).join("\n\n");
 
   return (
@@ -48,7 +50,9 @@ export function LibraryDrawer() {
                   </Dialog.Close>
                 </header>
                 <Dialog.Description id="lib-desc" className="drawer-note">
-                  Saved on this device only. Sync across devices arrives with sign-in.
+                  {signedIn
+                    ? "Synced to your account, so it follows you to any device."
+                    : "Saved on this device only. Sign in to keep it across devices; anything saved here moves into your account."}
                 </Dialog.Description>
 
                 {items.length === 0 ? (

@@ -14,7 +14,8 @@ export function Pop({
   label,
 }: {
   trigger: (open: boolean) => ReactNode;
-  children: ReactNode;
+  /** Plain content, or a function that receives `close` (for menu items that should dismiss the popover). */
+  children: ReactNode | ((close: () => void) => ReactNode);
   align?: "start" | "end" | "center";
   label: string;
 }) {
@@ -33,7 +34,7 @@ export function Pop({
                 exit={{ opacity: 0, scale: 0.97, y: -4, transition: { duration: 0.12 } }}
                 transition={spring}
               >
-                {children}
+                {typeof children === "function" ? children(() => setOpen(false)) : children}
               </m.div>
             </Popover.Content>
           </Popover.Portal>

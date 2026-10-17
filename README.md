@@ -26,7 +26,12 @@ Checks: `npm run typecheck`, `npm run contrast -w apps/web` (WCAG pairs for the 
 `npm run e2e -w apps/web` (Edge headless: screenshots in `apps/web/e2e/shots`, axe accessibility scan, mobile overflow;
 needs the local server from `npm run dev:api` running).
 
-Docs: `docs/design/UI-direction.md`, `docs/spikes/`, `docs/llm-providers.md`, `docs/adr/`.
+Auth, library and account tests run against a **fake identity provider** (no real Google/ORCID account needed):
+start the Worker with `npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var ORCID_CLIENT_ID:dev --var ORCID_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911 --var ORCID_BASE_URL:http://localhost:9911/orcid`
+(after `npm run build` and `npm run db:migrate:local`), then `node apps/api/scripts/auth-e2e.mjs`, `node apps/api/scripts/library-e2e.mjs`,
+`npm run e2e:auth -w apps/web`, `npm run e2e:library -w apps/web`. Real credentials: `docs/auth-setup.md`.
+
+Docs: `docs/design/UI-direction.md`, `docs/spikes/`, `docs/llm-providers.md`, `docs/auth-setup.md`, `docs/adr/`.
 
 Needs Node 20.19+ locally (wrangler is pinned to 4.86.0; CI uses Node 22).
 

@@ -1,10 +1,11 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
-import { Link2, LogIn, LogOut, ShieldCheck, X } from "lucide-react";
+import { Link2, LogIn, LogOut, Settings, ShieldCheck, X } from "lucide-react";
 import { useState } from "react";
 import { linkProvider, signIn, signOut, useAuth } from "../lib/auth";
 import { easeOut, spring } from "../lib/motion";
 import { Pop } from "./Pop";
+import { SettingsDialog } from "./SettingsDialog";
 
 const initialOf = (name: string | null, email: string | null) => (name ?? email ?? "?").trim().charAt(0).toUpperCase() || "?";
 
@@ -58,9 +59,12 @@ function SignInDialog() {
 
 function UserMenu() {
   const { user, providers } = useAuth();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   if (!user) return null;
   const unlinked = providers.filter((p) => !user.providers.includes(p.id));
   return (
+    <>
+    <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     <Pop
       label="Account"
       align="end"
@@ -70,6 +74,7 @@ function UserMenu() {
         </button>
       )}
     >
+      {(close) => (
       <div className="acct">
         <p className="acct-name">{user.name ?? "Signed in"}</p>
         {user.email && <p className="acct-line">{user.email}</p>}
@@ -81,12 +86,25 @@ function UserMenu() {
             <span>Link {p.label}</span>
           </button>
         ))}
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm acct-btn"
+          onClick={() => {
+            close();
+            setSettingsOpen(true);
+          }}
+        >
+          <Settings size={15} aria-hidden="true" />
+          <span>Settings and data</span>
+        </button>
         <button type="button" className="btn btn-ghost btn-sm acct-btn" onClick={() => void signOut()}>
           <LogOut size={15} aria-hidden="true" />
           <span>Sign out</span>
         </button>
       </div>
+      )}
     </Pop>
+    </>
   );
 }
 

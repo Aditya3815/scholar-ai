@@ -1,5 +1,6 @@
 import { Hono, type Context } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { deleteCookie, setCookie } from "hono/cookie";
+import { cookieOpts, isHttps, readSession, sameOrigin } from "./http";
 import { buildAuthorizeUrl, exchangeCode, pkceChallenge, randomToken, safeReturnTo } from "./oauth";
 import { configuredProviders, type AuthEnv, type ProviderId } from "./providers";
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, createSession, destroySession, userFromSession } from "./session";
@@ -9,19 +10,8 @@ type Env = { Bindings: AuthEnv & { DB: D1Database } };
 
 export const authRoutes = new Hono<Env>();
 
-const isHttps = (c: Context<Env>) => new URL(c.req.url).protocol === "https:";
-const cookieOpts = (c: Context<Env>) => ({ prefix: isHttps(c) ? ("host" as const) : undefined });
 const baseUrl = (c: Context<Env>) => (c.env.PUBLIC_BASE_URL ?? new URL(c.req.url).origin).replace(/\/$/, "");
 const redirectUri = (c: Context<Env>, id: ProviderId) => `${baseUrl(c)}/api/v1/auth/${id}/callback`;
-const readSession = (c: Context<Env>) => getCookie(c, SESSION_COOKIE, cookieOpts(c).prefix);
-
-/** State-changing requests must come from our own pages (SameSite=Lax is the first line; this is the second). */
-function sameOrigin(c: Context<Env>): boolean {
-  const origin = c.req.header("origin");
-  if (origin) return origin === new URL(c.req.url).origin;
-  const site = c.req.header("sec-fetch-site");
-  return site === "same-origin" || site === "none";
-}
 
 const fail = (c: Context<Env>, code: string) => c.redirect(`/?auth_error=${code}`, 302);
 
