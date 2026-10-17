@@ -1,0 +1,27 @@
+# Scholar
+
+Research assistant for scholars: verified citations, grounded paper Q&A, reference checks.
+
+## Layout
+
+- `apps/web` Vite + React + TypeScript (3 themes: Light / Dark / Read)
+- `apps/api` Hono on Cloudflare Workers (D1, Queues; serves the web build as static assets)
+- `packages/shared` shared types
+- `docs/` spikes and ADRs
+
+## Develop
+
+```bash
+npm install            # .npmrc has legacy-peer-deps=true (npm 10 peer-resolver bug)
+npm run build          # web build, needed once so the Worker has assets
+npm run db:migrate:local
+npm run dev:api        # http://localhost:8787 (API + built web)
+npm run dev:web        # Vite dev server with /api proxied to :8787
+```
+
+Needs Node 20.19+ locally (wrangler is pinned to 4.86.0; CI uses Node 22).
+
+## Deploy
+
+`npm run deploy` (needs `npx wrangler login`), or push to `main` (GitHub Actions needs the
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets).

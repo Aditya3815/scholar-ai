@@ -1,0 +1,74 @@
+/* Design tokens: Light (default), Dark, Read. Contrast pairs Phase 0 mein checker se verify karne hain. */
+:root {
+  --bg: #ffffff;
+  --surface: #f7f7f5;
+  --text: #1a1a1a;
+  --muted: #5b5b57;
+  --border: #e4e4df;
+  --accent: #2f5bea;
+  --accent-contrast: #ffffff;
+  --ok: #14794a;
+  --warn: #9a5b00;
+  --danger: #b3261e;
+  --info: #1d5fa8;
+
+  --radius: 10px;
+  --font-ui: "Inter Variable", "Noto Sans Devanagari", "Noto Sans Oriya", system-ui, sans-serif;
+  --font-read: "Source Serif 4 Variable", Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  --read-size: 18px;
+  --read-leading: 1.7;
+  --read-measure: 65ch;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #121316;
+  --surface: #1b1d22;
+  --text: #e8e8e6;
+  --muted: #a2a29c;
+  --border: #2b2e35;
+  --accent: #8aa4ff;
+  --accent-contrast: #0c1020;
+  --ok: #5fd39b;
+  --warn: #f0b95c;
+  --danger: #ff8a80;
+  --info: #7db7f5;
+  color-scheme: dark;
+}
+
+:root[data-theme="read"] {
+  --bg: #f4ecd8;
+  --surface: #ede3cb;
+  --text: #3b3226;
+  --muted: #6d5f4b;
+  --border: #d9cdb0;
+  --accent: #7a4b16;
+  --accent-contrast: #ffffff;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #121316;
+    --surface: #1b1d22;
+    --text: #e8e8e6;
+    --muted: #a2a29c;
+    --border: #2b2e35;
+    --accent: #8aa4ff;
+    --accent-contrast: #0c1020;
+    --ok: #5fd39b;
+    --warn: #f0b95c;
+    --danger: #ff8a80;
+    --info: #7db7f5;
+    color-scheme: dark;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
