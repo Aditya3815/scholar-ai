@@ -17,6 +17,9 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # Citation-accuracy gates (replays recorded API responses: offline, deterministic). Fails the build if a fabricated
+      # reference gets verified, a retracted paper is missed, or a DOI we return does not resolve.
+      - run: npm run eval
       - run: npm run build
 
   deploy:

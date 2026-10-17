@@ -40,6 +40,12 @@ export type Paper = {
   sources: string[];
   /** reciprocal-rank-fusion score */
   score: number;
+  /**
+   * Result of the DOI check run on every search result: "verified" (registered with Crossref and the title agrees, or resolves
+   * at doi.org), "unchecked" (could not be checked, kept), or "dropped_*" (the DOI did not exist or belonged to a different
+   * record, so it was removed and `doi` is null).
+   */
+  doiStatus?: "verified" | "unchecked" | "dropped_unresolvable" | "dropped_conflict";
 };
 
 export type ProviderStatus = {
@@ -68,6 +74,8 @@ export type SearchResponse = {
   query: string;
   results: Paper[];
   providers: Record<string, ProviderStatus>;
+  /** `count` = DOIs removed because they do not exist or belong to another record. */
+  doiCheck: ProviderStatus;
   retractionCheck: ProviderStatus;
   tookMs: number;
 };

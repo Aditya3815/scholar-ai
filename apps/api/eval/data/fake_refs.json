@@ -1,0 +1,294 @@
+[
+ {
+  "id": "f01",
+  "kind": "invented",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Patel, T., & Silva, J. (2015). Adaptive Federated Graph Attention for Monsoon-Aware Crop Yield Forecasting in Semi-Arid Regions. Journal of Sustainable Systems and Policy, 10(1), 289-311.",
+  "note": "plausible authors, title, journal, year; nothing real behind it"
+ },
+ {
+  "id": "f02",
+  "kind": "invented",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Nair, P., Singh, J., & Silva, T. (2016). Neuro-symbolic Reinforcement Scheduling of Rural Microgrids under Stochastic Demand. Transactions on Intelligent Rural Systems, 11(2), 766-785.",
+  "note": "plausible authors, title, journal, year; nothing real behind it"
+ },
+ {
+  "id": "f03",
+  "kind": "invented",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Petrov, A., Kulkarni, A., Tanaka, S., & Nair, L. (2017). Quantum-Inspired Optimization of Supply Chain Resilience in Small Manufacturing Clusters. International Journal of Emerging Technologies and Society, 12(3), 286-300.",
+  "note": "plausible authors, title, journal, year; nothing real behind it"
+ },
+ {
+  "id": "f04",
+  "kind": "invented",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Petrov, P., & Iyer, S. (2018). A Bayesian Framework for Estimating Learning Loss Recovery after Prolonged School Closures. Review of Interdisciplinary Applied Sciences, 13(4), 725-735.",
+  "note": "plausible authors, title, journal, year; nothing real behind it"
+ },
+ {
+  "id": "f05",
+  "kind": "invented",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Kim, D., Petrov, D., & Haddad, M. (2019). Self-supervised Representation Learning for Low-Resource Odia Handwritten Manuscript Dating. Journal of Sustainable Systems and Policy, 14(1), 424-442.",
+  "note": "plausible authors, title, journal, year; nothing real behind it"
+ },
+ {
+  "id": "f06",
+  "kind": "invented",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Petrov, N., Nair, N., Petrov, L., & Haddad, L. (2020). Longitudinal Effects of Millet-Based Midday Meals on Anaemia in Adolescent Girls: A Cluster Trial. Journal of Sustainable Systems and Policy, 15(2), 223-240.",
+  "note": "plausible authors, title, journal, year; nothing real behind it"
+ },
+ {
+  "id": "f07",
+  "kind": "invented",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Haddad, N., & Kulkarni, A. (2021). Blockchain-Anchored Provenance of Peer Review Reports in Regional Journals. Review of Interdisciplinary Applied Sciences, 16(3), 958-967.",
+  "note": "plausible authors, title, journal, year; nothing real behind it"
+ },
+ {
+  "id": "f08",
+  "kind": "invented",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Kim, P., Chatterjee, M., & Lindqvist, M. (2022). Thermodynamic Limits of Biochar-Amended Groundwater Recharge Basins. Transactions on Intelligent Rural Systems, 17(4), 330-343.",
+  "note": "plausible authors, title, journal, year; nothing real behind it"
+ },
+ {
+  "id": "f09",
+  "kind": "invented",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Petrov, R., Mukherjee, R., Patel, J., & Haddad, J. (2023). Hybrid Transformer Ensembles for Early Detection of Predatory Journal Solicitation Emails. Journal of Applied Computational Research, 18(1), 934-956.",
+  "note": "plausible authors, title, journal, year; nothing real behind it"
+ },
+ {
+  "id": "f10",
+  "kind": "invented",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Kulkarni, N., & Haddad, P. (2015). Socioeconomic Determinants of Telemedicine Uptake among Informal Workers in Peri-Urban Clusters. Journal of Applied Computational Research, 19(2), 326-341.",
+  "note": "plausible authors, title, journal, year; nothing real behind it"
+ },
+ {
+  "id": "f11",
+  "kind": "chimera_title",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Kulkarni, M., Novak, D., & Haddad, L. (2018). Deep Convolutional Neural Networks for Computer-Aided Detection: CNN Architectures, Dataset Characteristics and Transfer Learning. Journal of Applied Computational Research, 12(1), 170-184.",
+  "note": "real title of 10.1109/tmi.2016.2528162, invented authors"
+ },
+ {
+  "id": "f12",
+  "kind": "chimera_title",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Singh, D., Iyer, L., & Okafor, D. (2013). RNA-Guided Human Genome Engineering via Cas9. Review of Interdisciplinary Applied Sciences, 13(2), 129-143.",
+  "note": "real title of 10.1126/science.1232033, invented authors"
+ },
+ {
+  "id": "f13",
+  "kind": "chimera_title",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Haddad, S., Lindqvist, T., & Kim, V. (2019). Pan-cancer Immunogenomic Analyses Reveal Genotype-Immunophenotype Relationships and Predictors of Response to Checkpoint Blockade. Journal of Applied Computational Research, 14(3), 733-750.",
+  "note": "real title of 10.1016/j.celrep.2016.12.019, invented authors"
+ },
+ {
+  "id": "f14",
+  "kind": "chimera_title",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Singh, V., Haddad, A., & Petrov, A. (2013). Sequential deposition as a route to high-performance perovskite-sensitized solar cells. Transactions on Intelligent Rural Systems, 15(4), 588-606.",
+  "note": "real title of 10.1038/nature12340, invented authors"
+ },
+ {
+  "id": "f15",
+  "kind": "chimera_title",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Okafor, N., Haddad, L., & Novak, L. (2019). Artificial intelligence in healthcare: past, present and future. Review of Interdisciplinary Applied Sciences, 16(1), 786-798.",
+  "note": "real title of 10.1136/svn-2017-000101, invented authors"
+ },
+ {
+  "id": "f16",
+  "kind": "chimera_title",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Lindqvist, S., Haddad, D., & Chatterjee, L. (2019). Dapagliflozin and Cardiovascular Outcomes in Type 2 Diabetes. International Journal of Emerging Technologies and Society, 17(2), 668-677.",
+  "note": "real title of 10.1056/nejmoa1812389, invented authors"
+ },
+ {
+  "id": "f17",
+  "kind": "chimera_title",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Lindqvist, P., Silva, S., & Okafor, M. (2023). Global Tuberculosis Report 2020 - Reflections on the Global TB burden, treatment and prevention efforts. Journal of Sustainable Systems and Policy, 18(3), 168-180.",
+  "note": "real title of 10.1016/j.ijid.2021.02.107, invented authors"
+ },
+ {
+  "id": "f18",
+  "kind": "chimera_title",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Patel, R., Sharma, S., & Tanaka, L. (2018). Industrial Internet of Things: Challenges, Opportunities, and Directions. International Journal of Emerging Technologies and Society, 19(4), 819-829.",
+  "note": "real title of 10.1109/tii.2018.2852491, invented authors"
+ },
+ {
+  "id": "f19",
+  "kind": "real_author_invented_title",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Rasmy, L., Petrov, N. (2021). Large-Scale Assessment of Federated Fine-Tuning for Clinical Triage Dialogue Agents. npj Digital Medicine.",
+  "note": "real first author of 10.1038/s41746-021-00455-y"
+ },
+ {
+  "id": "f20",
+  "kind": "real_author_invented_title",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Chhowalla, M., Kulkarni, A. (2013). Regional Disparities in Open-Access Publishing Costs among Doctoral Researchers. Nature Chemistry.",
+  "note": "real first author of 10.1038/nchem.1589"
+ },
+ {
+  "id": "f21",
+  "kind": "real_author_invented_title",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Fitzpatrick, K. K., Lindqvist, V. (2017). Spatiotemporal Attention Networks for Urban Heat Island Mitigation Planning. JMIR Mental Health.",
+  "note": "real first author of 10.2196/mental.7785"
+ },
+ {
+  "id": "f22",
+  "kind": "real_author_invented_title",
+  "expect": [
+   "not_found",
+   "mismatch"
+  ],
+  "text": "Saberi, S., Silva, J. (2018). Citation Network Signatures of Coordinated Self-Citation Rings in Engineering Journals. International Journal of Production Research.",
+  "note": "real first author of 10.1080/00207543.2018.1533261"
+ },
+ {
+  "id": "f23",
+  "kind": "invented_doi",
+  "expect": [
+   "not_found"
+  ],
+  "text": "Mukherjee, V., Patel, V., & Rao, J. (2019). Machine Learning Surrogates for Wastewater Treatment Plant Energy Auditing. Journal of Applied Computational Research, 8, 731-744. https://doi.org/10.1038/s41598.2022.46077915",
+  "note": "DOI 10.1038/s41598.2022.46077915 does not resolve"
+ },
+ {
+  "id": "f24",
+  "kind": "invented_doi",
+  "expect": [
+   "not_found"
+  ],
+  "text": "Rao, J., Mukherjee, V., & Rao, S. (2020). Participatory Mapping of Seed Banks and Smallholder Climate Adaptation in the Deccan Plateau. Asian Journal of Data Science, 9, 908-923. https://doi.org/10.1007/s11042.2022.45835997",
+  "note": "DOI 10.1007/s11042.2022.45835997 does not resolve"
+ },
+ {
+  "id": "f25",
+  "kind": "invented_doi",
+  "expect": [
+   "not_found"
+  ],
+  "text": "Patel, L., Sharma, N., & Kim, P. (2021). Interpretable Survival Models for Rural Cardiac Event Risk Stratification. Journal of Applied Computational Research, 10, 784-805. https://doi.org/10.1371/journal.pone.2022.48843361",
+  "note": "DOI 10.1371/journal.pone.2022.48843361 does not resolve"
+ },
+ {
+  "id": "f26",
+  "kind": "invented_doi",
+  "expect": [
+   "not_found"
+  ],
+  "text": "Silva, A., Novak, D., & Patel, J. (2022). Low-Cost Spectroscopic Screening of Adulterated Edible Oils Using Smartphone Cameras. International Journal of Emerging Technologies and Society, 11, 921-937. https://doi.org/10.1371/journal.pone.2022.44984278",
+  "note": "DOI 10.1371/journal.pone.2022.44984278 does not resolve"
+ },
+ {
+  "id": "f27",
+  "kind": "wrong_doi",
+  "expect": [
+   "mismatch"
+  ],
+  "text": "Tummala, S., Kadry, S., Bukhari, S. A. C., & Rauf, H. T. (2022). Classification of Brain Tumor from Magnetic Resonance Imaging Using Vision Transformers Ensembling. Current Oncology. https://doi.org/10.1175/2008jcli2625.1",
+  "note": "text of 10.3390/curroncol29100590 with the DOI of 10.1175/2008jcli2625.1"
+ },
+ {
+  "id": "f28",
+  "kind": "wrong_doi",
+  "expect": [
+   "mismatch"
+  ],
+  "text": "Seneviratne, S. I., Corti, T., Davin, E. L., Hirschi, M., Jaeger, E. B., & Lehner, I. (2010). Investigating soil moisture-climate interactions in a changing climate: A review. Earth-Science Reviews. https://doi.org/10.1038/nature08821",
+  "note": "text of 10.1016/j.earscirev.2010.02.004 with the DOI of 10.1038/nature08821"
+ },
+ {
+  "id": "f29",
+  "kind": "wrong_doi",
+  "expect": [
+   "mismatch"
+  ],
+  "text": "Neal, B., Perkovic, V., Mahaffey, K. W., de Zeeuw, D., Fulcher, G., & Erondu, N. (2017). Canagliflozin and Cardiovascular and Renal Events in Type 2 Diabetes. New England Journal of Medicine. https://doi.org/10.1016/j.jretconser.2014.01.001",
+  "note": "text of 10.1056/nejmoa1611925 with the DOI of 10.1016/j.jretconser.2014.01.001"
+ },
+ {
+  "id": "f30",
+  "kind": "wrong_doi",
+  "expect": [
+   "mismatch"
+  ],
+  "text": "Pal, A., Herath, T., De', R., & Raghav Rao, H. (2021). Why do people use mobile payment technologies and why would they continue? An examination and implications from India. Research Policy. https://doi.org/10.1056/nejmoa2119451",
+  "note": "text of 10.1016/j.respol.2021.104228 with the DOI of 10.1056/nejmoa2119451"
+ }
+]

@@ -1,6 +1,6 @@
 import { animate, m, useReducedMotion } from "motion/react";
 import { PROVIDER_LABELS, type Paper } from "@scholar/shared";
-import { BadgeCheck, Bookmark, BookmarkCheck, ExternalLink, FileText, LockOpen, ShieldAlert } from "lucide-react";
+import { BadgeCheck, Bookmark, BookmarkCheck, ExternalLink, FileText, LockOpen, ShieldAlert, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { easeOut, springPop, stagger } from "../lib/motion";
 import { toggleSaved, useLibrary } from "../lib/library";
@@ -108,6 +108,14 @@ export function ResultCard({ paper, index }: { paper: Paper; index: number }) {
         {paper.oaUrl && (
           <span className="badge badge-info">
             <LockOpen size={14} aria-hidden="true" /> Open access
+          </span>
+        )}
+        {paper.doiStatus?.startsWith("dropped") && (
+          <span
+            className="badge badge-warn"
+            title={paper.doiStatus === "dropped_unresolvable" ? "A source listed a DOI for this paper, but that DOI does not exist, so it was removed." : "A source listed a DOI that belongs to a different record, so it was removed."}
+          >
+            <TriangleAlert size={14} aria-hidden="true" /> DOI removed: could not be verified
           </span>
         )}
       </div>

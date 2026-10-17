@@ -4,7 +4,7 @@ import type { Provider, ProviderPaper, SearchEnv } from "./types";
 const SELECT = "DOI,title,author,issued,container-title,is-referenced-by-count,abstract";
 
 /** Crossref polite pool: mailto param + User-Agent mein contact. */
-export function crossrefHeaders(env: SearchEnv): HeadersInit {
+export function crossrefHeaders(env: { CROSSREF_MAILTO: string }): HeadersInit {
   return { "User-Agent": `ScholarSpike/0.1 (mailto:${env.CROSSREF_MAILTO})` };
 }
 

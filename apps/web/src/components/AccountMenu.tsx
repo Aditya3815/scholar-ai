@@ -4,8 +4,13 @@ import { Link2, LogIn, LogOut, Settings, ShieldCheck, X } from "lucide-react";
 import { useState } from "react";
 import { linkProvider, signIn, signOut, useAuth } from "../lib/auth";
 import { easeOut, spring } from "../lib/motion";
+import googleLogo from "../assets/providers/google.png";
+import orcidLogo from "../assets/providers/orcid.png";
 import { Pop } from "./Pop";
 import { SettingsDialog } from "./SettingsDialog";
+
+/** Official marks, decorative here (the button text names the provider). */
+const LOGOS: Record<string, string> = { google: googleLogo, orcid: orcidLogo };
 
 const initialOf = (name: string | null, email: string | null) => (name ?? email ?? "?").trim().charAt(0).toUpperCase() || "?";
 
@@ -39,7 +44,8 @@ function SignInDialog() {
                   <div className="modal-actions">
                     {providers.map((p) => (
                       <button key={p.id} type="button" className="btn btn-ghost provider-btn" onClick={() => signIn(p.id)}>
-                        Continue with {p.label}
+                        <img className="provider-logo" src={LOGOS[p.id]} alt="" width={22} height={22} />
+                        <span>Continue with {p.label}</span>
                       </button>
                     ))}
                   </div>

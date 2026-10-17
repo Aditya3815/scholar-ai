@@ -1,0 +1,2746 @@
+[
+ {
+  "doi": "10.1609/aaai.v31i1.11231",
+  "title": "Inception-v4, Inception-ResNet and the Impact of Residual Connections on Learning",
+  "year": 2017,
+  "authors": [
+   {
+    "given": "Christian",
+    "family": "Szegedy"
+   },
+   {
+    "given": "Sergey",
+    "family": "Ioffe"
+   },
+   {
+    "given": "Vincent",
+    "family": "Vanhoucke"
+   },
+   {
+    "given": "Alexander",
+    "family": "Alemi"
+   }
+  ],
+  "venue": "Proceedings of the AAAI Conference on Artificial Intelligence",
+  "topic": "deep learning image recognition",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1109/tnnls.2020.2978386",
+  "title": "A Comprehensive Survey on Graph Neural Networks",
+  "year": 2021,
+  "authors": [
+   {
+    "given": "Zonghan",
+    "family": "Wu"
+   },
+   {
+    "given": "Shirui",
+    "family": "Pan"
+   },
+   {
+    "given": "Fengwen",
+    "family": "Chen"
+   },
+   {
+    "given": "Guodong",
+    "family": "Long"
+   },
+   {
+    "given": "Chengqi",
+    "family": "Zhang"
+   },
+   {
+    "given": "Philip S.",
+    "family": "Yu"
+   }
+  ],
+  "venue": "IEEE Transactions on Neural Networks and Learning Systems",
+  "topic": "deep learning image recognition",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1007/s11263-019-01228-7",
+  "title": "Grad-CAM: Visual Explanations from Deep Networks via Gradient-Based Localization",
+  "year": 2019,
+  "authors": [
+   {
+    "given": "Ramprasaath R.",
+    "family": "Selvaraju"
+   },
+   {
+    "given": "Michael",
+    "family": "Cogswell"
+   },
+   {
+    "given": "Abhishek",
+    "family": "Das"
+   },
+   {
+    "given": "Ramakrishna",
+    "family": "Vedantam"
+   },
+   {
+    "given": "Devi",
+    "family": "Parikh"
+   },
+   {
+    "given": "Dhruv",
+    "family": "Batra"
+   }
+  ],
+  "venue": "International Journal of Computer Vision",
+  "topic": "deep learning image recognition",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1109/tmi.2016.2528162",
+  "title": "Deep Convolutional Neural Networks for Computer-Aided Detection: CNN Architectures, Dataset Characteristics and Transfer Learning",
+  "year": 2016,
+  "authors": [
+   {
+    "given": "Hoo-Chang",
+    "family": "Shin"
+   },
+   {
+    "given": "Holger R.",
+    "family": "Roth"
+   },
+   {
+    "given": "Mingchen",
+    "family": "Gao"
+   },
+   {
+    "given": "Le",
+    "family": "Lu"
+   },
+   {
+    "given": "Ziyue",
+    "family": "Xu"
+   },
+   {
+    "given": "Isabella",
+    "family": "Nogues"
+   }
+  ],
+  "venue": "IEEE Transactions on Medical Imaging",
+  "topic": "deep learning image recognition",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1093/bioinformatics/btz682",
+  "title": "BioBERT: a pre-trained biomedical language representation model for biomedical text mining",
+  "year": 2019,
+  "authors": [
+   {
+    "given": "Jinhyuk",
+    "family": "Lee"
+   },
+   {
+    "given": "Wonjin",
+    "family": "Yoon"
+   },
+   {
+    "given": "Sungdong",
+    "family": "Kim"
+   },
+   {
+    "given": "Donghyeon",
+    "family": "Kim"
+   },
+   {
+    "given": "Sunkyu",
+    "family": "Kim"
+   },
+   {
+    "given": "Chan Ho",
+    "family": "So"
+   }
+  ],
+  "venue": "Bioinformatics",
+  "topic": "natural language processing pretrained transformers",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1038/s41746-021-00455-y",
+  "title": "Med-BERT: pretrained contextualized embeddings on large-scale structured electronic health records for disease prediction",
+  "year": 2021,
+  "authors": [
+   {
+    "given": "Laila",
+    "family": "Rasmy"
+   },
+   {
+    "given": "Yang",
+    "family": "Xiang"
+   },
+   {
+    "given": "Ziqian",
+    "family": "Xie"
+   },
+   {
+    "given": "Cui",
+    "family": "Tao"
+   },
+   {
+    "given": "Degui",
+    "family": "Zhi"
+   }
+  ],
+  "venue": "npj Digital Medicine",
+  "topic": "natural language processing pretrained transformers",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1016/j.jbi.2021.103982",
+  "title": "AMMU: A survey of transformer-based biomedical pretrained language models",
+  "year": 2022,
+  "authors": [
+   {
+    "given": "Katikapalli Subramanyam",
+    "family": "Kalyan"
+   },
+   {
+    "given": "Ajit",
+    "family": "Rajasekharan"
+   },
+   {
+    "given": "Sivanesan",
+    "family": "Sangeetha"
+   }
+  ],
+  "venue": "Journal of Biomedical Informatics",
+  "topic": "natural language processing pretrained transformers",
+  "field": "cs"
+ },
+ {
+  "doi": "10.3390/curroncol29100590",
+  "title": "Classification of Brain Tumor from Magnetic Resonance Imaging Using Vision Transformers Ensembling",
+  "year": 2022,
+  "authors": [
+   {
+    "given": "Sudhakar",
+    "family": "Tummala"
+   },
+   {
+    "given": "Seifedine",
+    "family": "Kadry"
+   },
+   {
+    "given": "Syed Ahmad Chan",
+    "family": "Bukhari"
+   },
+   {
+    "given": "Hafiz Tayyab",
+    "family": "Rauf"
+   }
+  ],
+  "venue": "Current Oncology",
+  "topic": "natural language processing pretrained transformers",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1126/science.1225829",
+  "title": "A Programmable Dual-RNA-Guided DNA Endonuclease in Adaptive Bacterial Immunity",
+  "year": 2012,
+  "authors": [
+   {
+    "given": "Martin",
+    "family": "Jinek"
+   },
+   {
+    "given": "Krzysztof",
+    "family": "Chylinski"
+   },
+   {
+    "given": "Ines",
+    "family": "Fonfara"
+   },
+   {
+    "given": "Michael",
+    "family": "Hauer"
+   },
+   {
+    "given": "Jennifer A.",
+    "family": "Doudna"
+   },
+   {
+    "given": "Emmanuelle",
+    "family": "Charpentier"
+   }
+  ],
+  "venue": "Science",
+  "topic": "CRISPR genome editing",
+  "field": "biology"
+ },
+ {
+  "doi": "10.1126/science.1231143",
+  "title": "Multiplex Genome Engineering Using CRISPR/Cas Systems",
+  "year": 2013,
+  "authors": [
+   {
+    "given": "Le",
+    "family": "Cong"
+   },
+   {
+    "given": "F. Ann",
+    "family": "Ran"
+   },
+   {
+    "given": "David",
+    "family": "Cox"
+   },
+   {
+    "given": "Shuailiang",
+    "family": "Lin"
+   },
+   {
+    "given": "Robert",
+    "family": "Barretto"
+   },
+   {
+    "given": "Naomi",
+    "family": "Habib"
+   }
+  ],
+  "venue": "Science",
+  "topic": "CRISPR genome editing",
+  "field": "biology"
+ },
+ {
+  "doi": "10.1038/nprot.2013.143",
+  "title": "Genome engineering using the CRISPR-Cas9 system",
+  "year": 2013,
+  "authors": [
+   {
+    "given": "F Ann",
+    "family": "Ran"
+   },
+   {
+    "given": "Patrick D",
+    "family": "Hsu"
+   },
+   {
+    "given": "Jason",
+    "family": "Wright"
+   },
+   {
+    "given": "Vineeta",
+    "family": "Agarwala"
+   },
+   {
+    "given": "David A",
+    "family": "Scott"
+   },
+   {
+    "given": "Feng",
+    "family": "Zhang"
+   }
+  ],
+  "venue": "Nature Protocols",
+  "topic": "CRISPR genome editing",
+  "field": "biology"
+ },
+ {
+  "doi": "10.1126/science.1232033",
+  "title": "RNA-Guided Human Genome Engineering via Cas9",
+  "year": 2013,
+  "authors": [
+   {
+    "given": "Prashant",
+    "family": "Mali"
+   },
+   {
+    "given": "Luhan",
+    "family": "Yang"
+   },
+   {
+    "given": "Kevin M.",
+    "family": "Esvelt"
+   },
+   {
+    "given": "John",
+    "family": "Aach"
+   },
+   {
+    "given": "Marc",
+    "family": "Guell"
+   },
+   {
+    "given": "James E.",
+    "family": "DiCarlo"
+   }
+  ],
+  "venue": "Science",
+  "topic": "CRISPR genome editing",
+  "field": "biology"
+ },
+ {
+  "doi": "10.1136/bjophthalmol-2011-300539",
+  "title": "Global estimates of visual impairment: 2010",
+  "year": 2011,
+  "authors": [
+   {
+    "given": "Donatella",
+    "family": "Pascolini"
+   },
+   {
+    "given": "Silvio Paolo",
+    "family": "Mariotti"
+   }
+  ],
+  "venue": "British Journal of Ophthalmology",
+  "topic": "COVID-19 vaccine effectiveness",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1056/nejmoa2108891",
+  "title": "Effectiveness of Covid-19 Vaccines against the B.1.617.2 (Delta) Variant",
+  "year": 2021,
+  "authors": [
+   {
+    "given": "Jamie",
+    "family": "Lopez Bernal"
+   },
+   {
+    "given": "Nick",
+    "family": "Andrews"
+   },
+   {
+    "given": "Charlotte",
+    "family": "Gower"
+   },
+   {
+    "given": "Eileen",
+    "family": "Gallagher"
+   },
+   {
+    "given": "Ruth",
+    "family": "Simmons"
+   },
+   {
+    "given": "Simon",
+    "family": "Thelwall"
+   }
+  ],
+  "venue": "New England Journal of Medicine",
+  "topic": "COVID-19 vaccine effectiveness",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1056/nejmoa2101765",
+  "title": "BNT162b2 mRNA Covid-19 Vaccine in a Nationwide Mass Vaccination Setting",
+  "year": 2021,
+  "authors": [
+   {
+    "given": "Noa",
+    "family": "Dagan"
+   },
+   {
+    "given": "Noam",
+    "family": "Barda"
+   },
+   {
+    "given": "Eldad",
+    "family": "Kepten"
+   },
+   {
+    "given": "Oren",
+    "family": "Miron"
+   },
+   {
+    "given": "Shay",
+    "family": "Perchik"
+   },
+   {
+    "given": "Mark A.",
+    "family": "Katz"
+   }
+  ],
+  "venue": "New England Journal of Medicine",
+  "topic": "COVID-19 vaccine effectiveness",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1056/nejmoa2119451",
+  "title": "Covid-19 Vaccine Effectiveness against the Omicron (B.1.1.529) Variant",
+  "year": 2022,
+  "authors": [
+   {
+    "given": "Nick",
+    "family": "Andrews"
+   },
+   {
+    "given": "Julia",
+    "family": "Stowe"
+   },
+   {
+    "given": "Freja",
+    "family": "Kirsebom"
+   },
+   {
+    "given": "Samuel",
+    "family": "Toffa"
+   },
+   {
+    "given": "Tim",
+    "family": "Rickeard"
+   },
+   {
+    "given": "Eileen",
+    "family": "Gallagher"
+   }
+  ],
+  "venue": "New England Journal of Medicine",
+  "topic": "COVID-19 vaccine effectiveness",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1126/science.aar4060",
+  "title": "Cancer immunotherapy using checkpoint blockade",
+  "year": 2018,
+  "authors": [
+   {
+    "given": "Antoni",
+    "family": "Ribas"
+   },
+   {
+    "given": "Jedd D.",
+    "family": "Wolchok"
+   }
+  ],
+  "venue": "Science",
+  "topic": "cancer immunotherapy checkpoint",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1038/nature25501",
+  "title": "TGFβ attenuates tumour response to PD-L1 blockade by contributing to exclusion of T cells",
+  "year": 2018,
+  "authors": [
+   {
+    "given": "Sanjeev",
+    "family": "Mariathasan"
+   },
+   {
+    "given": "Shannon J.",
+    "family": "Turley"
+   },
+   {
+    "given": "Dorothee",
+    "family": "Nickles"
+   },
+   {
+    "given": "Alessandra",
+    "family": "Castiglioni"
+   },
+   {
+    "given": "Kobe",
+    "family": "Yuen"
+   },
+   {
+    "given": "Yulei",
+    "family": "Wang"
+   }
+  ],
+  "venue": "Nature",
+  "topic": "cancer immunotherapy checkpoint",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1038/s41591-018-0136-1",
+  "title": "Signatures of T cell dysfunction and exclusion predict cancer immunotherapy response",
+  "year": 2018,
+  "authors": [
+   {
+    "given": "Peng",
+    "family": "Jiang"
+   },
+   {
+    "given": "Shengqing",
+    "family": "Gu"
+   },
+   {
+    "given": "Deng",
+    "family": "Pan"
+   },
+   {
+    "given": "Jingxin",
+    "family": "Fu"
+   },
+   {
+    "given": "Avinash",
+    "family": "Sahu"
+   },
+   {
+    "given": "Xihao",
+    "family": "Hu"
+   }
+  ],
+  "venue": "Nature Medicine",
+  "topic": "cancer immunotherapy checkpoint",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1016/j.celrep.2016.12.019",
+  "title": "Pan-cancer Immunogenomic Analyses Reveal Genotype-Immunophenotype Relationships and Predictors of Response to Checkpoint Blockade",
+  "year": 2017,
+  "authors": [
+   {
+    "given": "Pornpimol",
+    "family": "Charoentong"
+   },
+   {
+    "given": "Francesca",
+    "family": "Finotello"
+   },
+   {
+    "given": "Mihaela",
+    "family": "Angelova"
+   },
+   {
+    "given": "Clemens",
+    "family": "Mayer"
+   },
+   {
+    "given": "Mirjana",
+    "family": "Efremova"
+   },
+   {
+    "given": "Dietmar",
+    "family": "Rieder"
+   }
+  ],
+  "venue": "Cell Reports",
+  "topic": "cancer immunotherapy checkpoint",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1038/nature10452",
+  "title": "Solutions for a cultivated planet",
+  "year": 2011,
+  "authors": [
+   {
+    "given": "Jonathan A.",
+    "family": "Foley"
+   },
+   {
+    "given": "Navin",
+    "family": "Ramankutty"
+   },
+   {
+    "given": "Kate A.",
+    "family": "Brauman"
+   },
+   {
+    "given": "Emily S.",
+    "family": "Cassidy"
+   },
+   {
+    "given": "James S.",
+    "family": "Gerber"
+   },
+   {
+    "given": "Matt",
+    "family": "Johnston"
+   }
+  ],
+  "venue": "Nature",
+  "topic": "climate change impacts on agriculture",
+  "field": "environment"
+ },
+ {
+  "doi": "10.1016/j.earscirev.2010.02.004",
+  "title": "Investigating soil moisture-climate interactions in a changing climate: A review",
+  "year": 2010,
+  "authors": [
+   {
+    "given": "Sonia I.",
+    "family": "Seneviratne"
+   },
+   {
+    "given": "Thierry",
+    "family": "Corti"
+   },
+   {
+    "given": "Edouard L.",
+    "family": "Davin"
+   },
+   {
+    "given": "Martin",
+    "family": "Hirschi"
+   },
+   {
+    "given": "Eric B.",
+    "family": "Jaeger"
+   },
+   {
+    "given": "Irene",
+    "family": "Lehner"
+   }
+  ],
+  "venue": "Earth-Science Reviews",
+  "topic": "climate change impacts on agriculture",
+  "field": "environment"
+ },
+ {
+  "doi": "10.2134/jeq2008.0015br",
+  "title": "Climate Change 2007: Impacts, Adaptation and Vulnerability. Contribution of Working Group II to the Fourth Assessment Report of the Intergovernmental Panel on Climate Change",
+  "year": 2008,
+  "authors": [
+   {
+    "given": "Anson",
+    "family": "Mackay"
+   }
+  ],
+  "venue": "Journal of Environmental Quality",
+  "topic": "climate change impacts on agriculture",
+  "field": "environment"
+ },
+ {
+  "doi": "10.1038/nature09364",
+  "title": "The impacts of climate change on water resources and agriculture in China",
+  "year": 2010,
+  "authors": [
+   {
+    "given": "Shilong",
+    "family": "Piao"
+   },
+   {
+    "given": "Philippe",
+    "family": "Ciais"
+   },
+   {
+    "given": "Yao",
+    "family": "Huang"
+   },
+   {
+    "given": "Zehao",
+    "family": "Shen"
+   },
+   {
+    "given": "Shushi",
+    "family": "Peng"
+   },
+   {
+    "given": "Junsheng",
+    "family": "Li"
+   }
+  ],
+  "venue": "Nature",
+  "topic": "climate change impacts on agriculture",
+  "field": "environment"
+ },
+ {
+  "doi": "10.1021/ja809598r",
+  "title": "Organometal Halide Perovskites as Visible-Light Sensitizers for Photovoltaic Cells",
+  "year": 2009,
+  "authors": [
+   {
+    "given": "Akihiro",
+    "family": "Kojima"
+   },
+   {
+    "given": "Kenjiro",
+    "family": "Teshima"
+   },
+   {
+    "given": "Yasuo",
+    "family": "Shirai"
+   },
+   {
+    "given": "Tsutomu",
+    "family": "Miyasaka"
+   }
+  ],
+  "venue": "Journal of the American Chemical Society",
+  "topic": "perovskite solar cells",
+  "field": "materials"
+ },
+ {
+  "doi": "10.1126/science.1228604",
+  "title": "Efficient Hybrid Solar Cells Based on Meso-Superstructured Organometal Halide Perovskites",
+  "year": 2012,
+  "authors": [
+   {
+    "given": "Michael M.",
+    "family": "Lee"
+   },
+   {
+    "given": "Joël",
+    "family": "Teuscher"
+   },
+   {
+    "given": "Tsutomu",
+    "family": "Miyasaka"
+   },
+   {
+    "given": "Takurou N.",
+    "family": "Murakami"
+   },
+   {
+    "given": "Henry J.",
+    "family": "Snaith"
+   }
+  ],
+  "venue": "Science",
+  "topic": "perovskite solar cells",
+  "field": "materials"
+ },
+ {
+  "doi": "10.1126/science.1243982",
+  "title": "Electron-Hole Diffusion Lengths Exceeding 1 Micrometer in an Organometal Trihalide Perovskite Absorber",
+  "year": 2013,
+  "authors": [
+   {
+    "given": "Samuel D.",
+    "family": "Stranks"
+   },
+   {
+    "given": "Giles E.",
+    "family": "Eperon"
+   },
+   {
+    "given": "Giulia",
+    "family": "Grancini"
+   },
+   {
+    "given": "Christopher",
+    "family": "Menelaou"
+   },
+   {
+    "given": "Marcelo J. P.",
+    "family": "Alcocer"
+   },
+   {
+    "given": "Tomas",
+    "family": "Leijtens"
+   }
+  ],
+  "venue": "Science",
+  "topic": "perovskite solar cells",
+  "field": "materials"
+ },
+ {
+  "doi": "10.1038/nature12340",
+  "title": "Sequential deposition as a route to high-performance perovskite-sensitized solar cells",
+  "year": 2013,
+  "authors": [
+   {
+    "given": "Julian",
+    "family": "Burschka"
+   },
+   {
+    "given": "Norman",
+    "family": "Pellet"
+   },
+   {
+    "given": "Soo-Jin",
+    "family": "Moon"
+   },
+   {
+    "given": "Robin",
+    "family": "Humphry-Baker"
+   },
+   {
+    "given": "Peng",
+    "family": "Gao"
+   },
+   {
+    "given": "Mohammad K.",
+    "family": "Nazeeruddin"
+   }
+  ],
+  "venue": "Nature",
+  "topic": "perovskite solar cells",
+  "field": "materials"
+ },
+ {
+  "doi": "10.1038/nmat2297",
+  "title": "Materials for electrochemical capacitors",
+  "year": 2008,
+  "authors": [
+   {
+    "given": "Patrice",
+    "family": "Simon"
+   },
+   {
+    "given": "Yury",
+    "family": "Gogotsi"
+   }
+  ],
+  "venue": "Nature Materials",
+  "topic": "lithium-ion battery materials",
+  "field": "materials"
+ },
+ {
+  "doi": "10.1038/nchem.1589",
+  "title": "The chemistry of two-dimensional layered transition metal dichalcogenide nanosheets",
+  "year": 2013,
+  "authors": [
+   {
+    "given": "Manish",
+    "family": "Chhowalla"
+   },
+   {
+    "given": "Hyeon Suk",
+    "family": "Shin"
+   },
+   {
+    "given": "Goki",
+    "family": "Eda"
+   },
+   {
+    "given": "Lain-Jong",
+    "family": "Li"
+   },
+   {
+    "given": "Kian Ping",
+    "family": "Loh"
+   },
+   {
+    "given": "Hua",
+    "family": "Zhang"
+   }
+  ],
+  "venue": "Nature Chemistry",
+  "topic": "lithium-ion battery materials",
+  "field": "materials"
+ },
+ {
+  "doi": "10.1038/nchem.2085",
+  "title": "Towards greener and more sustainable batteries for electrical energy storage",
+  "year": 2014,
+  "authors": [
+   {
+    "given": "D.",
+    "family": "Larcher"
+   },
+   {
+    "given": "J-M.",
+    "family": "Tarascon"
+   }
+  ],
+  "venue": "Nature Chemistry",
+  "topic": "lithium-ion battery materials",
+  "field": "materials"
+ },
+ {
+  "doi": "10.1016/j.mattod.2014.10.040",
+  "title": "Li-ion battery materials: present and future",
+  "year": 2015,
+  "authors": [
+   {
+    "given": "Naoki",
+    "family": "Nitta"
+   },
+   {
+    "given": "Feixiang",
+    "family": "Wu"
+   },
+   {
+    "given": "Jung Tae",
+    "family": "Lee"
+   },
+   {
+    "given": "Gleb",
+    "family": "Yushin"
+   }
+  ],
+  "venue": "Materials Today",
+  "topic": "lithium-ion battery materials",
+  "field": "materials"
+ },
+ {
+  "doi": "10.1038/s42256-019-0048-x",
+  "title": "Stop explaining black box machine learning models for high stakes decisions and use interpretable models instead",
+  "year": 2019,
+  "authors": [
+   {
+    "given": "Cynthia",
+    "family": "Rudin"
+   }
+  ],
+  "venue": "Nature Machine Intelligence",
+  "topic": "machine learning in healthcare",
+  "field": "cs-health"
+ },
+ {
+  "doi": "10.1038/s42256-019-0138-9",
+  "title": "From local explanations to global understanding with explainable AI for trees",
+  "year": 2020,
+  "authors": [
+   {
+    "given": "Scott M.",
+    "family": "Lundberg"
+   },
+   {
+    "given": "Gabriel",
+    "family": "Erion"
+   },
+   {
+    "given": "Hugh",
+    "family": "Chen"
+   },
+   {
+    "given": "Alex",
+    "family": "DeGrave"
+   },
+   {
+    "given": "Jordan M.",
+    "family": "Prutkin"
+   },
+   {
+    "given": "Bala",
+    "family": "Nair"
+   }
+  ],
+  "venue": "Nature Machine Intelligence",
+  "topic": "machine learning in healthcare",
+  "field": "cs-health"
+ },
+ {
+  "doi": "10.1007/s42979-021-00592-x",
+  "title": "Machine Learning: Algorithms, Real-World Applications and Research Directions",
+  "year": 2021,
+  "authors": [
+   {
+    "given": "Iqbal H.",
+    "family": "Sarker"
+   }
+  ],
+  "venue": "SN Computer Science",
+  "topic": "machine learning in healthcare",
+  "field": "cs-health"
+ },
+ {
+  "doi": "10.1136/svn-2017-000101",
+  "title": "Artificial intelligence in healthcare: past, present and future",
+  "year": 2017,
+  "authors": [
+   {
+    "given": "Fei",
+    "family": "Jiang"
+   },
+   {
+    "given": "Yong",
+    "family": "Jiang"
+   },
+   {
+    "given": "Hui",
+    "family": "Zhi"
+   },
+   {
+    "given": "Yi",
+    "family": "Dong"
+   },
+   {
+    "given": "Hao",
+    "family": "Li"
+   },
+   {
+    "given": "Sufeng",
+    "family": "Ma"
+   }
+  ],
+  "venue": "Stroke and Vascular Neurology",
+  "topic": "machine learning in healthcare",
+  "field": "cs-health"
+ },
+ {
+  "doi": "10.1016/j.jbusres.2021.04.070",
+  "title": "How to conduct a bibliometric analysis: An overview and guidelines",
+  "year": 2021,
+  "authors": [
+   {
+    "given": "Naveen",
+    "family": "Donthu"
+   },
+   {
+    "given": "Satish",
+    "family": "Kumar"
+   },
+   {
+    "given": "Debmalya",
+    "family": "Mukherjee"
+   },
+   {
+    "given": "Nitesh",
+    "family": "Pandey"
+   },
+   {
+    "given": "Weng Marc",
+    "family": "Lim"
+   }
+  ],
+  "venue": "Journal of Business Research",
+  "topic": "systematic review meta-analysis methodology",
+  "field": "methods"
+ },
+ {
+  "doi": "10.1001/jama.2016.1464",
+  "title": "CDC Guideline for Prescribing Opioids for Chronic Pain-United States, 2016",
+  "year": 2016,
+  "authors": [
+   {
+    "given": "Deborah",
+    "family": "Dowell"
+   },
+   {
+    "given": "Tamara M.",
+    "family": "Haegerich"
+   },
+   {
+    "given": "Roger",
+    "family": "Chou"
+   }
+  ],
+  "venue": "JAMA",
+  "topic": "systematic review meta-analysis methodology",
+  "field": "methods"
+ },
+ {
+  "doi": "10.1002/art.40930",
+  "title": "2019 European League Against Rheumatism/American College of Rheumatology Classification Criteria for Systemic Lupus Erythematosus",
+  "year": 2019,
+  "authors": [
+   {
+    "given": "Martin",
+    "family": "Aringer"
+   },
+   {
+    "given": "Karen",
+    "family": "Costenbader"
+   },
+   {
+    "given": "David",
+    "family": "Daikh"
+   },
+   {
+    "given": "Ralph",
+    "family": "Brinks"
+   },
+   {
+    "given": "Marta",
+    "family": "Mosca"
+   },
+   {
+    "given": "Rosalind",
+    "family": "Ramsey‐Goldman"
+   }
+  ],
+  "venue": "Arthritis &amp; Rheumatology",
+  "topic": "systematic review meta-analysis methodology",
+  "field": "methods"
+ },
+ {
+  "doi": "10.2215/cjn.01430307",
+  "title": "Systematic Review and Meta-analysis",
+  "year": 2008,
+  "authors": [
+   {
+    "given": "Amit X.",
+    "family": "Garg"
+   },
+   {
+    "given": "Dan",
+    "family": "Hackam"
+   },
+   {
+    "given": "Marcello",
+    "family": "Tonelli"
+   }
+  ],
+  "venue": "Clinical Journal of the American Society of Nephrology",
+  "topic": "systematic review meta-analysis methodology",
+  "field": "methods"
+ },
+ {
+  "doi": "10.1038/nature08821",
+  "title": "A human gut microbial gene catalogue established by metagenomic sequencing",
+  "year": 2010,
+  "authors": [
+   {
+    "given": "Junjie",
+    "family": "Qin"
+   },
+   {
+    "given": "Ruiqiang",
+    "family": "Li"
+   },
+   {
+    "given": "Jeroen",
+    "family": "Raes"
+   },
+   {
+    "given": "Manimozhiyan",
+    "family": "Arumugam"
+   },
+   {
+    "given": "Kristoffer Solvsten",
+    "family": "Burgdorf"
+   },
+   {
+    "given": "Chaysavanh",
+    "family": "Manichanh"
+   }
+  ],
+  "venue": "Nature",
+  "topic": "gut microbiome health",
+  "field": "biology"
+ },
+ {
+  "doi": "10.1038/nature12820",
+  "title": "Diet rapidly and reproducibly alters the human gut microbiome",
+  "year": 2013,
+  "authors": [
+   {
+    "given": "Lawrence A.",
+    "family": "David"
+   },
+   {
+    "given": "Corinne F.",
+    "family": "Maurice"
+   },
+   {
+    "given": "Rachel N.",
+    "family": "Carmody"
+   },
+   {
+    "given": "David B.",
+    "family": "Gootenberg"
+   },
+   {
+    "given": "Julie E.",
+    "family": "Button"
+   },
+   {
+    "given": "Benjamin E.",
+    "family": "Wolfe"
+   }
+  ],
+  "venue": "Nature",
+  "topic": "gut microbiome health",
+  "field": "biology"
+ },
+ {
+  "doi": "10.1038/nature07540",
+  "title": "A core gut microbiome in obese and lean twins",
+  "year": 2008,
+  "authors": [
+   {
+    "given": "Peter J.",
+    "family": "Turnbaugh"
+   },
+   {
+    "given": "Micah",
+    "family": "Hamady"
+   },
+   {
+    "given": "Tanya",
+    "family": "Yatsunenko"
+   },
+   {
+    "given": "Brandi L.",
+    "family": "Cantarel"
+   },
+   {
+    "given": "Alexis",
+    "family": "Duncan"
+   },
+   {
+    "given": "Ruth E.",
+    "family": "Ley"
+   }
+  ],
+  "venue": "Nature",
+  "topic": "gut microbiome health",
+  "field": "biology"
+ },
+ {
+  "doi": "10.1126/science.1208344",
+  "title": "Linking Long-Term Dietary Patterns with Gut Microbial Enterotypes",
+  "year": 2011,
+  "authors": [
+   {
+    "given": "Gary D.",
+    "family": "Wu"
+   },
+   {
+    "given": "Jun",
+    "family": "Chen"
+   },
+   {
+    "given": "Christian",
+    "family": "Hoffmann"
+   },
+   {
+    "given": "Kyle",
+    "family": "Bittinger"
+   },
+   {
+    "given": "Ying-Yu",
+    "family": "Chen"
+   },
+   {
+    "given": "Sue A.",
+    "family": "Keilbaugh"
+   }
+  ],
+  "venue": "Science",
+  "topic": "gut microbiome health",
+  "field": "biology"
+ },
+ {
+  "doi": "10.1056/nejmoa1611925",
+  "title": "Canagliflozin and Cardiovascular and Renal Events in Type 2 Diabetes",
+  "year": 2017,
+  "authors": [
+   {
+    "given": "Bruce",
+    "family": "Neal"
+   },
+   {
+    "given": "Vlado",
+    "family": "Perkovic"
+   },
+   {
+    "given": "Kenneth W.",
+    "family": "Mahaffey"
+   },
+   {
+    "given": "Dick",
+    "family": "de Zeeuw"
+   },
+   {
+    "given": "Greg",
+    "family": "Fulcher"
+   },
+   {
+    "given": "Ngozi",
+    "family": "Erondu"
+   }
+  ],
+  "venue": "New England Journal of Medicine",
+  "topic": "type 2 diabetes treatment",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1002/hep.29367",
+  "title": "The diagnosis and management of nonalcoholic fatty liver disease: Practice guidance from the American Association for the Study of Liver Diseases",
+  "year": 2017,
+  "authors": [
+   {
+    "given": "Naga",
+    "family": "Chalasani"
+   },
+   {
+    "given": "Zobair",
+    "family": "Younossi"
+   },
+   {
+    "given": "Joel E.",
+    "family": "Lavine"
+   },
+   {
+    "given": "Michael",
+    "family": "Charlton"
+   },
+   {
+    "given": "Kenneth",
+    "family": "Cusi"
+   },
+   {
+    "given": "Mary",
+    "family": "Rinella"
+   }
+  ],
+  "venue": "Hepatology",
+  "topic": "type 2 diabetes treatment",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1056/nejmoa1911303",
+  "title": "Dapagliflozin in Patients with Heart Failure and Reduced Ejection Fraction",
+  "year": 2019,
+  "authors": [
+   {
+    "given": "John J.V.",
+    "family": "McMurray"
+   },
+   {
+    "given": "Scott D.",
+    "family": "Solomon"
+   },
+   {
+    "given": "Silvio E.",
+    "family": "Inzucchi"
+   },
+   {
+    "given": "Lars",
+    "family": "Køber"
+   },
+   {
+    "given": "Mikhail N.",
+    "family": "Kosiborod"
+   },
+   {
+    "given": "Felipe A.",
+    "family": "Martinez"
+   }
+  ],
+  "venue": "New England Journal of Medicine",
+  "topic": "type 2 diabetes treatment",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1056/nejmoa1812389",
+  "title": "Dapagliflozin and Cardiovascular Outcomes in Type 2 Diabetes",
+  "year": 2019,
+  "authors": [
+   {
+    "given": "Stephen D.",
+    "family": "Wiviott"
+   },
+   {
+    "given": "Itamar",
+    "family": "Raz"
+   },
+   {
+    "given": "Marc P.",
+    "family": "Bonaca"
+   },
+   {
+    "given": "Ofri",
+    "family": "Mosenzon"
+   },
+   {
+    "given": "Eri T.",
+    "family": "Kato"
+   },
+   {
+    "given": "Avivit",
+    "family": "Cahn"
+   }
+  ],
+  "venue": "New England Journal of Medicine",
+  "topic": "type 2 diabetes treatment",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1109/access.2020.2988510",
+  "title": "Artificial Intelligence in Education: A Review",
+  "year": 2020,
+  "authors": [
+   {
+    "given": "Lijia",
+    "family": "Chen"
+   },
+   {
+    "given": "Pingping",
+    "family": "Chen"
+   },
+   {
+    "given": "Zhijian",
+    "family": "Lin"
+   }
+  ],
+  "venue": "IEEE Access",
+  "topic": "online learning higher education",
+  "field": "education"
+ },
+ {
+  "doi": "10.1016/j.ijedro.2020.100012",
+  "title": "Online teaching-learning in higher education during lockdown period of COVID-19 pandemic",
+  "year": 2020,
+  "authors": [
+   {
+    "given": "Lokanath",
+    "family": "Mishra"
+   },
+   {
+    "given": "Tushar",
+    "family": "Gupta"
+   },
+   {
+    "given": "Abha",
+    "family": "Shree"
+   }
+  ],
+  "venue": "International Journal of Educational Research Open",
+  "topic": "online learning higher education",
+  "field": "education"
+ },
+ {
+  "doi": "10.1002/hbe2.191",
+  "title": "COVID-19 and online teaching in higher education: A case study of Peking University",
+  "year": 2020,
+  "authors": [
+   {
+    "given": "Wei",
+    "family": "Bao"
+   }
+  ],
+  "venue": "Human Behavior and Emerging Technologies",
+  "topic": "online learning higher education",
+  "field": "education"
+ },
+ {
+  "doi": "10.1007/s42438-020-00155-y",
+  "title": "Online University Teaching During and After the Covid-19 Crisis: Refocusing Teacher Presence and Learning Activity",
+  "year": 2020,
+  "authors": [
+   {
+    "given": "Chrysi",
+    "family": "Rapanta"
+   },
+   {
+    "given": "Luca",
+    "family": "Botturi"
+   },
+   {
+    "given": "Peter",
+    "family": "Goodyear"
+   },
+   {
+    "given": "Lourdes",
+    "family": "Guàrdia"
+   },
+   {
+    "given": "Marguerite",
+    "family": "Koole"
+   }
+  ],
+  "venue": "Postdigital Science and Education",
+  "topic": "online learning higher education",
+  "field": "education"
+ },
+ {
+  "doi": "10.2196/21279",
+  "title": "Effects of COVID-19 on College Students’ Mental Health in the United States: Interview Survey Study",
+  "year": 2020,
+  "authors": [
+   {
+    "given": "Changwon",
+    "family": "Son"
+   },
+   {
+    "given": "Sudeep",
+    "family": "Hegde"
+   },
+   {
+    "given": "Alec",
+    "family": "Smith"
+   },
+   {
+    "given": "Xiaomei",
+    "family": "Wang"
+   },
+   {
+    "given": "Farzan",
+    "family": "Sasangohar"
+   }
+  ],
+  "venue": "Journal of Medical Internet Research",
+  "topic": "mental health university students",
+  "field": "psychology"
+ },
+ {
+  "doi": "10.2196/mental.7785",
+  "title": "Delivering Cognitive Behavior Therapy to Young Adults With Symptoms of Depression and Anxiety Using a Fully Automated Conversational Agent (Woebot): A Randomized Controlled Trial",
+  "year": 2017,
+  "authors": [
+   {
+    "given": "Kathleen Kara",
+    "family": "Fitzpatrick"
+   },
+   {
+    "given": "Alison",
+    "family": "Darcy"
+   },
+   {
+    "given": "Molly",
+    "family": "Vierhile"
+   }
+  ],
+  "venue": "JMIR Mental Health",
+  "topic": "mental health university students",
+  "field": "psychology"
+ },
+ {
+  "doi": "10.7759/cureus.7541",
+  "title": "Closure of Universities Due to Coronavirus Disease 2019 (COVID-19): Impact on Education and Mental Health of Students and Academic Staff",
+  "year": 2020,
+  "authors": [
+   {
+    "given": "Pradeep",
+    "family": "Sahu"
+   }
+  ],
+  "venue": "Cureus",
+  "topic": "mental health university students",
+  "field": "psychology"
+ },
+ {
+  "doi": "10.1016/j.jad.2014.10.054",
+  "title": "The prevalence and correlates of depression, anxiety, and stress in a sample of college students",
+  "year": 2015,
+  "authors": [
+   {
+    "given": "R.",
+    "family": "Beiter"
+   },
+   {
+    "given": "R.",
+    "family": "Nash"
+   },
+   {
+    "given": "M.",
+    "family": "McCrady"
+   },
+   {
+    "given": "D.",
+    "family": "Rhoades"
+   },
+   {
+    "given": "M.",
+    "family": "Linscomb"
+   },
+   {
+    "given": "M.",
+    "family": "Clarahan"
+   }
+  ],
+  "venue": "Journal of Affective Disorders",
+  "topic": "mental health university students",
+  "field": "psychology"
+ },
+ {
+  "doi": "10.1038/nature08238",
+  "title": "Satellite-based estimates of groundwater depletion in India",
+  "year": 2009,
+  "authors": [
+   {
+    "given": "Matthew",
+    "family": "Rodell"
+   },
+   {
+    "given": "Isabella",
+    "family": "Velicogna"
+   },
+   {
+    "given": "James S.",
+    "family": "Famiglietti"
+   }
+  ],
+  "venue": "Nature",
+  "topic": "groundwater depletion India",
+  "field": "india"
+ },
+ {
+  "doi": "10.1038/nature21403",
+  "title": "Groundwater depletion embedded in international food trade",
+  "year": 2017,
+  "authors": [
+   {
+    "given": "Carole",
+    "family": "Dalin"
+   },
+   {
+    "given": "Yoshihide",
+    "family": "Wada"
+   },
+   {
+    "given": "Thomas",
+    "family": "Kastner"
+   },
+   {
+    "given": "Michael J.",
+    "family": "Puma"
+   }
+  ],
+  "venue": "Nature",
+  "topic": "groundwater depletion India",
+  "field": "india"
+ },
+ {
+  "doi": "10.1038/ngeo1617",
+  "title": "Regional strategies for the accelerating global problem of groundwater depletion",
+  "year": 2012,
+  "authors": [
+   {
+    "given": "Werner",
+    "family": "Aeschbach-Hertig"
+   },
+   {
+    "given": "Tom",
+    "family": "Gleeson"
+   }
+  ],
+  "venue": "Nature Geoscience",
+  "topic": "groundwater depletion India",
+  "field": "india"
+ },
+ {
+  "doi": "10.1002/2014wr015595",
+  "title": "Global-scale assessment of groundwater depletion and related groundwater abstractions: Combining hydrological modeling with information from well observations and GRACE satellites",
+  "year": 2014,
+  "authors": [
+   {
+    "given": "Petra",
+    "family": "Döll"
+   },
+   {
+    "given": "Hannes",
+    "family": "Müller Schmied"
+   },
+   {
+    "given": "Carina",
+    "family": "Schuh"
+   },
+   {
+    "given": "Felix T.",
+    "family": "Portmann"
+   },
+   {
+    "given": "Annette",
+    "family": "Eicker"
+   }
+  ],
+  "venue": "Water Resources Research",
+  "topic": "groundwater depletion India",
+  "field": "india"
+ },
+ {
+  "doi": "10.1056/nejmoa0907847",
+  "title": "Rapid Molecular Detection of Tuberculosis and Rifampin Resistance",
+  "year": 2010,
+  "authors": [
+   {
+    "given": "Catharina C.",
+    "family": "Boehme"
+   },
+   {
+    "given": "Pamela",
+    "family": "Nabeta"
+   },
+   {
+    "given": "Doris",
+    "family": "Hillemann"
+   },
+   {
+    "given": "Mark P.",
+    "family": "Nicol"
+   },
+   {
+    "given": "Shubhada",
+    "family": "Shenai"
+   },
+   {
+    "given": "Fiorella",
+    "family": "Krapp"
+   }
+  ],
+  "venue": "New England Journal of Medicine",
+  "topic": "tuberculosis India",
+  "field": "india"
+ },
+ {
+  "doi": "10.1016/j.ijid.2021.02.107",
+  "title": "Global Tuberculosis Report 2020 - Reflections on the Global TB burden, treatment and prevention efforts",
+  "year": 2021,
+  "authors": [
+   {
+    "given": "Jeremiah",
+    "family": "Chakaya"
+   },
+   {
+    "given": "Mishal",
+    "family": "Khan"
+   },
+   {
+    "given": "Francine",
+    "family": "Ntoumi"
+   },
+   {
+    "given": "Eleni",
+    "family": "Aklillu"
+   },
+   {
+    "given": "Razia",
+    "family": "Fatima"
+   },
+   {
+    "given": "Peter",
+    "family": "Mwaba"
+   }
+  ],
+  "venue": "International Journal of Infectious Diseases",
+  "topic": "tuberculosis India",
+  "field": "india"
+ },
+ {
+  "doi": "10.1016/s0140-6736(10)60410-2",
+  "title": "Multidrug-resistant and extensively drug-resistant tuberculosis: a threat to global control of tuberculosis",
+  "year": 2010,
+  "authors": [
+   {
+    "given": "Neel R",
+    "family": "Gandhi"
+   },
+   {
+    "given": "Paul",
+    "family": "Nunn"
+   },
+   {
+    "given": "Keertan",
+    "family": "Dheda"
+   },
+   {
+    "given": "H Simon",
+    "family": "Schaaf"
+   },
+   {
+    "given": "Matteo",
+    "family": "Zignol"
+   },
+   {
+    "given": "Dick",
+    "family": "van Soolingen"
+   }
+  ],
+  "venue": "The Lancet",
+  "topic": "tuberculosis India",
+  "field": "india"
+ },
+ {
+  "doi": "10.1016/s0140-6736(11)60438-8",
+  "title": "Feasibility, diagnostic accuracy, and effectiveness of decentralised use of the Xpert MTB/RIF test for diagnosis of tuberculosis and multidrug resistance: a multicentre implementation study",
+  "year": 2011,
+  "authors": [
+   {
+    "given": "Catharina C",
+    "family": "Boehme"
+   },
+   {
+    "given": "Mark P",
+    "family": "Nicol"
+   },
+   {
+    "given": "Pamela",
+    "family": "Nabeta"
+   },
+   {
+    "given": "Joy S",
+    "family": "Michael"
+   },
+   {
+    "given": "Eduardo",
+    "family": "Gotuzzo"
+   },
+   {
+    "given": "Rasim",
+    "family": "Tahirli"
+   }
+  ],
+  "venue": "The Lancet",
+  "topic": "tuberculosis India",
+  "field": "india"
+ },
+ {
+  "doi": "10.1175/2009mwr2861.1",
+  "title": "On the Remote Drivers of Rainfall Variability in Australia",
+  "year": 2009,
+  "authors": [
+   {
+    "given": "James S.",
+    "family": "Risbey"
+   },
+   {
+    "given": "Michael J.",
+    "family": "Pook"
+   },
+   {
+    "given": "Peter C.",
+    "family": "McIntosh"
+   },
+   {
+    "given": "Matthew C.",
+    "family": "Wheeler"
+   },
+   {
+    "given": "Harry H.",
+    "family": "Hendon"
+   }
+  ],
+  "venue": "Monthly Weather Review",
+  "topic": "Indian monsoon rainfall variability",
+  "field": "india"
+ },
+ {
+  "doi": "10.1016/j.gsf.2014.02.009",
+  "title": "Effect of climate change on seasonal monsoon in Asia and its impact on the variability of monsoon rainfall in Southeast Asia",
+  "year": 2015,
+  "authors": [
+   {
+    "given": "Yen Yi",
+    "family": "Loo"
+   },
+   {
+    "given": "Lawal",
+    "family": "Billa"
+   },
+   {
+    "given": "Ajit",
+    "family": "Singh"
+   }
+  ],
+  "venue": "Geoscience Frontiers",
+  "topic": "Indian monsoon rainfall variability",
+  "field": "india"
+ },
+ {
+  "doi": "10.1175/2008jcli2625.1",
+  "title": "Seasonality and Interannual Variability of the Westerly Jet in the Tibetan Plateau Region*",
+  "year": 2009,
+  "authors": [
+   {
+    "given": "Reinhard",
+    "family": "Schiemann"
+   },
+   {
+    "given": "Daniel",
+    "family": "Lüthi"
+   },
+   {
+    "given": "Christoph",
+    "family": "Schär"
+   }
+  ],
+  "venue": "Journal of Climate",
+  "topic": "Indian monsoon rainfall variability",
+  "field": "india"
+ },
+ {
+  "doi": "10.1175/2007jcli1777.1",
+  "title": "Effects of Black Carbon Aerosols on the Indian Monsoon",
+  "year": 2008,
+  "authors": [
+   {
+    "given": "Gerald A.",
+    "family": "Meehl"
+   },
+   {
+    "given": "Julie M.",
+    "family": "Arblaster"
+   },
+   {
+    "given": "William D.",
+    "family": "Collins"
+   }
+  ],
+  "venue": "Journal of Climate",
+  "topic": "Indian monsoon rainfall variability",
+  "field": "india"
+ },
+ {
+  "doi": "10.1093/wber/lhz013",
+  "title": "The Global Findex Database 2017: Measuring Financial Inclusion and Opportunities to Expand Access to and Use of Financial Services*",
+  "year": 2020,
+  "authors": [
+   {
+    "given": "Asli",
+    "family": "Demirgüç-Kunt"
+   },
+   {
+    "given": "Leora",
+    "family": "Klapper"
+   },
+   {
+    "given": "Dorothe",
+    "family": "Singer"
+   },
+   {
+    "given": "Saniya",
+    "family": "Ansar"
+   },
+   {
+    "given": "Jake",
+    "family": "Hess"
+   }
+  ],
+  "venue": "The World Bank Economic Review",
+  "topic": "digital payments financial inclusion India",
+  "field": "india"
+ },
+ {
+  "doi": "10.1080/02681102.2019.1701969",
+  "title": "Contextual facilitators and barriers influencing the continued use of mobile payment services in a developing country: insights from adopters in India",
+  "year": 2020,
+  "authors": [
+   {
+    "given": "Abhipsa",
+    "family": "Pal"
+   },
+   {
+    "given": "Tejaswini",
+    "family": "Herath"
+   },
+   {
+    "given": "Rahul",
+    "family": "De’"
+   },
+   {
+    "given": "H. Raghav",
+    "family": "Rao"
+   }
+  ],
+  "venue": "Information Technology for Development",
+  "topic": "digital payments financial inclusion India",
+  "field": "india"
+ },
+ {
+  "doi": "10.1016/j.respol.2021.104228",
+  "title": "Why do people use mobile payment technologies and why would they continue? An examination and implications from India",
+  "year": 2021,
+  "authors": [
+   {
+    "given": "Abhipsa",
+    "family": "Pal"
+   },
+   {
+    "given": "Tejaswini",
+    "family": "Herath"
+   },
+   {
+    "given": "Rahul",
+    "family": "De'"
+   },
+   {
+    "given": "H.",
+    "family": "Raghav Rao"
+   }
+  ],
+  "venue": "Research Policy",
+  "topic": "digital payments financial inclusion India",
+  "field": "india"
+ },
+ {
+  "doi": "10.1371/journal.pone.0219450",
+  "title": "What explains low adoption of digital payment technologies? Evidence from small-scale merchants in Jaipur, India",
+  "year": 2019,
+  "authors": [
+   {
+    "given": "Ethan",
+    "family": "Ligon"
+   },
+   {
+    "given": "Badal",
+    "family": "Malick"
+   },
+   {
+    "given": "Ketki",
+    "family": "Sheth"
+   },
+   {
+    "given": "Carly",
+    "family": "Trachtman"
+   }
+  ],
+  "venue": "PLOS ONE",
+  "topic": "digital payments financial inclusion India",
+  "field": "india"
+ },
+ {
+  "doi": "10.1016/j.esr.2019.01.006",
+  "title": "The role of renewable energy in the global energy transformation",
+  "year": 2019,
+  "authors": [
+   {
+    "given": "Dolf",
+    "family": "Gielen"
+   },
+   {
+    "given": "Francisco",
+    "family": "Boshell"
+   },
+   {
+    "given": "Deger",
+    "family": "Saygin"
+   },
+   {
+    "given": "Morgan D.",
+    "family": "Bazilian"
+   },
+   {
+    "given": "Nicholas",
+    "family": "Wagner"
+   },
+   {
+    "given": "Ricardo",
+    "family": "Gorini"
+   }
+  ],
+  "venue": "Energy Strategy Reviews",
+  "topic": "renewable energy policy",
+  "field": "energy"
+ },
+ {
+  "doi": "10.1080/23311916.2016.1167990",
+  "title": "A review of renewable energy sources, sustainability issues and climate change mitigation",
+  "year": 2016,
+  "authors": [
+   {
+    "given": "Phebe Asantewaa",
+    "family": "Owusu"
+   },
+   {
+    "given": "Samuel",
+    "family": "Asumadu-Sarkodie"
+   }
+  ],
+  "venue": "Cogent Engineering",
+  "topic": "renewable energy policy",
+  "field": "energy"
+ },
+ {
+  "doi": "10.1016/j.rser.2017.09.094",
+  "title": "Solar energy: Potential and future prospects",
+  "year": 2018,
+  "authors": [
+   {
+    "given": "Ehsanul",
+    "family": "Kabir"
+   },
+   {
+    "given": "Pawan",
+    "family": "Kumar"
+   },
+   {
+    "given": "Sandeep",
+    "family": "Kumar"
+   },
+   {
+    "given": "Adedeji A.",
+    "family": "Adelodun"
+   },
+   {
+    "given": "Ki-Hyun",
+    "family": "Kim"
+   }
+  ],
+  "venue": "Renewable and Sustainable Energy Reviews",
+  "topic": "renewable energy policy",
+  "field": "energy"
+ },
+ {
+  "doi": "10.1016/s2542-5196(22)00090-0",
+  "title": "Pollution and health: a progress update",
+  "year": 2022,
+  "authors": [
+   {
+    "given": "Richard",
+    "family": "Fuller"
+   },
+   {
+    "given": "Philip J",
+    "family": "Landrigan"
+   },
+   {
+    "given": "Kalpana",
+    "family": "Balakrishnan"
+   },
+   {
+    "given": "Glynda",
+    "family": "Bathan"
+   },
+   {
+    "given": "Stephan",
+    "family": "Bose-O'Reilly"
+   },
+   {
+    "given": "Michael",
+    "family": "Brauer"
+   }
+  ],
+  "venue": "The Lancet Planetary Health",
+  "topic": "renewable energy policy",
+  "field": "energy"
+ },
+ {
+  "doi": "10.1109/access.2016.2566339",
+  "title": "Blockchains and Smart Contracts for the Internet of Things",
+  "year": 2016,
+  "authors": [
+   {
+    "given": "Konstantinos",
+    "family": "Christidis"
+   },
+   {
+    "given": "Michael",
+    "family": "Devetsikiotis"
+   }
+  ],
+  "venue": "IEEE Access",
+  "topic": "blockchain applications",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1080/00207543.2018.1533261",
+  "title": "Blockchain technology and its relationships to sustainable supply chain management",
+  "year": 2018,
+  "authors": [
+   {
+    "given": "Sara",
+    "family": "Saberi"
+   },
+   {
+    "given": "Mahtab",
+    "family": "Kouhizadeh"
+   },
+   {
+    "given": "Joseph",
+    "family": "Sarkis"
+   },
+   {
+    "given": "Lejia",
+    "family": "Shen"
+   }
+  ],
+  "venue": "International Journal of Production Research",
+  "topic": "blockchain applications",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1504/ijwgs.2018.095647",
+  "title": "Blockchain challenges and opportunities: a survey",
+  "year": 2018,
+  "authors": [
+   {
+    "given": "Zibin",
+    "family": "Zheng"
+   },
+   {
+    "given": "Shaoan",
+    "family": "Xie"
+   },
+   {
+    "given": "Hong Ning",
+    "family": "Dai"
+   },
+   {
+    "given": "Xiangping",
+    "family": "Chen"
+   },
+   {
+    "given": "Huaimin",
+    "family": "Wang"
+   }
+  ],
+  "venue": "International Journal of Web and Grid Services",
+  "topic": "blockchain applications",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1109/mvt.2019.2921208",
+  "title": "6G Wireless Networks: Vision, Requirements, Architecture, and Key Technologies",
+  "year": 2019,
+  "authors": [
+   {
+    "given": "Zhengquan",
+    "family": "Zhang"
+   },
+   {
+    "given": "Yue",
+    "family": "Xiao"
+   },
+   {
+    "given": "Zheng",
+    "family": "Ma"
+   },
+   {
+    "given": "Ming",
+    "family": "Xiao"
+   },
+   {
+    "given": "Zhiguo",
+    "family": "Ding"
+   },
+   {
+    "given": "Xianfu",
+    "family": "Lei"
+   }
+  ],
+  "venue": "IEEE Vehicular Technology Magazine",
+  "topic": "blockchain applications",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1109/access.2015.2437951",
+  "title": "The Internet of Things for Health Care: A Comprehensive Survey",
+  "year": 2015,
+  "authors": [
+   {
+    "given": "S. M.",
+    "family": "Riazul Islam"
+   },
+   {
+    "given": "",
+    "family": "Daehan Kwak"
+   },
+   {
+    "given": "Md",
+    "family": "Humaun Kabir"
+   },
+   {
+    "given": "Mahmud",
+    "family": "Hossain"
+   },
+   {
+    "given": "",
+    "family": "Kyung-Sup Kwak"
+   }
+  ],
+  "venue": "IEEE Access",
+  "topic": "internet of things security",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1109/jiot.2017.2683200",
+  "title": "A Survey on Internet of Things: Architecture, Enabling Technologies, Security and Privacy, and Applications",
+  "year": 2017,
+  "authors": [
+   {
+    "given": "Jie",
+    "family": "Lin"
+   },
+   {
+    "given": "Wei",
+    "family": "Yu"
+   },
+   {
+    "given": "Nan",
+    "family": "Zhang"
+   },
+   {
+    "given": "Xinyu",
+    "family": "Yang"
+   },
+   {
+    "given": "Hanlin",
+    "family": "Zhang"
+   },
+   {
+    "given": "Wei",
+    "family": "Zhao"
+   }
+  ],
+  "venue": "IEEE Internet of Things Journal",
+  "topic": "internet of things security",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1016/j.future.2017.11.022",
+  "title": "IoT security: Review, blockchain solutions, and open challenges",
+  "year": 2018,
+  "authors": [
+   {
+    "given": "Minhaj Ahmad",
+    "family": "Khan"
+   },
+   {
+    "given": "Khaled",
+    "family": "Salah"
+   }
+  ],
+  "venue": "Future Generation Computer Systems",
+  "topic": "internet of things security",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1109/tii.2018.2852491",
+  "title": "Industrial Internet of Things: Challenges, Opportunities, and Directions",
+  "year": 2018,
+  "authors": [
+   {
+    "given": "Emiliano",
+    "family": "Sisinni"
+   },
+   {
+    "given": "Abusayeed",
+    "family": "Saifullah"
+   },
+   {
+    "given": "Song",
+    "family": "Han"
+   },
+   {
+    "given": "Ulf",
+    "family": "Jennehag"
+   },
+   {
+    "given": "Mikael",
+    "family": "Gidlund"
+   }
+  ],
+  "venue": "IEEE Transactions on Industrial Informatics",
+  "topic": "internet of things security",
+  "field": "cs"
+ },
+ {
+  "doi": "10.1016/j.jfineco.2012.03.005",
+  "title": "Endogeneity and the dynamics of internal corporate governance",
+  "year": 2012,
+  "authors": [
+   {
+    "given": "M. Babajide",
+    "family": "Wintoki"
+   },
+   {
+    "given": "James S.",
+    "family": "Linck"
+   },
+   {
+    "given": "Jeffry M.",
+    "family": "Netter"
+   }
+  ],
+  "venue": "Journal of Financial Economics",
+  "topic": "corporate governance firm performance",
+  "field": "management"
+ },
+ {
+  "doi": "10.1016/j.jcorpfin.2021.101889",
+  "title": "Firms and social responsibility: A review of ESG and CSR research in corporate finance",
+  "year": 2021,
+  "authors": [
+   {
+    "given": "Stuart L.",
+    "family": "Gillan"
+   },
+   {
+    "given": "Andrew",
+    "family": "Koch"
+   },
+   {
+    "given": "Laura T.",
+    "family": "Starks"
+   }
+  ],
+  "venue": "Journal of Corporate Finance",
+  "topic": "corporate governance firm performance",
+  "field": "management"
+ },
+ {
+  "doi": "10.1257/jel.48.1.58",
+  "title": "The Role of Boards of Directors in Corporate Governance: A Conceptual Framework and Survey",
+  "year": 2010,
+  "authors": [
+   {
+    "given": "Renée B",
+    "family": "Adams"
+   },
+   {
+    "given": "Benjamin E",
+    "family": "Hermalin"
+   },
+   {
+    "given": "Michael S",
+    "family": "Weisbach"
+   }
+  ],
+  "venue": "Journal of Economic Literature",
+  "topic": "corporate governance firm performance",
+  "field": "management"
+ },
+ {
+  "doi": "10.1080/19416520.2011.593320",
+  "title": "The Bind that Ties: Socioemotional Wealth Preservation in Family Firms",
+  "year": 2011,
+  "authors": [
+   {
+    "given": "Luis R.",
+    "family": "Gomez-Mejia"
+   },
+   {
+    "given": "Cristina",
+    "family": "Cruz"
+   },
+   {
+    "given": "Pascual",
+    "family": "Berrone"
+   },
+   {
+    "given": "Julio",
+    "family": "De Castro"
+   }
+  ],
+  "venue": "Academy of Management Annals",
+  "topic": "corporate governance firm performance",
+  "field": "management"
+ },
+ {
+  "doi": "10.1016/j.jretconser.2021.102542",
+  "title": "The effect of COVID-19 on consumer shopping behaviour: Generational cohort perspective",
+  "year": 2021,
+  "authors": [
+   {
+    "given": "Ludvík",
+    "family": "Eger"
+   },
+   {
+    "given": "Lenka",
+    "family": "Komárková"
+   },
+   {
+    "given": "Dana",
+    "family": "Egerová"
+   },
+   {
+    "given": "Michal",
+    "family": "Mičík"
+   }
+  ],
+  "venue": "Journal of Retailing and Consumer Services",
+  "topic": "consumer behaviour online shopping",
+  "field": "management"
+ },
+ {
+  "doi": "10.1016/j.jretconser.2015.11.007",
+  "title": "Marketing strategies, perceived risks, and consumer trust in online buying behaviour",
+  "year": 2016,
+  "authors": [
+   {
+    "given": "Nikolaos",
+    "family": "Pappas"
+   }
+  ],
+  "venue": "Journal of Retailing and Consumer Services",
+  "topic": "consumer behaviour online shopping",
+  "field": "management"
+ },
+ {
+  "doi": "10.1108/14684521111151414",
+  "title": "The moderating effect of customer perceived value on online shopping behaviour",
+  "year": 2011,
+  "authors": [
+   {
+    "given": "Hsin",
+    "family": "Hsin Chang"
+   },
+   {
+    "given": "Hsin‐Wei",
+    "family": "Wang"
+   }
+  ],
+  "venue": "Online Information Review",
+  "topic": "consumer behaviour online shopping",
+  "field": "management"
+ },
+ {
+  "doi": "10.1016/j.jretconser.2014.01.001",
+  "title": "Online consumer behaviour and its relationship to website atmospheric induced flow: Insights into online travel agencies in China",
+  "year": 2014,
+  "authors": [
+   {
+    "given": "Lingling",
+    "family": "Gao"
+   },
+   {
+    "given": "Xuesong",
+    "family": "Bai"
+   }
+  ],
+  "venue": "Journal of Retailing and Consumer Services",
+  "topic": "consumer behaviour online shopping",
+  "field": "management"
+ },
+ {
+  "doi": "10.1016/j.techsoc.2019.101154",
+  "title": "Microfinance, financial inclusion and ICT: Implications for poverty and inequality",
+  "year": 2019,
+  "authors": [
+   {
+    "given": "Rizwan",
+    "family": "Mushtaq"
+   },
+   {
+    "given": "Catherine",
+    "family": "Bruneau"
+   }
+  ],
+  "venue": "Technology in Society",
+  "topic": "microfinance poverty reduction",
+  "field": "economics"
+ },
+ {
+  "doi": "10.1016/j.worlddev.2010.04.006",
+  "title": "Microfinance and Household Poverty Reduction: New Evidence from India",
+  "year": 2010,
+  "authors": [
+   {
+    "given": "Katsushi S.",
+    "family": "Imai"
+   },
+   {
+    "given": "Thankom",
+    "family": "Arun"
+   },
+   {
+    "given": "Samuel Kobina",
+    "family": "Annim"
+   }
+  ],
+  "venue": "World Development",
+  "topic": "microfinance poverty reduction",
+  "field": "economics"
+ },
+ {
+  "doi": "10.1186/s40854-021-00259-9",
+  "title": "How does financial literacy impact on inclusive finance?",
+  "year": 2021,
+  "authors": [
+   {
+    "given": "Morshadul",
+    "family": "Hasan"
+   },
+   {
+    "given": "Thi",
+    "family": "Le"
+   },
+   {
+    "given": "Ariful",
+    "family": "Hoque"
+   }
+  ],
+  "venue": "Financial Innovation",
+  "topic": "microfinance poverty reduction",
+  "field": "economics"
+ },
+ {
+  "doi": "10.1177/0018726716640865",
+  "title": "Microfinance and the business of poverty reduction: Critical perspectives from rural Bangladesh",
+  "year": 2016,
+  "authors": [
+   {
+    "given": "Subhabrata Bobby",
+    "family": "Banerjee"
+   },
+   {
+    "given": "Laurel",
+    "family": "Jackson"
+   }
+  ],
+  "venue": "Human Relations",
+  "topic": "microfinance poverty reduction",
+  "field": "economics"
+ },
+ {
+  "doi": "10.1016/s0140-6736(21)02724-0",
+  "title": "Global burden of bacterial antimicrobial resistance in 2019: a systematic analysis",
+  "year": 2022,
+  "authors": [
+   {
+    "given": "Christopher J L",
+    "family": "Murray"
+   },
+   {
+    "given": "Kevin Shunji",
+    "family": "Ikuta"
+   },
+   {
+    "given": "Fablina",
+    "family": "Sharara"
+   },
+   {
+    "given": "Lucien",
+    "family": "Swetschinski"
+   },
+   {
+    "given": "Gisela",
+    "family": "Robles Aguilar"
+   },
+   {
+    "given": "Authia",
+    "family": "Gray"
+   }
+  ],
+  "venue": "The Lancet",
+  "topic": "antibiotic resistance",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1007/s00134-012-2769-8",
+  "title": "Surviving Sepsis Campaign: International Guidelines for Management of Severe Sepsis and Septic Shock, 2012",
+  "year": 2013,
+  "authors": [
+   {
+    "given": "R. P.",
+    "family": "Dellinger"
+   },
+   {
+    "given": "Mitchell M.",
+    "family": "Levy"
+   },
+   {
+    "given": "Andrew",
+    "family": "Rhodes"
+   },
+   {
+    "given": "Djillali",
+    "family": "Annane"
+   },
+   {
+    "given": "Herwig",
+    "family": "Gerlach"
+   },
+   {
+    "given": "Steven M.",
+    "family": "Opal"
+   }
+  ],
+  "venue": "Intensive Care Medicine",
+  "topic": "antibiotic resistance",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1021/acs.jnatprod.9b01285",
+  "title": "Natural Products as Sources of New Drugs over the Nearly Four Decades from 01/1981 to 09/2019",
+  "year": 2020,
+  "authors": [
+   {
+    "given": "David J.",
+    "family": "Newman"
+   },
+   {
+    "given": "Gordon M.",
+    "family": "Cragg"
+   }
+  ],
+  "venue": "Journal of\nNatural Products",
+  "topic": "antibiotic resistance",
+  "field": "medicine"
+ },
+ {
+  "doi": "10.1016/j.biotechadv.2008.09.002",
+  "title": "Silver nanoparticles as a new generation of antimicrobials",
+  "year": 2009,
+  "authors": [
+   {
+    "given": "Mahendra",
+    "family": "Rai"
+   },
+   {
+    "given": "Alka",
+    "family": "Yadav"
+   },
+   {
+    "given": "Aniket",
+    "family": "Gade"
+   }
+  ],
+  "venue": "Biotechnology Advances",
+  "topic": "antibiotic resistance",
+  "field": "medicine"
+ }
+]

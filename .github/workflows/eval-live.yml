@@ -1,0 +1,30 @@
+name: Eval (live APIs)
+
+# Weekly drift check: runs the citation-accuracy eval against the REAL OpenAlex / Semantic Scholar / Crossref / PubMed
+# APIs (no recordings), so a changed API or a degraded data source is noticed within a week instead of by a user.
+# The per-push CI gate replays recordings and cannot see upstream changes. Costs about $0.15 of OpenAlex credit per run.
+on:
+  schedule:
+    - cron: "0 3 * * 1" # Mondays 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run eval:live -w apps/api
+        env:
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          S2_API_KEY: ${{ secrets.S2_API_KEY }}
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+          CROSSREF_MAILTO: ${{ secrets.CROSSREF_MAILTO }}

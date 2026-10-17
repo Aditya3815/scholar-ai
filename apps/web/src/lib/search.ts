@@ -7,6 +7,8 @@ export type SearchState = {
   results: Paper[];
   providers: Record<string, ProviderStatus>;
   retractionCheck: ProviderStatus | null;
+  /** `count` = DOIs removed because they do not exist or belong to another record */
+  doiCheck: ProviderStatus | null;
   /** Pehla result kitni der mein dikha (ms): streaming ka asli fayda */
   firstResultMs: number | null;
   tookMs: number | null;
@@ -19,6 +21,7 @@ const IDLE: SearchState = {
   results: [],
   providers: {},
   retractionCheck: null,
+  doiCheck: null,
   firstResultMs: null,
   tookMs: null,
   error: null,
@@ -66,6 +69,7 @@ export function useSearch() {
           results: final.results,
           providers: final.providers,
           retractionCheck: final.retractionCheck,
+          doiCheck: final.doiCheck,
           tookMs: final.tookMs,
         }));
         es.close();

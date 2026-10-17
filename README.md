@@ -26,6 +26,10 @@ Checks: `npm run typecheck`, `npm run contrast -w apps/web` (WCAG pairs for the 
 `npm run e2e -w apps/web` (Edge headless: screenshots in `apps/web/e2e/shots`, axe accessibility scan, mobile overflow;
 needs the local server from `npm run dev:api` running).
 
+Citation accuracy: `npm run eval` replays recorded API responses against 100 real papers, 20 retracted papers and 30 fabricated
+references (gates: 0 fabricated references verified, 0 unresolvable DOIs, all retractions detected). See `docs/eval/README.md`.
+It runs in CI on every push; a weekly workflow repeats it against the live APIs.
+
 Auth, library and account tests run against a **fake identity provider** (no real Google/ORCID account needed):
 start the Worker with `npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var ORCID_CLIENT_ID:dev --var ORCID_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911 --var ORCID_BASE_URL:http://localhost:9911/orcid`
 (after `npm run build` and `npm run db:migrate:local`), then `node apps/api/scripts/auth-e2e.mjs`, `node apps/api/scripts/library-e2e.mjs`,

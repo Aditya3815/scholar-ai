@@ -1,5 +1,8 @@
+import type { CacheStore } from "../cache/store";
+
 export type SearchEnv = {
-  DB: D1Database;
+  /** Where provider responses and retraction checks are cached (D1 in production, memory in tests). */
+  store: CacheStore;
   OPENALEX_API_KEY?: string;
   NCBI_API_KEY?: string;
   S2_API_KEY?: string;

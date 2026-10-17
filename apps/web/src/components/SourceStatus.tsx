@@ -1,6 +1,6 @@
 import { m } from "motion/react";
 import { PROVIDER_LABELS, type ProviderStatus } from "@scholar/shared";
-import { AlertTriangle, ShieldCheck, Zap } from "lucide-react";
+import { AlertTriangle, BadgeCheck, ShieldCheck, Zap } from "lucide-react";
 import type { SearchState } from "../lib/search";
 import { easeOut } from "../lib/motion";
 
@@ -55,6 +55,7 @@ export function SourceStatus({ state }: { state: SearchState }) {
   }
 
   const rc = state.retractionCheck;
+  const dc = state.doiCheck;
   return (
     <div className="src-wrap">
       <p className="src-summary" role="status" aria-live="polite">
@@ -64,6 +65,13 @@ export function SourceStatus({ state }: { state: SearchState }) {
         {ids.map((id) => (
           <Chip key={id} label={PROVIDER_LABELS[id]} status={state.providers[id]} pending={loading && !state.providers[id]} />
         ))}
+        <m.li className="src-chip" data-state={dc ? (dc.ok ? "ok" : "error") : "pending"} layout title={dc?.ok ? "Every DOI is checked against Crossref and doi.org; DOIs that do not exist, or belong to a different record, are removed." : dc?.error}>
+          <span className="src-ico" aria-hidden="true">
+            {!dc ? (loading ? <span className="pulse-dot" /> : null) : dc.ok ? <BadgeCheck size={14} /> : <AlertTriangle size={14} />}
+          </span>
+          <span className="src-name">DOI check</span>
+          {dc && <span className="src-meta">{dc.ok ? (dc.count > 0 ? `${dc.count} removed` : "all valid") : "unavailable"}</span>}
+        </m.li>
         <m.li className="src-chip" data-state={rc ? (rc.ok ? "ok" : "error") : "pending"} layout title={rc?.error}>
           <span className="src-ico" aria-hidden="true">
             {!rc ? (loading ? <span className="pulse-dot" /> : null) : rc.ok ? <ShieldCheck size={14} /> : <AlertTriangle size={14} />}

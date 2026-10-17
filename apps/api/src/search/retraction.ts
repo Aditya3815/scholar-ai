@@ -1,6 +1,6 @@
 import { crossrefHeaders } from "./crossref";
 import { normalizeDoi } from "./normalize";
-import type { SearchEnv } from "./types";
+type RetractionEnv = { CROSSREF_MAILTO: string };
 
 type NoticeItem = { "update-to"?: { DOI?: string; type?: string }[] };
 
@@ -11,7 +11,7 @@ type NoticeItem = { "update-to"?: { DOI?: string; type?: string }[] };
  */
 export async function findRetracted(
   dois: string[],
-  env: SearchEnv,
+  env: RetractionEnv,
   signal: AbortSignal,
 ): Promise<string[]> {
   // DOI mein comma ho toh filter syntax toot jaata hai; aise rare DOIs skip (unknown rahenge).

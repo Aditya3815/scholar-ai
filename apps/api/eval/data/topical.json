@@ -1,0 +1,22 @@
+[
+  { "q": "Deep learning LeCun Bengio Hinton", "title": "Deep learning", "expect": ["10.1038/nature14539"] },
+  { "q": "programmable dual-RNA-guided DNA endonuclease in adaptive bacterial immunity", "title": "A Programmable Dual-RNA-Guided DNA Endonuclease in Adaptive Bacterial Immunity", "expect": ["10.1126/science.1225829"] },
+  { "q": "random forests Breiman 2001", "expect": ["10.1023/a:1010933404324"] },
+  { "q": "support-vector networks Cortes Vapnik", "title": "Support-vector networks", "expect": ["10.1007/bf00994018"] },
+  { "q": "preferred reporting items for systematic reviews and meta-analyses: the PRISMA statement", "title": "Preferred reporting items for systematic reviews and meta-analyses: the PRISMA statement", "expect": ["10.1371/journal.pmed.1000097"] },
+  { "q": "gradient-based learning applied to document recognition", "title": "Gradient-based learning applied to document recognition", "expect": ["10.1109/5.726791"] },
+  { "q": "coefficient alpha and the internal structure of tests Cronbach", "title": "Coefficient alpha and the internal structure of tests", "expect": ["10.1007/bf02310555"] },
+  { "q": "how to conduct a bibliometric analysis: an overview and guidelines", "title": "How to conduct a bibliometric analysis: An overview and guidelines", "expect": ["10.1016/j.jbusres.2021.04.070"] },
+  { "q": "clinical features of patients infected with 2019 novel coronavirus in Wuhan, China", "title": "Clinical features of patients infected with 2019 novel coronavirus in Wuhan, China", "expect": ["10.1016/s0140-6736(20)30183-5"] },
+  { "q": "BERT pre-training of deep bidirectional transformers for language understanding", "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding", "expect": ["10.18653/v1/n19-1423", "10.48550/arxiv.1810.04805"] },
+  { "q": "Adam: a method for stochastic optimization", "title": "Adam: A Method for Stochastic Optimization", "expect": ["10.48550/arxiv.1412.6980"] },
+  { "q": "ImageNet classification with deep convolutional neural networks", "title": "ImageNet classification with deep convolutional neural networks", "expect": ["10.1145/3065386"] },
+  { "q": "using thematic analysis in psychology Braun Clarke", "title": "Using thematic analysis in psychology", "expect": ["10.1191/1478088706qp063oa"] },
+  { "q": "fuzzy sets Zadeh 1965", "expect": ["10.1016/s0019-9958(65)90241-x"] },
+  { "q": "a mathematical theory of communication Shannon", "title": "A Mathematical Theory of Communication", "expect": ["10.1002/j.1538-7305.1948.tb01338.x"] },
+  { "q": "attention is all you need", "title": "Attention is All you Need", "expect": ["10.48550/arxiv.1706.03762"] },
+  { "q": "generative adversarial networks Goodfellow", "title": "Generative adversarial networks", "expect": ["10.48550/arxiv.1406.2661", "10.1145/3422622"] },
+  { "q": "hallmarks of cancer: the next generation", "title": "Hallmarks of Cancer: The Next Generation", "expect": ["10.1016/j.cell.2011.02.013"] },
+  { "q": "global burden of 369 diseases and injuries in 204 countries and territories 1990-2019", "title": "Global burden of 369 diseases and injuries in 204 countries and territories, 1990-2019: a systematic analysis for the Global Burden of Disease Study 2019", "expect": ["10.1016/s0140-6736(20)30925-9"] },
+  { "q": "mastering the game of Go with deep neural networks and tree search", "title": "Mastering the game of Go with deep neural networks and tree search", "expect": ["10.1038/nature16961"] }
+]

@@ -9,6 +9,7 @@
     "build": "npm run build -w apps/web",
     "typecheck": "npm run typecheck -w apps/api && npm run typecheck -w apps/web",
     "test": "npm test -w apps/api",
+    "eval": "npm run eval -w apps/api",
     "deploy": "npm run build && npm run deploy -w apps/api",
     "db:migrate:local": "npm run db:migrate:local -w apps/api",
     "db:migrate:remote": "npm run db:migrate:remote -w apps/api"

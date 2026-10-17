@@ -1,8 +1,16 @@
-/** "https://doi.org/10.1000/ABC" -> "10.1000/abc" (DOI case-insensitive hote hain). */
+/**
+ * "https://doi.org/10.1000/ABC" -> "10.1000/abc" (DOIs are case-insensitive).
+ * Also strips link artefacts some indexes leave on the DOI ("10.1051/bioconf/202621302009/pdf"), which would otherwise be a DOI
+ * that does not exist.
+ */
 export function normalizeDoi(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const m = raw.trim().match(/10\.\d{4,9}\/\S+/i);
-  return m ? m[0].toLowerCase().replace(/[.,;)\]]+$/, "") : null;
+  if (!m) return null;
+  return m[0]
+    .toLowerCase()
+    .replace(/[.,;)\]]+$/, "")
+    .replace(/\/(pdf|epdf|pdfdirect|full|fulltext|full-text|abstract|summary|html|xml|meta)$/, "");
 }
 
 export function normalizeTitle(title: string): string {

@@ -1,3 +1,4 @@
+import { d1Store } from "../cache/store";
 import type { Ledger, ResponseCache, UsageRow } from "./types";
 
 export function d1Ledger(db: D1Database): Ledger {
@@ -22,19 +23,5 @@ export function d1Ledger(db: D1Database): Ledger {
 
 /** Reuses the shared `api_cache` table. Only the gateway's PUBLIC responses are ever stored here. */
 export function d1ResponseCache(db: D1Database): ResponseCache {
-  return {
-    async get(key) {
-      const row = await db
-        .prepare("SELECT payload FROM api_cache WHERE key = ?1 AND expires_at > datetime('now')")
-        .bind(key)
-        .first<{ payload: string }>();
-      return row?.payload ?? null;
-    },
-    async set(key, value, ttlSeconds) {
-      await db
-        .prepare("INSERT OR REPLACE INTO api_cache (key, source, payload, expires_at) VALUES (?1, 'llm', ?2, datetime('now', ?3))")
-        .bind(key, value, `+${ttlSeconds} seconds`)
-        .run();
-    },
-  };
+  return d1Store(db, "llm");
 }

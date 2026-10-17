@@ -7,6 +7,8 @@ import { authRoutes } from "./auth/routes";
 import { libraryRoutes } from "./library/routes";
 import { accountRoutes } from "./account/routes";
 import type { AuthEnv } from "./auth/providers";
+import { d1Store } from "./cache/store";
+import type { SearchEnv } from "./search/types";
 
 type Bindings = AuthEnv & {
   DB: D1Database;
@@ -22,6 +24,14 @@ type Bindings = AuthEnv & {
   CORE_API_KEY?: string;
   CROSSREF_MAILTO: string;
 };
+
+const searchEnv = (env: Bindings): SearchEnv => ({
+  store: d1Store(env.DB),
+  OPENALEX_API_KEY: env.OPENALEX_API_KEY,
+  NCBI_API_KEY: env.NCBI_API_KEY,
+  S2_API_KEY: env.S2_API_KEY,
+  CROSSREF_MAILTO: env.CROSSREF_MAILTO,
+});
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -61,7 +71,7 @@ const invalidQuery = {
 app.get("/api/v1/search", async (c) => {
   const { q, limit, valid } = parseSearch((k) => c.req.query(k));
   if (!valid) return c.json(invalidQuery, 400);
-  return c.json(await runSearch(c.env, q, limit));
+  return c.json(await runSearch(searchEnv(c.env), q, limit));
 });
 
 /**
@@ -81,7 +91,7 @@ app.get("/api/v1/search/stream", (c) => {
       if (!closed) await stream.writeSSE({ event, data: JSON.stringify(data) });
     };
     try {
-      const final = await runSearch(c.env, q, limit, { onSnapshot: (s) => send("snapshot", s) });
+      const final = await runSearch(searchEnv(c.env), q, limit, { onSnapshot: (s) => send("snapshot", s) });
       await send("done", final);
     } catch (err) {
       console.error(err);
