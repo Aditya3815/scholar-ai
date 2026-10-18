@@ -18,7 +18,7 @@ export type VerifyState = {
   skipped: number;
 };
 
-const CONCURRENCY = 3;
+const CONCURRENCY = 2;
 const idle: VerifyState = { items: [], running: false, skipped: 0 };
 
 class RateLimited extends Error {

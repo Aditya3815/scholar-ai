@@ -1,6 +1,7 @@
 import { crossrefHeaders } from "./crossref";
 import { normalizeDoi } from "./normalize";
-type RetractionEnv = { CROSSREF_MAILTO: string };
+import { crossrefFetch } from "../references/crossref-gate";
+type RetractionEnv = { CROSSREF_MAILTO: string; fetch?: typeof fetch };
 
 type NoticeItem = { "update-to"?: { DOI?: string; type?: string }[] };
 
@@ -25,7 +26,7 @@ export async function findRetracted(
     select: "DOI,update-to",
     mailto: env.CROSSREF_MAILTO,
   });
-  const res = await fetch(`https://api.crossref.org/works?${params}`, {
+  const res = await crossrefFetch(env.fetch ?? fetch, `https://api.crossref.org/works?${params}`, {
     signal,
     headers: crossrefHeaders(env),
   });

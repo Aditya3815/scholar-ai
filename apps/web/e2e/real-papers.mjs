@@ -9,7 +9,10 @@ import { join } from "node:path";
 import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 
 const dir = process.argv[2] ?? process.env.REAL_PDFS;
-const BASE = process.argv[3] ?? "http://localhost:8788";
+const BASE = process.argv.find((a, i) => i >= 3 && a.startsWith("http")) ?? "http://localhost:8788";
+// --verify also runs every extracted reference through the live Reference Verifier and prints how they came out.
+const VERIFY = process.argv.includes("--verify");
+const totals = {};
 if (!dir) throw new Error("usage: node e2e/real-papers.mjs <folder with .pdf files> [baseUrl]");
 
 const idp = await startFakeIdp(9911);
@@ -41,7 +44,27 @@ for (const f of readdirSync(dir).filter((x) => x.toLowerCase().endsWith(".pdf"))
   }
   doc = j.document;
   const info = j.info;
+  let verified = null;
+  if (VERIFY && info?.references?.length) {
+    verified = {};
+    const queue = [...info.references];
+    // Same pace as the app (two at a time), and wait out a rate-limit answer instead of counting it as a failure.
+    await Promise.all(Array.from({ length: 2 }, async () => {
+      for (let r = queue.shift(); r !== undefined; r = queue.shift()) {
+        let status = "error";
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const res = await page.request.post(BASE + "/api/v1/references/verify", { headers: { Origin: BASE, "Content-Type": "application/json" }, data: { reference: r } });
+          if (res.status() === 429) { await page.waitForTimeout(Math.min(Number(res.headers()["retry-after"]) || 10, 30) * 1000); continue; }
+          status = res.ok() ? (await res.json()).status : "error";
+          break;
+        }
+        verified[status] = (verified[status] ?? 0) + 1;
+        totals[status] = (totals[status] ?? 0) + 1;
+      }
+    }));
+  }
   rows.push({
+    verified,
     file: f, seconds: ((Date.now() - t0) / 1000).toFixed(1), status: doc.status, pages: doc.pages, chunks: doc.chunkCount,
     title: info?.title, doi: info?.doi, arxiv: info?.arxiv, outline: info?.outline?.length, headings: info?.headings?.length,
     references: info?.references?.length, referencesSource: info?.referencesSource,
@@ -52,5 +75,6 @@ for (const f of readdirSync(dir).filter((x) => x.toLowerCase().endsWith(".pdf"))
 }
 await page.request.delete(BASE + "/api/v1/account", { headers: { Origin: BASE, "Content-Type": "application/json" }, data: { confirm: "DELETE" } }).catch(() => {});
 await browser.close();
+if (VERIFY) console.log("\nVERIFIER on all extracted references:", JSON.stringify(totals), `verified ${Math.round(((totals.verified ?? 0) / Math.max(1, Object.values(totals).reduce((a, b) => a + b, 0))) * 100)}%`);
 console.log("\n" + rows.map((r) => `${r.file.padEnd(16)} ${r.status ?? ""} ${String(r.pages ?? "").padStart(3)}p  title: ${(r.savedTitle ?? "").slice(0, 60).padEnd(60)} refs ${String(r.references ?? "").padStart(3)} (${r.referencesSource})  contents ${r.outline ?? 0}/${r.headings ?? 0}  doi ${r.doi ?? r.arxiv ?? "-"}  ${r.metadata ?? ""}`).join("\n"));
 process.exit(0);

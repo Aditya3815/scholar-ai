@@ -96,6 +96,8 @@ try {
     ok = run("browser: library", "e2e/library.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = run("browser: verifier", "e2e/verify.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = run("browser: papers", "e2e/papers.mjs", [`http://localhost:${PORT}`], web) && ok;
+    // Only when asked for (needs real PDFs, live Crossref/OpenAlex and a few minutes): REAL_PDFS=<folder> [REAL_VERIFY=1]
+    if (process.env.REAL_PDFS) ok = run("browser: real papers", "e2e/real-papers.mjs", [process.env.REAL_PDFS, `http://localhost:${PORT}`, ...(process.env.REAL_VERIFY ? ["--verify"] : [])], web) && ok;
   }
 } catch (e) {
   console.error(e.message);
