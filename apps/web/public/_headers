@@ -1,0 +1,14 @@
+# Security and caching headers for the static app. (Cloudflare does not apply this file to responses the Worker generates;
+# the API sets its own in apps/api/src/index.ts.)
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+  Strict-Transport-Security: max-age=63072000; includeSubDomains
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://lh3.googleusercontent.com; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+
+# Vite fingerprints everything under /assets, so it can be cached forever.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

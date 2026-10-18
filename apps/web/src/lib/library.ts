@@ -50,8 +50,10 @@ async function syncAfterLogin(userId: string) {
   if (device.length > 0) {
     const res = await fetch("/api/v1/library/import", jsonInit("POST", { items: device.slice(0, 500) })).catch(() => null);
     if (res?.ok) {
-      local.set([]); // imported: nothing personal stays in this browser
       items = (await loadServer(userId)) ?? items;
+      if (serverUserId !== userId) return;
+      serverItems = items; // show the account copy first so the badge never dips to 0 while the device copy is cleared
+      local.set([]); // imported: nothing personal stays in this browser
     } else {
       showNotice("We could not move the papers saved on this device into your account. They are still here; try again later.");
     }

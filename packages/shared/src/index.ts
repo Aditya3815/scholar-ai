@@ -3,6 +3,10 @@ export type HealthResponse = {
   service: string;
   time: string;
   db: "ok" | "error";
+  /** Applied D1 migrations; 0 or missing means the schema is not what this build expects. */
+  migrations?: number;
+  /** Deployed Worker version id (Workers version metadata), absent locally. */
+  version?: string;
 };
 
 export type Theme = "light" | "dark" | "read";

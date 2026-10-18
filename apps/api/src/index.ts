@@ -9,9 +9,11 @@ import { accountRoutes } from "./account/routes";
 import type { AuthEnv } from "./auth/providers";
 import { d1Store } from "./cache/store";
 import type { SearchEnv } from "./search/types";
+import { apiSecurityHeaders, requestLog } from "./middleware";
 
 type Bindings = AuthEnv & {
   DB: D1Database;
+  CF_VERSION_METADATA?: WorkerVersionMetadata;
   JOBS: Queue;
   FILES: R2Bucket;
   AI: Ai;
@@ -33,7 +35,10 @@ const searchEnv = (env: Bindings): SearchEnv => ({
   CROSSREF_MAILTO: env.CROSSREF_MAILTO,
 });
 
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono<{ Bindings: Bindings; Variables: { requestId: string } }>();
+
+app.use("*", requestLog());
+app.use("/api/*", apiSecurityHeaders);
 
 app.route("/api/v1/auth", authRoutes);
 app.route("/api/v1/library", libraryRoutes);
@@ -41,18 +46,25 @@ app.route("/api/v1/account", accountRoutes);
 
 app.get("/api/v1/health", async (c) => {
   let db: HealthResponse["db"] = "ok";
+  let migrations = 0;
   try {
-    await c.env.DB.prepare("SELECT 1").first();
+    // Also proves the schema was migrated: a deploy that skipped `db:migrate:remote` reports 0 here.
+    const row = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM d1_migrations").first<{ n: number }>();
+    migrations = row?.n ?? 0;
   } catch {
     db = "error";
   }
+  const ok = db === "ok" && migrations > 0;
   const body: HealthResponse = {
-    ok: db === "ok",
+    ok,
     service: "scholar-api",
     time: new Date().toISOString(),
     db,
+    migrations,
+    version: c.env.CF_VERSION_METADATA?.id,
   };
-  return c.json(body, db === "ok" ? 200 : 503);
+  c.header("Cache-Control", "no-store");
+  return c.json(body, ok ? 200 : 503);
 });
 
 function parseSearch(query: (k: string) => string | undefined) {
@@ -130,8 +142,8 @@ app.notFound((c) =>
 );
 
 app.onError((err, c) => {
-  console.error(err);
-  return c.json({ type: "internal_error", title: "Internal error" }, 500);
+  console.error(JSON.stringify({ level: "error", msg: "unhandled", requestId: c.get("requestId"), error: err.name }));
+  return c.json({ type: "internal_error", title: "Internal error", requestId: c.get("requestId") }, 500);
 });
 
 export default app;

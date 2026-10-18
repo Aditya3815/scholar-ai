@@ -1,10 +1,11 @@
 import { chromium } from "playwright-core";
 import { createRequire } from "node:module";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
-const axePath = require.resolve("axe-core/axe.min.js");
+// Injected with evaluate(), which CSP does not apply to, so the policy under test stays strict.
+const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 const BASE = process.argv[2] ?? "http://localhost:8787";
 const OUT = fileURLToPath(new URL("./shots/", import.meta.url));
 mkdirSync(OUT, { recursive: true });
@@ -17,7 +18,7 @@ page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push("console: " + m.text()); });
 
 async function axe(label) {
-  await page.addScriptTag({ path: axePath });
+  await page.evaluate(axeSource);
   const res = await page.evaluate(async () => {
     const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
     return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
