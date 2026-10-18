@@ -1,19 +1,21 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowLeft, FileWarning, Loader2, MessageSquareText, Pencil, ScrollText } from "lucide-react";
+import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Loader2, MessageSquareText, Pencil, ScrollText } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import type { Answer, Citation, DocumentInfo } from "@scholar/shared";
+import type { Answer, Citation, DocumentInfo, OutlineItem, PaperInfo } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
-import { ApiError, fetchDocument, fileUrl, reindexDoc, renameDoc, useJobs } from "../../lib/documents";
+import { ApiError, fetchDocument, fileUrl, reindexDoc, renameDoc, savePaperInfo, useJobs } from "../../lib/documents";
+import { analyzeOpenPdf } from "../../lib/paperinfo";
 import { easeOut, spring } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { PdfError, openPdf, type PDFDocumentProxy } from "../../lib/pdf";
 import { AskPanel } from "./AskPanel";
+import { ReferencesPanel } from "./ReferencesPanel";
 import type { ViewerHandle } from "./PdfViewer";
 
 // The viewer (and pdf.js with it) is its own chunk: it is only downloaded when a paper is opened.
 const PdfViewer = lazy(() => import("./PdfViewer").then((m) => ({ default: m.PdfViewer })));
 
-type Load = { status: "loading" } | { status: "error"; message: string; notFound?: boolean } | { status: "ready"; doc: DocumentInfo; history: Answer[] };
+type Load = { status: "loading" } | { status: "error"; message: string; notFound?: boolean } | { status: "ready"; doc: DocumentInfo; history: Answer[]; info: PaperInfo | null };
 type Pdf = { status: "loading"; progress: number } | { status: "error"; message: string } | { status: "ready"; pdf: PDFDocumentProxy };
 
 function TitleEditor({ doc, onChange }: { doc: DocumentInfo; onChange: (d: DocumentInfo) => void }) {
@@ -51,6 +53,17 @@ function TitleEditor({ doc, onChange }: { doc: DocumentInfo; onChange: (d: Docum
   );
 }
 
+/** Bookmarks when the PDF has a few, otherwise detected headings (and say which, because detected ones can be incomplete). */
+function contentsOf(info: PaperInfo | null): { items: OutlineItem[]; detected: boolean } | undefined {
+  if (!info) return undefined;
+  const outline = info.outline.filter((o) => o.page >= 1);
+  if (outline.length >= 3) return { items: outline, detected: false };
+  const headings = info.headings.filter((o) => o.page >= 1);
+  return headings.length >= 2 ? { items: headings, detected: true } : undefined;
+}
+
+const authorsLine = (a: string[]) => (a.length <= 3 ? a.join(", ") : `${a.slice(0, 3).join(", ")} et al.`);
+
 function OpeningPaper({ progress }: { progress: number }) {
   return (
     <div className="dw-opening" role="status" aria-live="polite">
@@ -67,7 +80,10 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const { status: authStatus, user } = useAuth();
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [pdf, setPdf] = useState<Pdf>({ status: "loading", progress: 0 });
-  const [tab, setTab] = useState<"paper" | "ask">("paper");
+  const [tab, setTab] = useState<"paper" | "side">("paper");
+  const [side, setSide] = useState<"ask" | "refs">("ask");
+  const [analyzing, setAnalyzing] = useState(false);
+  const analyzed = useRef<string | null>(null);
   const [page, setPage] = useState(1);
   const viewer = useRef<ViewerHandle>(null);
   const jobs = useJobs();
@@ -76,7 +92,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const fetchIt = useCallback(async () => {
     try {
       const r = await fetchDocument(id);
-      setLoad({ status: "ready", doc: r.document, history: r.history });
+      setLoad({ status: "ready", doc: r.document, history: r.history, info: r.info });
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setLoad({ status: "error", message: "Sign in to open your papers." });
       else if (e instanceof ApiError && e.status === 404) setLoad({ status: "error", message: "We could not find that paper. It may have been deleted.", notFound: true });
@@ -110,6 +126,24 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
       void opened?.loadingTask.destroy();
     };
   }, [found, id]);
+
+  const needsInfo = load.status === "ready" && load.info === null;
+  useEffect(() => {
+    if (!needsInfo || pdf.status !== "ready" || analyzed.current === id) return;
+    analyzed.current = id;
+    let cancelled = false;
+    setAnalyzing(true);
+    analyzeOpenPdf(pdf.pdf)
+      .then(async (found) => {
+        const saved = await savePaperInfo(id, found).catch(() => null);
+        if (!cancelled) setLoad((l) => (l.status === "ready" ? { ...l, doc: saved?.document ?? l.doc, info: saved?.info ?? found } : l));
+      })
+      .catch(() => !cancelled && setLoad((l) => (l.status === "ready" ? { ...l, info: { pages: pdf.pdf.numPages, title: null, doi: null, arxiv: null, outline: [], headings: [], references: [], referencesSource: "none", metadata: null } } : l)))
+      .finally(() => !cancelled && setAnalyzing(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [needsInfo, pdf, id]);
 
   // When a re-index finishes, pick up the new status.
   const wasReindexing = useRef(false);
@@ -151,7 +185,9 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     );
   }
 
-  const { doc, history } = load;
+  const { doc, history, info } = load;
+  const meta = info?.metadata;
+  const refCount = info?.references.length ?? 0;
   return (
     <m.div className="dw" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: easeOut }}>
       <div className="dw-head">
@@ -160,22 +196,51 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
           <span>My papers</span>
         </button>
         <div className="dw-titles">
-          <TitleEditor doc={doc} onChange={(d) => setLoad({ status: "ready", doc: d, history })} />
+          <TitleEditor doc={doc} onChange={(d) => setLoad({ status: "ready", doc: d, history, info })} />
           <p className="dw-meta">
             {doc.pages ? `${doc.pages} pages · ` : ""}
             {doc.status === "ready" ? `${doc.chunkCount} passages indexed` : doc.status === "failed" ? "Not indexed" : "Indexing"}
           </p>
+          {meta && (
+            <p className="dw-byline">
+              {[meta.authors.length ? authorsLine(meta.authors) : null, meta.year, meta.venue].filter(Boolean).join(" · ")}
+              {meta.doi && (
+                <a className="dw-doi" href={`https://doi.org/${meta.doi}`} target="_blank" rel="noreferrer noopener">
+                  DOI <ExternalLink size={12} aria-hidden="true" />
+                </a>
+              )}
+            </p>
+          )}
         </div>
       </div>
 
       <div className="dw-tabs" role="tablist" aria-label="Workspace">
-        {([["paper", "Paper", ScrollText], ["ask", "Ask", MessageSquareText]] as const).map(([t, label, Icon]) => (
-          <button key={t} type="button" role="tab" id={`dw-tab-${t}`} aria-selected={tab === t} aria-controls={`dw-panel-${t}`} className="dw-tab" onClick={() => setTab(t)}>
-            {tab === t && <m.span layoutId="dw-tab-pill" className="topnav-pill" transition={spring} />}
-            <Icon size={16} aria-hidden="true" />
-            <span className="topnav-label">{label}</span>
-          </button>
-        ))}
+        {([["paper", "Paper", ScrollText], ["ask", "Ask", MessageSquareText], ["refs", "References", BookMarked]] as const).map(([t, label, Icon]) => {
+          const active = t === "paper" ? tab === "paper" : tab === "side" && side === t;
+          return (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              id={`dw-tab-${t}`}
+              aria-selected={active}
+              aria-controls={t === "paper" ? "dw-panel-paper" : "dw-panel-side"}
+              className="dw-tab"
+              onClick={() => {
+                if (t === "paper") setTab("paper");
+                else {
+                  setSide(t);
+                  setTab("side");
+                }
+              }}
+            >
+              {active && <m.span layoutId="dw-tab-pill" className="topnav-pill" transition={spring} />}
+              <Icon size={16} aria-hidden="true" />
+              <span className="topnav-label">{label}</span>
+              {t === "refs" && refCount > 0 && <span className="dw-tab-n">{refCount}</span>}
+            </button>
+          );
+        })}
       </div>
 
       <div className="dw-grid">
@@ -196,7 +261,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             {pdf.status === "ready" && (
               <m.div key="r" className="dw-viewer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }}>
                 <Suspense fallback={<OpeningPaper progress={1} />}>
-                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} downloadHref={fileUrl(doc.id)} onPage={setPage} />
+                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} />
                 </Suspense>
               </m.div>
             )}
@@ -204,13 +269,29 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
           {pdf.status === "ready" && <p className="sr-only" aria-live="polite">Page {page} of {pdf.pdf.numPages}</p>}
         </div>
 
-        <div id="dw-panel-ask" role="tabpanel" aria-labelledby="dw-tab-ask" className="dw-panel dw-ask" data-active={tab === "ask"}>
-          <AskPanel doc={doc} history={history} onCite={onCite} onGoToPage={onGoToPage} onReindex={() => void reindexDoc(doc)} />
-          {reindexing && (
-            <p className="ask-fine" role="status">
-              <Loader2 className="spin" size={13} aria-hidden="true" /> Indexing again…
-            </p>
-          )}
+        <div id="dw-panel-side" role="tabpanel" className="dw-panel dw-ask" data-active={tab === "side"}>
+          <div className="dw-sidetabs" role="tablist" aria-label="Ask or references">
+            {([["ask", "Ask", MessageSquareText], ["refs", "References", BookMarked]] as const).map(([s, label, Icon]) => (
+              <button key={s} type="button" role="tab" aria-selected={side === s} className="dw-sidetab" onClick={() => setSide(s)}>
+                {side === s && <m.span layoutId="dw-side-pill" className="dw-sidetab-pill" transition={spring} />}
+                <Icon size={15} aria-hidden="true" />
+                <span>{label}</span>
+                {s === "refs" && refCount > 0 && <span className="dw-tab-n">{refCount}</span>}
+              </button>
+            ))}
+          </div>
+          {/* Both stay mounted so a question being answered, or references being checked, are never lost by switching tabs. */}
+          <div className="dw-side" hidden={side !== "ask"}>
+            <AskPanel doc={doc} history={history} onCite={onCite} onGoToPage={onGoToPage} onReindex={() => void reindexDoc(doc)} />
+            {reindexing && (
+              <p className="ask-fine" role="status">
+                <Loader2 className="spin" size={13} aria-hidden="true" /> Indexing again…
+              </p>
+            )}
+          </div>
+          <div className="dw-side" hidden={side !== "refs"}>
+            <ReferencesPanel info={info} analyzing={analyzing || (needsInfo && pdf.status !== "error")} />
+          </div>
         </div>
       </div>
     </m.div>

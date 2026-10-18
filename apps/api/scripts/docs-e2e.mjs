@@ -165,6 +165,23 @@ try {
   const resB = await B.send(`${APP}/api/v1/documents/${doc.id}/ask?stream=1`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/json" }, body: JSON.stringify({ question: "How were participants recruited?" }) });
   ok(resB.status === 404, "another user cannot stream questions about this paper");
 
+  console.log("what the browser learned about the paper (title, DOI, outline, references)");
+  const info = { pages: 3, title: "A Scanned Thesis About Rivers", doi: "10.1234/no.such.paper.2026", arxiv: null, outline: [{ title: "Introduction", page: 1, level: 1 }], headings: [{ title: "Methods", page: 2, level: 1 }], references: ["Smith, J. (2020). A study of studies about rivers. Journal of Water, 4(2), 1-10.", "Rao, P. (2019). Another long title about rivers and lakes. Hydrology Today, 8, 5-9."] };
+  const putInfo = (id, body, { origin = APP, client = A } = {}) => client.send(`${APP}/api/v1/documents/${id}/info`, { method: "PUT", headers: { ...(origin ? { Origin: origin } : {}), "Content-Type": "application/json" }, body: typeof body === "string" ? body : JSON.stringify(body) });
+  ok((await putInfo(scanned.id, info, { origin: null })).status === 403, "storing it needs the same-origin check");
+  ok((await putInfo(scanned.id, "not json")).status === 400 && (await putInfo(scanned.id, { title: "x" })).status === 400, "garbage is refused");
+  ok((await putInfo(scanned.id, JSON.stringify({ ...info, references: ["y".repeat(200)].concat(Array(4000).fill("z".repeat(200))) }))).status === 413, "an absurdly large body is refused");
+  ok((await putInfo(scanned.id, info, { client: B })).status === 404, "another user cannot write it");
+  const stored = await (await putInfo(scanned.id, { ...info, metadata: { title: "forged" } })).json();
+  ok(stored.info.references.length === 2 && stored.info.referencesSource === "pdf" && stored.info.metadata === null, "it is stored, and a forged metadata field is ignored");
+  ok(stored.document.title === "A Scanned Thesis About Rivers", "a paper still carrying its file-name title takes the real title");
+  const got = await (await A.api(`/api/v1/documents/${scanned.id}`)).json();
+  ok(got.info.outline[0].title === "Introduction" && got.info.references[1].startsWith("Rao"), "reading the paper returns it");
+  await A.api(`/api/v1/documents/${scanned.id}`, { method: "PATCH", body: { title: "My own name" } });
+  const reput = await (await putInfo(scanned.id, info)).json();
+  ok(reput.document.title === "My own name", "a title the user chose is never overwritten");
+  ok((await (await A.api(`/api/v1/documents/${doc.id}`)).json()).info === null, "a paper nobody analysed has no info");
+
   console.log("export and deletion");
   const exp = await (await A.api("/api/v1/account/export")).json();
   ok(exp.uploadedPapers.length === 2 && exp.uploadedPapers.find((d) => d.id === doc.id).questions.length === 4, "the data export lists the papers and the questions asked");

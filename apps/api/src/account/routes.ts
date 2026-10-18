@@ -29,9 +29,9 @@ accountRoutes.get("/export", async (c) => {
     .all<{ data: string; saved_at: string }>();
 
   const docs = await c.env.DB
-    .prepare("SELECT id, title, filename, size_bytes, pages, status, created_at FROM documents WHERE user_id = ?1 ORDER BY created_at DESC")
+    .prepare("SELECT id, title, filename, size_bytes, pages, status, created_at, info FROM documents WHERE user_id = ?1 ORDER BY created_at DESC")
     .bind(user.id)
-    .all<{ id: string; title: string; filename: string; size_bytes: number; pages: number | null; status: string; created_at: string }>();
+    .all<{ id: string; title: string; filename: string; size_bytes: number; pages: number | null; status: string; created_at: string; info: string | null }>();
   const qa = await c.env.DB
     .prepare("SELECT q.doc_id, q.question, q.answer, q.created_at FROM doc_qa q JOIN documents d ON d.id = q.doc_id WHERE d.user_id = ?1 ORDER BY q.created_at")
     .bind(user.id)
@@ -43,6 +43,7 @@ accountRoutes.get("/export", async (c) => {
     uploadedPapers: docs.results.map((d) => ({
       id: d.id, title: d.title, filename: d.filename, sizeBytes: d.size_bytes, pages: d.pages, status: d.status,
       uploadedAt: new Date(fromSqliteTime(d.created_at)).toISOString(),
+      paperInfo: d.info ? JSON.parse(d.info) : null,
       note: "The PDF itself can be downloaded from the paper’s page while signed in.",
       questions: qa.results.filter((q) => q.doc_id === d.id).map((q) => ({ question: q.question, answer: (JSON.parse(q.answer) as { answer: string }).answer, askedAt: new Date(fromSqliteTime(q.created_at)).toISOString() })),
     })),

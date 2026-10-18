@@ -1,6 +1,7 @@
 import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 import type * as PdfJs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { groupLines, rawItems, type Line, type OutlineItem } from "@scholar/shared";
 
 /**
  * pdf.js is loaded on first use (it is ~400 KB and only the paper pages need it). Everything it fetches comes from our own
@@ -47,16 +48,48 @@ export async function openPdf(source: { url: string } | { data: ArrayBuffer }, o
   }
 }
 
-/** Reading order text of one page. Line ends become spaces, and a word hyphenated across lines is rejoined. */
-export async function pageText(page: PDFPageProxy): Promise<string> {
+/**
+ * One page, read once: its text in reading order (line ends become spaces, a word hyphenated across lines is rejoined) and its
+ * lines with font sizes and positions, which is what finding the title, headings and reference list needs.
+ */
+export async function readPage(page: PDFPageProxy): Promise<{ text: string; lines: Line[] }> {
   const content = await page.getTextContent();
+  const lines = groupLines(rawItems(content.items as never), page.pageNumber);
   let out = "";
   for (const item of content.items) {
     if (!("str" in item)) continue;
     out += item.str;
     out += item.hasEOL ? "\n" : " ";
   }
-  return out.replace(/(\p{L})-\n(?=\p{Ll})/gu, "$1").replace(/[ \t]*\n[ \t]*/g, " ").replace(/\s{2,}/g, " ").trim();
+  const text = out.replace(/(\p{L})-\n(?=\p{Ll})/gu, "$1").replace(/[ \t]*\n[ \t]*/g, " ").replace(/\s{2,}/g, " ").trim();
+  return { text, lines };
+}
+
+type OutlineNode = { title: string; dest: unknown; items?: OutlineNode[] };
+
+/** The PDF's own bookmarks as a flat list with page numbers (entries whose target cannot be resolved are left out). */
+export async function readOutline(pdf: PDFDocumentProxy): Promise<OutlineItem[]> {
+  const out: OutlineItem[] = [];
+  const walk = async (nodes: OutlineNode[], level: number) => {
+    for (const n of nodes) {
+      if (out.length >= 150) return;
+      try {
+        const dest = typeof n.dest === "string" ? await pdf.getDestination(n.dest) : (n.dest as unknown[] | null);
+        const ref = dest?.[0];
+        const page = ref && typeof ref === "object" ? (await pdf.getPageIndex(ref as never)) + 1 : typeof ref === "number" ? ref + 1 : 0;
+        if (page >= 1 && n.title?.trim()) out.push({ title: n.title.replace(/\s+/g, " ").trim().slice(0, 200), page, level });
+      } catch {
+        /* a bookmark that points nowhere */
+      }
+      if (n.items?.length) await walk(n.items, level + 1);
+    }
+  };
+  try {
+    await walk(((await pdf.getOutline()) ?? []) as OutlineNode[], 1);
+  } catch {
+    /* no outline */
+  }
+  return out;
 }
 
 /** A small JPEG of the first page (about 360 px wide) used as the paper's cover in the list. Always under the server's limit. */

@@ -86,3 +86,4 @@ export type SearchResponse = {
 export * from "./references";
 export * from "./documents";
 export * from "./text";
+export * from "./paperinfo";

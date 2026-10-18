@@ -1,6 +1,5 @@
 import { m } from "motion/react";
 import { Download, RefreshCw, ShieldAlert, Square } from "lucide-react";
-import { MAX_REFERENCES } from "@scholar/shared";
 import { easeOut, spring, springPop } from "../../lib/motion";
 import { attentionText, downloadText, reportCsv } from "../../lib/refReport";
 import { BUCKETS, tally, type Bucket } from "../../lib/refStatus";
@@ -22,12 +21,15 @@ export function VerifySummary({
   onFilter,
   onRecheck,
   onStop,
+  inPanel = false,
 }: {
   state: VerifyState;
   filter: Filter;
   onFilter: (f: Filter) => void;
   onRecheck: () => void;
   onStop: () => void;
+  /** Inside a scrolling side panel: not pinned under the page header. */
+  inPanel?: boolean;
 }) {
   const t = tally(state.items);
   const total = state.items.length;
@@ -45,7 +47,7 @@ export function VerifySummary({
 
   return (
     <>
-    <m.section className="card vsum" aria-label="Summary" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }}>
+    <m.section className={`card vsum${inPanel ? " vsum-panel" : ""}`} aria-label="Summary" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }}>
       <div className="vsum-top">
         <p className="vsum-headline" role="status" aria-atomic="true">
           <span className="sr-only">{message}</span>
@@ -78,7 +80,7 @@ export function VerifySummary({
     </m.section>
 
     <div className="vtools">
-      {t.retracted > 0 && (
+      {t.retracted > 0 && !inPanel && (
         <m.p className="vsum-retract" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: easeOut }}>
           <ShieldAlert size={16} aria-hidden="true" />
           {t.retracted === 1 ? "1 reference in your list has been retracted." : `${t.retracted} references in your list have been retracted.`}
@@ -86,7 +88,7 @@ export function VerifySummary({
       )}
 
       {state.skipped > 0 && (
-        <p className="vsum-note">Only the first {MAX_REFERENCES} references were checked. Run the other {state.skipped} as a second list.</p>
+        <p className="vsum-note">Only the first {state.items.length} references were checked. Run the other {state.skipped} as a second list in Verify references.</p>
       )}
 
       {settled > 0 && (

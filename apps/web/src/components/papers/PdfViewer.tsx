@@ -1,8 +1,10 @@
 import "pdfjs-dist/web/pdf_viewer.css";
 import { m } from "motion/react";
-import { ChevronLeft, ChevronRight, Download, Maximize2, Minus, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, ListTree, Maximize2, Minus, Plus } from "lucide-react";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
+import type { OutlineItem } from "@scholar/shared";
 import type { PDFDocumentProxy } from "../../lib/pdf";
+import { Pop } from "../Pop";
 import { pdfjs } from "../../lib/pdf";
 import { clearHighlights, highlightQuote } from "../../lib/highlight";
 import { spring } from "../../lib/motion";
@@ -148,7 +150,41 @@ function Thumb({ pdf, n, active, root, onPick }: { pdf: PDFDocumentProxy; n: num
   );
 }
 
-export function PdfViewer({ pdf, ref, title, downloadHref, onPage }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; downloadHref: string; onPage?: (n: number) => void }) {
+/** The table of contents: the PDF's own bookmarks, or headings found by reading the page, in which case we say so. */
+function Contents({ items, detected, current, onPick }: { items: OutlineItem[]; detected: boolean; current: number; onPick: (page: number) => void }) {
+  // the section the reader is in: the last entry that starts on or before the current page
+  const here = items.reduce((best, it, i) => (it.page <= current ? i : best), -1);
+  return (
+    <Pop
+      label="Contents"
+      align="start"
+      trigger={(open) => (
+        <button type="button" className="btn btn-ghost btn-sm pdfv-contents" aria-expanded={open}>
+          <ListTree size={15} aria-hidden="true" />
+          <span>Contents</span>
+        </button>
+      )}
+    >
+      {(close) => (
+        <div className="toc">
+          <p className="toc-note">{detected ? "Headings found by reading the pages. May be incomplete." : "From the PDF's own bookmarks."}</p>
+          <ol className="toc-list">
+            {items.map((it, i) => (
+              <li key={i} style={{ paddingLeft: `${Math.min(it.level - 1, 3) * 0.8}rem` }}>
+                <button type="button" className="toc-item" aria-current={i === here ? "location" : undefined} onClick={() => { onPick(it.page); close(); }}>
+                  <span className="toc-title">{it.title}</span>
+                  <span className="toc-page">{it.page}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </Pop>
+  );
+}
+
+export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean } }) {
   const scroller = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
   const [zoomIdx, setZoomIdx] = useState(3);
@@ -292,6 +328,7 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage }: { pdf: PDFD
           </button>
         </div>
         <div className="pdfv-zoom">
+          {contents && <Contents items={contents.items} detected={contents.detected} current={current} onPick={(p) => goTo(p)} />}
           <button type="button" className="icon-btn icon-btn-sm" aria-label="Zoom out" disabled={zoomIdx === 0} onClick={() => zoom(-1)}>
             <Minus size={16} aria-hidden="true" />
           </button>

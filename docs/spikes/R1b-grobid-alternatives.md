@@ -79,3 +79,27 @@ Build **"paper intelligence v1" without GROBID**:
 
 Five papers, one reviewer, heuristics tuned by eye: a smoke test, not a benchmark. The GROBID figures come from [R1](R1-grobid.md)
 (CRF image). Benchmark numbers for AnyStyle and GROBID come from third-party studies of different corpora and do not agree.
+
+## Result: built, 2026-10-18
+
+Implemented as `packages/shared/src/paperinfo.ts` (pure analysis, 24+ unit tests including real PDFs read by pdf.js), `apps/api/src/docs/info.ts`
+(validation and registry lookups) and the **References** tab and **Contents** menu in the paper workspace.
+
+Run on the same five PDFs through the real pipeline (browser pdf.js, Worker, live Crossref/OpenAlex), `apps/web/e2e/real-papers.mjs`:
+
+| | attention | cholera | milk | physed | pilot |
+| --- | --- | --- | --- | --- | --- |
+| title | exact | exact | exact | exact | exact |
+| references found (GROBID) | 40 (40) | 32 (32) | 49 (49) | 30 (31) | 24 (24) |
+| contents | 22 bookmarks | 9 bookmarks | 9 detected | 10 detected | 11 bookmarks |
+| metadata (authors, year, venue) | OpenAlex via arXiv id | OpenAlex via arXiv id | Crossref via SSRN DOI | OpenAlex via arXiv id | OpenAlex via arXiv id |
+
+Reference titles also found in the extracted entries: 154 of 173 (89%), the same as the prototype, with the entry count now within one of
+GROBID's on every paper (the prototype over-split `milk`: it split on text; the final version splits on hanging indentation). Detected
+headings stay a hint (they miss run-in and bold-only headings), which is why the reader labels them "may be incomplete" and prefers
+the PDF's bookmarks when there are at least three.
+
+Safeguards worth knowing: a DOI printed on page 1 is trusted for metadata only if the record's title agrees with the PDF's; a
+preprint's year comes from its arXiv id (OpenAlex merges versions and can report the latest); if the PDF's own list cannot be read
+and a DOI is known, the publisher's deposited list is used instead and the panel says so; what the browser sends is validated and
+bounded, and `metadata` can never be set by the client.

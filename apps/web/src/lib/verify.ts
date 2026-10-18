@@ -102,11 +102,11 @@ export function useVerify() {
   );
 
   const start = useCallback(
-    async (entries: string[]) => {
+    async (entries: string[], max: number = MAX_REFERENCES) => {
       abort.current?.abort();
       const ctl = new AbortController();
       abort.current = ctl;
-      const used = entries.slice(0, MAX_REFERENCES);
+      const used = entries.slice(0, max);
       const items: VerifyItem[] = used.map((input, id) => ({ id, input, state: "queued" }));
       setState({ items, running: true, skipped: entries.length - used.length });
       await work(items.map((i) => i.id), new Map(items.map((i) => [i.id, i.input])), ctl.signal);

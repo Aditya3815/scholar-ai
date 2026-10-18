@@ -13,11 +13,13 @@ import {
   type AskStreamEvent,
   type DocStatus,
   type DocumentInfo,
+  type PaperInfo,
 } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
 import { fromSqliteTime } from "../library/validate";
 import { chunkPage } from "./chunk";
+import { enrichPaperInfo, sanitizePaperInfo } from "./info";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "./embed";
 import { answerQuestion, answerQuestionStream, type Complete, type StoredChunk, type StreamComplete } from "./qa";
 import { stubComplete, stubStream } from "./stub";
@@ -28,6 +30,8 @@ type Bindings = {
   FILES: R2Bucket;
   AI?: Ai;
   GEMINI_API_KEY?: string;
+  CROSSREF_MAILTO: string;
+  OPENALEX_API_KEY?: string;
   ENABLE_DEV_ROUTES?: string;
   /** "1" (with ENABLE_DEV_ROUTES) swaps the model and embeddings for deterministic stand-ins in local tests. */
   QA_STUB?: string;
@@ -123,7 +127,8 @@ documentRoutes.get("/:id", async (c) => {
   const row = await owned(c, user.id, c.req.param("id"));
   if (!row) return deny(c, 404, "not_found", "Paper not found");
   const qa = await c.env.DB.prepare("SELECT answer FROM doc_qa WHERE doc_id = ?1 ORDER BY created_at, rowid LIMIT 100").bind(row.id).all<{ answer: string }>();
-  return c.json({ document: toInfo(row), history: qa.results.map((r) => JSON.parse(r.answer) as Answer) });
+  const stored = await c.env.DB.prepare("SELECT info FROM documents WHERE id = ?1").bind(row.id).first<{ info: string | null }>();
+  return c.json({ document: toInfo(row), history: qa.results.map((r) => JSON.parse(r.answer) as Answer), info: stored?.info ? (JSON.parse(stored.info) as PaperInfo) : null });
 });
 
 documentRoutes.get("/:id/file", async (c) => {
@@ -198,6 +203,30 @@ documentRoutes.put("/:id/cover", async (c) => {
   await c.env.FILES.put(coverKey(user.id, row.id), img, { httpMetadata: { contentType: "image/jpeg" } });
   await c.env.DB.prepare("UPDATE documents SET has_cover = 1, updated_at = datetime('now') WHERE id = ?1").bind(row.id).run();
   return c.json({ ok: true });
+});
+
+/**
+ * The browser has read the PDF's title, DOI, outline and reference list; we keep them, add what the registries know about the DOI,
+ * and, if the paper still has the title we made up from its file name, give it its real title.
+ */
+documentRoutes.put("/:id/info", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const raw = await c.req.text();
+  if (raw.length > 700_000) return deny(c, 413, "too_large", "That is too much to store");
+  const clean = sanitizePaperInfo((() => { try { return JSON.parse(raw); } catch { return null; } })());
+  if (!clean) return deny(c, 400, "invalid_info", "Could not read that information about the paper");
+
+  const info = await enrichPaperInfo(clean, c.env);
+  const renamed = row.title === titleFrom(row.filename) ? (info.metadata?.title ?? info.title)?.slice(0, 200) : undefined;
+  await c.env.DB
+    .prepare("UPDATE documents SET info = ?1, title = COALESCE(?2, title), updated_at = datetime('now') WHERE id = ?3")
+    .bind(JSON.stringify(info), renamed ?? null, row.id)
+    .run();
+  return c.json({ document: toInfo((await owned(c, user.id, row.id))!), info });
 });
 
 documentRoutes.patch("/:id", async (c) => {

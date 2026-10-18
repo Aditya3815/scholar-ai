@@ -1,0 +1,56 @@
+// Upload a folder of REAL PDFs through the real browser pipeline (pdf.js in Edge/Chrome, the Worker, live Crossref/OpenAlex) and
+// print what was found for each: title, DOI, contents, references, registry metadata. For checking extraction quality on papers
+// that are not in the repo.
+//   REAL_PDFS="C:/path/to/pdfs" npm run integration -w apps/api -- --browser --only="browser: real"   (see scripts/integration.mjs)
+//   or against a running Worker with the fake identity provider:  node e2e/real-papers.mjs <folder> [baseUrl]
+import { chromium } from "playwright-core";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+
+const dir = process.argv[2] ?? process.env.REAL_PDFS;
+const BASE = process.argv[3] ?? "http://localhost:8788";
+if (!dir) throw new Error("usage: node e2e/real-papers.mjs <folder with .pdf files> [baseUrl]");
+
+const idp = await startFakeIdp(9911);
+idp.setUser({ sub: "real-pdfs", email: "real@example.edu", email_verified: true, name: "Real PDFs" });
+const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+
+await page.goto(BASE + "/papers", { waitUntil: "networkidle" });
+await page.getByRole("button", { name: "Continue with Google" }).click();
+await page.getByRole("button", { name: /^Account:/ }).waitFor({ timeout: 15000 });
+
+const rows = [];
+for (const f of readdirSync(dir).filter((x) => x.toLowerCase().endsWith(".pdf")).sort()) {
+  const t0 = Date.now();
+  const before = (await (await page.request.get(BASE + "/api/v1/documents")).json()).items.length;
+  await page.locator('input[type="file"]').setInputFiles({ name: f, mimeType: "application/pdf", buffer: readFileSync(join(dir, f)) });
+  let doc;
+  for (let i = 0; i < 240 && !doc; i++) {
+    await page.waitForTimeout(500);
+    const items = (await (await page.request.get(BASE + "/api/v1/documents")).json()).items;
+    if (items.length > before && items[0].status !== "uploaded" && items[0].status !== "indexing") doc = items[0];
+  }
+  if (!doc) { rows.push({ file: f, error: "did not finish" }); continue; }
+  // The paper is ready as soon as it is indexed; what we learned about it (and the registry lookups) is saved a little later.
+  let j = await (await page.request.get(BASE + "/api/v1/documents/" + doc.id)).json();
+  for (let i = 0; i < 60 && !j.info; i++) {
+    await page.waitForTimeout(500);
+    j = await (await page.request.get(BASE + "/api/v1/documents/" + doc.id)).json();
+  }
+  doc = j.document;
+  const info = j.info;
+  rows.push({
+    file: f, seconds: ((Date.now() - t0) / 1000).toFixed(1), status: doc.status, pages: doc.pages, chunks: doc.chunkCount,
+    title: info?.title, doi: info?.doi, arxiv: info?.arxiv, outline: info?.outline?.length, headings: info?.headings?.length,
+    references: info?.references?.length, referencesSource: info?.referencesSource,
+    metadata: info?.metadata ? `${info.metadata.source}: ${info.metadata.authors.slice(0, 2).join(", ")}${info.metadata.authors.length > 2 ? " et al." : ""} (${info.metadata.year ?? "?"}) ${info.metadata.venue ?? ""}` : null,
+    savedTitle: doc.title,
+  });
+  console.log(JSON.stringify(rows.at(-1)));
+}
+await page.request.delete(BASE + "/api/v1/account", { headers: { Origin: BASE, "Content-Type": "application/json" }, data: { confirm: "DELETE" } }).catch(() => {});
+await browser.close();
+console.log("\n" + rows.map((r) => `${r.file.padEnd(16)} ${r.status ?? ""} ${String(r.pages ?? "").padStart(3)}p  title: ${(r.savedTitle ?? "").slice(0, 60).padEnd(60)} refs ${String(r.references ?? "").padStart(3)} (${r.referencesSource})  contents ${r.outline ?? 0}/${r.headings ?? 0}  doi ${r.doi ?? r.arxiv ?? "-"}  ${r.metadata ?? ""}`).join("\n"));
+process.exit(0);

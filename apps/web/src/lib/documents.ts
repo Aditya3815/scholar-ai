@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
-import { MAX_CHARS_PER_BATCH, MAX_DOC_BYTES, MAX_DOC_PAGES, MAX_PAGES_PER_BATCH, type Answer, type AskStreamEvent, type DocumentInfo, type PageText } from "@scholar/shared";
+import { MAX_CHARS_PER_BATCH, MAX_DOC_BYTES, MAX_DOC_PAGES, MAX_PAGES_PER_BATCH, analyzePaper, type Answer, type AskStreamEvent, type DocumentInfo, type Line, type PageText, type PaperInfo } from "@scholar/shared";
 import { readSse } from "./sse";
-import { openPdf, pageText, renderCover, PdfError } from "./pdf";
+import { openPdf, readOutline, readPage, renderCover, PdfError } from "./pdf";
 
 /* ---------------------------------------------------------------- API client */
 
@@ -23,7 +23,10 @@ const json = (method: string, body: unknown): RequestInit => ({ method, headers:
 
 export type Usage = { count: number; maxCount: number; bytes: number; maxBytes: number };
 
-export const fetchDocument = (id: string) => request<{ document: DocumentInfo; history: Answer[] }>(`/${id}`);
+export const fetchDocument = (id: string) => request<{ document: DocumentInfo; history: Answer[]; info: PaperInfo | null }>(`/${id}`);
+
+/** Store what was learned from reading the PDF; the server adds registry metadata and may give the paper its real title. */
+export const savePaperInfo = (id: string, info: PaperInfo) => request<{ document: DocumentInfo; info: PaperInfo }>(`/${id}/info`, json("PUT", info));
 export const askDocument = (id: string, question: string) => request<{ answer: Answer }>(`/${id}/ask`, json("POST", { question })).then((r) => r.answer);
 /**
  * Ask with progress: `onEvent` gets the stages, the pages being read, the answer text as it is written, and finally the verified
@@ -204,15 +207,19 @@ async function indexPages(key: string, docId: string, pages: PageText[]): Promis
   return (await request<{ document: DocumentInfo }>(`/${docId}/finish`, json("POST", { pages: pages.length }))).document;
 }
 
-async function readPages(key: string, pdf: Awaited<ReturnType<typeof openPdf>>): Promise<PageText[]> {
+async function readPages(key: string, pdf: Awaited<ReturnType<typeof openPdf>>): Promise<{ pages: PageText[]; info: PaperInfo }> {
   const pages: PageText[] = [];
+  const lines: Line[] = [];
   for (let n = 1; n <= pdf.numPages; n++) {
     patchJob(key, { step: "reading", progress: (n - 1) / pdf.numPages, detail: `Reading page ${n} of ${pdf.numPages}` });
     const page = await pdf.getPage(n);
-    pages.push({ page: n, text: await pageText(page) });
+    const read = await readPage(page);
+    pages.push({ page: n, text: read.text });
+    lines.push(...read.lines);
     page.cleanup();
   }
-  return pages;
+  patchJob(key, { detail: "Finding the title and references" });
+  return { pages, info: analyzePaper({ lines, outline: await readOutline(pdf), pages: pdf.numPages }) };
 }
 
 function finishJob(key: string, doc: DocumentInfo) {
@@ -239,7 +246,7 @@ export async function startUpload(file: File): Promise<void> {
 
     const pdf = await openPdf({ data: await file.arrayBuffer() });
     if (pdf.numPages > MAX_DOC_PAGES) throw new PdfError(`This PDF has ${pdf.numPages} pages. The limit is ${MAX_DOC_PAGES}.`, "invalid");
-    const pages = await readPages(key, pdf);
+    const { pages, info } = await readPages(key, pdf);
     const cover = await renderCover(pdf);
     void pdf.loadingTask.destroy();
 
@@ -249,7 +256,11 @@ export async function startUpload(file: File): Promise<void> {
     patchJob(key, { docId: doc.id });
     if (cover) await request(`/${doc.id}/cover`, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: cover }).catch(() => {});
 
-    finishJob(key, await indexPages(key, doc.id, pages));
+    // The registry lookups behind this can take a few seconds, so it runs alongside indexing. It is a bonus: never a reason to fail.
+    const saved = savePaperInfo(doc.id, info).catch(() => null);
+    const indexed = await indexPages(key, doc.id, pages);
+    await saved;
+    finishJob(key, indexed);
   } catch (e) {
     patchJob(key, { step: "error", error: friendly(e), retryable: retained.has(key) });
     if (retained.has(key)) void loadDocs();
@@ -275,10 +286,13 @@ export async function reindexDoc(doc: DocumentInfo): Promise<void> {
   emitJobs();
   try {
     const pdf = await openPdf({ url: fileUrl(doc.id) });
-    const pages = await readPages(key, pdf);
+    const { pages, info } = await readPages(key, pdf);
     void pdf.loadingTask.destroy();
     retained.set(key, { docId: doc.id, pages });
-    finishJob(key, await indexPages(key, doc.id, pages));
+    const saved = savePaperInfo(doc.id, info).catch(() => null);
+    const indexed = await indexPages(key, doc.id, pages);
+    await saved;
+    finishJob(key, indexed);
   } catch (e) {
     patchJob(key, { step: "error", error: friendly(e), retryable: retained.has(key) });
   }

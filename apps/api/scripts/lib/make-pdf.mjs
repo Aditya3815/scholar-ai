@@ -46,3 +46,42 @@ export const SAMPLE_PAPER = [
   "Methods. Participants were recruited from three hospitals in Pune between 2019 and 2021. Follow-up lasted twelve months. Images were graded by two ophthalmologists and disagreements were resolved by a third.",
   "Results. The model reached a sensitivity of 91 percent at a specificity of 88 percent. Performance was lower for images with cataract. Limitations include a single country and a small number of cases of angle closure.",
 ];
+
+/**
+ * A PDF with explicit lines: pages[i] is a list of { text, size = 11, x = 56, gap = 0 }, laid out top to bottom
+ * (`gap` adds blank space before the line). Lets tests build a paper with a title, headings, a hanging-indent bibliography...
+ */
+export function makePdfLines(pages, { title = "Test paper" } = {}) {
+  const objs = [];
+  const add = (body) => objs.push(body) && objs.length;
+  const catalog = add("");
+  const pagesObj = add("");
+  const font = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  const info = add(`<< /Title (${esc(title)}) >>`);
+  const kids = [];
+  for (const lines of pages) {
+    let y = 800;
+    const ops = ["BT"];
+    for (const l of lines) {
+      const size = l.size ?? 11;
+      y -= (l.gap ?? 0) + size * 1.35;
+      ops.push(`/F1 ${size} Tf`, `1 0 0 1 ${l.x ?? 56} ${y.toFixed(1)} Tm`, `(${esc(l.text)}) Tj`);
+    }
+    ops.push("ET");
+    const stream = ops.join("\n");
+    const content = add(`<< /Length ${Buffer.byteLength(stream, "latin1")} >>\nstream\n${stream}\nendstream`);
+    kids.push(add(`<< /Type /Page /Parent ${pagesObj} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${font} 0 R >> >> /Contents ${content} 0 R >>`));
+  }
+  objs[catalog - 1] = `<< /Type /Catalog /Pages ${pagesObj} 0 R >>`;
+  objs[pagesObj - 1] = `<< /Type /Pages /Kids [${kids.map((k) => `${k} 0 R`).join(" ")}] /Count ${kids.length} >>`;
+  let out = "%PDF-1.4\n";
+  const offsets = [];
+  objs.forEach((body, i) => {
+    offsets.push(Buffer.byteLength(out, "latin1"));
+    out += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = Buffer.byteLength(out, "latin1");
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
+  out += `trailer\n<< /Size ${objs.length + 1} /Root ${catalog} 0 R /Info ${info} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, "latin1");
+}

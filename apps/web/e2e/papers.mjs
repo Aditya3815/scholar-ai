@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
-import { SAMPLE_PAPER, makePdf } from "../../api/scripts/lib/make-pdf.mjs";
+import { SAMPLE_PAPER, makePdf, makePdfLines } from "../../api/scripts/lib/make-pdf.mjs";
 
 const require = createRequire(import.meta.url);
 // Injected with evaluate(), which CSP does not apply to, so the policy under test stays strict.
@@ -230,6 +230,69 @@ try {
   await page.locator("#dw-title").press("Enter");
   await page.getByRole("heading", { level: 1, name: /Pune cohort/ }).waitFor();
   ok(true, "renaming from the workspace works");
+
+  const mainUrl = page.url();
+  console.log("paper intelligence: title, contents, references");
+  const refsText = ["Aaa, A., and Bbb, B. 2001. A first reference with a reasonably long title that wraps", "Ccc, C. 2002. A second reference whose title also needs to wrap around the line", "Ddd, D., Eee, E. 2003. A third and final reference of this small test bibliography"];
+  const structured = makePdfLines([
+    [
+      { text: "Glaucoma Screening in Rural Clinics", size: 20 }, { text: "A. Author and B. Writer", size: 12, gap: 6 }, { text: "DOI: 10.1234/glaucoma.2021.5", size: 9, gap: 4 },
+      { text: "Abstract", size: 14, gap: 14 }, { text: "We study glaucoma screening on low-cost devices and report what we found.", gap: 2 },
+      { text: "1 Introduction", size: 14, gap: 16 }, { text: "Glaucoma is a leading cause of blindness, and screening is hard to scale.", gap: 2 },
+      { text: "2 Methods", size: 14, gap: 16 }, { text: "Participants were recruited from three hospitals.", gap: 2 },
+    ],
+    [
+      { text: "3 Results", size: 14 }, { text: "The model reached an AUC of 0.94 on the held-out images.", gap: 2 },
+      { text: "References", size: 14, gap: 20 },
+      ...refsText.flatMap((r, i) => [{ text: r, gap: 6 }, { text: `Journal ${i + 1}, ${i + 3}(2), 1-${i + 9}.`, x: 70 }]),
+    ],
+  ]);
+  const verdict = (reference) => {
+    const verified = !reference.includes("Ddd");
+    return { input: reference, status: verified ? "verified" : "not_found", reason: verified ? "Matches a real record." : "No matching paper was found in Crossref.", confidence: 1, retracted: reference.includes("Ccc") || undefined, match: verified ? { doi: "10.1000/x", title: "A matched title", authors: ["A. Writer"], year: 2001, venue: "Journal" } : null, checks: verified ? { title: 1, author: true, year: true } : null };
+  };
+  await page.route("**/api/v1/references/verify", (route) => route.fulfill({ json: verdict(route.request().postDataJSON().reference) }));
+  await page.getByRole("button", { name: "My papers", exact: true }).first().click();
+  await page.locator(".dc").first().waitFor();
+  const before = await page.locator(".dc").count();
+  await page.locator('input[type="file"]').setInputFiles({ name: "structured_paper.pdf", mimeType: "application/pdf", buffer: structured });
+  await page.locator(".dc", { hasText: "Glaucoma Screening in Rural Clinics" }).waitFor({ timeout: 40000 });
+  ok((await page.locator(".dc").count()) === before + 1, "the new paper takes the title found in its PDF, not its file name");
+  await page.locator(".dc", { hasText: "Glaucoma Screening in Rural Clinics" }).getByRole("button", { name: "Open and ask" }).click();
+  await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+  ok(await page.getByRole("heading", { level: 1, name: /Glaucoma Screening in Rural Clinics/ }).isVisible(), "the workspace shows that title");
+  ok((await page.locator(".dw-sidetab .dw-tab-n").innerText()).trim() === "3", "the References tab shows how many were found (3)");
+  await page.getByRole("button", { name: "Contents" }).click();
+  await page.locator(".toc").waitFor();
+  const toc = await page.locator(".toc-title").allInnerTexts();
+  ok(["Abstract", "1 Introduction", "2 Methods", "3 Results"].every((h) => toc.includes(h)), `the Contents menu lists the headings (${toc.join(" | ")})`);
+  ok(/Headings found by reading the pages/.test(await page.locator(".toc-note").innerText()), "...and says they were detected, not bookmarks");
+  await page.waitForTimeout(500); // let the popover finish fading in before it is measured
+  await shot("67-contents-menu");
+  await axe("contents menu");
+  await page.locator(".toc-item", { hasText: "3 Results" }).click();
+  ok(await until(async () => (await page.locator("#pdfv-page").inputValue()) === "2"), "choosing a heading jumps to its page");
+
+  await page.getByRole("tab", { name: "References" }).last().click().catch(async () => page.locator(".dw-sidetab", { hasText: "References" }).click());
+  await page.locator(".refs-panel .ref").first().waitFor({ timeout: 20000 });
+  await page.locator(".vsum-headline").filter({ hasText: /checked/ }).waitFor({ timeout: 20000 });
+  ok((await page.locator(".refs-panel .ref").count()) === 3, "all three references are listed and checked");
+  ok(/cites 1 retracted work/.test(await page.locator(".refs-panel .retract").first().innerText()), "a retracted citation is called out at the top");
+  ok((await page.locator(".refs-panel .ref-status", { hasText: "Not found" }).count()) === 1, "an entry that matches nothing is marked Not found");
+  await page.waitForTimeout(600);
+  await shot("68-references-panel");
+  await axe("references panel");
+  await setTheme("Dark"); await shot("69-references-dark"); await axe("references panel, dark"); await setTheme("Light");
+  await page.getByRole("button", { name: "Preview record" }).first().click();
+  await page.getByRole("dialog").locator(".pv-title").waitFor();
+  await page.keyboard.press("Escape");
+  await page.locator(".dw-sidetab", { hasText: "Ask" }).click();
+  await page.locator("#ask-input").waitFor();
+  ok(true, "switching back to Ask keeps the conversation");
+  await page.unroute("**/api/v1/references/verify");
+  const newest = (await (await page.request.get(BASE + "/api/v1/documents")).json()).items.find((d) => d.title === "Glaucoma Screening in Rural Clinics");
+  ok((await page.request.delete(BASE + "/api/v1/documents/" + newest.id, { headers: { Origin: BASE } })).ok(), "(clean up the extra paper)");
+  await page.goto(mainUrl, { waitUntil: "networkidle" });
 
   console.log("mobile");
   const mp = await ctx.newPage();

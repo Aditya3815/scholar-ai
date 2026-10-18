@@ -110,3 +110,38 @@ export async function doiResolves(doi: string, env: LookupEnv): Promise<boolean>
   if (!res.ok) throw new LookupError(`doi.org HTTP ${res.status}`);
   return ((await res.json()) as { responseCode?: number }).responseCode === 1;
 }
+
+type CRRef = {
+  DOI?: string;
+  unstructured?: string;
+  author?: string;
+  year?: string;
+  "article-title"?: string;
+  "volume-title"?: string;
+  "journal-title"?: string;
+  volume?: string;
+  "first-page"?: string;
+};
+
+/**
+ * The reference list a publisher deposited with Crossref for a paper, as one string per entry (the publisher's own text when it
+ * gave one, otherwise built from its fields). Empty when the paper has none. Used when a PDF's own list could not be read.
+ */
+export async function crossrefReferenceStrings(doi: string, env: LookupEnv): Promise<string[]> {
+  const url = `https://api.crossref.org/works/${encodeURIComponent(doi).replace(/%2F/g, "/")}?mailto=${encodeURIComponent(env.CROSSREF_MAILTO)}`;
+  const res = await f(env)(url, { headers: headers(env), signal: AbortSignal.timeout(10_000) }).catch((e) => {
+    throw new LookupError(`Crossref unreachable: ${e instanceof Error ? e.message : e}`);
+  });
+  if (res.status === 404) return [];
+  if (!res.ok) throw new LookupError(`Crossref HTTP ${res.status}`);
+  const refs = ((await res.json()) as { message?: { reference?: CRRef[] } }).message?.reference ?? [];
+  return refs
+    .map((r) => {
+      if (r.unstructured && r.unstructured.trim().length >= 25) return r.unstructured.replace(/\s+/g, " ").trim();
+      const title = r["article-title"] ?? r["volume-title"];
+      if (!title) return r.DOI ? `https://doi.org/${r.DOI}` : "";
+      return [r.author, r.year ? `(${r.year})` : "", `${title}.`, r["journal-title"] ? `${r["journal-title"]}${r.volume ? `, ${r.volume}` : ""}${r["first-page"] ? `, ${r["first-page"]}` : ""}.` : "", r.DOI ? `https://doi.org/${r.DOI}` : ""].filter(Boolean).join(" ");
+    })
+    .map((s) => s.slice(0, 1000))
+    .filter((s) => s.length >= 20);
+}
