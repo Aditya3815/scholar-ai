@@ -10,8 +10,12 @@ import type { AuthEnv } from "./auth/providers";
 import { d1Store } from "./cache/store";
 import type { SearchEnv } from "./search/types";
 import { apiSecurityHeaders, requestLog } from "./middleware";
+import { rateLimit, type LimitEnv } from "./ratelimit";
+import { runMaintenance } from "./maintenance";
+import type { S2Throttle } from "./s2-throttle";
 
-type Bindings = AuthEnv & {
+type Bindings = AuthEnv & LimitEnv & {
+  S2_THROTTLE: DurableObjectNamespace<S2Throttle>;
   DB: D1Database;
   CF_VERSION_METADATA?: WorkerVersionMetadata;
   JOBS: Queue;
@@ -33,12 +37,14 @@ const searchEnv = (env: Bindings): SearchEnv => ({
   NCBI_API_KEY: env.NCBI_API_KEY,
   S2_API_KEY: env.S2_API_KEY,
   CROSSREF_MAILTO: env.CROSSREF_MAILTO,
+  s2Gate: (maxWaitMs) => env.S2_THROTTLE.getByName("global").reserve(maxWaitMs),
 });
 
 const app = new Hono<{ Bindings: Bindings; Variables: { requestId: string } }>();
 
 app.use("*", requestLog());
 app.use("/api/*", apiSecurityHeaders);
+app.use("/api/*", rateLimit());
 
 app.route("/api/v1/auth", authRoutes);
 app.route("/api/v1/library", libraryRoutes);
@@ -146,4 +152,16 @@ app.onError((err, c) => {
   return c.json({ type: "internal_error", title: "Internal error", requestId: c.get("requestId") }, 500);
 });
 
-export default app;
+export { S2Throttle } from "./s2-throttle";
+
+export default {
+  fetch: app.fetch,
+  async scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+    ctx.waitUntil(
+      runMaintenance(env.DB).then(
+        (deleted) => console.log(JSON.stringify({ level: "info", msg: "maintenance", deleted })),
+        (err) => console.error(JSON.stringify({ level: "error", msg: "maintenance_failed", error: String(err) })),
+      ),
+    );
+  },
+} satisfies ExportedHandler<Bindings>;

@@ -22,6 +22,15 @@
   },
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "scholar-files" }],
   "ai": { "binding": "AI" },
+  "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }],
+  // Per-IP limits (the binding's period can only be 10 or 60 seconds). Search is the expensive route: it fans out to 4 APIs.
+  "ratelimits": [
+    { "name": "SEARCH_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
+    { "name": "API_LIMITER", "namespace_id": "1002", "simple": { "limit": 240, "period": 60 } }
+  ],
+  // Daily housekeeping (expired cache/sessions/oauth states, old usage rows): see src/maintenance.ts
+  "triggers": { "crons": ["17 3 * * *"] },
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "observability": { "enabled": true }
 }

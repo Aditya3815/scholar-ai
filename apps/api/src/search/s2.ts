@@ -14,12 +14,14 @@ type S2Paper = {
   openAccessPdf?: { url?: string } | null;
 };
 
+const MAX_QUEUE_MS = 3000;
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Semantic Scholar: best relevance ranking of the four (landmark papers rank first), plus OA PDF links.
- * Key limit = 1 request/second per key. Workers isolates share no state, so a strict global limiter needs a
- * Durable Object (Phase 1). For now: one retry after a 429, then the provider degrades gracefully.
+ * Key limit = 1 request/second per key, enforced globally by the S2Throttle Durable Object (`env.s2Gate`). If the queue is
+ * longer than MAX_QUEUE_MS the source is skipped for this search. Still one retry after a 429, then it degrades gracefully.
  */
 export const s2: Provider = {
   name: "s2",
@@ -28,10 +30,20 @@ export const s2: Provider = {
     const params = new URLSearchParams({ query: q, limit: String(limit), fields: FIELDS });
     const url = `https://api.semanticscholar.org/graph/v1/paper/search?${params}`;
 
-    let res = await fetch(url, { signal, headers: { "x-api-key": env.S2_API_KEY } });
+    /** Every attempt, including the retry, takes its own slot so concurrent searches cannot collide. */
+    const attempt = async () => {
+      if (env.s2Gate) {
+        const wait = await env.s2Gate(MAX_QUEUE_MS);
+        if (wait === null) throw new Error("Semantic Scholar is busy; skipped for this search");
+        if (wait > 0) await sleep(wait);
+      }
+      return fetch(url, { signal, headers: { "x-api-key": env.S2_API_KEY! } });
+    };
+
+    let res = await attempt();
     if (res.status === 429) {
-      await sleep(1100);
-      res = await fetch(url, { signal, headers: { "x-api-key": env.S2_API_KEY } });
+      if (!env.s2Gate) await sleep(1100);
+      res = await attempt();
     }
     if (!res.ok) throw new Error(`Semantic Scholar HTTP ${res.status}`);
     const body = (await res.json()) as { data?: S2Paper[] };
