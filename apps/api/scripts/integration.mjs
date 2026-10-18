@@ -37,7 +37,7 @@ if (wrangler(["d1", "migrations", "apply", "scholar-db", "--local", "--config", 
 
 const vars = {
   GOOGLE_CLIENT_ID: "dev", GOOGLE_CLIENT_SECRET: "dev-secret", ORCID_CLIENT_ID: "dev", ORCID_CLIENT_SECRET: "dev-secret",
-  DEV_IDP_URL: "http://localhost:9911", ORCID_BASE_URL: "http://localhost:9911/orcid", ENABLE_DEV_ROUTES: "1",
+  DEV_IDP_URL: "http://localhost:9911", ORCID_BASE_URL: "http://localhost:9911/orcid", ENABLE_DEV_ROUTES: "1", QA_STUB: "1",
   CROSSREF_MAILTO: process.env.CROSSREF_MAILTO ?? "ci@example.com",
   // Only the browser smoke test searches; it needs the real provider keys (passed through from the environment).
   ...Object.fromEntries(["OPENALEX_API_KEY", "S2_API_KEY", "NCBI_API_KEY"].filter((k) => process.env[k]).map((k) => [k, process.env[k]])),
@@ -89,11 +89,13 @@ try {
   await waitForHealth();
   ok = run("auth integration", "scripts/auth-e2e.mjs") && ok;
   ok = run("library integration", "scripts/library-e2e.mjs") && ok;
+  ok = run("documents integration", "scripts/docs-e2e.mjs") && ok;
   if (withBrowser) {
     ok = run("browser: smoke + axe", "e2e/smoke.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = run("browser: auth", "e2e/auth.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = run("browser: library", "e2e/library.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = run("browser: verifier", "e2e/verify.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = run("browser: papers", "e2e/papers.mjs", [`http://localhost:${PORT}`], web) && ok;
   }
 } catch (e) {
   console.error(e.message);

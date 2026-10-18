@@ -13,8 +13,10 @@ there is no bounty, but reports are read and acknowledged.
 | Sign-in | Google and ORCID OAuth code flow with PKCE (S256) and single-use `state`; only verified emails can join an existing account |
 | Sessions | Random token in an `HttpOnly`, `SameSite=Lax` cookie (`__Host-` prefixed on HTTPS); only its SHA-256 is stored, so a leaked database does not leak usable sessions |
 | CSRF | State-changing requests must be same-origin |
-| Browser | Strict Content-Security-Policy (no inline or third-party scripts), HSTS, `nosniff`, no framing, locked-down Permissions-Policy |
+| Browser | Strict Content-Security-Policy (no inline or third-party scripts; `wasm-unsafe-eval` only so pdf.js can use its image decoders), HSTS, `nosniff`, no framing, locked-down Permissions-Policy |
 | API | Per-IP rate limits (Cloudflare Rate Limiting), request ids, structured logs without query strings, cookies or bodies |
+| Uploads | Only PDFs (checked by magic bytes, not the Content-Type), 25 MB, 500 pages, per-user quotas; stored privately in R2; every query is scoped to the signed-in user; the file endpoint is never cached and sends `nosniff`; deleting a paper or the account deletes the file, text and questions |
+| Paper Q&A | Runs on the private LLM route only (never a provider that may train on prompts); the paper text is treated as untrusted (no instructions followed, JSON output, rendered as text); every cited quote is checked against the paper before it is shown |
 | Citations | References are never produced by an LLM; DOIs come from Crossref/OpenAlex and are checked for existence |
 | Privacy | A user's private text only goes to models in the same Cloudflare account (Workers AI); public-data tasks may use Gemini. Enforced in code and covered by tests |
 | User data | Library export and full account deletion are built in and tested |

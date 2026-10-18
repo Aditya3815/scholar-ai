@@ -61,6 +61,15 @@ After rotating a pasted-in-chat credential, revoke the old one at the provider.
 - Semantic Scholar: calls go through the `S2Throttle` Durable Object (1 request/second). S2 also returns 429 on its own
   under load; the search then reports `s2` as failed and still returns the other three sources. That is upstream, not a bug.
 
+## Uploaded papers
+
+PDFs and covers live in R2 (`scholar-files`, keys `docs/<user>/<id>.pdf`), text and vectors in D1 (`doc_chunks`), answers in `doc_qa`.
+Limits are in `packages/shared/src/documents.ts`. An upload that stops half way leaves a paper in "uploaded" or "indexing":
+the user sees **Index again** on its card, which re-reads the stored PDF in the browser and re-sends the text; nothing to do server side.
+Orphaned R2 objects can only appear if a delete fails between the file and the rows; list `docs/` in R2 and compare with
+`SELECT id FROM documents` if storage grows unexpectedly. `QA_STUB` must never exist in production (the secrets script refuses to upload it).
+A question uses one gateway call (about 3 to 4k tokens); the per-user daily token quota is in `src/llm/config.ts`.
+
 ## Test everything locally
 
 ```sh

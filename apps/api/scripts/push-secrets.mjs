@@ -5,15 +5,15 @@
 //   npm run secrets:push -w apps/api -- --dry   # shows which keys WOULD be pushed
 //   npm run secrets:push -w apps/api -- --only=GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET
 //
-// Dev-only flags are NEVER pushed: ENABLE_DEV_ROUTES would expose the free LLM smoke route, and DEV_IDP_URL would
-// redirect logins to a fake provider.
+// Dev-only flags are NEVER pushed: ENABLE_DEV_ROUTES would expose the free LLM smoke route, DEV_IDP_URL would
+// redirect logins to a fake provider, and QA_STUB would replace the paper Q&A model with a test stand-in.
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-const NEVER = new Set(["ENABLE_DEV_ROUTES", "DEV_IDP_URL"]);
+const NEVER = new Set(["ENABLE_DEV_ROUTES", "DEV_IDP_URL", "QA_STUB"]);
 const dry = process.argv.includes("--dry");
 const root = fileURLToPath(new URL("..", import.meta.url));
 

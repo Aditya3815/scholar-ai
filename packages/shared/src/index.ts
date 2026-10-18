@@ -84,3 +84,5 @@ export type SearchResponse = {
   tookMs: number;
 };
 export * from "./references";
+export * from "./documents";
+export * from "./text";

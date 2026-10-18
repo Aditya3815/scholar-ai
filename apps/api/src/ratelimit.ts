@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from "hono";
 
 type Limiter = Pick<RateLimit, "limit">;
-export type LimitEnv = { SEARCH_LIMITER?: Limiter; VERIFY_LIMITER?: Limiter; API_LIMITER?: Limiter };
+export type LimitEnv = { SEARCH_LIMITER?: Limiter; VERIFY_LIMITER?: Limiter; ASK_LIMITER?: Limiter; API_LIMITER?: Limiter };
 
 /**
  * Per-IP request limits using Cloudflare's Rate Limiting binding. Search is the expensive route (it fans out to four
@@ -12,7 +12,13 @@ export function rateLimit(): MiddlewareHandler<{ Bindings: LimitEnv }> {
   return async (c, next) => {
     const path = c.req.path;
     if (path === "/api/v1/health") return next();
-    const limiter = path.startsWith("/api/v1/search") ? c.env.SEARCH_LIMITER : path.startsWith("/api/v1/references") ? c.env.VERIFY_LIMITER : c.env.API_LIMITER;
+    const limiter = path.startsWith("/api/v1/search")
+      ? c.env.SEARCH_LIMITER
+      : path.startsWith("/api/v1/references")
+        ? c.env.VERIFY_LIMITER
+        : /^\/api\/v1\/documents\/[^/]+\/ask$/.test(path)
+          ? c.env.ASK_LIMITER
+          : c.env.API_LIMITER;
     if (limiter) {
       const ip = c.req.header("cf-connecting-ip") ?? "unknown";
       const ok = await limiter.limit({ key: ip }).then((r) => r.success, () => true);

@@ -7,6 +7,7 @@ import { authRoutes } from "./auth/routes";
 import { libraryRoutes } from "./library/routes";
 import { accountRoutes } from "./account/routes";
 import { referenceRoutes } from "./references/routes";
+import { documentRoutes } from "./docs/routes";
 import type { AuthEnv } from "./auth/providers";
 import { d1Store } from "./cache/store";
 import type { SearchEnv } from "./search/types";
@@ -25,6 +26,8 @@ type Bindings = AuthEnv & LimitEnv & {
   GEMINI_API_KEY?: string;
   /** "1" only in local .dev.vars; never set as a production secret. Enables /api/v1/dev/* smoke routes. */
   ENABLE_DEV_ROUTES?: string;
+  /** "1" (local tests only, together with ENABLE_DEV_ROUTES) swaps the model and embeddings for stand-ins. */
+  QA_STUB?: string;
   OPENALEX_API_KEY?: string;
   NCBI_API_KEY?: string;
   S2_API_KEY?: string;
@@ -51,6 +54,7 @@ app.route("/api/v1/auth", authRoutes);
 app.route("/api/v1/library", libraryRoutes);
 app.route("/api/v1/account", accountRoutes);
 app.route("/api/v1/references", referenceRoutes);
+app.route("/api/v1/documents", documentRoutes);
 
 app.get("/api/v1/health", async (c) => {
   let db: HealthResponse["db"] = "ok";
