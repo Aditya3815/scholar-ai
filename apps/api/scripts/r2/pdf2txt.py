@@ -1,4 +1,4 @@
-﻿import sys, re
+import sys, re
 from pypdf import PdfReader
 src, dst = sys.argv[1], sys.argv[2]
 r = PdfReader(src)

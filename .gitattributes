@@ -1,0 +1,10 @@
+# One line-ending convention for everyone (Windows included): LF in the repo and in checkouts.
+* text=auto eol=lf
+
+# Binary files: never touch
+*.png binary
+*.jpg binary
+*.gz binary
+*.pdf binary
+*.woff binary
+*.woff2 binary

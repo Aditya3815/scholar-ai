@@ -1,4 +1,4 @@
-﻿// Citation-accuracy eval. Runs the REAL search pipeline and Reference Verifier code against frozen datasets.
+// Citation-accuracy eval. Runs the REAL search pipeline and Reference Verifier code against frozen datasets.
 //   npm run eval -w apps/api            replay recorded API responses (CI: deterministic, offline, free)
 //   npm run eval:record -w apps/api     refresh the recordings from the live APIs (~40 min, ~$0.15 of OpenAlex)
 //   npm run eval:live -w apps/api       hit live APIs without saving (weekly drift check)

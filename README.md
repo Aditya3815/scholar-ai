@@ -37,7 +37,7 @@ start the Worker with `npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev -
 
 Docs: `docs/design/UI-direction.md`, `docs/spikes/`, `docs/llm-providers.md`, `docs/auth-setup.md`, `docs/adr/`.
 
-Needs Node 20.19+ locally (wrangler is pinned to 4.86.0; CI uses Node 22).
+Needs Node 22+ (see `.nvmrc`; CI uses Node 22).
 
 ## Deploy
 

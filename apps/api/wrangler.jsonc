@@ -1,8 +1,8 @@
-﻿{
+{
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "scholar",
   "main": "src/index.ts",
-  "compatibility_date": "2026-05-03",
+  "compatibility_date": "2026-10-01",
   "account_id": "6de82fc604465aa52a67dee951309199",
   "assets": {
     "directory": "../web/dist",

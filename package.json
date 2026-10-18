@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "workspaces": ["apps/*", "packages/*"],
+  "engines": { "node": ">=22" },
   "scripts": {
     "dev:api": "npm run dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",

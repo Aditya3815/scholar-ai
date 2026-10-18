@@ -1,4 +1,4 @@
-﻿import { chromium } from "playwright-core";
+import { chromium } from "playwright-core";
 import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
