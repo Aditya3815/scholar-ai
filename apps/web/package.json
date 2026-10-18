@@ -11,7 +11,8 @@
     "contrast": "node scripts/contrast.mjs",
     "e2e": "node e2e/smoke.mjs",
     "e2e:auth": "node e2e/auth.mjs",
-    "e2e:library": "node e2e/library.mjs"
+    "e2e:library": "node e2e/library.mjs",
+    "e2e:verify": "node e2e/verify.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",

@@ -10,6 +10,8 @@ import { ResultCard, SkeletonCard } from "./components/ResultCard";
 import { SearchBox } from "./components/SearchBox";
 import { SourceStatus } from "./components/SourceStatus";
 import { ThemeSwitch } from "./components/ThemeSwitch";
+import { TopNav, type View } from "./components/TopNav";
+import { VerifyPage } from "./components/verify/VerifyPage";
 import { takeAuthError } from "./lib/auth";
 import { easeOut } from "./lib/motion";
 import { clearNotice, showNotice, useNotice } from "./lib/notice";
@@ -18,6 +20,9 @@ import { useSearch } from "./lib/search";
 const loadFeatures = () => import("./lib/motion-features").then((mod) => mod.default);
 
 type Sort = "relevance" | "citations" | "year";
+
+const viewFromPath = (): View => (location.pathname.replace(/\/+$/, "") === "/verify" ? "verify" : "search");
+const TITLES: Record<View, string> = { search: "Scholar", verify: "Verify references · Scholar" };
 
 function Footer() {
   return (
@@ -41,7 +46,28 @@ export function App() {
   const [hideRetracted, setHideRetracted] = useState(false);
   const [sort, setSort] = useState<Sort>("relevance");
   const notice = useNotice();
+  const [view, setView] = useState<View>(viewFromPath);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Real URLs (/ and /verify) with back/forward support; no router library for two pages.
+  useEffect(() => {
+    const onPop = () => setView(viewFromPath());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  useEffect(() => {
+    document.title = TITLES[view];
+  }, [view]);
+
+  const navigate = useCallback(
+    (next: View) => {
+      if (next === view) return;
+      history.pushState(null, "", next === "verify" ? "/verify" : state.status === "idle" ? "/" : `/?q=${encodeURIComponent(query)}`);
+      setView(next);
+      window.scrollTo(0, 0);
+    },
+    [view, state.status, query],
+  );
 
   // ?auth_error=... left by the server redirect becomes a dismissible banner
   useEffect(() => {
@@ -63,7 +89,7 @@ export function App() {
   // Shareable link: ?q=... se load hone par search chalao
   useEffect(() => {
     const q = new URLSearchParams(location.search).get("q");
-    if (q) submit(q);
+    if (q && viewFromPath() === "search") submit(q);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -98,7 +124,12 @@ export function App() {
   const goHome = () => {
     reset();
     setQuery("");
-    history.replaceState(null, "", location.pathname);
+    if (view !== "search") {
+      history.pushState(null, "", "/");
+      setView("search");
+    } else {
+      history.replaceState(null, "", location.pathname);
+    }
     window.setTimeout(() => inputRef.current?.focus(), 0);
   };
 
@@ -107,11 +138,12 @@ export function App() {
       <LazyMotion features={loadFeatures} strict={false}>
         <a className="skip-link" href="#main">Skip to content</a>
 
-        <header className={`topbar ${idle ? "" : "topbar-solid"}`}>
+        <header className={`topbar ${idle && view === "search" ? "" : "topbar-solid"}`}>
           <div className="topbar-inner">
             <button type="button" className="logo-btn" onClick={goHome} aria-label="Scholar, home">
               <Logo />
             </button>
+            <TopNav view={view} onNavigate={navigate} />
             <div className="topbar-actions">
               <ReadingControls />
               <ThemeSwitch />
@@ -131,10 +163,13 @@ export function App() {
         </AnimatePresence>
 
         <main id="main" className="main">
+          {view === "verify" ? (
+            <VerifyPage />
+          ) : (
           <AnimatePresence mode="wait" initial={false}>
             {idle ? (
               <m.div key="home" exit={{ opacity: 0, y: -12, transition: { duration: 0.18 } }}>
-                <Hero value={query} onChange={setQuery} onSubmit={() => submit(query)} onPick={submit} inputRef={inputRef} />
+                <Hero value={query} onChange={setQuery} onSubmit={() => submit(query)} onPick={submit} onVerify={() => navigate("verify")} inputRef={inputRef} />
               </m.div>
             ) : (
               <m.div key="results" className="results-view" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }}>
@@ -198,6 +233,7 @@ export function App() {
               </m.div>
             )}
           </AnimatePresence>
+          )}
         </main>
 
         <Footer />

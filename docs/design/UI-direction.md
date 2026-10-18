@@ -33,6 +33,24 @@ Date: 2026-10-17. Audience: scholars, PhD/MTech students, professors. They read 
 
 **Streaming.** `GET /api/v1/search/stream` (SSE) sends a merged snapshot after each source. First results appear in about 1 s while the slowest source takes about 3 s (cold). Cached repeats take about 30 ms.
 
+## Reference Verifier (/verify)
+
+Built with the same references and rules as above (Motion springs and stagger from `lib/motion.ts`, UI UX Pro Max UX guidelines queried offline: visible labels, loading/progress feedback, no colour-only status, one atomic live message, error recovery paths, 4.5:1 contrast, test at 375/768/1024/1440).
+
+| Decision | Why |
+| --- | --- |
+| Paste anything: numbered list, one per line, blank-line separated, wrapped lines, BibTeX, or open a .txt/.bib file | scholars copy from Word, PDFs and LaTeX; a live "N references detected" count shows how the paste was split before anything is sent |
+| One request per reference, three at a time; cards appear queued and fill in as answers arrive | each request stays inside the Worker subrequest limit, one slow entry never blocks the rest, the page is useful after one second |
+| Verdict is never a black box: the matched record, and three plain-words checks (title, author, year) | a scholar must be able to judge the tool, not just trust it |
+| "Not found" says it can also mean a book, thesis or regional journal that Crossref does not index | many Indian sources are not in Crossref; calling them fake would be wrong and unkind. A database outage is "Could not verify", never "Not found" |
+| Retracted matches get the same shaking red banner as search results and a line in the summary | the one thing that must not be missed |
+| Three buckets, each an icon plus words: Verified, Needs attention, Could not check; they double as filters | the supervisor question is "what do I need to look at?" |
+| Report: CSV (formula-safe, opens in Excel with UTF-8) and "Copy flagged references" | something to send to a co-author or attach to a thesis review |
+| Progress and filters pinned while scrolling on desktop; plain on phones | pinned, they would cover half of a phone screen |
+| Reference text is never stored (cache key is a hash); the list is kept in this tab only | a bibliography can reveal an unpublished thesis |
+
+Motion: hero-style rise and drawn underline, status icon pops (the verified check draws itself), one soft ring on cards that need attention, counts roll in, progress bar springs and turns green when done. All of it respects reduced motion.
+
 ## Verified (automated, `npm run e2e -w apps/web`, Edge headless)
 - axe-core WCAG 2.2 AA: **0 violations** on home (Light/Dark/Read), results (Light/Dark/Read), cite popover, library drawer, retracted results.
 - Mobile 390 px: no horizontal overflow; no console errors.

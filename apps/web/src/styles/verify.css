@@ -1,0 +1,515 @@
+/* ============ Primary navigation ============ */
+.topnav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.topnav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 38px;
+  padding: 0 0.95rem;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 580;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease);
+}
+.topnav-link:hover {
+  color: var(--text);
+}
+.topnav-link[aria-current="page"] {
+  color: var(--accent);
+}
+.topnav-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+}
+.topnav-link > svg,
+.topnav-label {
+  position: relative;
+}
+@media (max-width: 720px) {
+  .topbar-inner {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+  .topnav {
+    order: 3;
+    width: 100%;
+  }
+  .topnav-link {
+    flex: 1;
+  }
+}
+
+.hero-verify {
+  margin-top: 1.1rem;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+.hero-verify .link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: inherit;
+}
+
+/* ============ Reference Verifier ============ */
+.verify {
+  max-width: 52rem;
+  margin: 0 auto;
+}
+.vhead {
+  position: relative;
+  padding: clamp(2rem, 6vw, 3.5rem) 0 1.5rem;
+  text-align: center;
+  isolation: isolate;
+}
+.vtitle {
+  margin: 0.8rem auto 0;
+  max-width: 20ch;
+  font-size: clamp(2rem, 5.6vw, 3.4rem);
+  line-height: 1.08;
+  letter-spacing: -0.022em;
+}
+.vsub {
+  margin: 1.1rem auto 0;
+  max-width: 52ch;
+  color: var(--muted);
+  font-size: clamp(1rem, 2.1vw, 1.125rem);
+}
+
+/* input */
+.vin {
+  padding: 1.25rem 1.4rem 1.1rem;
+}
+.vin-label {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+.vin-hint {
+  margin: 0.2rem 0 0.7rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.vin-text {
+  display: block;
+  width: 100%;
+  min-height: 11rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.vin-text::placeholder {
+  color: var(--muted);
+}
+.vin-text:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.vin-text:read-only {
+  opacity: 0.75;
+}
+.vin-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-top: 0.85rem;
+}
+.vin-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.vin-count-n {
+  display: inline-block;
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.vin-count[data-over="true"] {
+  color: var(--warn);
+}
+.vin-count[data-over="true"] .vin-count-n {
+  color: var(--warn);
+}
+.vin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.vin-privacy {
+  margin: 0.8rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.vin-privacy kbd {
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--surface-2);
+  font: 600 0.75rem/1.4 var(--font-ui);
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.vhow {
+  margin-top: 2rem;
+}
+
+/* summary */
+.vresults {
+  margin-top: 1.5rem;
+  scroll-margin-top: 5rem;
+}
+.vsum {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem 1.25rem;
+  box-shadow: var(--shadow-2);
+}
+/* Only the progress and filters stay pinned, and only where there is room: on a phone they would cover half the screen. */
+@media (min-width: 721px) {
+  .vsum {
+    position: sticky;
+    top: 4.4rem;
+    z-index: 20;
+  }
+}
+.vtools {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.9rem;
+}
+.vsum-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.vsum-headline {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.vbar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.vbar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: background-color 0.4s var(--ease);
+}
+.vbar[data-done="true"] .vbar-fill {
+  background: var(--ok);
+}
+.chip-n {
+  display: inline-block;
+  margin-left: 0.3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.chip-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.vsum-retract {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-s);
+  background: var(--danger-soft);
+  font-size: 0.9rem;
+  font-weight: 560;
+}
+.vsum-retract svg {
+  flex: none;
+  color: var(--danger);
+}
+.vsum-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.vsum-actions {
+  margin: 0;
+}
+
+/* reference cards */
+.refs {
+  display: grid;
+  gap: 0.9rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ref {
+  --tone: var(--muted);
+  padding: 1.05rem 1.3rem 1rem;
+  border-left: 4px solid var(--border-strong);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.ref[data-status="verified"] {
+  --tone: var(--ok);
+  border-left-color: var(--ok);
+}
+.ref[data-status="mismatch"] {
+  --tone: var(--warn);
+  border-left-color: var(--warn);
+}
+.ref[data-status="not_found"] {
+  --tone: var(--danger);
+  border-left-color: var(--danger);
+}
+.ref[data-retracted="true"] {
+  border-color: var(--danger);
+  border-left-color: var(--danger);
+}
+.ref-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.ref-ico {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--tone) 13%, var(--surface));
+  color: var(--tone);
+}
+.ref-ico[data-tone="pending"] {
+  --tone: var(--accent);
+}
+.ref-ico[data-tone="ok"] {
+  --tone: var(--ok);
+}
+.ref-ico[data-tone="warn"] {
+  --tone: var(--warn);
+}
+.ref-ico[data-tone="danger"] {
+  --tone: var(--danger);
+}
+.ref-ico[data-tone="muted"] {
+  --tone: var(--muted);
+}
+.ref[data-bucket="attention"] .ref-ico {
+  animation: ref-ring 1.1s var(--ease) 0.15s 1 both;
+}
+@keyframes ref-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--tone) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+.queued-dot {
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+}
+.ref-status {
+  margin: 0;
+  color: var(--text);
+  font-weight: 650;
+}
+.ref-status[data-tone="ok"] {
+  color: var(--ok);
+}
+.ref-status[data-tone="warn"] {
+  color: var(--warn);
+}
+.ref-status[data-tone="danger"] {
+  color: var(--danger);
+}
+.ref-status[data-tone="muted"],
+.ref-status[data-tone="pending"] {
+  color: var(--muted);
+}
+.ref-cached {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 560;
+}
+.ref-num {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.ref-input {
+  margin: 0.65rem 0 0;
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.ref-input.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ref-reason {
+  margin: 0.7rem 0 0;
+  font-size: 0.95rem;
+}
+.ref-help {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin: 0.7rem 0 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.ref-help svg {
+  flex: none;
+  margin-top: 0.15rem;
+}
+.ref-match {
+  margin: 0.8rem 0 0;
+  padding: 0.65rem 0.85rem;
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+}
+.ref-match-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ref-match-title {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.ref-match-meta {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.ref-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ref-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.65rem 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 560;
+}
+.ref-check-mark {
+  font-weight: 800;
+}
+.ref-check[data-ok="true"] .ref-check-mark {
+  color: var(--ok);
+}
+.ref-check[data-ok="false"] .ref-check-mark {
+  color: var(--danger);
+}
+.ref-skeleton {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+.ref .actions {
+  margin-top: 0.85rem;
+}
+
+@media (max-width: 520px) {
+  .vin {
+    padding: 1.05rem 1rem 0.95rem;
+  }
+  .vin-actions {
+    width: 100%;
+  }
+  .vin-actions .btn-primary {
+    order: -1;
+    flex: 1 1 100%;
+  }
+  .ref {
+    padding: 0.95rem 1rem 0.9rem;
+  }
+  .vsum {
+    padding: 0.85rem 1rem;
+  }
+  .vsum-headline {
+    font-size: 1.08rem;
+  }
+}
+
+/* The header now carries the navigation too: drop the theme labels (icons stay) before anything has to wrap. */
+.signin-trigger {
+  white-space: nowrap;
+}
+@media (max-width: 1180px) {
+  .seg-label {
+    display: none;
+  }
+}

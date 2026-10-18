@@ -9,7 +9,7 @@ import { CiteMenu } from "./CiteMenu";
 const fmt = (n: number) => n.toLocaleString("en-IN");
 
 /** Citation count pehli baar dikhne par 0 se count-up hota hai (reduced motion mein seedha final). */
-function CountUp({ value }: { value: number }) {
+export function CountUp({ value }: { value: number }) {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {

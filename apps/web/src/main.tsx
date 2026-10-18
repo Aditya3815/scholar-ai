@@ -10,6 +10,7 @@ import "@fontsource/noto-sans-oriya/400.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/app.css";
+import "./styles/verify.css";
 import { initPrefs } from "./lib/prefs";
 import { App } from "./App";
 

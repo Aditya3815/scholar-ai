@@ -93,6 +93,7 @@ try {
     ok = run("browser: smoke + axe", "e2e/smoke.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = run("browser: auth", "e2e/auth.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = run("browser: library", "e2e/library.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = run("browser: verifier", "e2e/verify.mjs", [`http://localhost:${PORT}`], web) && ok;
   }
 } catch (e) {
   console.error(e.message);

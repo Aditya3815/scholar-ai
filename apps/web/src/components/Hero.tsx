@@ -1,5 +1,5 @@
 import { m } from "motion/react";
-import { BadgeCheck, Layers, ShieldAlert } from "lucide-react";
+import { ArrowRight, BadgeCheck, Layers, ShieldAlert } from "lucide-react";
 import type { ReactNode, RefObject } from "react";
 import { easeOut, stagger } from "../lib/motion";
 import { SearchBox } from "./SearchBox";
@@ -28,12 +28,14 @@ export function Hero({
   onChange,
   onSubmit,
   onPick,
+  onVerify,
   inputRef,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSubmit: () => void;
   onPick: (q: string) => void;
+  onVerify: () => void;
   inputRef: RefObject<HTMLInputElement | null>;
 }): ReactNode {
   return (
@@ -72,6 +74,10 @@ export function Hero({
             </m.button>
           ))}
         </div>
+        <m.p className="hero-verify" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 1 }}>
+          Have a reference list to check?{" "}
+          <a className="link-btn" href="/verify" onClick={(e) => { e.preventDefault(); onVerify(); }}>Verify your references <ArrowRight size={14} aria-hidden="true" /></a>
+        </m.p>
       </m.div>
 
       <ul className="principles">

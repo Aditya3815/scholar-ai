@@ -14,7 +14,7 @@ const pairs = [
   ["muted", "bg", 4.5], ["muted", "surface", 4.5], ["muted", "surface2", 4.5],
   ["accent", "bg", 4.5], ["accent", "surface", 4.5], ["accent", "accentSoft", 4.5], ["accentFg", "accent", 4.5],
   ["ok", "surface", 4.5], ["warn", "surface", 4.5], ["warn", "surface2", 4.5], ["danger", "surface", 4.5],
-  ["danger", "bg", 4.5], ["dangerFg", "danger", 4.5], ["border", "bg", 1.0],
+  ["danger", "bg", 4.5], ["ok", "surface2", 4.5], ["danger", "surface2", 4.5], ["dangerFg", "danger", 4.5], ["border", "bg", 1.0],
 ];
 let bad = 0;
 for (const [name, t] of Object.entries(themes)) {
