@@ -1,0 +1,422 @@
+[
+ {
+  "id": "h1",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Patel, D., Patel, T., & Kulkarni, T. (2024). A hybrid electrocoagulation-biocomposite adsorption system for the decolourization of dye wastewater. Asian Journal of Data Science, 10, 100-112.",
+  "note": "real title of 10.1016/j.envres.2024.118759, invented authors"
+ },
+ {
+  "id": "h2",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Rajesh S. Patil UR, S.B. Patil ISK, Udikeri SS. Genetic Studies on Resistance to Jassid (Amrasca biguttula biguttula) in Segregating F2 Population of Interspecific (Gossypium hirsutum L. X Gossypium barbadense L.) Cotton. International Journal of Current Microbiology and Applied Sciences. 2022.",
+  "note": "10.20546/ijcmas.2017.604.312 with the year changed from 2017"
+ },
+ {
+  "id": "h3",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Mukherjee, T., Singh, K., & Patel, N. (2023). Elucidation of furanone as ergosterol pathway inhibitor in Cryptococcus neoformans. Transactions on Intelligent Rural Systems, 13, 103-115.",
+  "note": "real title of 10.1080/07391102.2023.2230301, invented authors"
+ },
+ {
+  "id": "h4",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Singh, S. P., Wahajuddin, Yadav, D. K., Rawat, P., Maurya, R., & Jain, G. K. (2015). Quantitative determination of formononetin and its metabolite in rat plasma after intravenous bolus administration by HPLC coupled with tandem mass spectrometry. Journal of Chromatography B.",
+  "note": "10.1016/j.jchromb.2009.12.010 with the year changed from 2010"
+ },
+ {
+  "id": "h5",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Novak, S., Novak, A., & Patel, T. (2018). Effect of flexural stiffness distribution of a fin on propulsion performance. Asian Journal of Data Science, 16, 106-118.",
+  "note": "real title of 10.1016/j.mechmachtheory.2018.07.012, invented authors"
+ },
+ {
+  "id": "h6",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Khargotra et al., Design and performance optimization of solar water heating system with perforated obstacle using hybrid multi-criteria decision-making approach, Journal of Energy Storage 2028",
+  "note": "10.1016/j.est.2023.107099 with the year changed from 2023"
+ },
+ {
+  "id": "h7",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Haddad, A., Rao, K., & Tanaka, A. (2016). Olmesartan, an angiotensin II receptor blocker inhibits the progression of cataract formation in cadmium chloride induced hypertensive albino rats. Review of Interdisciplinary Applied Sciences, 10, 109-121.",
+  "note": "real title of 10.1016/j.lfs.2016.10.012, invented authors"
+ },
+ {
+  "id": "h8",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "A. Ray et al., “Preferential azido bridging regulating the structural aspects in cobalt(III) and copper(II)-Schiff base complexes: Syntheses, magnetostructural correlations and catalytic studies,” Inorganica Chimica Acta, 2016,",
+  "note": "10.1016/j.ica.2011.04.008 with the year changed from 2011"
+ },
+ {
+  "id": "h9",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Mukherjee, N., Haddad, T., & Tanaka, N. (2007). Comparative Structural Studies on Homologues of Amides and Reverse Amides: Unprecedented 4-fold Interpenetrated Quartz Network, New β-Sheet, and Two-Dimensional Layers. Asian Journal of Data Science, 13, 112-124.",
+  "note": "real title of 10.1021/cg0706417, invented authors"
+ },
+ {
+  "id": "h10",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Kaur, S. P., & Sharma, M. (2020). Radially Optimized Zone-Divided Energy-Aware Wireless Sensor Networks (WSN) Protocol Using BA (Bat Algorithm). IETE Journal of Research.",
+  "note": "10.1080/03772063.2014.999833 with the year changed from 2015"
+ },
+ {
+  "id": "h11",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Tanaka, V., Singh, V., & Singh, S. (2019). Comparative study between mesotherapy and topical 5% minoxidil by dermoscopic evaluation for androgenic alopecia in male: A randomized controlled trial. Journal of Applied Computational Research, 16, 115-127.",
+  "note": "real title of 10.4103/ijt.ijt_89_18, invented authors"
+ },
+ {
+  "id": "h12",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Mondal D, Kanamadi S, Das K. Contribution by Indian Authors in Foreign Origin Library and Information Science Journals during 2006-2015: A Scientometrics Study. DESIDOC Journal of Library &amp; Information Technology. 2022.",
+  "note": "10.14429/djlit.37.11655 with the year changed from 2017"
+ },
+ {
+  "id": "h13",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Kulkarni, K., & Novak, P. (2018). Effect of Paclobutrazol on Flowering, Fruiting and Yield of Cashew (Anacardium occidentale L.) in West Coast Region of Karnataka. Asian Journal of Data Science, 10, 118-130.",
+  "note": "real title of 10.20546/ijcmas.2018.710.041, invented authors"
+ },
+ {
+  "id": "h14",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Shuhaili, F., Segura-Noguera, M., Mathumathy, Vijayaraghavan, R., Thilagar, S., & Lakshmanan, U. (2028). Nitrate and phosphate uptake dynamics in two halotolerant strains of Chlorella vulgaris is differentially influenced by carbon, nitrogen and phosphorus supply. Chemical Engineering Journal.",
+  "note": "10.1016/j.cej.2023.141433 with the year changed from 2023"
+ },
+ {
+  "id": "h15",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Rao, R., Nair, R., & Patel, M. (2024). A low profile circularly polarized metasurface-based ultra-wideband 4x4 MIMO antenna for 5G NR band FR2 frequencies. Journal of Applied Computational Research, 13, 121-133.",
+  "note": "real title of 10.1016/j.aeue.2024.155282, invented authors"
+ },
+ {
+  "id": "h16",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Sengupta et al., Sequential estimation for the multiple linear regression models with balanced loss functions, Sequential Analysis 2029",
+  "note": "10.1080/07474946.2024.2329145 with the year changed from 2024"
+ },
+ {
+  "id": "h17",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Banerjee, V., Rao, P., & Haddad, M. (2019). Labour room violence in Uttar Pradesh, India: evidence from longitudinal study of pregnancy and childbirth. Asian Journal of Data Science, 16, 124-136.",
+  "note": "real title of 10.1136/bmjopen-2018-028688, invented authors"
+ },
+ {
+  "id": "h18",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "C. Vaz et al., “Quantum gravitational collapse and Hawking radiation in2+1dimensions,” Physical Review D, 2012,",
+  "note": "10.1103/physrevd.76.124021 with the year changed from 2007"
+ },
+ {
+  "id": "h19",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Patel, V., Okafor, R., & Iyer, A. (2018). Monsoon Fury in Kerala - A Geo-environmental Appraisal. Journal of Applied Computational Research, 10, 127-139.",
+  "note": "real title of 10.1007/s12594-018-1031-6, invented authors"
+ },
+ {
+  "id": "h20",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "V.VenkateswaraRao, P., & Pallam Setty, S. (2020). Investigating the Impact of Black Hole Attack on AODV Routing Protocol in MANETS under Responsive and Non-Responsive Traffic. International Journal of Computer Applications.",
+  "note": "10.5120/21392-4435 with the year changed from 2015"
+ },
+ {
+  "id": "h21",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Patel, V., Okafor, D., & Tanaka, M. (2014). The need for design history in HCI. Journal of Applied Computational Research, 13, 130-142.",
+  "note": "real title of 10.1145/2669617, invented authors"
+ },
+ {
+  "id": "h22",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Tang D, Xiao W, Yin H, Tian L, Wang D. Production of Fine Tungsten Powder by Electrolytic Reduction of Solid CaWO4in Molten Salt. Journal of The Electrochemical Society. 2017.",
+  "note": "10.1149/2.113206jes with the year changed from 2012"
+ },
+ {
+  "id": "h23",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Haddad, A., Haddad, N., & Mukherjee, N. (2019). Evolution in microstructure and compression behaviour of a metallic sintered friction material after braking. Asian Journal of Data Science, 16, 133-145.",
+  "note": "real title of 10.1016/j.wear.2019.202947, invented authors"
+ },
+ {
+  "id": "h24",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "MacKie, B. A., Stepien, R. L., & Kellihan, H. B. (2015). Retrospective analysis of an implantable loop recorder for evaluation of syncope, collapse, or intermittent weakness in 23 dogs (2004-2008). Journal of Veterinary Cardiology.",
+  "note": "10.1016/j.jvc.2009.12.003 with the year changed from 2010"
+ },
+ {
+  "id": "h25",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Silva, A., Rao, S., & Haddad, A. (2003). Interaction of silver adatoms and dimers with graphite surfaces. Asian Journal of Data Science, 10, 136-148.",
+  "note": "real title of 10.1016/s0039-6028(03)00837-9, invented authors"
+ },
+ {
+  "id": "h26",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Kopylov et al., Characteristics of the Chromatographic Cleaning and Protectiveness of the LcrV Isoform of Yersinia pestis, Applied Biochemistry and Microbiology 2024",
+  "note": "10.1134/s0003683819040082 with the year changed from 2019"
+ },
+ {
+  "id": "h27",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Haddad, N., Haddad, V., & Rao, P. (2002). Comparison of Two Mesh Sizes for Collecting Larval Yellow Perch in Surface Trawls. Journal of Applied Computational Research, 13, 139-151.",
+  "note": "real title of 10.1577/1548-8675(2002)022<0585:cotmsf>2.0.co;2, invented authors"
+ },
+ {
+  "id": "h28",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "A. Achiron et al., “Sleep disturbances in multiple sclerosis: Clinical and neuroradiologic correlations related to disease activity,” Journal of Neuroimmunology, 2000,",
+  "note": "10.1016/0165-5728(95)99053-l with the year changed from 1995"
+ },
+ {
+  "id": "h29",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Okafor, A., Mukherjee, R., & Iyer, T. (2021). The Japanese benefactive -te ageru construction in family and adult interactions. Transactions on Intelligent Rural Systems, 16, 142-154.",
+  "note": "real title of 10.1016/j.pragma.2020.11.011, invented authors"
+ },
+ {
+  "id": "h30",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Bishop, C. A., Mahony, N. A., Trudeau, S., & Pettit, K. E. (2004). REPRODUCTIVE SUCCESS AND BIOCHEMICAL EFFECTS IN TREE SWALLOWS (TACHYCINETA BICOLOR) EXPOSED TO CHLORINATED HYDROCARBON CONTAMINANTS IN WETLANDS OF THE GREAT LAKES AND ST. LAWRENCE RIVER BASIN, USA AND CANADA. Environmental Toxicology and Chemistry.",
+  "note": "10.1897/1551-5028(1999)018<0263:rsabei>2.3.co;2 with the year changed from 1999"
+ },
+ {
+  "id": "h31",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Rao, A., Patel, S., & Tanaka, M. (2021). Pelaksanaan Perlindungan Hukum bagi Penyandang Disabilitas dalam Mendapatkan Pelayanan Publik di Kabupaten Tabanan. Journal of Applied Computational Research, 10, 145-157.",
+  "note": "real title of 10.22225/ah.3.2.2021.170-176, invented authors"
+ },
+ {
+  "id": "h32",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Jeon CJ, Kim ES, Cho JH. Effects of crystallization behaviour on microwave dielectric properties of (Ca1−Mg )SiO3 glass-ceramics. Materials Research Bulletin. 2022.",
+  "note": "10.1016/j.materresbull.2017.01.042 with the year changed from 2017"
+ },
+ {
+  "id": "h33",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Iyer, P., Singh, S., & Iyer, N. (2000). Realistic fission saddle-point shapes. Asian Journal of Data Science, 13, 148-160.",
+  "note": "real title of 10.1103/physrevc.61.047602, invented authors"
+ },
+ {
+  "id": "h34",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Prabowohendhi, S., Yuamita, F., & Jati Nugroho, A. (2025). Robot Boat Design For Real-Time Monitoring Of River Water Quality. International Journal of Engineering Technology and Natural Sciences.",
+  "note": "10.46923/ijets.v2i2.94 with the year changed from 2020"
+ },
+ {
+  "id": "h35",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Iyer, T., Banerjee, K., & Haddad, S. (2023). Essential Oil from Tagetes minuta Has Antiquorum Sensing and Antibiofilm Potential against Pseudomonas aeruginosa Strain PAO1. Journal of Applied Computational Research, 16, 151-163.",
+  "note": "real title of 10.1021/acsomega.3c03507, invented authors"
+ },
+ {
+  "id": "h36",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Khan et al., Energy-based cost integrated modelling and sustainability assessment of Al-GnP hybrid nanofluid assisted turning of AISI52100 steel, Journal of Cleaner Production 2025",
+  "note": "10.1016/j.jclepro.2020.120502 with the year changed from 2020"
+ },
+ {
+  "id": "h37",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Okafor, M., Iyer, S., & Petrov, T. (2003). Black Opinion on the Legitimacy of Racial Redistricting and Minority-Majority Districts. Review of Interdisciplinary Applied Sciences, 10, 154-166.",
+  "note": "real title of 10.1017/s0003055403000510, invented authors"
+ },
+ {
+  "id": "h38",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "J. Lin, B. Adams, A. E. Hassan, “On the coordination of vulnerability fixes,” Empirical Software Engineering, 2028,",
+  "note": "10.1007/s10664-023-10403-x with the year changed from 2023"
+ },
+ {
+  "id": "h39",
+  "kind": "chimera_title",
+  "expect": [
+   "mismatch",
+   "not_found"
+  ],
+  "text": "Iyer, S., Kulkarni, S., & Petrov, N. (2014). MOT in transition: From technology fusion to technology-service convergence. Asian Journal of Data Science, 13, 157-169.",
+  "note": "real title of 10.1016/j.technovation.2013.04.001, invented authors"
+ },
+ {
+  "id": "h40",
+  "kind": "altered_year",
+  "expect": [
+   "mismatch",
+   "not_found",
+   "unverifiable"
+  ],
+  "text": "Bartl, E., & Klir, G. J. (2018). Fuzzy relational equations in general framework. International Journal of General Systems.",
+  "note": "10.1080/03081079.2013.850197 with the year changed from 2013"
+ }
+]

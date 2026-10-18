@@ -77,7 +77,11 @@ export class FetchLayer {
       if (res && res.status !== 429 && res.status < 500) break;
       await sleep(1500 * (attempt + 1));
     }
-    if (!res) throw new Error(`network failure: ${key}`);
+    if (!res) {
+      // Record the failure too (status 599): replay then fails the same request the same way instead of reporting a missing recording.
+      if (this.mode === "record") this.fixtures.set(key, { s: 599, b: "" });
+      throw new Error(`network failure: ${key}`);
+    }
 
     const text = await res.text();
     if (this.mode === "record") {

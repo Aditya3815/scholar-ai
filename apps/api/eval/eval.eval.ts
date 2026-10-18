@@ -28,6 +28,10 @@ const GATES = {
   knownItemRecallAt10: 0.9,
   topicalRecallAt10: 0.85,
   providerFailureRate: 0.05,
+  // Held-out set (never tuned on). Thresholds are regression guards set just below the first honest measurement.
+  heldoutFakesVerified: 0,
+  heldoutRealRefsVerified: 0.88, // measured 93% (56/60) on 2026-10-18
+  heldoutKnownItemRecallAt10: 0.92, // measured 97% (58/60)
 };
 
 const MODE = (process.env.EVAL_MODE ?? "replay") as Mode;
@@ -44,6 +48,9 @@ const papers = subset(read<Paper[]>("papers.json"), 25);
 const retracted = subset(read<Retracted[]>("retracted.json"), 6);
 const fakes = subset(read<Fake[]>("fake_refs.json"), 12);
 const topical = subset(read<Topical[]>("topical.json"), 8);
+type HeldPaper = Paper & { group: "india" | "global" };
+const heldPapers = subset(read<HeldPaper[]>("heldout_papers.json"), 12);
+const heldFakes = subset(read<Fake[]>("heldout_fakes.json"), 10);
 
 const env = {
   store: memoryStore(),
@@ -78,7 +85,7 @@ const mainTitle = (t: string) => {
 
 /* ---------- results ---------- */
 type SearchRun = { q: string; dois: string[]; titles: string[]; retracted: boolean[]; sources: string[][]; doiDropped: number };
-const DETAIL: Record<string, string[]> = { unresolvable: [], titleMismatch: [], topicalMiss: [], retractedSearch: [], fakeVerified: [], genuineMiss: [], knownItemMiss: [] };
+const DETAIL: Record<string, string[]> = { unresolvable: [], titleMismatch: [], topicalMiss: [], retractedSearch: [], fakeVerified: [], genuineMiss: [], knownItemMiss: [], heldKnownMiss: [], heldGenuineMiss: [], heldFakeVerified: [] };
 const M = {} as {
   knownItem: { hits10: number; hits20: number; mrr: number };
   topical: { hits10: number };
@@ -88,6 +95,11 @@ const M = {} as {
   doiPipeline: { removed: number; checkFailures: number; searches: number };
   verifier: { real: { verified: number; byStatus: Record<string, number>; retractedFlags: number }; fakes: { verified: Fake[]; expected: number; byKind: Record<string, Record<string, number>> } };
   providers: { runs: number; failures: number };
+  heldout: {
+    knownItem: { hits10: number; hits20: number; byGroup: Record<string, { n: number; hits10: number }> };
+    real: { verified: number; byStatus: Record<string, number>; byGroup: Record<string, { n: number; verified: number }> };
+    fakes: { verified: Fake[]; expected: number; byKind: Record<string, Record<string, number>> };
+  };
 };
 
 async function search(q: string): Promise<SearchRun> {
@@ -132,6 +144,20 @@ beforeAll(async () => {
     if ((i + 1) % 25 === 0) log(`  searched ${i + 1}/${papers.length} known items`);
   }
   M.knownItem.mrr /= papers.length;
+
+  /* 1b. the same on the HELD-OUT papers (random sample, half Indian-affiliated): what a scholar looking for an ordinary paper sees */
+  M.heldout = { knownItem: { hits10: 0, hits20: 0, byGroup: {} }, real: { verified: 0, byStatus: {}, byGroup: {} }, fakes: { verified: [], expected: 0, byKind: {} } };
+  for (const p of heldPapers) {
+    const run = await search(mainTitle(p.title));
+    keep(run);
+    const rank = rankOf(run, p.doi, p.title);
+    const g = (M.heldout.knownItem.byGroup[p.group] ??= { n: 0, hits10: 0 });
+    g.n++;
+    if (rank >= 1) M.heldout.knownItem.hits20++;
+    if (rank >= 1 && rank <= 10) { M.heldout.knownItem.hits10++; g.hits10++; }
+    else DETAIL.heldKnownMiss!.push(`[${p.group}] ${rank ? `rank ${rank}` : "not in top 20"}: ${p.title.slice(0, 100)}`);
+  }
+  log(`  searched ${heldPapers.length} held-out known items`);
 
   /* 2. topical landmarks: the famous paper (any of its DOIs, or the same title) in the top 10 */
   M.topical = { hits10: 0 };
@@ -211,6 +237,27 @@ beforeAll(async () => {
     if (f.expect.includes(r.status)) expected++;
     (byKind[f.kind] ??= {})[r.status] = (byKind[f.kind]![r.status] ?? 0) + 1;
   }
+  for (const [i, p] of heldPapers.entries()) {
+    const text = formatRef(p, i);
+    const r: RefResult = await verifyReference(text, env);
+    M.heldout.real.byStatus[r.status] = (M.heldout.real.byStatus[r.status] ?? 0) + 1;
+    const g = (M.heldout.real.byGroup[p.group] ??= { n: 0, verified: 0 });
+    g.n++;
+    if (r.status === "verified") { M.heldout.real.verified++; g.verified++; }
+    else DETAIL.heldGenuineMiss!.push(`[${p.group} ${r.status}] ${text.slice(0, 120)} => ${r.reason.slice(0, 140)} checks=${JSON.stringify(r.checks)}`);
+  }
+  for (const f of heldFakes) {
+    const r = await verifyReference(f.text, env);
+    if (r.status === "verified") {
+      M.heldout.fakes.verified.push(f);
+      DETAIL.heldFakeVerified!.push(`${f.id} ${f.kind}: ${f.text}
+      => ${r.reason}
+      match=${JSON.stringify(r.match)} checks=${JSON.stringify(r.checks)}`);
+    }
+    if (f.expect.includes(r.status)) M.heldout.fakes.expected++;
+    (M.heldout.fakes.byKind[f.kind] ??= {})[r.status] = (M.heldout.fakes.byKind[f.kind]![r.status] ?? 0) + 1;
+  }
+  log(`  verified ${heldPapers.length} held-out genuine and ${heldFakes.length} fabricated references`);
   M.verifier = { real: { verified: byStatus.verified ?? 0, byStatus, retractedFlags }, fakes: { verified: fakeVerified, expected, byKind } };
 }, 3 * 60 * 60 * 1000);
 
@@ -232,6 +279,10 @@ afterAll(() => {
     ["genuine references by status", JSON.stringify(M.verifier.real.byStatus)],
     ["fabricated references VERIFIED (must be 0)", pct(M.verifier.fakes.verified.length, fakes.length)],
     ["fabricated references in an expected non-verified status", pct(M.verifier.fakes.expected, fakes.length)],
+    ["HELD-OUT known-item recall@10 / @20", `${pct(M.heldout.knownItem.hits10, heldPapers.length)} / ${pct(M.heldout.knownItem.hits20, heldPapers.length)}  ${Object.entries(M.heldout.knownItem.byGroup).map(([g, v]) => `${g} ${v.hits10}/${v.n}`).join(", ")}`],
+    ["HELD-OUT genuine references verified", `${pct(M.heldout.real.verified, heldPapers.length)}  ${Object.entries(M.heldout.real.byGroup).map(([g, v]) => `${g} ${v.verified}/${v.n}`).join(", ")}`],
+    ["HELD-OUT genuine references by status", JSON.stringify(M.heldout.real.byStatus)],
+    ["HELD-OUT fabricated references VERIFIED (must be 0)", pct(M.heldout.fakes.verified.length, heldFakes.length)],
     ["provider failures", pct(M.providers.failures, M.providers.runs)],
   ];
   log("\n=== EVAL REPORT ===");
@@ -253,6 +304,12 @@ afterAll(() => {
       "| Metric | Result |",
       "| --- | --- |",
       ...rows.map(([k, v]) => `| ${k} | ${v.replace(/\|/g, "/")} |`),
+      "",
+      "## Held-out fabricated references by kind and resulting status",
+      "",
+      "```json",
+      JSON.stringify(M.heldout.fakes.byKind, null, 1),
+      "```",
       "",
       "## Fabricated references by kind and resulting status",
       "",
@@ -298,6 +355,18 @@ describe("citation accuracy gates", () => {
 
   it("G6: landmark papers appear for topical queries", () => {
     expect(M.topical.hits10 / topical.length).toBeGreaterThanOrEqual(GATES.topicalRecallAt10);
+  });
+
+  it("H1: no fabricated reference from the held-out set is verified", () => {
+    expect(M.heldout.fakes.verified.map((f) => `${f.id} ${f.kind}: ${f.text}`)).toHaveLength(GATES.heldoutFakesVerified);
+  });
+
+  it("H2: held-out genuine references are verified at no less than the measured rate", () => {
+    expect(M.heldout.real.verified / heldPapers.length).toBeGreaterThanOrEqual(GATES.heldoutRealRefsVerified);
+  });
+
+  it("H3: held-out papers are found by title at no less than the measured rate", () => {
+    expect(M.heldout.knownItem.hits10 / heldPapers.length).toBeGreaterThanOrEqual(GATES.heldoutKnownItemRecallAt10);
   });
 
   it("providers are healthy during the run", () => {
