@@ -70,6 +70,22 @@ Orphaned R2 objects can only appear if a delete fails between the file and the r
 `SELECT id FROM documents` if storage grows unexpectedly. `QA_STUB` must never exist in production (the secrets script refuses to upload it).
 A question uses one gateway call (about 3 to 4k tokens); the per-user daily token quota is in `src/llm/config.ts`.
 
+## Idea Check, reports and the admin page
+
+- **Idea Check** (`/idea`): the idea text is sent to `POST /api/v1/idea/plan` (private model), is not stored and is not logged. Only the approved search plan
+  goes to OpenAlex and Semantic Scholar. Nothing about a check is kept server side.
+- **OpenAlex budget.** The API key has a daily budget of **$1** (response header `X-RateLimit-Limit-USD`), about 1,000 searches, shared by production, local testing and the
+  eval. When it is used up OpenAlex answers 429 until the reset (`Retry-After` seconds): search then reports `openalex` as failed and the other sources carry on, Idea Check
+  reports the failed searches, and the Verifier falls back to Crossref. A full `npm run eval:record` uses a large part of the day's budget: do not record while testing live.
+  Check what is left: `curl -sI "https://api.openalex.org/works?per-page=1&select=id&api_key=KEY" | grep -i ratelimit`.
+  A separate key for development and the eval, or prepaid credit, removes the problem.
+- **Reports** ("Report a problem" on an answer, a reference or an idea search) go to the `feedback` table and are kept for a year (cron) or until the account is deleted. They are
+  listed on `/admin`. Make someone an admin in D1: `npx wrangler d1 execute scholar-db --remote --command "UPDATE users SET role='admin' WHERE email='you@example.com'"`
+  (sign out and in again). The admin overview shows counts, AI use per day and per model, failures and reports; it never shows paper or idea text, and shows people only as a short id.
+- Answers reported as wrong are the raw material for the Q&A gold set: copy the question and passage into `apps/api/scripts/r2/questions.json` (new `id`) once the right answer is known.
+- **Weekly Q&A quality** (`.github/workflows/qa-eval.yml`, Tuesdays): downloads the five public gold-set papers, asks the 35 questions with the real models and fails below the gate
+  (`qa-eval.mjs --gate`). It needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. First run: trigger it by hand (Actions, "Q&A quality", Run workflow).
+
 ## Test everything locally
 
 ```sh

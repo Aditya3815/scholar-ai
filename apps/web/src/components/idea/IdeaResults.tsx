@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { IdeaPaper, IdeaSearched, IdeaSearchResult } from "@scholar/shared";
 import { openPreview } from "../../lib/preview";
 import { easeOut } from "../../lib/motion";
+import { ReportButton } from "../ReportButton";
 import { ResultCard } from "../ResultCard";
 
 const SOURCE_NAME = { openalex: "OpenAlex", s2: "Semantic Scholar" } as const;
@@ -90,6 +91,16 @@ export function IdeaResults({ run, onEditPlan, onSearchAgain }: { run: IdeaRun; 
             <ArrowLeft size={15} aria-hidden="true" />
             <span>Edit the search</span>
           </button>
+          {done && (
+            <ReportButton
+              label="Something missing or wrong?"
+              body={{
+                kind: "idea",
+                semanticQuery: run.searched.find((s) => s.kind === "semantic")?.query,
+                keywordQueries: [...new Set(run.searched.filter((s) => s.kind === "keyword").map((s) => s.query))],
+              }}
+            />
+          )}
           {done && failed > 0 && (
             <button type="button" className="btn btn-ghost btn-sm" onClick={onSearchAgain}>
               <span>Search again</span>

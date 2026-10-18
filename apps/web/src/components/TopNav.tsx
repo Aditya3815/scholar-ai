@@ -2,7 +2,7 @@ import { m } from "motion/react";
 import { FileStack, Lightbulb, ListChecks, Search } from "lucide-react";
 import { spring } from "../lib/motion";
 
-export type View = "search" | "verify" | "papers" | "idea";
+export type View = "search" | "verify" | "papers" | "idea" | "admin";
 
 const ITEMS: { id: View; label: string; href: string; Icon: typeof Search }[] = [
   { id: "search", label: "Search", href: "/", Icon: Search },

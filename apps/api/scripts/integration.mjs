@@ -91,6 +91,7 @@ try {
   ok = run("library integration", "scripts/library-e2e.mjs") && ok;
   ok = run("documents integration", "scripts/docs-e2e.mjs") && ok;
   ok = run("idea check integration", "scripts/idea-e2e.mjs") && ok;
+  ok = run("feedback integration", "scripts/feedback-e2e.mjs") && ok;
   if (withBrowser) {
     ok = run("browser: smoke + axe", "e2e/smoke.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = run("browser: auth", "e2e/auth.mjs", [`http://localhost:${PORT}`], web) && ok;
@@ -98,6 +99,7 @@ try {
     ok = run("browser: verifier", "e2e/verify.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = run("browser: papers", "e2e/papers.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = run("browser: idea check", "e2e/idea.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = run("browser: admin and reports", "e2e/admin.mjs", [`http://localhost:${PORT}`], web) && ok;
     // Only when asked for (needs real PDFs, live Crossref/OpenAlex and a few minutes): REAL_PDFS=<folder> [REAL_VERIFY=1]
     if (process.env.REAL_PDFS) ok = run("browser: real papers", "e2e/real-papers.mjs", [process.env.REAL_PDFS, `http://localhost:${PORT}`, ...(process.env.REAL_VERIFY ? ["--verify"] : [])], web) && ok;
   }

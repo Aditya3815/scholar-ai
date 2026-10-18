@@ -1,6 +1,12 @@
 # Idea Check: "has my idea been done, what is close to it, where is the gap?"
 
-Status: proposal, researched 2026-10-18. Not built. Nothing here is a promise to users yet.
+Status: researched 2026-10-18. **M1 built 2026-10-19** (steps 1 and 2 of the pipeline below: the search plan and the closest papers; no model judgment yet). M2 and M3 are not built.
+
+**M1 as built:** `/idea` reads the idea in the browser (PDF, Word, LaTeX, Markdown, text); the private model proposes a plan (title, summary, four facets, a paragraph to search by meaning, 3 to 6 keyword searches) with
+identifying details left out and e-mail addresses and links removed; the researcher edits it; OpenAlex (by meaning and by keywords) and Semantic Scholar are searched, results merged by DOI/title, the
+30 closest by embedding kept, every DOI and retraction status checked; the page lists every search that was run and says that not finding a paper is not proof it does not exist. Nothing is stored.
+Live test on three real ideas (glaucoma screening, reference checking, tractor soil sensors): the top results were the relevant papers; the plan takes 7 to 16 s and the search 11 to 14 s.
+Known rough edge: records for software and datasets (Zenodo, GitHub) appear next to papers.
 
 ## The idea
 

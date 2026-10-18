@@ -5,6 +5,7 @@ import { MAX_QUESTION_CHARS, type Answer, type AskStage, type Citation, type Doc
 import { ApiError, askDocumentStream } from "../../lib/documents";
 import { easeOut, spring, springPop } from "../../lib/motion";
 import { CountUp } from "../ResultCard";
+import { ReportButton } from "../ReportButton";
 
 const SUGGESTIONS = [
   "Summarise this paper in a few sentences",
@@ -138,7 +139,7 @@ function CopyAnswer({ answer }: { answer: Answer }) {
   );
 }
 
-function AnswerCard({ answer, onCite }: { answer: Answer; onCite: (c: Citation) => void }) {
+function AnswerCard({ answer, docId, onCite }: { answer: Answer; docId: string; onCite: (c: Citation) => void }) {
   const status = !answer.found
     ? { Icon: SearchX, label: "Not in this paper", tone: "muted" }
     : answer.verified
@@ -153,7 +154,10 @@ function AnswerCard({ answer, onCite }: { answer: Answer; onCite: (c: Citation) 
           </m.span>
           {status.label}
         </span>
-        {answer.found && <CopyAnswer answer={answer} />}
+        <span className="ask-tools">
+          {answer.found && <CopyAnswer answer={answer} />}
+          <ReportButton compact label="Report a problem with this answer" body={{ kind: "answer", docId, answerId: answer.id }} />
+        </span>
       </div>
 
       <AnswerText text={answer.answer} citations={answer.citations} onCite={onCite} />
@@ -326,7 +330,7 @@ export function AskPanel({ doc, history, onCite, onGoToPage, onReindex }: { doc:
               </m.li>
               <li className="ask-a">
                 {t.answer ? (
-                  <AnswerCard answer={t.answer} onCite={onCite} />
+                  <AnswerCard answer={t.answer} docId={doc.id} onCite={onCite} />
                 ) : t.error ? (
                   <div className="ask-error" role="alert">
                     <TriangleAlert size={16} aria-hidden="true" />

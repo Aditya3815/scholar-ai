@@ -1,5 +1,5 @@
 import { m } from "motion/react";
-import { ArrowRight, BadgeCheck, Layers, ShieldAlert } from "lucide-react";
+import { ArrowRight, BadgeCheck, FileStack, Layers, Lightbulb, ListChecks, ShieldAlert } from "lucide-react";
 import type { ReactNode, RefObject } from "react";
 import { easeOut, stagger } from "../lib/motion";
 import { SearchBox } from "./SearchBox";
@@ -17,6 +17,12 @@ const PRINCIPLES = [
   { Icon: Layers, title: "Four sources, one list", body: "Duplicates are merged by DOI, and papers that several sources agree on rise to the top." },
 ];
 
+const START = [
+  { id: "idea", href: "/idea", Icon: Lightbulb, title: "Check an idea", body: "Describe it or open a file. See the closest papers already in the literature." },
+  { id: "verify", href: "/verify", Icon: ListChecks, title: "Verify your references", body: "Paste a bibliography. Every entry is looked up, and made-up ones are flagged." },
+  { id: "papers", href: "/papers", Icon: FileStack, title: "Ask your papers", body: "Upload a PDF and ask questions. Every answer points to the exact passage." },
+] as const;
+
 const rise = (i: number) => ({
   initial: { opacity: 0, y: 18 },
   animate: { opacity: 1, y: 0 },
@@ -30,6 +36,7 @@ export function Hero({
   onPick,
   onVerify,
   onPapers,
+  onIdea,
   inputRef,
 }: {
   value: string;
@@ -38,6 +45,7 @@ export function Hero({
   onPick: (q: string) => void;
   onVerify: () => void;
   onPapers: () => void;
+  onIdea: () => void;
   inputRef: RefObject<HTMLInputElement | null>;
 }): ReactNode {
   return (
@@ -76,13 +84,30 @@ export function Hero({
             </m.button>
           ))}
         </div>
-        <m.p className="hero-verify" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 1 }}>
-          Have a reference list to check?{" "}
-          <a className="link-btn" href="/verify" onClick={(e) => { e.preventDefault(); onVerify(); }}>Verify your references <ArrowRight size={14} aria-hidden="true" /></a>{" "}
-          or{" "}
-          <a className="link-btn" href="/papers" onClick={(e) => { e.preventDefault(); onPapers(); }}>upload a PDF and ask it questions <ArrowRight size={14} aria-hidden="true" /></a>
-        </m.p>
       </m.div>
+
+      <m.nav className="start" aria-label="Other ways to start" {...rise(4)}>
+        <p className="start-label">Or start with</p>
+        <ul className="start-list">
+          {START.map(({ id, href, Icon, title, body }) => (
+            <li key={id}>
+              <a
+                className="card start-card"
+                href={href}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                  e.preventDefault();
+                  (id === "idea" ? onIdea : id === "verify" ? onVerify : onPapers)();
+                }}
+              >
+                <span className="principle-ico" aria-hidden="true"><Icon size={20} /></span>
+                <span className="start-title">{title} <ArrowRight size={14} aria-hidden="true" /></span>
+                <span className="start-body">{body}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </m.nav>
 
       <ul className="principles">
         {PRINCIPLES.map(({ Icon, title, body }, i) => (

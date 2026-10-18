@@ -5,11 +5,14 @@ private "START HERE" notes (not in the repo) and the spike write-ups in `docs/sp
 
 Legend: ✅ done and verified · 🟡 partly done · 🔨 in progress · ⏳ planned · ❓ needs a decision from Aditya
 
-## Where we are (2026-10-18)
+## Where we are (2026-10-19)
 
 Live at https://scholar.shodhsetu.workers.dev. Search (4 sources, retraction and DOI checks), Reference Verifier, uploaded papers with a
-real PDF reader and grounded, verified Q&A (streaming), library, Google/ORCID sign-in. Citation eval gates run on every push.
-Cloudflare: Workers Paid, R2 Paid.
+real PDF reader and grounded, verified Q&A (streaming), library, Google/ORCID sign-in, **Idea Check (M1)**, "Report a problem" buttons and an admin page. Citation eval gates run on
+every push. Cloudflare: Workers Paid, R2 Paid.
+
+**Waiting to push:** the Verifier/Idea Check/feedback work is committed locally. The eval gates all pass on the new recordings, with one OpenAlex request still to record (the key's $1/day
+budget ran out); a scheduled task records it after the reset (about 05:40 IST on 19 Oct), replays the eval and pushes. Until then CI would fail on that one missing recording.
 
 ## Phase 0: foundations
 
@@ -33,11 +36,11 @@ Cloudflare: Workers Paid, R2 Paid.
 | E2 Paper workspace | 🟡 | viewer, thumbnails, zoom, highlight, **Contents menu** ✅. notes/highlights ⏳, search in paper ⏳ |
 | E3 Grounded Q&A | ✅ | verified quotes, refusal, streaming stages. 24/24 correct on the gold set |
 | E4 Reference Verifier | ✅ | paste/BibTeX/file; **References tab for an uploaded paper** (checked, retracted citations called out) ✅ |
-| E5 Privacy + trust | 🟡 | delete and export ✅. First-upload privacy card, consent, retention ⏳ (A8) |
-| E6 Onboarding | ⏳ | 3 steps and a sample paper |
-| E7 Admin / cost | ⏳ | usage ledger exists; dashboard does not |
+| E5 Privacy + trust | 🟡 | delete and export ✅ (now include reports). **"Report a problem"** on answers, references and idea searches ✅ (says what it sends; kept a year). First-upload privacy card, consent ⏳ (A8) |
+| E6 Onboarding | 🟡 | home page has three "start with" cards (Idea Check, Verify, My papers); each tool has an example. A sample paper ⏳ (needs an openly licensed PDF) |
+| E7 Admin / cost | ✅ | `/admin` (admins only): people, papers, questions, AI tokens per day and per model, failures, reports. Numbers only, no paper or idea text |
 | E8 Notifications | ⏳ | not needed yet |
-| E9 Quality | 🟡 | citation eval in CI ✅. Q&A eval not in CI ⏳ |
+| E9 Quality | 🟡 | citation eval in CI ✅. Weekly Q&A workflow written (`qa-eval.yml`, `--gate`), **not yet run in CI** (needs the Cloudflare secrets; trigger it by hand once) |
 
 ## Paper intelligence v1 (GROBID-free): done, see docs/spikes/R1b-grobid-alternatives.md
 
@@ -47,32 +50,32 @@ Cloudflare: Workers Paid, R2 Paid.
 | 2. Store it per paper; metadata from OpenAlex/Crossref by DOI | ✅ also gives a paper its real title; publisher's list as fallback |
 | 3. References tab: every entry checked by the Verifier, retracted citations called out, export | ✅ |
 | 4. Contents (outline) menu in the reader | ✅ |
-| 5. OpenAlex as a second lookup source in the Verifier (arXiv/preprints) + fixes found by running real papers | 🟡 built: 21% (rate-limited) → 78% of the five papers' 175 references verified (R1b spike, "Result: the Verifier"). **Eval gates being re-recorded**, then push |
+| 5. OpenAlex as a second lookup source in the Verifier (arXiv/preprints) + fixes found by running real papers | ✅ built: 21% (rate-limited) → 78% of the five papers' 175 references verified (R1b spike, "Result: the Verifier"). Eval: genuine 98/100, held-out 57/60, fabricated verified 0/70. One recording to add, then push |
 | 6. Docling in Cloudflare Containers for scanned PDFs (OCR) and tables | ⏳ later |
 
-## Everything still pending (2026-10-18)
+## Everything still pending (2026-10-19)
 
-**In progress**
-- Verifier step 5: eval re-record running, then check gates G1 to G6 and held-out, then push.
+**Waiting on time, not on work**
+- Record the one missing OpenAlex request, replay the eval, push (scheduled for after the daily budget resets).
+- Re-apply a small title-guessing improvement for references that start with initials ("Jain, A., Rao, K. V., ..."), together with the next full re-record. It is a small change in
+  `titleAfterAuthors` (skip further author-list parts and a lone year); it was taken out so the recordings match the code.
 
 **Phase 1 leftovers (finish before a public pilot)**
 | Item | Notes |
 | --- | --- |
-| Privacy policy, Terms, "How we verify", first-upload privacy card, retention (A8, E5) | needs contact/grievance email, entity name, product name |
-| Sentry, staging environment, Turnstile (A6) | |
-| Onboarding: 3 steps and a sample paper (E6) | |
-| "Wrong answer / wrong citation" button feeding the eval set | |
-| Admin page: usage and cost (E7) | the usage ledger exists |
-| Q&A eval weekly in GitHub Actions (E9); free OpenRouter as public-data fallback; paid ZDR route only after qa-eval passes | |
+| Privacy policy, Terms, "How we verify", first-upload privacy card (A8, E5) | needs contact/grievance email, entity name, product name |
+| Sentry, staging environment, Turnstile (A6) | need accounts or keys from Aditya (Sentry DSN, Turnstile site key) |
+| Onboarding: a sample paper | needs an openly licensed PDF we may bundle |
 | Notes and highlights, search inside a paper (E2) | |
-| a11y: one manual NVDA pass | axe is clean |
-| Test that account deletion removes R2 files | |
+| First run of the weekly Q&A workflow; free OpenRouter as public-data fallback; paid ZDR route only after qa-eval passes | |
+| a11y: one manual NVDA pass | axe is clean on every page |
 | Pilot with 20 to 30 scholars | needs 10 names from Aditya |
 
 **Phase 2: new capabilities**
 | Item | Notes |
 | --- | --- |
-| **Idea Check**: bring an idea (PDF/docx/md/txt) and a question; get prior work with verified citations and previews, a coverage map, gaps, a grounded answer | researched: [design/idea-check.md](design/idea-check.md). Build in three milestones (M1 related work, M2 facets + coverage map + prior-art recall eval, M3 gaps/feasibility/report) |
+| **Idea Check M1** (related papers from an idea) | ✅ built and live-tested on three real ideas: [design/idea-check.md](design/idea-check.md). Next: **M2** facets + coverage map with quote-verified evidence + the prior-art recall eval; **M3** gaps, feasibility, grounded answer, report |
+| Idea Check: choose a papers' type (software/datasets are mixed in with papers), search more sources (arXiv, PubMed, CORE) | after M2 |
 | "Chat with this paper" for open-access search results (import the PDF) | also the preview path for Idea Check |
 | Collections and Q&A across papers | Vectorize, one namespace per user |
 | Docling in Cloudflare Containers: scanned PDFs (OCR) and tables | later |
@@ -82,7 +85,8 @@ Cloudflare: Workers Paid, R2 Paid.
 **Aditya's side**
 Rotate every pasted key (incl. OpenRouter) and make the repo private · product name · contact and grievance email, entity name · 10 pilot names ·
 billing alert · cancel "Images Stream Basic" if unintended · custom domain · decide about the one-time $10 OpenRouter credit (see below) ·
-3 Dependabot PRs open.
+**an OpenAlex plan: the free key's $1/day budget is shared by production, testing and the eval, and ran out today (runbook, "Idea Check, reports and the admin page")** ·
+make yourself admin in D1 (runbook) · 3 Dependabot PRs open.
 
 ## What the paid plans give us, and how we use it
 
@@ -124,6 +128,7 @@ to keep the "Images Stream Basic" subscription (we do not use it).
 
 ## Log
 
+- 2026-10-19: Idea Check M1 (read PDF/Word/LaTeX/Markdown/text in the browser, approve the search plan, closest papers by meaning with DOI and retraction checks, report of what was searched); "Report a problem"; admin page; home start cards; weekly Q&A workflow; R2 deletion is now tested. Fixed: answers lost double letters ("process" became "proce "), Crossref titles with markup, top bar too wide for four tabs. OpenAlex's $1/day budget ran out during the eval re-record.
 - 2026-10-18 (late): researched the "Idea Check" product idea (docs/design/idea-check.md) and what Workers Paid and OpenRouter free models can be used for; pending list rewritten above.
 - 2026-10-18 (night): Verifier: Crossref calls gated to its 3/s limit, OpenAlex title search and arXiv-id lookup as a second source, three false accusations fixed (wrapped DOIs, markup in titles, broken words). Real-paper verification 21% → 78%. Eval re-record in progress.
 - 2026-10-18 (later): paper intelligence v1 shipped: References tab, Contents menu, real titles and metadata for uploads; measured on the five real PDFs.

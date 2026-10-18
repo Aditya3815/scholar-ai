@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
-import { Link2, LogIn, LogOut, Settings, ShieldCheck, X } from "lucide-react";
+import { Activity, Link2, LogIn, LogOut, Settings, ShieldCheck, X } from "lucide-react";
 import { useState } from "react";
 import { linkProvider, signIn, signOut, useAuth } from "../lib/auth";
 import { easeOut, spring } from "../lib/motion";
@@ -97,6 +97,12 @@ function UserMenu() {
           <Settings size={15} aria-hidden="true" />
           <span>Settings and data</span>
         </button>
+        {user.role === "admin" && (
+          <a className="btn btn-ghost btn-sm acct-btn" href="/admin">
+            <Activity size={15} aria-hidden="true" />
+            <span>Admin</span>
+          </a>
+        )}
         <button type="button" className="btn btn-ghost btn-sm acct-btn" onClick={() => void signOut()}>
           <LogOut size={15} aria-hidden="true" />
           <span>Sign out</span>

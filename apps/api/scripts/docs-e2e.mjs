@@ -182,12 +182,27 @@ try {
   ok(reput.document.title === "My own name", "a title the user chose is never overwritten");
   ok((await (await A.api(`/api/v1/documents/${doc.id}`)).json()).info === null, "a paper nobody analysed has no info");
 
+  console.log("reporting a problem with an answer");
+  const report = (client, body, origin = APP) => client.api("/api/v1/feedback", { method: "POST", body, origin });
+  const answerId = hist.at(-1).id;
+  ok((await report(A, { kind: "answer", problem: "wrong_answer", note: "Mail me at a@example.com", docId: doc.id, answerId })).status === 201, "a wrong answer can be reported");
+  ok((await report(B, { kind: "answer", problem: "wrong_answer", docId: doc.id, answerId })).status === 404, "another user cannot report (or read) someone else's answer");
+  ok((await report(A, { kind: "answer", problem: "wrong_answer", docId: doc.id, answerId: "nonexistent" })).status === 404, "an answer that does not exist is refused");
+  ok((await report(A, { kind: "answer", problem: "made_up", docId: doc.id, answerId })).status === 400, "a problem that is not on the list is refused");
+  ok((await report(A, { kind: "answer", problem: "wrong_answer", docId: doc.id, answerId }, null)).status === 403, "reporting has the cross-origin check");
+
   console.log("export and deletion");
+  const uid = (await A.me()).id;
+  const inStorage = async (id) => (await (await A.api(`/api/v1/dev/r2-exists?key=${encodeURIComponent(`docs/${uid}/${id}.pdf`)}`)).json()).exists;
+  ok((await inStorage(doc.id)) && (await inStorage(scanned.id)), "both uploaded PDFs are in storage before deletion");
   const exp = await (await A.api("/api/v1/account/export")).json();
+  ok(exp.reports?.length === 1 && exp.reports[0].sent.question && !/a@example\.com/.test(JSON.stringify(exp.reports)), "the export lists what the user reported, with e-mail addresses taken out of the note");
   ok(exp.uploadedPapers.length === 2 && exp.uploadedPapers.find((d) => d.id === doc.id).questions.length === 4, "the data export lists the papers and the questions asked");
   ok((await A.api(P, { method: "DELETE" })).status === 200, "DELETE removes the paper");
   ok((await A.api(P)).status === 404 && (await A.api(`${P}/file`)).status === 404, "...and its file");
+  ok(!(await inStorage(doc.id)) && (await inStorage(scanned.id)), "...and the PDF is gone from storage, while the other paper's stays");
   ok((await A.api("/api/v1/account", { method: "DELETE", body: { confirm: "DELETE" } })).status === 200, "deleting the account succeeds with papers present");
+  ok(!(await inStorage(scanned.id)), "deleting the account removes every uploaded PDF from storage");
   const A2 = await login("doc-a", "a@example.com", "Alice");
   ok((await (await A2.api("/api/v1/documents")).json()).items.length === 0, "a new account with the same sign-in has no papers left");
 } catch (e) {

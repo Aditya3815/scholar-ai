@@ -4,11 +4,14 @@ import type { HealthResponse } from "@scholar/shared";
 import { MAX_QUERY_LENGTH, runSearch } from "./search";
 import { AllProvidersFailedError, NoRouteError, PolicyError, QuotaError, gatewayFromEnv, type LlmRequest } from "./llm";
 import { authRoutes } from "./auth/routes";
+import { currentUser } from "./auth/http";
 import { libraryRoutes } from "./library/routes";
 import { accountRoutes } from "./account/routes";
 import { referenceRoutes } from "./references/routes";
 import { documentRoutes } from "./docs/routes";
 import { ideaRoutes } from "./idea/routes";
+import { feedbackRoutes } from "./feedback/routes";
+import { adminRoutes } from "./admin/routes";
 import type { AuthEnv } from "./auth/providers";
 import { d1Store } from "./cache/store";
 import type { SearchEnv } from "./search/types";
@@ -57,6 +60,8 @@ app.route("/api/v1/account", accountRoutes);
 app.route("/api/v1/references", referenceRoutes);
 app.route("/api/v1/documents", documentRoutes);
 app.route("/api/v1/idea", ideaRoutes);
+app.route("/api/v1/feedback", feedbackRoutes);
+app.route("/api/v1/admin", adminRoutes);
 
 app.get("/api/v1/health", async (c) => {
   let db: HealthResponse["db"] = "ok";
@@ -149,6 +154,21 @@ app.post("/api/v1/dev/llm", async (c) => {
     const status = e instanceof PolicyError ? 403 : e instanceof NoRouteError ? 422 : e instanceof QuotaError ? 429 : e instanceof AllProvidersFailedError ? 502 : 400;
     return c.json({ type: e instanceof Error ? e.name : "error", title: "LLM request failed", detail }, status);
   }
+});
+
+/** Local tests only (ENABLE_DEV_ROUTES=1, never a production secret): is a file still in storage? */
+app.get("/api/v1/dev/r2-exists", async (c) => {
+  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.json({ type: "not_found", title: "Not found" }, 404);
+  return c.json({ exists: (await c.env.FILES.head(c.req.query("key") ?? "")) !== null });
+});
+
+/** Local tests only: makes the signed-in user an admin, so the admin page can be tested. */
+app.post("/api/v1/dev/make-admin", async (c) => {
+  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.json({ type: "not_found", title: "Not found" }, 404);
+  const user = await currentUser(c);
+  if (!user) return c.json({ type: "unauthorized", title: "Sign in first" }, 401);
+  await c.env.DB.prepare("UPDATE users SET role = 'admin' WHERE id = ?1").bind(user.id).run();
+  return c.json({ ok: true });
 });
 
 app.notFound((c) =>

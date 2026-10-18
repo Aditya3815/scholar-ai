@@ -40,7 +40,7 @@
 .topnav-label {
   position: relative;
 }
-@media (max-width: 720px) {
+@media (max-width: 1000px) {
   .topbar-inner {
     flex-wrap: wrap;
     row-gap: 0.5rem;

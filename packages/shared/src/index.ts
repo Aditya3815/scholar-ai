@@ -89,3 +89,4 @@ export * from "./text";
 export * from "./paperinfo";
 export * from "./idea";
 export * from "./ideafile";
+export * from "./feedback";

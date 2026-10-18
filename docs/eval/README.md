@@ -10,6 +10,9 @@ npm run eval:live -w apps/api    # live APIs, nothing saved (weekly GitHub Actio
 ```
 Latest recorded run: [REPORT.md](REPORT.md).
 
+If a replay reports a few recordings as missing (the code now asks for a request that was never recorded), you do not have to re-record everything (about an hour, a large
+part of the day's OpenAlex budget): list them with `npm run eval 2>&1 | grep "^  GET "` and add just those with `node eval/patch-fixtures.mjs "GET https://..." ...`.
+
 ## What is measured
 
 | Dataset (`apps/api/eval/data/`) | Size | How it was made |

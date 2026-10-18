@@ -81,4 +81,18 @@ for (const [k, v] of Object.entries(summary)) console.log(`${k.padEnd(32)} ${v}`
 const out = fileURLToPath(new URL("./r2/results/", import.meta.url));
 mkdirSync(out, { recursive: true });
 writeFileSync(join(out, `qa-eval-${new Date().toISOString().slice(0, 10)}.json`), JSON.stringify({ summary, rows }, null, 1));
+
+// --gate: exit 1 when quality is below the Phase 1 exit gate (answerable >= 85% correct, unanswerable >= 90% declined, every answer's
+// sources verified, no request errors). The weekly workflow uses it, so a regression in the model or the prompt is noticed within a week.
+if (process.argv.includes("--gate")) {
+  const share = (a, b) => (b ? a / b : 1);
+  const checks = [
+    ["answerable questions answered correctly >= 85%", share(ans.filter((r) => r.correct).length, ans.length) >= 0.85],
+    ["unanswerable questions declined >= 90%", share(un.filter((r) => r.correct).length, un.length) >= 0.9],
+    ["answers with every source verified >= 90%", share(found.filter((r) => r.verified).length, found.length) >= 0.9],
+    ["no request errors", rows.length === done.length],
+  ];
+  for (const [name, pass] of checks) console.log(`${pass ? "  pass" : "  FAIL"}  ${name}`);
+  process.exit(checks.every(([, pass]) => pass) ? 0 : 1);
+}
 process.exit(0);

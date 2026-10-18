@@ -16,6 +16,7 @@ import { VerifyPage } from "./components/verify/VerifyPage";
 import { DocWorkspace } from "./components/papers/DocWorkspace";
 import { PapersPage } from "./components/papers/PapersPage";
 import { IdeaPage } from "./components/idea/IdeaPage";
+import { AdminPage } from "./components/admin/AdminPage";
 import { takeAuthError } from "./lib/auth";
 import { easeOut } from "./lib/motion";
 import { clearNotice, showNotice, useNotice } from "./lib/notice";
@@ -32,11 +33,12 @@ const routeFromPath = (): Route => {
   const p = location.pathname.replace(/\/+$/, "");
   if (p === "/verify") return { view: "verify", docId: null };
   if (p === "/idea") return { view: "idea", docId: null };
+  if (p === "/admin") return { view: "admin", docId: null };
   const m = /^\/papers(?:\/([a-f0-9]{8,40}))?$/.exec(p);
   if (m) return { view: "papers", docId: m[1] ?? null };
   return { view: "search", docId: null };
 };
-const TITLES: Record<View, string> = { search: "Scholar", verify: "Verify references · Scholar", papers: "My papers · Scholar", idea: "Idea Check · Scholar" };
+const TITLES: Record<View, string> = { search: "Scholar", verify: "Verify references · Scholar", papers: "My papers · Scholar", idea: "Idea Check · Scholar", admin: "Admin · Scholar" };
 
 function Footer() {
   return (
@@ -184,6 +186,8 @@ export function App() {
         <main id="main" className="main" data-view={view === "papers" && route.docId ? "paper" : view}>
           {view === "verify" ? (
             <VerifyPage />
+          ) : view === "admin" ? (
+            <AdminPage />
           ) : view === "idea" ? (
             <IdeaPage />
           ) : view === "papers" ? (
@@ -192,7 +196,7 @@ export function App() {
           <AnimatePresence mode="wait" initial={false}>
             {idle ? (
               <m.div key="home" exit={{ opacity: 0, y: -12, transition: { duration: 0.18 } }}>
-                <Hero value={query} onChange={setQuery} onSubmit={() => submit(query)} onPick={submit} onVerify={() => navigate("verify")} onPapers={() => navigate("papers")} inputRef={inputRef} />
+                <Hero value={query} onChange={setQuery} onSubmit={() => submit(query)} onPick={submit} onVerify={() => navigate("verify")} onPapers={() => navigate("papers")} onIdea={() => navigate("idea")} inputRef={inputRef} />
               </m.div>
             ) : (
               <m.div key="results" className="results-view" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }}>

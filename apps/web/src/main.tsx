@@ -14,6 +14,7 @@ import "./styles/verify.css";
 import "./styles/papers.css";
 import "./styles/workspace.css";
 import "./styles/idea.css";
+import "./styles/admin.css";
 import { initPrefs } from "./lib/prefs";
 import { App } from "./App";
 

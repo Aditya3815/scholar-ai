@@ -7,6 +7,7 @@ import { openPreview } from "../../lib/preview";
 import { statusOf } from "../../lib/refStatus";
 import type { VerifyItem } from "../../lib/verify";
 import { CiteMenu } from "../CiteMenu";
+import { ReportButton } from "../ReportButton";
 
 /** The record we matched, as a Paper, so the existing cite menu can format it. */
 const asPaper = (r: RefRecord): Paper => ({
@@ -145,7 +146,7 @@ export function RefCard({ item, index, onRecheck }: { item: VerifyItem; index: n
 
           {v?.match && v.checks && <Checks checks={v.checks} />}
 
-          {(v?.match || canRecheck) && (
+          {(v?.match || canRecheck || (v && v.status !== "unparsed")) && (
             <div className="actions">
               {v?.match && (
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => openPreview({ ...asPaper(v.match!), retracted: !!v.retracted, retractionSources: v.retracted ? ["crossref-retraction-watch"] : [] })}>
@@ -160,6 +161,7 @@ export function RefCard({ item, index, onRecheck }: { item: VerifyItem; index: n
                   <span>Open DOI</span>
                 </a>
               )}
+              {v && v.status !== "unparsed" && <ReportButton label="Report a problem" body={{ kind: "reference", reference: item.input, status: v.status, reason: v.reason }} />}
               {canRecheck && (
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => onRecheck(item.id)}>
                   <RefreshCw size={15} aria-hidden="true" />

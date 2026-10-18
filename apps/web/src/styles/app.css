@@ -13,7 +13,8 @@
   border-bottom-color: var(--border);
 }
 .topbar-inner {
-  max-width: 64rem;
+  /* wider than the page column: four tabs plus the controls need the room */
+  max-width: 72rem;
   margin: 0 auto;
   padding: 0.65rem 1rem;
   display: flex;
@@ -221,9 +222,13 @@
   border-radius: 999px;
   background: var(--accent);
 }
-.seg-btn > svg,
-.seg-label {
+.seg-btn > svg {
   position: relative;
+}
+/* Four tabs fill the bar, so the theme and library buttons are icons (their names are in the tooltip and the accessible name). */
+.seg-label,
+.lib-trigger-label {
+  display: none;
 }
 
 /* ============ Search box ============ */
@@ -1145,5 +1150,144 @@
   }
   .topbar-actions .icon-btn:first-child {
     display: none;
+  }
+}
+
+/* ============ Report a problem ============ */
+.ask-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+.report {
+  display: grid;
+  gap: 0.6rem;
+}
+.report-problems {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.report-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-s);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.report-opt:hover {
+  background: var(--surface-2);
+}
+.report-opt input {
+  margin-top: 0.2rem;
+  accent-color: var(--accent);
+}
+.report-note-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.report-note {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+.report-note:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.report-what {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.report-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.875rem;
+}
+.report-done {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.4rem 0.2rem;
+}
+.report-done p {
+  margin: 0;
+}
+.report-done-ico {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+/* ============ Start here (home) ============ */
+.start {
+  margin-top: 2.2rem;
+}
+.start-label {
+  margin: 0 0 0.7rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.start-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.start-card {
+  display: grid;
+  gap: 0.35rem;
+  height: 100%;
+  padding: 1.1rem 1.2rem;
+  color: var(--text);
+  text-decoration: none;
+  transition: transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.start-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-2);
+}
+.start-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.start-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.start-body {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .start-card:hover {
+    transform: none;
   }
 }

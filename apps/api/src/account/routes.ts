@@ -37,6 +37,11 @@ accountRoutes.get("/export", async (c) => {
     .bind(user.id)
     .all<{ doc_id: string; question: string; answer: string; created_at: string }>();
 
+  const reports = await c.env.DB
+    .prepare("SELECT kind, problem, note, context, created_at FROM feedback WHERE user_id = ?1 ORDER BY created_at")
+    .bind(user.id)
+    .all<{ kind: string; problem: string; note: string | null; context: string; created_at: string }>();
+
   const body = {
     exportedAt: new Date().toISOString(),
     account: { id: user.id, name: user.name, email: user.email, orcid: user.orcid, role: user.role, signInMethods: user.providers, ...profile },
@@ -47,6 +52,7 @@ accountRoutes.get("/export", async (c) => {
       note: "The PDF itself can be downloaded from the paper’s page while signed in.",
       questions: qa.results.filter((q) => q.doc_id === d.id).map((q) => ({ question: q.question, answer: (JSON.parse(q.answer) as { answer: string }).answer, askedAt: new Date(fromSqliteTime(q.created_at)).toISOString() })),
     })),
+    reports: reports.results.map((r) => ({ kind: r.kind, problem: r.problem, note: r.note, sent: JSON.parse(r.context), reportedAt: new Date(fromSqliteTime(r.created_at)).toISOString() })),
     library: lib.results.map((r) => ({ ...(JSON.parse(r.data) as Paper), savedAt: new Date(fromSqliteTime(r.saved_at)).toISOString() })),
   };
   c.header("Content-Type", "application/json; charset=utf-8");
@@ -68,6 +74,7 @@ accountRoutes.delete("/", async (c) => {
   for (const d of owned.results) await deleteDocument(c.env, user.id, d.id);
   await db.batch([
     db.prepare("DELETE FROM library_items WHERE user_id = ?1").bind(user.id),
+    db.prepare("DELETE FROM feedback WHERE user_id = ?1").bind(user.id),
     db.prepare("DELETE FROM sessions WHERE user_id = ?1").bind(user.id),
     db.prepare("DELETE FROM oauth_states WHERE link_user_id = ?1").bind(user.id),
     db.prepare("DELETE FROM identities WHERE user_id = ?1").bind(user.id),

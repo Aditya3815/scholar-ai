@@ -65,6 +65,13 @@ try {
   await axe("idea, input");
   await setTheme("Dark"); await shot("71-idea-input-dark"); await axe("idea, input, dark"); await setTheme("Light");
 
+  /* ---------- the home page leads here ---------- */
+  console.log("start cards");
+  await page.goto(BASE + "/", { waitUntil: "networkidle" });
+  await page.getByRole("link", { name: /Check an idea/ }).click();
+  await textbox().waitFor();
+  ok(new URL(page.url()).pathname === "/idea", "the home page has a card that opens Idea Check");
+
   /* ---------- the button waits for enough text ---------- */
   console.log("input");
   const next = page.getByRole("button", { name: /Prepare the search/ });
@@ -159,6 +166,23 @@ try {
   await page.waitForFunction(() => document.querySelectorAll(".result").length === 1);
   ok(true, "the open-access filter narrows the list");
   await page.getByRole("button", { name: "Open access only" }).click();
+
+  // reporting a problem
+  console.log("report");
+  await page.getByRole("button", { name: "Something missing or wrong?" }).click();
+  const pop = page.getByRole("dialog", { name: "Something missing or wrong?" });
+  await pop.waitFor();
+  await page.waitForTimeout(500);
+  ok(await pop.getByText(/sends the search that was run \(not your idea\)/).isVisible(), "the report says exactly what it sends, and that your idea is not part of it");
+  ok(await pop.getByRole("button", { name: "Send report" }).isDisabled(), "it cannot be sent before choosing what is wrong");
+  await shot("77-idea-report");
+  await axe("report form");
+  await pop.getByRole("radio", { name: "A paper I know of is missing" }).check();
+  await pop.getByRole("textbox", { name: /Tell us more/ }).fill("The 2019 survey is missing");
+  await pop.getByRole("button", { name: "Send report" }).click();
+  await pop.getByText(/Thank you/).waitFor({ timeout: 8000 });
+  ok(true, "a report is sent and acknowledged");
+  await page.waitForTimeout(1800);
 
   // back to the plan keeps the edits
   await page.getByRole("button", { name: "Edit the search" }).click();
