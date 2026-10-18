@@ -50,14 +50,60 @@ Cloudflare: Workers Paid, R2 Paid.
 | 5. OpenAlex as a second lookup source in the Verifier (arXiv/preprints) + fixes found by running real papers | 🟡 built: 21% (rate-limited) → 78% of the five papers' 175 references verified (R1b spike, "Result: the Verifier"). **Eval gates being re-recorded**, then push |
 | 6. Docling in Cloudflare Containers for scanned PDFs (OCR) and tables | ⏳ later |
 
-## Next, in this order
+## Everything still pending (2026-10-18)
 
-1. Verifier: finish step 5 (re-record the eval, check the gates, push).
-2. Q&A eval in a weekly workflow; free OpenRouter as a public-data fallback; paid ZDR route only after it passes the gold set.
-3. Privacy / Terms / "How we verify" pages + first-upload privacy card (needs Aditya's inputs).
-4. Onboarding, a "wrong answer / wrong citation" button feeding the eval set, small admin page.
-5. "Chat with this paper" for open-access search results (import the PDF).
-6. Collections and Q&A across papers (Vectorize). Staging, Sentry, Turnstile. Custom domain before public beta.
+**In progress**
+- Verifier step 5: eval re-record running, then check gates G1 to G6 and held-out, then push.
+
+**Phase 1 leftovers (finish before a public pilot)**
+| Item | Notes |
+| --- | --- |
+| Privacy policy, Terms, "How we verify", first-upload privacy card, retention (A8, E5) | needs contact/grievance email, entity name, product name |
+| Sentry, staging environment, Turnstile (A6) | |
+| Onboarding: 3 steps and a sample paper (E6) | |
+| "Wrong answer / wrong citation" button feeding the eval set | |
+| Admin page: usage and cost (E7) | the usage ledger exists |
+| Q&A eval weekly in GitHub Actions (E9); free OpenRouter as public-data fallback; paid ZDR route only after qa-eval passes | |
+| Notes and highlights, search inside a paper (E2) | |
+| a11y: one manual NVDA pass | axe is clean |
+| Test that account deletion removes R2 files | |
+| Pilot with 20 to 30 scholars | needs 10 names from Aditya |
+
+**Phase 2: new capabilities**
+| Item | Notes |
+| --- | --- |
+| **Idea Check**: bring an idea (PDF/docx/md/txt) and a question; get prior work with verified citations and previews, a coverage map, gaps, a grounded answer | researched: [design/idea-check.md](design/idea-check.md). Build in three milestones (M1 related work, M2 facets + coverage map + prior-art recall eval, M3 gaps/feasibility/report) |
+| "Chat with this paper" for open-access search results (import the PDF) | also the preview path for Idea Check |
+| Collections and Q&A across papers | Vectorize, one namespace per user |
+| Docling in Cloudflare Containers: scanned PDFs (OCR) and tables | later |
+| Weekly retraction re-check of saved papers, with a notice | uses cron (250 allowed on Paid) |
+| Custom domain before public beta | |
+
+**Aditya's side**
+Rotate every pasted key (incl. OpenRouter) and make the repo private · product name · contact and grievance email, entity name · 10 pilot names ·
+billing alert · cancel "Images Stream Basic" if unintended · custom domain · decide about the one-time $10 OpenRouter credit (see below) ·
+3 Dependabot PRs open.
+
+## What the paid plans give us, and how we use it
+
+Workers Paid (from the plan page): 10M requests/month included, CPU up to 5 min per request (default 30 s), 10,000 subrequests per request,
+10 MB script, 500 Workers, 250 cron triggers; D1 with 150x the free row reads; Queues retention up to 14 days; KV 10x; Vectorize 2x stored vectors.
+
+| Platform piece | Use here | When |
+| --- | --- | --- |
+| **Workflows** (10,000 steps, state kept 30 days, retries) | Idea Check and bulk jobs as durable multi-step runs with progress | Idea Check M1 |
+| **Queues** (retries, up to 14 days, batches of 100) | one global lane for Crossref calls (3/s limit; today only a per-isolate gate), reference verification of long lists, embedding big papers | after Idea Check M1 |
+| **KV** | cache of public lookups (DOI to record, search results) with a TTL: fewer Crossref/OpenAlex calls, which also protects the OpenAlex $1/day key budget | soon, small |
+| **Vectorize** (50,000 namespaces per index on Paid, 20M vectors, 1,536 dims max) | cross-paper Q&A and collections; one namespace per user keeps tenants apart. Today's per-paper vectors in D1 stay as they are | Phase 2 collections |
+| **D1** (more row reads) | stays the system of record; room for more caching tables | now |
+| **Cron** (250) | weekly Q&A eval, live eval, retraction re-check | next |
+| **Containers** | Docling or GROBID if scanned PDFs or tables matter | later |
+| 5 min CPU, 10,000 subrequests | long paper analysis no longer has to be chunked by the browser; keep the browser step for privacy and speed | optional |
+
+OpenRouter (dashboard shows key "Sodhsetu", 2 requests, $0.00; 23 free models in the filter, among them a free embedding model): free models are for
+**public data only** (hosts may log or train). Good uses: summarising or classifying public abstracts, chatting with open-access papers, a
+fallback when Workers AI is busy. Never the user's own files or ideas. Limits we found earlier: 20 requests/min and 50/day, or 1,000/day after
+a one-time $10 of credit; the roster changes, so every model must pass the Q&A eval before use and the allowlist is reviewed weekly.
 
 ## Phase 1 exit gate
 
@@ -78,6 +124,7 @@ to keep the "Images Stream Basic" subscription (we do not use it).
 
 ## Log
 
+- 2026-10-18 (late): researched the "Idea Check" product idea (docs/design/idea-check.md) and what Workers Paid and OpenRouter free models can be used for; pending list rewritten above.
 - 2026-10-18 (night): Verifier: Crossref calls gated to its 3/s limit, OpenAlex title search and arXiv-id lookup as a second source, three false accusations fixed (wrapped DOIs, markup in titles, broken words). Real-paper verification 21% → 78%. Eval re-record in progress.
 - 2026-10-18 (later): paper intelligence v1 shipped: References tab, Contents menu, real titles and metadata for uploads; measured on the five real PDFs.
 - 2026-10-18: held-out eval; uploaded papers + grounded Q&A + preview + My papers UI; answer streaming; GROBID alternatives spike;
