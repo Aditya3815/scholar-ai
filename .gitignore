@@ -22,3 +22,6 @@ apps/api/wrangler.integration.jsonc
 
 # copied from node_modules by apps/web/scripts/copy-pdfjs.mjs
 apps/web/public/pdfjs/
+
+# Claude Code session files
+.claude/
