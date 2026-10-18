@@ -64,7 +64,7 @@ Same references and rules as above; the new pages reuse the tokens, springs, pop
 | Q&A sits beside the paper; on a phone it is a Paper / Ask tab pair | both are needed at once on a desk, one at a time on a phone |
 | An answer shows **page chips** and a **sources list** with the exact quote; clicking either scrolls the PDF to the page and **highlights the passage** | verification is one click, which is the whole point |
 | Three honest answer states, each icon plus words: checked, could not verify (warning), not in this paper | the tool says when it does not know instead of sounding sure |
-| Staged progress text while waiting (Reading the paper, Finding the right passages, Checking every citation) | the wait is real work, so show it |
+| Real, server-reported progress while an answer is produced: four steps (Find, Think, Write, Check), the pages being read as clickable chips, then the answer written word by word and dimmed until it is checked; a Stop button; auto-scroll only while the reader is at the bottom | a reasoning model thinks for seconds before writing, so the honest way to make the wait feel short is to show what is really happening; text is provisional until the sources are verified |
 
 Micro-motion: drop zone icon bounces while you drag, step dots draw their check, finished upload rows slide away and the new card rises in, covers fade and settle in, the rename pencil appears on hover, question bubbles spring in, the answer's sentences fade in one after another, source rows rise in order, send button morphs into a spinner, copy icons swap to a check, the highlight flashes then settles, the sheet slides in and its content rises piece by piece. All of it respects reduced motion.
 

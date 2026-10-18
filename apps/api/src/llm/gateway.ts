@@ -8,6 +8,7 @@ import type {
   ModelRef,
   ResponseCache,
   Sensitivity,
+  StreamHooks,
   TaskKind,
 } from "./types";
 
@@ -55,7 +56,8 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 export function createGateway(deps: GatewayDeps) {
   const { providers, ledger, cache, config } = deps;
 
-  async function complete(req: LlmRequest): Promise<LlmResult> {
+  /** Shared by `complete` (no hooks) and `stream` (hooks): same quota, routing, privacy checks and ledger either way. */
+  async function run(req: LlmRequest, hooks?: StreamHooks, abort?: AbortSignal): Promise<LlmResult> {
     if (!req.system.trim() || !req.user.trim()) throw new Error("system and user prompts are required");
     if (req.system.length + req.user.length > config.maxPromptChars) {
       throw new Error(`prompt too long (max ${config.maxPromptChars} characters)`);
@@ -75,7 +77,11 @@ export function createGateway(deps: GatewayDeps) {
     if (cache && req.sensitivity === "public") {
       cacheKey = `llm:${await sha256(JSON.stringify([req.task, req.system, req.user, req.schema ?? null]))}`;
       const hit = await cache.get(cacheKey);
-      if (hit) return { ...(JSON.parse(hit) as LlmResult), cached: true, attempts: [] };
+      if (hit) {
+        const cachedResult = { ...(JSON.parse(hit) as LlmResult), cached: true, attempts: [] };
+        hooks?.onContent?.(cachedResult.text);
+        return cachedResult;
+      }
     }
 
     // 4. Fallback chain.
@@ -83,12 +89,25 @@ export function createGateway(deps: GatewayDeps) {
     for (const { ref, provider } of chain) {
       assertAllowed(provider, req.sensitivity); // defence in depth: re-checked immediately before the call
       const t0 = Date.now();
+      // Once any text has reached the caller we cannot quietly switch to another provider (the reader already saw a partial answer).
+      let started = false;
+      const wrapped: StreamHooks | undefined = hooks && {
+        onThinking: hooks.onThinking,
+        onContent: (d) => {
+          started = true;
+          hooks.onContent?.(d);
+        },
+      };
       try {
-        const r = await provider.complete(
-          ref.model,
-          { system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens },
-          AbortSignal.timeout(config.perCallTimeoutMs),
-        );
+        const providerReq = { system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens };
+        const timeout = AbortSignal.timeout(config.perCallTimeoutMs);
+        const signal = abort ? AbortSignal.any([timeout, abort]) : timeout;
+        let r: Awaited<ReturnType<LlmProvider["complete"]>>;
+        if (wrapped && provider.stream) r = await provider.stream(ref.model, providerReq, signal, wrapped);
+        else {
+          r = await provider.complete(ref.model, providerReq, signal);
+          wrapped?.onContent?.(r.text);
+        }
         let json: unknown;
         if (req.schema) json = extractJson(r.text); // invalid JSON counts as a failed attempt -> next provider
         const ms = Date.now() - t0;
@@ -127,6 +146,7 @@ export function createGateway(deps: GatewayDeps) {
       } catch (e) {
         if (e instanceof PolicyError) throw e; // never swallow a policy violation by moving on
         attempts.push({ provider: ref.provider, model: ref.model, ok: false, ms: Date.now() - t0, error: errMsg(e) });
+        if (started) break; // partial output was already delivered: report the failure instead of starting over elsewhere
       }
     }
 
@@ -140,7 +160,7 @@ export function createGateway(deps: GatewayDeps) {
     throw new AllProvidersFailedError(attempts);
   }
 
-  return { complete };
+  return { complete: (req: LlmRequest) => run(req), stream: (req: LlmRequest, hooks: StreamHooks, abort?: AbortSignal) => run(req, hooks, abort) };
 }
 
 export type Gateway = ReturnType<typeof createGateway>;

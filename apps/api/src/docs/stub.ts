@@ -1,4 +1,5 @@
-import type { Complete } from "./qa";
+import { extractJson } from "../llm/gateway";
+import type { Complete, StreamComplete } from "./qa";
 import { keywords, lexical } from "./vector";
 
 /**
@@ -23,4 +24,24 @@ export const stubComplete: Complete = async ({ user }) => {
     return { model: "stub", json: { found: true, answer: `It was invented by nobody [${best.n}].`, evidence: [{ excerpt: best.n, quote: "this sentence is not anywhere in the paper at all" }] } };
   }
   return { model: "stub", json: { found: true, answer: `According to the paper: ${sentence} [${best.n}]`, evidence: [{ excerpt: best.n, quote: sentence }] } };
+};
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * The stand-in as a stream: a short "thinking" pause with reasoning ticks (like a real reasoning model), then the JSON text in small
+ * pieces. The pauses are long enough for the browser tests to see each stage, short enough to keep the suite quick.
+ */
+export const stubStream: StreamComplete = async (req, hooks) => {
+  const { json, model } = await stubComplete(req);
+  const text = JSON.stringify(json, null, 2);
+  for (let i = 0; i < 3; i++) {
+    hooks.onThinking?.();
+    await sleep(110);
+  }
+  for (let i = 0; i < text.length; i += 14) {
+    hooks.onContent?.(text.slice(i, i + 14));
+    await sleep(22);
+  }
+  return { json: extractJson(text), model };
 };

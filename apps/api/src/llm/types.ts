@@ -31,11 +31,20 @@ export type ProviderResponse = {
   tokensOut: number | null;
 };
 
+/** Callbacks for streaming a completion. Reasoning models think silently first; `onThinking` tells the caller they are working. */
+export type StreamHooks = {
+  onThinking?: () => void;
+  /** A piece of the model's output text (for a JSON schema request: a piece of the JSON). */
+  onContent?: (delta: string) => void;
+};
+
 export interface LlmProvider {
   id: string;
   /** True only if the provider's terms forbid training on / human review of API data. */
   privateOk: boolean;
   complete(model: string, req: ProviderRequest, signal: AbortSignal): Promise<ProviderResponse>;
+  /** Optional. Providers without it are called with `complete` and their whole answer is delivered as one piece. */
+  stream?(model: string, req: ProviderRequest, signal: AbortSignal, hooks: StreamHooks): Promise<ProviderResponse>;
 }
 
 export type ModelRef = { provider: string; model: string };

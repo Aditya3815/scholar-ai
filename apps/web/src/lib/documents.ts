@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
-import { MAX_CHARS_PER_BATCH, MAX_DOC_BYTES, MAX_DOC_PAGES, MAX_PAGES_PER_BATCH, type Answer, type DocumentInfo, type PageText } from "@scholar/shared";
+import { MAX_CHARS_PER_BATCH, MAX_DOC_BYTES, MAX_DOC_PAGES, MAX_PAGES_PER_BATCH, type Answer, type AskStreamEvent, type DocumentInfo, type PageText } from "@scholar/shared";
+import { readSse } from "./sse";
 import { openPdf, pageText, renderCover, PdfError } from "./pdf";
 
 /* ---------------------------------------------------------------- API client */
@@ -24,6 +25,32 @@ export type Usage = { count: number; maxCount: number; bytes: number; maxBytes: 
 
 export const fetchDocument = (id: string) => request<{ document: DocumentInfo; history: Answer[] }>(`/${id}`);
 export const askDocument = (id: string, question: string) => request<{ answer: Answer }>(`/${id}/ask`, json("POST", { question })).then((r) => r.answer);
+/**
+ * Ask with progress: `onEvent` gets the stages, the pages being read, the answer text as it is written, and finally the verified
+ * answer. Resolves with that answer; rejects with an ApiError (or an AbortError if `signal` aborts).
+ */
+export async function askDocumentStream(id: string, question: string, onEvent: (e: AskStreamEvent) => void, signal?: AbortSignal): Promise<Answer> {
+  const res = await fetch(`/api/v1/documents/${id}/ask?stream=1`, { ...json("POST", { question }), credentials: "same-origin", signal });
+  if (!res.ok) {
+    const j = (await res.json().catch(() => null)) as { type?: string; title?: string; detail?: string } | null;
+    throw new ApiError(res.status, j?.type ?? "error", j?.title ?? `The service answered ${res.status}`, j?.detail);
+  }
+  let answer: Answer | null = null;
+  let failure: ApiError | null = null;
+  await readSse<AskStreamEvent>(
+    res,
+    (e) => {
+      if (e.type === "answer") answer = e.answer;
+      else if (e.type === "error") failure = new ApiError(res.status, e.code, e.title, e.detail);
+      onEvent(e);
+    },
+    signal,
+  );
+  if (failure) throw failure;
+  if (!answer) throw new TypeError("The answer was cut off. Please try again.");
+  return answer;
+}
+
 export const coverUrl = (d: Pick<DocumentInfo, "id" | "updatedAt">) => `/api/v1/documents/${d.id}/cover?v=${d.updatedAt}`;
 export const fileUrl = (id: string) => `/api/v1/documents/${id}/file`;
 

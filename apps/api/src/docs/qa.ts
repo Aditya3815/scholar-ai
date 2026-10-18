@@ -1,4 +1,5 @@
-import { findRun, words, type Answer, type Citation } from "@scholar/shared";
+import { findRun, words, type Answer, type AskStreamEvent, type Citation } from "@scholar/shared";
+import { AnswerFieldStreamer } from "./stream-json";
 import type { Embedder } from "./embed";
 import { rank } from "./vector";
 
@@ -6,6 +7,12 @@ export type StoredChunk = { idx: number; page: number; text: string; embedding: 
 
 /** The language model, injected: production passes the LLM Gateway (private route), tests pass a fake. */
 export type Complete = (req: { system: string; user: string; schema: Record<string, unknown>; maxTokens: number }) => Promise<{ json: unknown; model: string }>;
+
+/** The language model, streaming: hooks fire as it thinks and as the JSON text arrives. Resolves with the full parsed JSON. */
+export type StreamComplete = (
+  req: { system: string; user: string; schema: Record<string, unknown>; maxTokens: number },
+  hooks: { onThinking?: () => void; onContent?: (delta: string) => void },
+) => Promise<{ json: unknown; model: string }>;
 
 const TOP_K = 6;
 const BROAD = /\b(summar\w*|overview|about|main (idea|point|contribution)s?|abstract|contribution\w*|tl;?dr|gist)\b/i;
@@ -109,5 +116,61 @@ export async function answerQuestion(args: {
   const ex = retrieve(question, qVec, chunks);
   const { json, model } = await args.complete({ system: SYSTEM, user: buildPrompt(question, ex), schema: SCHEMA as unknown as Record<string, unknown>, maxTokens: 700 });
   args.onRaw?.(json, ex);
+  return verifyAnswer(json, ex, question, { ...args.meta, model });
+}
+
+/**
+ * Same pipeline as answerQuestion, but reports progress as it goes: which pages it will read (known after retrieval, long before
+ * the model answers), that the model is thinking, the answer text as it is written, and finally the verified answer.
+ * Text streamed before the final event is provisional; only the `answer` event has been checked against the paper.
+ */
+export async function answerQuestionStream(args: {
+  question: string;
+  chunks: StoredChunk[];
+  embed: Embedder;
+  stream: StreamComplete;
+  meta: { id: string; createdAt: number };
+  emit: (e: AskStreamEvent) => void | Promise<void>;
+}): Promise<Answer> {
+  const { question, chunks, emit } = args;
+  await emit({ type: "stage", stage: "retrieving" });
+  let qVec: number[] | null = null;
+  try {
+    qVec = (await args.embed([question]))[0] ?? null;
+  } catch {
+    qVec = null;
+  }
+  const ex = retrieve(question, qVec, chunks);
+  await emit({ type: "sources", pages: [...new Set(ex.map((c) => c.page))].sort((a, b) => a - b) });
+
+  const field = new AnswerFieldStreamer();
+  let writing = false;
+  let thinking = false;
+  // Hooks are synchronous callbacks; events are queued in order and flushed by awaiting the chain.
+  let chain: Promise<void> = Promise.resolve();
+  const send = (e: AskStreamEvent) => {
+    chain = chain.then(() => emit(e));
+  };
+  const { json, model } = await args.stream(
+    { system: SYSTEM, user: buildPrompt(question, ex), schema: SCHEMA as unknown as Record<string, unknown>, maxTokens: 700 },
+    {
+      onThinking: () => {
+        if (thinking || writing) return;
+        thinking = true;
+        send({ type: "stage", stage: "thinking" });
+      },
+      onContent: (piece) => {
+        const text = field.push(piece);
+        if (!text) return;
+        if (!writing) {
+          writing = true;
+          send({ type: "stage", stage: "writing" });
+        }
+        send({ type: "delta", text });
+      },
+    },
+  );
+  await chain;
+  await emit({ type: "stage", stage: "checking" });
   return verifyAnswer(json, ex, question, { ...args.meta, model });
 }

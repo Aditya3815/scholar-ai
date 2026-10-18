@@ -123,6 +123,11 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     window.setTimeout(() => viewer.current?.goTo(c.page, c.quote), 120);
   }, []);
 
+  const onGoToPage = useCallback((page: number) => {
+    setTab("paper");
+    window.setTimeout(() => viewer.current?.goTo(page), 120);
+  }, []);
+
   if (load.status === "loading") {
     return <div className="dw dw-center"><OpeningPaper progress={0} /></div>;
   }
@@ -200,7 +205,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
         </div>
 
         <div id="dw-panel-ask" role="tabpanel" aria-labelledby="dw-tab-ask" className="dw-panel dw-ask" data-active={tab === "ask"}>
-          <AskPanel doc={doc} history={history} onCite={onCite} onReindex={() => void reindexDoc(doc)} />
+          <AskPanel doc={doc} history={history} onCite={onCite} onGoToPage={onGoToPage} onReindex={() => void reindexDoc(doc)} />
           {reindexing && (
             <p className="ask-fine" role="status">
               <Loader2 className="spin" size={13} aria-hidden="true" /> Indexing again…

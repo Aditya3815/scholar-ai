@@ -110,9 +110,64 @@ try {
   }
   ok((await (await A.api(P)).json()).document.title === "Glaucoma screening (Pune cohort)", "Alice's paper is untouched");
 
+  console.log("streaming answers (server-sent events)");
+  const sse = async (q, { signal, id = doc.id, origin = APP } = {}) => {
+    const res = await A.send(`${APP}/api/v1/documents/${id}/ask?stream=1`, {
+      method: "POST", signal,
+      headers: { ...(origin ? { Origin: origin } : {}), "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify({ question: q }),
+    });
+    return res;
+  };
+  async function readEvents(res, { stopAfter } = {}) {
+    const events = [];
+    const dec = new TextDecoder();
+    let buf = "";
+    for await (const part of res.body) {
+      buf += dec.decode(part, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const block = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        const data = block.split("\n").find((l) => l.startsWith("data:"));
+        if (data) events.push(JSON.parse(data.slice(5)));
+        if (stopAfter && events.filter((e) => e.type === "delta").length >= stopAfter) return events;
+      }
+    }
+    return events;
+  }
+  const t0 = Date.now();
+  const res1 = await sse("How were participants recruited?");
+  ok(res1.status === 200 && /event-stream/.test(res1.headers.get("content-type") ?? ""), "an answer can be requested as a server-sent-event stream");
+  const ev = await readEvents(res1);
+  const kinds = ev.map((e) => (e.type === "stage" ? "stage:" + e.stage : e.type));
+  ok(kinds[0] === "stage:retrieving" && kinds[1] === "sources", `it starts with retrieval and the pages it will read (${kinds.slice(0, 3).join(", ")})`);
+  ok(kinds.indexOf("stage:thinking") > 1 && kinds.indexOf("stage:writing") > kinds.indexOf("stage:thinking"), "then thinking, then writing");
+  ok(ev.filter((e) => e.type === "delta").length >= 3, `the answer text arrives in several pieces (${ev.filter((e) => e.type === "delta").length})`);
+  ok(kinds.at(-2) === "stage:checking" && kinds.at(-1) === "answer", "it ends with a checking stage and the verified answer");
+  const last = ev.at(-1).answer;
+  ok(last.verified && last.citations[0].page === 2 && Date.now() - t0 > 300, "the final answer carries the checked citation");
+  ok(ev.find((e) => e.type === "sources").pages.includes(2), "the announced pages include the page the answer came from");
+  const hist = (await (await A.api(P)).json()).history;
+  ok(hist.length === 4 && hist.at(-1).id === last.id, "the streamed answer is saved to the history like any other");
+
+  const ctl = new AbortController();
+  const res2 = await sse("How were participants recruited?", { signal: ctl.signal });
+  await readEvents(res2, { stopAfter: 1 });
+  ctl.abort();
+  await new Promise((r) => setTimeout(r, 1200));
+  ok((await (await A.api(P)).json()).history.length === 4, "a reader who leaves mid-answer leaves nothing half-saved");
+
+  const resBad = await sse("hi");
+  ok(resBad.status === 400 && /json/.test(resBad.headers.get("content-type") ?? ""), "validation errors are plain HTTP errors, not a stream");
+  ok((await sse("How were participants recruited?", { origin: null })).status === 403, "the stream endpoint has the same CSRF protection");
+  ok((await sse("What is this?", { id: scanned.id })).status === 409, "a paper that is not ready is refused before any stream starts");
+  const resB = await B.send(`${APP}/api/v1/documents/${doc.id}/ask?stream=1`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/json" }, body: JSON.stringify({ question: "How were participants recruited?" }) });
+  ok(resB.status === 404, "another user cannot stream questions about this paper");
+
   console.log("export and deletion");
   const exp = await (await A.api("/api/v1/account/export")).json();
-  ok(exp.uploadedPapers.length === 2 && exp.uploadedPapers.find((d) => d.id === doc.id).questions.length === 3, "the data export lists the papers and the questions asked");
+  ok(exp.uploadedPapers.length === 2 && exp.uploadedPapers.find((d) => d.id === doc.id).questions.length === 4, "the data export lists the papers and the questions asked");
   ok((await A.api(P, { method: "DELETE" })).status === 200, "DELETE removes the paper");
   ok((await A.api(P)).status === 404 && (await A.api(`${P}/file`)).status === 404, "...and its file");
   ok((await A.api("/api/v1/account", { method: "DELETE", body: { confirm: "DELETE" } })).status === 200, "deleting the account succeeds with papers present");

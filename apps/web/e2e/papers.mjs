@@ -181,6 +181,27 @@ try {
   await axe("workspace with answer and highlight");
   await setTheme("Dark"); await shot("61-workspace-dark"); await axe("workspace, dark"); await setTheme("Read"); await shot("62-workspace-read"); await setTheme("Light");
 
+  console.log("answer progress and stop");
+  await page.locator("#ask-input").fill("What are the limitations?");
+  await page.locator("#ask-input").press("Enter");
+  await page.locator(".ask-live").waitFor({ timeout: 10000 });
+  ok((await page.locator(".ask-steps li").count()) === 4, "while an answer is produced, the four real steps are shown");
+  await page.locator(".ask-page-chip").first().waitFor({ timeout: 8000 });
+  ok(/^p\.\d/.test(await page.locator(".ask-page-chip").first().innerText()),"the pages being read are shown as soon as retrieval is done");
+  await page.locator(".ask-text-live").waitFor({ timeout: 10000 });
+  ok(/[A-Za-z]{3,}/.test(await page.locator(".ask-text-live").innerText()) && !/\[\d+\]/.test(await page.locator(".ask-text-live").innerText()), "the answer text appears while it is written, without unchecked citation markers");
+  await shot("66-answer-streaming");
+  await axe("workspace while an answer is streaming");
+  await page.locator(".ask-answer").nth(2).waitFor({ timeout: 30000 });
+  ok((await page.locator(".ask-live").count()) === 0, "when the checked answer arrives it replaces the progress view");
+  await page.locator("#ask-input").fill("How were participants recruited, in detail?");
+  await page.locator("#ask-input").press("Enter");
+  await page.locator(".ask-live").waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Stop answering" }).click();
+  await page.locator(".ask-error", { hasText: "Stopped" }).waitFor({ timeout: 10000 });
+  ok(await page.locator(".ask-error").getByRole("button", { name: "Try again" }).isVisible(), "Stop ends the answer and offers Try again");
+  ok(await page.locator("#ask-input").isEnabled(), "the question box is usable again straight away");
+
   await page.locator("#ask-input").fill("an unanswerable question about funding");
   await page.locator("#ask-input").press("Enter");
   await page.locator(".ask-status", { hasText: "Not in this paper" }).waitFor({ timeout: 30000 });
@@ -189,7 +210,7 @@ try {
   await page.locator("#ask-input").press("Enter");
   await page.locator(".ask-status", { hasText: "Could not verify" }).waitFor({ timeout: 30000 }).catch(async (e) => { console.log("ASK PANEL:", (await page.locator(".ask-turns > li").last().innerText()) + " || " + (await page.locator(".ask-turns > li").count())); throw e; });
   ok(await page.getByText(/quoted evidence was not found/).isVisible(), "an answer whose quote is not in the paper is shown with a warning");
-  ok((await page.locator(".ask-answer").count()) === 4, "all four answers stay on screen");
+  ok((await page.locator(".ask-answer").count()) === 5, "all five answers stay on screen");
 
   console.log("zoom and keyboard");
   await page.getByRole("button", { name: "Zoom in" }).click();
@@ -203,7 +224,7 @@ try {
   console.log("history and rename");
   await page.reload({ waitUntil: "networkidle" });
   await page.locator(".ask-answer").first().waitFor({ timeout: 30000 });
-  ok((await page.locator(".ask-answer").count()) === 4, "after a reload the earlier questions and answers are still there");
+  ok((await page.locator(".ask-answer").count()) === 5, "after a reload the earlier questions and answers are still there");
   await page.getByRole("button", { name: "Rename this paper" }).click();
   await page.locator("#dw-title").fill("Glaucoma screening (Pune cohort)");
   await page.locator("#dw-title").press("Enter");

@@ -44,3 +44,14 @@ export type Answer = {
 };
 
 export type PageText = { page: number; text: string };
+
+/** Server-sent events from POST /documents/:id/ask?stream=1, in this order (delta repeats; `error` replaces `answer`). */
+export type AskStage = "retrieving" | "thinking" | "writing" | "checking";
+export type AskStreamEvent =
+  | { type: "stage"; stage: AskStage }
+  /** pages of the passages the answer will be based on, known about half a second in */
+  | { type: "sources"; pages: number[] }
+  /** more of the answer text. Provisional: the final `answer` event is what has been verified. */
+  | { type: "delta"; text: string }
+  | { type: "answer"; answer: Answer }
+  | { type: "error"; code: string; title: string; detail?: string };

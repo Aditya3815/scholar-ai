@@ -33,6 +33,28 @@ Why the browser reads the PDF: the Workers free plan allows about 10 ms of CPU p
 browser does it with pdf.js (which also gives us the page images and the text layer for highlighting), and sends only text.
 The Worker only chunks, embeds and stores, which is cheap.
 
+## Streaming: what is real and what is not
+
+A reasoning model (gpt-oss-120b) thinks silently before it writes: measured on Workers AI, about 300 hidden reasoning chunks and
+7 to 10 seconds before the first answer token in a plain call. Writing the answer itself takes about a second. So streaming the
+text alone barely shortens the wait; what helps is showing the *real* stages as the server reaches them
+(`POST /documents/:id/ask?stream=1`, server-sent events):
+
+| Event | When (real model, measured) | What the reader sees |
+| --- | --- | --- |
+| `stage: retrieving` | immediately | step 1 lights up |
+| `sources` (pages) | about 0.3 s | "Reading p.1 p.2 p.3": chips that already open those pages in the PDF |
+| `stage: thinking` | first reasoning chunk, 0.7 to 1 s | step 2 |
+| `stage: writing` + `delta`... | model starts the JSON, 1.5 to 3.3 s | the answer appears word by word, dimmed because it is provisional |
+| `stage: checking` | the JSON is complete | step 4: quotes are verified against the paper |
+| `answer` | right after | the checked answer replaces the draft; unverified markers are removed, the warning appears if needed |
+
+Details that matter: the answer text is pulled out of the growing JSON by a small incremental parser (it handles escapes and
+packets cut anywhere); the draft hides citation markers because nothing is verified yet; the same gateway, privacy rule, quota and
+ledger apply as for a normal call; if a provider fails *after* text was shown there is no silent switch to another model; if the
+reader leaves (Stop, Escape, closing the tab) the model call is aborted and nothing half-finished is saved. For screen readers the
+text is not announced token by token (that is read out word by word and is unusable); only stage changes and the result are.
+
 ## What "verified" means
 
 `quoteInText` compares word sequences, so punctuation, case, ligatures and spacing do not matter, but wording does: at least 85 %

@@ -1,4 +1,4 @@
-import type { LlmProvider, ProviderRequest, ProviderResponse } from "../types";
+import type { LlmProvider, ProviderRequest, ProviderResponse, StreamHooks } from "../types";
 
 type AiResult = {
   response?: unknown;
@@ -25,21 +25,87 @@ function extractText(r: AiResult | string): string {
  * Spike R2 finding: without `response_format`, gpt-oss returns raw Harmony tokens instead of JSON,
  * so structured output is always requested through json_schema.
  */
+function buildBody(model: string, req: ProviderRequest): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    messages: [
+      { role: "system", content: req.system },
+      { role: "user", content: req.user },
+    ],
+    max_tokens: req.maxTokens ?? 1500,
+    temperature: 0,
+  };
+  if (req.schema) body.response_format = { type: "json_schema", json_schema: { name: "output", schema: req.schema } };
+  if (model.includes("gpt-oss")) body.reasoning = { effort: "low" };
+  return body;
+}
+
+type Chunk = {
+  choices?: { delta?: { content?: string | null; reasoning?: string | null; reasoning_content?: string | null } }[];
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
+};
+
+/** Reads an OpenAI-style server-sent-events stream: calls the hooks as pieces arrive and returns the whole text and token counts. */
+export async function readChatStream(stream: ReadableStream<Uint8Array>, hooks: StreamHooks, signal: AbortSignal): Promise<ProviderResponse> {
+  const reader = stream.getReader();
+  const onAbort = () => void reader.cancel().catch(() => {});
+  signal.addEventListener("abort", onAbort, { once: true });
+  const decoder = new TextDecoder();
+  let buf = "";
+  let text = "";
+  let tokensIn: number | null = null;
+  let tokensOut = 0;
+  let thinking = false;
+  const handle = (block: string) => {
+    for (const line of block.split("\n")) {
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      let chunk: Chunk;
+      try {
+        chunk = JSON.parse(data) as Chunk;
+      } catch {
+        continue; // a keep-alive or a partial line; the next block carries the data
+      }
+      if (chunk.usage?.prompt_tokens && tokensIn === null) tokensIn = chunk.usage.prompt_tokens;
+      tokensOut += chunk.usage?.completion_tokens ?? 0;
+      const d = chunk.choices?.[0]?.delta;
+      if (!d) continue;
+      if ((d.reasoning || d.reasoning_content) && !thinking) {
+        thinking = true;
+        hooks.onThinking?.();
+      }
+      if (d.content) {
+        text += d.content;
+        hooks.onContent?.(d.content);
+      }
+    }
+  };
+  try {
+    for (;;) {
+      if (signal.aborted) throw new Error("timeout");
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let i: number;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        handle(buf.slice(0, i));
+        buf = buf.slice(i + 2);
+      }
+    }
+    if (buf.trim()) handle(buf);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+  if (signal.aborted) throw new Error("timeout");
+  return { text, tokensIn, tokensOut: tokensOut || null };
+}
+
 export function workersAiProvider(ai: Ai): LlmProvider {
   return {
     id: "workersai",
     privateOk: true,
     async complete(model, req: ProviderRequest, signal): Promise<ProviderResponse> {
-      const body: Record<string, unknown> = {
-        messages: [
-          { role: "system", content: req.system },
-          { role: "user", content: req.user },
-        ],
-        max_tokens: req.maxTokens ?? 1500,
-        temperature: 0,
-      };
-      if (req.schema) body.response_format = { type: "json_schema", json_schema: { name: "output", schema: req.schema } };
-      if (model.includes("gpt-oss")) body.reasoning = { effort: "low" };
+      const body = buildBody(model, req);
 
       // `signal` is honoured by the caller racing a timeout; Workers AI binding has no abort option.
       const r = (await Promise.race([
@@ -52,6 +118,16 @@ export function workersAiProvider(ai: Ai): LlmProvider {
         tokensIn: r.usage?.prompt_tokens ?? r.usage?.input_tokens ?? null,
         tokensOut: r.usage?.completion_tokens ?? r.usage?.output_tokens ?? null,
       };
+    },
+
+    async stream(model, req: ProviderRequest, signal, hooks): Promise<ProviderResponse> {
+      const out = (await (ai as unknown as { run(m: string, b: unknown): Promise<unknown> }).run(model, { ...buildBody(model, req), stream: true })) as ReadableStream<Uint8Array> | AiResult | string;
+      if (out instanceof ReadableStream) return readChatStream(out, hooks, signal);
+      // The binding answered without a stream (some models ignore the flag): deliver it as one piece.
+      const r = out as AiResult;
+      const text = extractText(r);
+      hooks.onContent?.(text);
+      return { text, tokensIn: typeof r === "object" ? r.usage?.prompt_tokens ?? null : null, tokensOut: typeof r === "object" ? r.usage?.completion_tokens ?? null : null };
     },
   };
 }

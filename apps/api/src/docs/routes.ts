@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { streamSSE } from "hono/streaming";
 import {
   MAX_CHARS_PER_BATCH,
   MAX_COVER_BYTES,
@@ -9,6 +10,7 @@ import {
   MAX_QUESTION_CHARS,
   MAX_TOTAL_DOC_BYTES,
   type Answer,
+  type AskStreamEvent,
   type DocStatus,
   type DocumentInfo,
 } from "@scholar/shared";
@@ -17,8 +19,8 @@ import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } fro
 import { fromSqliteTime } from "../library/validate";
 import { chunkPage } from "./chunk";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "./embed";
-import { answerQuestion, type Complete, type StoredChunk } from "./qa";
-import { stubComplete } from "./stub";
+import { answerQuestion, answerQuestionStream, type Complete, type StoredChunk, type StreamComplete } from "./qa";
+import { stubComplete, stubStream } from "./stub";
 import { decodeVec, encodeVec } from "./vector";
 
 type Bindings = {
@@ -82,6 +84,27 @@ function completeFor(env: Bindings, subject: string): Complete | null {
     const r = await gateway.complete({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens });
     return { json: r.json, model: r.model };
   };
+}
+
+function streamFor(env: Bindings, subject: string, abort: AbortSignal): StreamComplete | null {
+  if (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1") return stubStream;
+  const gateway = gatewayFromEnv(env);
+  return async (req, hooks) => {
+    // Same PRIVATE route, same quota and ledger as the non-streaming call; `abort` stops the model when the reader leaves.
+    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens }, hooks, abort);
+    return { json: r.json, model: r.model };
+  };
+}
+
+/** One place that turns a failure into what the browser is told (as an HTTP error, or as a stream `error` event). */
+function describeAskError(e: unknown): { status: 429 | 502 | 503; code: string; title: string; detail?: string } | null {
+  if (e instanceof QuotaError) return { status: 429, code: "quota", title: "You have used today's AI allowance", detail: e.message };
+  if (e instanceof NoRouteError) return { status: 503, code: "ai_unavailable", title: "Answering is unavailable right now" };
+  if (e instanceof AllProvidersFailedError) {
+    console.error(JSON.stringify({ level: "error", msg: "qa_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
+    return { status: 502, code: "ai_failed", title: "The AI service could not answer just now", detail: "Please try again in a moment." };
+  }
+  return null;
 }
 
 /* ---------------------------------------------------------------- list / read */
@@ -308,6 +331,32 @@ documentRoutes.post("/:id/ask", async (c) => {
   const rows = await c.env.DB.prepare("SELECT idx, page, text, embedding FROM doc_chunks WHERE doc_id = ?1 ORDER BY idx").bind(row.id).all<{ idx: number; page: number; text: string; embedding: string | null }>();
   const chunks: StoredChunk[] = rows.results.map((r) => ({ idx: r.idx, page: r.page, text: r.text, embedding: r.embedding ? decodeVec(r.embedding) : null }));
 
+  if (c.req.query("stream") === "1") {
+    const abort = new AbortController();
+    const stream = streamFor(c.env, user.id, abort.signal);
+    if (!stream) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
+    return streamSSE(c, async (sse) => {
+      let gone = false;
+      sse.onAbort(() => {
+        gone = true;
+        abort.abort();
+      });
+      const send = async (e: AskStreamEvent) => {
+        if (!gone) await sse.writeSSE({ event: e.type, data: JSON.stringify(e) }).catch(() => (gone = true));
+      };
+      try {
+        const answer = await answerQuestionStream({ question, chunks, embed, stream, meta: { id: randomId(), createdAt: Date.now() }, emit: send });
+        if (gone) return; // the reader left: nothing to save or send
+        await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
+        await send({ type: "answer", answer });
+      } catch (e) {
+        const d = describeAskError(e);
+        if (!d) console.error(JSON.stringify({ level: "error", msg: "qa_stream_failed", error: e instanceof Error ? e.name : "unknown" }));
+        await send({ type: "error", code: d?.code ?? "internal_error", title: d?.title ?? "Something went wrong", detail: d?.detail });
+      }
+    });
+  }
+
   let answer: Answer;
   try {
     answer = await answerQuestion({
@@ -316,12 +365,8 @@ documentRoutes.post("/:id/ask", async (c) => {
       onRaw: c.env.ENABLE_DEV_ROUTES === "1" ? (raw, ex) => console.log(JSON.stringify({ msg: "qa_debug", raw, excerpts: ex.map((e) => ({ page: e.page, text: e.text.slice(0, 160) })) })) : undefined,
     });
   } catch (e) {
-    if (e instanceof QuotaError) return deny(c, 429, "quota", "You have used today's AI allowance", e.message);
-    if (e instanceof NoRouteError) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
-    if (e instanceof AllProvidersFailedError) {
-      console.error(JSON.stringify({ level: "error", msg: "qa_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
-      return deny(c, 502, "ai_failed", "The AI service could not answer just now", "Please try again in a moment.");
-    }
+    const d = describeAskError(e);
+    if (d) return deny(c, d.status, d.code, d.title, d.detail);
     throw e;
   }
   await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
