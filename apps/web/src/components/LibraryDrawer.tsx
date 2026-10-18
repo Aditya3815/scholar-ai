@@ -6,6 +6,7 @@ import { useAuth } from "../lib/auth";
 import { formatCitation } from "../lib/cite";
 import { removeSaved, useLibrary } from "../lib/library";
 import { easeOut, spring, springPop } from "../lib/motion";
+import { openPreview } from "../lib/preview";
 import { CopyButton } from "./CiteMenu";
 
 function downloadBib(text: string) {
@@ -74,7 +75,9 @@ export function LibraryDrawer() {
                         {items.map((p) => (
                           <m.li key={p.id} className="drawer-item" layout exit={{ opacity: 0, x: 40, transition: { duration: 0.18 } }} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                             <div>
-                              <p className="drawer-item-title">{p.title}</p>
+                              <button type="button" className="drawer-item-title drawer-item-open" onClick={() => { setOpen(false); window.setTimeout(() => openPreview(p, items), 180); }}>
+                                {p.title}
+                              </button>
                               <p className="drawer-item-meta">{[p.authors[0] ? `${p.authors[0]}${p.authors.length > 1 ? " et al." : ""}` : null, p.year, p.venue].filter(Boolean).join(" · ")}</p>
                             </div>
                             <button type="button" className="icon-btn" aria-label={`Remove ${p.title} from library`} onClick={() => removeSaved(p.id)}>

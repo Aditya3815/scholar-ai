@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AccountMenu } from "./components/AccountMenu";
 import { Hero } from "./components/Hero";
 import { LibraryDrawer } from "./components/LibraryDrawer";
+import { PaperPreview } from "./components/PaperPreview";
 import { Logo } from "./components/Logo";
 import { ReadingControls } from "./components/ReadingControls";
 import { ResultCard, SkeletonCard } from "./components/ResultCard";
@@ -12,17 +13,28 @@ import { SourceStatus } from "./components/SourceStatus";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { TopNav, type View } from "./components/TopNav";
 import { VerifyPage } from "./components/verify/VerifyPage";
+import { DocWorkspace } from "./components/papers/DocWorkspace";
+import { PapersPage } from "./components/papers/PapersPage";
 import { takeAuthError } from "./lib/auth";
 import { easeOut } from "./lib/motion";
 import { clearNotice, showNotice, useNotice } from "./lib/notice";
+import { openPreview } from "./lib/preview";
 import { useSearch } from "./lib/search";
 
 const loadFeatures = () => import("./lib/motion-features").then((mod) => mod.default);
 
 type Sort = "relevance" | "citations" | "year";
 
-const viewFromPath = (): View => (location.pathname.replace(/\/+$/, "") === "/verify" ? "verify" : "search");
-const TITLES: Record<View, string> = { search: "Scholar", verify: "Verify references · Scholar" };
+type Route = { view: View; docId: string | null };
+/** Real URLs for every page: / (search), /verify, /papers and /papers/<id>. No router library for four pages. */
+const routeFromPath = (): Route => {
+  const p = location.pathname.replace(/\/+$/, "");
+  if (p === "/verify") return { view: "verify", docId: null };
+  const m = /^\/papers(?:\/([a-f0-9]{8,40}))?$/.exec(p);
+  if (m) return { view: "papers", docId: m[1] ?? null };
+  return { view: "search", docId: null };
+};
+const TITLES: Record<View, string> = { search: "Scholar", verify: "Verify references · Scholar", papers: "My papers · Scholar" };
 
 function Footer() {
   return (
@@ -46,27 +58,32 @@ export function App() {
   const [hideRetracted, setHideRetracted] = useState(false);
   const [sort, setSort] = useState<Sort>("relevance");
   const notice = useNotice();
-  const [view, setView] = useState<View>(viewFromPath);
+  const [route, setRoute] = useState<Route>(routeFromPath);
+  const view = route.view;
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Real URLs (/ and /verify) with back/forward support; no router library for two pages.
   useEffect(() => {
-    const onPop = () => setView(viewFromPath());
+    const onPop = () => setRoute(routeFromPath());
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
   useEffect(() => {
     document.title = TITLES[view];
   }, [view]);
+  useEffect(() => {
+    if (view === "papers") window.scrollTo(0, 0);
+  }, [view, route.docId]);
 
   const navigate = useCallback(
-    (next: View) => {
-      if (next === view) return;
-      history.pushState(null, "", next === "verify" ? "/verify" : state.status === "idle" ? "/" : `/?q=${encodeURIComponent(query)}`);
-      setView(next);
+    (next: View, docId: string | null = null) => {
+      if (next === view && docId === route.docId) return;
+      const path = next === "verify" ? "/verify" : next === "papers" ? (docId ? `/papers/${docId}` : "/papers") : state.status === "idle" ? "/" : `/?q=${encodeURIComponent(query)}`;
+      history.pushState(null, "", path);
+      setRoute({ view: next, docId });
       window.scrollTo(0, 0);
     },
-    [view, state.status, query],
+    [view, route.docId, state.status, query],
   );
 
   // ?auth_error=... left by the server redirect becomes a dismissible banner
@@ -89,7 +106,7 @@ export function App() {
   // Shareable link: ?q=... se load hone par search chalao
   useEffect(() => {
     const q = new URLSearchParams(location.search).get("q");
-    if (q && viewFromPath() === "search") submit(q);
+    if (q && routeFromPath().view === "search") submit(q);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -126,7 +143,7 @@ export function App() {
     setQuery("");
     if (view !== "search") {
       history.pushState(null, "", "/");
-      setView("search");
+      setRoute({ view: "search", docId: null });
     } else {
       history.replaceState(null, "", location.pathname);
     }
@@ -162,14 +179,16 @@ export function App() {
           )}
         </AnimatePresence>
 
-        <main id="main" className="main">
+        <main id="main" className="main" data-view={view === "papers" && route.docId ? "paper" : view}>
           {view === "verify" ? (
             <VerifyPage />
+          ) : view === "papers" ? (
+            route.docId ? <DocWorkspace key={route.docId} id={route.docId} onBack={() => navigate("papers")} /> : <PapersPage onOpen={(id) => navigate("papers", id)} />
           ) : (
           <AnimatePresence mode="wait" initial={false}>
             {idle ? (
               <m.div key="home" exit={{ opacity: 0, y: -12, transition: { duration: 0.18 } }}>
-                <Hero value={query} onChange={setQuery} onSubmit={() => submit(query)} onPick={submit} onVerify={() => navigate("verify")} inputRef={inputRef} />
+                <Hero value={query} onChange={setQuery} onSubmit={() => submit(query)} onPick={submit} onVerify={() => navigate("verify")} onPapers={() => navigate("papers")} inputRef={inputRef} />
               </m.div>
             ) : (
               <m.div key="results" className="results-view" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }}>
@@ -196,7 +215,7 @@ export function App() {
                   {loading && state.results.length === 0 && [0, 1, 2, 3].map((i) => <SkeletonCard key={i} />)}
                   <AnimatePresence initial>
                     {results.map((p, i) => (
-                      <ResultCard key={p.id} paper={p} index={i} />
+                      <ResultCard key={p.id} paper={p} index={i} onPreview={(paper) => openPreview(paper, results)} />
                     ))}
                   </AnimatePresence>
                 </ul>
@@ -237,6 +256,7 @@ export function App() {
         </main>
 
         <Footer />
+        <PaperPreview />
       </LazyMotion>
     </MotionConfig>
   );

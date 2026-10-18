@@ -140,6 +140,16 @@ try {
     const sum = await page.locator(".vsum-headline").innerText();
     ok(/6 references checked/.test(sum), `summary: ${sum.trim()}`);
 
+    // preview of the matched record
+    await cards.nth(2).getByRole("button", { name: "Preview record" }).click();
+    const pv = page.getByRole("dialog");
+    await pv.waitFor();
+    await page.waitForTimeout(500);
+    ok(/Deep learning/.test(await pv.locator(".pv-title").innerText()) && (await pv.getByText(/Yann LeCun/).isVisible()), "Preview record shows the closest real paper");
+    ok(await pv.getByText(/None of our sources has an abstract/).isVisible(), "...and says plainly that a verifier record has no abstract");
+    await page.keyboard.press("Escape");
+    await pv.waitFor({ state: "detached" });
+
     // filters
     await page.getByRole("button", { name: /Needs attention/ }).click();
     await page.waitForTimeout(500);

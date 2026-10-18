@@ -29,6 +29,7 @@ export function Hero({
   onSubmit,
   onPick,
   onVerify,
+  onPapers,
   inputRef,
 }: {
   value: string;
@@ -36,6 +37,7 @@ export function Hero({
   onSubmit: () => void;
   onPick: (q: string) => void;
   onVerify: () => void;
+  onPapers: () => void;
   inputRef: RefObject<HTMLInputElement | null>;
 }): ReactNode {
   return (
@@ -76,7 +78,9 @@ export function Hero({
         </div>
         <m.p className="hero-verify" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 1 }}>
           Have a reference list to check?{" "}
-          <a className="link-btn" href="/verify" onClick={(e) => { e.preventDefault(); onVerify(); }}>Verify your references <ArrowRight size={14} aria-hidden="true" /></a>
+          <a className="link-btn" href="/verify" onClick={(e) => { e.preventDefault(); onVerify(); }}>Verify your references <ArrowRight size={14} aria-hidden="true" /></a>{" "}
+          or{" "}
+          <a className="link-btn" href="/papers" onClick={(e) => { e.preventDefault(); onPapers(); }}>upload a PDF and ask it questions <ArrowRight size={14} aria-hidden="true" /></a>
         </m.p>
       </m.div>
 

@@ -11,6 +11,8 @@ import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/app.css";
 import "./styles/verify.css";
+import "./styles/papers.css";
+import "./styles/workspace.css";
 import { initPrefs } from "./lib/prefs";
 import { App } from "./App";
 

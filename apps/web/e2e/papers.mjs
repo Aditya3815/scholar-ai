@@ -1,0 +1,253 @@
+// Browser e2e: paper preview sheet, PDF upload, reader, grounded Q&A with highlighted sources, rename, delete.
+// Needs the Worker with the fake identity provider AND the offline model stand-in (QA_STUB=1):
+// `npm run integration -w apps/api -- --browser` starts it. Search results are mocked so the preview checks are deterministic.
+//   node e2e/papers.mjs [baseUrl]    (default http://localhost:8788)
+import { chromium } from "playwright-core";
+import { createRequire } from "node:module";
+import { mkdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { SAMPLE_PAPER, makePdf } from "../../api/scripts/lib/make-pdf.mjs";
+
+const require = createRequire(import.meta.url);
+// Injected with evaluate(), which CSP does not apply to, so the policy under test stays strict.
+const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+const BASE = process.argv[2] ?? "http://localhost:8788";
+const OUT = fileURLToPath(new URL("./shots/", import.meta.url));
+mkdirSync(OUT, { recursive: true });
+
+let failures = 0;
+const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
+
+const idp = await startFakeIdp(9911);
+idp.setUser({ sub: "papers-ui-1", email: "kavya@example.edu", email_verified: true, name: "Kavya Menon" });
+
+const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 }, acceptDownloads: true });
+const page = await ctx.newPage();
+const errors = [];
+page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401)/.test(m.text())) errors.push("console: " + m.text()); });
+
+async function axe(label, p = page) {
+  await p.evaluate(axeSource);
+  const res = await p.evaluate(async () => {
+    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
+    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
+  });
+  ok(res.length === 0, `axe [${label}]: ${res.length ? "" : "no violations"}`);
+  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
+}
+const shot = (name, p = page) => p.screenshot({ path: OUT + name + ".png" });
+const setTheme = async (label) => { await page.getByRole("button", { name: `${label} theme` }).click(); await page.waitForTimeout(500); };
+const until = async (fn, ms = 15000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await page.waitForTimeout(150); } return false; };
+
+const papers = [1, 2, 3].map((n) => ({
+  id: `doi:10.1000/prev.${n}`, doi: `10.1000/prev.${n}`, pmid: n === 2 ? "123456" : null, title: `Preview test paper number ${n}: effects on outcomes`,
+  authors: Array.from({ length: n === 1 ? 9 : 2 }, (_, i) => `Author ${String.fromCharCode(65 + i)}. Name`), year: 2020 + n, venue: "Journal of Previews",
+  abstract: n === 3 ? null : `This is the abstract of paper ${n}. It describes what was done and what was found in enough words to read comfortably.`,
+  citationCount: 1200 + n, oaUrl: n === 1 ? "https://example.org/open.pdf" : null, retracted: n === 2, retractionSources: n === 2 ? ["crossref-retraction-watch"] : [],
+  sources: ["openalex", "s2"], score: 0.05, doiStatus: "verified",
+}));
+
+try {
+  /* ---------- paper preview (search results, library, verifier) ---------- */
+  console.log("paper preview");
+  const done = { query: "x", results: papers, providers: { openalex: { ok: true, count: 3, ms: 10, cached: false } }, retractionCheck: { ok: true, count: 1, ms: 5, cached: false }, doiCheck: { ok: true, count: 0, ms: 5, cached: false }, tookMs: 20 };
+  await page.route("**/api/v1/search/stream*", (route) =>
+    route.fulfill({ status: 200, headers: { "content-type": "text/event-stream", "cache-control": "no-store" }, body: `event: done\ndata: ${JSON.stringify(done)}\n\n` }));
+  await page.goto(BASE + "?q=previews", { waitUntil: "networkidle" });
+  await page.locator(".result").first().waitFor();
+  await page.locator(".result").first().getByRole("button", { name: /^Preview:/ }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.waitFor();
+  await page.waitForTimeout(700);
+  ok(/Preview test paper number 1/.test(await sheet.locator(".pv-title").innerText()), "the preview opens on the paper that was clicked");
+  ok((await sheet.locator(".pv-pos").innerText()).trim() === "1 of 3", "it shows the position in the result list");
+  ok(await sheet.getByText("This is the abstract of paper 1.").isVisible(), "the full abstract is shown");
+  ok(await sheet.getByRole("button", { name: /\+3 more/ }).isVisible(), "a long author list is collapsed");
+  await sheet.getByRole("button", { name: /\+3 more/ }).click();
+  ok(await sheet.getByText("Author I. Name").isVisible(), "...and can be expanded");
+  await shot("50-preview-light");
+  await axe("preview, light");
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(600);
+  ok(/number 2/.test(await sheet.locator(".pv-title").innerText()), "the right arrow key moves to the next paper");
+  ok(await sheet.getByText("Retracted paper.").isVisible(), "a retracted paper shows the warning in the preview");
+  ok(await sheet.getByRole("link", { name: "123456" }).isVisible(), "the PubMed id links out");
+  await shot("51-preview-retracted");
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(600);
+  ok(await sheet.getByText(/None of our sources has an abstract/).isVisible(), "a missing abstract is explained, not left blank");
+  await page.getByRole("button", { name: "Next paper" }).waitFor();
+  ok(await page.getByRole("button", { name: "Next paper" }).isDisabled(), "the next button is disabled on the last paper");
+  await page.keyboard.press("ArrowLeft");
+  await page.waitForTimeout(500);
+  await sheet.getByRole("button", { name: "Save" }).click();
+  ok(await sheet.getByRole("button", { name: "Saved" }).isVisible(), "Save works from inside the preview");
+  await page.keyboard.press("Escape");
+  await sheet.waitFor({ state: "detached" });
+  ok(true, "Escape closes the preview");
+  await page.getByRole("button", { name: /^Library, 1 saved/ }).click();
+  await page.waitForTimeout(500);
+  await page.locator(".drawer-item-open", { hasText: "Preview test paper number 2" }).click();
+  await page.getByRole("dialog").locator(".pv-title").waitFor();
+  ok(/number 2/.test(await page.getByRole("dialog").locator(".pv-title").innerText()), "a saved paper opens in the preview from the library");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(500);
+
+  /* ---------- signed out: the papers page asks to sign in ---------- */
+  console.log("my papers, signed out");
+  await page.unroute("**/api/v1/search/stream*");
+  await page.goto(BASE + "/papers", { waitUntil: "networkidle" });
+  await page.getByRole("heading", { level: 2, name: "Sign in to upload papers" }).waitFor();
+  ok(await page.getByRole("button", { name: "Continue with Google" }).isVisible(), "signed-out visitors see a sign-in prompt, not a broken page");
+  await page.waitForTimeout(1500);
+  await shot("52-papers-signed-out");
+  await axe("papers, signed out");
+
+  /* ---------- sign in and upload ---------- */
+  console.log("upload");
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await page.getByRole("button", { name: /^Account:/ }).waitFor({ timeout: 15000 });
+  ok(new URL(page.url()).pathname === "/papers", "sign-in returns to the papers page");
+  await page.getByRole("button", { name: /Upload PDF papers/ }).waitFor();
+  await page.waitForTimeout(1200);
+  await shot("53-papers-empty");
+  await axe("papers, empty");
+  await setTheme("Dark"); await shot("54-papers-empty-dark"); await axe("papers, empty, dark"); await setTheme("Light");
+
+  const input = page.locator('input[type="file"]');
+  await input.setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("not a pdf") });
+  await page.locator(".job").first().waitFor();
+  await page.locator('.job[data-state="error"]').waitFor();
+  ok(/PDF/i.test(await page.locator(".job-detail").first().innerText()), "a non-PDF is refused with a plain message");
+  await page.getByRole("button", { name: /^Dismiss notes\.txt/ }).click();
+  await page.locator(".job").first().waitFor({ state: "detached" });
+
+  const pdf = makePdf(SAMPLE_PAPER, { title: "Glaucoma screening" });
+  await input.setInputFiles({ name: "glaucoma_screening.pdf", mimeType: "application/pdf", buffer: pdf });
+  await page.locator(".job").first().waitFor();
+  await page.waitForTimeout(450);
+  await shot("55-upload-running");
+  await page.locator('.job[data-state="done"], .job[data-state="error"]').first().waitFor({ timeout: 40000 });
+  ok((await page.locator('.job[data-state="error"]').count()) === 0, "the upload finishes without an error");
+  await page.locator(".dc").first().waitFor({ timeout: 15000 });
+  await page.locator(".job").first().waitFor({ state: "detached", timeout: 10000 }); // the finished row slides away before we measure
+  await page.waitForTimeout(500);
+  const card = page.locator(".dc").first();
+  ok((await card.locator(".dc-title").innerText()) === "glaucoma screening", "the paper appears with a title taken from the file name");
+  ok(await until(async () => card.locator(".dc-cover img[data-loaded=true]").count().then((n) => n === 1)), "its first page is shown as the cover");
+  ok(/3 pages/.test(await card.locator(".dc-meta").innerText()), "the page count is shown");
+  await shot("56-papers-list");
+  await axe("papers, list");
+  await setTheme("Dark"); await shot("57-papers-list-dark"); await axe("papers, list, dark"); await setTheme("Light");
+
+  /* ---------- reader + questions ---------- */
+  console.log("reader and questions");
+  await card.getByRole("button", { name: "Open and ask" }).click();
+  await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+  ok(/^\/papers\/[a-f0-9]+$/.test(new URL(page.url()).pathname), "the paper has its own address");
+  ok((await page.locator(".pdfp").count()) === 3, "all 3 pages are laid out");
+  await page.locator(".textLayer span").first().waitFor({ timeout: 15000 });
+  ok(true, "the text layer is there (text can be selected and highlighted)");
+  await page.locator(".thumb canvas[data-ready=true]").first().waitFor({ timeout: 15000 });
+  ok((await page.locator(".thumb").count()) === 3, "page thumbnails are listed");
+  await page.waitForTimeout(800);
+  await shot("58-workspace-light");
+  await axe("workspace");
+
+  await page.getByRole("button", { name: "What research question does it ask?" }).click();
+  await page.locator(".ask-answer").first().waitFor({ timeout: 30000 }).catch(async (e) => { console.log("ASK PANEL:", (await page.locator(".ask").innerText()).slice(0, 600)); throw e; });
+  ok(/Every source checked/.test(await page.locator(".ask-status").first().innerText()), "the answer says its sources were checked");
+  const chip = page.locator(".cite-chip").first();
+  ok(/p\.\d/.test(await chip.innerText()), `the answer carries a clickable page reference (${await chip.innerText()})`);
+  await page.waitForTimeout(700);
+  await shot("59-answer");
+  await chip.click();
+  await page.locator(".pdf-hl").first().waitFor({ timeout: 15000 });
+  const lit = await page.locator(".pdf-hl").evaluateAll((els) => els.map((e) => e.textContent).join(" "));
+  ok(/glaucoma|retinal|convolutional/i.test(lit), `clicking it highlights the passage in the PDF ("${lit.slice(0, 60)}…")`);
+  await page.locator("#ask-input").fill("How were participants recruited?");
+  await page.locator("#ask-input").press("Enter");
+  await page.locator(".ask-answer").nth(1).waitFor({ timeout: 30000 });
+  await page.locator(".cite-chip").nth(1).click();
+  await page.locator(".pdf-hl").first().waitFor({ timeout: 15000 });
+  await page.waitForTimeout(600);
+  const lit2 = await page.locator(".pdf-hl").evaluateAll((els) => els.map((e) => e.textContent).join(" | "));
+  ok(/Participants|Pune|hospitals/.test(lit2) && !/glaucoma|convolutional/i.test(lit2), `a second answer highlights its own passage and clears the first ("${lit2.slice(0, 70)}")`);
+  ok(await until(async () => (await page.locator("#pdfv-page").inputValue()) === "2"), "and scrolls to page 2");
+  await shot("60-highlight");
+  await axe("workspace with answer and highlight");
+  await setTheme("Dark"); await shot("61-workspace-dark"); await axe("workspace, dark"); await setTheme("Read"); await shot("62-workspace-read"); await setTheme("Light");
+
+  await page.locator("#ask-input").fill("an unanswerable question about funding");
+  await page.locator("#ask-input").press("Enter");
+  await page.locator(".ask-status", { hasText: "Not in this paper" }).waitFor({ timeout: 30000 });
+  ok(true, "a question the paper cannot answer is reported as such, with no invented source");
+  await page.locator("#ask-input").fill("please hallucinate something");
+  await page.locator("#ask-input").press("Enter");
+  await page.locator(".ask-status", { hasText: "Could not verify" }).waitFor({ timeout: 30000 }).catch(async (e) => { console.log("ASK PANEL:", (await page.locator(".ask-turns > li").last().innerText()) + " || " + (await page.locator(".ask-turns > li").count())); throw e; });
+  ok(await page.getByText(/quoted evidence was not found/).isVisible(), "an answer whose quote is not in the paper is shown with a warning");
+  ok((await page.locator(".ask-answer").count()) === 4, "all four answers stay on screen");
+
+  console.log("zoom and keyboard");
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await page.waitForTimeout(500);
+  ok((await page.locator(".pdfv-pct").innerText()) === "115%", "zoom in goes to 115%");
+  await page.getByRole("button", { name: "Fit to width" }).first().click();
+  await page.locator("#pdfv-page").fill("3");
+  await page.locator("#pdfv-page").press("Enter");
+  ok(await until(async () => (await page.locator(".thumb[aria-current=true]").getAttribute("aria-label")) === "Go to page 3"), "typing a page number jumps there and the thumbnail follows");
+
+  console.log("history and rename");
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".ask-answer").first().waitFor({ timeout: 30000 });
+  ok((await page.locator(".ask-answer").count()) === 4, "after a reload the earlier questions and answers are still there");
+  await page.getByRole("button", { name: "Rename this paper" }).click();
+  await page.locator("#dw-title").fill("Glaucoma screening (Pune cohort)");
+  await page.locator("#dw-title").press("Enter");
+  await page.getByRole("heading", { level: 1, name: /Pune cohort/ }).waitFor();
+  ok(true, "renaming from the workspace works");
+
+  console.log("mobile");
+  const mp = await ctx.newPage();
+  await mp.setViewportSize({ width: 390, height: 844 });
+  await mp.goto(page.url(), { waitUntil: "networkidle" });
+  await mp.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+  ok(!(await mp.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)), "390px: no horizontal overflow");
+  ok(await mp.getByRole("tab", { name: "Paper" }).isVisible() && (await mp.locator("#dw-panel-ask").isHidden()), "390px: Paper and Ask are tabs, the paper shows first");
+  await shot("63-workspace-mobile-paper", mp);
+  await axe("workspace, 390px", mp);
+  await mp.getByRole("tab", { name: "Ask" }).click();
+  await mp.locator(".ask-answer").first().waitFor();
+  await mp.waitForTimeout(500);
+  await shot("64-workspace-mobile-ask", mp);
+  await axe("workspace ask tab, 390px", mp);
+  await mp.locator(".cite-chip").first().click();
+  ok(await mp.getByRole("tab", { name: "Paper", selected: true }).isVisible(), "390px: tapping a source switches to the paper");
+  await mp.close();
+
+  console.log("delete");
+  await page.getByRole("button", { name: "My papers", exact: true }).first().click();
+  await page.locator(".dc").first().waitFor();
+  await page.getByRole("button", { name: /^Delete Glaucoma screening/ }).click();
+  const confirm = page.getByRole("dialog");
+  await confirm.waitFor();
+  await page.waitForTimeout(400);
+  await shot("65-delete-confirm");
+  await axe("delete confirmation");
+  await confirm.getByRole("button", { name: "Delete paper" }).click();
+  await page.locator(".dc").waitFor({ state: "detached", timeout: 10000 });
+  ok(true, "deleting a paper removes it from the list");
+  const list = await (await page.request.get(BASE + "/api/v1/documents")).json();
+  ok(list.items.length === 0, "...and from the server");
+
+  ok(errors.length === 0, `no console/page errors${errors.length ? ": " + errors.join(" | ").slice(0, 500) : ""}`);
+} catch (e) {
+  console.log(" FAIL unexpected error:", e);
+  failures++;
+}
+await browser.close();
+console.log(failures ? `\n${failures} check(s) FAILED` : "\nall papers browser checks passed");
+process.exit(failures ? 1 : 0);

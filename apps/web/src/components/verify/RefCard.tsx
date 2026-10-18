@@ -1,8 +1,9 @@
 import { m } from "motion/react";
-import { ExternalLink, Info, RefreshCw, ShieldAlert } from "lucide-react";
+import { ExternalLink, Eye, Info, RefreshCw, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import type { Paper, RefChecks, RefRecord } from "@scholar/shared";
 import { easeOut, springPop, stagger } from "../../lib/motion";
+import { openPreview } from "../../lib/preview";
 import { statusOf } from "../../lib/refStatus";
 import type { VerifyItem } from "../../lib/verify";
 import { CiteMenu } from "../CiteMenu";
@@ -146,6 +147,12 @@ export function RefCard({ item, index, onRecheck }: { item: VerifyItem; index: n
 
           {(v?.match || canRecheck) && (
             <div className="actions">
+              {v?.match && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => openPreview({ ...asPaper(v.match!), retracted: !!v.retracted, retractionSources: v.retracted ? ["crossref-retraction-watch"] : [] })}>
+                  <Eye size={15} aria-hidden="true" />
+                  <span>Preview record</span>
+                </button>
+              )}
               {v?.match && v.status !== "not_found" && <CiteMenu paper={asPaper(v.match)} />}
               {doiHref && (
                 <a className="btn btn-ghost btn-sm" href={doiHref} target="_blank" rel="noreferrer noopener">

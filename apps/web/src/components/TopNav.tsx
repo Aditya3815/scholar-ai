@@ -1,12 +1,13 @@
 import { m } from "motion/react";
-import { ListChecks, Search } from "lucide-react";
+import { FileStack, ListChecks, Search } from "lucide-react";
 import { spring } from "../lib/motion";
 
-export type View = "search" | "verify";
+export type View = "search" | "verify" | "papers";
 
 const ITEMS: { id: View; label: string; href: string; Icon: typeof Search }[] = [
   { id: "search", label: "Search", href: "/", Icon: Search },
   { id: "verify", label: "Verify references", href: "/verify", Icon: ListChecks },
+  { id: "papers", label: "My papers", href: "/papers", Icon: FileStack },
 ];
 
 /** Real links (open in a new tab, copy, bookmark) that navigate in place on a plain click. */
@@ -30,6 +31,7 @@ export function TopNav({ view, onNavigate }: { view: View; onNavigate: (v: View)
             {active && <m.span layoutId="nav-pill" className="topnav-pill" transition={spring} />}
             <Icon size={16} aria-hidden="true" />
             <span className="topnav-label">{label}</span>
+            {id === "verify" && <span className="topnav-short" aria-hidden="true">Verify</span>}
           </a>
         );
       })}

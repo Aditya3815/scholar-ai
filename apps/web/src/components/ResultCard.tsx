@@ -1,6 +1,6 @@
 import { animate, m, useReducedMotion } from "motion/react";
 import { PROVIDER_LABELS, type Paper } from "@scholar/shared";
-import { BadgeCheck, Bookmark, BookmarkCheck, ExternalLink, FileText, LockOpen, ShieldAlert, TriangleAlert } from "lucide-react";
+import { BadgeCheck, Bookmark, BookmarkCheck, Eye, ExternalLink, FileText, LockOpen, ShieldAlert, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { easeOut, springPop, stagger } from "../lib/motion";
 import { toggleSaved, useLibrary } from "../lib/library";
@@ -27,7 +27,7 @@ export function CountUp({ value }: { value: number }) {
   return <span ref={ref}>{fmt(value)}</span>;
 }
 
-function SaveButton({ paper }: { paper: Paper }) {
+export function SaveButton({ paper }: { paper: Paper }) {
   const saved = useLibrary().some((p) => p.id === paper.id);
   return (
     <button
@@ -48,7 +48,7 @@ function SaveButton({ paper }: { paper: Paper }) {
 const authorLine = (authors: string[]) =>
   authors.length === 0 ? "Authors unavailable" : authors.length <= 4 ? authors.join(", ") : `${authors.slice(0, 3).join(", ")} et al.`;
 
-export function ResultCard({ paper, index }: { paper: Paper; index: number }) {
+export function ResultCard({ paper, index, onPreview }: { paper: Paper; index: number; onPreview?: (p: Paper) => void }) {
   const [open, setOpen] = useState(false);
   const doiHref = paper.doi ? `https://doi.org/${paper.doi}` : null;
   const crossChecked = paper.sources.length >= 2;
@@ -134,6 +134,12 @@ export function ResultCard({ paper, index }: { paper: Paper; index: number }) {
       )}
 
       <div className="actions">
+        {onPreview && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => onPreview(paper)} aria-label={`Preview: ${paper.title}`}>
+            <Eye size={15} aria-hidden="true" />
+            <span>Preview</span>
+          </button>
+        )}
         <SaveButton paper={paper} />
         <CiteMenu paper={paper} />
         {doiHref && (

@@ -35,6 +35,8 @@ throwaway local Worker and database and runs them (after `npm run build`): `npm 
 also run the Playwright suites (set `E2E_BROWSER=chrome` if you do not have Edge). CI runs the first on every push and the second weekly.
 Real credentials: `docs/auth-setup.md`.
 
+Uploaded papers and grounded Q&A: `docs/qa.md` (try it with the real models via `apps/api/scripts/docs-live.mjs`).
+
 Docs: `docs/design/UI-direction.md`, `docs/spikes/`, `docs/llm-providers.md`, `docs/auth-setup.md`, `docs/adr/`.
 
 Needs Node 22+ (see `.nvmrc`; CI uses Node 22).

@@ -51,6 +51,23 @@ Built with the same references and rules as above (Motion springs and stagger fr
 
 Motion: hero-style rise and drawn underline, status icon pops (the verified check draws itself), one soft ring on cards that need attention, counts roll in, progress bar springs and turns green when done. All of it respects reduced motion.
 
+## Paper preview, My papers, reader and Q&A
+
+Same references and rules as above; the new pages reuse the tokens, springs, popovers, chips and cards, so nothing looks "added on".
+
+| Decision | Why |
+| --- | --- |
+| One **preview sheet** for every tool: search results, the library, and the verifier's matched record | a scholar decides whether a paper is worth opening by reading its abstract, authors and venue, not by clicking out; arrow keys move through the list it came from, a missing abstract is explained, retractions keep the red banner |
+| **My papers** is a card grid with each paper's **first page as its cover** (rendered in the browser at upload) | people recognise papers by how the first page looks |
+| Upload is one big drop zone (drag, click or Enter); every file gets its own row with three steps (Read, Upload, Index), a progress bar and a plain error with Try again | uploads can take a while; each stage is visible and a failure says what happened |
+| The reader is the real PDF: page thumbnails with a sliding current-page ring, lazy rendering, zoom, page jump, text layer (select and copy), dark/read themes dim the white page | a scholar reads the original, not a re-typeset copy |
+| Q&A sits beside the paper; on a phone it is a Paper / Ask tab pair | both are needed at once on a desk, one at a time on a phone |
+| An answer shows **page chips** and a **sources list** with the exact quote; clicking either scrolls the PDF to the page and **highlights the passage** | verification is one click, which is the whole point |
+| Three honest answer states, each icon plus words: checked, could not verify (warning), not in this paper | the tool says when it does not know instead of sounding sure |
+| Staged progress text while waiting (Reading the paper, Finding the right passages, Checking every citation) | the wait is real work, so show it |
+
+Micro-motion: drop zone icon bounces while you drag, step dots draw their check, finished upload rows slide away and the new card rises in, covers fade and settle in, the rename pencil appears on hover, question bubbles spring in, the answer's sentences fade in one after another, source rows rise in order, send button morphs into a spinner, copy icons swap to a check, the highlight flashes then settles, the sheet slides in and its content rises piece by piece. All of it respects reduced motion.
+
 ## Verified (automated, `npm run e2e -w apps/web`, Edge headless)
 - axe-core WCAG 2.2 AA: **0 violations** on home (Light/Dark/Read), results (Light/Dark/Read), cite popover, library drawer, retracted results.
 - Mobile 390 px: no horizontal overflow; no console errors.
