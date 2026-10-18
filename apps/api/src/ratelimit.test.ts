@@ -17,6 +17,7 @@ function appWith(env: LimitEnv) {
   app.get("/api/v1/health", (c) => c.json({ ok: true }));
   app.get("/api/v1/search", (c) => c.json({ ok: true }));
   app.get("/api/v1/library", (c) => c.json({ ok: true }));
+  app.post("/api/v1/references/verify", (c) => c.json({ ok: true }));
   return (path: string, ip = "203.0.113.7") => app.request(path, { headers: { "cf-connecting-ip": ip } }, env);
 }
 
@@ -29,6 +30,19 @@ describe("rateLimit", () => {
     await get("/api/v1/library");
     expect(search.calls).toEqual(["203.0.113.7"]);
     expect(api.calls).toEqual(["203.0.113.7"]);
+  });
+
+  it("gives reference verification its own bucket", async () => {
+    const verify = limiter(true);
+    const api = limiter(true);
+    const search = limiter(true);
+    const app = new Hono<{ Bindings: LimitEnv }>();
+    app.use("/api/*", rateLimit());
+    app.post("/api/v1/references/verify", (c) => c.json({ ok: true }));
+    await app.request("/api/v1/references/verify", { method: "POST", headers: { "cf-connecting-ip": "198.51.100.2" } }, { SEARCH_LIMITER: search, VERIFY_LIMITER: verify, API_LIMITER: api });
+    expect(verify.calls).toEqual(["198.51.100.2"]);
+    expect(api.calls).toEqual([]);
+    expect(search.calls).toEqual([]);
   });
 
   it("answers 429 with Retry-After when the bucket is empty", async () => {

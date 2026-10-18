@@ -52,6 +52,22 @@ describe("verdict: real, fabricated and altered references", () => {
     expect(v("Kumar, R. (2019). Groundwater depletion in Punjab: an econometric assessment. Water Policy, 21, 45-60.", attention)).toBe("different");
   });
 
+  it("a short title only counts when its words appear together, not scattered through a longer title", () => {
+    const generic: Candidate = { doi: "10.1000/dc", title: "Distributed Consensus", authorFamilies: ["Bashir"], authors: [], year: 2022, venue: null };
+    const fake = "Sharma, R., & Mehta, K. (2022). Quantum-inspired blockchain consensus for rural healthcare records in India, distributed systems. Journal of Health, 14(3), 211-229.";
+    expect(v(fake, generic)).toBe("different");
+    expect(v("Bashir, I. (2022). Distributed consensus. Packt.", generic)).toBe("verified");
+    const bc: Candidate = { doi: "10.1000/bc", title: "Blockchain Consensus", authorFamilies: ["Bashir"], authors: [], year: 2022, venue: null };
+    expect(v(fake, bc)).toBe("different"); // contiguous, but only a fragment of the reference's own longer title
+    const graphene: Candidate = { doi: "10.1000/g", title: "Graphene", authorFamilies: ["Smith"], authors: [], year: 2020, venue: null };
+    expect(v("Smith, J., & Lee, K. (2020). Graphene. Journal of Physical Chemistry and Applied Materials Science, 5, 1-10.", graphene)).not.toBe("different"); // a long journal name must not be mistaken for the title
+    const three: Candidate = { doi: "10.1000/cb", title: "Consensus in Blockchain", authorFamilies: ["Gramoli"], authors: [], year: 2022, venue: null };
+    expect(v(fake, three)).toBe("different"); // all three words occur, but scattered
+    // a journal name that shares words with a real record must not make an unrelated reference look like it:
+    const journalWords: Candidate = { doi: "10.1000/ir", title: "International Regulation of Emerging Technologies", authorFamilies: ["Girasa"], authors: [], year: 2022, venue: null };
+    expect(v("Patel, R. (2018). Industrial Internet of Things: Challenges, Opportunities, and Directions. International Journal of Emerging Technologies and Society, 19(4), 819-829.", journalWords)).toBe("different");
+  });
+
   it("generic short titles need BOTH author and year", () => {
     const deep: Candidate = { doi: "10.1038/nature14539", title: "Deep learning", authorFamilies: ["LeCun", "Bengio", "Hinton"], authors: [], year: 2015, venue: "Nature" };
     expect(v("LeCun Y, Bengio Y, Hinton G. Deep learning. Nature. 2015;521:436-444.", deep)).toBe("verified");

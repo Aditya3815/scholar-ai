@@ -55,11 +55,40 @@ export function extractYears(text: string): number[] {
   return [...clean.matchAll(/(?<![\d])(19\d{2}|20\d{2})(?![\d])/g)].map((m) => Number(m[1]));
 }
 
+/** Length of the longest run of consecutive words of `needle` that appears, in order and unbroken, in `haystack`. */
+function longestRun(needle: string[], haystack: string[]): number {
+  let best = 0;
+  let prev = new Array<number>(haystack.length + 1).fill(0);
+  for (const n of needle) {
+    const cur = new Array<number>(haystack.length + 1).fill(0);
+    for (let j = 1; j <= haystack.length; j++) {
+      if (haystack[j - 1] === n) {
+        cur[j] = prev[j - 1]! + 1;
+        if (cur[j]! > best) best = cur[j]!;
+      }
+    }
+    prev = cur;
+  }
+  return best;
+}
+
 export function checkMatch(refText: string, c: Candidate): MatchChecks {
   const refTokens = new Set(tokenize(refText));
 
   const titleTokens = tokenize(c.title).filter((t) => t.length > 1 || /\p{N}/u.test(t));
-  const title = titleTokens.length === 0 ? 0 : titleTokens.filter((t) => refTokens.has(t)).length / titleTokens.length;
+  let title = titleTokens.length === 0 ? 0 : titleTokens.filter((t) => refTokens.has(t)).length / titleTokens.length;
+  // The title words must also appear TOGETHER, in order, the way a title is written: a short generic record title
+  // ("Consensus in Blockchain") is otherwise "covered" by any long reference that happens to contain those words scattered
+  // through a different title. Allow some drift (typos, a dropped subtitle): the longest run must cover most of the title.
+  const allTitle = tokenize(c.title);
+  if (allTitle.length > 0 && longestRun(allTitle, tokenize(refText)) / allTitle.length < 0.75) title = Math.min(title, 0.4);
+  // A very short record title that is only a fragment of the reference's own, much longer title ("Blockchain Consensus" inside
+  // "Quantum-inspired blockchain consensus for rural healthcare records") is a coincidence, not the same paper.
+  const own = allTitle.length > 0 && allTitle.length <= 3 ? guessTitle(refText) : null;
+  if (own) {
+    const ownTokens = tokenize(own);
+    if (allTitle.length < ownTokens.length * 0.6 && longestRun(allTitle, ownTokens) === allTitle.length) title = Math.min(title, 0.4);
+  }
 
   let author: boolean | null = null;
   // A registry that lists only a group ("Antimicrobial Resistance Collaborators") while people cite the lead authors: the

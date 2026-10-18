@@ -6,6 +6,7 @@ import { AllProvidersFailedError, NoRouteError, PolicyError, QuotaError, gateway
 import { authRoutes } from "./auth/routes";
 import { libraryRoutes } from "./library/routes";
 import { accountRoutes } from "./account/routes";
+import { referenceRoutes } from "./references/routes";
 import type { AuthEnv } from "./auth/providers";
 import { d1Store } from "./cache/store";
 import type { SearchEnv } from "./search/types";
@@ -49,6 +50,7 @@ app.use("/api/*", rateLimit());
 app.route("/api/v1/auth", authRoutes);
 app.route("/api/v1/library", libraryRoutes);
 app.route("/api/v1/account", accountRoutes);
+app.route("/api/v1/references", referenceRoutes);
 
 app.get("/api/v1/health", async (c) => {
   let db: HealthResponse["db"] = "ok";

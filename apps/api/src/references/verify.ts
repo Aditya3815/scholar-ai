@@ -1,3 +1,4 @@
+import type { RefStatus } from "@scholar/shared";
 import { findRetracted } from "../search/retraction";
 import {
   LookupError,
@@ -18,7 +19,7 @@ import { checkMatch, confidence, extractDoi, guessTitle, pickBest, tokenize, ver
  *  unparsed      too short or not recognisable as a reference
  * A reference is only ever `verified` when a real record backs it. Errors never produce `verified` or `not_found`.
  */
-export type RefStatus = "verified" | "mismatch" | "not_found" | "unverifiable" | "unparsed";
+export type { RefStatus };
 
 export type RefResult = {
   input: string;

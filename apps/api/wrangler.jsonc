@@ -27,6 +27,7 @@
   // Per-IP limits (the binding's period can only be 10 or 60 seconds). Search is the expensive route: it fans out to 4 APIs.
   "ratelimits": [
     { "name": "SEARCH_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
+    { "name": "VERIFY_LIMITER", "namespace_id": "1003", "simple": { "limit": 120, "period": 60 } },
     { "name": "API_LIMITER", "namespace_id": "1002", "simple": { "limit": 240, "period": 60 } }
   ],
   // Daily housekeeping (expired cache/sessions/oauth states, old usage rows): see src/maintenance.ts
