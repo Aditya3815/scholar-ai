@@ -4,7 +4,7 @@
 //   REAL_PDFS="C:/path/to/pdfs" npm run integration -w apps/api -- --browser --only="browser: real"   (see scripts/integration.mjs)
 //   or against a running Worker with the fake identity provider:  node e2e/real-papers.mjs <folder> [baseUrl]
 import { chromium } from "playwright-core";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 
@@ -13,6 +13,8 @@ const BASE = process.argv.find((a, i) => i >= 3 && a.startsWith("http")) ?? "htt
 // --verify also runs every extracted reference through the live Reference Verifier and prints how they came out.
 const VERIFY = process.argv.includes("--verify");
 const totals = {};
+// REAL_DUMP=<file.json> keeps every reference that did not verify, with the verdict and reason, to see what is being missed.
+const unresolved = [];
 if (!dir) throw new Error("usage: node e2e/real-papers.mjs <folder with .pdf files> [baseUrl]");
 
 const idp = await startFakeIdp(9911);
@@ -52,12 +54,15 @@ for (const f of readdirSync(dir).filter((x) => x.toLowerCase().endsWith(".pdf"))
     await Promise.all(Array.from({ length: 2 }, async () => {
       for (let r = queue.shift(); r !== undefined; r = queue.shift()) {
         let status = "error";
+        let body = null;
         for (let attempt = 0; attempt < 4; attempt++) {
           const res = await page.request.post(BASE + "/api/v1/references/verify", { headers: { Origin: BASE, "Content-Type": "application/json" }, data: { reference: r } });
           if (res.status() === 429) { await page.waitForTimeout(Math.min(Number(res.headers()["retry-after"]) || 10, 30) * 1000); continue; }
-          status = res.ok() ? (await res.json()).status : "error";
+          body = res.ok() ? await res.json() : null;
+          status = body?.status ?? "error";
           break;
         }
+        if (status !== "verified") unresolved.push({ file: f, status, reference: r, reason: body?.reason, match: body?.match ? `${body.match.title} (${body.match.year})` : null });
         verified[status] = (verified[status] ?? 0) + 1;
         totals[status] = (totals[status] ?? 0) + 1;
       }
@@ -75,6 +80,7 @@ for (const f of readdirSync(dir).filter((x) => x.toLowerCase().endsWith(".pdf"))
 }
 await page.request.delete(BASE + "/api/v1/account", { headers: { Origin: BASE, "Content-Type": "application/json" }, data: { confirm: "DELETE" } }).catch(() => {});
 await browser.close();
+if (process.env.REAL_DUMP) writeFileSync(process.env.REAL_DUMP, JSON.stringify(unresolved, null, 1));
 if (VERIFY) console.log("\nVERIFIER on all extracted references:", JSON.stringify(totals), `verified ${Math.round(((totals.verified ?? 0) / Math.max(1, Object.values(totals).reduce((a, b) => a + b, 0))) * 100)}%`);
 console.log("\n" + rows.map((r) => `${r.file.padEnd(16)} ${r.status ?? ""} ${String(r.pages ?? "").padStart(3)}p  title: ${(r.savedTitle ?? "").slice(0, 60).padEnd(60)} refs ${String(r.references ?? "").padStart(3)} (${r.referencesSource})  contents ${r.outline ?? 0}/${r.headings ?? 0}  doi ${r.doi ?? r.arxiv ?? "-"}  ${r.metadata ?? ""}`).join("\n"));
 process.exit(0);

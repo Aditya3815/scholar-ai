@@ -1,5 +1,5 @@
 import { crossrefFetch } from "./crossref-gate";
-import type { Candidate } from "./match";
+import { arxivYear, type Candidate } from "./match";
 
 export type LookupEnv = {
   CROSSREF_MAILTO: string;
@@ -23,8 +23,12 @@ type CRItem = {
   "container-title"?: string[];
 };
 
+/** Crossref titles carry markup ("<i>Anionic Mishran</i> Supplementation …", "&amp;"); a citation does not. */
+const plainTitle = (t: string): string =>
+  t.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+
 function fromCrossref(it: CRItem): Candidate | null {
-  const title = it.title?.[0];
+  const title = it.title?.[0] ? plainTitle(it.title[0]) : "";
   if (!title) return null;
   const authors = it.author ?? [];
   return {
@@ -81,26 +85,51 @@ type OAWork = {
   primary_location?: { source?: { display_name?: string | null } | null } | null;
 };
 
+const OA_SELECT = "doi,title,publication_year,authorships,primary_location";
+
+function fromOpenAlex(w: OAWork, fallbackDoi: string | null = null): Candidate | null {
+  if (!w.title) return null;
+  const names = (w.authorships ?? []).map((a) => a.author?.display_name).filter((n): n is string => !!n);
+  const doi = w.doi ? w.doi.replace(/^https?:\/\/doi\.org\//i, "").toLowerCase() : fallbackDoi;
+  return {
+    doi,
+    title: plainTitle(w.title),
+    authorFamilies: names.map((n) => n.trim().split(/\s+/).pop() ?? "").filter(Boolean),
+    authors: names,
+    // OpenAlex merges every version of a preprint and can report the year of the latest; a citation carries the first one.
+    year: arxivYear(doi) ?? w.publication_year ?? null,
+    venue: w.primary_location?.source?.display_name ?? null,
+  };
+}
+
 /** For DOIs Crossref does not hold (arXiv, Zenodo, other DataCite DOIs). Costs ~$0.001 per call, so only a fallback. */
 export async function openAlexByDoi(doi: string, env: LookupEnv): Promise<Candidate | null> {
-  const params = new URLSearchParams({ select: "doi,title,publication_year,authorships,primary_location" });
+  const params = new URLSearchParams({ select: OA_SELECT });
   if (env.OPENALEX_API_KEY) params.set("api_key", env.OPENALEX_API_KEY);
   const res = await f(env)(`https://api.openalex.org/works/doi:${encodeURIComponent(doi).replace(/%2F/g, "/")}?${params}`, { signal: AbortSignal.timeout(10_000) }).catch((e) => {
     throw new LookupError(`OpenAlex unreachable: ${e instanceof Error ? e.message : e}`);
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new LookupError(`OpenAlex HTTP ${res.status}`);
-  const w = (await res.json()) as OAWork;
-  if (!w.title) return null;
-  const names = (w.authorships ?? []).map((a) => a.author?.display_name).filter((n): n is string => !!n);
-  return {
-    doi: w.doi ? w.doi.replace(/^https?:\/\/doi\.org\//i, "").toLowerCase() : doi,
-    title: w.title,
-    authorFamilies: names.map((n) => n.trim().split(/\s+/).pop() ?? "").filter(Boolean),
-    authors: names,
-    year: w.publication_year ?? null,
-    venue: w.primary_location?.source?.display_name ?? null,
-  };
+  return fromOpenAlex((await res.json()) as OAWork, doi);
+}
+
+/**
+ * Title search in OpenAlex: finds what Crossref does not index (arXiv and other preprints, many conference papers). Costs about $0.001
+ * per call (the key has a daily budget), so it is only asked when Crossref could not confirm a reference. Only letters and digits
+ * go into the filter: commas, colons and pipes are filter syntax.
+ */
+export async function openAlexSearchTitle(title: string, env: LookupEnv, rows = 8): Promise<Candidate[]> {
+  const clean = title.replace(/[^\p{L}\p{N}]+/gu, " ").trim().slice(0, 200);
+  if (clean.split(" ").length < 2) return [];
+  const params = new URLSearchParams({ filter: `title.search:${clean}`, "per-page": String(rows), select: OA_SELECT });
+  if (env.OPENALEX_API_KEY) params.set("api_key", env.OPENALEX_API_KEY);
+  const res = await f(env)(`https://api.openalex.org/works?${params}`, { signal: AbortSignal.timeout(10_000) }).catch((e) => {
+    throw new LookupError(`OpenAlex unreachable: ${e instanceof Error ? e.message : e}`);
+  });
+  if (!res.ok) throw new LookupError(`OpenAlex HTTP ${res.status}`);
+  const body = (await res.json()) as { results?: OAWork[] };
+  return (body.results ?? []).map((w) => fromOpenAlex(w)).filter((c): c is Candidate => !!c);
 }
 
 /** Does the DOI resolve at all (any registration agency)? */

@@ -43,9 +43,32 @@ export const tokenize = (s: string): string[] => fold(s).match(/[\p{L}\p{N}]+/gu
 
 /** "https://doi.org/10.1000/ABC.", "doi:10.1000/abc)" -> "10.1000/abc" */
 export function extractDoi(text: string): string | null {
-  const m = text.match(/10\.\d{4,9}\/[^\s"<>]+/i);
+  // A DOI that a PDF wrapped onto the next line ("…2016- 12210", "S0022- 0302(06)72335-9") arrives with a space after its hyphen;
+  // a "%0A" (an encoded line break inside a pasted link) ends it.
+  const m = text.match(/10\.\d{4,9}\/[^\s"<>]+(?:(?<=[-\u2010-\u2013])\s+[^\s"<>]+)?/i);
   if (!m) return null;
-  return m[0].replace(/[.,;:)\]}>'"]+$/, "").toLowerCase();
+  return m[0].replace(/%0[ad][^]*$/i, "").replace(/\s+/g, "").replace(/[\u2010-\u2013]/g, "-").replace(/[.,;:)\]}>'"]+$/, "").toLowerCase();
+}
+
+/**
+ * Words a PDF broke across lines come out as "im- age recognition" / "Convolu- tional": rejoin them. A hyphen that really is part of
+ * a compound before "and", "or" ("pre- and post-test") stays.
+ */
+export const joinHyphenated = (text: string): string => text.replace(/(\p{L}{2,})-\s+(?!(?:and|or|to|vs|und|et)\b)(\p{Ll}{2,})/gu, "$1$2");
+
+/** "arXiv:1607.06450v2", "arxiv.org/abs/1706.03762", "CoRR, abs/1409.0473" -> "1607.06450" (new-style ids only, version dropped). */
+export function extractArxivId(text: string): string | null {
+  const m = text.match(/(?:arxiv[^\d]{0,30}|\babs\/)(\d{4}\.\d{4,5})(?:v\d+)?/i);
+  return m && /^(\d{2})(0[1-9]|1[0-2])\./.test(m[1]!) ? m[1]! : null;
+}
+
+/** The DOI arXiv (through DataCite) gives every preprint. */
+export const arxivDoi = (id: string): string => `10.48550/arxiv.${id}`;
+
+/** Year a preprint first appeared, read from its arXiv DOI ("…arxiv.1706.03762" -> 2017); null for any other DOI. */
+export function arxivYear(doi: string | null): number | null {
+  const m = doi ? /^10\.48550\/arxiv\.(\d{2})(0[1-9]|1[0-2])\./i.exec(doi) : null;
+  return m ? 2000 + Number(m[1]) : null;
 }
 
 /** Plausible publication years mentioned in the text (1900-2099), in order of appearance. */
@@ -55,22 +78,24 @@ export function extractYears(text: string): number[] {
   return [...clean.matchAll(/(?<![\d])(19\d{2}|20\d{2})(?![\d])/g)].map((m) => Number(m[1]));
 }
 
-/** Length of the longest run of consecutive words of `needle` that appears, in order and unbroken, in `haystack`. */
-function longestRun(needle: string[], haystack: string[]): number {
-  let best = 0;
+/** The longest run of consecutive words of `needle` that appears, in order and unbroken, in `haystack`: its length and where it starts. */
+function locateRun(needle: string[], haystack: string[]): { len: number; start: number } {
+  let best = { len: 0, start: -1 };
   let prev = new Array<number>(haystack.length + 1).fill(0);
   for (const n of needle) {
     const cur = new Array<number>(haystack.length + 1).fill(0);
     for (let j = 1; j <= haystack.length; j++) {
       if (haystack[j - 1] === n) {
         cur[j] = prev[j - 1]! + 1;
-        if (cur[j]! > best) best = cur[j]!;
+        if (cur[j]! > best.len) best = { len: cur[j]!, start: j - cur[j]! };
       }
     }
     prev = cur;
   }
   return best;
 }
+
+const longestRun = (needle: string[], haystack: string[]): number => locateRun(needle, haystack).len;
 
 export function checkMatch(refText: string, c: Candidate): MatchChecks {
   const refTokens = new Set(tokenize(refText));
@@ -81,7 +106,13 @@ export function checkMatch(refText: string, c: Candidate): MatchChecks {
   // ("Consensus in Blockchain") is otherwise "covered" by any long reference that happens to contain those words scattered
   // through a different title. Allow some drift (typos, a dropped subtitle): the longest run must cover most of the title.
   const allTitle = tokenize(c.title);
-  if (allTitle.length > 0 && longestRun(allTitle, tokenize(refText)) / allTitle.length < 0.75) title = Math.min(title, 0.4);
+  const refWords = tokenize(refText);
+  const run = locateRun(allTitle, refWords);
+  if (allTitle.length > 0 && run.len / allTitle.length < 0.75) title = Math.min(title, 0.4);
+  // A record whose title is the name of the VENUE the reference was published in ("Advances in Neural Information Processing
+  // Systems 19", "Neural Networks", a conference's proceedings) sits right after "In" in the reference. That is where a venue is
+  // named, never where a title is, so it says nothing about the cited paper.
+  else if (run.len >= 2 && run.start > 0 && refWords[run.start - 1] === "in" && allTitle[0] !== "in") title = Math.min(title, 0.4);
   // A very short record title that is only a fragment of the reference's own, much longer title ("Blockchain Consensus" inside
   // "Quantum-inspired blockchain consensus for rural healthcare records") is a coincidence, not the same paper.
   const own = allTitle.length > 0 && allTitle.length <= 3 ? guessTitle(refText) : null;
@@ -119,6 +150,9 @@ export function verdict(c: Candidate, k: MatchChecks): MatchVerdict {
   const titleTokens = tokenize(c.title).filter((t) => t.length > 1 || /\p{N}/u.test(t));
   const short = titleTokens.length < 3; // "Deep learning": generic, demand both confirmations
   const needTitle = short ? 0.95 : 0.85;
+  // A record whose whole title is one word ("ry", "Introduction") resembles every reference that happens to contain it: it can confirm
+  // a reference (with author and year) but is never reported as "a real paper with a very similar title".
+  if (titleTokens.length < 2) return k.title >= needTitle && k.author === true && k.year === true ? "verified" : "different";
   if (k.title < needTitle) return k.title >= 0.5 ? "title_only" : "different";
 
   if (k.author === false || k.year === false) return "title_only"; // contradicted by the record
@@ -127,13 +161,15 @@ export function verdict(c: Candidate, k: MatchChecks): MatchVerdict {
   return "verified"; // author confirmed (author === true), year true or unknown
 }
 
+const QUOTED_TITLE = /[“"]([^”"]{12,300})[”"]/;
+
 /**
  * Best guess at the title inside a pasted reference, for a title-focused search. Handles quoted titles (IEEE) and
  * sentence-structured styles (APA, Vancouver): the longest sentence that does not look like an author list.
  * Returns null when it cannot isolate one (e.g. "Smith et al., Title, Journal 2020" with no sentence breaks).
  */
 export function guessTitle(text: string): string | null {
-  const quoted = text.match(/[“"]([^”"]{12,300})[”"]/);
+  const quoted = text.match(QUOTED_TITLE);
   if (quoted) return quoted[1]!.replace(/[,.\s]+$/, "").trim();
 
   const plain = text.replace(/https?:\/\/\S+|doi:\s*\S+|10\.\d{4,9}\/\S+/gi, " ").replace(/\s+/g, " ").trim();
@@ -152,6 +188,48 @@ export function guessTitle(text: string): string | null {
     }
   }
   return best && best.length < plain.length * 0.95 ? best : null;
+}
+
+const NAME_JOINERS = /^(and|&|et|al\.?|de|van|von|der|den|di|da|la|le|du|dos|del|bin|ibn)$/i;
+
+/** "Jimmy Lei Ba, Jamie Ryan Kiros, and Geoffrey E Hinton": capitalised words with commas or "and". */
+export function looksLikeAuthors(s: string): boolean {
+  const words = s.split(/\s+/).filter(Boolean);
+  if (words.length < 2) return false;
+  const nameLike = words.filter((w) => /^\p{Lu}/u.test(w) || NAME_JOINERS.test(w)).length;
+  return nameLike / words.length >= 0.9 && (/,/.test(s) || /\band\b|&/.test(s));
+}
+
+/**
+ * For styles that put the authors first ("Authors. Title. Venue, year."), the sentence that follows the author list, even when it is
+ * short ("Layer normalization."), which guessTitle skips. null when the text does not look like that.
+ */
+export function titleAfterAuthors(text: string): string | null {
+  const plain = text.replace(/https?:\/\/\S+|doi:\s*\S+|10\.\d{4,9}\/\S+/gi, " ").replace(/\s+/g, " ").trim();
+  const parts = plain.split(/(?<=[.?!])\s+(?=[\p{Lu}\p{N}“"(\[])/u).map((x) => x.trim()).filter(Boolean);
+  const bare = (x: string) => x.replace(/[.\s]+$/, "");
+  // a single full name ("Alex Graves") is an author list only as the very first part of the reference
+  const isName = (x: string) => /^\p{Lu}[\p{L}'’-]+(\s\p{Lu}[\p{L}'’.-]*){1,2}$/u.test(bare(x));
+  const i = parts.findIndex((x, k) => looksLikeAuthors(bare(x)) || (k === 0 && isName(x)));
+  let j = i + 1;
+  // "... and Alexander M. Rush." splits after the initial and leaves the surname alone as a one-word part
+  while (i >= 0 && j < parts.length && bare(parts[j]!).split(/\s+/).length === 1) j++;
+  // the title ends at its own full stop, even when the venue after it starts in lower case ("... normalization. arXiv preprint ...")
+  const next = i >= 0 ? parts[j]?.split(/(?<=[.?!])\s+(?=\p{Ll})/u)[0]?.replace(/[.\s]+$/, "") : undefined;
+  const words = next ? next.split(/\s+/).length : 0;
+  return next && words >= 2 && words <= 30 && !/^in\s/i.test(next) ? next : null;
+}
+
+/**
+ * The title to search for: the sentence after the author list when the reference is written authors-first (it also finds short
+ * titles), otherwise guessTitle, unless that turned out to be the author list itself.
+ */
+export function searchTitle(text: string): string | null {
+  if (QUOTED_TITLE.test(text)) return guessTitle(text); // IEEE style: the quotes say where the title is
+  const after = titleAfterAuthors(text);
+  if (after) return after;
+  const guess = guessTitle(text);
+  return guess && !looksLikeAuthors(guess) ? guess : null;
 }
 
 export const confidence = (k: MatchChecks): number =>

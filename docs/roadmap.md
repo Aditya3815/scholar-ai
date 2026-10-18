@@ -47,12 +47,12 @@ Cloudflare: Workers Paid, R2 Paid.
 | 2. Store it per paper; metadata from OpenAlex/Crossref by DOI | ✅ also gives a paper its real title; publisher's list as fallback |
 | 3. References tab: every entry checked by the Verifier, retracted citations called out, export | ✅ |
 | 4. Contents (outline) menu in the reader | ✅ |
-| 5. OpenAlex as a second lookup source in the Verifier (arXiv/preprints), re-measure on the held-out set | 🔨 next: only 57% of a paper's references verified, mostly preprints and conference papers Crossref does not index |
+| 5. OpenAlex as a second lookup source in the Verifier (arXiv/preprints) + fixes found by running real papers | 🟡 built: 21% (rate-limited) → 78% of the five papers' 175 references verified (R1b spike, "Result: the Verifier"). **Eval gates being re-recorded**, then push |
 | 6. Docling in Cloudflare Containers for scanned PDFs (OCR) and tables | ⏳ later |
 
 ## Next, in this order
 
-1. Verifier: OpenAlex as a second source (step 5 above).
+1. Verifier: finish step 5 (re-record the eval, check the gates, push).
 2. Q&A eval in a weekly workflow; free OpenRouter as a public-data fallback; paid ZDR route only after it passes the gold set.
 3. Privacy / Terms / "How we verify" pages + first-upload privacy card (needs Aditya's inputs).
 4. Onboarding, a "wrong answer / wrong citation" button feeding the eval set, small admin page.
@@ -78,6 +78,7 @@ to keep the "Images Stream Basic" subscription (we do not use it).
 
 ## Log
 
+- 2026-10-18 (night): Verifier: Crossref calls gated to its 3/s limit, OpenAlex title search and arXiv-id lookup as a second source, three false accusations fixed (wrapped DOIs, markup in titles, broken words). Real-paper verification 21% → 78%. Eval re-record in progress.
 - 2026-10-18 (later): paper intelligence v1 shipped: References tab, Contents menu, real titles and metadata for uploads; measured on the five real PDFs.
 - 2026-10-18: held-out eval; uploaded papers + grounded Q&A + preview + My papers UI; answer streaming; GROBID alternatives spike;
   Workers Paid active; this roadmap created.

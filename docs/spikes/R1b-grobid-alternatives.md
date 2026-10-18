@@ -103,3 +103,21 @@ Safeguards worth knowing: a DOI printed on page 1 is trusted for metadata only i
 preprint's year comes from its arXiv id (OpenAlex merges versions and can report the latest); if the PDF's own list cannot be read
 and a DOI is known, the publisher's deposited list is used instead and the panel says so; what the browser sends is validated and
 bounded, and `metadata` can never be set by the client.
+
+## Result: the Verifier on real references, 2026-10-18
+
+Same five PDFs, every extracted reference (175 of them) run through the live Verifier (`REAL_PDFS=<folder> REAL_VERIFY=1 npm run integration -w apps/api -- --browser --only="browser: real"`):
+
+| Step | Verified |
+| --- | --- |
+| First run | 21%: not a quality number. Crossref allows 3 requests per second and 3 at once; one reference made up to 3 calls and the app ran 3 to 4 references in parallel, so most came back "could not check" |
+| Crossref calls gated (2 at once, a 429 is retried after the time Crossref asks) | 63% (110 of 175), "could not check" 128 to 5 |
+| OpenAlex title search when Crossref cannot confirm a reference | 66% |
+| arXiv ids looked up directly; the search title is taken from after the author list (short titles such as "Layer normalization" were being lost to the author list); preprint year from the arXiv id | 72% |
+| DOIs a PDF wrapped onto the next line are rejoined (they were reported as "DOI does not exist": a false accusation); "<i>" markup in Crossref titles stripped (a correct reference was called a different paper); hyphenated line breaks ("im- age") rejoined | 79% |
+| One-word record titles can no longer be offered as "a real paper with a very similar title" | 78% (live data moves a little between runs) |
+
+What is left (about 1 in 5) is mostly **not a defect**: books, reports, web pages and Wikipedia (not in either registry; the card says so), reprints
+whose record carries a later year (Collins 1989 listed as 2018: reported as a year mismatch, with the record shown), and records where OpenAlex has the wrong
+author list. A fabricated reference is still never "verified": the same tuned and held-out fake sets gate every push (see docs/eval/REPORT.md).
+

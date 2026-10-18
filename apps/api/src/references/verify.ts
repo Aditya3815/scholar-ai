@@ -7,9 +7,10 @@ import {
   crossrefSearchTitle,
   doiResolves,
   openAlexByDoi,
+  openAlexSearchTitle,
   type LookupEnv,
 } from "./lookup";
-import { checkMatch, confidence, extractDoi, guessTitle, pickBest, tokenize, verdict, type Candidate, type MatchChecks } from "./match";
+import { arxivDoi, checkMatch, confidence, extractArxivId, extractDoi, joinHyphenated, pickBest, searchTitle, tokenize, verdict, type Candidate, type MatchChecks } from "./match";
 
 /**
  *  verified      the reference matches a real record: title covered, plus author or year, nothing contradicting
@@ -77,9 +78,27 @@ async function viaDoi(text: string, doi: string, env: LookupEnv): Promise<RefRes
   return withRetraction(result(text, "mismatch", `This DOI belongs to a different paper: ${describe(rec)}.`, rec, checks), env);
 }
 
+/**
+ * A preprint cited with its arXiv id ("arXiv:1607.06450"): the id gives the DOI arXiv registers for it, which OpenAlex holds even
+ * though Crossref does not. Only a confirmation: a record that does not match is not held against the reference, because arXiv titles
+ * and authors change between versions. Then the search decides. null = no confirmation from this route.
+ */
+async function viaArxiv(text: string, id: string, env: LookupEnv): Promise<RefResult | null> {
+  let rec: Candidate | null;
+  try {
+    rec = await openAlexByDoi(arxivDoi(id), env);
+  } catch {
+    return null;
+  }
+  if (!rec) return null;
+  const checks = checkMatch(text, rec);
+  if (verdict(rec, checks) !== "verified") return null;
+  return withRetraction(result(text, "verified", `Matches ${describe(rec)}. Found in OpenAlex through its arXiv id.`, rec, checks), env);
+}
+
 /** Two searches, merged: the whole pasted string, and (when a title can be isolated) a title-focused query. */
 async function candidatesFor(text: string, env: LookupEnv): Promise<{ cands: Candidate[]; partialFailure: boolean }> {
-  const title = guessTitle(text);
+  const title = searchTitle(text);
   const settled = await Promise.allSettled([crossrefSearch(text, env), title ? crossrefSearchTitle(title, env) : Promise.resolve([] as Candidate[])]);
   const failed = settled.filter((s): s is PromiseRejectedResult => s.status === "rejected");
   if (failed.length === settled.length) throw failed[0]!.reason;
@@ -97,27 +116,56 @@ async function candidatesFor(text: string, env: LookupEnv): Promise<{ cands: Can
 
 const COULD_NOT_CHECK = "We could not reach the reference databases just now, so this was not fully checked. Please try again.";
 
+/**
+ * OpenAlex indexes what Crossref does not (arXiv and other preprints, many conference papers). It is asked only when Crossref has not
+ * confirmed the reference, and only for a reference whose title can be isolated. null = not consulted or it failed: that must never
+ * change the answer Crossref gave, so a failing OpenAlex is silent.
+ */
+async function openAlexCandidates(text: string, env: LookupEnv): Promise<Candidate[] | null> {
+  const title = searchTitle(text);
+  if (!title) return null;
+  try {
+    return await openAlexSearchTitle(title, env);
+  } catch {
+    return null;
+  }
+}
+
+const merge = (a: Candidate[], b: Candidate[]): Candidate[] => {
+  const seen = new Set(a.map((c) => c.doi ?? `${c.title}|${c.year}`));
+  return [...a, ...b.filter((c) => !seen.has(c.doi ?? `${c.title}|${c.year}`))];
+};
+
 async function viaSearch(text: string, env: LookupEnv): Promise<RefResult> {
   const { cands, partialFailure } = await candidatesFor(text, env);
-  const best = pickBest(text, cands);
+  let best = pickBest(text, cands);
+  let oa: Candidate[] | null = null;
+  if (!best || verdict(best.cand, best.checks) !== "verified") {
+    oa = await openAlexCandidates(text, env);
+    if (oa) best = pickBest(text, merge(cands, oa));
+  }
+  const where = oa ? "Crossref or OpenAlex" : "Crossref";
+  const via = best && oa?.includes(best.cand) ? " Found in OpenAlex." : "";
   // "Not found" is a claim about the world. If one of the searches failed, absence of evidence is not evidence of absence.
-  if (!best) return partialFailure ? result(text, "unverifiable", COULD_NOT_CHECK) : result(text, "not_found", "No matching paper was found in Crossref.");
+  if (!best) return partialFailure ? result(text, "unverifiable", COULD_NOT_CHECK) : result(text, "not_found", `No matching paper was found in ${where}.`);
   const v = verdict(best.cand, best.checks);
   if (v === "different" && partialFailure) return result(text, "unverifiable", COULD_NOT_CHECK, null, best.checks);
-  if (v === "verified") return withRetraction(result(text, "verified", `Matches ${describe(best.cand)}.`, best.cand, best.checks), env);
+  if (v === "verified") return withRetraction(result(text, "verified", `Matches ${describe(best.cand)}.${via}`, best.cand, best.checks), env);
   if (v === "no_authors") return withRetraction(result(text, "unverifiable", NO_AUTHORS, best.cand, best.checks), env);
   if (v === "title_only") return withRetraction(result(text, "mismatch", explainTitleOnly(best.cand, best.checks), best.cand, best.checks), env);
-  return result(text, "not_found", "No paper matching this title, authors and year was found in Crossref.", null, best.checks);
+  return result(text, "not_found", `No paper matching this title, authors and year was found in ${where}.`, null, best.checks);
 }
 
 export async function verifyReference(raw: string, env: LookupEnv): Promise<RefResult> {
-  const text = raw.replace(/\s+/g, " ").trim();
+  const text = joinHyphenated(raw.replace(/\s+/g, " ").trim());
   if (text.length < 15 || tokenize(text).length < 3) {
     return result(raw, "unparsed", "This does not look like a full reference. Paste the whole entry (authors, title, journal, year).");
   }
   try {
     const doi = extractDoi(text);
-    return doi ? await viaDoi(text, doi, env) : await viaSearch(text, env);
+    if (doi) return await viaDoi(text, doi, env);
+    const arxiv = extractArxivId(text);
+    return (arxiv && (await viaArxiv(text, arxiv, env))) || (await viaSearch(text, env));
   } catch (e) {
     if (e instanceof LookupError) {
       return result(text, "unverifiable", "We could not reach the reference databases just now, so this was not checked. Please try again.");

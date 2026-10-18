@@ -115,6 +115,93 @@ describe("without a DOI", () => {
   });
 });
 
+describe("OpenAlex as a second source", () => {
+  const ARXIV = "Kingma, D. P., & Ba, J. (2015). Adam: A method for stochastic optimization. In International Conference on Learning Representations.";
+  const oaWork = (over: Record<string, unknown> = {}) => ({
+    doi: "https://doi.org/10.48550/arxiv.1412.6980",
+    title: "Adam: A Method for Stochastic Optimization",
+    publication_year: 2014,
+    authorships: [{ author: { display_name: "Diederik P. Kingma" } }, { author: { display_name: "Jimmy Ba" } }],
+    primary_location: { source: { display_name: "arXiv" } },
+    ...over,
+  });
+  const oaSearch = (results: unknown[]): Handler => (u) => (u.includes("api.openalex.org/works?") ? json({ results }) : undefined);
+
+  it("verifies a preprint Crossref does not index, and says where it was found", async () => {
+    const calls = stub(oaSearch([oaWork()]));
+    const r = await verifyReference(ARXIV, env);
+    expect(r.status).toBe("verified");
+    expect(r.match?.doi).toBe("10.48550/arxiv.1412.6980");
+    expect(r.reason).toMatch(/Found in OpenAlex/);
+    expect(calls.some((u) => u.includes("title.search"))).toBe(true);
+  });
+
+  const LN = "Jimmy Lei Ba, Jamie Ryan Kiros, and Geoffrey E Hinton. Layer normalization. arXiv preprint arXiv:1607.06450, 2016.";
+  const lnWork = (over: Record<string, unknown> = {}) => oaWork({ doi: "https://doi.org/10.48550/arxiv.1607.06450", title: "Layer Normalization", publication_year: 2016, authorships: [{ author: { display_name: "Jimmy Lei Ba" } }, { author: { display_name: "Geoffrey E. Hinton" } }], ...over });
+  const oaByDoi = (w: unknown): Handler => (u) => (u.includes("/works/doi:10.48550/arxiv.1607.06450") ? json(w) : undefined);
+
+  it("verifies a reference through its arXiv id without searching", async () => {
+    const calls = stub(oaByDoi(lnWork()));
+    const r = await verifyReference(LN, env);
+    expect(r.status).toBe("verified");
+    expect(r.reason).toMatch(/arXiv id/);
+    expect(calls.some((u) => u.includes("query.bibliographic"))).toBe(false);
+  });
+
+  it("uses the year the preprint first appeared, not the latest version OpenAlex reports", async () => {
+    stub(oaByDoi(lnWork({ publication_year: 2025 })));
+    expect((await verifyReference(LN, env)).status).toBe("verified");
+  });
+
+  it("does not hold a different record behind the id against the reference: the search decides", async () => {
+    stub(oaByDoi(lnWork({ title: "A Study of Soil Microbes", authorships: [{ author: { display_name: "Maria Silva" } }] })), oaSearch([lnWork()]));
+    const r = await verifyReference(LN, env);
+    expect(r.status).toBe("verified");
+    expect(r.reason).toMatch(/Found in OpenAlex\./);
+  });
+
+  it("finds a short title that the title guess would have missed", async () => {
+    const calls = stub(oaSearch([lnWork()]));
+    const r = await verifyReference(LN.replace("arXiv preprint arXiv:1607.06450, ", ""), env);
+    expect(r.status).toBe("verified");
+    expect(calls.find((u) => u.includes("title.search"))).toMatch(/title\.search(%3A|:)Layer(\+|%20)normalization/);
+  });
+
+  it("is not asked when Crossref already verified the reference", async () => {
+    const calls = stub((u) => (u.includes("query.bibliographic") ? json({ message: { items: [cr()] } }) : undefined), oaSearch([oaWork()]));
+    expect((await verifyReference(GOOD, env)).status).toBe("verified");
+    expect(calls.some((u) => u.includes("openalex"))).toBe(false);
+  });
+
+  it("lets a real OpenAlex record replace a Crossref near-miss", async () => {
+    stub((u) => (u.includes("query.bibliographic") ? json({ message: { items: [cr({ title: ["Adam: a method for stochastic optimization (comment)"], author: [{ family: "Reviewer" }], issued: { "date-parts": [[2019]] } })] } }) : undefined), oaSearch([oaWork()]));
+    const r = await verifyReference(ARXIV, env);
+    expect(r.status).toBe("verified");
+    expect(r.match?.authors[0]).toBe("Diederik P. Kingma");
+  });
+
+  it("still says not_found for an invented reference, naming both sources", async () => {
+    stub(oaSearch([oaWork({ title: "Soil carbon in tropical forests", authorships: [{ author: { display_name: "Maria Silva" } }] })]));
+    const r = await verifyReference("Kapoor, S., & Menon, V. (2022). Quantum reservoir scheduling for monsoon-aware banking. Journal of Applied Fictional Studies, 12(3), 55-71.", env);
+    expect(r.status).toBe("not_found");
+    expect(r.reason).toMatch(/Crossref or OpenAlex/);
+  });
+
+  it("a failing OpenAlex changes nothing: Crossref's answer stands, and the wording only names Crossref", async () => {
+    stub((u) => (u.includes("api.openalex.org") ? new Response("", { status: 429 }) : undefined));
+    const r = await verifyReference("Kapoor, S., & Menon, V. (2022). Quantum reservoir scheduling for monsoon-aware banking. Journal of Applied Fictional Studies, 12(3), 55-71.", env);
+    expect(r.status).toBe("not_found");
+    expect(r.reason).toMatch(/in Crossref\./);
+    expect(r.reason).not.toMatch(/OpenAlex/);
+  });
+
+  it("does not turn an OpenAlex record with the right title but wrong authors into a verification", async () => {
+    stub(oaSearch([oaWork({ authorships: [{ author: { display_name: "Maria Silva" } }], publication_year: 2003 })]));
+    const r = await verifyReference(ARXIV, env);
+    expect(r.status).toBe("mismatch");
+  });
+});
+
 describe("failure handling never lies", () => {
   it("unverifiable when the databases are unreachable (not not_found)", async () => {
     vi.stubGlobal("fetch", async () => { throw new Error("network down"); });

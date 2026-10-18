@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkMatch, extractDoi, extractYears, guessTitle, pickBest, verdict, type Candidate } from "./match";
+import { arxivDoi, arxivYear, checkMatch, extractArxivId, extractDoi, extractYears, guessTitle, joinHyphenated, looksLikeAuthors, pickBest, searchTitle, titleAfterAuthors, verdict, type Candidate } from "./match";
 
 const attention: Candidate = {
   doi: "10.48550/arxiv.1706.03762",
@@ -127,5 +127,105 @@ describe("pickBest", () => {
     const ref = "Vaswani A et al. (2017) Attention is all you need. NeurIPS.";
     expect(pickBest(ref, [decoy, attention])?.cand.doi).toBe(attention.doi);
     expect(pickBest(ref, [])).toBeNull();
+  });
+});
+
+describe("arXiv ids", () => {
+  it.each([
+    ["Ba, J. et al. Layer normalization. arXiv preprint arXiv:1607.06450, 2016.", "1607.06450"],
+    ["Gehring J. Convolutional sequence to sequence learning. arXiv preprint arXiv:1705.03122v2, 2017.", "1705.03122"],
+    ["Vaswani et al. Attention is all you need. https://arxiv.org/abs/1706.03762", "1706.03762"],
+    ["Bahdanau D. Neural machine translation by jointly learning to align and translate. CoRR, abs/1409.0473, 2014.", "1409.0473"],
+    ["Smith J. A paper. Journal of Things 1234.5678, 2020.", null], // a page range or volume, not an arXiv id
+    ["Smith J. A paper. arXiv:9913.00001", null], // month 13 does not exist
+  ])("%s", (ref, expected) => expect(extractArxivId(ref)).toBe(expected));
+
+  it("turns an id into the DOI arXiv registers, and reads the first-submission year from it", () => {
+    expect(arxivDoi("1607.06450")).toBe("10.48550/arxiv.1607.06450");
+    expect(arxivYear("10.48550/arxiv.1706.03762")).toBe(2017);
+    expect(arxivYear("10.1000/other")).toBeNull();
+    expect(arxivYear(null)).toBeNull();
+  });
+});
+
+describe("titles after an author list", () => {
+  it("recognises author lists, not titles", () => {
+    expect(looksLikeAuthors("Jimmy Lei Ba, Jamie Ryan Kiros, and Geoffrey E Hinton")).toBe(true);
+    expect(looksLikeAuthors("Nal Kalchbrenner, Lasse Espeholt, and Koray Kavukcuoglu")).toBe(true);
+    expect(looksLikeAuthors("Deep residual learning for image recognition")).toBe(false);
+    expect(looksLikeAuthors("Layer normalization")).toBe(false);
+    expect(looksLikeAuthors("Attention Is All You Need")).toBe(false);
+  });
+
+  it("finds a short title that guessTitle skips", () => {
+    const ref = "Jimmy Lei Ba, Jamie Ryan Kiros, and Geoffrey E Hinton. Layer normalization. arXiv preprint arXiv:1607.06450, 2016.";
+    expect(titleAfterAuthors(ref)).toBe("Layer normalization");
+    expect(guessTitle(ref)).toMatch(/Jimmy Lei Ba/); // the reason this exists
+  });
+
+  it("does not return a venue, and gives up when there is no author-first structure", () => {
+    expect(titleAfterAuthors("Jimmy Ba and Diederik Kingma. In International Conference on Learning Representations, 2015.")).toBeNull();
+    expect(titleAfterAuthors("Layer normalization is a thing people cite a lot, 2016")).toBeNull();
+  });
+});
+
+describe("a venue is not a title", () => {
+  const venue: Candidate = { doi: "10.7551/mitpress/7503.001.0001", title: "Advances in Neural Information Processing Systems 19", authorFamilies: [], authors: [], year: 2007, venue: null };
+  it("does not treat the proceedings a paper appeared in as the paper", () => {
+    const ref = "Ilya Sutskever, Oriol Vinyals, and Quoc V Le. Sequence to sequence learning with neural networks. In Advances in Neural Information Processing Systems 19, pages 3104-3112, 2014.";
+    expect(checkMatch(ref, venue).title).toBeLessThan(0.5);
+    expect(v(ref, venue)).toBe("different");
+  });
+
+  it("still matches a real title that merely contains the venue's words, and a title that follows \"in\" inside the title itself", () => {
+    const real: Candidate = { ...attention, title: "Advances in Neural Information Processing Systems" , year: 2017, authorFamilies: ["Guyon"], authors: ["Isabelle Guyon"] };
+    expect(checkMatch("Guyon I. (2017) Advances in Neural Information Processing Systems. Proceedings.", real).title).toBe(1);
+    const inner: Candidate = { ...attention, title: "Mobility in India", authorFamilies: ["Rao"], authors: ["Rao"], year: 2019 };
+    expect(checkMatch("Rao S. (2019) Mobility in India. Journal of Cities.", inner).title).toBe(1);
+  });
+});
+
+describe("DOIs as a PDF delivers them", () => {
+  it.each([
+    ["Available at: http://dx.doi.org/10.3168/jds.2016- 12210.", "10.3168/jds.2016-12210"],
+    ["Available at: http://dx.doi.org/10.3168/jds.S0022- 0302(06)72335-9.", "10.3168/jds.s0022-0302(06)72335-9"],
+    ["Available at: https://www.annualreviews.org/doi/full/10.1146/annurev-resource-100518- 093954.", "10.1146/annurev-resource-100518-093954"],
+    ["PLoS ONE 13(8). https://doi.org/10.1371/journal.pone.0198436%0AEditor: Someone", "10.1371/journal.pone.0198436"],
+    ["Smith J. (2020). A title. J Things. https://doi.org/10.1000/abc.5 Next Reference Here", "10.1000/abc.5"], // no wrap, nothing swallowed
+    ["Smith J. (2020). A title. doi:10.1000/abc.5.", "10.1000/abc.5"],
+  ])("%s", (ref, expected) => expect(extractDoi(ref)).toBe(expected));
+});
+
+describe("searchTitle", () => {
+  it.each([
+    ["Jimmy Lei Ba, Jamie Ryan Kiros, and Geoffrey E Hinton. Layer normalization. arXiv preprint arXiv:1607.06450, 2016.", "Layer normalization"],
+    ["Alex Graves. Generating sequences with recurrent neural networks. arXiv preprint arXiv:1308.0850, 2013.", "Generating sequences with recurrent neural networks"],
+    ["Łukasz Kaiser and Ilya Sutskever. Neural GPUs learn algorithms. In International Conference on Learning Representations (ICLR), 2016.", "Neural GPUs learn algorithms"],
+    ["Yoon Kim, Carl Denton, Luong Hoang, and Alexander M. Rush. Structured attention networks. In International Conference on Learning Representations, 2017.", "Structured attention networks"],
+    ["Desai, A., & Verma, R. (2021). Graph neural networks for protein function prediction. Bioinformatics, 37(5), 1-12.", "Graph neural networks for protein function prediction"],
+    ["Smith J. \"A quoted title for the search\", Journal of Things, 2020.", "A quoted title for the search"],
+  ])("%s", (ref, expected) => expect(searchTitle(ref)).toBe(expected));
+});
+
+describe("words a PDF broke across lines", () => {
+  it("rejoins them, and leaves real compounds alone", () => {
+    expect(joinHyphenated("Deep residual learning for im- age recognition. In Proceedings")).toBe("Deep residual learning for image recognition. In Proceedings");
+    expect(joinHyphenated("Convolu- tional sequence to sequence learning")).toBe("Convolutional sequence to sequence learning");
+    expect(joinHyphenated("a pre- and post-test design")).toBe("a pre- and post-test design");
+    expect(joinHyphenated("Springer- Verlag, New York; state-of-the-art")).toBe("Springer- Verlag, New York; state-of-the-art");
+  });
+
+  it("lets a title with a broken word verify", () => {
+    const resnet: Candidate = { doi: "10.1109/cvpr.2016.90", title: "Deep Residual Learning for Image Recognition", authorFamilies: ["He", "Zhang", "Ren", "Sun"], authors: [], year: 2016, venue: null };
+    const ref = "Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for im- age recognition. In CVPR, 2016.";
+    expect(v(ref, resnet)).not.toBe("verified"); // the broken word alone breaks the match...
+    expect(v(joinHyphenated(ref), resnet)).toBe("verified"); // ...rejoined, it matches
+  });
+});
+
+describe("one-word record titles", () => {
+  const one: Candidate = { doi: "10.1/x", title: "ry", authorFamilies: ["Asu"], authors: ["Rohit Asu"], year: 2026, venue: null };
+  it("are never offered as a similar paper", () => {
+    expect(v("NDDB. 2019. Handbook of Good Dairy Husbandry Practices. Anand: ry National Dairy Development Board.", one)).toBe("different");
   });
 });
