@@ -1,7 +1,7 @@
 import { animate, m, useReducedMotion } from "motion/react";
 import { PROVIDER_LABELS, type Paper } from "@scholar/shared";
 import { BadgeCheck, Bookmark, BookmarkCheck, Eye, ExternalLink, FileText, LockOpen, ShieldAlert, TriangleAlert } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { easeOut, springPop, stagger } from "../lib/motion";
 import { toggleSaved, useLibrary } from "../lib/library";
 import { CiteMenu } from "./CiteMenu";
@@ -48,7 +48,8 @@ export function SaveButton({ paper }: { paper: Paper }) {
 const authorLine = (authors: string[]) =>
   authors.length === 0 ? "Authors unavailable" : authors.length <= 4 ? authors.join(", ") : `${authors.slice(0, 3).join(", ")} et al.`;
 
-export function ResultCard({ paper, index, onPreview }: { paper: Paper; index: number; onPreview?: (p: Paper) => void }) {
+/** `extra` is shown with the badges: Idea Check uses it to say which searches found the paper. */
+export function ResultCard({ paper, index, onPreview, extra }: { paper: Paper; index: number; onPreview?: (p: Paper) => void; extra?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const doiHref = paper.doi ? `https://doi.org/${paper.doi}` : null;
   const crossChecked = paper.sources.length >= 2;
@@ -110,6 +111,7 @@ export function ResultCard({ paper, index, onPreview }: { paper: Paper; index: n
             <LockOpen size={14} aria-hidden="true" /> Open access
           </span>
         )}
+        {extra}
         {paper.doiStatus?.startsWith("dropped") && (
           <span
             className="badge badge-warn"

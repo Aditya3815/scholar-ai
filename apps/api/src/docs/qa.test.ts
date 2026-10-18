@@ -45,6 +45,14 @@ describe("verifyAnswer", () => {
     expect(a.answer).toBe("214 people took part [1]. The outcome was HbA1c [2].");
   });
 
+  it("leaves the words of the answer alone (double letters such as ss and ll survive, extra spaces collapse)", () => {
+    const a = verifyAnswer(
+      { found: true, answer: "They assess the process  well, with a small class effect [1].", evidence: [{ excerpt: 1, quote: "recruited 214 participants from three hospitals" }] },
+      excerpts, "q", meta,
+    );
+    expect(a.answer).toBe("They assess the process well, with a small class effect [1].");
+  });
+
   it("drops a made-up quote and the marker that relied on it, and flags the answer as unverified", () => {
     const a = verifyAnswer({ found: true, answer: "It cured everyone [1].", evidence: [{ excerpt: 1, quote: "the treatment cured every single patient in the trial" }] }, excerpts, "q", meta);
     expect(a.verified).toBe(false);

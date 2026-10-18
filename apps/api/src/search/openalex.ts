@@ -17,6 +17,30 @@ type OAWork = {
   ids?: { pmid?: string | null };
 };
 
+function toProviderPapers(works: OAWork[]): ProviderPaper[] {
+  const out: ProviderPaper[] = [];
+  for (const w of works) {
+    if (!w.title) continue;
+    const pmidMatch = w.ids?.pmid?.match(/(\d+)\/?$/);
+    out.push({
+      doi: normalizeDoi(w.doi),
+      pmid: pmidMatch ? pmidMatch[1]! : null,
+      title: w.title,
+      authors: (w.authorships ?? [])
+        .map((a) => a.author?.display_name)
+        .filter((n): n is string => !!n)
+        .slice(0, 10),
+      year: w.publication_year ?? null,
+      venue: w.primary_location?.source?.display_name ?? null,
+      abstract: invertedIndexToText(w.abstract_inverted_index),
+      citationCount: w.cited_by_count ?? null,
+      oaUrl: w.open_access?.oa_url ?? null,
+      retracted: w.is_retracted === true,
+    });
+  }
+  return out;
+}
+
 /**
  * Cost note: har call ~$0.001 (OpenAlex Feb 2026 pricing, $1/day free) => ~1000 uncached calls/day.
  * Isliye orchestrator is provider ko 24h cache ke saath chalata hai.
@@ -37,27 +61,20 @@ export const openalex: Provider = {
     const res = await fetch(`https://api.openalex.org/works?${params}`, { signal });
     if (!res.ok) throw new Error(`OpenAlex HTTP ${res.status}`);
     const body = (await res.json()) as { results?: OAWork[] };
-
-    const out: ProviderPaper[] = [];
-    for (const w of body.results ?? []) {
-      if (!w.title) continue;
-      const pmidMatch = w.ids?.pmid?.match(/(\d+)\/?$/);
-      out.push({
-        doi: normalizeDoi(w.doi),
-        pmid: pmidMatch ? pmidMatch[1]! : null,
-        title: w.title,
-        authors: (w.authorships ?? [])
-          .map((a) => a.author?.display_name)
-          .filter((n): n is string => !!n)
-          .slice(0, 10),
-        year: w.publication_year ?? null,
-        venue: w.primary_location?.source?.display_name ?? null,
-        abstract: invertedIndexToText(w.abstract_inverted_index),
-        citationCount: w.cited_by_count ?? null,
-        oaUrl: w.open_access?.oa_url ?? null,
-        retracted: w.is_retracted === true,
-      });
-    }
-    return out;
+    return toProviderPapers(body.results ?? []);
   },
 };
+
+/**
+ * Search by meaning (OpenAlex `search.semantic`): the query is embedded and matched against every paper's title and abstract, so a
+ * paragraph describing an idea finds papers that use different words for it. Needs the API key, reads the first 2,000 characters,
+ * returns at most 50 papers, one request per second. Used by Idea Check only, not by the regular search.
+ */
+export async function openalexSemantic(text: string, limit: number, env: { OPENALEX_API_KEY?: string }, signal: AbortSignal): Promise<ProviderPaper[]> {
+  if (!env.OPENALEX_API_KEY) throw new Error("OPENALEX_API_KEY not configured");
+  const params = new URLSearchParams({ "search.semantic": text.slice(0, 2000), "per-page": String(Math.min(limit, 50)), select: SELECT, api_key: env.OPENALEX_API_KEY });
+  const res = await fetch(`https://api.openalex.org/works?${params}`, { signal });
+  if (!res.ok) throw new Error(`OpenAlex HTTP ${res.status}`);
+  const body = (await res.json()) as { results?: OAWork[] };
+  return toProviderPapers(body.results ?? []);
+}

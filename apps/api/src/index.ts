@@ -8,6 +8,7 @@ import { libraryRoutes } from "./library/routes";
 import { accountRoutes } from "./account/routes";
 import { referenceRoutes } from "./references/routes";
 import { documentRoutes } from "./docs/routes";
+import { ideaRoutes } from "./idea/routes";
 import type { AuthEnv } from "./auth/providers";
 import { d1Store } from "./cache/store";
 import type { SearchEnv } from "./search/types";
@@ -55,6 +56,7 @@ app.route("/api/v1/library", libraryRoutes);
 app.route("/api/v1/account", accountRoutes);
 app.route("/api/v1/references", referenceRoutes);
 app.route("/api/v1/documents", documentRoutes);
+app.route("/api/v1/idea", ideaRoutes);
 
 app.get("/api/v1/health", async (c) => {
   let db: HealthResponse["db"] = "ok";

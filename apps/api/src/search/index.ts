@@ -30,7 +30,7 @@ function inProviderOrder(lists: Record<string, ProviderPaper[]>): Record<string,
   return Object.fromEntries(PROVIDERS.filter((p) => lists[p.name]).map((p) => [p.name, lists[p.name]!]));
 }
 
-async function runProvider(p: Provider, q: string, env: SearchEnv) {
+export async function runProvider(p: Provider, q: string, env: SearchEnv) {
   const t0 = Date.now();
   const key = await cacheKey(`search:${p.name}`, q.toLowerCase(), String(PER_PROVIDER));
   const { value, hit } = await cached<ProviderPaper[]>(env.store, `search:${p.name}`, key, SEARCH_TTL_S, () =>
@@ -43,7 +43,7 @@ async function runProvider(p: Provider, q: string, env: SearchEnv) {
  * Removes DOIs that do not exist or that belong to a different record (see doi-check.ts). `count` = DOIs removed.
  * If the check itself fails the results are shown unchanged and `doiStatus` stays unset (never dropped on an error).
  */
-async function applyDoiIntegrity(env: SearchEnv, results: Paper[]): Promise<ProviderStatus> {
+export async function applyDoiIntegrity(env: SearchEnv, results: Paper[]): Promise<ProviderStatus> {
   const t0 = Date.now();
   const dois = results.map((r) => r.doi).filter((d): d is string => !!d);
   if (dois.length === 0) return { ok: true, count: 0, ms: 0, cached: false };
@@ -56,7 +56,7 @@ async function applyDoiIntegrity(env: SearchEnv, results: Paper[]): Promise<Prov
 }
 
 /** Crossref/Retraction Watch batch check; results ko in-place flag karta hai. Fail ho toh results phir bhi dikhte hain. */
-async function applyRetractions(env: SearchEnv, results: Paper[]): Promise<ProviderStatus> {
+export async function applyRetractions(env: SearchEnv, results: Paper[]): Promise<ProviderStatus> {
   const t1 = Date.now();
   const dois = results.map((r) => r.doi).filter((d): d is string => !!d);
   if (dois.length === 0) return { ok: true, count: 0, ms: 0, cached: false };

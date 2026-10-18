@@ -115,6 +115,21 @@ describe("without a DOI", () => {
   });
 });
 
+describe("markup in registry titles", () => {
+  it("verifies a reference whose Crossref title carries <i> tags, without gluing the words together", async () => {
+    stub((u) => (u.includes("query.bibliographic") ? json({ message: { items: [cr({ DOI: "10.1000/ital.1", title: ["<i>Anionic Mishran</i> Supplementation to Check Incidence of Milk Fever"], author: [{ given: "Rakesh", family: "Thakur" }], issued: { "date-parts": [[2017]] } })] } }) : undefined));
+    const r = await verifyReference("Thakur, R., P.K. Dogra, V. Sankhyan, and P. Sood. 2017. Anionic Mishran Supplementation to Check Incidence of Milk Fever. Journal of Animal Research 7(3).", env);
+    expect(r.status).toBe("verified");
+    expect(r.match?.title).toBe("Anionic Mishran Supplementation to Check Incidence of Milk Fever");
+  });
+
+  it("keeps words apart when a tag sits between them with no space", async () => {
+    stub((u) => (u.includes("/works/10.1000/glue.1") && !u.includes("filter") ? json({ message: cr({ DOI: "10.1000/glue.1", title: ["<i>In vitro</i>antibiofilm activity of<i>Murraya</i>oil"] }) }) : undefined));
+    const r = await verifyReference("Desai A. In vitro antibiofilm activity of Murraya oil. Bioinformatics 2021. 10.1000/glue.1", env);
+    expect(r.match?.title).toBe("In vitro antibiofilm activity of Murraya oil");
+  });
+});
+
 describe("OpenAlex as a second source", () => {
   const ARXIV = "Kingma, D. P., & Ba, J. (2015). Adam: A method for stochastic optimization. In International Conference on Learning Representations.";
   const oaWork = (over: Record<string, unknown> = {}) => ({

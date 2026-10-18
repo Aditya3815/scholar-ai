@@ -1,13 +1,14 @@
 import { m } from "motion/react";
-import { FileStack, ListChecks, Search } from "lucide-react";
+import { FileStack, Lightbulb, ListChecks, Search } from "lucide-react";
 import { spring } from "../lib/motion";
 
-export type View = "search" | "verify" | "papers";
+export type View = "search" | "verify" | "papers" | "idea";
 
 const ITEMS: { id: View; label: string; href: string; Icon: typeof Search }[] = [
   { id: "search", label: "Search", href: "/", Icon: Search },
   { id: "verify", label: "Verify references", href: "/verify", Icon: ListChecks },
   { id: "papers", label: "My papers", href: "/papers", Icon: FileStack },
+  { id: "idea", label: "Idea Check", href: "/idea", Icon: Lightbulb },
 ];
 
 /** Real links (open in a new tab, copy, bookmark) that navigate in place on a plain click. */

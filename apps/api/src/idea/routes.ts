@@ -1,0 +1,134 @@
+import { Hono, type Context } from "hono";
+import { streamSSE } from "hono/streaming";
+import { IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
+import { currentUser, sameOrigin } from "../auth/http";
+import { d1Store } from "../cache/store";
+import { hashEmbedder, workersAiEmbedder, type Embedder } from "../docs/embed";
+import type { Complete } from "../docs/qa";
+import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
+import type { SearchEnv } from "../search/types";
+import type { S2Throttle } from "../s2-throttle";
+import { PlanError, planIdea, scrubText } from "./plan";
+import { runIdeaSearch, sanitizeRequest } from "./search";
+import { stubPlan, stubSearch } from "./stub";
+
+type Bindings = {
+  DB: D1Database;
+  AI?: Ai;
+  S2_THROTTLE: DurableObjectNamespace<S2Throttle>;
+  GEMINI_API_KEY?: string;
+  CROSSREF_MAILTO: string;
+  OPENALEX_API_KEY?: string;
+  NCBI_API_KEY?: string;
+  S2_API_KEY?: string;
+  ENABLE_DEV_ROUTES?: string;
+  /** "1" (with ENABLE_DEV_ROUTES) swaps the model, embeddings and literature services for stand-ins in local tests. */
+  QA_STUB?: string;
+};
+type Env = { Bindings: Bindings };
+export const ideaRoutes = new Hono<Env>();
+
+ideaRoutes.use("*", async (c, next) => {
+  await next();
+  c.header("Cache-Control", "no-store");
+});
+
+const deny = (c: Context<Env>, status: 400 | 401 | 403 | 413 | 429 | 502 | 503, type: string, title: string, detail?: string) =>
+  c.json({ type, title, ...(detail ? { detail } : {}) }, status);
+
+const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+
+function completeFor(env: Bindings, subject: string): Complete | null {
+  if (stubbed(env)) return stubPlan;
+  const gateway = gatewayFromEnv(env);
+  return async (req) => {
+    // The idea is the researcher's own, unpublished work: PRIVATE, so the gateway only uses providers that do not keep or train on it.
+    const r = await gateway.complete({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens });
+    return { json: r.json, model: r.model };
+  };
+}
+
+const embedderFor = (env: Bindings): Embedder | null => (stubbed(env) ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null);
+
+const searchEnv = (env: Bindings): SearchEnv => ({
+  store: d1Store(env.DB),
+  OPENALEX_API_KEY: env.OPENALEX_API_KEY,
+  NCBI_API_KEY: env.NCBI_API_KEY,
+  S2_API_KEY: env.S2_API_KEY,
+  CROSSREF_MAILTO: env.CROSSREF_MAILTO,
+  s2Gate: (maxWaitMs) => env.S2_THROTTLE.getByName("global").reserve(maxWaitMs),
+});
+
+/* ---------------------------------------------------------------- plan */
+
+/**
+ * The idea text arrives here, goes to the private model, and is not stored: no row, no log line (the request log carries the path only).
+ * What comes back is the proposed search, which the researcher edits before anything goes to a search service.
+ */
+ideaRoutes.post("/plan", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in to check an idea");
+
+  // 60,000 characters of text, even all multi-byte, fits well inside this; anything bigger is not an idea.
+  if (Number(c.req.header("content-length") ?? 0) > 300_000) return deny(c, 413, "too_large", "That is too much text", "Use a shorter file or paste the key parts.");
+  const body = (await c.req.json().catch(() => null)) as { text?: unknown; question?: unknown } | null;
+  const text = typeof body?.text === "string" ? body.text.replace(/\r/g, "").trim().slice(0, MAX_IDEA_CHARS) : "";
+  const question = scrubText(body?.question, MAX_IDEA_QUESTION_CHARS);
+  if (text.length < MIN_IDEA_CHARS) return deny(c, 400, "invalid_idea", "Describe your idea in a few sentences", `At least ${MIN_IDEA_CHARS} characters, or add a file.`);
+
+  const complete = completeFor(c.env, user.id);
+  if (!complete) return deny(c, 503, "ai_unavailable", "Planning is unavailable right now");
+  try {
+    const { plan } = await planIdea({ text: text.slice(0, IDEA_PLAN_INPUT_CHARS), question, complete });
+    return c.json<{ plan: IdeaPlan }>({ plan });
+  } catch (e) {
+    if (e instanceof QuotaError) return deny(c, 429, "quota", "You have used today's AI allowance", e.message);
+    if (e instanceof NoRouteError) return deny(c, 503, "ai_unavailable", "Planning is unavailable right now");
+    if (e instanceof PlanError) return deny(c, 502, "plan_failed", "We could not turn this into a search", "Try adding a sentence about the goal and the method.");
+    if (e instanceof AllProvidersFailedError) {
+      console.error(JSON.stringify({ level: "error", msg: "idea_plan_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
+      return deny(c, 502, "ai_failed", "The AI service could not read the idea just now", "Please try again in a moment.");
+    }
+    throw e;
+  }
+});
+
+/* ---------------------------------------------------------------- search */
+
+/**
+ * Runs the approved plan. The answer is a server-sent-events stream (`stage`, `papers`, then `done`), so the closest papers appear while
+ * the slower services are still answering.
+ */
+ideaRoutes.post("/search", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in to check an idea");
+
+  const req = sanitizeRequest(await c.req.json().catch(() => null));
+  if (!req) return deny(c, 400, "invalid_plan", "The search plan is empty", "Keep at least one keyword search, or a description of a few sentences.");
+
+  return streamSSE(c, async (sse) => {
+    let gone = false;
+    sse.onAbort(() => {
+      gone = true;
+    });
+    const send = async (e: IdeaSearchEvent) => {
+      if (!gone) await sse.writeSSE({ event: e.type, data: JSON.stringify(e) }).catch(() => (gone = true));
+    };
+    try {
+      if (stubbed(c.env)) {
+        await send({ type: "stage", stage: "searching" });
+        await new Promise((r) => setTimeout(r, 150));
+        await send({ type: "stage", stage: "checking" });
+        await send({ type: "done", result: stubSearch(req) });
+        return;
+      }
+      const result = await runIdeaSearch({ env: searchEnv(c.env), embed: embedderFor(c.env), req, emit: send });
+      await send({ type: "done", result });
+    } catch (e) {
+      console.error(JSON.stringify({ level: "error", msg: "idea_search_failed", error: e instanceof Error ? e.name : "unknown" }));
+      await send({ type: "error", code: "internal_error", title: "The search failed", detail: "Please try again in a moment." });
+    }
+  });
+});

@@ -73,7 +73,7 @@ export function verifyAnswer(raw: unknown, ex: Retrieved[], question: string, me
   let answer = typeof r.answer === "string" ? r.answer.trim().slice(0, 2500) : "";
   const evidence = Array.isArray(r.evidence) ? r.evidence : [];
   // gpt-oss sometimes emits its own citation tokens (【31†L1-L3】); our [n] markers are the only ones that are real.
-  answer = answer.replace(/【[^】]*】/g, "").replace(/s{2,}/g, " ").trim();
+  answer = answer.replace(/【[^】]*】/g, "").replace(/\s{2,}/g, " ").trim();
 
   const citations: Citation[] = [];
   for (const e of evidence) {

@@ -15,6 +15,7 @@ import { TopNav, type View } from "./components/TopNav";
 import { VerifyPage } from "./components/verify/VerifyPage";
 import { DocWorkspace } from "./components/papers/DocWorkspace";
 import { PapersPage } from "./components/papers/PapersPage";
+import { IdeaPage } from "./components/idea/IdeaPage";
 import { takeAuthError } from "./lib/auth";
 import { easeOut } from "./lib/motion";
 import { clearNotice, showNotice, useNotice } from "./lib/notice";
@@ -26,15 +27,16 @@ const loadFeatures = () => import("./lib/motion-features").then((mod) => mod.def
 type Sort = "relevance" | "citations" | "year";
 
 type Route = { view: View; docId: string | null };
-/** Real URLs for every page: / (search), /verify, /papers and /papers/<id>. No router library for four pages. */
+/** Real URLs for every page: / (search), /verify, /idea, /papers and /papers/<id>. No router library for five pages. */
 const routeFromPath = (): Route => {
   const p = location.pathname.replace(/\/+$/, "");
   if (p === "/verify") return { view: "verify", docId: null };
+  if (p === "/idea") return { view: "idea", docId: null };
   const m = /^\/papers(?:\/([a-f0-9]{8,40}))?$/.exec(p);
   if (m) return { view: "papers", docId: m[1] ?? null };
   return { view: "search", docId: null };
 };
-const TITLES: Record<View, string> = { search: "Scholar", verify: "Verify references · Scholar", papers: "My papers · Scholar" };
+const TITLES: Record<View, string> = { search: "Scholar", verify: "Verify references · Scholar", papers: "My papers · Scholar", idea: "Idea Check · Scholar" };
 
 function Footer() {
   return (
@@ -78,7 +80,7 @@ export function App() {
   const navigate = useCallback(
     (next: View, docId: string | null = null) => {
       if (next === view && docId === route.docId) return;
-      const path = next === "verify" ? "/verify" : next === "papers" ? (docId ? `/papers/${docId}` : "/papers") : state.status === "idle" ? "/" : `/?q=${encodeURIComponent(query)}`;
+      const path = next === "verify" ? "/verify" : next === "idea" ? "/idea" : next === "papers" ? (docId ? `/papers/${docId}` : "/papers") : state.status === "idle" ? "/" : `/?q=${encodeURIComponent(query)}`;
       history.pushState(null, "", path);
       setRoute({ view: next, docId });
       window.scrollTo(0, 0);
@@ -182,6 +184,8 @@ export function App() {
         <main id="main" className="main" data-view={view === "papers" && route.docId ? "paper" : view}>
           {view === "verify" ? (
             <VerifyPage />
+          ) : view === "idea" ? (
+            <IdeaPage />
           ) : view === "papers" ? (
             route.docId ? <DocWorkspace key={route.docId} id={route.docId} onBack={() => navigate("papers")} /> : <PapersPage onOpen={(id) => navigate("papers", id)} />
           ) : (

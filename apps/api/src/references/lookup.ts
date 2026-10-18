@@ -25,7 +25,7 @@ type CRItem = {
 
 /** Crossref titles carry markup ("<i>Anionic Mishran</i> Supplementation …", "&amp;"); a citation does not. */
 const plainTitle = (t: string): string =>
-  t.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+  t.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
 
 function fromCrossref(it: CRItem): Candidate | null {
   const title = it.title?.[0] ? plainTitle(it.title[0]) : "";

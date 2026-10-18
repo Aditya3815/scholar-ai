@@ -45,6 +45,22 @@ describe("rateLimit", () => {
     expect(search.calls).toEqual([]);
   });
 
+  it("limits idea planning like asking (it calls the model) and idea searching like searching (it fans out to services)", async () => {
+    const ask = limiter(true);
+    const search = limiter(true);
+    const api = limiter(true);
+    const app = new Hono<{ Bindings: LimitEnv }>();
+    app.use("/api/*", rateLimit());
+    app.post("/api/v1/idea/plan", (c) => c.json({ ok: true }));
+    app.post("/api/v1/idea/search", (c) => c.json({ ok: true }));
+    const env = { ASK_LIMITER: ask, SEARCH_LIMITER: search, API_LIMITER: api };
+    await app.request("/api/v1/idea/plan", { method: "POST", headers: { "cf-connecting-ip": "198.51.100.9" } }, env);
+    await app.request("/api/v1/idea/search", { method: "POST", headers: { "cf-connecting-ip": "198.51.100.9" } }, env);
+    expect(ask.calls).toEqual(["198.51.100.9"]);
+    expect(search.calls).toEqual(["198.51.100.9"]);
+    expect(api.calls).toEqual([]);
+  });
+
   it("answers 429 with Retry-After when the bucket is empty", async () => {
     const get = appWith({ SEARCH_LIMITER: limiter(false), API_LIMITER: limiter(true) });
     const res = await get("/api/v1/search?q=x");

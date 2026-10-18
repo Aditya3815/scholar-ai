@@ -87,3 +87,5 @@ export * from "./references";
 export * from "./documents";
 export * from "./text";
 export * from "./paperinfo";
+export * from "./idea";
+export * from "./ideafile";
