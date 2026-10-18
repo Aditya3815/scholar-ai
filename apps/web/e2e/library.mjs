@@ -19,7 +19,7 @@ const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`);
 const idp = await startFakeIdp(9911);
 idp.setUser({ sub: "lib-ui-1", email: "meera@example.edu", email_verified: true, name: "Meera Iyer" });
 
-const browser = await chromium.launch({ channel: "msedge", headless: true });
+const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
 const page = await ctx.newPage();
 const errors = [];

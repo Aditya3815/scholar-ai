@@ -1,0 +1,39 @@
+name: Browser e2e
+
+# Real-browser checks (Playwright + axe accessibility scan + CSP violations) against a local Worker. Slower and dependent on
+# live search APIs for the smoke test, so it runs weekly and on demand instead of on every push.
+on:
+  schedule:
+    - cron: "41 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      E2E_BROWSER: chrome # preinstalled on GitHub's Ubuntu runners; playwright-core does not download browsers
+      OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+      S2_API_KEY: ${{ secrets.S2_API_KEY }}
+      NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+      CROSSREF_MAILTO: ${{ secrets.CROSSREF_MAILTO }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run integration -w apps/api -- --browser
+      - name: Keep screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-shots
+          path: apps/web/e2e/shots
+          if-no-files-found: ignore
+          retention-days: 14

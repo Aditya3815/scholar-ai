@@ -10,6 +10,7 @@
     "test": "vitest run",
     "eval": "vitest run -c vitest.eval.config.ts",
     "eval:record": "node eval/run.mjs record",
+    "integration": "node scripts/integration.mjs",
     "eval:live": "node eval/run.mjs live",
     "secrets:push": "node scripts/push-secrets.mjs",
     "cf-typegen": "wrangler types",

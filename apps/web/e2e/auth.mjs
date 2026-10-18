@@ -20,7 +20,7 @@ const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`);
 const idp = await startFakeIdp(9911);
 idp.setUser({ sub: "ui-1", email: "asha.rao@example.edu", email_verified: true, name: "Asha Rao" });
 
-const browser = await chromium.launch({ channel: "msedge", headless: true });
+const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 const page = await ctx.newPage();
 const errors = [];
@@ -89,8 +89,10 @@ try {
   await account().click();
   const menu2 = page.getByRole("dialog", { name: "Account" });
   await menu2.waitFor();
+  await menu2.getByText("0000-0002-1825-0097").waitFor({ timeout: 8000 }).catch(() => {}); // /me may still be revalidating
+  await menu2.getByText("0000-0002-1825-0097").waitFor({ timeout: 8000 }).catch(() => {}); // the menu can open before /me finishes loading
   const txt2 = await menu2.innerText();
-  ok(/0000-0002-1825-0097/.test(txt2) && !/Link ORCID/.test(txt2), "ORCID linked: iD shown and the link button is gone");
+  ok(/0000-0002-1825-0097/.test(txt2) && !/Link ORCID/.test(txt2), `ORCID linked: iD shown and the link button is gone (menu text: ${JSON.stringify(txt2)})`);
 
   // Sign out
   await menu2.getByRole("button", { name: /Sign out/ }).click();
