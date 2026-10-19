@@ -30,5 +30,8 @@ for (const arg of process.argv.slice(2)) {
   console.log(`recorded (HTTP ${res.status}): ${k.slice(0, 120)}`);
   added++;
 }
-if (added) writeFileSync(file, gzipSync(JSON.stringify(Object.fromEntries(Object.entries(fixtures).sort(([a], [b]) => (a < b ? -1 : 1))), { level: 9 }));
+if (added) {
+  const sorted = Object.fromEntries(Object.entries(fixtures).sort(([a], [b]) => (a < b ? -1 : 1)));
+  writeFileSync(file, gzipSync(JSON.stringify(sorted), { level: 9 }));
+}
 console.log(`${added} recording(s) added`);
