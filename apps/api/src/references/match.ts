@@ -227,7 +227,8 @@ export function titleAfterAuthors(text: string): string | null {
 export function searchTitle(text: string): string | null {
   if (QUOTED_TITLE.test(text)) return guessTitle(text); // IEEE style: the quotes say where the title is
   const after = titleAfterAuthors(text);
-  if (after) return after;
+  // "McMurray, J. J. V., Solomon, S. D., ..." splits at every initial; what follows the first author part can be more of the list
+  if (after && !looksLikeAuthors(after)) return after;
   const guess = guessTitle(text);
   return guess && !looksLikeAuthors(guess) ? guess : null;
 }

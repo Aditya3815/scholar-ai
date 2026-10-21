@@ -79,8 +79,8 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 ### 3. Verifier and data quality
 | ID | Item | Owner | Notes |
 | --- | --- | --- | --- |
-| V1 | Find out why two tuned references (group authors, e.g. McMurray 2019, Murray 2022) fell from verified to not_found / mismatch | me | They never become false "verified"; still a regression of 2 points |
-| V2 | Better search title for references that start with initials, then one full eval re-record | me | Needs a fresh OpenAlex budget (see D1) and about an hour |
+| V1 | Two tuned references (McMurray 2019, Murray 2022) fell from verified to not_found / mismatch | me | ✅ Found and fixed 21 Oct: for a reference written with initials the title guess picked a piece of the author list ("V., Solomon, S") instead of the title. Tuned set is back to 100/100; held-out 57/60; fabricated verified 0/70 |
+| V2 | Better search title for references that start with initials | me | ✅ Same fix as V1 (no full re-record needed: the few new requests were added with `eval/patch-fixtures.mjs`) |
 | V3 | Wording for reprints (year differs, authors match) and for books, reports and web pages ("not a journal article") | me | These are most of the remaining 22% that do not verify |
 | V4 | Records for software and datasets (Zenodo, GitHub) appear in Idea Check; filter or label them | me | |
 | V5 | Crossref calls from one global lane (Queue) instead of per-process | me | Today's gate is per isolate |

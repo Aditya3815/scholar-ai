@@ -204,6 +204,8 @@ describe("searchTitle", () => {
     ["Yoon Kim, Carl Denton, Luong Hoang, and Alexander M. Rush. Structured attention networks. In International Conference on Learning Representations, 2017.", "Structured attention networks"],
     ["Desai, A., & Verma, R. (2021). Graph neural networks for protein function prediction. Bioinformatics, 37(5), 1-12.", "Graph neural networks for protein function prediction"],
     ["Smith J. \"A quoted title for the search\", Journal of Things, 2020.", "A quoted title for the search"],
+    // APA with initials: the text splits at every initial, and what follows the first part is more of the author list, not the title
+    ["McMurray, J. J. V., Solomon, S. D., Inzucchi, S. E., Køber, L., Kosiborod, M. N., & Martinez, F. A. (2019). Dapagliflozin in Patients with Heart Failure and Reduced Ejection Fraction. New England Journal of Medicine.", "Dapagliflozin in Patients with Heart Failure and Reduced Ejection Fraction"],
   ])("%s", (ref, expected) => expect(searchTitle(ref)).toBe(expected));
 });
 

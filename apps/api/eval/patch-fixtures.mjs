@@ -8,10 +8,16 @@ import { trimBody } from "./lib/trim.mjs";
 
 const file = new URL("./fixtures.json.gz", import.meta.url);
 const vars = {};
-for (const line of readFileSync(new URL("../.dev.vars", import.meta.url), "utf8").split(/\r?\n/)) {
-  const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-  if (m) vars[m[1]] = m[2].trim().replace(/^"|"$/g, "");
+try {
+  for (const line of readFileSync(new URL("../.dev.vars", import.meta.url), "utf8").split(/\r?\n/)) {
+    const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+    if (m) vars[m[1]] = m[2].trim().replace(/^"|"$/g, "");
+  }
+} catch {
+  /* no .dev.vars: keys may come from the environment, and OpenAlex and Crossref also answer (more slowly) without one */
 }
+for (const k of ["OPENALEX_API_KEY", "CROSSREF_MAILTO"]) vars[k] ??= process.env[k];
+vars.CROSSREF_MAILTO ??= "eval@example.org";
 const fixtures = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8"));
 
 let added = 0;
