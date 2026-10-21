@@ -10,7 +10,7 @@ import {
   openAlexSearchTitle,
   type LookupEnv,
 } from "./lookup";
-import { arxivDoi, checkMatch, confidence, extractArxivId, extractDoi, joinHyphenated, pickBest, searchTitle, tokenize, verdict, type Candidate, type MatchChecks } from "./match";
+import { arxivDoi, checkMatch, confidence, extractArxivId, extractDoi, joinHyphenated, pickBest, referenceKind, searchTitle, tokenize, verdict, type Candidate, type MatchChecks } from "./match";
 
 /**
  *  verified      the reference matches a real record: title covered, plus author or year, nothing contradicting
@@ -58,8 +58,17 @@ const describe = (c: Candidate) => `“${c.title}”${c.authors[0] ? ` by ${c.au
 
 function explainTitleOnly(c: Candidate, k: MatchChecks): string {
   const why = [k.author === false ? "the authors do not match" : null, k.year === false ? `the year differs (the record says ${c.year})` : null].filter(Boolean).join(" and ");
-  return `A real paper with a very similar title exists: ${describe(c)}, but ${why || "the details do not fully match"}.`;
+  // Same title and same authors but another year is usually a reprint, a later edition or an online-first date, not an invented reference.
+  const reprint = k.author === true && k.year === false ? " When the authors match, this is often a reprint or a later edition: check the year of the original." : "";
+  return `A real paper with a very similar title exists: ${describe(c)}, but ${why || "the details do not fully match"}.${reprint}`;
 }
+
+const KIND_TEXT = {
+  web: "This looks like a web page. Crossref and OpenAlex list scholarly works, not web pages, so “not found” here does not mean it is made up. Open the address to check it.",
+  book: "This looks like a book. Crossref and OpenAlex list few books, so “not found” here does not mean it is made up. Check it in a library catalogue or the publisher's page.",
+  report: "This looks like a report or an official document. Crossref and OpenAlex list few of these, so “not found” here does not mean it is made up. Check it with the organisation that published it.",
+  thesis: "This looks like a thesis. Most theses are not in Crossref or OpenAlex (Indian ones are often in Shodhganga), so “not found” here does not mean it is made up.",
+} as const;
 
 const NO_AUTHORS = "A record with this title and year exists, but it lists no authors, so the authors could not be checked. Look it up at the source before citing.";
 
@@ -147,13 +156,14 @@ async function viaSearch(text: string, env: LookupEnv): Promise<RefResult> {
   const where = oa ? "Crossref or OpenAlex" : "Crossref";
   const via = best && oa?.includes(best.cand) ? " Found in OpenAlex." : "";
   // "Not found" is a claim about the world. If one of the searches failed, absence of evidence is not evidence of absence.
-  if (!best) return partialFailure ? result(text, "unverifiable", COULD_NOT_CHECK) : result(text, "not_found", `No matching paper was found in ${where}.`);
+  const kind = referenceKind(text);
+  if (!best) return partialFailure ? result(text, "unverifiable", COULD_NOT_CHECK) : result(text, "not_found", kind ? KIND_TEXT[kind] : `No matching paper was found in ${where}.`);
   const v = verdict(best.cand, best.checks);
   if (v === "different" && partialFailure) return result(text, "unverifiable", COULD_NOT_CHECK, null, best.checks);
   if (v === "verified") return withRetraction(result(text, "verified", `Matches ${describe(best.cand)}.${via}`, best.cand, best.checks), env);
   if (v === "no_authors") return withRetraction(result(text, "unverifiable", NO_AUTHORS, best.cand, best.checks), env);
   if (v === "title_only") return withRetraction(result(text, "mismatch", explainTitleOnly(best.cand, best.checks), best.cand, best.checks), env);
-  return result(text, "not_found", `No paper matching this title, authors and year was found in ${where}.`, null, best.checks);
+  return result(text, "not_found", kind ? KIND_TEXT[kind] : `No paper matching this title, authors and year was found in ${where}.`, null, best.checks);
 }
 
 export async function verifyReference(raw: string, env: LookupEnv): Promise<RefResult> {

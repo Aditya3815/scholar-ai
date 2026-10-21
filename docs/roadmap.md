@@ -60,7 +60,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 | ID | Item | Owner | Notes |
 | --- | --- | --- | --- |
 | N1 | Two scheduled workflows failed: "Q&A quality" (web app was not built before the Worker started) and "Browser e2e" (an axe colour reading taken while an answer was still fading in) | me | ✅ Fixed 21 Oct. Browser e2e passes again. Q&A had three causes (no web build, no dev sign-in flag, `tee` hiding the exit code); now green |
-| N2 | Recreate `apps/api/.dev.vars` (lost on 19 Oct; names are in `.dev.vars.example`) | you | Blocks every local live test (live eval, Idea Check live run, real-paper check). Production is unaffected |
+| N2 | Recreate `apps/api/.dev.vars` (lost on 19 Oct; names are in `.dev.vars.example`) | you | A starter file now exists with the e-mail and Sentry address; the API keys still go in (runbook, "Local secrets file"). | Blocks every local live test (live eval, Idea Check live run, real-paper check). Production is unaffected |
 | N3 | Four Dependabot PRs open (checkout 7, setup-node 7, upload-artifact 7, workers-types 5.x) | both | CI passes on all four. The three action bumps are safe to merge; workers-types is a major version, I check it first |
 | N4 | The Q&A weekly workflow had never produced a result | me | ✅ First real run in CI, 21 Oct: answerable 24/24, unanswerable declined 10/10, sources verified 24/24, median 4.3 s |
 
@@ -71,7 +71,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 | P2 | First-upload privacy card and consent record | both | ✅ Built: shown before the first upload and the first idea check; the server refuses both until it is agreed to and records which text and when (migration 0008). Bumping `PRIVACY_VERSION` asks everyone again |
 | P3 | Notes and highlights in the paper reader; search inside a paper | me | E2 |
 | P4 | Onboarding sample paper | both | Needs one openly licensed PDF we may bundle (licence to be confirmed) |
-| P5 | Sentry (errors), Turnstile (bot check on sign-in), staging environment | both | **Sentry: built** (own thin client, nothing leaves until `SENTRY_DSN` is set; steps in the runbook). Turnstile: I suggest dropping it for now, because sign-in is Google/ORCID only and uploads/asks are already limited per account. Staging: waiting for your yes to create a second D1/R2 |
+| P5 | Sentry (errors), Turnstile (bot check on sign-in), staging environment | both | **22 Oct: Sentry connected** (`SENTRY_DSN` set on production and staging; Sentry answered 200 to a test event). **Staging live** at https://scholar-staging.shodhsetu.workers.dev (own D1/R2/queue; runbook, "Staging"). Remaining: press "Send a test event" on `/admin` once you are admin; Turnstile dropped unless you want it. Earlier note: **Sentry: built** (own thin client, nothing leaves until `SENTRY_DSN` is set; steps in the runbook). Turnstile: I suggest dropping it for now, because sign-in is Google/ORCID only and uploads/asks are already limited per account. Staging: waiting for your yes to create a second D1/R2 |
 | P6 | Manual screen-reader (NVDA) pass | you | axe is clean on every page; a person is still needed |
 | P7 | Q&A first answer text under 2.5 s (now 1.5 to 3.3 s) | me | Phase 1 exit gate, partly met |
 | P8 | Pilot with 20 to 30 scholars | you | Needs 10 names first; I prepare the invite text, a short survey and the admin view |
@@ -81,7 +81,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 | --- | --- | --- | --- |
 | V1 | Two tuned references (McMurray 2019, Murray 2022) fell from verified to not_found / mismatch | me | ✅ Found and fixed 21 Oct: for a reference written with initials the title guess picked a piece of the author list ("V., Solomon, S") instead of the title. Tuned set is back to 100/100; held-out 57/60; fabricated verified 0/70 |
 | V2 | Better search title for references that start with initials | me | ✅ Same fix as V1 (no full re-record needed: the few new requests were added with `eval/patch-fixtures.mjs`) |
-| V3 | Wording for reprints (year differs, authors match) and for books, reports and web pages ("not a journal article") | me | These are most of the remaining 22% that do not verify |
+| V3 | Wording for reprints (year differs, authors match) and for books, reports, theses and web pages | me | ✅ 22 Oct: "not found" for something that looks like a book, report, thesis or web page now says that Crossref and OpenAlex do not list those, and how to check; a title+author match with another year mentions reprints. Statuses unchanged, so the eval is unchanged |
 | V4 | Records for software and datasets (Zenodo, GitHub) appear in Idea Check; filter or label them | me | |
 | V5 | Crossref calls from one global lane (Queue) instead of per-process | me | Today's gate is per isolate |
 | V6 | Cache public lookups (DOI to record) in KV | me | Protects the OpenAlex budget |

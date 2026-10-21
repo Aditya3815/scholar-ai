@@ -97,6 +97,20 @@ Set it up (once): in Sentry create a project (platform: Cloudflare Workers or Ja
 `npx wrangler secret put SENTRY_DSN` (or put `SENTRY_DSN=...` in `apps/api/.dev.vars` and run `npm run secrets:push -w apps/api -- --only=SENTRY_DSN`). Then open `/admin` while signed in as admin and press
 **Send a test event**: it should say Sentry accepted it, and a "Test event from the admin page" appears in the project. Optional: `SENTRY_ENVIRONMENT` (default `production`).
 
+## Staging
+
+A separate, empty copy of the service at https://scholar-staging.shodhsetu.workers.dev (Worker `scholar-staging`, database `scholar-db-staging`, bucket `scholar-files-staging`, queue `scholar-jobs-staging`),
+for trying a change before production. Nothing in it is real people's data. Deploy to it with `npm run build && npm run deploy:staging -w apps/api` (this applies the migrations to the staging database first).
+It has no daily clean-up job. Secrets are its own: `npx wrangler secret put NAME --env staging` (today only `SENTRY_DSN`, reported as environment "staging", and `CROSSREF_MAILTO`). To sign in there, add
+`https://scholar-staging.shodhsetu.workers.dev/api/v1/auth/google/callback` to the Google OAuth client's authorised redirect URIs, and put the same Google client id/secret in with `wrangler secret put ... --env staging`.
+Cost: an empty staging copy is inside the paid plan's included amounts (D1, R2, Queues and Workers requests all have a free allowance that production does not use up); expect cents at most, and nothing while nobody uses it.
+
+## Local secrets file (`apps/api/.dev.vars`)
+
+Not in git (it holds keys), so it has to be recreated by hand on a new or wiped machine: copy `apps/api/.dev.vars.example` to `apps/api/.dev.vars` and fill in what you need.
+For local live tests only `OPENALEX_API_KEY`, `S2_API_KEY`, `NCBI_API_KEY` and `CROSSREF_MAILTO` matter; the sign-in pairs are not needed locally (tests use a fake identity provider).
+Production does not read this file: its secrets live in Cloudflare (`npx wrangler secret list`), and `npm run secrets:push -w apps/api` copies a key from this file up to Cloudflare.
+
 ## Test everything locally
 
 ```sh

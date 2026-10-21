@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { arxivDoi, arxivYear, checkMatch, extractArxivId, extractDoi, extractYears, guessTitle, joinHyphenated, looksLikeAuthors, pickBest, searchTitle, titleAfterAuthors, verdict, type Candidate } from "./match";
+import { arxivDoi, arxivYear, checkMatch, extractArxivId, extractDoi, extractYears, guessTitle, joinHyphenated, looksLikeAuthors, pickBest, referenceKind, searchTitle, titleAfterAuthors, verdict, type Candidate } from "./match";
 
 const attention: Candidate = {
   doi: "10.48550/arxiv.1706.03762",
@@ -230,4 +230,24 @@ describe("one-word record titles", () => {
   it("are never offered as a similar paper", () => {
     expect(v("NDDB. 2019. Handbook of Good Dairy Husbandry Practices. Anand: ry National Dairy Development Board.", one)).toBe("different");
   });
+});
+
+describe("referenceKind", () => {
+  it.each([
+    ["Reuters, Cholera vaccination campaign starts in Yemen after year delay: WHO, 07 May 2018, Available from: https://www.reuters.com/article/us-health-yemen", "web"],
+    ["Wikipedia, 2016-2018 Yemen Cholera Outbreak, 08 June 2018, http://en.m.wikipedia.org/wiki/2016-18_Yemen_cholera_outbreak", "web"],
+    ["P. Laws, Workshop Physics, Wiley (1999).", "book"],
+    ["A. Schoenfeld, Mathematical Problem Solving (Academic Press, NY, 1985).", "book"],
+    ["F. Reif, Understanding Basic Mechanics, ISBN 978-0-471-11624-0, Wiley, NY 1995.", "book"],
+    ["Government of Haryana. 2020. Handbook on 20th Livestock Census.", "report"],
+    ["NDDB. 2019. Handbook of Good Dairy Husbandry Practices. Anand, Gujarat.", "report"],
+    ["Rao, S. (2018). Rural credit in Odisha. PhD thesis, Utkal University.", "thesis"],
+  ] as const)("%s", (ref, kind) => expect(referenceKind(ref)).toBe(kind));
+
+  it.each([
+    "Kumar, A. (2020). A study of rivers. Journal of Water, 4(2), 1-10.",
+    "Smith J. Springer-Verlag handbook chapter, Journal of Things 12:33-40, 2011.",
+    "Desai, A. (2021). Graph networks for proteins. Bioinformatics 37(5), 1-12. https://doi.org/10.1093/bioinformatics/btab001",
+    "Kapoor, S., & Menon, V. (2022). Quantum reservoir scheduling for monsoon-aware banking. Journal of Applied Fictional Studies, 12(3), 55-71.",
+  ])("leaves an article-looking reference alone: %s", (ref) => expect(referenceKind(ref)).toBeNull());
 });

@@ -11,10 +11,10 @@ export const LEGAL = {
   /** The person or company that runs the service (the "data fiduciary" under India's DPDP Act). */
   entity: "",
   /** Where to write about anything in the policy. */
-  contactEmail: "",
+  contactEmail: "atiadi@nativeorange.ai",
   /** The person who answers complaints about personal data. */
   grievanceName: "",
-  grievanceEmail: "",
+  grievanceEmail: "atiadi@nativeorange.ai",
   /** Postal address of the entity. */
   address: "",
   /** The Indian state or city whose courts the terms refer to. */

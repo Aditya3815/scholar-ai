@@ -115,6 +115,33 @@ describe("without a DOI", () => {
   });
 });
 
+describe("what a reference that is not an article is called", () => {
+  it("does not sound like an accusation when a book, a web page or a report is not found", async () => {
+    stub();
+    const book = await verifyReference("P. Laws, Workshop Physics Activity Guide, Wiley (1999).", env);
+    expect(book.status).toBe("not_found");
+    expect(book.reason).toMatch(/looks like a book/);
+    const web = await verifyReference("Reuters, Cholera vaccination campaign starts in Yemen after year delay, 07 May 2018, https://www.reuters.com/article/us-health-yemen-cholera", env);
+    expect(web.reason).toMatch(/web page/);
+    const report = await verifyReference("Government of Haryana. 2020. Handbook on 20th Livestock Census. Chandigarh.", env);
+    expect(report.reason).toMatch(/report or an official document/);
+  });
+
+  it("still says plainly that an article-looking reference was not found", async () => {
+    stub();
+    const r = await verifyReference("Kapoor, S., & Menon, V. (2022). Quantum reservoir scheduling for monsoon-aware banking. Journal of Applied Fictional Studies, 12(3), 55-71.", env);
+    expect(r.status).toBe("not_found");
+    expect(r.reason).toMatch(/^No (matching paper was found|paper matching this title)/);
+  });
+
+  it("mentions a reprint when the title and authors match but the year does not", async () => {
+    stub((u) => (u.includes("query.bibliographic") ? json({ message: { items: [cr({ issued: { "date-parts": [[2018]] } })] } }) : undefined));
+    const r = await verifyReference("Desai, A., & Verma, R. (1989). Graph neural networks for protein function prediction. Bioinformatics, 37(5), 1-12.", env);
+    expect(r.status).toBe("mismatch");
+    expect(r.reason).toMatch(/reprint or a later edition/);
+  });
+});
+
 describe("markup in registry titles", () => {
   it("verifies a reference whose Crossref title carries <i> tags, without gluing the words together", async () => {
     stub((u) => (u.includes("query.bibliographic") ? json({ message: { items: [cr({ DOI: "10.1000/ital.1", title: ["<i>Anionic Mishran</i> Supplementation to Check Incidence of Milk Fever"], author: [{ given: "Rakesh", family: "Thakur" }], issued: { "date-parts": [[2017]] } })] } }) : undefined));

@@ -233,6 +233,27 @@ export function searchTitle(text: string): string | null {
   return guess && !looksLikeAuthors(guess) ? guess : null;
 }
 
+export type SourceKind = "web" | "book" | "report" | "thesis";
+
+const JOURNAL_SIGNS = /\b(journal|j\.|proc\.|proceedings|transactions|letters|review|annals|vol\.?\s*\d|\d+\s*\(\d+\)|\d+\s*:\s*\d+\s*[-–]\s*\d+)/i;
+const PUBLISHER = /\b(press|publishers?|publishing|wiley|elsevier|mcgraw[- ]hill|prentice|pearson|routledge|sage publications|springer[- ]verlag|isbn)\b/i;
+const REPORT = /\b(report|white paper|handbook|census|guidelines|situation report|ministry|government of|world health organi[sz]ation|unicef|unesco|nddb|policy brief|working paper)\b/i;
+const THESIS = /\b(ph\.?\s?d\.?|doctoral|master'?s|m\.?\s?tech|dissertation|thesis)\b/i;
+
+/**
+ * What a reference without a DOI most likely is, when it is not a journal article: a web page, a book, a report or a thesis. Crossref and OpenAlex mostly do not
+ * list these, so "not found" for them says little, and the answer should say that instead of sounding like an accusation. null = it reads like an article.
+ */
+export function referenceKind(text: string): SourceKind | null {
+  if (extractDoi(text)) return null;
+  if (/https?:\/\/|\bwww\./i.test(text) && !JOURNAL_SIGNS.test(text.replace(/https?:\/\/\S+/g, " "))) return "web";
+  if (THESIS.test(text)) return "thesis";
+  if (JOURNAL_SIGNS.test(text)) return null;
+  if (PUBLISHER.test(text)) return "book";
+  if (REPORT.test(text)) return "report";
+  return null;
+}
+
 export const confidence = (k: MatchChecks): number =>
   Math.round((0.6 * k.title + 0.25 * (k.author ? 1 : 0) + 0.15 * (k.year ? 1 : 0)) * 100) / 100;
 
