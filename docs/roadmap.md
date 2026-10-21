@@ -89,7 +89,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 ### 4. Idea Check (the big differentiator)
 | ID | Item | Owner | Notes |
 | --- | --- | --- | --- |
-| I1 | **M2**: split the idea into facets, compare each of the top papers with a quoted sentence from its abstract (checked like Q&A quotes), show a coverage map | me | The core of "has it been done" |
+| I1 | **M2**: split the idea into facets, compare each of the top papers with a quoted sentence from its abstract (checked like Q&A quotes), show a coverage map | me | ✅ 22 Oct: built, tested with the real model (about 10,000 tokens a full check, 25 to 60 s for the comparison); design and numbers in `design/idea-check.md` ("M2 as built"). Still to do: judge its usefulness with real scholars (I5) |
 | I2 | Prior-art recall eval: hide a paper, rebuild its idea from the abstract, see how many of its own references come back | me | ✅ 22 Oct, first recording (40 papers from 2023 to 2025, 20 with an Indian author, 1,729 references; all 120 searches answered): **at least one reference found for 85% of papers, three or more for 48%, on average 7% of a paper's references** among the 30 closest results. A paper cites many things its abstract never mentions, so 7% is not "7% of what matters"; it is a baseline to beat. Gates (80% hit, 6% mean) run on every push. Not covered: the AI plan step, and the meaning re-rank |
 | I3 | **M3**: gaps, feasibility (grounded vs opinion, labelled), grounded answer to the question, downloadable report | me | |
 | I4 | More sources (arXiv, PubMed, CORE), open-access full text for the closest papers | me | |

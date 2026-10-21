@@ -1,4 +1,4 @@
-import type { IdeaPlan, IdeaSearchEvent, IdeaSearchRequest, IdeaSearchResult } from "@scholar/shared";
+import type { IdeaCompareEvent, IdeaCompareRequest, IdeaComparison, IdeaPlan, IdeaSearchEvent, IdeaSearchRequest, IdeaSearchResult } from "@scholar/shared";
 import { ApiError } from "./documents";
 import { readSse } from "./sse";
 
@@ -33,5 +33,25 @@ export async function searchIdea(req: IdeaSearchRequest, onEvent: (e: IdeaSearch
   );
   if (failure) throw failure;
   if (!result) throw new TypeError("The search was cut off. Please try again.");
+  return result;
+}
+
+/** Compares the closest papers with the idea (the private AI reads their abstracts). `onStage` reports progress; resolves with the checked comparison. */
+export async function compareIdea(req: IdeaCompareRequest, onStage: (s: "reading" | "comparing" | "checking") => void, signal?: AbortSignal): Promise<IdeaComparison> {
+  const res = await fetch("/api/v1/idea/compare", post(req, signal));
+  if (!res.ok) await fail(res);
+  let result: IdeaComparison | null = null;
+  let failure: ApiError | null = null;
+  await readSse<IdeaCompareEvent>(
+    res,
+    (e) => {
+      if (e.type === "stage") onStage(e.stage);
+      else if (e.type === "done") result = e.comparison;
+      else if (e.type === "error") failure = new ApiError(res.status, e.code, e.title, e.detail);
+    },
+    signal,
+  );
+  if (failure) throw failure;
+  if (!result) throw new TypeError("The comparison was cut off. Please try again.");
   return result;
 }

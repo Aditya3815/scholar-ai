@@ -1,5 +1,6 @@
 import type { IdeaPaper, IdeaSearchRequest, IdeaSearchResult } from "@scholar/shared";
-import type { Complete } from "../docs/qa";
+import { extractJson } from "../llm/gateway";
+import type { Complete, StreamComplete } from "../docs/qa";
 import { keywords } from "../docs/vector";
 
 /**
@@ -41,7 +42,7 @@ export function stubSearch(req: IdeaSearchRequest): IdeaSearchResult {
     authors: [...r.authors],
     year: r.year,
     venue: r.venue,
-    abstract: `Sample abstract ${i + 1} for the offline test: ${req.keywordQueries[0] ?? req.semanticQuery.slice(0, 80)}.`,
+    abstract: `Sample abstract ${i + 1} for the offline test: ${req.keywordQueries[0] ?? req.semanticQuery.slice(0, 80)}. It describes a study of the topic in enough words to be compared with an idea, for the tests only.`,
     citationCount: 10 * (i + 1),
     oaUrl: i === 0 ? "https://example.org/sample.pdf" : null,
     retracted: false,
@@ -64,3 +65,32 @@ export function stubSearch(req: IdeaSearchRequest): IdeaSearchResult {
     tookMs: 1,
   };
 }
+
+/**
+ * The comparison model, offline. For paper i it says: purpose "same" and mechanism "similar", each with a real piece of that paper's abstract;
+ * testing "not stated"; field "different", except for paper 3 where it claims "same" with a sentence that is NOT in the abstract, which
+ * verification has to drop. So the pages can show matches, gaps and a dropped claim without a network.
+ */
+export const stubCompareStream: StreamComplete = async (req, hooks) => {
+  const papers = [...req.user.matchAll(/^\[(\d+)\] .*\n([\s\S]*?)(?=\n\n\[\d+\] |$)/gm)].map((m) => ({ n: Number(m[1]), abstract: (m[2] ?? "").trim() }));
+  const piece = (abstract: string, from: number, len: number) => abstract.split(/\s+/).slice(from, from + len).join(" ");
+  const json = {
+    papers: papers.map(({ n, abstract }) => ({
+      n,
+      purpose: { match: "same", quote: piece(abstract, 0, 8) },
+      mechanism: { match: "similar", quote: piece(abstract, 2, 8) },
+      evaluation: { match: "not_stated", quote: "" },
+      domain: n === 3 ? { match: "same", quote: "a sentence that is not anywhere in this abstract at all" } : { match: "different", quote: "" },
+    })),
+  };
+  for (let i = 0; i < 3; i++) {
+    hooks.onThinking?.();
+    await new Promise((r) => setTimeout(r, 110));
+  }
+  const text = JSON.stringify(json);
+  for (let i = 0; i < text.length; i += 40) {
+    hooks.onContent?.(text.slice(i, i + 40));
+    await new Promise((r) => setTimeout(r, 12));
+  }
+  return { json: extractJson(text), model: "stub" };
+};

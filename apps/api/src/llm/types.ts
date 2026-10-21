@@ -21,6 +21,8 @@ export type LlmRequest = {
   /** If set, output must be JSON matching this schema (enforced by the provider where supported, then parsed). */
   schema?: JsonSchema;
   maxTokens?: number;
+  /** Longer than the gateway default for a job that reads a lot (comparing several abstracts). */
+  timeoutMs?: number;
 };
 
 export type ProviderRequest = Pick<LlmRequest, "system" | "user" | "schema" | "maxTokens">;

@@ -37,6 +37,8 @@ if (wrangler(["d1", "migrations", "apply", "scholar-db", "--local", "--config", 
 
 const vars = {
   GOOGLE_CLIENT_ID: "dev", GOOGLE_CLIENT_SECRET: "dev-secret", ORCID_CLIENT_ID: "dev", ORCID_CLIENT_SECRET: "dev-secret",
+  // .dev.vars is read by `wrangler dev` too: the tests must never report to the real Sentry project, so its address is blanked here.
+  SENTRY_DSN: "",
   DEV_IDP_URL: "http://localhost:9911", ORCID_BASE_URL: "http://localhost:9911/orcid", ENABLE_DEV_ROUTES: "1", QA_STUB: "1",
   CROSSREF_MAILTO: process.env.CROSSREF_MAILTO ?? "ci@example.com",
   // Only the browser smoke test searches; it needs the real provider keys (passed through from the environment).

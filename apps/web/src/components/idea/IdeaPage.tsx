@@ -1,15 +1,16 @@
 import { AnimatePresence, m } from "motion/react";
 import { Lightbulb, LockKeyhole, ShieldCheck, Telescope } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PRIVACY_VERSION, type IdeaPlan } from "@scholar/shared";
+import { COMPARE_PAPERS, PRIVACY_VERSION, type IdeaPlan } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/documents";
-import { planIdea, searchIdea } from "../../lib/idea";
+import { compareIdea, planIdea, searchIdea } from "../../lib/idea";
 import { easeOut, stagger } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { ProviderButtons } from "../ProviderButtons";
 import { PrivacyCard } from "../legal/PrivacyCard";
 import { IdeaInput } from "./IdeaInput";
+import type { CompareRun } from "./Compare";
 import { IdeaResults, type IdeaRun } from "./IdeaResults";
 import { PlanEditor, type PlanDraft } from "./PlanEditor";
 
@@ -33,6 +34,7 @@ const STEPS = [
 type Step = (typeof STEPS)[number]["id"];
 
 const EMPTY_RUN: IdeaRun = { stage: null, papers: [], searched: [], result: null };
+const EMPTY_COMPARE: CompareRun = { status: "idle", stage: null, comparison: null, error: "" };
 
 function Steps({ step }: { step: Step }) {
   const at = STEPS.findIndex((s) => s.id === step);
@@ -63,6 +65,7 @@ export function IdeaPage() {
   const [draft, setDraft] = useState<PlanDraft>({ semanticQuery: "", keywordQueries: [] });
   const [run, setRun] = useState<IdeaRun>(EMPTY_RUN);
   const [searching, setSearching] = useState(false);
+  const [compare, setCompare] = useState<CompareRun>(EMPTY_COMPARE);
   const abort = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
@@ -96,6 +99,7 @@ export function IdeaPage() {
     abort.current = ctl;
     setSearching(true);
     setRun({ ...EMPTY_RUN, stage: "searching" });
+    setCompare(EMPTY_COMPARE);
     go("results");
     try {
       const result = await searchIdea(
@@ -117,6 +121,26 @@ export function IdeaPage() {
       if (abort.current === ctl) setSearching(false);
     }
   }, [draft]);
+
+  const runCompare = useCallback(async () => {
+    if (!plan) return;
+    abort.current?.abort();
+    const ctl = new AbortController();
+    abort.current = ctl;
+    setCompare({ status: "running", stage: "reading", comparison: null, error: "" });
+    const papers = run.papers.filter((p) => (p.abstract?.length ?? 0) >= 80).slice(0, COMPARE_PAPERS).map((p) => ({ id: p.id, title: p.title, year: p.year, abstract: p.abstract! }));
+    try {
+      const comparison = await compareIdea(
+        { title: plan.title, summary: plan.summary, facets: plan.facets, question: question.trim() || undefined, ideaExcerpt: text.slice(0, 3000), papers },
+        (stage) => setCompare((c) => ({ ...c, stage })),
+        ctl.signal,
+      );
+      setCompare({ status: "done", stage: null, comparison, error: "" });
+    } catch (e) {
+      const msg = errorText(e, "The comparison was interrupted. Please try again.");
+      if (msg) setCompare({ status: "error", stage: null, comparison: null, error: msg });
+    }
+  }, [plan, run.papers, question, text]);
 
   const clearAll = () => {
     setText("");
@@ -204,7 +228,7 @@ export function IdeaPage() {
 
             {step === "results" && (
               <m.div key="results" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10, transition: { duration: 0.15 } }} transition={{ duration: 0.35, ease: easeOut }}>
-                <IdeaResults run={run} onEditPlan={() => { abort.current?.abort(); setSearching(false); go("plan"); }} onSearchAgain={() => void search()} />
+                <IdeaResults run={run} compare={compare} facets={plan?.facets ?? null} onCompare={() => void runCompare()} onEditPlan={() => { abort.current?.abort(); setSearching(false); go("plan"); }} onSearchAgain={() => void search()} />
               </m.div>
             )}
           </AnimatePresence>

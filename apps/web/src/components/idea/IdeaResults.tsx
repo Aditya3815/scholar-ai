@@ -1,11 +1,12 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowLeft, CircleAlert, Info, Loader2, Telescope } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { IdeaPaper, IdeaSearched, IdeaSearchResult } from "@scholar/shared";
+import type { IdeaFacets, IdeaPaper, IdeaSearched, IdeaSearchResult } from "@scholar/shared";
 import { openPreview } from "../../lib/preview";
 import { easeOut } from "../../lib/motion";
 import { ReportButton } from "../ReportButton";
 import { ResultCard } from "../ResultCard";
+import { CompareAction, CoverageMap, PaperStrip, type CompareRun } from "./Compare";
 
 const SOURCE_NAME = { openalex: "OpenAlex", s2: "Semantic Scholar" } as const;
 const STAGE_TEXT = { searching: "Searching OpenAlex and Semantic Scholar…", ranking: "Choosing the papers closest to your idea…", checking: "Checking every DOI and retraction notice…" } as const;
@@ -69,13 +70,15 @@ function Coverage({ searched, considered, done }: { searched: IdeaSearched[]; co
   );
 }
 
-export function IdeaResults({ run, onEditPlan, onSearchAgain }: { run: IdeaRun; onEditPlan: () => void; onSearchAgain: () => void }) {
+export function IdeaResults({ run, compare, facets, onCompare, onEditPlan, onSearchAgain }: { run: IdeaRun; compare: CompareRun; facets: IdeaFacets | null; onCompare: () => void; onEditPlan: () => void; onSearchAgain: () => void }) {
   const [openOnly, setOpenOnly] = useState(false);
   const [hideRetracted, setHideRetracted] = useState(false);
   const done = run.result !== null;
   const papers = useMemo(() => run.papers.filter((p) => (!openOnly || p.oaUrl) && (!hideRetracted || !p.retracted)), [run.papers, openOnly, hideRetracted]);
   const failed = run.searched.filter((s) => !s.ok).length;
   const nothing = done && run.papers.length === 0;
+  const byId = useMemo(() => new Map(run.papers.map((p) => [p.id, p])), [run.papers]);
+  const strips = useMemo(() => new Map((compare.comparison?.comparisons ?? []).map((c) => [c.id, c])), [compare.comparison]);
 
   return (
     <div className="idea-results">
@@ -127,6 +130,9 @@ export function IdeaResults({ run, onEditPlan, onSearchAgain }: { run: IdeaRun; 
         </p>
       )}
 
+      {done && <CompareAction run={compare} available={run.papers.filter((p) => (p.abstract?.length ?? 0) >= 80).length} onCompare={onCompare} />}
+      {compare.comparison && facets && <CoverageMap comparison={compare.comparison} facets={facets} titles={byId} onOpen={(p) => openPreview(p, papers)} />}
+
       {run.papers.length > 0 && (
         <div className="filters" role="group" aria-label="Filters">
           <button type="button" className="chip-btn" aria-pressed={openOnly} onClick={() => setOpenOnly((v) => !v)}>Open access only</button>
@@ -137,7 +143,7 @@ export function IdeaResults({ run, onEditPlan, onSearchAgain }: { run: IdeaRun; 
       <ul className="results" aria-busy={!done} aria-label="Closest papers">
         <AnimatePresence initial>
           {papers.map((p, i) => (
-            <ResultCard key={p.id} paper={p} index={i} onPreview={(paper) => openPreview(paper, papers)} extra={<FoundBy paper={p} />} />
+            <ResultCard key={p.id} paper={p} index={i} onPreview={(paper) => openPreview(paper, papers)} extra={<FoundBy paper={p} />} below={strips.has(p.id) ? <PaperStrip comparison={strips.get(p.id)!} /> : undefined} />
           ))}
         </AnimatePresence>
       </ul>

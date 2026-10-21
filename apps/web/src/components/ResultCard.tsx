@@ -49,7 +49,7 @@ const authorLine = (authors: string[]) =>
   authors.length === 0 ? "Authors unavailable" : authors.length <= 4 ? authors.join(", ") : `${authors.slice(0, 3).join(", ")} et al.`;
 
 /** `extra` is shown with the badges: Idea Check uses it to say which searches found the paper. */
-export function ResultCard({ paper, index, onPreview, extra }: { paper: Paper; index: number; onPreview?: (p: Paper) => void; extra?: ReactNode }) {
+export function ResultCard({ paper, index, onPreview, extra, below }: { paper: Paper; index: number; onPreview?: (p: Paper) => void; extra?: ReactNode; /** shown under the abstract (Idea Check: how the paper relates to the idea) */ below?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const doiHref = paper.doi ? `https://doi.org/${paper.doi}` : null;
   const crossChecked = paper.sources.length >= 2;
@@ -134,6 +134,8 @@ export function ResultCard({ paper, index, onPreview, extra }: { paper: Paper; i
           )}
         </div>
       )}
+
+      {below}
 
       <div className="actions">
         {onPreview && (

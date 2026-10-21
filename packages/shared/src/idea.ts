@@ -61,3 +61,66 @@ export type IdeaSearchEvent =
   | { type: "papers"; papers: IdeaPaper[]; searched: IdeaSearched[] }
   | { type: "done"; result: IdeaSearchResult }
   | { type: "error"; code: string; title: string; detail?: string };
+
+/* ---------------------------------------------------------------- M2: compare the closest papers with the idea */
+
+/** The four parts an idea is described by. The researcher's wording is in the plan; a paper is compared with each part separately. */
+export const FACET_KEYS = ["purpose", "mechanism", "evaluation", "domain"] as const;
+export type FacetKey = (typeof FACET_KEYS)[number];
+export const FACET_LABELS: Record<FacetKey, string> = { purpose: "Purpose", mechanism: "Method", evaluation: "Testing", domain: "Field" };
+
+/** How many of the closest papers are compared (each costs the model about 600 tokens of reading). */
+export const COMPARE_PAPERS = 8;
+export const MAX_COMPARE_ABSTRACT_CHARS = 2000;
+export const MAX_COMPARE_IDEA_CHARS = 3000;
+
+/**
+ * What one paper says about one part of the idea, judged by the model from the paper's abstract alone:
+ *   same        the abstract does essentially what this part of the idea describes
+ *   similar     close, but not the same (another method for the same goal, the same method in a neighbouring field, ...)
+ *   different   the abstract is about something else for this part
+ *   not_stated  the abstract does not say
+ * `same` and `similar` count only with a quote from the abstract that was checked to be there; otherwise they are shown as `unverified`.
+ */
+export type FacetMatch = "same" | "similar" | "different" | "not_stated" | "unverified";
+
+export type FacetEvidence = { match: FacetMatch; /** the sentence from the abstract, present for a verified same/similar */ quote: string | null };
+
+/** How close a paper is overall, worked out from the VERIFIED parts only (never claimed by the model). */
+export type PaperLevel = "close" | "partial" | "related" | "unrelated" | "no_abstract";
+
+export type PaperComparison = { id: string; level: PaperLevel; facets: Record<FacetKey, FacetEvidence> };
+
+export type CoverageStatus = "covered" | "similar" | "none" | "not_stated";
+export type CoverageRow = {
+  facet: FacetKey;
+  status: CoverageStatus;
+  papers: { id: string; match: "same" | "similar"; quote: string }[];
+};
+
+export type IdeaComparison = {
+  comparisons: PaperComparison[];
+  /** One row per part of the idea: which compared papers cover it, with the checked quote. */
+  coverage: CoverageRow[];
+  /** Papers that cover BOTH the method and the field (the combination an idea often rests on), by id. */
+  combination: { found: string[]; compared: number } | null;
+  compared: number;
+  /** Claims that sounded like a match but whose quote was not in the abstract, so they were not shown as one. */
+  droppedClaims: number;
+  model: string;
+};
+
+export type IdeaCompareRequest = {
+  title: string;
+  summary: string;
+  facets: IdeaFacets;
+  question?: string;
+  /** The start of the researcher's own text, for context (the model is private). */
+  ideaExcerpt?: string;
+  papers: { id: string; title: string; year: number | null; abstract: string }[];
+};
+
+export type IdeaCompareEvent =
+  | { type: "stage"; stage: "reading" | "comparing" | "checking" }
+  | { type: "done"; comparison: IdeaComparison }
+  | { type: "error"; code: string; title: string; detail?: string };

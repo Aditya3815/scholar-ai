@@ -1,16 +1,17 @@
 import { Hono, type Context } from "hono";
 import { streamSSE } from "hono/streaming";
-import { PRIVACY_VERSION, IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
+import { PRIVACY_VERSION, IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaCompareEvent, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { d1Store } from "../cache/store";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "../docs/embed";
-import type { Complete } from "../docs/qa";
+import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
 import type { SearchEnv } from "../search/types";
 import type { S2Throttle } from "../s2-throttle";
 import { PlanError, planIdea, scrubText } from "./plan";
+import { compareIdea, sanitizeCompareRequest } from "./compare";
 import { runIdeaSearch, sanitizeRequest } from "./search";
-import { stubPlan, stubSearch } from "./stub";
+import { stubCompareStream, stubPlan, stubSearch } from "./stub";
 
 type Bindings = {
   DB: D1Database;
@@ -44,6 +45,16 @@ function completeFor(env: Bindings, subject: string): Complete | null {
   return async (req) => {
     // The idea is the researcher's own, unpublished work: PRIVATE, so the gateway only uses providers that do not keep or train on it.
     const r = await gateway.complete({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens });
+    return { json: r.json, model: r.model };
+  };
+}
+
+function streamFor(env: Bindings, subject: string, abort: AbortSignal): StreamComplete | null {
+  if (stubbed(env)) return stubCompareStream;
+  const gateway = gatewayFromEnv(env);
+  return async (req, hooks) => {
+    // Same PRIVATE route, quota and ledger as the plan; `abort` stops the model when the researcher leaves.
+    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 90_000 }, hooks, abort);
     return { json: r.json, model: r.model };
   };
 }
@@ -130,6 +141,57 @@ ideaRoutes.post("/search", async (c) => {
     } catch (e) {
       console.error(JSON.stringify({ level: "error", msg: "idea_search_failed", error: e instanceof Error ? e.name : "unknown" }));
       await send({ type: "error", code: "internal_error", title: "The search failed", detail: "Please try again in a moment." });
+    }
+  });
+});
+
+/* ---------------------------------------------------------------- compare (M2) */
+
+/**
+ * Compares the closest papers with each part of the idea. The researcher asks for it (it costs AI use), the answer streams as stages, and every
+ * match in it has a quote that was checked to be in the paper's abstract. Nothing is stored.
+ */
+ideaRoutes.post("/compare", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in to check an idea");
+  if (user.privacyAck !== PRIVACY_VERSION) return deny(c, 403, "privacy_ack_required", "Please read how your ideas are handled first", "A short note appears before your first check.");
+  if (Number(c.req.header("content-length") ?? 0) > 120_000) return deny(c, 413, "too_large", "That is too much text");
+
+  const req = sanitizeCompareRequest(await c.req.json().catch(() => null));
+  if (!req) return deny(c, 400, "invalid_compare", "There is nothing to compare", "Send the idea's plan and the papers to compare.");
+  const abort = new AbortController();
+  const stream = streamFor(c.env, user.id, abort.signal);
+  if (!stream) return deny(c, 503, "ai_unavailable", "Comparing is unavailable right now");
+
+  return streamSSE(c, async (sse) => {
+    let gone = false;
+    sse.onAbort(() => {
+      gone = true;
+      abort.abort();
+    });
+    const send = async (e: IdeaCompareEvent) => {
+      if (!gone) await sse.writeSSE({ event: e.type, data: JSON.stringify(e) }).catch(() => (gone = true));
+    };
+    try {
+      const comparison = await compareIdea({
+        req,
+        stream,
+        hooks: { onStage: (stage) => void send({ type: "stage", stage }) },
+        // Only with the local dev switch: show why a quote was dropped, to tune the prompt. Never in production.
+        onDropped: c.env.ENABLE_DEV_ROUTES === "1" && !stubbed(c.env) ? (d) => console.log(JSON.stringify({ msg: "compare_dropped", facet: d.facet, quote: d.quote, abstract: d.abstract.slice(0, 700) })) : undefined,
+      });
+      await send({ type: "done", comparison });
+    } catch (e) {
+      if (e instanceof QuotaError) await send({ type: "error", code: "quota", title: "You have used today's AI allowance", detail: e.message });
+      else if (e instanceof NoRouteError) await send({ type: "error", code: "ai_unavailable", title: "Comparing is unavailable right now" });
+      else if (e instanceof AllProvidersFailedError) {
+        console.error(JSON.stringify({ level: "error", msg: "idea_compare_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
+        await send({ type: "error", code: "ai_failed", title: "The AI service could not compare just now", detail: "Please try again in a moment." });
+      } else {
+        console.error(JSON.stringify({ level: "error", msg: "idea_compare_unexpected", error: e instanceof Error ? e.name : "unknown" }));
+        await send({ type: "error", code: "internal_error", title: "The comparison failed", detail: "Please try again in a moment." });
+      }
     }
   });
 });

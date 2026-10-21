@@ -104,3 +104,25 @@ file / text ──► read in the browser (pdf.js; .docx, .md, .txt) ──► p
 1. **M1: Related work from an idea** (no model judgment): upload or paste, confirm queries, OpenAlex semantic + keyword + S2, merged and re-ranked, previews, verified citations. Useful on its own and cheap.
 2. **M2: facets and coverage map** with quote-verified evidence, plus the prior-art recall eval.
 3. **M3: gaps, feasibility, grounded answer, report export**, plus calibration on RINoBench and a pilot with real scholars.
+
+
+## M2 as built (22 Oct 2026): compare the closest papers with the idea
+
+After the search, the researcher can press **Compare with my idea**. A private model reads the abstracts of the 8 closest papers (public text we already showed) and, for each paper and each of the four
+parts of the idea (purpose, method, testing, field), answers *same / similar / different / not said*. For *same* and *similar* it must quote the abstract.
+
+What is checked and what is not claimed:
+- **Every shown match has a quote that was checked to be in that abstract** (the paper-Q&A rule for one continuous piece; for a quote joined with "..." each piece of at least 3 words must be there, in order). A claim whose quote fails is not shown as a match; the page says how many were dropped. Keywords strung together fail on purpose.
+- **How close a paper is overall is computed here from the verified parts** (close = three parts match including purpose or method; partly = two; slightly = one). The model never gives it.
+- **The coverage map** (one row per part: covered / something similar / not found in these papers / your text does not say) and the "method and field together" line are computed from verified parts only, and say that they describe these 8 papers, not the literature.
+- **No score, no "novel"**, and no model-written summary sentence (it could not be checked).
+- A quote can still be a weak reason (the model may call "provides accurate results at a lower cost" similar for a field); the researcher sees the sentence and can judge it.
+
+Measured with the real model (gpt-oss-120b on Workers AI), glaucoma-screening idea, 8 papers:
+| | tokens in | tokens out | time |
+| --- | --- | --- | --- |
+| plan | about 400 | about 700 | 8 to 15 s |
+| search | none (OpenAlex, Semantic Scholar) | none | 11 to 13 s |
+| compare | 3,000 to 3,500 | about 5,700 | 25 to 60 s |
+So **a full check is about 10,000 tokens**, and the daily allowance of 60,000 tokens a person allows about **five or six full checks a day**. That is enough for a pilot; raise it (`dailyTokenQuota` in `src/llm/config.ts`) only if people hit it, after looking at real use on `/admin`.
+First live run: 11 of about 30 claimed matches were dropped because the model joined single keywords with "..."; after telling it to quote one or two real pieces and checking pieces separately, 4 of about 30 were dropped (no shown match lacks its sentence). The comparison call has a 90 s limit (the gateway's usual 25 s was too short).

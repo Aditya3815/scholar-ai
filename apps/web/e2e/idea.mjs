@@ -175,6 +175,22 @@ try {
   await axe("idea, results");
   await setTheme("Dark"); await shot("75-idea-results-dark"); await axe("idea, results, dark"); await setTheme("Light");
 
+  // compare with the idea (M2)
+  console.log("compare");
+  await page.getByRole("button", { name: "Compare with my idea" }).click();
+  await page.getByRole("heading", { level: 2, name: /closest papers cover/ }).waitFor({ timeout: 15000 });
+  await page.waitForTimeout(900);
+  ok((await page.locator(".cmp-row").count()) === 4, "the coverage map has one row for each part of the idea");
+  ok((await page.locator(".cmp-row").first().innerText()).includes("Same"), "a row shows which paper covers the part, and how");
+  ok((await page.locator(".cmp-quote").count()) >= 2, "each match shows the sentence it comes from");
+  ok(await page.getByText(/not in the abstract/).isVisible(), "a claim whose sentence is not in the abstract is reported as dropped, not shown as a match");
+  ok((await page.locator(".cmp-strip").count()) === 3, "every paper card says how it relates to the idea");
+  ok(/Closely related|Partly related|Slightly related/.test(await page.locator(".cmp-strip").first().innerText()), "...in words, not as a score");
+  ok(!/novel|new idea|% /i.test(await page.locator(".cmp-map").innerText()), "nothing in the map claims the idea is new or gives a percentage");
+  await shot("79-idea-compare");
+  await axe("idea, compared");
+  await setTheme("Dark"); await shot("79b-idea-compare-dark"); await axe("idea, compared, dark"); await setTheme("Light");
+
   // filters
   await page.getByRole("button", { name: "Open access only" }).click();
   await page.waitForFunction(() => document.querySelectorAll(".result").length === 1);

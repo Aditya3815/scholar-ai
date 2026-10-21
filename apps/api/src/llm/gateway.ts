@@ -100,7 +100,7 @@ export function createGateway(deps: GatewayDeps) {
       };
       try {
         const providerReq = { system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens };
-        const timeout = AbortSignal.timeout(config.perCallTimeoutMs);
+        const timeout = AbortSignal.timeout(req.timeoutMs ?? config.perCallTimeoutMs);
         const signal = abort ? AbortSignal.any([timeout, abort]) : timeout;
         let r: Awaited<ReturnType<LlmProvider["complete"]>>;
         if (wrapped && provider.stream) r = await provider.stream(ref.model, providerReq, signal, wrapped);
