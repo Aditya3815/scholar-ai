@@ -50,7 +50,7 @@ jobs:
         working-directory: apps/api
         run: |
           npx wrangler d1 migrations apply scholar-db --local
-          nohup npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911 --var ORCID_CLIENT_ID:dev --var ORCID_CLIENT_SECRET:dev-secret > ../../worker.log 2>&1 &
+          nohup npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911 --var ENABLE_DEV_ROUTES:1 --var ORCID_CLIENT_ID:dev --var ORCID_CLIENT_SECRET:dev-secret > ../../worker.log 2>&1 &
           for i in $(seq 1 60); do curl -sf localhost:8788/api/v1/health >/dev/null && exit 0; sleep 3; done
           cat ../../worker.log; exit 1
 
