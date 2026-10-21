@@ -32,6 +32,7 @@ jobs:
           python-version: "3.12"
       - run: npm ci
       - run: pip install pypdf fonttools
+      - run: npm run build -w apps/web # the Worker serves the built web app, and refuses to start without it
 
       - name: Fetch the five gold-set papers and extract their text
         run: |

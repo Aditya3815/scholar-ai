@@ -191,6 +191,7 @@ try {
   await page.locator(".ask-text-live").waitFor({ timeout: 10000 });
   ok(/[A-Za-z]{3,}/.test(await page.locator(".ask-text-live").innerText()) && !/\[\d+\]/.test(await page.locator(".ask-text-live").innerText()), "the answer text appears while it is written, without unchecked citation markers");
   await shot("66-answer-streaming");
+  await page.waitForTimeout(800); // earlier answers fade in over 0.3 s; axe must not measure a colour mid-fade (it did on a slow CI runner)
   await axe("workspace while an answer is streaming");
   await page.locator(".ask-answer").nth(2).waitFor({ timeout: 30000 });
   ok((await page.locator(".ask-live").count()) === 0, "when the checked answer arrives it replaces the progress view");
