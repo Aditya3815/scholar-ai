@@ -4,6 +4,7 @@ import type { Paper } from "@scholar/shared";
 import { cookieOpts, currentUser, isHttps, sameOrigin } from "../auth/http";
 import { SESSION_COOKIE } from "../auth/session";
 import { fromSqliteTime } from "../library/validate";
+import { PRIVACY_VERSION } from "@scholar/shared";
 import { deleteDocument } from "../docs/routes";
 
 type Env = { Bindings: { DB: D1Database; FILES: R2Bucket } };
@@ -20,9 +21,9 @@ accountRoutes.get("/export", async (c) => {
   if (!user) return c.json({ type: "unauthorized", title: "Sign in first" }, 401);
 
   const profile = await c.env.DB
-    .prepare("SELECT created_at, last_login_at, locale, theme_pref FROM users WHERE id = ?1")
+    .prepare("SELECT created_at, last_login_at, locale, theme_pref, privacy_ack, privacy_ack_at FROM users WHERE id = ?1")
     .bind(user.id)
-    .first<{ created_at: string; last_login_at: string | null; locale: string; theme_pref: string }>();
+    .first<{ created_at: string; last_login_at: string | null; locale: string; theme_pref: string; privacy_ack: string | null; privacy_ack_at: string | null }>();
   const lib = await c.env.DB
     .prepare("SELECT data, saved_at FROM library_items WHERE user_id = ?1 ORDER BY saved_at DESC")
     .bind(user.id)
@@ -58,6 +59,17 @@ accountRoutes.get("/export", async (c) => {
   c.header("Content-Type", "application/json; charset=utf-8");
   c.header("Content-Disposition", `attachment; filename="scholar-ai-export-${new Date().toISOString().slice(0, 10)}.json"`);
   return c.body(JSON.stringify(body, null, 2));
+});
+
+/** "I have read how my papers and ideas are handled." Needed before the first upload or idea check; records which text and when. */
+accountRoutes.post("/privacy-ack", async (c) => {
+  if (!sameOrigin(c)) return c.json({ type: "forbidden", title: "Cross-origin request blocked" }, 403);
+  const user = await currentUser(c);
+  if (!user) return c.json({ type: "unauthorized", title: "Sign in first" }, 401);
+  const body = (await c.req.json().catch(() => null)) as { version?: unknown } | null;
+  if (body?.version !== PRIVACY_VERSION) return c.json({ type: "outdated", title: "That text has changed", detail: "Reload the page and read the current text." }, 400);
+  await c.env.DB.prepare("UPDATE users SET privacy_ack = ?2, privacy_ack_at = datetime('now') WHERE id = ?1").bind(user.id, PRIVACY_VERSION).run();
+  return c.json({ ok: true, privacyAck: PRIVACY_VERSION });
 });
 
 /** Irreversible: deletes the account, sign-in links, sessions and library in one batch. Needs {"confirm":"DELETE"}. */

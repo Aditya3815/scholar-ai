@@ -25,6 +25,11 @@ const page = await (await browser.newContext({ viewport: { width: 1280, height: 
 await page.goto(BASE + "/papers", { waitUntil: "networkidle" });
 await page.getByRole("button", { name: "Continue with Google" }).click();
 await page.getByRole("button", { name: /^Account:/ }).waitFor({ timeout: 15000 });
+// the privacy note, as a person would click it
+{
+  const { privacyVersion } = await (await page.request.get(BASE + "/api/v1/auth/me")).json();
+  await page.request.post(BASE + "/api/v1/account/privacy-ack", { headers: { Origin: BASE, "Content-Type": "application/json" }, data: { version: privacyVersion } });
+}
 
 const rows = [];
 for (const f of readdirSync(dir).filter((x) => x.toLowerCase().endsWith(".pdf")).sort()) {

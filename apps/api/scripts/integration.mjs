@@ -100,6 +100,7 @@ try {
     ok = run("browser: papers", "e2e/papers.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = run("browser: idea check", "e2e/idea.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = run("browser: admin and reports", "e2e/admin.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = run("browser: legal pages", "e2e/legal.mjs", [`http://localhost:${PORT}`], web) && ok;
     // Only when asked for (needs real PDFs, live Crossref/OpenAlex and a few minutes): REAL_PDFS=<folder> [REAL_VERIFY=1]
     if (process.env.REAL_PDFS) ok = run("browser: real papers", "e2e/real-papers.mjs", [process.env.REAL_PDFS, `http://localhost:${PORT}`, ...(process.env.REAL_VERIFY ? ["--verify"] : [])], web) && ok;
   }

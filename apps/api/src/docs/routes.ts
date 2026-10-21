@@ -14,6 +14,7 @@ import {
   type DocStatus,
   type DocumentInfo,
   type PaperInfo,
+  PRIVACY_VERSION,
 } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
@@ -165,6 +166,7 @@ documentRoutes.post("/", async (c) => {
   if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
   const user = await currentUser(c);
   if (!user) return deny(c, 401, "unauthorized", "Sign in to upload papers");
+  if (user.privacyAck !== PRIVACY_VERSION) return deny(c, 403, "privacy_ack_required", "Please read how your papers are handled first", "A short note appears before your first upload.");
 
   const declared = Number(c.req.header("content-length") ?? "");
   if (Number.isFinite(declared) && declared > MAX_DOC_BYTES) return deny(c, 413, "too_large", "That PDF is too large", `The limit is ${MAX_DOC_BYTES / 1024 / 1024} MB.`);

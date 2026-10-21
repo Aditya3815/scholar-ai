@@ -76,6 +76,20 @@ try {
   console.log("input");
   const next = page.getByRole("button", { name: /Prepare the search/ });
   ok(await next.isDisabled(), "the button is off until there is enough to work with");
+
+  console.log("privacy note");
+  const note = page.getByRole("region", { name: /how your ideas are handled/ });
+  await note.waitFor();
+  await textbox().fill("Graph neural networks to detect fraudulent invoices in small cooperative banks, tested on public data.");
+  ok(await next.isDisabled(), "with the note unread, a long enough idea still cannot be sent");
+  await page.waitForTimeout(700);
+  await shot("78-idea-privacy-note");
+  await axe("idea, privacy note");
+  await note.getByRole("button", { name: "I understand, continue" }).click();
+  await note.waitFor({ state: "detached", timeout: 8000 });
+  await page.waitForFunction(() => !document.querySelector("form.idea-in button[type=submit]")?.disabled, null, { timeout: 8000 });
+  ok(true, "after agreeing, the idea can be sent");
+  await textbox().fill("");
   await textbox().fill("too short");
   ok(await next.isDisabled(), "...still off for a few words");
 

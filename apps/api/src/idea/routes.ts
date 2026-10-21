@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import { streamSSE } from "hono/streaming";
-import { IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
+import { PRIVACY_VERSION, IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { d1Store } from "../cache/store";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "../docs/embed";
@@ -69,6 +69,7 @@ ideaRoutes.post("/plan", async (c) => {
   if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
   const user = await currentUser(c);
   if (!user) return deny(c, 401, "unauthorized", "Sign in to check an idea");
+  if (user.privacyAck !== PRIVACY_VERSION) return deny(c, 403, "privacy_ack_required", "Please read how your ideas are handled first", "A short note appears before your first check.");
 
   // 60,000 characters of text, even all multi-byte, fits well inside this; anything bigger is not an idea.
   if (Number(c.req.header("content-length") ?? 0) > 300_000) return deny(c, 413, "too_large", "That is too much text", "Use a shorter file or paste the key parts.");

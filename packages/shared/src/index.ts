@@ -20,6 +20,8 @@ export type AuthUser = {
   avatarUrl: string | null;
   role: "scholar" | "professor" | "admin";
   providers: ("google" | "orcid")[];
+  /** The privacy text this person has agreed to (see PRIVACY_VERSION), or null if they have not yet. */
+  privacyAck: string | null;
 };
 
 export type AuthProviderInfo = { id: "google" | "orcid"; label: string };
@@ -91,3 +93,4 @@ export * from "./idea";
 export * from "./ideafile";
 export * from "./feedback";
 export * from "./monitoring";
+export * from "./legal";

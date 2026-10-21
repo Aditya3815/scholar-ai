@@ -8,6 +8,7 @@ export type SessionUser = {
   avatarUrl: string | null;
   role: "scholar" | "professor" | "admin";
   providers: ProviderId[];
+  privacyAck: string | null;
 };
 
 export type ResolveResult = { userId: string; created: boolean } | { error: "identity_taken" | "link_target_missing" };

@@ -15,6 +15,7 @@ import "./styles/papers.css";
 import "./styles/workspace.css";
 import "./styles/idea.css";
 import "./styles/admin.css";
+import "./styles/legal.css";
 import { initPrefs } from "./lib/prefs";
 import { initMonitoring } from "./lib/monitoring";
 import { ErrorBoundary } from "./components/ErrorBoundary";

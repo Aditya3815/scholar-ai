@@ -13,6 +13,7 @@ const login = async (sub, email, name) => {
   idp.setUser({ sub, email, email_verified: true, name });
   const c = createClient(APP);
   await c.follow(`${APP}/api/v1/auth/google/start`);
+  await c.ack();
   return c;
 };
 const pdf = makePdf(SAMPLE_PAPER, { title: "Glaucoma screening" });
@@ -21,6 +22,20 @@ const upload = (c, body, { name = "glaucoma_screening.pdf", origin = APP, type =
 const pages = (texts) => texts.map((text, i) => ({ page: i + 1, text }));
 
 try {
+  console.log("the privacy note comes first");
+  {
+    idp.setUser({ sub: "doc-new", email: "new@example.com", email_verified: true, name: "New Person" });
+    const fresh = createClient(APP);
+    await fresh.follow(`${APP}/api/v1/auth/google/start`);
+    const refused = await upload(fresh, makePdf(SAMPLE_PAPER));
+    ok(refused.status === 403 && (await refused.json()).type === "privacy_ack_required", "a first upload is refused until the privacy note has been read");
+    ok((await fresh.api("/api/v1/account/privacy-ack", { method: "POST", body: { version: "something-old" } })).status === 400, "agreeing to a text that is not the current one is refused");
+    ok((await fresh.api("/api/v1/account/privacy-ack", { method: "POST", body: { version: "x" }, origin: null })).status === 403, "agreeing has the cross-origin check");
+    ok((await fresh.ack()).status === 200 && (await upload(fresh, makePdf(SAMPLE_PAPER))).status === 201, "after agreeing, the upload goes through");
+    const exp0 = await (await fresh.api("/api/v1/account/export")).json();
+    ok(/^2026-/.test(exp0.account.privacy_ack ?? "") && !!exp0.account.privacy_ack_at, "the export shows which text was agreed to, and when");
+  }
+
   console.log("anonymous access is refused");
   const anon = createClient(APP);
   ok((await anon.api("/api/v1/documents")).status === 401, "GET /documents -> 401");

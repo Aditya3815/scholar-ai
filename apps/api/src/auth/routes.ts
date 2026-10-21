@@ -1,3 +1,4 @@
+import { PRIVACY_VERSION } from "@scholar/shared";
 import { Hono, type Context } from "hono";
 import { deleteCookie, setCookie } from "hono/cookie";
 import { cookieOpts, isHttps, readSession, sameOrigin } from "./http";
@@ -27,7 +28,7 @@ authRoutes.get("/providers", (c) =>
 
 authRoutes.get("/me", async (c) => {
   const user = await userFromSession(c.env.DB, readSession(c));
-  return c.json({ user });
+  return c.json({ user, privacyVersion: PRIVACY_VERSION });
 });
 
 authRoutes.post("/logout", async (c) => {

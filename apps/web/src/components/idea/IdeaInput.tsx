@@ -15,6 +15,7 @@ export function IdeaInput({
   fileName,
   truncated,
   busy,
+  locked = false,
   onText,
   onQuestion,
   onFile,
@@ -27,6 +28,8 @@ export function IdeaInput({
   fileName: string | null;
   truncated: boolean;
   busy: boolean;
+  /** The privacy note has not been read yet: the idea can be written but not sent. */
+  locked?: boolean;
   onText: (v: string) => void;
   onQuestion: (v: string) => void;
   onFile: (name: string, text: string, truncated: boolean) => void;
@@ -38,7 +41,7 @@ export function IdeaInput({
   const fileRef = useRef<HTMLInputElement>(null);
   const [reading, setReading] = useState(false);
   const [over, setOver] = useState(false);
-  const ready = text.trim().length >= MIN_IDEA_CHARS && !busy && !reading;
+  const ready = text.trim().length >= MIN_IDEA_CHARS && !busy && !reading && !locked;
 
   async function take(file: File | undefined) {
     if (!file) return;

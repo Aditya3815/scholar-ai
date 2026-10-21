@@ -31,5 +31,10 @@ export function createClient(APP) {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   const me = async () => (await (await send(`${APP}/api/v1/auth/me`)).json()).user;
-  return { send, follow, api, me, jar };
+  /** Reads the privacy note, like a person clicking "I understand" before the first upload or idea check. */
+  const ack = async () => {
+    const { privacyVersion } = await (await send(`${APP}/api/v1/auth/me`)).json();
+    return api("/api/v1/account/privacy-ack", { method: "POST", body: { version: privacyVersion } });
+  };
+  return { send, follow, api, me, ack, jar };
 }

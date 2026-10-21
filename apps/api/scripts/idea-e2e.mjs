@@ -40,6 +40,9 @@ try {
   ok((await A.api("/api/v1/idea/search", { method: "POST", body: { keywordQueries: ["graph fraud"] }, origin: null })).status === 403, "searching has the cross-origin check");
 
   console.log("planning");
+  const early = await A.api("/api/v1/idea/plan", { method: "POST", body: { text: IDEA } });
+  ok(early.status === 403 && (await early.json()).type === "privacy_ack_required", "a first check is refused until the privacy note has been read");
+  ok((await A.ack()).status === 200, "(the privacy note is read)");
   const short = await A.api("/api/v1/idea/plan", { method: "POST", body: { text: "too short" } });
   ok(short.status === 400 && (await short.json()).type === "invalid_idea", "a few words are refused with a plain message");
   ok((await A.api("/api/v1/idea/plan", { method: "POST", body: "not json" })).status === 400, "garbage is refused");
@@ -70,5 +73,6 @@ try {
   console.log(" FAIL unexpected error:", e);
   failures++;
 }
+await idp.close?.(); // the next suite starts its own identity provider on the same port
 console.log(failures ? `\n${failures} check(s) FAILED` : "\nall idea integration checks passed");
 process.exit(failures ? 1 : 0);

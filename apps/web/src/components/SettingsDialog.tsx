@@ -85,7 +85,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
                   <section className="settings-sec" aria-labelledby="set-data">
                     <h3 id="set-data" className="settings-h">Your data</h3>
-                    <p className="settings-p">Download everything we hold about you (profile and saved papers) as a JSON file.</p>
+                    <p className="settings-p">Download everything we hold about you (profile, saved papers, your uploaded papers with their questions and answers, and any reports you sent) as a JSON file. The PDFs themselves can be downloaded from each paper.</p>
                     <a className="btn btn-ghost btn-sm" href="/api/v1/account/export" download>
                       <Download size={15} aria-hidden="true" />
                       <span>Export my data</span>

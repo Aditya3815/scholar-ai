@@ -1,13 +1,14 @@
 import { AnimatePresence, m } from "motion/react";
 import { Lightbulb, LockKeyhole, ShieldCheck, Telescope } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { IdeaPlan } from "@scholar/shared";
+import { PRIVACY_VERSION, type IdeaPlan } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/documents";
 import { planIdea, searchIdea } from "../../lib/idea";
 import { easeOut, stagger } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { ProviderButtons } from "../ProviderButtons";
+import { PrivacyCard } from "../legal/PrivacyCard";
 import { IdeaInput } from "./IdeaInput";
 import { IdeaResults, type IdeaRun } from "./IdeaResults";
 import { PlanEditor, type PlanDraft } from "./PlanEditor";
@@ -168,7 +169,9 @@ export function IdeaPage() {
           <AnimatePresence mode="wait" initial={false}>
             {step === "input" && (
               <m.div key="input" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10, transition: { duration: 0.15 } }} transition={{ duration: 0.35, ease: easeOut }}>
+                <PrivacyCard kind="ideas" />
                 <IdeaInput
+                  locked={user.privacyAck !== PRIVACY_VERSION}
                   text={text}
                   question={question}
                   fileName={fileName}

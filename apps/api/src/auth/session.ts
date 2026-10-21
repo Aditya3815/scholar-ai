@@ -23,6 +23,7 @@ type Row = {
   orcid: string | null;
   avatar_url: string | null;
   role: SessionUser["role"];
+  privacy_ack: string | null;
   stale: number;
 };
 
@@ -31,7 +32,7 @@ export async function userFromSession(db: D1Database, token: string | undefined)
   const sid = await sha256Hex(token);
   const row = await db
     .prepare(
-      `SELECT u.id, u.name, u.email, u.orcid, u.avatar_url, u.role,
+      `SELECT u.id, u.name, u.email, u.orcid, u.avatar_url, u.role, u.privacy_ack,
               (s.last_seen_at < datetime('now', '-1 day')) AS stale
          FROM sessions s JOIN users u ON u.id = s.user_id
         WHERE s.id = ?1 AND s.expires_at > datetime('now') AND u.deleted_at IS NULL`,
@@ -60,6 +61,7 @@ export async function userFromSession(db: D1Database, token: string | undefined)
     avatarUrl: row.avatar_url,
     role: row.role,
     providers: providers.results.map((r) => r.provider),
+    privacyAck: row.privacy_ack,
   };
 }
 

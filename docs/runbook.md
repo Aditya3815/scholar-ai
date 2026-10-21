@@ -86,6 +86,17 @@ A question uses one gateway call (about 3 to 4k tokens); the per-user daily toke
 - **Weekly Q&A quality** (`.github/workflows/qa-eval.yml`, Tuesdays): downloads the five public gold-set papers, asks the 35 questions with the real models and fails below the gate
   (`qa-eval.mjs --gate`). It needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. First run: trigger it by hand (Actions, "Q&A quality", Run workflow).
 
+## Error reporting (Sentry)
+
+Unexpected errors in the Worker, a failed daily clean-up, and errors in people's browsers go to Sentry through our own small client (`apps/api/src/monitoring/`). No SDK is
+installed. Only the error type, a message shortened and stripped of e-mail addresses, links and ids, the stack, and a route pattern (never a URL with ids or a query) leave; no request, user, IP, cookie or
+text a person typed. The browser posts to `/api/v1/monitoring` and the Worker forwards it, so the page's Content-Security-Policy is unchanged and the Sentry key never reaches the browser.
+At most 20 events a minute are sent from one Worker instance, so a failure loop cannot use up the free quota (5,000 errors a month on Sentry's free Developer plan).
+
+Set it up (once): in Sentry create a project (platform: Cloudflare Workers or JavaScript), copy its **DSN**, then
+`npx wrangler secret put SENTRY_DSN` (or put `SENTRY_DSN=...` in `apps/api/.dev.vars` and run `npm run secrets:push -w apps/api -- --only=SENTRY_DSN`). Then open `/admin` while signed in as admin and press
+**Send a test event**: it should say Sentry accepted it, and a "Test event from the admin page" appears in the project. Optional: `SENTRY_ENVIRONMENT` (default `production`).
+
 ## Test everything locally
 
 ```sh

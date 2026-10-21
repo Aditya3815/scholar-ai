@@ -67,11 +67,11 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 ### 2. Product, Phase 1 leftovers
 | ID | Item | Owner | Notes |
 | --- | --- | --- | --- |
-| P1 | Privacy policy, Terms, "How we verify" page, data retention text | both | Needs: contact and grievance e-mail, legal entity name, product name. I can write complete drafts now with the blanks marked |
-| P2 | First-upload privacy card and consent record | both | Wording depends on P1 |
+| P1 | Privacy policy, Terms, "How we verify" page, data retention text | both | 🟡 Written and live as drafts at `/privacy`, `/terms`, `/how-we-verify` (linked in the footer). Every missing detail shows as a marked blank. **To finish: fill `LEGAL` in `apps/web/src/lib/legal.ts` (entity, address, contact and grievance e-mail, jurisdiction, date), then a lawyer reads it** |
+| P2 | First-upload privacy card and consent record | both | ✅ Built: shown before the first upload and the first idea check; the server refuses both until it is agreed to and records which text and when (migration 0008). Bumping `PRIVACY_VERSION` asks everyone again |
 | P3 | Notes and highlights in the paper reader; search inside a paper | me | E2 |
 | P4 | Onboarding sample paper | both | Needs one openly licensed PDF we may bundle (licence to be confirmed) |
-| P5 | Sentry (errors), Turnstile (bot check on sign-in), staging environment | both | Code is mine; Sentry DSN, Turnstile keys and permission to create staging D1/R2 are yours |
+| P5 | Sentry (errors), Turnstile (bot check on sign-in), staging environment | both | **Sentry: built** (own thin client, nothing leaves until `SENTRY_DSN` is set; steps in the runbook). Turnstile: I suggest dropping it for now, because sign-in is Google/ORCID only and uploads/asks are already limited per account. Staging: waiting for your yes to create a second D1/R2 |
 | P6 | Manual screen-reader (NVDA) pass | you | axe is clean on every page; a person is still needed |
 | P7 | Q&A first answer text under 2.5 s (now 1.5 to 3.3 s) | me | Phase 1 exit gate, partly met |
 | P8 | Pilot with 20 to 30 scholars | you | Needs 10 names first; I prepare the invite text, a short survey and the admin view |
@@ -113,7 +113,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 ### 6. Legal, trust and money (non-technical)
 | ID | Item | Owner | Notes |
 | --- | --- | --- | --- |
-| L1 | Product name (Scholar or ShodhSetu), domain, logo; check the name is free to use | you | Blocks P1, the domain and the OAuth screens |
+| L1 | Product name: **Scholar AI** (decided 21 Oct). Still to do: check the name is free to use (trademark and domain), logo | you | The name is now in the app, the page titles, the sign-in dialog and the export file name |
 | L2 | Legal entity, contact and grievance officer (India's DPDP Act asks for a notice, consent, a grievance route and a deletion route; we have the last one) | you | Have a lawyer read P1 before launch |
 | L3 | Google sign-in: confirm the OAuth consent screen is published (not "Testing") and brand-verified, so people outside the test list can sign in | you | Easy to forget, blocks any pilot |
 | L4 | ORCID: production (not sandbox) credentials | you | Check |
@@ -129,9 +129,9 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 ### 7. Decisions that unblock the most work
 | ID | Decision | Unblocks |
 | --- | --- | --- |
-| D1 | OpenAlex plan: a separate key for development and the eval, or prepaid credit, or both (the free $1/day is shared by production, tests and eval) | V2, I2, V6, anything live |
+| D1 | OpenAlex plan: **$5 prepaid balance bought (21 Oct, expires in 90 days)**, on top of the free $1/day; the prepaid amount is used only after the day's $1 runs out. Still open: a separate key for development and the eval, so production never competes with tests | V2, I2, V6, anything live |
 | D2 | One-time $10 on OpenRouter (free-model limit rises from 50 to 1,000 a day) | S6 |
-| D3 | Product name and contact details (L1, L2) | P1, P2, L5 |
+| D3 | ~~Product name~~ (decided: Scholar AI). Still needed: legal entity, address, contact and grievance e-mail, jurisdiction (L2) | P1 final, L5 |
 | D4 | Do Idea Check results get saved (I7)? | I7 |
 | D5 | Ten pilot names (P8) | P8, I5 |
 

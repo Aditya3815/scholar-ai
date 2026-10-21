@@ -112,6 +112,16 @@ try {
   await page.getByRole("button", { name: /^Account:/ }).waitFor({ timeout: 15000 });
   ok(new URL(page.url()).pathname === "/papers", "sign-in returns to the papers page");
   await page.getByRole("button", { name: /Upload PDF papers/ }).waitFor();
+  const note = page.getByRole("region", { name: /how your papers are handled/ });
+  await note.waitFor();
+  ok(await page.getByRole("button", { name: /Upload PDF papers/ }).isDisabled(), "before the privacy note is read, the upload is switched off");
+  await page.waitForTimeout(700);
+  await shot("55-papers-privacy-note");
+  await axe("papers, privacy note");
+  await note.getByRole("button", { name: "I understand, continue" }).click();
+  await note.waitFor({ state: "detached", timeout: 8000 });
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => /Upload PDF papers/.test(b.getAttribute("aria-label") ?? b.textContent ?? "") && !b.disabled), null, { timeout: 8000 });
+  ok(true, "after agreeing, the note goes away and the upload works");
   await page.waitForTimeout(1200);
   await shot("53-papers-empty");
   await axe("papers, empty");

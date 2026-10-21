@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import type { DocumentInfo } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { loadDocs, removeDoc, resetDocs, useDocs } from "../../lib/documents";
+import { PRIVACY_VERSION } from "@scholar/shared";
 import { easeOut, stagger } from "../../lib/motion";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { ProviderButtons } from "../ProviderButtons";
+import { PrivacyCard } from "../legal/PrivacyCard";
 import { DocCard } from "./DocCard";
 import { UploadZone } from "./UploadZone";
 
@@ -34,6 +36,7 @@ export function PapersPage({ onOpen }: { onOpen: (id: string) => void }) {
   }, [status, user?.id]);
 
   const full = !!docs.usage && docs.usage.count >= docs.usage.maxCount;
+  const acked = user?.privacyAck === PRIVACY_VERSION;
 
   return (
     <div className="papers">
@@ -69,8 +72,9 @@ export function PapersPage({ onOpen }: { onOpen: (id: string) => void }) {
         </m.div>
       ) : (
         <>
+          <PrivacyCard kind="papers" />
           <m.div {...rise(3)}>
-            <UploadZone disabled={full} reason={full ? `You have reached ${docs.usage!.maxCount} papers. Delete one to add another.` : undefined} />
+            <UploadZone disabled={full || !acked} reason={full ? `You have reached ${docs.usage!.maxCount} papers. Delete one to add another.` : !acked ? "Read the note above first." : undefined} />
           </m.div>
 
           {docs.status === "error" && (
