@@ -30,7 +30,13 @@ for (const paper of papers) {
   const c = createClient(APP);
   await c.follow(`${APP}/api/v1/auth/google/start`);
 
-  const doc = (await (await c.send(`${APP}/api/v1/documents`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/pdf", "X-Filename": `${paper}.pdf` }, body: pdf })).json()).document;
+  const up = await c.send(`${APP}/api/v1/documents`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/pdf", "X-Filename": `${paper}.pdf` }, body: pdf });
+  const upBody = await up.text();
+  if (!up.ok) {
+    console.error(`could not upload ${paper}: HTTP ${up.status} ${upBody.slice(0, 300)} (signed in as: ${JSON.stringify(await c.me().catch(() => null))})`);
+    process.exit(1);
+  }
+  const doc = JSON.parse(upBody).document;
   const t0 = Date.now();
   for (let i = 0; i < pages.length; i += 10) {
     const send = () => c.api(`/api/v1/documents/${doc.id}/pages`, { method: "POST", body: { pages: pages.slice(i, i + 10).map((text, k) => ({ page: i + k + 1, text })) } });

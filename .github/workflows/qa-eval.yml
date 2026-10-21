@@ -55,7 +55,10 @@ jobs:
           cat ../../worker.log; exit 1
 
       - name: Ask the gold questions
-        run: node apps/api/scripts/qa-eval.mjs qa-papers --gate | tee qa-eval.txt
+        shell: bash # with pipefail, so a failed run is not hidden by tee
+        run: |
+          set -o pipefail
+          node apps/api/scripts/qa-eval.mjs qa-papers --gate | tee qa-eval.txt
 
       - name: Keep the results
         if: always()
