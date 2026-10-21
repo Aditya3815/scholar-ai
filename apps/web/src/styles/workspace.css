@@ -1402,3 +1402,45 @@
 .refs-panel .ref {
   padding: 0.9rem 1rem 0.85rem;
 }
+
+/* ---- find in the paper ---- */
+.textLayer span.pdf-hl-now {
+  background: color-mix(in srgb, var(--warn) 55%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn) 55%, transparent);
+}
+.pdfv-find {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+}
+.pdfv-find input[type="search"] {
+  flex: 1;
+  min-width: 6rem;
+  min-height: 2.1rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+.pdfv-find input[type="search"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.pdfv-find-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 5.5rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

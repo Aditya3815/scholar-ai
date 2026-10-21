@@ -1,12 +1,13 @@
 import "pdfjs-dist/web/pdf_viewer.css";
 import { m } from "motion/react";
-import { ChevronLeft, ChevronRight, Download, ListTree, Maximize2, Minus, Plus } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, ListTree, Loader2, Maximize2, Minus, Plus, Search, X } from "lucide-react";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import type { OutlineItem } from "@scholar/shared";
 import type { PDFDocumentProxy } from "../../lib/pdf";
 import { Pop } from "../Pop";
 import { pdfjs } from "../../lib/pdf";
-import { clearHighlights, highlightQuote } from "../../lib/highlight";
+import { clearHighlights, highlightMatches, highlightQuote } from "../../lib/highlight";
+import { locate, usePaperSearch } from "../../lib/paperSearch";
 import { spring } from "../../lib/motion";
 
 export type ViewerHandle = {
@@ -194,6 +195,11 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents }: {
   const [pageInput, setPageInput] = useState("1");
   const layers = useRef(new Map<number, HTMLElement>());
   const pending = useRef<{ page: number; quote: string } | null>(null);
+  const pendingFind = useRef<{ page: number; query: string; k: number } | null>(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findIdx, setFindIdx] = useState(0);
+  const findInput = useRef<HTMLInputElement>(null);
+  const find = usePaperSearch(pdf, findOpen);
   const lastHl = useRef<HTMLElement | null>(null);
   const N = pdf.numPages;
   const reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -230,6 +236,21 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents }: {
     return true;
   }, [reduced]);
 
+  const scrollToSpan = useCallback((el: HTMLElement | null) => {
+    const sc = scroller.current;
+    if (!el || !sc) return;
+    const a = el.getBoundingClientRect();
+    const b = sc.getBoundingClientRect();
+    sc.scrollTo({ top: sc.scrollTop + (a.top - b.top) - sc.clientHeight / 2 + a.height / 2, behavior: reduced ? "auto" : "smooth" });
+  }, [reduced]);
+
+  const applyFind = useCallback((page: number, query: string, k: number) => {
+    const layer = layers.current.get(page);
+    if (!layer) return false;
+    scrollToSpan(highlightMatches(layer, query, k));
+    return true;
+  }, [scrollToSpan]);
+
   const onText = useCallback(
     (n: number, layer: HTMLElement | null) => {
       if (layer) layers.current.set(n, layer);
@@ -239,8 +260,13 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents }: {
         pending.current = null;
         applyHighlight(n, quote);
       }
+      if (layer && pendingFind.current?.page === n) {
+        const { query, k } = pendingFind.current;
+        pendingFind.current = null;
+        applyFind(n, query, k);
+      }
     },
-    [applyHighlight],
+    [applyHighlight, applyFind],
   );
 
   const pageEl = (n: number) => scroller.current?.querySelector<HTMLElement>(`[data-page="${n}"]`);
@@ -262,6 +288,34 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents }: {
     [N, applyHighlight, reduced],
   );
   useImperativeHandle(ref, () => ({ goTo }), [goTo]);
+
+  /* ---- find in the paper ---- */
+  const hit = find.state.status === "idle" ? null : locate(find.state.hits, findIdx);
+  useEffect(() => setFindIdx(0), [find.query]);
+  useEffect(() => {
+    if (!findOpen || !hit) return;
+    layers.current.forEach((l, p) => p !== hit.page && clearHighlights(l));
+    const el = pageEl(hit.page);
+    if (el && scroller.current && !layers.current.has(hit.page)) scroller.current.scrollTo({ top: el.offsetTop - 12, behavior: reduced ? "auto" : "smooth" });
+    pendingFind.current = { page: hit.page, query: find.query, k: hit.k };
+    const t = window.setTimeout(() => {
+      if (pendingFind.current?.page === hit.page && applyFind(hit.page, find.query, hit.k)) pendingFind.current = null;
+    }, 300);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hit?.page, hit?.k, find.query, findOpen]);
+  const closeFind = useCallback(() => {
+    setFindOpen(false);
+    layers.current.forEach((l) => clearHighlights(l));
+  }, []);
+  const stepFind = (d: 1 | -1) => {
+    const total = find.state.total;
+    if (total > 0) setFindIdx((i) => (i + d + total) % total);
+  };
+  const openFind = useCallback(() => {
+    setFindOpen(true);
+    window.setTimeout(() => findInput.current?.select(), 0);
+  }, []);
 
   // Which page is "current": the one whose middle is closest to the middle of the visible area.
   useEffect(() => {
@@ -304,7 +358,15 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents }: {
   const pages = useMemo(() => Array.from({ length: N }, (_, i) => i + 1), [N]);
 
   return (
-    <div className="pdfv">
+    <div
+      className="pdfv"
+      onKeyDown={(e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+          e.preventDefault();
+          openFind();
+        }
+      }}
+    >
       <div className="pdfv-bar" role="toolbar" aria-label="Paper controls">
         <div className="pdfv-pager">
           <button type="button" className="icon-btn icon-btn-sm" aria-label="Previous page" disabled={current <= 1} onClick={() => goTo(current - 1)}>
@@ -328,6 +390,9 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents }: {
           </button>
         </div>
         <div className="pdfv-zoom">
+          <button type="button" className="icon-btn icon-btn-sm" aria-label="Find in this paper" aria-pressed={findOpen} title="Find in this paper (Ctrl+F)" onClick={() => (findOpen ? closeFind() : openFind())}>
+            <Search size={15} aria-hidden="true" />
+          </button>
           {contents && <Contents items={contents.items} detected={contents.detected} current={current} onPick={(p) => goTo(p)} />}
           <button type="button" className="icon-btn icon-btn-sm" aria-label="Zoom out" disabled={zoomIdx === 0} onClick={() => zoom(-1)}>
             <Minus size={16} aria-hidden="true" />
@@ -346,6 +411,42 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents }: {
           </a>
         </div>
       </div>
+
+      {findOpen && (
+        <div className="pdfv-find" role="search" aria-label="Find in this paper">
+          <Search size={15} aria-hidden="true" />
+          <input
+            ref={findInput}
+            autoFocus
+            type="search"
+            aria-label="Find in this paper"
+            placeholder="Find in this paper"
+            value={find.query}
+            onChange={(e) => find.setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                stepFind(e.shiftKey ? -1 : 1);
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                closeFind();
+              }
+            }}
+          />
+          <span className="pdfv-find-count" role="status" aria-live="polite">
+            {find.query.trim() === "" ? "" : find.state.status === "reading" ? <><Loader2 className="spin" size={13} aria-hidden="true" /> {find.state.progress} of {N} pages</> : find.state.total === 0 ? "No matches" : `${findIdx + 1} of ${find.state.total}${hit ? ` · page ${hit.page}` : ""}`}
+          </span>
+          <button type="button" className="icon-btn icon-btn-sm" aria-label="Previous match" disabled={find.state.total === 0} onClick={() => stepFind(-1)}>
+            <ChevronUp size={16} aria-hidden="true" />
+          </button>
+          <button type="button" className="icon-btn icon-btn-sm" aria-label="Next match" disabled={find.state.total === 0} onClick={() => stepFind(1)}>
+            <ChevronDown size={16} aria-hidden="true" />
+          </button>
+          <button type="button" className="icon-btn icon-btn-sm" aria-label="Close search" onClick={closeFind}>
+            <X size={15} aria-hidden="true" />
+          </button>
+        </div>
+      )}
 
       <div className="pdfv-main">
         <div ref={rail} className="pdfv-rail" aria-label="Page thumbnails">

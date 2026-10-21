@@ -21,3 +21,20 @@ export function findRun(needle: string[], hay: string[]): Run {
   }
   return best;
 }
+
+/**
+ * Every place the words of `needle` appear together, in order and unbroken, in `hay` (start indices). The LAST needle word may be a
+ * beginning ("transfor" finds "transformer"), so a search can be run while it is still being typed.
+ */
+export function findAll(needle: string[], hay: string[]): number[] {
+  const out: number[] = [];
+  const n = needle.length;
+  if (n === 0) return out;
+  const last = needle[n - 1]!;
+  for (let i = 0; i + n <= hay.length; i++) {
+    let ok = true;
+    for (let j = 0; j < n - 1 && ok; j++) ok = hay[i + j] === needle[j];
+    if (ok && hay[i + n - 1]!.startsWith(last)) out.push(i);
+  }
+  return out;
+}
