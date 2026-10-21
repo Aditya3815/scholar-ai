@@ -39,8 +39,7 @@ part of the day's OpenAlex budget): list them with `npm run eval 2>&1 | grep "^ 
 ## Prior-art recall (Idea Check)
 
 `eval/prior-art.eval.ts` asks: if a researcher's idea were as clear as a paper's abstract, does Idea Check find the papers that paper itself cites? 40 recent papers (`data/prior_art.json`,
-built by `node eval/build-prior-art.mjs`), the paper hidden from the results, recall measured among the 30 closest papers returned. It has its own recording (`fixtures-prior-art.json.gz`) and is skipped
-until that exists. Record it with `EVAL_MODE=record npx vitest run -c vitest.eval.config.ts eval/prior-art.eval.ts` (about 10 minutes, needs `OPENALEX_API_KEY` and `S2_API_KEY`).
+built by `node eval/build-prior-art.mjs`), the paper hidden from the results, recall measured among the 30 closest papers returned. It has its own recording (`fixtures-prior-art.json.gz`, recorded 22 Oct: 85% of papers get at least one of their references, 48% get three or more, on average 7% of a paper's references are among the 30 closest results; gates 80% and 6%). Record it with `EVAL_MODE=record npx vitest run -c vitest.eval.config.ts eval/prior-art.eval.ts` (about 10 minutes, needs `OPENALEX_API_KEY` and `S2_API_KEY`).
 It measures retrieval only: not the AI step that writes the search plan, and not the meaning re-rank (which needs the embedding model).
 
 ## How the Reference Verifier decides (`src/references/`)

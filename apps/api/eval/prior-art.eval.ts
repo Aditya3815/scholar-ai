@@ -14,12 +14,12 @@ import { runIdeaSearch } from "../src/idea/search";
 import { tokenize } from "../src/references/match";
 import { FetchLayer, type Mode } from "./lib/fetch-layer";
 
-/* Gates: set a little below what was measured on the first recording, so a real drop fails the build and ordinary data drift does not. */
+/* Gates: set a little below the first recording (22 Oct 2026: hit rate 85%, three or more found 48%, mean recall 7.4%), so a real drop fails the build and ordinary data drift does not. */
 const GATES = {
   /** Share of papers for which at least one of their references was found. */
-  hitRate: 0.85,
+  hitRate: 0.8,
   /** Average share of a paper's references found. */
-  meanRecall: 0.08,
+  meanRecall: 0.06,
 };
 
 const MODE = (process.env.EVAL_MODE ?? "replay") as Mode;
