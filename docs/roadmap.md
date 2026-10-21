@@ -39,7 +39,7 @@ every push. Cloudflare: Workers Paid, R2 Paid.
 | E6 Onboarding | 🟡 | home page has three "start with" cards (Idea Check, Verify, My papers); each tool has an example. A sample paper ⏳ (needs an openly licensed PDF) |
 | E7 Admin / cost | ✅ | `/admin` (admins only): people, papers, questions, AI tokens per day and per model, failures, reports. Numbers only, no paper or idea text |
 | E8 Notifications | ⏳ | not needed yet |
-| E9 Quality | 🟡 | citation eval in CI ✅. Weekly Q&A workflow written (`qa-eval.yml`, `--gate`), **not yet run in CI** (needs the Cloudflare secrets; trigger it by hand once) |
+| E9 Quality | 🟡 | citation eval in CI ✅. Weekly Q&A workflow (`qa-eval.yml`, `--gate`) ✅ ran green in CI on 21 Oct |
 
 ## Paper intelligence v1 (GROBID-free): done, see docs/spikes/R1b-grobid-alternatives.md
 
@@ -59,10 +59,10 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 ### 1. Right now (broken or unverified)
 | ID | Item | Owner | Notes |
 | --- | --- | --- | --- |
-| N1 | Two scheduled workflows failed: "Q&A quality" (web app was not built before the Worker started) and "Browser e2e" (an axe colour reading taken while an answer was still fading in) | me | Both fixed and pushed 21 Oct; re-runs triggered, results to be read |
+| N1 | Two scheduled workflows failed: "Q&A quality" (web app was not built before the Worker started) and "Browser e2e" (an axe colour reading taken while an answer was still fading in) | me | ✅ Fixed 21 Oct. Browser e2e passes again. Q&A had three causes (no web build, no dev sign-in flag, `tee` hiding the exit code); now green |
 | N2 | Recreate `apps/api/.dev.vars` (lost on 19 Oct; names are in `.dev.vars.example`) | you | Blocks every local live test (live eval, Idea Check live run, real-paper check). Production is unaffected |
 | N3 | Four Dependabot PRs open (checkout 7, setup-node 7, upload-artifact 7, workers-types 5.x) | both | CI passes on all four. The three action bumps are safe to merge; workers-types is a major version, I check it first |
-| N4 | The Q&A weekly workflow has never produced a result | me | Depends on N1 |
+| N4 | The Q&A weekly workflow had never produced a result | me | ✅ First real run in CI, 21 Oct: answerable 24/24, unanswerable declined 10/10, sources verified 24/24, median 4.3 s |
 
 ### 2. Product, Phase 1 leftovers
 | ID | Item | Owner | Notes |
