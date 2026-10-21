@@ -90,7 +90,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 | ID | Item | Owner | Notes |
 | --- | --- | --- | --- |
 | I1 | **M2**: split the idea into facets, compare each of the top papers with a quoted sentence from its abstract (checked like Q&A quotes), show a coverage map | me | The core of "has it been done" |
-| I2 | Prior-art recall eval: hide a paper, rebuild its idea from the abstract, see how many of its own references come back | me | Gate before M2 is shown to anyone. Needs OpenAlex budget |
+| I2 | Prior-art recall eval: hide a paper, rebuild its idea from the abstract, see how many of its own references come back | me | 🟡 22 Oct: dataset built (40 papers from 2023 to 2025, 20 with an Indian author, 1,729 references, `eval/data/prior_art.json`) and the harness written (`eval/prior-art.eval.ts`, skipped until recorded). **First recording needs a valid OpenAlex key and an S2 key in `.dev.vars`** (the meaning search refuses calls without one); then set the two gates from the numbers |
 | I3 | **M3**: gaps, feasibility (grounded vs opinion, labelled), grounded answer to the question, downloadable report | me | |
 | I4 | More sources (arXiv, PubMed, CORE), open-access full text for the closest papers | me | |
 | I5 | Calibration against RINoBench; 20 ideas judged by real scholars | both | Scholars are yours |
