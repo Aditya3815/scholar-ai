@@ -174,6 +174,51 @@ Exit check (the public-beta gate): 0 fabricated citations in the eval and in rep
 ### What I would do first, today, without waiting for anything
 N1/N4 results, N3, V1, V3, then the legal drafts (P1, P2) and Sentry/Turnstile/staging code (P5). They need nothing from you except, later, the blanks.
 
+## Next two weeks (planned 22 Oct)
+
+Order is by what unlocks the most and what is riskiest, not by what is easiest. "You" items are listed with the day they start to block me.
+
+### Where we stand
+Live and checked: search, Reference Verifier (100/100 tuned, 57/60 held-out, 0/70 fakes verified), uploaded papers with verified Q&A (24/24, 10/10 in the weekly test), search inside a paper, Idea Check M1 (retrieval baseline: 85% of papers get at least one of their own references), report-a-problem, admin page, Sentry, staging, privacy note with a consent record, three drafted legal pages. Weekly Q&A, weekly live eval and weekly browser e2e all green.
+
+### The important things still open
+1. **Before strangers can use it** (Milestone 1 exit): legal blanks and a lawyer's read (deferred by you); rotate the remaining keys (Google, ORCID, Gemini, OpenRouter, Cloudflare token) and make the repo private; two-factor sign-in on GitHub, Cloudflare, Google, OpenAlex, Sentry; Cloudflare billing alert; decide about "Images Stream Basic"; press "Send a test event" on `/admin` and set a Sentry alert to e-mail you on a new issue.
+2. **The product's reason to exist** (Milestone 2/3): Idea Check M2 (facets and a coverage map with checked quotes), then M3 (gaps, feasibility, report).
+3. **What researchers will hit in the first week**: scanned PDFs (many Indian theses are scans and fail today), notes and highlights in the reader, an example paper to try, books/web pages/regional journals being "not found".
+4. **Running it**: a backup restore rehearsed once, a cost per active scholar known (the admin page shows tokens; cost is measured in the pilot), an OpenAlex key separate from production for tests.
+5. **Launch**: name checks (trademark, domain), domain and OAuth addresses, pricing and free allowance, support address and FAQ, 10 pilot names, launch plan.
+
+### Week 1: make Idea Check worth coming back for
+| Day | What | Done when |
+| --- | --- | --- |
+| 1 | M2 design in code: for the closest 8 papers the private model compares each with the idea's four facets and must quote the abstract sentence it relies on; every quote is checked against the abstract (the same check as paper Q&A); a quote that is not there is dropped. Token budget per check worked out against the daily allowance (60,000 tokens a person) | A written budget; the stand-in model and unit tests |
+| 2 | M2 backend streaming, the "coverage map" data (facet by paper, with the quote), the rule that we never say "novel" | API test and integration test pass |
+| 3 | M2 page: coverage map, quotes that open the paper's preview, "nothing found for this part" rows, the list of sources searched; axe, dark mode, phone | Browser e2e green |
+| 4 | Real-model test on 3 real ideas and on 10 abstracts-as-ideas: share of quotes that verify (target 100% shown, nothing unverified displayed), the prior-art numbers with the meaning re-rank on (live script) | Numbers in the roadmap and the design doc |
+| 5 | Notes and highlights in the paper reader | Browser e2e green |
+
+You, during week 1: decide whether an idea check should be saved for later (D4); send 10 pilot names.
+
+### Week 2: close the gaps a first user would hit
+| Day | What | Done when |
+| --- | --- | --- |
+| 6 | Filter or label software and dataset records in Idea Check (V4); add arXiv and PubMed to its sources; re-measure | Prior-art numbers re-recorded; gates raised if earned |
+| 7 | Scanned PDFs: a two-hour spike on which OCR works for Hindi and English scans (Cloudflare's vision models first, Docling in a Container second), with a cost and a quality number; decide | A write-up in `docs/spikes/` and a go / no-go |
+| 8 | Backup and restore rehearsal on staging; alert when a workflow or cron fails; Sentry alert rules | Runbook updated, one real restore done |
+| 9 | Pilot kit: invitation text, a five-question survey, a Monday routine for reading `/admin` and the reports; sample paper if a licensed one is found | Kit in `docs/`, ready to send |
+| 10 | Buffer: whatever the earlier days found, plus the weekly checks | All workflows green; roadmap updated |
+
+You, during week 2: legal blanks and the lawyer (needed before the first invitation goes out), remaining key rotation and two-factor, Google redirect for staging if you want to test sign-in there.
+
+### Gate before inviting anyone
+Every workflow green; legal pages final and linked; keys rotated and repo private; Idea Check never shows an unverified quote; a stranger can sign in, upload, ask, check an idea and delete their account without help.
+
+### Risks I am watching
+- **Model cost**: M2 reads about eight abstracts per check. If a check costs more than the daily allowance allows, the answer is fewer papers per check or a smaller allowance, not a worse check.
+- **OpenAlex budget** ($1 a day plus the $5 prepaid): the prior-art and live runs use it; a separate key for tests removes the competition with production.
+- **"Novel" language**: research shows AI judges are unreliable at it; the coverage map shows evidence and gaps and never a score.
+- **Scans**: if no OCR route is good and cheap, we say plainly that scanned PDFs are not supported yet, instead of failing quietly.
+
 ## What the paid plans give us, and how we use it
 
 Workers Paid (from the plan page): 10M requests/month included, CPU up to 5 min per request (default 30 s), 10,000 subrequests per request,
@@ -214,6 +259,7 @@ to keep the "Images Stream Basic" subscription (we do not use it).
 
 ## Log
 
+- 2026-10-22: Sentry live, staging live, keys for OpenAlex/S2/CORE rotated, admin account set, prior-art recall baseline recorded, search inside a paper, clearer wording for books/web pages/reports/theses. A two-week plan was written (section "Next two weeks").
 - 2026-10-21: two scheduled workflows failed (Q&A quality: the web app was not built before the Worker started; Browser e2e: an axe reading taken while an answer faded in). Both fixed and re-run. Full backlog and a four-milestone plan written (above). Also: on 19 Oct a temporary git worktree with a node_modules junction was force-removed and deleted tracked files and `apps/api/.dev.vars` through the junction; tracked files were restored from git, `.dev.vars` was not recoverable (N2).
 - 2026-10-19: Idea Check M1 (read PDF/Word/LaTeX/Markdown/text in the browser, approve the search plan, closest papers by meaning with DOI and retraction checks, report of what was searched); "Report a problem"; admin page; home start cards; weekly Q&A workflow; R2 deletion is now tested. Fixed: answers lost double letters ("process" became "proce "), Crossref titles with markup, top bar too wide for four tabs. OpenAlex's $1/day budget ran out during the eval re-record.
 - 2026-10-18 (late): researched the "Idea Check" product idea (docs/design/idea-check.md) and what Workers Paid and OpenRouter free models can be used for; pending list rewritten above.
