@@ -1,5 +1,5 @@
 import { m } from "motion/react";
-import { FileStack, MessagesSquare, Trash2, Users } from "lucide-react";
+import { Bug, FileStack, MessagesSquare, Trash2, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { FEEDBACK_PROBLEMS, type AdminFeedback, type AdminOverview } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
@@ -58,6 +58,38 @@ function Report({ f, onDelete }: { f: AdminFeedback; onDelete: (id: string) => v
         <pre className="admin-report-ctx">{JSON.stringify(f.context, null, 2)}</pre>
       </details>
     </li>
+  );
+}
+
+/** Checks that error reporting is connected: sends one harmless test event and says what Sentry answered. */
+function ErrorReporting() {
+  const [state, setState] = useState<"idle" | "sending" | "off" | "ok" | "failed">("idle");
+  const test = async () => {
+    setState("sending");
+    try {
+      const res = await fetch("/api/v1/admin/monitoring-test", { method: "POST", credentials: "same-origin" });
+      const j = (await res.json()) as { configured?: boolean; status?: number | null };
+      setState(!j.configured ? "off" : j.status && j.status >= 200 && j.status < 300 ? "ok" : "failed");
+    } catch {
+      setState("failed");
+    }
+  };
+  return (
+    <section className="card admin-sec" aria-labelledby="mon-h">
+      <h2 id="mon-h" className="admin-h2">Error reporting</h2>
+      <p className="admin-lead">Unexpected errors, in the server and in people's browsers, go to Sentry. Only the error, its stack and a route pattern are sent, never what anyone typed.</p>
+      <div className="admin-test">
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void test()} disabled={state === "sending"} aria-busy={state === "sending"}>
+          <Bug size={15} aria-hidden="true" />
+          <span>{state === "sending" ? "Sending…" : "Send a test event"}</span>
+        </button>
+        <p role="status" className="admin-test-result" data-state={state}>
+          {state === "off" && "Not set up yet: no SENTRY_DSN secret is set on the server."}
+          {state === "ok" && "Sentry accepted the test event. Look for “Test event from the admin page” in your Sentry project."}
+          {state === "failed" && "The test event was not accepted. Check the DSN secret."}
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -148,6 +180,8 @@ export function AdminPage() {
           </table>
         )}
       </section>
+
+      <ErrorReporting />
 
       <section aria-labelledby="reports-h" className="admin-sec">
         <h2 id="reports-h" className="admin-h2">What people reported ({data.feedback.length})</h2>

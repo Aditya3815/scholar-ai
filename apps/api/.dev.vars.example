@@ -13,3 +13,5 @@ ORCID_CLIENT_ID=
 ORCID_CLIENT_SECRET=
 # ORCID_BASE_URL=https://sandbox.orcid.org
 OPENROUTER_API_KEY=
+# Error reporting (Sentry): optional. Without it nothing is reported anywhere.
+SENTRY_DSN=

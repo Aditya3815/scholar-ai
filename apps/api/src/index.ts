@@ -12,6 +12,8 @@ import { documentRoutes } from "./docs/routes";
 import { ideaRoutes } from "./idea/routes";
 import { feedbackRoutes } from "./feedback/routes";
 import { adminRoutes } from "./admin/routes";
+import { monitoringRoutes } from "./monitoring/routes";
+import { captureException } from "./monitoring/sentry";
 import type { AuthEnv } from "./auth/providers";
 import { d1Store } from "./cache/store";
 import type { SearchEnv } from "./search/types";
@@ -37,6 +39,9 @@ type Bindings = AuthEnv & LimitEnv & {
   S2_API_KEY?: string;
   CORE_API_KEY?: string;
   CROSSREF_MAILTO: string;
+  /** Optional: where unexpected errors are reported (Sentry). Nothing is sent when it is not set. */
+  SENTRY_DSN?: string;
+  SENTRY_ENVIRONMENT?: string;
 };
 
 const searchEnv = (env: Bindings): SearchEnv => ({
@@ -62,6 +67,7 @@ app.route("/api/v1/documents", documentRoutes);
 app.route("/api/v1/idea", ideaRoutes);
 app.route("/api/v1/feedback", feedbackRoutes);
 app.route("/api/v1/admin", adminRoutes);
+app.route("/api/v1/monitoring", monitoringRoutes);
 
 app.get("/api/v1/health", async (c) => {
   let db: HealthResponse["db"] = "ok";
@@ -176,6 +182,7 @@ app.notFound((c) =>
 );
 
 app.onError((err, c) => {
+  captureException(c.env, err, { route: c.req.routePath, release: c.env.CF_VERSION_METADATA?.id, waitUntil: (p) => c.executionCtx.waitUntil(p) });
   console.error(JSON.stringify({ level: "error", msg: "unhandled", requestId: c.get("requestId"), error: err.name }));
   return c.json({ type: "internal_error", title: "Internal error", requestId: c.get("requestId") }, 500);
 });
@@ -188,7 +195,10 @@ export default {
     ctx.waitUntil(
       runMaintenance(env.DB).then(
         (deleted) => console.log(JSON.stringify({ level: "info", msg: "maintenance", deleted })),
-        (err) => console.error(JSON.stringify({ level: "error", msg: "maintenance_failed", error: String(err) })),
+        (err) => {
+          console.error(JSON.stringify({ level: "error", msg: "maintenance_failed", error: String(err) }));
+          captureException(env, err, { route: "cron:maintenance", source: "cron", release: env.CF_VERSION_METADATA?.id, waitUntil: (p) => ctx.waitUntil(p) });
+        },
       ),
     );
   },

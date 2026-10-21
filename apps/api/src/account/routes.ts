@@ -56,7 +56,7 @@ accountRoutes.get("/export", async (c) => {
     library: lib.results.map((r) => ({ ...(JSON.parse(r.data) as Paper), savedAt: new Date(fromSqliteTime(r.saved_at)).toISOString() })),
   };
   c.header("Content-Type", "application/json; charset=utf-8");
-  c.header("Content-Disposition", `attachment; filename="shodhsetu-export-${new Date().toISOString().slice(0, 10)}.json"`);
+  c.header("Content-Disposition", `attachment; filename="scholar-ai-export-${new Date().toISOString().slice(0, 10)}.json"`);
   return c.body(JSON.stringify(body, null, 2));
 });
 

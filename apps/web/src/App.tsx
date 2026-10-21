@@ -38,7 +38,7 @@ const routeFromPath = (): Route => {
   if (m) return { view: "papers", docId: m[1] ?? null };
   return { view: "search", docId: null };
 };
-const TITLES: Record<View, string> = { search: "Scholar", verify: "Verify references · Scholar", papers: "My papers · Scholar", idea: "Idea Check · Scholar", admin: "Admin · Scholar" };
+const TITLES: Record<View, string> = { search: "Scholar AI", verify: "Verify references · Scholar AI", papers: "My papers · Scholar AI", idea: "Idea Check · Scholar AI", admin: "Admin · Scholar AI" };
 
 function Footer() {
   return (
@@ -161,7 +161,7 @@ export function App() {
 
         <header className={`topbar ${idle && view === "search" ? "" : "topbar-solid"}`}>
           <div className="topbar-inner">
-            <button type="button" className="logo-btn" onClick={goHome} aria-label="Scholar, home">
+            <button type="button" className="logo-btn" onClick={goHome} aria-label="Scholar AI, home">
               <Logo />
             </button>
             <TopNav view={view} onNavigate={navigate} />

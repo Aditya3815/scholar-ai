@@ -1,8 +1,9 @@
 import { Hono, type Context } from "hono";
 import type { AdminOverview, FeedbackKind } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
+import { parseDsn, sendEvent, type SentryEnv } from "../monitoring/sentry";
 
-type Env = { Bindings: { DB: D1Database } };
+type Env = { Bindings: SentryEnv & { DB: D1Database } };
 export const adminRoutes = new Hono<Env>();
 
 adminRoutes.use("*", async (c, next) => {
@@ -50,4 +51,13 @@ adminRoutes.delete("/feedback/:id", async (c) => {
   if (!(await admin(c))) return deny(c, 404, "not_found", "Not found");
   await c.env.DB.prepare("DELETE FROM feedback WHERE id = ?1").bind(c.req.param("id")).run();
   return c.json({ ok: true });
+});
+
+/** Sends one harmless test event to Sentry, so the setup can be checked without waiting for a real error. */
+adminRoutes.post("/monitoring-test", async (c) => {
+  if (!sameOrigin(c)) return c.json({ type: "forbidden", title: "Cross-origin request blocked" }, 403);
+  if (!(await admin(c))) return deny(c, 404, "not_found", "Not found");
+  if (!parseDsn(c.env.SENTRY_DSN)) return c.json({ configured: false, status: null });
+  const status = await sendEvent(c.env, { type: "TestEvent", message: "Test event from the admin page. Nothing is wrong.", route: "/admin", source: "test", level: "info" });
+  return c.json({ configured: true, status });
 });

@@ -91,6 +91,9 @@ try {
   ok(/Hydrology Today/.test(await reports.first().locator(".admin-report-ctx").innerText()), "...and what was sent");
   const body = await page.locator(".admin").innerText();
   ok(!/ops@example\.edu/.test(body), "no e-mail address on the page");
+  await page.getByRole("button", { name: "Send a test event" }).click();
+  await page.getByText(/Not set up yet/).waitFor({ timeout: 8000 });
+  ok(true, "the error-reporting check says plainly that it is not set up while there is no Sentry address");
   await shot("80-admin");
   await axe("admin");
   await setTheme("Dark"); await shot("81-admin-dark"); await axe("admin, dark"); await setTheme("Light");

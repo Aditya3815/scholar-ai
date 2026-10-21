@@ -72,7 +72,7 @@ try {
   console.log("data export");
   const exp = await A.api("/api/v1/account/export");
   const expJson = await exp.json();
-  ok(exp.status === 200 && /attachment; filename="shodhsetu-export-/.test(exp.headers.get("content-disposition") ?? ""), "export is a file download");
+  ok(exp.status === 200 && /attachment; filename="scholar-ai-export-/.test(exp.headers.get("content-disposition") ?? ""), "export is a file download");
   ok(expJson.account.email === "a@example.com" && expJson.library.length === 2, "export has the account and both papers");
   ok(!JSON.stringify(expJson).includes("Bob"), "export contains nothing from Bob");
   ok(!/token|sid|session/i.test(Object.keys(expJson.account).join()), "export contains no session or token fields");

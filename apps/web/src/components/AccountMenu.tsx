@@ -38,7 +38,7 @@ function SignInDialog() {
                   <Dialog.Close className="icon-btn modal-close" aria-label="Close">
                     <X size={18} aria-hidden="true" />
                   </Dialog.Close>
-                  <Dialog.Title className="modal-title">Sign in to Scholar</Dialog.Title>
+                  <Dialog.Title className="modal-title">Sign in to Scholar AI</Dialog.Title>
                   <Dialog.Description id="signin-desc" className="modal-sub">
                     Save your library across devices and keep your uploads private to you.
                   </Dialog.Description>

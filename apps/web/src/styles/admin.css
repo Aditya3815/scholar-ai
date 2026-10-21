@@ -179,3 +179,20 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.admin-test {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+.admin-test-result {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.admin-test-result[data-state="ok"] {
+  color: var(--ok);
+}
+.admin-test-result[data-state="failed"] {
+  color: var(--danger);
+}

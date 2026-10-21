@@ -47,6 +47,13 @@ try {
   ok((await U.api(`/api/v1/admin/feedback/${fr.id}`, { method: "DELETE" })).status === 200, "an admin can remove a handled report");
   ok(!(await (await U.api("/api/v1/admin/overview")).json()).feedback.some((f) => f.id === fr.id), "...and it is gone");
 
+  console.log("error reporting");
+  ok((await anon.api("/api/v1/monitoring", { method: "POST", body: { type: "TypeError", message: "x", path: "/papers" } })).status === 204, "the browser can report an error, and is told 204 whether or not Sentry is set up");
+  ok((await anon.api("/api/v1/monitoring", { method: "POST", body: { message: "x" }, origin: "https://evil.example" })).status === 403, "another site cannot post to it");
+  const test = await U.api("/api/v1/admin/monitoring-test", { method: "POST" });
+  ok(test.status === 200 && (await test.json()).configured === false, "an admin can run the test, which says not set up while there is no DSN");
+  ok((await anon.api("/api/v1/admin/monitoring-test", { method: "POST" })).status === 404, "anyone else is told the test does not exist");
+
   console.log("the daily limit and deletion");
   let last = 201;
   for (let i = 0; i < 40 && last === 201; i++) last = (await report(U, { kind: "other", problem: "other", note: `n${i}` })).status;
