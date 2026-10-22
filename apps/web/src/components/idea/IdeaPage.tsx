@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { COMPARE_PAPERS, PRIVACY_VERSION, type IdeaPlan } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/documents";
-import { compareIdea, planIdea, searchIdea } from "../../lib/idea";
+import { compareIdea, isData, planIdea, searchIdea } from "../../lib/idea";
 import { easeOut, stagger } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { ProviderButtons } from "../ProviderButtons";
@@ -128,7 +128,7 @@ export function IdeaPage() {
     const ctl = new AbortController();
     abort.current = ctl;
     setCompare({ status: "running", stage: "reading", comparison: null, error: "" });
-    const papers = run.papers.filter((p) => (p.abstract?.length ?? 0) >= 80).slice(0, COMPARE_PAPERS).map((p) => ({ id: p.id, title: p.title, year: p.year, abstract: p.abstract! }));
+    const papers = run.papers.filter((p) => !isData(p) && (p.abstract?.length ?? 0) >= 80).slice(0, COMPARE_PAPERS).map((p) => ({ id: p.id, title: p.title, year: p.year, abstract: p.abstract! }));
     try {
       const comparison = await compareIdea(
         { title: plan.title, summary: plan.summary, facets: plan.facets, question: question.trim() || undefined, ideaExcerpt: text.slice(0, 3000), papers },

@@ -46,6 +46,8 @@ export type Paper = {
   sources: string[];
   /** reciprocal-rank-fusion score */
   score: number;
+  /** What kind of work the index says it is (article, preprint, dataset, ...), when one of the sources knows. */
+  workType?: string | null;
   /**
    * Result of the DOI check run on every search result: "verified" (registered with Crossref and the title agrees, or resolves
    * at doi.org), "unchecked" (could not be checked, kept), or "dropped_*" (the DOI did not exist or belonged to a different
@@ -68,6 +70,7 @@ export const PROVIDER_LABELS = {
   s2: "Semantic Scholar",
   crossref: "Crossref",
   pubmed: "PubMed",
+  arxiv: "arXiv",
 } as const;
 
 /** SSE `snapshot` event payload: har provider ke baad merged results (retraction flags `done` mein aate hain). */

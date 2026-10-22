@@ -106,6 +106,13 @@ file / text ──► read in the browser (pdf.js; .docx, .md, .txt) ──► p
 3. **M3: gaps, feasibility, grounded answer, report export**, plus calibration on RINoBench and a pilot with real scholars.
 
 
+## Sources and kinds of record (22 Oct 2026)
+
+- Searched: OpenAlex (by meaning and by keywords), Semantic Scholar (keywords), PubMed and arXiv (the first two keyword searches each; arXiv is asked one request at a time, 3.1 s apart, as it requests). Each paper lists the searches that found it; a failing source is reported, never hidden.
+- Every record gets a **kind** (paper, preprint, book, thesis, report, dataset or software) from OpenAlex's own type; a record with no type that sits in a data repository (Zenodo, figshare, Dryad, OSF ...) or a GitHub-like venue counts as data. Front pages, errata, peer-review reports, grants and supplementary files are dropped.
+- Datasets and software are listed after all papers, hidden by default, and never sent to the comparison (they are not prior art the way a paper is). The page says how many are hidden and lets the researcher show them.
+- Measured: neither PubMed nor arXiv changes how many of a paper's own references are found (eval README); they are there for recent work.
+
 ## M2 as built (22 Oct 2026): compare the closest papers with the idea
 
 After the search, the researcher can press **Compare with my idea**. A private model reads the abstracts of the 8 closest papers (public text we already showed) and, for each paper and each of the four

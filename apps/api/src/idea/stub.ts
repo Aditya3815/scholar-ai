@@ -31,6 +31,7 @@ const RECORDS = [
   { title: "Closest prior work on the idea (sample record)", year: 2021, authors: ["Anita Desai", "Rahul Verma"], doi: "10.1234/sample.1", venue: "Journal of Sample Records" },
   { title: "A related method in another field (sample record)", year: 2019, authors: ["Meera Iyer"], doi: "10.1234/sample.2", venue: "Sample Proceedings" },
   { title: "A survey that mentions the idea (sample record)", year: 2023, authors: ["Kiran Rao", "J. Smith", "L. Chen", "P. Gupta"], doi: null, venue: "Sample Reviews" },
+  { title: "A dataset deposit about the topic (sample record)", year: 2022, authors: ["Data Team"], doi: "10.5281/zenodo.1", venue: "Zenodo" },
 ] as const;
 
 export function stubSearch(req: IdeaSearchRequest): IdeaSearchResult {
@@ -51,6 +52,7 @@ export function stubSearch(req: IdeaSearchRequest): IdeaSearchResult {
     score: 1 - i / 10,
     doiStatus: r.doi ? "verified" : undefined,
     relevance: 0.8 - i * 0.1,
+    kind: r.doi?.startsWith("10.5281/") ? "data" : "paper",
     foundBy: i === 0 ? ["OpenAlex (meaning)", "Semantic Scholar"] : ["OpenAlex (meaning)"],
   }));
   return {
@@ -60,6 +62,8 @@ export function stubSearch(req: IdeaSearchRequest): IdeaSearchResult {
       ...(req.semanticQuery ? [{ source: "openalex" as const, kind: "semantic" as const, query: req.semanticQuery, ok: true, count: 40 }] : []),
       ...req.keywordQueries.map((q) => ({ source: "openalex" as const, kind: "keyword" as const, query: q, ok: true, count: 20 })),
       ...req.keywordQueries.slice(0, 3).map((q) => ({ source: "s2" as const, kind: "keyword" as const, query: q, ok: true, count: 20 })),
+      ...req.keywordQueries.slice(0, 2).map((q) => ({ source: "pubmed" as const, kind: "keyword" as const, query: q, ok: true, count: 12 })),
+      ...req.keywordQueries.slice(0, 2).map((q) => ({ source: "arxiv" as const, kind: "keyword" as const, query: q, ok: true, count: 9 })),
     ],
     checked: { doi: true, retraction: true },
     tookMs: 1,

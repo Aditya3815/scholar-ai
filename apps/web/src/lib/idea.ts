@@ -1,8 +1,11 @@
-import type { IdeaCompareEvent, IdeaCompareRequest, IdeaComparison, IdeaPlan, IdeaSearchEvent, IdeaSearchRequest, IdeaSearchResult } from "@scholar/shared";
+import type { IdeaCompareEvent, IdeaCompareRequest, IdeaComparison, IdeaPaper, IdeaPlan, IdeaSearchEvent, IdeaSearchRequest, IdeaSearchResult } from "@scholar/shared";
 import { ApiError } from "./documents";
 import { readSse } from "./sse";
 
-const post = (body: unknown, signal?: AbortSignal): RequestInit => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "same-origin", signal });
+/** Dataset and software deposits are not prior art the way a paper is: hidden by default and never sent to the comparison. */
+export const isData = (p: IdeaPaper) => p.kind === "data";
+
+const post =(body: unknown, signal?: AbortSignal): RequestInit => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "same-origin", signal });
 
 async function fail(res: Response): Promise<never> {
   const j = (await res.json().catch(() => null)) as { type?: string; title?: string; detail?: string } | null;

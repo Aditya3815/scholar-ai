@@ -8,6 +8,8 @@ export const scrubEmails = (s) => s.replace(EMAIL, "redacted@example.invalid");
 export const CROSSREF_KEEP = ["DOI", "title", "author", "issued", "container-title", "update-to", "type", "is-referenced-by-count"];
 
 export function trimBody(url, text) {
+  // arXiv answers with an Atom feed, not JSON: the abstracts are not needed to measure recall, so they are not stored
+  if (url.includes("export.arxiv.org")) return scrubEmails(text.replace(/<summary>[\s\S]*?<\/summary>/g, "<summary></summary>"));
   try {
     const j = JSON.parse(text);
     if (url.includes("api.openalex.org")) {

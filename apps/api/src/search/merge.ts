@@ -38,6 +38,7 @@ export function mergeAndRank(lists: Record<string, ProviderPaper[]>, limit: numb
           citationCount: p.citationCount,
           oaUrl: p.oaUrl,
           retracted: p.retracted,
+          workType: p.workType ?? null,
           retractionSources: p.retracted ? [source] : [],
           sources: [source],
           score: rr,
@@ -54,6 +55,7 @@ export function mergeAndRank(lists: Record<string, ProviderPaper[]>, limit: numb
         if ((p.abstract?.length ?? 0) > (existing.abstract?.length ?? 0)) existing.abstract = p.abstract;
         if ((p.citationCount ?? -1) > (existing.citationCount ?? -1)) existing.citationCount = p.citationCount;
         existing.oaUrl ??= p.oaUrl;
+        existing.workType ??= p.workType ?? null;
         if (p.retracted) {
           existing.retracted = true;
           if (!existing.retractionSources.includes(source)) existing.retractionSources.push(source);

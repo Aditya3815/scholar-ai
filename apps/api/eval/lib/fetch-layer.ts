@@ -28,6 +28,7 @@ const HOST_INTERVAL_MS: Record<string, number> = {
   "doi.org": 70,
   "eutils.ncbi.nlm.nih.gov": 110,
   "api.openalex.org": 0,
+  "export.arxiv.org": 3100, // arXiv asks for one request every three seconds
 };
 
 export class FetchLayer {
@@ -62,6 +63,10 @@ export class FetchLayer {
       }
       return new Response(fx.b, { status: fx.s, headers: { "Content-Type": "application/json" } });
     }
+
+    // Recording the same request twice (the same search made by several configurations of one eval) must not be paid for twice.
+    const done = this.mode === "record" ? this.fixtures.get(key) : undefined;
+    if (done && done.s < 400) return new Response(done.b, { status: done.s, headers: { "Content-Type": "application/json" } });
 
     const url = new URL(key.slice(key.indexOf(" ") + 1));
     const gap = HOST_INTERVAL_MS[url.host] ?? 100;

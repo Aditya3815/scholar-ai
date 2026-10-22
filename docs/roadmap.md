@@ -82,7 +82,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 | V1 | Two tuned references (McMurray 2019, Murray 2022) fell from verified to not_found / mismatch | me | ✅ Found and fixed 21 Oct: for a reference written with initials the title guess picked a piece of the author list ("V., Solomon, S") instead of the title. Tuned set is back to 100/100; held-out 57/60; fabricated verified 0/70 |
 | V2 | Better search title for references that start with initials | me | ✅ Same fix as V1 (no full re-record needed: the few new requests were added with `eval/patch-fixtures.mjs`) |
 | V3 | Wording for reprints (year differs, authors match) and for books, reports, theses and web pages | me | ✅ 22 Oct: "not found" for something that looks like a book, report, thesis or web page now says that Crossref and OpenAlex do not list those, and how to check; a title+author match with another year mentions reprints. Statuses unchanged, so the eval is unchanged |
-| V4 | Records for software and datasets (Zenodo, GitHub) appear in Idea Check; filter or label them | me | |
+| V4 | Records for software and datasets (Zenodo, GitHub) appear in Idea Check; filter or label them | me | ✅ 22 Oct: every record has a kind (paper, preprint, book, thesis, report, dataset or software) from the index's own type, with data-repository DOIs (Zenodo, figshare, Dryad ...) and GitHub-like venues as a fallback. Datasets and software rank after every paper and are hidden by default behind "Hide datasets and software (n)"; never sent to the comparison. Front pages, errata and peer-review reports are dropped |
 | V5 | Crossref calls from one global lane (Queue) instead of per-process | me | Today's gate is per isolate |
 | V6 | Cache public lookups (DOI to record) in KV | me | Protects the OpenAlex budget |
 
@@ -92,7 +92,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 | I1 | **M2**: split the idea into facets, compare each of the top papers with a quoted sentence from its abstract (checked like Q&A quotes), show a coverage map | me | ✅ 22 Oct: built, tested with the real model (about 10,000 tokens a full check, 25 to 60 s for the comparison); design and numbers in `design/idea-check.md` ("M2 as built"). Still to do: judge its usefulness with real scholars (I5) |
 | I2 | Prior-art recall eval: hide a paper, rebuild its idea from the abstract, see how many of its own references come back | me | ✅ 22 Oct, first recording (40 papers from 2023 to 2025, 20 with an Indian author, 1,729 references; all 120 searches answered): **at least one reference found for 85% of papers, three or more for 48%, on average 7% of a paper's references** among the 30 closest results. A paper cites many things its abstract never mentions, so 7% is not "7% of what matters"; it is a baseline to beat. Gates (80% hit, 6% mean) run on every push. Not covered: the AI plan step, and the meaning re-rank |
 | I3 | **M3**: gaps, feasibility (grounded vs opinion, labelled), grounded answer to the question, downloadable report | me | |
-| I4 | More sources (arXiv, PubMed, CORE), open-access full text for the closest papers | me | |
+| I4 | More sources (arXiv, PubMed, CORE), open-access full text for the closest papers | me | Partly ✅ 22 Oct: arXiv and PubMed added (first two keyword searches each; arXiv one request per 3.1 s). Measured: no change in reference recall (see eval README), about 0.8 extra papers per check from each that no other search found. CORE and open-access full text still to do |
 | I5 | Calibration against RINoBench; 20 ideas judged by real scholars | both | Scholars are yours |
 | I6 | Hands-on comparison with Elicit, Undermind, Consensus, SciSpace before any public claim | you | I can prepare the comparison sheet |
 | I7 | Idea history (opt-in, deletable) so a researcher can come back to a check | me | Currently nothing is stored, by design; this needs a decision |
@@ -202,7 +202,7 @@ You, during week 1: decide whether an idea check should be saved for later (D4);
 ### Week 2: close the gaps a first user would hit
 | Day | What | Done when |
 | --- | --- | --- |
-| 6 | Filter or label software and dataset records in Idea Check (V4); add arXiv and PubMed to its sources; re-measure | Prior-art numbers re-recorded; gates raised if earned |
+| 6 | ✅ Filter or label software and dataset records in Idea Check (V4); add arXiv and PubMed to its sources; re-measure | Prior-art re-recorded with four source sets. Recall unchanged (85% / 48% / 7.4%), so gates stay 80% / 6%; the new sources are kept for recent preprints and papers the benchmark cannot see, not because the number rose |
 | 7 | Scanned PDFs: a two-hour spike on which OCR works for Hindi and English scans (Cloudflare's vision models first, Docling in a Container second), with a cost and a quality number; decide | A write-up in `docs/spikes/` and a go / no-go |
 | 8 | Backup and restore rehearsal on staging; alert when a workflow or cron fails; Sentry alert rules | Runbook updated, one real restore done |
 | 9 | Pilot kit: invitation text, a five-question survey, a Monday routine for reading `/admin` and the reports; sample paper if a licensed one is found | Kit in `docs/`, ready to send |
@@ -259,6 +259,7 @@ to keep the "Images Stream Basic" subscription (we do not use it).
 
 ## Log
 
+- 2026-10-22 (evening): Idea Check V4 and new sources: kind label for every record, datasets/software hidden by default and out of the comparison, arXiv and PubMed searched; prior-art eval now compares four source sets (recall unchanged: the sources add recent papers, not cited references). Eval fixtures for Idea Check were re-recorded (the OpenAlex request now also asks for the work type).
 - 2026-10-22 (later): Idea Check M2 (compare the closest papers with each part of the idea; every match has a checked quote; measured about 10,000 tokens a full check); highlights and notes in the reader (migration 0009). Local test Worker no longer reports to the real Sentry.
 - 2026-10-22: Sentry live, staging live, keys for OpenAlex/S2/CORE rotated, admin account set, prior-art recall baseline recorded, search inside a paper, clearer wording for books/web pages/reports/theses. A two-week plan was written (section "Next two weeks").
 - 2026-10-21: two scheduled workflows failed (Q&A quality: the web app was not built before the Worker started; Browser e2e: an axe reading taken while an answer faded in). Both fixed and re-run. Full backlog and a four-milestone plan written (above). Also: on 19 Oct a temporary git worktree with a node_modules junction was force-removed and deleted tracked files and `apps/api/.dev.vars` through the junction; tracked files were restored from git, `.dev.vars` was not recoverable (N2).

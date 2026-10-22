@@ -197,6 +197,15 @@ try {
   ok(true, "the open-access filter narrows the list");
   await page.getByRole("button", { name: "Open access only" }).click();
 
+  // a dataset or software deposit is hidden by default, can be shown, is labelled, and is never sent to the comparison
+  const dataChip = page.getByRole("button", { name: /^Hide datasets and software \(1\)$/ });
+  ok((await dataChip.getAttribute("aria-pressed")) === "true", "datasets and software are hidden by default, and the chip says how many");
+  await dataChip.click();
+  await page.waitForFunction(() => document.querySelectorAll(".result").length === 4);
+  ok((await page.locator(".idea-kind", { hasText: "Dataset or software" }).count()) === 1, "a shown dataset says what it is");
+  await dataChip.click();
+  await page.waitForFunction(() => document.querySelectorAll(".result").length === 3);
+
   // reporting a problem
   console.log("report");
   await page.getByRole("button", { name: "Something missing or wrong?" }).click();

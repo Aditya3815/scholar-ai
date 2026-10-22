@@ -34,12 +34,17 @@ export type IdeaPlanRequest = { text: string; question?: string };
 /** The (possibly edited) plan the researcher approved. */
 export type IdeaSearchRequest = { semanticQuery: string; keywordQueries: string[] };
 
-export type IdeaSource = "openalex" | "s2";
+/** Where a record was found. */
+export type IdeaSource = "openalex" | "s2" | "pubmed" | "arxiv";
+
+/** What a record is. A "data" record (a dataset or software deposit) is hidden by default: it is not prior art the way a paper is. */
+export type IdeaKind = "paper" | "preprint" | "book" | "thesis" | "report" | "data";
 
 /** One search that was run, so the report can say exactly what was and was not searched. */
 export type IdeaSearched = { source: IdeaSource; kind: "semantic" | "keyword"; query: string; ok: boolean; count: number; error?: string };
 
 export type IdeaPaper = Paper & {
+  kind: IdeaKind;
   /** Closeness of the paper's title and abstract to the idea's summary (cosine of embeddings, 0..1). For ordering, not shown as a percentage. */
   relevance: number;
   /** Which searches returned it, e.g. "OpenAlex (meaning)", "Semantic Scholar". */

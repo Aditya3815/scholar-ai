@@ -4,12 +4,16 @@ import type { Provider, ProviderPaper } from "./types";
 const SELECT =
   "id,doi,title,publication_year,cited_by_count,is_retracted,primary_location,open_access,authorships,abstract_inverted_index,ids";
 
+/** Idea Check also needs to know what KIND of work a record is (a dataset or a software record is not prior art the way a paper is). */
+const IDEA_SELECT = `${SELECT},type`;
+
 type OAWork = {
   doi?: string | null;
   title?: string | null;
   publication_year?: number | null;
   cited_by_count?: number | null;
   is_retracted?: boolean | null;
+  type?: string | null;
   primary_location?: { source?: { display_name?: string | null } | null } | null;
   open_access?: { oa_url?: string | null } | null;
   authorships?: { author?: { display_name?: string | null } | null }[];
@@ -36,6 +40,7 @@ function toProviderPapers(works: OAWork[]): ProviderPaper[] {
       citationCount: w.cited_by_count ?? null,
       oaUrl: w.open_access?.oa_url ?? null,
       retracted: w.is_retracted === true,
+      workType: w.type ?? null,
     });
   }
   return out;
@@ -72,9 +77,23 @@ export const openalex: Provider = {
  */
 export async function openalexSemantic(text: string, limit: number, env: { OPENALEX_API_KEY?: string }, signal: AbortSignal): Promise<ProviderPaper[]> {
   if (!env.OPENALEX_API_KEY) throw new Error("OPENALEX_API_KEY not configured");
-  const params = new URLSearchParams({ "search.semantic": text.slice(0, 2000), "per-page": String(Math.min(limit, 50)), select: SELECT, api_key: env.OPENALEX_API_KEY });
+  const params = new URLSearchParams({ "search.semantic": text.slice(0, 2000), "per-page": String(Math.min(limit, 50)), select: IDEA_SELECT, api_key: env.OPENALEX_API_KEY });
   const res = await fetch(`https://api.openalex.org/works?${params}`, { signal });
   if (!res.ok) throw new Error(`OpenAlex HTTP ${res.status}`);
   const body = (await res.json()) as { results?: OAWork[] };
   return toProviderPapers(body.results ?? []);
 }
+
+/** The keyword search as Idea Check runs it: the same query as `openalex`, plus the kind of each work. Its own name, so its cached answers are kept apart. */
+export const openalexForIdea: Provider = {
+  name: "openalex-idea",
+  async search(q, limit, env, signal) {
+    const clean = sanitizeQuery(q);
+    if (!clean) return [];
+    const params = new URLSearchParams({ filter: `title_and_abstract.search:${clean}`, "per-page": String(limit), select: IDEA_SELECT });
+    if (env.OPENALEX_API_KEY) params.set("api_key", env.OPENALEX_API_KEY);
+    const res = await fetch(`https://api.openalex.org/works?${params}`, { signal });
+    if (!res.ok) throw new Error(`OpenAlex HTTP ${res.status}`);
+    return toProviderPapers(((await res.json()) as { results?: OAWork[] }).results ?? []);
+  },
+};

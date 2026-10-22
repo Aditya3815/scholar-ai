@@ -23,6 +23,8 @@ export type ProviderPaper = {
   citationCount: number | null;
   oaUrl: string | null;
   retracted: boolean;
+  /** What kind of work the index says it is (OpenAlex: article, preprint, dataset, book-chapter, ...). Only some sources know. */
+  workType?: string | null;
 };
 
 export type Provider = {

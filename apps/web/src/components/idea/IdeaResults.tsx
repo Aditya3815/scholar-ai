@@ -2,14 +2,17 @@ import { AnimatePresence, m } from "motion/react";
 import { ArrowLeft, CircleAlert, Info, Loader2, Telescope } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { IdeaFacets, IdeaPaper, IdeaSearched, IdeaSearchResult } from "@scholar/shared";
+import { isData } from "../../lib/idea";
 import { openPreview } from "../../lib/preview";
 import { easeOut } from "../../lib/motion";
 import { ReportButton } from "../ReportButton";
 import { ResultCard } from "../ResultCard";
 import { CompareAction, CoverageMap, PaperStrip, type CompareRun } from "./Compare";
 
-const SOURCE_NAME = { openalex: "OpenAlex", s2: "Semantic Scholar" } as const;
-const STAGE_TEXT = { searching: "Searching OpenAlex and Semantic Scholar…", ranking: "Choosing the papers closest to your idea…", checking: "Checking every DOI and retraction notice…" } as const;
+const SOURCE_NAME = { openalex: "OpenAlex", s2: "Semantic Scholar", pubmed: "PubMed", arxiv: "arXiv" } as const;
+/** What a record is, when it is not an ordinary journal paper. */
+const KIND_NAME: Partial<Record<IdeaPaper["kind"], string>> = { preprint: "Preprint", book: "Book", thesis: "Thesis", report: "Report", data: "Dataset or software" };
+const STAGE_TEXT = { searching: "Searching OpenAlex, Semantic Scholar, PubMed and arXiv…", ranking: "Choosing the papers closest to your idea…", checking: "Checking every DOI and retraction notice…" } as const;
 
 export type IdeaRun = {
   stage: keyof typeof STAGE_TEXT | null;
@@ -19,12 +22,22 @@ export type IdeaRun = {
 };
 
 function FoundBy({ paper }: { paper: IdeaPaper }) {
-  if (paper.foundBy.length === 0) return null;
+  const kind = KIND_NAME[paper.kind];
+  if (paper.foundBy.length === 0 && !kind) return null;
   return (
-    <span className="badge idea-found" title="Which of the searches returned this paper">
-      <Telescope size={14} aria-hidden="true" />
-      {paper.foundBy.join(" · ")}
-    </span>
+    <>
+      {kind && (
+        <span className="badge idea-kind" data-kind={paper.kind} title="What kind of record this is">
+          {kind}
+        </span>
+      )}
+      {paper.foundBy.length > 0 && (
+        <span className="badge idea-found" title="Which of the searches returned this paper">
+          <Telescope size={14} aria-hidden="true" />
+          {paper.foundBy.join(" · ")}
+        </span>
+      )}
+    </>
   );
 }
 
@@ -73,8 +86,10 @@ function Coverage({ searched, considered, done }: { searched: IdeaSearched[]; co
 export function IdeaResults({ run, compare, facets, onCompare, onEditPlan, onSearchAgain }: { run: IdeaRun; compare: CompareRun; facets: IdeaFacets | null; onCompare: () => void; onEditPlan: () => void; onSearchAgain: () => void }) {
   const [openOnly, setOpenOnly] = useState(false);
   const [hideRetracted, setHideRetracted] = useState(false);
+  const [hideData, setHideData] = useState(true);
   const done = run.result !== null;
-  const papers = useMemo(() => run.papers.filter((p) => (!openOnly || p.oaUrl) && (!hideRetracted || !p.retracted)), [run.papers, openOnly, hideRetracted]);
+  const dataCount = useMemo(() => run.papers.filter(isData).length, [run.papers]);
+  const papers = useMemo(() => run.papers.filter((p) => (!openOnly || p.oaUrl) && (!hideRetracted || !p.retracted) && (!hideData || !isData(p))), [run.papers, openOnly, hideRetracted, hideData]);
   const failed = run.searched.filter((s) => !s.ok).length;
   const nothing = done && run.papers.length === 0;
   const byId = useMemo(() => new Map(run.papers.map((p) => [p.id, p])), [run.papers]);
@@ -86,7 +101,7 @@ export function IdeaResults({ run, compare, facets, onCompare, onEditPlan, onSea
         <div>
           <p className="eyebrow">Closest papers</p>
           <h2 className="idea-results-title" aria-live="polite">
-            {done ? (nothing ? "No close papers found" : `${run.papers.length} papers closest to your idea`) : "Looking for the closest papers"}
+            {done ? (nothing ? "No close papers found" : `${run.papers.length - (hideData ? dataCount : 0)} papers closest to your idea`) : "Looking for the closest papers"}
           </h2>
         </div>
         <div className="vin-actions">
@@ -130,13 +145,18 @@ export function IdeaResults({ run, compare, facets, onCompare, onEditPlan, onSea
         </p>
       )}
 
-      {done && <CompareAction run={compare} available={run.papers.filter((p) => (p.abstract?.length ?? 0) >= 80).length} onCompare={onCompare} />}
+      {done && <CompareAction run={compare} available={run.papers.filter((p) => !isData(p) && (p.abstract?.length ?? 0) >= 80).length} onCompare={onCompare} />}
       {compare.comparison && facets && <CoverageMap comparison={compare.comparison} facets={facets} titles={byId} onOpen={(p) => openPreview(p, papers)} />}
 
       {run.papers.length > 0 && (
         <div className="filters" role="group" aria-label="Filters">
           <button type="button" className="chip-btn" aria-pressed={openOnly} onClick={() => setOpenOnly((v) => !v)}>Open access only</button>
           <button type="button" className="chip-btn" aria-pressed={hideRetracted} onClick={() => setHideRetracted((v) => !v)}>Hide retracted</button>
+          {dataCount > 0 && (
+            <button type="button" className="chip-btn" aria-pressed={hideData} onClick={() => setHideData((v) => !v)}>
+              Hide datasets and software ({dataCount})
+            </button>
+          )}
         </div>
       )}
 
@@ -158,7 +178,7 @@ export function IdeaResults({ run, compare, facets, onCompare, onEditPlan, onSea
       {run.papers.length > 0 && papers.length === 0 && (
         <div className="empty">
           <p className="empty-title">No papers match these filters</p>
-          <button type="button" className="btn btn-ghost" onClick={() => { setOpenOnly(false); setHideRetracted(false); }}>Clear filters</button>
+          <button type="button" className="btn btn-ghost" onClick={() => { setOpenOnly(false); setHideRetracted(false); setHideData(false); }}>Clear filters</button>
         </div>
       )}
     </div>
