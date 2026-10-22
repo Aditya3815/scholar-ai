@@ -91,11 +91,15 @@ adminRoutes.delete("/feedback/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-/** Sends one harmless test event to Sentry, so the setup can be checked without waiting for a real error. */
+/**
+ * Sends one harmless test event to Sentry, so the setup can be checked without waiting for a real error. Each press is a NEW Sentry issue (the time is in
+ * the message, which is part of the grouping key): a repeated test would otherwise join the first one, and an alert on "a new issue is created" would
+ * never fire again. It is sent at error level, like the real thing, so the alert rules are tested the way they will be used.
+ */
 adminRoutes.post("/monitoring-test", async (c) => {
   if (!sameOrigin(c)) return c.json({ type: "forbidden", title: "Cross-origin request blocked" }, 403);
   if (!(await admin(c))) return deny(c, 404, "not_found", "Not found");
   if (!parseDsn(c.env.SENTRY_DSN)) return c.json({ configured: false, status: null });
-  const status = await sendEvent(c.env, { type: "TestEvent", message: "Test event from the admin page. Nothing is wrong.", route: "/admin", source: "test", level: "info" });
+  const status = await sendEvent(c.env, { type: "TestEvent", message: `Test event from the admin page at ${new Date().toISOString().slice(11, 19)} UTC. Nothing is wrong.`, route: "/admin", source: "test", level: "error" });
   return c.json({ configured: true, status });
 });

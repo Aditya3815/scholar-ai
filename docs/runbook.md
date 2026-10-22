@@ -93,7 +93,7 @@ At most 20 events a minute are sent from one Worker instance, so a failure loop 
 
 Set it up (once): in Sentry create a project (platform: Cloudflare Workers or JavaScript), copy its **DSN**, then
 `npx wrangler secret put SENTRY_DSN` (or put `SENTRY_DSN=...` in `apps/api/.dev.vars` and run `npm run secrets:push -w apps/api -- --only=SENTRY_DSN`). Then open `/admin` while signed in as admin and press
-**Send a test event**: it should say Sentry accepted it, and a "Test event from the admin page" appears in the project. Optional: `SENTRY_ENVIRONMENT` (default `production`).
+**Send a test event**: it should say Sentry accepted it, and a "Test event from the admin page" appears in the project. Every press is a new Sentry issue (the time is in its message), so an alert on "a new issue is created" fires each time; it is sent at error level so the alert rules are tested the way they will be used. Optional: `SENTRY_ENVIRONMENT` (default `production`).
 
 ## Backups and restore
 
