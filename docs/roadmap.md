@@ -62,6 +62,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 | N1 | Two scheduled workflows failed: "Q&A quality" (web app was not built before the Worker started) and "Browser e2e" (an axe colour reading taken while an answer was still fading in) | me | ✅ Fixed 21 Oct. Browser e2e passes again. Q&A had three causes (no web build, no dev sign-in flag, `tee` hiding the exit code); now green |
 | N2 | Recreate `apps/api/.dev.vars` (lost on 19 Oct; names are in `.dev.vars.example`) | you | A starter file now exists with the e-mail and Sentry address; the API keys still go in (runbook, "Local secrets file"). | Blocks every local live test (live eval, Idea Check live run, real-paper check). Production is unaffected |
 | N3 | Four Dependabot PRs open (checkout 7, setup-node 7, upload-artifact 7, workers-types 5.x) | both | CI passes on all four. The three action bumps are safe to merge; workers-types is a major version, I check it first |
+| N5 | An admin cannot delete an account for someone who cannot sign in (a hand-made SQL delete skips the deletion marker that stops a restore bringing the account back) | me | Small: an admin-only "erase this account" action that calls `eraseAccount`; needed before the pilot grows beyond people you can ask to delete it themselves |
 | N4 | The Q&A weekly workflow had never produced a result | me | ✅ First real run in CI, 21 Oct: answerable 24/24, unanswerable declined 10/10, sources verified 24/24, median 4.3 s |
 
 ### 2. Product, Phase 1 leftovers
@@ -74,7 +75,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 | P5 | Sentry (errors), Turnstile (bot check on sign-in), staging environment | both | **22 Oct: Sentry connected** (`SENTRY_DSN` set on production and staging; Sentry answered 200 to a test event). **Staging live** at https://scholar-staging.shodhsetu.workers.dev (own D1/R2/queue; runbook, "Staging"). Remaining: press "Send a test event" on `/admin` once you are admin; Turnstile dropped unless you want it. Earlier note: **Sentry: built** (own thin client, nothing leaves until `SENTRY_DSN` is set; steps in the runbook). Turnstile: I suggest dropping it for now, because sign-in is Google/ORCID only and uploads/asks are already limited per account. Staging: waiting for your yes to create a second D1/R2 |
 | P6 | Manual screen-reader (NVDA) pass | you | axe is clean on every page; a person is still needed |
 | P7 | Q&A first answer text under 2.5 s (now 1.5 to 3.3 s) | me | Phase 1 exit gate, partly met |
-| P8 | Pilot with 20 to 30 scholars | you | Needs 10 names first; I prepare the invite text, a short survey and the admin view |
+| P8 | Pilot with 20 to 30 scholars | you | **Kit ready 22 Oct** in [pilot/](pilot/README.md): invite (e-mail, WhatsApp, Hinglish, nudges, FAQ), a five-question survey to build as a Google Form, and a 30-minute Monday routine. **Yours:** ten names (kept in a private sheet, not in this public repository), the form (10 minutes), then send a few invites a day |
 
 ### 3. Verifier and data quality
 | ID | Item | Owner | Notes |
@@ -205,7 +206,7 @@ You, during week 1: decide whether an idea check should be saved for later (D4);
 | 6 | ✅ Filter or label software and dataset records in Idea Check (V4); add arXiv and PubMed to its sources; re-measure | Prior-art re-recorded with four source sets. Recall unchanged (85% / 48% / 7.4%), so gates stay 80% / 6%; the new sources are kept for recent preprints and papers the benchmark cannot see, not because the number rose |
 | 7 | ✅ Scanned PDFs: a two-hour spike on which OCR works for Hindi and English scans (Cloudflare's vision models first, Docling in a Container second), with a cost and a quality number; decide | A write-up in `docs/spikes/` and a go / no-go. Done: [R4-ocr.md](spikes/R4-ocr.md), go with a reading gate; build order and thresholds in the write-up |
 | 8 | ✅ Backup and restore rehearsal on staging; alert when a workflow or cron fails; Sentry alert rules | Runbook updated, one real restore done. Sentry rule created by you and checked end to end (e-mail arrived) |
-| 9 | Pilot kit: invitation text, a five-question survey, a Monday routine for reading `/admin` and the reports; sample paper if a licensed one is found | Kit in `docs/`, ready to send |
+| 9 | ✅ Pilot kit: invitation text, a five-question survey, a Monday routine for reading `/admin` and the reports; sample paper if a licensed one is found | Kit in `docs/pilot/`, ready to send. No licensed sample paper found yet (P4 stays open) |
 | 10 | Buffer: whatever the earlier days found, plus the weekly checks | All workflows green; roadmap updated |
 
 You, during week 2: legal blanks and the lawyer (needed before the first invitation goes out), remaining key rotation and two-factor, Google redirect for staging if you want to test sign-in there.
@@ -259,6 +260,7 @@ to keep the "Images Stream Basic" subscription (we do not use it).
 
 ## Log
 
+- 2026-10-22 (night, after Day 8): Sentry alert rule created and tested end to end (admin test event now a new issue on every press, at error level). Day 9: pilot kit in `docs/pilot/`.
 - 2026-10-22 (late night): Day 8. Daily-job heartbeat (`job_runs`, migration 0010) and `/api/v1/health/jobs`; admin page shows scheduled jobs; "Data checks" on `/admin` (paper records against stored files; re-apply deletions after a restore); deleted accounts leave a 35-day marker in R2 so a restore cannot bring them back (privacy text updated); hourly Watchdog workflow; failed workflows open and close their own GitHub issue; real restore rehearsal on staging passed; D1 Time Travel reach corrected to 30 days; R2 lifecycle rule `deletion-markers` added to both buckets.
 - 2026-10-22 (night): OCR spike on Hindi and English scans (R4): vision models read clean scans almost perfectly and fail on poor ones, two-model disagreement predicts the failure; go, with a "not read reliably" gate and a daily page cap. Needs 3 to 5 real scanned pages from you to set thresholds.
 - 2026-10-22 (evening): Idea Check V4 and new sources: kind label for every record, datasets/software hidden by default and out of the comparison, arXiv and PubMed searched; prior-art eval now compares four source sets (recall unchanged: the sources add recent papers, not cited references). Eval fixtures for Idea Check were re-recorded (the OpenAlex request now also asks for the work type).
