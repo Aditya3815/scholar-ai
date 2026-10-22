@@ -1742,3 +1742,84 @@
     animation: none;
   }
 }
+
+/* ---- the reference section of the PDF, and its correction ---- */
+.refsec {
+  margin: 0 0 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+.refsec-sum {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.875rem;
+  font-weight: 620;
+  cursor: pointer;
+}
+.refsec-sum:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-s);
+}
+.refsec-body {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.2rem 0.8rem 0.9rem;
+}
+.refsec-where,
+.refsec-count {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.refsec-verdict {
+  display: flex;
+  gap: 0.45rem;
+  align-items: flex-start;
+  margin: 0;
+  font-size: 0.875rem;
+}
+.refsec-verdict[data-ok="true"] {
+  color: var(--ok);
+}
+.refsec-verdict[data-ok="false"] {
+  color: var(--warn);
+}
+.refsec-verdict svg {
+  flex: none;
+  margin-top: 0.15rem;
+}
+.refsec-label {
+  font-size: 0.8125rem;
+  font-weight: 620;
+}
+.refsec-text {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+.refsec-text:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.refsec-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.7rem;
+}
+.refsec-count {
+  flex: 1;
+  min-width: 8rem;
+}

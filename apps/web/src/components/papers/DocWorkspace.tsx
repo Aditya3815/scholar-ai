@@ -188,6 +188,18 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     [addNote, updateNote, existing, openNote],
   );
 
+  /** The reader corrected the reference list: keep it with the paper (the server cleans it), and the panel checks it. */
+  const onUseReferenceList = useCallback(
+    async (entries: string[]) => {
+      if (load.status !== "ready" || !load.info) return;
+      const next: PaperInfo = { ...load.info, references: entries, referencesSource: "pdf" };
+      const saved = await savePaperInfo(id, next).catch(() => null);
+      setLoad((l) => (l.status === "ready" ? { ...l, info: saved?.info ?? next } : l));
+      if (!saved) showNotice("The list is being checked, but it could not be saved with the paper. It will be read from the PDF again next time.");
+    },
+    [id, load],
+  );
+
   const onGoToPage = useCallback((page: number) => {
     setTab("paper");
     window.setTimeout(() => viewer.current?.goTo(page), 120);
@@ -323,7 +335,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             )}
           </div>
           <div className="dw-side" hidden={side !== "refs"}>
-            <ReferencesPanel info={info} analyzing={analyzing || (needsInfo && pdf.status !== "error")} />
+            <ReferencesPanel info={info} analyzing={analyzing || (needsInfo && pdf.status !== "error")} pdf={pdf.status === "ready" ? pdf.pdf : null} onOpenPage={onGoToPage} onUseList={onUseReferenceList} />
           </div>
           <div className="dw-side" hidden={side !== "notes"}>
             <NotesPanel doc={doc} api={notes} focusId={focusNote?.id ?? null} focusTick={focusNote?.tick ?? 0} onGo={onGoToNote} onFocusDone={(id) => setFocusNote((f) => (f?.id === id ? null : f))} />

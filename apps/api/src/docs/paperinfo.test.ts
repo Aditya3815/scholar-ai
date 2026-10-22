@@ -11,7 +11,9 @@ import {
   lookupDoi,
   compactLong,
   markerNumber,
+  printedMax,
   referenceEntries,
+  referenceSection,
   referenceLines,
   findReferenceStart,
   stripRunningHeads,
@@ -249,6 +251,33 @@ describe("a numbered list is split by its numbers", () => {
     const many = Array.from({ length: 450 }, (_, i) => `[${i + 1}] Author, A. (2020). A paper number ${i} with a long enough title. Journal, 1-9.`);
     expect(referenceEntries(column(many.slice(0, 120)))).toHaveLength(120);
     expect(referenceEntries(many.map((t, i) => L(t, { y: 700 - (i % 50) * 14, page: 1 + Math.floor(i / 50) }))).length).toBe(450);
+  });
+});
+
+describe("the reference section as a whole", () => {
+  const refs = Array.from({ length: 6 }, (_, i) => `[${i + 1}] Author${i}, A. (20${10 + i}). Paper number ${i} with a long enough title. Journal ${i}, 1-9.`);
+  const doc = [L("Body of the paper with some text on the first page.", { page: 1, size: 11 }), L("References", { page: 2, size: 14 }), ...refs.map((r, i) => L(r, { page: 2 + Math.floor(i / 3), y: 700 - (i % 3) * 14 }))];
+
+  it("printedMax is the highest number the list prints, and 0 for a list with no numbers", () => {
+    expect(printedMax(column(refs))).toBe(6);
+    expect(printedMax(column(["Smith, J. (2020). A paper. Journal, 1.", "Jones, K. (2019). Another. Journal, 2."]))).toBe(0);
+    expect(printedMax([])).toBe(0);
+    expect(printedMax(column(["[999] odd", "[3] Smith, J. (2020). A paper. Journal, 1."]))).toBe(3);
+  });
+
+  it("gives the pages the section is on, its entries, and how many the list says there are", () => {
+    const s = referenceSection(doc, 3);
+    expect(s).toMatchObject({ found: true, firstPage: 2, lastPage: 3, printedMax: 6 });
+    expect(s.entries).toHaveLength(6);
+  });
+
+  it("says plainly when there is no reference section", () => {
+    expect(referenceSection([L("Just a page of text without any list at the end."), L("More text")], 1)).toEqual({ found: false, firstPage: 0, lastPage: 0, printedMax: 0, entries: [] });
+    expect(referenceSection([], 0).found).toBe(false);
+  });
+
+  it("agrees with analyzePaper on what the entries are (the panel and the checked list are the same thing)", () => {
+    expect(referenceSection(doc, 3).entries).toEqual(analyzePaper({ lines: doc, pages: 3 }).references);
   });
 });
 

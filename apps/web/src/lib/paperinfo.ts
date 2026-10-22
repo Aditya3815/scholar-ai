@@ -1,4 +1,4 @@
-import { analyzePaper, type Line, type PaperInfo } from "@scholar/shared";
+import { analyzePaper, referenceSection, type Line, type PaperInfo, type ReferenceSection } from "@scholar/shared";
 import { readOutline, readPage, type PDFDocumentProxy } from "./pdf";
 
 /**
@@ -14,3 +14,15 @@ export async function analyzeOpenPdf(pdf: PDFDocumentProxy): Promise<PaperInfo> 
   }
   return analyzePaper({ lines, outline: await readOutline(pdf), pages: pdf.numPages });
 }
+
+/** The reference section of an open PDF as the app reads it: its pages, its entries, and for a numbered list how many it says there are. */
+export async function readReferenceSection(pdf: PDFDocumentProxy): Promise<ReferenceSection> {
+  const lines: Line[] = [];
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const page = await pdf.getPage(n);
+    lines.push(...(await readPage(page)).lines);
+    page.cleanup();
+  }
+  return referenceSection(lines, pdf.numPages);
+}
+

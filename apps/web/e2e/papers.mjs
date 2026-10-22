@@ -496,6 +496,50 @@ try {
   await shot("68-references-panel");
   await axe("references panel");
   await setTheme("Dark"); await shot("69-references-dark"); await axe("references panel, dark"); await setTheme("Light");
+
+  // the reference section of the PDF itself, and correcting it
+  console.log("the reference section, and correcting it");
+  const sec = page.locator(".refsec");
+  await sec.locator("summary").click();
+  await sec.locator(".refsec-text").waitFor({ timeout: 20000 });
+  ok(/Found on page 2/.test(await sec.locator(".refsec-where").innerText()), "the section says which page of the PDF it was found on");
+  ok(/3 entries were found\. This list has no numbers/.test(await sec.locator(".refsec-verdict").innerText()), "...and, for a list with no numbers, that its count cannot be checked against the PDF");
+  const boxText = await sec.locator(".refsec-text").inputValue();
+  ok(boxText.split(/\n\s*\n/).length === 3 && /Aaa, A/.test(boxText) && /Ddd, D/.test(boxText), "the box holds the three references as found, one to a paragraph");
+  ok((await sec.locator(".refsec-count").innerText()).startsWith("3 references"), "it counts what is in the box");
+  await sec.getByRole("button", { name: "Open page 2" }).click();
+  ok(await until(async () => (await page.locator("#pdfv-page").inputValue()) === "2"), "'Open page' goes to the page of the section");
+  await page.locator(".dw-sidetab", { hasText: "References" }).click();
+  await sec.locator(".refsec-text").waitFor();
+  await shot("68b-reference-section");
+  await axe("reference section open");
+  await setTheme("Dark"); await axe("reference section open, dark"); await setTheme("Light");
+
+  // a joined entry is split by hand, an entry is added, and the corrected list is what gets checked and kept
+  await sec.locator(".refsec-text").fill(`${boxText}\n\nEee, E. 2004. A fourth reference that was added by hand to the list. Journal 4, 1-9.`);
+  ok((await sec.locator(".refsec-count").innerText()).startsWith("4 references"), "adding a paragraph makes it four");
+  await sec.getByRole("button", { name: "Check this list" }).click();
+  await page.waitForFunction(() => document.querySelectorAll(".refs-panel .ref").length === 4, null, { timeout: 20000 });
+  await page.locator(".vsum-headline").filter({ hasText: /checked/ }).waitFor({ timeout: 20000 });
+  ok(true, "the corrected list is checked: four references are listed");
+  ok(/Eee, E\./.test(await page.locator(".refs-panel .ref").last().innerText()), "...including the one added by hand");
+  ok(await sec.getByRole("button", { name: "Saved and checking" }).isVisible(), "the panel says it was saved");
+  ok((await page.locator(".dw-sidetab .dw-tab-n").first().innerText()).trim() === "4", "the References tab counts four");
+
+  // the correction is kept with the paper
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".dw-sidetab", { hasText: "References" }).click();
+  await page.waitForFunction(() => document.querySelectorAll(".refs-panel .ref").length === 4, null, { timeout: 20000 });
+  ok(true, "after reloading, the corrected list (four) is still the one shown");
+
+  // back to what the PDF says
+  await page.locator(".refsec summary").click();
+  await page.locator(".refsec-text").waitFor();
+  await page.getByRole("button", { name: "Back to what was found" }).click();
+  ok((await page.locator(".refsec-count").innerText()).startsWith("3 references"), "'Back to what was found' puts the PDF's own list back in the box");
+  await page.getByRole("button", { name: "Check this list" }).click();
+  await page.waitForFunction(() => document.querySelectorAll(".refs-panel .ref").length === 3, null, { timeout: 20000 });
+  ok(true, "and checking it makes the three the list again");
   await page.getByRole("button", { name: "Preview record" }).first().click();
   await page.getByRole("dialog").locator(".pv-title").waitFor();
   await page.keyboard.press("Escape");

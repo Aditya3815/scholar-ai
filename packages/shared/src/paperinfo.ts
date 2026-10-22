@@ -324,6 +324,32 @@ export function referenceEntries(block: Line[]): string[] {
   return kept.slice(0, MAX_PAPER_REFERENCES);
 }
 
+/** The highest number the list prints at the start of an entry ([12] or 12.): for a numbered list, what the count of entries should be. 0 when the list is not numbered. */
+export function printedMax(block: Line[]): number {
+  let max = 0;
+  for (const l of block) {
+    const n = markerNumber(l.text);
+    if (n !== null && n > max && n < 500) max = n;
+  }
+  return max;
+}
+
+/** What the reference section of a PDF looks like to us: where it is, how its entries were cut, and, for a numbered list, how many it says there are. */
+export type ReferenceSection = {
+  found: boolean;
+  firstPage: number;
+  lastPage: number;
+  printedMax: number;
+  entries: string[];
+};
+
+export function referenceSection(lines: Line[], pages: number): ReferenceSection {
+  const stripped = stripRunningHeads(lines, pages);
+  const block = referenceLines(stripped, bodySize(stripped));
+  if (block.length === 0) return { found: false, firstPage: 0, lastPage: 0, printedMax: 0, entries: [] };
+  return { found: true, firstPage: block[0]!.page, lastPage: block[block.length - 1]!.page, printedMax: printedMax(block), entries: referenceEntries(block) };
+}
+
 /* ---------------------------------------------------------------- everything together */
 
 export function analyzePaper(args: { lines: Line[]; outline?: OutlineItem[]; pages: number }): PaperInfo {

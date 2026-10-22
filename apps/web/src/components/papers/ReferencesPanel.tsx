@@ -6,6 +6,8 @@ import { easeOut } from "../../lib/motion";
 import { bucketOf, tally } from "../../lib/refStatus";
 import { useVerify } from "../../lib/verify";
 import { RefCard } from "../verify/RefCard";
+import type { PDFDocumentProxy } from "../../lib/pdf";
+import { ReferenceSection } from "./ReferenceSection";
 import { VerifySummary, type Filter } from "../verify/VerifySummary";
 
 /** More than the Reference Verifier page allows at once: a paper's own list is usually 20 to 80 entries, reviews more. */
@@ -14,12 +16,13 @@ import { VerifySummary, type Filter } from "../verify/VerifySummary";
  * The paper's own reference list, each entry checked against Crossref and OpenAlex by the Reference Verifier. Answers the questions
  * a reader has about a paper: does it cite things that do not exist, mix up details, or cite retracted work?
  */
-export function ReferencesPanel({ info, analyzing }: { info: PaperInfo | null; analyzing: boolean }) {
+export function ReferencesPanel({ info, analyzing, pdf = null, onOpenPage, onUseList }: { info: PaperInfo | null; analyzing: boolean; pdf?: PDFDocumentProxy | null; onOpenPage?: (page: number) => void; onUseList?: (entries: string[]) => Promise<void> }) {
   const { state, start, recheck, stop } = useVerify();
   const [filter, setFilter] = useState<Filter>("all");
   const started = useRef<string | null>(null);
   const refs = info?.references ?? [];
-  const key = `${refs.length}:${refs[0]?.slice(0, 40) ?? ""}`;
+  // a different list (also one corrected in place, with as many entries and the same first one) is checked afresh
+  const key = `${refs.length}:${refs.reduce((h, r) => { for (let i = 0; i < r.length; i++) h = (Math.imul(h, 31) + r.charCodeAt(i)) | 0; return h; }, 7)}`;
 
   // Start checking the first time this paper's list is shown. A repeat visit is instant: answers are cached on the server.
   useEffect(() => {
@@ -57,6 +60,7 @@ export function ReferencesPanel({ info, analyzing }: { info: PaperInfo | null; a
       </header>
 
       <div className="ask-scroll refs-scroll">
+        {onOpenPage && onUseList && (info || !analyzing) && <ReferenceSection pdf={pdf} current={refs} onOpenPage={onOpenPage} onUseList={onUseList} />}
         {analyzing && !info && (
           <div className="refs-wait" aria-hidden="true">
             <span className="sk sk-title" />
