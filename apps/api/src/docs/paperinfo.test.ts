@@ -9,7 +9,11 @@ import {
   findDoi,
   groupLines,
   lookupDoi,
+  compactLong,
+  markerNumber,
   referenceEntries,
+  referenceLines,
+  findReferenceStart,
   stripRunningHeads,
   type Line,
   type OutlineItem,
@@ -147,6 +151,135 @@ describe("referenceEntries", () => {
   });
   it("returns nothing for an empty block", () => {
     expect(referenceEntries([])).toEqual([]);
+  });
+});
+
+describe("markerNumber", () => {
+  it("reads [12], (12), 12. and 12) at the start of a line", () => {
+    expect(markerNumber("[12] Smith, J.")).toBe(12);
+    expect(markerNumber("[ 7 ]Smith, J.")).toBe(7);
+    expect(markerNumber("(3) Smith, J.")).toBe(3);
+    expect(markerNumber("45. Smith, J.")).toBe(45);
+    expect(markerNumber("9) Smith, J.")).toBe(9);
+  });
+  it("does not take a year, a decimal, a page count or a dash for a marker", () => {
+    for (const t of ["2024 IEEE International Conference", "1.5 times faster", "19 pages.", "- 2024 IEEE", "(1953), 975-979.", "[cs.CV] https://arxiv.org/abs/1", "12", "Smith 12. later", "[1234] Too many digits"]) expect(markerNumber(t), t).toBeNull();
+  });
+});
+
+describe("finding and ending the reference list", () => {
+  it("starts after the last 'References' heading, in any of its usual spellings", () => {
+    for (const h of ["References", "REFERENCES", "7 References", "VII. REFERENCES", "Bibliography", "Literature cited", "References and Notes", "Notes and references", "Works Cited", "List of references", "R EFERENCES", "7 R EFERENCES", "B IBLIOGRAPHY", "References:"]) {
+      const lines = [L("Contents ... References", { y: 700 }), L(h, { y: 600 }), L("[1] Smith, J. (2020). A paper. Journal, 1.", { y: 580 })];
+      expect(findReferenceStart(lines), h).toBe(1);
+    }
+  });
+  it("without any heading, a numbered list that begins with [1] and runs on in order is found", () => {
+    const lines = [L("Some body text of the conclusion paragraph."), L("[1] Smith, J. (2020). First paper. Journal, 1."), L("[2] Jones, K. (2019). Second paper. Journal, 2."), L("[3] Rao, P. (2018). Third paper. Journal, 3."), L("[4] Lee, M. (2017). Fourth paper. Journal, 4."), L("[5] Das, N. (2016). Fifth paper. Journal, 5.")];
+    expect(findReferenceStart(lines)).toBe(0);
+    expect(referenceEntries(referenceLines(lines))).toHaveLength(5);
+  });
+  it("a sentence that merely mentions references is not a heading", () => {
+    for (const x of ["References are listed at the end of the paper", "see References", "Our references include many", "Reference"]) {
+      const lines = [L(x), L("body text"), L("more body text")];
+      expect(findReferenceStart(lines), x).toBe(x === "Reference" ? 0 : -1);
+    }
+  });
+  it("a lone '[1]' in the text is not mistaken for a list", () => {
+    expect(findReferenceStart([L("As shown in [1] Smith found it."), L("[1] this is only a mention"), L("and the text goes on")])).toBe(-1);
+  });
+  it("ends the list at a heading set larger than the text: an appendix needs no 'Appendix' label", () => {
+    const lines = [
+      L("References", { size: 14 }),
+      L("[1] Smith, J. (2020). A paper. Journal, 1."), L("[2] Jones, K. (2019). Another paper. Journal, 2."), L("[3] Rao, P. (2018). A third paper. Journal, 3."),
+      L("A Reporting privacy guarantees", { size: 14.3 }),
+      L("This section clarifies the nuances of the reported guarantees following the guidelines."),
+      L("1. DP setting. This a central guarantee where the service provider is trusted."),
+      L("2. Instantiating the definition"),
+    ];
+    const block = referenceLines(lines, 10);
+    expect(block).toHaveLength(3);
+    expect(referenceEntries(block)).toHaveLength(3);
+  });
+  it("ends the list at 'Paper Checklist' and at a supplementary section", () => {
+    for (const h of ["NeurIPS Paper Checklist", "Appendix A", "Supplementary material", "Checklist"]) {
+      const lines = [L("References"), L("[1] A, B. (2020). T one. J."), L("[2] C, D. (2019). T two. J."), L("[3] E, F. (2018). T three. J."), L(h), L("1. Claims. Do the claims made in the abstract reflect the paper")];
+      expect(referenceLines(lines, 10), h).toHaveLength(3);
+    }
+  });
+  it("without a body size it still ends at the label, and a heading the size of the text does not end it", () => {
+    const lines = [L("References"), L("[1] A, B. (2020). T one. J."), L("[2] C, D. (2019). T two. J."), L("[3] E, F. (2018). T three. J."), L("Appendix"), L("text")];
+    expect(referenceLines(lines)).toHaveLength(3);
+    const same = [L("References", { size: 14 }), L("[1] A, B. (2020). T one. J."), L("Journal of Things"), L("[2] C, D. (2019). T two. J."), L("[3] E, F. (2018). T three. J.")];
+    expect(referenceLines(same, 14)).toHaveLength(4);
+  });
+});
+
+describe("a numbered list is split by its numbers", () => {
+  it("a line that starts with a year or a dash continues the entry (it is not a new one)", () => {
+    const e = referenceEntries(column([
+      "[1] Lu, W. 2024. Music Source Separation With Band-Split Rope Transformer. In ICASSP 2024", "- 2024 IEEE International Conference on Acoustics, Speech and Signal Processing", "(ICASSP). 481-485. doi:10.1109/ICASSP48485.2024.10446843",
+      "[2] Rao, P. 2023. Another paper title that is long enough. In", "2023 IEEE International Conference on Acoustics, Speech and Signal Processing", "(ICASSP). 1-5. doi:10.1109/ICASSP49357.2023.10094573",
+      "[3] Das, N. 2022. A third paper of enough length to count. Journal 3: 1-9. doi:10.1/x",
+    ]));
+    expect(e).toHaveLength(3);
+    expect(e[0]).toContain("(ICASSP). 481-485");
+    expect(e[1]).toContain("2023 IEEE International");
+  });
+
+  it("copes with a marker that was lost: the next number is accepted even though it skips one", () => {
+    const e = referenceEntries(column(["[1] Smith, J. (2020). First paper title here. Journal, 1.", "Jones, K. (2019). Second paper whose number was lost. Journal, 2.", "[4] Rao, P. (2018). Fourth paper title here. Journal, 4.", "[5] Lee, M. (2017). Fifth paper title here. Journal, 5."]));
+    expect(e).toHaveLength(3); // [1]+(lost [2]/[3] merged into it), [4], [5]
+    expect(e.at(-1)).toMatch(/^Lee/);
+  });
+
+  it("a numbered list in an appendix that follows (restarting at 1) is not folded into the last reference", () => {
+    const refs = Array.from({ length: 7 }, (_, i) => `[${i + 1}] Author${i}, A. (20${10 + i}). Paper number ${i} with a long enough title. Journal ${i}, 1-9.`);
+    const e = referenceEntries(column([...refs, "1. DP setting. This a central guarantee where the service provider is trusted.", "2. Instantiating the definition of the guarantee"]));
+    expect(e).toHaveLength(7);
+    expect(e[6]).not.toContain("DP setting");
+  });
+
+  it("parenthesised numbers and '1.' style lists work the same way", () => {
+    expect(referenceEntries(column(["(1) Smith, J. (2020). First paper title here. Journal, 1.", "(2) Jones, K. (2019). Second paper title here. Journal, 2.", "(3) Rao, P. (2018). Third paper title here. Journal, 3."]))).toHaveLength(3);
+    expect(referenceEntries(column(["1. Smith, J. (2020). First paper title here. Journal, 1.", "2. Jones, K. (2019). Second paper title here. Journal, 2.", "3. Rao, P. (2018). Third paper title here. Journal, 3."]))).toHaveLength(3);
+  });
+
+  it("up to 600 references are kept", () => {
+    const many = Array.from({ length: 450 }, (_, i) => `[${i + 1}] Author, A. (2020). A paper number ${i} with a long enough title. Journal, 1-9.`);
+    expect(referenceEntries(column(many.slice(0, 120)))).toHaveLength(120);
+    expect(referenceEntries(many.map((t, i) => L(t, { y: 700 - (i % 50) * 14, page: 1 + Math.floor(i / 50) }))).length).toBe(450);
+  });
+});
+
+describe("an entry with a very long author list", () => {
+  const authors = Array.from({ length: 160 }, (_, i) => `Person${i} Surname${i}`).join(", ");
+  const entry = `${authors}. Advances and open problems in federated learning. Foundations and Trends in Machine Learning, 14(1-2):1-210, 2021.`;
+  it("keeps the first authors and, above all, the title, venue and year", () => {
+    const out = compactLong(entry);
+    expect(out.length).toBeLessThanOrEqual(920);
+    expect(out).toContain("Advances and open problems in federated learning");
+    expect(out).toContain("2021");
+    expect(out.startsWith("Person0 Surname0")).toBe(true);
+  });
+  it("leaves a normal entry alone", () => {
+    expect(compactLong("Smith, J. (2020). A paper. Journal, 1.")).toBe("Smith, J. (2020). A paper. Journal, 1.");
+  });
+  it("is applied to every entry of a list", () => {
+    const e = referenceEntries(column([`[1] ${entry}`, "[2] Jones, K. (2019). Second paper title here. Journal, 2.", "[3] Rao, P. (2018). Third paper title here. Journal, 3."]));
+    expect(e[0]!.length).toBeLessThanOrEqual(920);
+    expect(e[0]).toContain("federated learning");
+  });
+});
+
+describe("what follows the last reference is not a reference", () => {
+  it("a closing paragraph with no year, link or identifier is dropped from the end", () => {
+    const e = referenceEntries(column(["[1] Smith, J. (2020). First paper title here. Journal, 1.", "[2] Jones, K. (2019). Second paper title here. Journal, 2.", "[3] Rao, P. (2018). Third paper title here. Journal, 3.", "[4] The authors would like to thank the anonymous reviewers for their helpful comments on the manuscript."]));
+    expect(e).toHaveLength(3);
+  });
+  it("but a reference that has none of those, in the middle, is kept", () => {
+    const e = referenceEntries(column(["[1] Smith, J. (2020). First paper title here. Journal, 1.", "[2] Anonymous. Technical report with neither year nor link, but a perfectly real entry.", "[3] Rao, P. (2018). Third paper title here. Journal, 3."]));
+    expect(e).toHaveLength(3);
   });
 });
 

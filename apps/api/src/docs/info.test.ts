@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { PaperInfo } from "@scholar/shared";
+import { MAX_PAPER_REFERENCES, type PaperInfo } from "@scholar/shared";
 import { enrichPaperInfo, sanitizePaperInfo } from "./info";
 
 const env = { CROSSREF_MAILTO: "test@example.org" };
@@ -48,7 +48,7 @@ describe("sanitizePaperInfo", () => {
   it("caps the sizes of the lists", () => {
     const info = sanitizePaperInfo({ pages: 5, outline: Array.from({ length: 500 }, (_, i) => ({ title: `h${i}`, page: 1, level: 1 })), references: Array.from({ length: 900 }, (_, i) => `Reference number ${i} with enough text to count.`) })!;
     expect(info.outline).toHaveLength(150);
-    expect(info.references).toHaveLength(400);
+    expect(info.references).toHaveLength(MAX_PAPER_REFERENCES);
   });
 });
 

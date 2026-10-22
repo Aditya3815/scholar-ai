@@ -25,3 +25,4 @@ apps/web/public/pdfjs/
 
 # Claude Code session files
 .claude/
+test_sample_papers/

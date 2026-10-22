@@ -1,4 +1,4 @@
-import { lookupDoi, type OutlineItem, type PaperInfo, type PaperMetadata } from "@scholar/shared";
+import { MAX_PAPER_REFERENCES, lookupDoi, type OutlineItem, type PaperInfo, type PaperMetadata } from "@scholar/shared";
 import { tokenize } from "../references/match";
 import { crossrefByDoi, crossrefReferenceStrings, openAlexByDoi, type LookupEnv } from "../references/lookup";
 
@@ -29,7 +29,7 @@ export function sanitizePaperInfo(raw: unknown): PaperInfo | null {
   const r = raw as Record<string, unknown>;
   const pages = int(r.pages, 1, 500, 0);
   if (!pages) return null;
-  const refs = (Array.isArray(r.references) ? r.references : []).map((x) => str(x, 1000)).filter((x) => x.length >= 20).slice(0, 400);
+  const refs = (Array.isArray(r.references) ? r.references : []).map((x) => str(x, 1000)).filter((x) => x.length >= 20).slice(0, MAX_PAPER_REFERENCES);
   const doi = str(r.doi, 220).toLowerCase();
   const arxiv = str(r.arxiv, 40);
   return {
@@ -84,7 +84,7 @@ export async function enrichPaperInfo(info: PaperInfo, env: LookupEnv): Promise<
   if (out.references.length < 3 && doi) {
     const deposited = await withTimeout(crossrefReferenceStrings(doi, env).catch(() => [] as string[]), 8000, [] as string[]);
     if (deposited.length >= 3) {
-      out.references = deposited.slice(0, 400);
+      out.references = deposited.slice(0, MAX_PAPER_REFERENCES);
       out.referencesSource = "crossref";
     }
   }

@@ -6,6 +6,7 @@ import { mergeAndRank } from "./merge";
 import { openalex } from "./openalex";
 import { pubmed } from "./pubmed";
 import { findRetracted } from "./retraction";
+import { FEW_RESULTS, interleave, queryVariants } from "./query";
 import { s2 } from "./s2";
 import type { Provider, ProviderPaper, SearchEnv } from "./types";
 
@@ -96,6 +97,7 @@ export async function runSearch(
   const started = Date.now();
   const lists: Record<string, ProviderPaper[]> = {};
   const providers: Record<string, ProviderStatus> = {};
+  let alsoSearched: string[] = [];
 
   await Promise.all(
     PROVIDERS.map(async (p) => {
@@ -112,12 +114,28 @@ export async function runSearch(
           error: err instanceof Error ? err.message : String(err),
         };
       }
-      await hooks.onSnapshot?.({ results: mergeAndRank(inProviderOrder(lists), limit), providers: { ...providers } });
+      await hooks.onSnapshot?.({ results: mergeAndRank(inProviderOrder(lists), limit), providers: { ...providers }, alsoSearched });
     }),
   );
+
+  // Few papers found, and the search has a name written as one word ("SwinYolo"): search again with it written as the words it is, and add what that finds.
+  if (Object.keys(lists).length > 0 && mergeAndRank(inProviderOrder(lists), 100).length < FEW_RESULTS) {
+    const variants = queryVariants(q);
+    if (variants.length > 0) {
+      alsoSearched = variants;
+      await Promise.all(
+        PROVIDERS.filter((p) => lists[p.name]).map(async (p) => {
+          const extra = await Promise.all(variants.map((v) => runProvider(p, v, env).then((r) => r.value, () => [] as ProviderPaper[])));
+          lists[p.name] = interleave([lists[p.name]!, ...extra]);
+          providers[p.name] = { ...providers[p.name]!, count: lists[p.name]!.length };
+        }),
+      );
+      await hooks.onSnapshot?.({ results: mergeAndRank(inProviderOrder(lists), limit), providers: { ...providers }, alsoSearched });
+    }
+  }
 
   const results = mergeAndRank(inProviderOrder(lists), limit);
   const doiCheck = await applyDoiIntegrity(env, results);
   const retractionCheck = await applyRetractions(env, results); // after the DOI check, so removed DOIs are not looked up
-  return { query: q, results, providers, doiCheck, retractionCheck, tookMs: Date.now() - started };
+  return { query: q, results, providers, doiCheck, retractionCheck, tookMs: Date.now() - started, ...(alsoSearched.length ? { alsoSearched } : {}) };
 }

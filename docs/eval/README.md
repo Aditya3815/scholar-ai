@@ -36,6 +36,12 @@ part of the day's OpenAlex budget): list them with `npm run eval 2>&1 | grep "^ 
 | G6 | >= 85% of landmark topical queries show the landmark paper in the top 10 | discovery quality |
 | - | Provider failures <= 5%; in replay, every request has a recording | health and determinism |
 
+## Reference extraction from real PDFs
+
+`node apps/api/scripts/refs-check.mjs <folder or file.pdf> [--dump <folder>]` runs the browser's own extraction (pdf.js text, then `analyzePaper`) in Node on real PDFs and prints, for each, how many references it found against the highest number the list itself prints
+("printed up to"), how many look merged (very long) or cut (very short), and flags a disagreement. `--dump` writes the reference block and the entries for reading. Use it on any paper that shows too few or too many references (22 Oct: it found the two
+bugs fixed that day). The unit tests in `apps/api/src/docs/paperinfo.test.ts` cover each style (numbered, hanging indent, two columns, appendix straight after the list, wrapped lines that begin with a year or a dash).
+
 ## Prior-art recall (Idea Check)
 
 `eval/prior-art.eval.ts` asks: if a researcher's idea were as clear as a paper's abstract, does Idea Check find the papers that paper itself cites? 40 recent papers (`data/prior_art.json`,

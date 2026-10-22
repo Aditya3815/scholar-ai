@@ -4,7 +4,7 @@
  * Pure functions on plain data, so the browser, the tests and any future server-side step all run the same code.
  * Measured against GROBID on five papers in docs/spikes/R1b-grobid-alternatives.md.
  */
-import { splitReferences } from "./references";
+import { MAX_PAPER_REFERENCES, splitReferences } from "./references";
 
 /** One piece of text from pdf.js (a TextItem), reduced to what we use. */
 export type RawItem = { str: string; x: number; y: number; w: number; size: number };
@@ -201,20 +201,47 @@ export function detectHeadings(lines: Line[], body: number, title: string | null
 
 /* ---------------------------------------------------------------- references */
 
-const REF_HEADING = /^((\d+|[IVX]+)[.)]?\s*)?(references?|bibliography|literature cited|works cited|reference list|cited literature)\s*:?\s*$/i;
-const AFTER_REFS = /^(appendix|appendices|supplement(ary)?\b|supporting information|author contributions?|competing interests?|conflicts? of interest|data availability|about the authors?)/i;
+/** "References", "7 REFERENCES", "R EFERENCES" (small capitals come out of a PDF with a gap after the first letter), "Notes and references" ... compared with the spaces taken out. */
+const REF_HEADING = /^((\d+|[ivx]+)[.)]?)?(references?|bibliography|literaturecited|workscited|referencelist|citedliterature|referencescited|citedreferences|listofreferences|referencesandnotes|notesandreferences):?$/i;
+export const isReferenceHeading = (text: string): boolean => text.length <= 40 && REF_HEADING.test(text.replace(/\s+/g, ""));
 
-/** Index of the last "References" heading (a bibliography is at the end; an earlier mention is a table of contents). */
+const AFTER_REFS = /^(appendix|appendices|supplement(ary)?\b|supporting information|author contributions?|competing interests?|conflicts? of interest|data availability|about the authors?|(neurips |icml |iclr )?paper checklist|checklist\b)/i;
+
+/**
+ * The number a list marker carries: "[12]", "(12)", "12." or "12)". "12" followed by anything else ("2024 IEEE", "1.5 times", a bare page number) is not a marker.
+ * Returns null when the line does not start with one.
+ */
+export function markerNumber(text: string): number | null {
+  const m = /^\s*(?:\[\s*(\d{1,3})\s*\]\s*|\(\s*(\d{1,3})\s*\)\s+|(\d{1,3})[.)]\s+)\S/.exec(text);
+  const n = Number(m?.[1] ?? m?.[2] ?? m?.[3]);
+  return m && Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Index of the line where the bibliography starts. Normally the last "References" heading (a bibliography is at the end; an earlier mention is a
+ * table of contents). Without any heading, the last "[1]" (or "1.") that is followed by "[2]", "[3]" ... in order is where a numbered list begins.
+ */
 export function findReferenceStart(lines: Line[]): number {
-  for (let i = lines.length - 1; i >= 0; i--) if (REF_HEADING.test(lines[i]!.text)) return i;
+  for (let i = lines.length - 1; i >= 0; i--) if (isReferenceHeading(lines[i]!.text)) return i;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (markerNumber(lines[i]!.text) !== 1) continue;
+    let want = 2;
+    for (let j = i + 1; j < lines.length && want <= 5; j++) if (markerNumber(lines[j]!.text) === want) want++;
+    if (want > 5) return i - 1;
+  }
   return -1;
 }
 
-export function referenceLines(lines: Line[]): Line[] {
+/**
+ * The lines of the reference list. It ends at a line that names what follows (an appendix, a checklist ...) or, when `body` (the size of the main text) is
+ * given, at a heading set larger than the text: papers often put an appendix straight after the last reference with no word to say so.
+ */
+export function referenceLines(lines: Line[], body?: number): Line[] {
   const start = findReferenceStart(lines);
   if (start < 0) return [];
   const tail = lines.slice(start + 1);
-  const end = tail.findIndex((l, i) => i > 2 && AFTER_REFS.test(l.text) && l.text.length < 60);
+  const isHeading = (l: Line) => body !== undefined && l.size >= body * 1.15 && l.text.length <= 90 && markerNumber(l.text) === null && /\p{L}{3}/u.test(l.text);
+  const end = tail.findIndex((l, i) => i > 2 && ((AFTER_REFS.test(l.text) && l.text.length < 60) || isHeading(l)));
   return end >= 0 ? tail.slice(0, end) : tail;
 }
 
@@ -248,16 +275,53 @@ function splitByIndent(block: Line[]): string[] | null {
   return entries;
 }
 
+/**
+ * A numbered list ([1] ... [n], or 1. ... n.): a line starts a new entry only when its number is the NEXT one (or one or two ahead, when a marker was lost).
+ * A line that merely begins with a number or a dash ("2024 IEEE International ...", "- 2024 IEEE ...", "19 pages.") continues the entry before it.
+ */
+function splitNumbered(block: Line[]): string[] {
+  const entries: string[] = [];
+  let last = 0;
+  for (const l of block) {
+    const n = markerNumber(l.text);
+    // a "1." after a long list is the start of something else (a numbered list in an appendix), not a continuation of the last entry
+    if (n === 1 && last >= 5) break;
+    const starts = n !== null && (entries.length === 0 ? n <= 2 : n > last && n <= last + 3);
+    if (starts) {
+      entries.push(l.text);
+      last = n!;
+    } else if (entries.length > 0) entries[entries.length - 1] += ` ${l.text}`;
+  }
+  return entries;
+}
+
+/** Something that cites a work: a year, a DOI, an arXiv id or an address. What does not is not a reference (an appendix paragraph that followed the list). */
+const CITES = /\b(1[5-9]\d{2}|20\d{2})[a-z]?\b|doi\.org|\b10\.\d{4,9}\/|arxiv|https?:\/\/|www\.|in press|forthcoming|to appear/i;
+
 const clean = (s: string) => squash(s.replace(MARKER, ""));
+
+/**
+ * An entry with a very long author list (hundreds of names) would be cut inside the author list when it is checked, and the title, which comes after
+ * the authors, would be lost. Keep the first authors and the end (title, venue, year) instead.
+ */
+export function compactLong(e: string, max = 900): string {
+  if (e.length <= max) return e;
+  const head = e.slice(0, 280).replace(/\s+\S*$/, "");
+  const tail = e.slice(-(max - 300)).replace(/^\S*\s+/, "");
+  return `${head} … ${tail}`;
+}
 
 export function referenceEntries(block: Line[]): string[] {
   if (block.length === 0) return [];
-  const numbered = block.filter((l) => MARKER.test(l.text)).length >= Math.min(3, Math.ceil(block.length / 12));
-  const entries = (!numbered && splitByIndent(block)) || splitReferences(block.map((l) => l.text).join("\n"));
-  return entries
-    .map(clean)
-    .filter((e) => e.length >= 20 && /\p{L}{3}/u.test(e))
-    .slice(0, 400);
+  const numbered = block.filter((l) => markerNumber(l.text) !== null).length >= Math.min(3, Math.ceil(block.length / 12));
+  const byNumber = numbered ? splitNumbered(block) : [];
+  const entries = (byNumber.length >= 2 && byNumber) || (!numbered && splitByIndent(block)) || splitReferences(block.map((l) => l.text).join("\n"));
+  const kept = entries
+    .map((e) => compactLong(clean(e)))
+    .filter((e) => e.length >= 20 && /\p{L}{3}/u.test(e));
+  // Text after the last reference (a paragraph of an appendix that nothing separated from the list) is not a reference.
+  while (kept.length > 3 && !CITES.test(kept[kept.length - 1]!)) kept.pop();
+  return kept.slice(0, MAX_PAPER_REFERENCES);
 }
 
 /* ---------------------------------------------------------------- everything together */
@@ -268,7 +332,7 @@ export function analyzePaper(args: { lines: Line[]; outline?: OutlineItem[]; pag
   const title = detectTitle(lines, body);
   const ids = detectIdentifiers(args.lines);
   const refStart = findReferenceStart(lines);
-  const block = referenceLines(lines);
+  const block = referenceLines(lines, body);
   const references = referenceEntries(block);
   return {
     pages: args.pages,

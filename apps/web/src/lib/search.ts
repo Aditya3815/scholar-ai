@@ -12,6 +12,8 @@ export type SearchState = {
   /** Pehla result kitni der mein dikha (ms): streaming ka asli fayda */
   firstResultMs: number | null;
   tookMs: number | null;
+  /** Other spellings that were searched too (the search as written found few papers). */
+  alsoSearched: string[];
   error: string | null;
 };
 
@@ -24,6 +26,7 @@ const IDLE: SearchState = {
   doiCheck: null,
   firstResultMs: null,
   tookMs: null,
+  alsoSearched: [],
   error: null,
 };
 
@@ -56,6 +59,7 @@ export function useSearch() {
           ...s,
           results: snap.results,
           providers: snap.providers,
+          alsoSearched: snap.alsoSearched ?? s.alsoSearched,
           firstResultMs: s.firstResultMs ?? (snap.results.length > 0 ? Math.round(performance.now() - started) : null),
         }));
       });
@@ -71,6 +75,7 @@ export function useSearch() {
           retractionCheck: final.retractionCheck,
           doiCheck: final.doiCheck,
           tookMs: final.tookMs,
+          alsoSearched: final.alsoSearched ?? s.alsoSearched,
         }));
         es.close();
       });

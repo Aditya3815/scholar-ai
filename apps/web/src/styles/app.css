@@ -1294,3 +1294,8 @@
     transform: none;
   }
 }
+.src-also {
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}

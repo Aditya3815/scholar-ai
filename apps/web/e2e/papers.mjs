@@ -248,7 +248,7 @@ try {
   await pick(1); // the scan itself clears the selection, so select again
   await bar.waitFor();
   await bar.getByRole("button", { name: "Highlight in green" }).click();
-  await page.locator('[data-page="1"] .textLayer .pdf-saved[data-color="green"]').first().waitFor({ timeout: 8000 });
+  await page.locator('[data-page="1"] .pdfp-hl[data-color="green"]').first().waitFor({ timeout: 8000 });
   ok(true, "a highlight in a colour is drawn on the page straight away");
   await bar.waitFor({ state: "detached" });
   ok(true, "the toolbar goes away after choosing");
@@ -268,7 +268,7 @@ try {
   await axe("notes panel");
 
   await page.reload({ waitUntil: "networkidle" });
-  await page.locator('[data-page="1"] .textLayer .pdf-saved').first().waitFor({ timeout: 15000 });
+  await page.locator('[data-page="1"] .pdfp-hl').first().waitFor({ timeout: 15000 });
   ok(true, "after reloading, the highlights are drawn again");
   ok(/\S/.test(firstText) && /\S/.test(secondText), "(the two pieces of text were real)");
 
@@ -281,8 +281,116 @@ try {
   await page.getByRole("button", { name: /^Delete the note on page 1/ }).first().click();
   await page.waitForFunction(() => document.querySelectorAll(".note").length === 1, null, { timeout: 8000 });
   ok(true, "deleting a note removes it from the list");
-  await page.waitForFunction(() => document.querySelectorAll('[data-page="1"] .textLayer .pdf-saved').length > 0 && !document.querySelector('[data-page="1"] .textLayer .pdf-saved[data-color="green"]'), null, { timeout: 8000 });
+  await page.waitForFunction(() => document.querySelectorAll('[data-page="1"] .pdfp-hl').length > 0 && !document.querySelector('[data-page="1"] .pdfp-hl[data-color="green"]'), null, { timeout: 8000 });
   ok(true, "...and its highlight leaves the page, while the other stays");
+
+  console.log("exact highlights, overlap, note icons, many notes");
+  const docId = await page.evaluate(() => location.pathname.split("/").pop());
+  const notesNow = () => page.evaluate(async (id) => (await (await fetch(`/api/v1/documents/${id}/notes`)).json()).items, docId);
+  /** Selects words [from, to) of the idx-th long text piece on page 1, like dragging across them; returns the selection's own width and the piece's width. */
+  const pickWords = (idx, from, to) => page.evaluate(async ([i, a, b]) => {
+    const layer = document.querySelector('[data-page="1"] .textLayer');
+    const sp = [...layer.querySelectorAll("span")].filter((x) => x.children.length === 0 && (x.textContent ?? "").trim().length > 25)[i];
+    sp.scrollIntoView({ block: "center" });
+    await new Promise((res) => setTimeout(res, 250));
+    const node = sp.firstChild;
+    const text = node.textContent;
+    const ws = [...text.matchAll(/\S+/g)];
+    const end = b === undefined ? text.length : ws[Math.min(b, ws.length) - 1].index + ws[Math.min(b, ws.length) - 1][0].length;
+    const r = document.createRange();
+    r.setStart(node, a === undefined ? 0 : ws[a].index);
+    r.setEnd(node, end);
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+    sp.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    return { selectionWidth: r.getBoundingClientRect().width, pieceWidth: sp.getBoundingClientRect().width, words: ws.length };
+  }, [idx, from, to]);
+  const hl = (color) => page.locator(`[data-page="1"] .pdfp-hl${color ? `[data-color="${color}"]` : ""}`);
+  const notesBefore = (await notesNow()).length;
+
+  // a part of a line is highlighted exactly, not the whole line
+  const sel1 = await pickWords(1, 2, 6);
+  await bar.waitFor();
+  await bar.getByRole("button", { name: "Highlight in green" }).click();
+  await hl("green").first().waitFor({ timeout: 8000 });
+  const w1 = await hl("green").first().evaluate((e) => e.getBoundingClientRect().width);
+  ok(Math.abs(w1 - sel1.selectionWidth) < 8, `only the chosen words are marked (${w1.toFixed(0)} px for a selection of ${sel1.selectionWidth.toFixed(0)} px)`);
+  ok(w1 < sel1.pieceWidth * 0.9, "...not the whole line of text");
+  ok((await hl("green").first().evaluate((e) => getComputedStyle(e).mixBlendMode)) === "multiply", "highlights multiply into the page, so the text stays readable");
+
+  // a longer highlight around it, in another colour: both stay visible
+  await pickWords(1);
+  await bar.waitFor();
+  await bar.getByRole("button", { name: "Highlight in blue" }).click();
+  await hl("blue").first().waitFor({ timeout: 8000 });
+  ok((await hl("green").count()) >= 1 && (await hl("blue").count()) >= 1, "a longer highlight around a short one: both are drawn, the short one is not lost");
+  ok((await notesNow()).length === notesBefore + 2, "...and both are kept as highlights");
+  const gb = await hl("green").first().boundingBox();
+  const bb = await hl("blue").first().boundingBox();
+  ok(gb && bb && gb.x >= bb.x - 1 && gb.x + gb.width <= bb.x + bb.width + 1, "the short highlight lies inside the long one");
+  await page.waitForTimeout(400);
+  await shot("66d-overlapping-highlights");
+  await axe("workspace with overlapping highlights");
+
+  // the same text again
+  await pickWords(1, 2, 6);
+  await bar.waitFor();
+  await bar.getByRole("button", { name: "Highlight in green" }).click();
+  await page.getByText("That text is already highlighted in this colour.").waitFor({ timeout: 5000 });
+  ok((await notesNow()).length === notesBefore + 2, "the same words in the same colour are not added twice (and the page says so)");
+  await pickWords(1, 2, 6);
+  await bar.waitFor();
+  await bar.getByRole("button", { name: "Highlight in pink" }).click();
+  await hl("pink").first().waitFor({ timeout: 8000 });
+  await page.waitForFunction(() => document.querySelectorAll('[data-page="1"] .pdfp-hl[data-color="green"]').length === 0);
+  ok((await notesNow()).length === notesBefore + 2, "the same words in a new colour change the colour of that highlight; no second copy is drawn");
+
+  // a note has an icon above its highlight; a plain highlight has none
+  const icons = page.locator('[data-page="1"] .pdfp-noteicon');
+  ok((await icons.count()) === 1, "the note that has words in it has an icon on the page, the highlights without a note have none");
+  const ib = await icons.first().boundingBox();
+  const hb = await page.locator('[data-page="1"] .pdfp-hl').first().boundingBox();
+  ok(ib && ib.y < (await page.locator('[data-page="1"] .pdfp-hl[data-note]').evaluateAll((els) => Math.max(...els.map((e) => e.getBoundingClientRect().bottom)))), "the icon sits at the highlight");
+  await pickWords(0, 0, 4);
+  await bar.waitFor();
+  await bar.getByRole("button", { name: "Add note" }).click();
+  await page.locator("textarea.note-text:focus").waitFor({ timeout: 8000 });
+  ok((await icons.count()) === 2, "pressing Add note puts an icon on the page straight away");
+  await page.locator("textarea.note-text:focus").blur();
+  await page.waitForFunction(() => document.querySelectorAll('[data-page="1"] .pdfp-noteicon').length === 1, null, { timeout: 5000 });
+  ok(true, "a note left empty is just a highlight again: its icon goes");
+  await icons.first().click();
+  await page.locator("textarea.note-text:focus").waitFor({ timeout: 8000 });
+  ok(/Check this against the second paper/.test(await page.locator("textarea.note-text:focus").inputValue()), "pressing the icon opens that note, ready to edit");
+  await page.locator("textarea.note-text:focus").blur();
+  await axe("workspace with a note icon");
+  await setTheme("Dark"); await page.waitForTimeout(500); await axe("workspace with a note icon, dark"); await setTheme("Light");
+
+  // many notes: the list scrolls and keeps its heading
+  await page.evaluate(async (id) => {
+    for (let i = 0; i < 14; i++) {
+      await fetch(`/api/v1/documents/${id}/notes`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Origin: location.origin }, body: JSON.stringify({ page: 1, quote: `extra highlight number ${i} that is not on the page`, color: ["yellow", "green", "blue", "pink"][i % 4], note: `note ${i}` }) });
+    }
+  }, docId);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("tab", { name: /^Notes/ }).first().click();
+  await page.locator(".note").nth(12).waitFor({ timeout: 10000 });
+  const body = page.locator(".notes-body");
+  const dims = await body.evaluate((e) => ({ scroll: e.scrollHeight, client: e.clientHeight, overflow: getComputedStyle(e).overflowY }));
+  ok(dims.scroll > dims.client && dims.overflow === "auto", `with many notes the list scrolls (${dims.scroll} px of notes in ${dims.client} px)`);
+  const headTop = await page.locator(".notes-head").evaluate((e) => e.getBoundingClientRect().top);
+  await body.evaluate((e) => (e.scrollTop = e.scrollHeight));
+  await page.waitForTimeout(200);
+  ok((await body.evaluate((e) => e.scrollTop)) > 100, "it can be scrolled to the last note");
+  ok(Math.abs((await page.locator(".notes-head").evaluate((e) => e.getBoundingClientRect().top)) - headTop) < 2, "the count and the buttons stay where they are while the list scrolls");
+  ok(await page.locator(".note").last().isVisible(), "the last note can be reached");
+  await axe("notes panel with many notes");
+  await page.evaluate(async (id) => {
+    const items = (await (await fetch(`/api/v1/documents/${id}/notes`)).json()).items.filter((n) => n.quote.startsWith("extra highlight number"));
+    for (const n of items) await fetch(`/api/v1/documents/${id}/notes/${n.id}`, { method: "DELETE", credentials: "same-origin", headers: { Origin: location.origin } });
+  }, docId);
+  await page.reload({ waitUntil: "networkidle" });
   await page.locator(".dw-sidetab", { hasText: "Ask" }).click(); // back to the questions
 
   console.log("answer progress and stop");

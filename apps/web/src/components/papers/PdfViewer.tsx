@@ -2,11 +2,11 @@ import "pdfjs-dist/web/pdf_viewer.css";
 import { m } from "motion/react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, ListTree, Loader2, Maximize2, Minus, Plus, Search, StickyNote, X } from "lucide-react";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
-import { NOTE_COLORS, type DocNote, type NoteColor, type OutlineItem } from "@scholar/shared";
+import { NOTE_COLORS, type DocNote, type MarkRect, type NoteColor, type OutlineItem } from "@scholar/shared";
 import type { PDFDocumentProxy } from "../../lib/pdf";
 import { Pop } from "../Pop";
 import { pdfjs } from "../../lib/pdf";
-import { clearHighlights, clearSaved, highlightMatches, highlightQuote, markSaved } from "../../lib/highlight";
+import { clearHighlights, highlightMatches, highlightQuote, quoteRects } from "../../lib/highlight";
 import { locate, usePaperSearch } from "../../lib/paperSearch";
 import { spring } from "../../lib/motion";
 
@@ -19,6 +19,7 @@ export type ViewerHandle = {
 };
 
 const MAX_PAGE_PX = 920;
+const NO_MARKS: PageMark[] = [];
 const ZOOMS = [0.6, 0.75, 0.9, 1, 1.15, 1.3, 1.6, 2, 2.5];
 
 /** True while the element is within `margin` of the scroll area; used to render only what can be seen. */
@@ -34,6 +35,9 @@ function useNear(ref: React.RefObject<HTMLElement | null>, root: React.RefObject
   return near;
 }
 
+/** Where one saved highlight is drawn on its page (its colour and note come from the note itself, so a change of colour needs no new measuring). */
+type PageMark = { id: string; rects: MarkRect[] };
+
 type PageProps = {
   pdf: PDFDocumentProxy;
   n: number;
@@ -42,9 +46,34 @@ type PageProps = {
   root: React.RefObject<HTMLElement | null>;
   onSize: (n: number, w: number, h: number) => void;
   onText: (n: number, layer: HTMLElement | null) => void;
+  marks: PageMark[];
+  notesById: Map<string, DocNote>;
+  /** A note being written now shows its icon even before it has any words. */
+  focusId: string | null;
+  onOpenNote?: (id: string) => void;
 };
 
-function PdfPage({ pdf, n, scale, size, root, onSize, onText }: PageProps) {
+const ICON = 18;
+
+/** The note icons of one page: just above the first line of the highlight, side by side where two would sit on top of each other. */
+function noteIcons(marks: PageMark[], notesById: Map<string, DocNote>, focusId: string | null) {
+  const placed: { x: number; y: number }[] = [];
+  const out: { id: string; x: number; y: number; note: DocNote }[] = [];
+  for (const m of marks) {
+    const note = notesById.get(m.id);
+    const first = m.rects[0];
+    if (!note || !first || (note.note.trim() === "" && note.id !== focusId)) continue;
+    // straddling the top-left corner of the highlight, like a sticky note on paper: seen at once, and covering little of the text
+    let x = Math.max(2, first.x - ICON / 2);
+    const y = Math.max(1, first.y - ICON / 2 - 3);
+    while (placed.some((p) => Math.abs(p.x - x) < ICON + 2 && Math.abs(p.y - y) < ICON)) x += ICON + 2;
+    placed.push({ x, y });
+    out.push({ id: m.id, x, y, note });
+  }
+  return out;
+}
+
+function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, focusId, onOpenNote }: PageProps) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const text = useRef<HTMLDivElement>(null);
@@ -106,6 +135,28 @@ function PdfPage({ pdf, n, scale, size, root, onSize, onText }: PageProps) {
     <div ref={box} className="pdfp" data-page={n} role="group" style={{ width: size.w * scale, height: size.h * scale }} aria-label={`Page ${n}`}>
       <canvas ref={canvas} className="pdfp-canvas" data-painted={painted} />
       <div ref={text} className="textLayer pdfp-text" />
+      {marks.length > 0 && (
+        <div className="pdfp-marks">
+          {marks.map((m) =>
+            m.rects.map((r, i) => <span key={`${m.id}-${i}`} className="pdfp-hl" data-color={notesById.get(m.id)?.color ?? "yellow"} data-note={m.id} aria-hidden="true" style={{ left: r.x, top: r.y, width: r.w, height: r.h }} />),
+          )}
+          {noteIcons(marks, notesById, focusId).map((ic) => (
+            <button
+              key={ic.id}
+              type="button"
+              className="pdfp-noteicon"
+              data-color={ic.note.color}
+              data-note={ic.id}
+              style={{ left: ic.x, top: ic.y }}
+              aria-label={`Open the note on page ${n}${ic.note.note.trim() ? `: ${ic.note.note.trim().slice(0, 60)}` : ""}`}
+              title={ic.note.note.trim() ? ic.note.note.trim().slice(0, 140) : "Note (empty)"}
+              onClick={() => onOpenNote?.(ic.id)}
+            >
+              <StickyNote size={11} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      )}
       {!painted && <span className="pdfp-skel" aria-hidden="true" />}
     </div>
   );
@@ -188,7 +239,7 @@ function Contents({ items, detected, current, onPick }: { items: OutlineItem[]; 
   );
 }
 
-export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, notes, onCreateNote }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void }) {
+export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void }) {
   const scroller = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
   const [zoomIdx, setZoomIdx] = useState(3);
@@ -199,6 +250,8 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
   const layers = useRef(new Map<number, HTMLElement>());
   const notesRef = useRef<DocNote[]>(notes ?? []);
   notesRef.current = notes ?? [];
+  const [marks, setMarks] = useState<Record<number, PageMark[]>>({});
+  const notesById = useMemo(() => new Map((notes ?? []).map((x) => [x.id, x])), [notes]);
   const [sel, setSel] = useState<{ page: number; quote: string; x: number; y: number } | null>(null);
   const pending = useRef<{ page: number; quote: string } | null>(null);
   const pendingFind = useRef<{ page: number; query: string; k: number } | null>(null);
@@ -257,12 +310,17 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
     return true;
   }, [scrollToSpan]);
 
-  /** Draws the saved highlights of one page onto its text layer. */
+  /** Measures where the saved highlights of one page are, once its text is on screen. They are drawn in a layer of their own, so several can overlap. */
   const paintSaved = useCallback((n: number) => {
     const layer = layers.current.get(n);
     if (!layer) return;
-    clearSaved(layer);
-    for (const note of notesRef.current) if (note.page === n) markSaved(layer, note.quote, note.id, note.color);
+    const list: PageMark[] = [];
+    for (const note of notesRef.current) {
+      if (note.page !== n) continue;
+      const rects = quoteRects(layer, note.quote);
+      if (rects.length > 0) list.push({ id: note.id, rects });
+    }
+    setMarks((m) => ({ ...m, [n]: list }));
   }, []);
 
   const onText = useCallback(
@@ -270,7 +328,10 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
       if (layer) {
         layers.current.set(n, layer);
         paintSaved(n);
-      } else layers.current.delete(n);
+      } else {
+        layers.current.delete(n);
+        setMarks((m) => (m[n] ? { ...m, [n]: [] } : m));
+      }
       if (layer && pending.current?.page === n) {
         const { quote } = pending.current;
         pending.current = null;
@@ -525,7 +586,7 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
         <div ref={scroller} className="pdfv-scroll" tabIndex={0} role="region" aria-label={`Pages of ${title}`} onMouseUp={onCreateNote ? captureSelection : undefined} onKeyUp={onCreateNote ? captureSelection : undefined} onScroll={() => sel && setSel(null)}>
           <div className="pdfv-pages">
             {pages.map((n) => (
-              <PdfPage key={n} pdf={pdf} n={n} scale={scale} size={sizes[n] ?? first} root={scroller} onSize={onSize} onText={onText} />
+              <PdfPage key={n} pdf={pdf} n={n} scale={scale} size={sizes[n] ?? first} root={scroller} onSize={onSize} onText={onText} marks={marks[n] ?? NO_MARKS} notesById={notesById} focusId={focusNoteId} onOpenNote={onOpenNote} />
             ))}
           </div>
         </div>

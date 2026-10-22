@@ -77,6 +77,8 @@ export const PROVIDER_LABELS = {
 export type SearchSnapshot = {
   results: Paper[];
   providers: Record<string, ProviderStatus>;
+  /** Other spellings that were searched too because the search as written found few papers (for example "SwinYolo" also as "Swin Yolo"). */
+  alsoSearched?: string[];
 };
 
 export type SearchResponse = {
@@ -87,6 +89,7 @@ export type SearchResponse = {
   doiCheck: ProviderStatus;
   retractionCheck: ProviderStatus;
   tookMs: number;
+  alsoSearched?: string[];
 };
 export * from "./references";
 export * from "./documents";

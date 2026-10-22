@@ -61,6 +61,11 @@ export function SourceStatus({ state }: { state: SearchState }) {
       <p className="src-summary" role="status" aria-live="polite">
         {summary}
       </p>
+      {state.alsoSearched.length > 0 && (
+        <p className="src-also">
+          “{state.query}” found few papers as written, so {state.alsoSearched.map((v) => `“${v}”`).join(" and ")} {state.alsoSearched.length === 1 ? "was" : "were"} searched too.
+        </p>
+      )}
       <ul className="src-list" aria-label="Sources">
         {ids.map((id) => (
           <Chip key={id} label={PROVIDER_LABELS[id]} status={state.providers[id]} pending={loading && !state.providers[id]} />

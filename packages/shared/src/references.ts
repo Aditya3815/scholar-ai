@@ -42,6 +42,8 @@ export type RefVerdict = {
 /** At most this many references are checked per run (each is one request, a few at a time). */
 export const MAX_REFERENCES = 60;
 export const MAX_REFERENCE_CHARS = 1000;
+/** Most references kept from one uploaded paper (surveys and theses can have several hundred), and so the most checked for it. */
+export const MAX_PAPER_REFERENCES = 600;
 
 const MARKER = /^\s*(?:\[\s*\d{1,3}\s*\]|\(\s*\d{1,3}\s*\)|\d{1,3}\s*[.)]|[•·▪◦*-])\s+/;
 /** "Smith, J." / "Smith, John" / "Kumar, R.K." / "van der Berg, A." */

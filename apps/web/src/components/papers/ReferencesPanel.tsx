@@ -1,7 +1,7 @@
 import { AnimatePresence, m } from "motion/react";
 import { BookMarked, FileSearch, Loader2, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PaperInfo } from "@scholar/shared";
+import { MAX_PAPER_REFERENCES, type PaperInfo } from "@scholar/shared";
 import { easeOut } from "../../lib/motion";
 import { bucketOf, tally } from "../../lib/refStatus";
 import { useVerify } from "../../lib/verify";
@@ -9,7 +9,6 @@ import { RefCard } from "../verify/RefCard";
 import { VerifySummary, type Filter } from "../verify/VerifySummary";
 
 /** More than the Reference Verifier page allows at once: a paper's own list is usually 20 to 80 entries, reviews more. */
-const MAX_PER_PAPER = 120;
 
 /**
  * The paper's own reference list, each entry checked against Crossref and OpenAlex by the Reference Verifier. Answers the questions
@@ -26,7 +25,7 @@ export function ReferencesPanel({ info, analyzing }: { info: PaperInfo | null; a
   useEffect(() => {
     if (refs.length === 0 || started.current === key) return;
     started.current = key;
-    void start(refs, MAX_PER_PAPER);
+    void start(refs, MAX_PAPER_REFERENCES);
   }, [key, refs, start]);
 
   const t = tally(state.items);

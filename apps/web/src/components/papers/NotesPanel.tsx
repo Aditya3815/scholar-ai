@@ -5,18 +5,23 @@ import { MAX_NOTE_CHARS, NOTE_COLORS, type DocNote, type DocumentInfo } from "@s
 import { easeOut, spring } from "../../lib/motion";
 import { notesToMarkdown, type NotesApi } from "../../lib/notes";
 
-function NoteItem({ n, api, autoFocus, onGo }: { n: DocNote; api: NotesApi; autoFocus: boolean; onGo: (n: DocNote) => void }) {
+function NoteItem({ n, api, autoFocus, focusTick, onGo, onFocusDone }: { n: DocNote; api: NotesApi; autoFocus: boolean; focusTick: number; onGo: (n: DocNote) => void; onFocusDone?: (id: string) => void }) {
   const [text, setText] = useState(n.note);
   const area = useRef<HTMLTextAreaElement>(null);
+  const item = useRef<HTMLLIElement>(null);
   useEffect(() => setText(n.note), [n.note]);
+  // asked for (a new note, or the icon on the page was pressed): bring it into view in the list and put the cursor in it
   useEffect(() => {
-    if (autoFocus) area.current?.focus();
-  }, [autoFocus]);
+    if (!autoFocus) return;
+    item.current?.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    area.current?.focus({ preventScroll: true });
+  }, [autoFocus, focusTick]);
   const save = () => {
     if (text.trim() !== n.note) void api.update(n.id, { note: text });
+    onFocusDone?.(n.id);
   };
   return (
-    <m.li className="note" data-color={n.color} layout="position" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -16 }} transition={spring}>
+    <m.li ref={item} className="note" data-color={n.color} data-note={n.id} layout="position" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -16 }} transition={spring}>
       <div className="note-head">
         <button type="button" className="note-page" onClick={() => onGo(n)} aria-label={`Go to page ${n.page}`}>p. {n.page}</button>
         <div className="note-colors" role="group" aria-label="Colour">
@@ -48,7 +53,7 @@ function NoteItem({ n, api, autoFocus, onGo }: { n: DocNote; api: NotesApi; auto
 }
 
 /** Highlights and notes for the open paper, in page order: click one to jump to it, edit the words, change the colour, export them all. */
-export function NotesPanel({ doc, api, focusId, onGo }: { doc: DocumentInfo; api: NotesApi; focusId: string | null; onGo: (n: DocNote) => void }) {
+export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone }: { doc: DocumentInfo; api: NotesApi; focusId: string | null; focusTick?: number; onGo: (n: DocNote) => void; onFocusDone?: (id: string) => void }) {
   const [copied, setCopied] = useState(false);
   const md = () => notesToMarkdown(doc.title, api.notes);
   const copy = () => navigator.clipboard?.writeText(md()).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800); }, () => {});
@@ -78,6 +83,7 @@ export function NotesPanel({ doc, api, focusId, onGo }: { doc: DocumentInfo; api
           </div>
         )}
       </div>
+      <div className="notes-body">
       {api.error && <p className="notes-error" role="alert">{api.error}</p>}
       {api.status !== "loading" && api.notes.length === 0 && (
         <m.div className="notes-empty" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }}>
@@ -88,10 +94,11 @@ export function NotesPanel({ doc, api, focusId, onGo }: { doc: DocumentInfo; api
       <ul className="notes-list" aria-label="Highlights and notes">
         <AnimatePresence initial={false}>
           {api.notes.map((n) => (
-            <NoteItem key={n.id} n={n} api={api} autoFocus={focusId === n.id} onGo={onGo} />
+            <NoteItem key={n.id} n={n} api={api} autoFocus={focusId === n.id} focusTick={focusTick} onGo={onGo} onFocusDone={onFocusDone} />
           ))}
         </AnimatePresence>
       </ul>
+      </div>
     </div>
   );
 }

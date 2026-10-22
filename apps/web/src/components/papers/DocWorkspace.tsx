@@ -1,7 +1,7 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Loader2, MessageSquareText, Pencil, ScrollText } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import type { Answer, Citation, DocNote, DocumentInfo, OutlineItem, PaperInfo } from "@scholar/shared";
+import { planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type OutlineItem, type PaperInfo } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { ApiError, fetchDocument, fileUrl, reindexDoc, renameDoc, savePaperInfo, useJobs } from "../../lib/documents";
 import { analyzeOpenPdf } from "../../lib/paperinfo";
@@ -85,7 +85,8 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const [tab, setTab] = useState<"paper" | "side">("paper");
   const [side, setSide] = useState<"ask" | "refs" | "notes">("ask");
   const notes = useNotes(id);
-  const [focusNote, setFocusNote] = useState<string | null>(null);
+  // the note being written, or the one whose icon was pressed; `tick` makes a second press on the same note work again
+  const [focusNote, setFocusNote] = useState<{ id: string; tick: number } | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const analyzed = useRef<string | null>(null);
   const [page, setPage] = useState(1);
@@ -167,16 +168,24 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   }, []);
 
   const addNote = notes.add;
+  const updateNote = notes.update;
+  const existing = notes.notes;
+  const openNote = useCallback((noteId: string) => {
+    setFocusNote((f) => ({ id: noteId, tick: (f?.tick ?? 0) + 1 }));
+    setSide("notes");
+    setTab("side");
+  }, []);
   const onCreateNote = useCallback(
     async (n: NewNote) => {
+      // Highlights may overlap, but the same text is never drawn twice: see planNewHighlight.
+      const plan = planNewHighlight(existing, n);
+      if (plan.action === "open") return openNote(plan.id);
+      if (plan.action === "recolor") return void (await updateNote(plan.id, { color: n.color }));
+      if (plan.action === "skip") return showNotice("That text is already highlighted in this colour.");
       const saved = await addNote({ page: n.page, quote: n.quote, color: n.color });
-      if (saved && n.withNote) {
-        setFocusNote(saved.id);
-        setSide("notes");
-        setTab("side");
-      }
+      if (saved && n.withNote) openNote(saved.id);
     },
-    [addNote],
+    [addNote, updateNote, existing, openNote],
   );
 
   const onGoToPage = useCallback((page: number) => {
@@ -284,7 +293,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             {pdf.status === "ready" && (
               <m.div key="r" className="dw-viewer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }}>
                 <Suspense fallback={<OpeningPaper progress={1} />}>
-                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} notes={notes.notes} onCreateNote={(n) => void onCreateNote(n)} />
+                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} notes={notes.notes} onCreateNote={(n) => void onCreateNote(n)} focusNoteId={focusNote?.id ?? null} onOpenNote={openNote} />
                 </Suspense>
               </m.div>
             )}
@@ -317,7 +326,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             <ReferencesPanel info={info} analyzing={analyzing || (needsInfo && pdf.status !== "error")} />
           </div>
           <div className="dw-side" hidden={side !== "notes"}>
-            <NotesPanel doc={doc} api={notes} focusId={focusNote} onGo={onGoToNote} />
+            <NotesPanel doc={doc} api={notes} focusId={focusNote?.id ?? null} focusTick={focusNote?.tick ?? 0} onGo={onGoToNote} onFocusDone={(id) => setFocusNote((f) => (f?.id === id ? null : f))} />
           </div>
         </div>
       </div>
