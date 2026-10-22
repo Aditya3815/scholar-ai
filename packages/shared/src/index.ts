@@ -94,6 +94,7 @@ export type SearchResponse = {
 export * from "./references";
 export * from "./documents";
 export * from "./text";
+export * from "./zoom";
 export * from "./paperinfo";
 export * from "./idea";
 export * from "./idea-m3";

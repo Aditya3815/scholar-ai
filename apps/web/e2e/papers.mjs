@@ -247,6 +247,28 @@ try {
   await axe("selection toolbar");
   await pick(1); // the scan itself clears the selection, so select again
   await bar.waitFor();
+  // before choosing anything: scrolling a little must not make the toolbar disappear, it follows the text
+  const selTop = () => page.evaluate(() => getSelection().getRangeAt(0).getBoundingClientRect().top);
+  const barTop = async () => (await bar.boundingBox())?.y ?? null;
+  const scrollBy = (dy) => page.evaluate((d) => { document.querySelector(".pdfv-scroll").scrollTop += d; }, dy);
+  const t0 = await selTop();
+  const b0 = await barTop();
+  await scrollBy(30);
+  await page.waitForTimeout(250);
+  ok(await bar.isVisible(), "scrolling a little with the text selected does not make the toolbar go away");
+  const t1 = await selTop();
+  const b1 = await barTop();
+  ok(Math.abs(t1 - t0 + 30) < 4 && Math.abs((b1 - b0) - (t1 - t0)) < 6, `the toolbar moves with the text (text ${Math.round(t1 - t0)} px, toolbar ${Math.round(b1 - b0)} px)`);
+  await scrollBy(-30);
+  await page.waitForTimeout(250);
+  ok(await bar.isVisible() && Math.abs((await barTop()) - b0) < 6, "scrolling back puts it back where it was");
+  await scrollBy(700);
+  await page.waitForTimeout(250);
+  ok(!(await bar.isVisible()), "when the selected text is out of sight the toolbar waits out of the way");
+  await scrollBy(-700);
+  await page.waitForTimeout(300);
+  await bar.waitFor({ timeout: 3000 });
+  ok(true, "and it is back when the text comes into view again");
   await bar.getByRole("button", { name: "Highlight in green" }).click();
   await page.locator('[data-page="1"] .pdfp-hl[data-color="green"]').first().waitFor({ timeout: 8000 });
   ok(true, "a highlight in a colour is drawn on the page straight away");
@@ -433,6 +455,65 @@ try {
   await page.locator("#pdfv-page").fill("3");
   await page.locator("#pdfv-page").press("Enter");
   ok(await until(async () => (await page.locator(".thumb[aria-current=true]").getAttribute("aria-label")) === "Go to page 3"), "typing a page number jumps there and the thumbnail follows");
+
+  console.log("pinch zoom");
+  const pct = async () => Number((await page.locator(".pdfv-pct").innerText()).replace("%", ""));
+  await page.getByRole("button", { name: "Fit to width" }).first().click();
+  await page.waitForTimeout(400);
+  const viewBox = await page.locator(".pdfv-scroll").boundingBox();
+  const cx = viewBox.x + viewBox.width / 2;
+  const cy = viewBox.y + 160;
+  await page.mouse.move(cx, cy);
+  // where in the page the point under the fingers is, as a share of the page's height: it must stay the same
+  const share = () => page.evaluate((y) => {
+    const sc = document.querySelector(".pdfv-scroll");
+    const r = sc.getBoundingClientRect();
+    const at = y - r.top;
+    for (const pg of document.querySelectorAll("[data-page]")) {
+      const b = pg.getBoundingClientRect();
+      if (b.top <= y && y <= b.bottom) return { page: pg.dataset.page, share: (y - b.top) / b.height, at: Math.round(at) };
+    }
+    return null;
+  }, cy);
+  const was = await share();
+  await page.keyboard.down("Control");
+  for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, -8); await page.waitForTimeout(30); }
+  await page.keyboard.up("Control");
+  ok(await until(async () => (await pct()) > 110, 5000), `a trackpad pinch out (Ctrl and the wheel) zooms in (${await pct()}%)`);
+  ok((await page.evaluate(() => window.visualViewport.scale)) === 1, "...and does not zoom the whole browser page");
+  await page.waitForTimeout(600);
+  const now = await share();
+  ok(was && now && was.page === now.page && Math.abs(was.share - now.share) < 0.03, `the point under the fingers stays under them (page ${was?.page} at ${was ? Math.round(was.share * 100) : "?"}% of its height, then ${now ? Math.round(now.share * 100) : "?"}%)`);
+  await page.keyboard.down("Control");
+  for (let i = 0; i < 40; i++) { await page.mouse.wheel(0, 10); await page.waitForTimeout(15); }
+  await page.keyboard.up("Control");
+  ok(await until(async () => (await pct()) <= 60, 5000), `pinching in far enough stops at the smallest zoom (${await pct()}%)`);
+  ok((await page.getByRole("button", { name: "Zoom out" }).isDisabled()), "...and Zoom out is then switched off");
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await page.waitForTimeout(400);
+  ok((await pct()) === 75, `the buttons carry on from there (${await pct()}%)`);
+  // two fingers on a touch screen
+  await page.getByRole("button", { name: "Fit to width" }).first().click();
+  await page.waitForTimeout(400);
+  const pinch = (from, to, steps = 8) => page.evaluate(([f, t, n]) => {
+    const el = document.querySelector(".pdfv-scroll");
+    const r = el.getBoundingClientRect();
+    const mx = r.left + r.width / 2, my = r.top + 200;
+    const mk = (d) => [0, 1].map((i) => new Touch({ identifier: i + 1, target: el, clientX: mx + (i ? d : -d) / 2, clientY: my }));
+    const fire = (type, touches) => { const ev = new TouchEvent(type, { touches, targetTouches: touches, changedTouches: touches, bubbles: true, cancelable: true }); el.dispatchEvent(ev); return ev.defaultPrevented; };
+    fire("touchstart", mk(f));
+    let prevented = true;
+    for (let i = 1; i <= n; i++) prevented = fire("touchmove", mk(f + ((t - f) * i) / n)) && prevented;
+    fire("touchend", []);
+    return prevented;
+  }, [from, to, steps]);
+  ok(await pinch(80, 200), "two fingers moving apart are the reader's, not the browser's");
+  ok(await until(async () => (await pct()) > 130, 5000), `two fingers moving apart zoom in (${await pct()}%)`);
+  await pinch(240, 80);
+  ok(await until(async () => (await pct()) < 100, 5000), `two fingers moving together zoom out (${await pct()}%)`);
+  await page.getByRole("button", { name: "Fit to width" }).first().click();
+  await page.waitForTimeout(300);
+  await axe("workspace after zooming");
 
   console.log("history and rename");
   await page.reload({ waitUntil: "networkidle" });

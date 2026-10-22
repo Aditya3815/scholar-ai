@@ -676,6 +676,8 @@
   flex: 1;
   min-width: 0;
   overflow: auto;
+  /* one finger scrolls; two fingers are the reader's own pinch (see PdfViewer), not the browser's zoom of the whole page */
+  touch-action: pan-x pan-y;
   background: color-mix(in srgb, var(--surface-2) 70%, var(--border));
 }
 .pdfv-scroll:focus-visible {

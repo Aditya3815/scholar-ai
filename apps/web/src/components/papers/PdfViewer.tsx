@@ -1,8 +1,8 @@
 import "pdfjs-dist/web/pdf_viewer.css";
 import { m } from "motion/react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, ListTree, Loader2, Maximize2, Minus, Plus, Search, StickyNote, X } from "lucide-react";
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
-import { NOTE_COLORS, type DocNote, type MarkRect, type NoteColor, type OutlineItem } from "@scholar/shared";
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type Ref } from "react";
+import { NOTE_COLORS, anchoredScroll, clampZoom, pinchFactor, stepZoom, wheelFactor, type DocNote, type MarkRect, type NoteColor, type OutlineItem } from "@scholar/shared";
 import type { PDFDocumentProxy } from "../../lib/pdf";
 import { Pop } from "../Pop";
 import { pdfjs } from "../../lib/pdf";
@@ -20,7 +20,6 @@ export type ViewerHandle = {
 
 const MAX_PAGE_PX = 920;
 const NO_MARKS: PageMark[] = [];
-const ZOOMS = [0.6, 0.75, 0.9, 1, 1.15, 1.3, 1.6, 2, 2.5];
 
 /** True while the element is within `margin` of the scroll area; used to render only what can be seen. */
 function useNear(ref: React.RefObject<HTMLElement | null>, root: React.RefObject<HTMLElement | null>, margin: string) {
@@ -242,7 +241,7 @@ function Contents({ items, detected, current, onPick }: { items: OutlineItem[]; 
 export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void }) {
   const scroller = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
-  const [zoomIdx, setZoomIdx] = useState(3);
+  const [zoomLevel, setZoomLevel] = useState(1);
   const [width, setWidth] = useState(0);
   const [sizes, setSizes] = useState<Record<number, { w: number; h: number }>>({});
   const [current, setCurrent] = useState(1);
@@ -252,7 +251,8 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
   notesRef.current = notes ?? [];
   const [marks, setMarks] = useState<Record<number, PageMark[]>>({});
   const notesById = useMemo(() => new Map((notes ?? []).map((x) => [x.id, x])), [notes]);
-  const [sel, setSel] = useState<{ page: number; quote: string; x: number; y: number } | null>(null);
+  const [sel, setSel] = useState<{ page: number; quote: string; x: number; y: number; hidden?: boolean } | null>(null);
+  const selFrame = useRef(0);
   const pending = useRef<{ page: number; quote: string } | null>(null);
   const pendingFind = useRef<{ page: number; query: string; k: number } | null>(null);
   const [findOpen, setFindOpen] = useState(false);
@@ -272,9 +272,113 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
     return () => ro.disconnect();
   }, []);
 
+  /* ---- zoom: the buttons, and a pinch (two fingers on a touch screen, or a trackpad pinch, which a browser reports as Ctrl and the wheel) ---- */
+  const pagesEl = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef(1);
+  zoomRef.current = zoomLevel;
+  /** The point to keep still when the new zoom is drawn: where it was in the pages and where it was in the view. */
+  const anchor = useRef<{ fx: number; fy: number; cx: number; cy: number; f: number; h0: number } | null>(null);
+  /** The height of a page as laid out now. The pages can grow by a little less or more than the zoom (the width they fit to changes with the scroll bars), so the scroll is set from this. */
+  const pageHeight = () => pagesEl.current?.querySelector<HTMLElement>(".pdfp")?.offsetHeight ?? 0;
+  /** A pinch in progress: pages are scaled with a transform (cheap, and smooth) and the real zoom is set when the fingers rest. */
+  const live = useRef<{ f: number; fx: number; fy: number; cx: number; cy: number; timer: number } | null>(null);
+
+  const commitPinch = useCallback(() => {
+    const l = live.current;
+    live.current = null;
+    if (!l) return;
+    const pg = pagesEl.current;
+    if (pg) {
+      pg.style.transform = "";
+      pg.style.transformOrigin = "";
+    }
+    const next = clampZoom(zoomRef.current * l.f);
+    if (Math.abs(next - zoomRef.current) < 0.002) return;
+    anchor.current = { fx: l.fx, fy: l.fy, cx: l.cx, cy: l.cy, f: next / zoomRef.current, h0: pageHeight() };
+    setZoomLevel(next);
+  }, []);
+
+  const pinchBy = useCallback(
+    (factor: number, clientX: number, clientY: number) => {
+      const sc = scroller.current;
+      const pg = pagesEl.current;
+      if (!sc || !pg || !Number.isFinite(factor)) return;
+      const box = sc.getBoundingClientRect();
+      let l = live.current;
+      if (!l) l = live.current = { f: 1, fx: sc.scrollLeft + clientX - box.left, fy: sc.scrollTop + clientY - box.top, cx: clientX - box.left, cy: clientY - box.top, timer: 0 };
+      l.f = clampZoom(zoomRef.current * l.f * factor) / zoomRef.current;
+      pg.style.transformOrigin = `${l.fx}px ${l.fy}px`;
+      pg.style.transform = `scale(${l.f})`;
+      window.clearTimeout(l.timer);
+      l.timer = window.setTimeout(commitPinch, 160);
+    },
+    [commitPinch],
+  );
+
+  /** Zoom by a button or a step: about the middle of what is in view. */
+  const zoomTo = useCallback((level: number) => {
+    const sc = scroller.current;
+    const next = clampZoom(level);
+    if (!sc || Math.abs(next - zoomRef.current) < 0.002) return;
+    anchor.current = { fx: sc.scrollLeft + sc.clientWidth / 2, fy: sc.scrollTop + sc.clientHeight / 2, cx: sc.clientWidth / 2, cy: sc.clientHeight / 2, f: next / zoomRef.current, h0: pageHeight() };
+    setZoomLevel(next);
+  }, []);
+
+  // after the pages have their new size, scroll so that the point that was under the fingers is still there
+  useLayoutEffect(() => {
+    const a = anchor.current;
+    const sc = scroller.current;
+    anchor.current = null;
+    if (!a || !sc) return;
+    const h1 = pageHeight();
+    const f = a.h0 > 0 && h1 > 0 ? h1 / a.h0 : a.f; // how much the pages really grew
+    sc.scrollLeft = anchoredScroll(a.fx - a.cx, a.cx, f);
+    sc.scrollTop = anchoredScroll(a.fy - a.cy, a.cy, f);
+  }, [zoomLevel]);
+
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    // a trackpad pinch (and Ctrl with a mouse wheel) is a wheel event with Ctrl held; it must not zoom the whole page
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      pinchBy(wheelFactor(e.deltaY, e.deltaMode), e.clientX, e.clientY);
+    };
+    // two fingers on a touch screen: only while there are two, so one finger still scrolls and selects
+    let last = 0;
+    const dist = (t: TouchList) => Math.hypot(t[0]!.clientX - t[1]!.clientX, t[0]!.clientY - t[1]!.clientY);
+    const onTouchStart = (e: TouchEvent) => {
+      last = e.touches.length === 2 ? dist(e.touches) : 0;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return;
+      e.preventDefault();
+      const d = dist(e.touches);
+      if (last > 0) pinchBy(pinchFactor(last, d), (e.touches[0]!.clientX + e.touches[1]!.clientX) / 2, (e.touches[0]!.clientY + e.touches[1]!.clientY) / 2);
+      last = d;
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      last = e.touches.length === 2 ? dist(e.touches) : 0;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    el.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+      if (live.current) window.clearTimeout(live.current.timer);
+    };
+  }, [pinchBy]);
+
   const first = sizes[1] ?? { w: 595, h: 842 };
   const fit = width > 0 ? Math.min((width - 32) / first.w, MAX_PAGE_PX / first.w) : 1;
-  const scale = Math.max(0.2, fit * ZOOMS[zoomIdx]!);
+  const scale = Math.max(0.2, fit * zoomLevel);
 
   const onSize = useCallback((n: number, w: number, h: number) => {
     setSizes((s) => (s[n] && Math.abs(s[n]!.w - w) < 0.5 && Math.abs(s[n]!.h - h) < 0.5 ? s : { ...s, [n]: { w, h } }));
@@ -362,8 +466,26 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
     const quote = s.toString().replace(/\s+/g, " ").trim();
     if (quote.length < 3) return setSel(null);
     const r = s.getRangeAt(0).getBoundingClientRect();
-    setSel({ page: Number(box.dataset.page), quote: quote.slice(0, 600), x: r.left + r.width / 2, y: r.top });
+    const view = scroller.current.getBoundingClientRect();
+    setSel({ page: Number(box.dataset.page), quote: quote.slice(0, 600), x: r.left + r.width / 2, y: Math.max(r.top, view.top + 52) });
   }, []);
+  /**
+   * The toolbar belongs to the selected text, not to the spot on the screen where it appeared: while the page is scrolled it follows the text (and waits at the top
+   * edge when the first line has gone above it), and it is hidden only while the whole selection is out of sight. Scrolling back brings it back.
+   */
+  const followSelection = useCallback(() => {
+    if (selFrame.current) return;
+    selFrame.current = requestAnimationFrame(() => {
+      selFrame.current = 0;
+      const s = window.getSelection();
+      const view = scroller.current?.getBoundingClientRect();
+      if (!s || s.isCollapsed || s.rangeCount === 0 || !view) return setSel(null);
+      const r = s.getRangeAt(0).getBoundingClientRect();
+      const out = r.bottom < view.top + 8 || r.top > view.bottom - 8;
+      setSel((cur) => (cur ? { ...cur, hidden: out, x: Math.min(Math.max(r.left + r.width / 2, view.left + 120), view.right - 120), y: Math.max(r.top, view.top + 52) } : cur));
+    });
+  }, []);
+  useEffect(() => () => cancelAnimationFrame(selFrame.current), []);
   useEffect(() => {
     const onChange = () => {
       const s = window.getSelection();
@@ -464,7 +586,6 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
     rail.current?.querySelector<HTMLElement>(`[aria-current="true"]`)?.scrollIntoView({ block: "nearest" });
   }, [current, onPage]);
 
-  const zoom = (d: number) => setZoomIdx((i) => Math.min(ZOOMS.length - 1, Math.max(0, i + d)));
   const pages = useMemo(() => Array.from({ length: N }, (_, i) => i + 1), [N]);
 
   return (
@@ -504,16 +625,16 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
             <Search size={15} aria-hidden="true" />
           </button>
           {contents && <Contents items={contents.items} detected={contents.detected} current={current} onPick={(p) => goTo(p)} />}
-          <button type="button" className="icon-btn icon-btn-sm" aria-label="Zoom out" disabled={zoomIdx === 0} onClick={() => zoom(-1)}>
+          <button type="button" className="icon-btn icon-btn-sm" aria-label="Zoom out" disabled={zoomLevel <= 0.6} onClick={() => zoomTo(stepZoom(zoomLevel, -1))}>
             <Minus size={16} aria-hidden="true" />
           </button>
-          <button type="button" className="pdfv-pct" aria-label="Fit to width" title="Fit to width" onClick={() => setZoomIdx(3)}>
-            {Math.round(ZOOMS[zoomIdx]! * 100)}%
+          <button type="button" className="pdfv-pct" aria-label="Fit to width" title="Fit to width" onClick={() => zoomTo(1)}>
+            {Math.round(zoomLevel * 100)}%
           </button>
-          <button type="button" className="icon-btn icon-btn-sm" aria-label="Zoom in" disabled={zoomIdx === ZOOMS.length - 1} onClick={() => zoom(1)}>
+          <button type="button" className="icon-btn icon-btn-sm" aria-label="Zoom in" disabled={zoomLevel >= 2.5} onClick={() => zoomTo(stepZoom(zoomLevel, 1))}>
             <Plus size={16} aria-hidden="true" />
           </button>
-          <button type="button" className="icon-btn icon-btn-sm pdfv-fit" aria-label="Fit to width" onClick={() => setZoomIdx(3)}>
+          <button type="button" className="icon-btn icon-btn-sm pdfv-fit" aria-label="Fit to width" onClick={() => zoomTo(1)}>
             <Maximize2 size={15} aria-hidden="true" />
           </button>
           <a className="icon-btn icon-btn-sm" href={downloadHref} download aria-label={`Download ${title}`} title="Download the PDF">
@@ -558,7 +679,7 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
         </div>
       )}
 
-      {sel && onCreateNote && (
+      {sel && !sel.hidden && onCreateNote && (
         <div
           className="pdfv-sel"
           role="toolbar"
@@ -583,8 +704,8 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
             <Thumb key={n} pdf={pdf} n={n} active={n === current} root={rail} onPick={(p) => goTo(p)} />
           ))}
         </div>
-        <div ref={scroller} className="pdfv-scroll" tabIndex={0} role="region" aria-label={`Pages of ${title}`} onMouseUp={onCreateNote ? captureSelection : undefined} onKeyUp={onCreateNote ? captureSelection : undefined} onScroll={() => sel && setSel(null)}>
-          <div className="pdfv-pages">
+        <div ref={scroller} className="pdfv-scroll" tabIndex={0} role="region" aria-label={`Pages of ${title}`} onMouseUp={onCreateNote ? captureSelection : undefined} onKeyUp={onCreateNote ? captureSelection : undefined} onScroll={sel ? followSelection : undefined}>
+          <div ref={pagesEl} className="pdfv-pages">
             {pages.map((n) => (
               <PdfPage key={n} pdf={pdf} n={n} scale={scale} size={sizes[n] ?? first} root={scroller} onSize={onSize} onText={onText} marks={marks[n] ?? NO_MARKS} notesById={notesById} focusId={focusNoteId} onOpenNote={onOpenNote} />
             ))}
