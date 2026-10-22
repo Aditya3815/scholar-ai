@@ -62,7 +62,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 | N1 | Two scheduled workflows failed: "Q&A quality" (web app was not built before the Worker started) and "Browser e2e" (an axe colour reading taken while an answer was still fading in) | me | ✅ Fixed 21 Oct. Browser e2e passes again. Q&A had three causes (no web build, no dev sign-in flag, `tee` hiding the exit code); now green |
 | N2 | Recreate `apps/api/.dev.vars` (lost on 19 Oct; names are in `.dev.vars.example`) | you | A starter file now exists with the e-mail and Sentry address; the API keys still go in (runbook, "Local secrets file"). | Blocks every local live test (live eval, Idea Check live run, real-paper check). Production is unaffected |
 | N3 | Four Dependabot PRs open (checkout 7, setup-node 7, upload-artifact 7, workers-types 5.x) | both | CI passes on all four. The three action bumps are safe to merge; workers-types is a major version, I check it first |
-| N5 | An admin cannot delete an account for someone who cannot sign in (a hand-made SQL delete skips the deletion marker that stops a restore bringing the account back) | me | Small: an admin-only "erase this account" action that calls `eraseAccount`; needed before the pilot grows beyond people you can ask to delete it themselves |
+| N5 | An admin cannot delete an account for someone who cannot sign in (a hand-made SQL delete skips the deletion marker that stops a restore bringing the account back) | me | ✅ 22 Oct: `/admin`, "Erase an account" (e-mail or ORCID iD, asks twice, same erasure and deletion marker as "Delete my account", refuses your own account and other admins). 27 integration checks, unit tests and browser checks incl. axe |
 | N4 | The Q&A weekly workflow had never produced a result | me | ✅ First real run in CI, 21 Oct: answerable 24/24, unanswerable declined 10/10, sources verified 24/24, median 4.3 s |
 
 ### 2. Product, Phase 1 leftovers
@@ -260,6 +260,7 @@ to keep the "Images Stream Basic" subscription (we do not use it).
 
 ## Log
 
+- 2026-10-22 (night, N5): admin "Erase an account" for people who cannot sign in.
 - 2026-10-22 (night, after Day 8): Sentry alert rule created and tested end to end (admin test event now a new issue on every press, at error level). Day 9: pilot kit in `docs/pilot/`.
 - 2026-10-22 (late night): Day 8. Daily-job heartbeat (`job_runs`, migration 0010) and `/api/v1/health/jobs`; admin page shows scheduled jobs; "Data checks" on `/admin` (paper records against stored files; re-apply deletions after a restore); deleted accounts leave a 35-day marker in R2 so a restore cannot bring them back (privacy text updated); hourly Watchdog workflow; failed workflows open and close their own GitHub issue; real restore rehearsal on staging passed; D1 Time Travel reach corrected to 30 days; R2 lifecycle rule `deletion-markers` added to both buckets.
 - 2026-10-22 (night): OCR spike on Hindi and English scans (R4): vision models read clean scans almost perfectly and fail on poor ones, two-model disagreement predicts the failure; go, with a "not read reliably" gate and a daily page cap. Needs 3 to 5 real scanned pages from you to set thresholds.

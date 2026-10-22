@@ -4,6 +4,8 @@ import { currentUser, sameOrigin } from "../auth/http";
 import { reapplyDeletions } from "../account/erase";
 import { readJobs } from "../jobs";
 import { compareInventory, listDocuments, listFiles } from "./integrity";
+import { eraseAccount } from "../account/erase";
+import { findAccount, parseAccountRef } from "./accounts";
 import { captureException, parseDsn, sendEvent, type SentryEnv } from "../monitoring/sentry";
 
 type Env = { Bindings: SentryEnv & { DB: D1Database; FILES: R2Bucket } };
@@ -81,6 +83,33 @@ adminRoutes.post("/reapply-deletions", async (c) => {
     captureException(c.env, err, { route: "/api/v1/admin/reapply-deletions", waitUntil: (p) => c.executionCtx.waitUntil(p) });
     return c.json({ type: "reapply_failed", title: "Deletions could not be re-applied", detail: "Storage or the database did not answer. Nothing was half done that a second run cannot finish." }, 502);
   }
+});
+
+/**
+ * Erases an account for someone who cannot sign in to delete it themselves (a request to delete their data). Same erasure as "delete my account",
+ * deletion marker included. By e-mail address or ORCID iD. Refuses to erase the admin who asks, or any other admin: remove the admin role first.
+ * Nothing about the person is returned or stored; the address typed is used for one lookup.
+ */
+adminRoutes.post("/erase-account", async (c) => {
+  if (!sameOrigin(c)) return c.json({ type: "forbidden", title: "Cross-origin request blocked" }, 403);
+  const me = await admin(c);
+  if (!me) return deny(c, 404, "not_found", "Not found");
+  const body = (await c.req.json().catch(() => null)) as { account?: unknown; confirm?: unknown } | null;
+  if (body?.confirm !== "ERASE") return c.json({ type: "confirmation_required", title: 'Send {"account": ..., "confirm": "ERASE"}' }, 400);
+  const ref = parseAccountRef(body.account);
+  if (!ref) return c.json({ type: "invalid_account", title: "Give an e-mail address or an ORCID iD", detail: "For example name@university.edu or 0000-0002-1825-0097." }, 400);
+  const found = await findAccount(c.env.DB, ref);
+  if (!found) return c.json({ type: "no_account", title: "No account has that address", detail: "Nothing was erased. Check the spelling, or whether the person signed in with ORCID only." }, 404);
+  if (found.id === me.id) return c.json({ type: "own_account", title: "That is your own account", detail: "Use Settings and data to delete your own account." }, 409);
+  if (found.role === "admin") return c.json({ type: "admin_account", title: "That account is an admin", detail: "Remove the admin role first (docs/runbook.md), so that an admin cannot be erased by mistake." }, 409);
+  try {
+    await eraseAccount(c.env, found.id);
+    await c.env.DB.prepare("INSERT INTO audit_log (action) VALUES ('account_erased_by_admin')").run();
+  } catch (err) {
+    captureException(c.env, err, { route: "/api/v1/admin/erase-account", waitUntil: (p) => c.executionCtx.waitUntil(p) });
+    return c.json({ type: "erase_failed", title: "The account could not be erased", detail: "Something went wrong part way. Running the same request again finishes it." }, 502);
+  }
+  return c.json({ erased: true });
 });
 
 /** A report that has been dealt with (or is not useful) is removed. */

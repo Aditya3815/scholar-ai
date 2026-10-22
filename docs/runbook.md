@@ -80,6 +80,9 @@ A question uses one gateway call (about 3 to 4k tokens); the per-user daily toke
 - **Reports** ("Report a problem" on an answer, a reference or an idea search) go to the `feedback` table and are kept for a year (cron) or until the account is deleted. They are
   listed on `/admin`. Make someone an admin in D1: `npx wrangler d1 execute scholar-db --remote --command "UPDATE users SET role='admin' WHERE email='you@example.com'"`
   (sign out and in again). The admin overview shows counts, AI use per day and per model, failures and reports; it never shows paper or idea text, and shows people only as a short id.
+- **Someone asks to delete their data and cannot sign in:** `/admin`, **Erase an account**. Type their e-mail address or ORCID iD, press Erase, confirm. It is the same erasure as "Delete my account"
+  (papers, files, library, reports, sign-in, and the deletion marker that keeps a restore from bringing the account back). It signs the person out, refuses your own account and any other admin (remove the role first with
+  `UPDATE users SET role='scholar' WHERE email=...`), and the address typed is used for one lookup and not stored. The audit log records "account_erased_by_admin" without saying who.
 - Answers reported as wrong are the raw material for the Q&A gold set: copy the question and passage into `apps/api/scripts/r2/questions.json` (new `id`) once the right answer is known.
 - **Weekly Q&A quality** (`.github/workflows/qa-eval.yml`, Tuesdays): downloads the five public gold-set papers, asks the 35 questions with the real models and fails below the gate
   (`qa-eval.mjs --gate`). It needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. First run: trigger it by hand (Actions, "Q&A quality", Run workflow).

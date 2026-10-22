@@ -218,3 +218,28 @@
 .admin-test-gap {
   margin-top: 1rem;
 }
+
+.admin-erase {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+.admin-erase-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.admin-erase-input {
+  width: 100%;
+  max-width: 34rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.admin-erase-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

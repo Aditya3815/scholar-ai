@@ -204,6 +204,57 @@ try {
     ok((await C.me())?.id === cId && !(await exists(`tombstones/${cId}`)), "an account that was never deleted is untouched, and has no marker");
     ok((await admin.me())?.role === "admin", "...and so is the admin");
   }
+
+  console.log("erasing an account for someone who cannot sign in");
+  {
+    const erase = (who, body, origin) => who.api("/api/v1/admin/erase-account", { method: "POST", body, origin });
+    const V = await login("ops-victim", "Vic.Tim@Example.com", "Vic Tim");
+    const vId = (await V.me()).id;
+    const vUp = await V.send(`${APP}/api/v1/documents`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/pdf", "X-Filename": "v.pdf" }, body: makePdf(SAMPLE_PAPER) });
+    const vDoc = (await vUp.json()).document;
+    const exists = async (key) => (await (await admin.api(`/api/v1/dev/r2-exists?key=${encodeURIComponent(key)}`)).json()).exists;
+    const other = await login("ops-plain", "plain@example.com", "Plain Person");
+
+    ok((await erase(anon, { account: "vic.tim@example.com", confirm: "ERASE" })).status === 404, "a signed-out visitor is told it does not exist");
+    ok((await erase(other, { account: "vic.tim@example.com", confirm: "ERASE" })).status === 404, "so is an ordinary user");
+    ok((await erase(admin, { account: "vic.tim@example.com", confirm: "ERASE" }, null)).status === 403, "it has the cross-origin check");
+    ok((await erase(admin, { account: "vic.tim@example.com" })).status === 400, "it needs the confirmation word");
+    ok((await erase(admin, { account: "vic.tim@example.com", confirm: "yes" })).status === 400, "...and the right one");
+    for (const bad of ["", "not an address", "a@b", "x@example.com, y@example.com", 42, null]) {
+      const r = await erase(admin, { account: bad, confirm: "ERASE" });
+      ok(r.status === 400 && (await r.json()).type === "invalid_account", `an unusable account (${JSON.stringify(bad)}) is refused with a hint`);
+    }
+    const unknown = await erase(admin, { account: "nobody@example.com", confirm: "ERASE" });
+    ok(unknown.status === 404 && (await unknown.json()).type === "no_account", "an address nobody has is reported, and nothing is erased");
+    ok((await V.me())?.id === vId, "(the person is still there)");
+
+    const self = await erase(admin, { account: "OPS@example.edu", confirm: "ERASE" });
+    ok(self.status === 409 && (await self.json()).type === "own_account", "an admin cannot erase their own account this way");
+    const second = await login("ops-admin-2", "ops2@example.edu", "Second Admin");
+    await second.api("/api/v1/dev/make-admin", { method: "POST" });
+    const otherAdmin = await erase(admin, { account: "ops2@example.edu", confirm: "ERASE" });
+    ok(otherAdmin.status === 409 && (await otherAdmin.json()).type === "admin_account", "nor another admin's");
+    ok((await second.me())?.role === "admin", "(the other admin is untouched)");
+
+    ok(!(await exists(`tombstones/${vId}`)) && (await exists(`docs/${vId}/${vDoc.id}.pdf`)), "before: the person has a file and no deletion marker");
+    const done = await erase(admin, { account: "  VIC.TIM@example.COM ", confirm: "ERASE" });
+    const doneBody = await done.json();
+    ok(done.status === 200 && doneBody.erased === true, "an admin erases the account, however the address is typed");
+    ok(!JSON.stringify(doneBody).toLowerCase().includes("vic.tim"), "the answer does not repeat the address");
+    ok((await V.me()) === null, "the person is signed out (their session is gone)");
+    ok((await sql(`SELECT COUNT(*) AS n FROM users WHERE id = '${vId}'`))[0].n === 0 && (await sql(`SELECT COUNT(*) AS n FROM documents WHERE user_id = '${vId}'`))[0].n === 0, "the account and paper rows are gone");
+    ok(!(await exists(`docs/${vId}/${vDoc.id}.pdf`)), "the file is gone");
+    ok(await exists(`tombstones/${vId}`), "a deletion marker was left, so a restore cannot bring the account back");
+    ok((await sql("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'account_erased_by_admin'"))[0].n >= 1, "the audit log records that an admin did it, without saying who");
+    const again = await erase(admin, { account: "vic.tim@example.com", confirm: "ERASE" });
+    ok(again.status === 404 && (await again.json()).type === "no_account", "erasing the same address again finds nothing, and is harmless");
+    ok((await other.me())?.email === "plain@example.com", "another person's account is untouched");
+
+    // someone who signed in with ORCID only has no e-mail address
+    await sql("INSERT INTO users (id, email_verified, name, orcid) VALUES ('ops-orcid-only', 0, 'Orcid Only', '0000-0002-1825-0097')");
+    const byOrcid = await erase(admin, { account: "https://orcid.org/0000-0002-1825-0097", confirm: "ERASE" });
+    ok(byOrcid.status === 200 && (await sql("SELECT COUNT(*) AS n FROM users WHERE id = 'ops-orcid-only'"))[0].n === 0, "an account that has only an ORCID iD is erased by that iD (even given as a link)");
+  }
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
   failures++;

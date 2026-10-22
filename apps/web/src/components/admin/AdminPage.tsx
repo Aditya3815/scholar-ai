@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FEEDBACK_PROBLEMS, type AdminFeedback, type AdminOverview } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { easeOut, stagger } from "../../lib/motion";
-import { DataChecks, Jobs } from "./AdminOps";
+import { DataChecks, EraseAccount, Jobs } from "./AdminOps";
 
 const rise = (i: number) => ({ initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.45, ease: easeOut, delay: 0.05 + stagger(i, 0.06) } });
 const n = (v: number) => v.toLocaleString("en-IN");
@@ -187,6 +187,8 @@ export function AdminPage() {
       <ErrorReporting />
 
       <DataChecks />
+
+      <EraseAccount />
 
       <section aria-labelledby="reports-h" className="admin-sec">
         <h2 id="reports-h" className="admin-h2">What people reported ({data.feedback.length})</h2>

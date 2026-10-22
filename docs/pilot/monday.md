@@ -53,5 +53,5 @@ Write three lines to the people who took part: what you changed because of them,
 1. `https://scholar.shodhsetu.workers.dev/api/v1/health` and `/api/v1/health/jobs`. Not 200: see the runbook, "Roll back".
 2. A deploy made it worse: `npx wrangler rollback`, then fix forward.
 3. Data damaged: the runbook, "Backups and restore" (30 days of Time Travel; rehearsed).
-4. Someone asks you to delete their data: Settings and data does it for them (paper by paper, or the whole account). If they cannot sign in there is **no admin button for it yet** (on the backlog as N5): a hand-made SQL delete would
-   also skip the deletion marker, so ask the person to sign in once and delete it themselves, and tell me if that is not possible.
+4. Someone asks you to delete their data: Settings and data does it for them (paper by paper, or the whole account). If they cannot sign in, use `/admin`, **Erase an account**: type their e-mail address (or ORCID iD),
+   confirm, and it erases the account exactly as "Delete my account" would, deletion marker included. It refuses your own account and other admins. Reply to the person when it is done; nothing about them is kept.

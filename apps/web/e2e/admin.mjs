@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { createClient } from "../../api/scripts/test-client.mjs";
 
 const require = createRequire(import.meta.url);
 const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
@@ -24,7 +25,7 @@ const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } })
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|404)/.test(m.text())) errors.push("console: " + m.text()); });
+page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|404|409)/.test(m.text())) errors.push("console: " + m.text()); });
 
 async function axe(label) {
   await page.evaluate(axeSource);
@@ -111,6 +112,38 @@ try {
   await checks.getByRole("button", { name: "Yes, erase them again" }).click();
   await checks.getByText(/deletion marker\(s\) found; 0 account\(s\) that had come back were erased again/).waitFor({ timeout: 10000 });
   ok(true, "re-applying deletions says what it did, and erases nobody who had not come back");
+
+  console.log("erase an account");
+  const erase = page.getByRole("region", { name: "Erase an account" });
+  const who = erase.getByRole("textbox", { name: /E-mail address or ORCID iD/ });
+  ok(await erase.getByRole("button", { name: "Erase this account…" }).isDisabled(), "erasing needs an address first");
+  // someone who asked to have their data deleted and cannot sign in (the admin's own sign-in is already done, so this does not disturb the page)
+  idp.setUser({ sub: "admin-ui-victim", email: "leaver@example.edu", email_verified: true, name: "Lee Aver" });
+  const victim = createClient(BASE);
+  await victim.follow(`${BASE}/api/v1/auth/google/start`);
+  ok((await victim.me())?.email === "leaver@example.edu", "(a second person has an account)");
+  await who.fill("nobody@example.edu");
+  await erase.getByRole("button", { name: "Erase this account…" }).click();
+  await erase.getByRole("button", { name: "Yes, erase it for good" }).click();
+  await erase.getByText(/No account has that address/).waitFor({ timeout: 8000 });
+  ok(true, "an address nobody has is reported plainly, and nothing is erased");
+  await who.fill("ops@example.edu");
+  await erase.getByRole("button", { name: "Erase this account…" }).click();
+  await erase.getByRole("button", { name: "Yes, erase it for good" }).click();
+  await erase.getByText(/your own account/).waitFor({ timeout: 8000 });
+  ok(true, "the admin's own account cannot be erased from here");
+  await who.fill("  Leaver@Example.edu ");
+  await erase.getByRole("button", { name: "Erase this account…" }).click();
+  ok(await erase.getByText(/permanently/).isVisible(), "it asks again, and says it is permanent");
+  await erase.getByRole("button", { name: "Cancel" }).click();
+  ok((await victim.me())?.email === "leaver@example.edu", "cancelling erases nothing");
+  await erase.getByRole("button", { name: "Erase this account…" }).click();
+  await axe("admin, erase confirmation");
+  await setTheme("Dark"); await axe("admin, erase confirmation, dark"); await setTheme("Light");
+  await erase.getByRole("button", { name: "Yes, erase it for good" }).click();
+  await erase.getByText(/The account and everything in it were erased/).waitFor({ timeout: 8000 });
+  ok((await victim.me()) === null, "the person is erased and signed out");
+  ok((await who.inputValue()) === "", "the address typed is cleared from the page afterwards");
 
   await shot("80-admin");
   await axe("admin");

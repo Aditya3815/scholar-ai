@@ -1,4 +1,4 @@
-import { CircleAlert, CircleCheck, DatabaseBackup, FolderSearch } from "lucide-react";
+import { CircleAlert, CircleCheck, DatabaseBackup, FolderSearch, UserX } from "lucide-react";
 import { useState } from "react";
 import type { IntegrityReport, JobState, JobStatus } from "@scholar/shared";
 
@@ -134,6 +134,79 @@ export function DataChecks() {
               {reapply.state === "failed" && (reapply.failed ? `${reapply.erased} erased, ${reapply.failed} could not be erased. Run it again.` : "It could not run. Try again.")}
             </p>
           </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+type Erase = { state: "idle" | "confirm" | "running" | "done" | "failed"; message?: string };
+
+/**
+ * For a request to delete someone's data when they cannot sign in to do it themselves. Same erasure as "Delete my account" (files, papers, library,
+ * reports, sign-in, and a deletion marker so that a restore cannot bring it back). The address typed is sent once and not kept.
+ */
+export function EraseAccount() {
+  const [who, setWho] = useState("");
+  const [erase, setErase] = useState<Erase>({ state: "idle" });
+  const ready = who.trim().length >= 5;
+
+  const run = async () => {
+    setErase({ state: "running" });
+    try {
+      const res = await fetch("/api/v1/admin/erase-account", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account: who, confirm: "ERASE" }) });
+      if (res.ok) {
+        setWho("");
+        return setErase({ state: "done", message: "The account and everything in it were erased. The person is signed out." });
+      }
+      const j = (await res.json().catch(() => null)) as { title?: string; detail?: string } | null;
+      setErase({ state: "failed", message: [j?.title, j?.detail].filter(Boolean).join(". ") || "It could not be erased. Try again." });
+    } catch {
+      setErase({ state: "failed", message: "It could not be erased. Try again." });
+    }
+  };
+
+  return (
+    <section className="card admin-sec" aria-labelledby="erase-h">
+      <h2 id="erase-h" className="admin-h2">Erase an account</h2>
+      <p className="admin-lead">For a request to delete someone's data when they cannot sign in to do it themselves. Papers, files, library, reports and sign-in are erased and cannot be brought back. Admins cannot be erased here.</p>
+      <div className="admin-erase">
+        <label className="admin-erase-label" htmlFor="erase-who">E-mail address or ORCID iD of the person</label>
+        <input
+          id="erase-who"
+          className="admin-erase-input"
+          type="text"
+          inputMode="email"
+          autoComplete="off"
+          spellCheck={false}
+          value={who}
+          onChange={(e) => {
+            setWho(e.target.value);
+            if (erase.state !== "running") setErase({ state: "idle" });
+          }}
+          placeholder="name@university.edu or 0000-0002-1825-0097"
+          aria-describedby="erase-note"
+        />
+        {erase.state === "confirm" ? (
+          <div className="admin-test">
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => void run()}>
+              <span>Yes, erase it for good</span>
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setErase({ state: "idle" })}>
+              <span>Cancel</span>
+            </button>
+            <p className="admin-test-result" role="status">This erases the account for “{who.trim()}” permanently. Check the spelling.</p>
+          </div>
+        ) : (
+          <div className="admin-test">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setErase({ state: "confirm" })} disabled={!ready || erase.state === "running"} aria-busy={erase.state === "running"}>
+              <UserX size={15} aria-hidden="true" />
+              <span>{erase.state === "running" ? "Erasing…" : "Erase this account…"}</span>
+            </button>
+            <p id="erase-note" role="status" className="admin-test-result" data-state={erase.state === "failed" ? "failed" : erase.state === "done" ? "ok" : "idle"}>
+              {erase.message}
+            </p>
+          </div>
         )}
       </div>
     </section>
