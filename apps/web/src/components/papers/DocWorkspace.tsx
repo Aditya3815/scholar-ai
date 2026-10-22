@@ -1,16 +1,18 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Loader2, MessageSquareText, Pencil, ScrollText } from "lucide-react";
+import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Loader2, MessageSquareText, Pencil, ScrollText } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import type { Answer, Citation, DocumentInfo, OutlineItem, PaperInfo } from "@scholar/shared";
+import type { Answer, Citation, DocNote, DocumentInfo, OutlineItem, PaperInfo } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { ApiError, fetchDocument, fileUrl, reindexDoc, renameDoc, savePaperInfo, useJobs } from "../../lib/documents";
 import { analyzeOpenPdf } from "../../lib/paperinfo";
+import { useNotes } from "../../lib/notes";
 import { easeOut, spring } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { PdfError, openPdf, type PDFDocumentProxy } from "../../lib/pdf";
 import { AskPanel } from "./AskPanel";
+import { NotesPanel } from "./NotesPanel";
 import { ReferencesPanel } from "./ReferencesPanel";
-import type { ViewerHandle } from "./PdfViewer";
+import type { NewNote, ViewerHandle } from "./PdfViewer";
 
 // The viewer (and pdf.js with it) is its own chunk: it is only downloaded when a paper is opened.
 const PdfViewer = lazy(() => import("./PdfViewer").then((m) => ({ default: m.PdfViewer })));
@@ -81,7 +83,9 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [pdf, setPdf] = useState<Pdf>({ status: "loading", progress: 0 });
   const [tab, setTab] = useState<"paper" | "side">("paper");
-  const [side, setSide] = useState<"ask" | "refs">("ask");
+  const [side, setSide] = useState<"ask" | "refs" | "notes">("ask");
+  const notes = useNotes(id);
+  const [focusNote, setFocusNote] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const analyzed = useRef<string | null>(null);
   const [page, setPage] = useState(1);
@@ -157,6 +161,24 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     window.setTimeout(() => viewer.current?.goTo(c.page, c.quote), 120);
   }, []);
 
+  const onGoToNote = useCallback((n: DocNote) => {
+    setTab("paper");
+    window.setTimeout(() => viewer.current?.goTo(n.page, n.quote), 120);
+  }, []);
+
+  const addNote = notes.add;
+  const onCreateNote = useCallback(
+    async (n: NewNote) => {
+      const saved = await addNote({ page: n.page, quote: n.quote, color: n.color });
+      if (saved && n.withNote) {
+        setFocusNote(saved.id);
+        setSide("notes");
+        setTab("side");
+      }
+    },
+    [addNote],
+  );
+
   const onGoToPage = useCallback((page: number) => {
     setTab("paper");
     window.setTimeout(() => viewer.current?.goTo(page), 120);
@@ -215,7 +237,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
       </div>
 
       <div className="dw-tabs" role="tablist" aria-label="Workspace">
-        {([["paper", "Paper", ScrollText], ["ask", "Ask", MessageSquareText], ["refs", "References", BookMarked]] as const).map(([t, label, Icon]) => {
+        {([["paper", "Paper", ScrollText], ["ask", "Ask", MessageSquareText], ["refs", "References", BookMarked], ["notes", "Notes", Highlighter]] as const).map(([t, label, Icon]) => {
           const active = t === "paper" ? tab === "paper" : tab === "side" && side === t;
           return (
             <button
@@ -238,6 +260,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
               <Icon size={16} aria-hidden="true" />
               <span className="topnav-label">{label}</span>
               {t === "refs" && refCount > 0 && <span className="dw-tab-n">{refCount}</span>}
+              {t === "notes" && notes.notes.length > 0 && <span className="dw-tab-n">{notes.notes.length}</span>}
             </button>
           );
         })}
@@ -261,7 +284,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             {pdf.status === "ready" && (
               <m.div key="r" className="dw-viewer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }}>
                 <Suspense fallback={<OpeningPaper progress={1} />}>
-                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} />
+                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} notes={notes.notes} onCreateNote={(n) => void onCreateNote(n)} />
                 </Suspense>
               </m.div>
             )}
@@ -270,13 +293,14 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
         </div>
 
         <div id="dw-panel-side" role="tabpanel" className="dw-panel dw-ask" data-active={tab === "side"}>
-          <div className="dw-sidetabs" role="tablist" aria-label="Ask or references">
-            {([["ask", "Ask", MessageSquareText], ["refs", "References", BookMarked]] as const).map(([s, label, Icon]) => (
+          <div className="dw-sidetabs" role="tablist" aria-label="Ask, references or notes">
+            {([["ask", "Ask", MessageSquareText], ["refs", "References", BookMarked], ["notes", "Notes", Highlighter]] as const).map(([s, label, Icon]) => (
               <button key={s} type="button" role="tab" aria-selected={side === s} className="dw-sidetab" onClick={() => setSide(s)}>
                 {side === s && <m.span layoutId="dw-side-pill" className="dw-sidetab-pill" transition={spring} />}
                 <Icon size={15} aria-hidden="true" />
                 <span>{label}</span>
                 {s === "refs" && refCount > 0 && <span className="dw-tab-n">{refCount}</span>}
+                {s === "notes" && notes.notes.length > 0 && <span className="dw-tab-n">{notes.notes.length}</span>}
               </button>
             ))}
           </div>
@@ -291,6 +315,9 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
           </div>
           <div className="dw-side" hidden={side !== "refs"}>
             <ReferencesPanel info={info} analyzing={analyzing || (needsInfo && pdf.status !== "error")} />
+          </div>
+          <div className="dw-side" hidden={side !== "notes"}>
+            <NotesPanel doc={doc} api={notes} focusId={focusNote} onGo={onGoToNote} />
           </div>
         </div>
       </div>

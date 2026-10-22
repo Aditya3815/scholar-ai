@@ -63,3 +63,42 @@ export function highlightMatches(layer: HTMLElement, query: string, current: num
   });
   return focus;
 }
+
+export const SAVED_CLASS = "pdf-saved";
+
+/** Removes the marks of saved highlights from a text layer (before they are drawn again). */
+export function clearSaved(layer: ParentNode) {
+  layer.querySelectorAll(`.${SAVED_CLASS}`).forEach((el) => {
+    el.classList.remove(SAVED_CLASS);
+    el.removeAttribute("data-color");
+    el.removeAttribute("data-note");
+  });
+}
+
+/**
+ * Marks one saved highlight in a rendered text layer: found again by its words (so it survives zoom and re-rendering), kept until cleared.
+ * Unlike a search or a citation highlight it does not replace the others. Returns false when the layer does not contain enough of the quote.
+ */
+export function markSaved(layer: HTMLElement, quote: string, id: string, color: string): boolean {
+  const spans = [...layer.querySelectorAll<HTMLElement>("span")].filter((s) => s.children.length === 0 && (s.textContent ?? "").trim() !== "");
+  const hay: string[] = [];
+  const owner: number[] = [];
+  spans.forEach((s, i) => {
+    for (const w of words(s.textContent ?? "")) {
+      hay.push(w);
+      owner.push(i);
+    }
+  });
+  const q = words(quote);
+  if (q.length === 0 || hay.length === 0) return false;
+  const run = findRun(q, hay);
+  if (run.len < Math.max(2, Math.ceil(q.length * 0.6))) return false;
+  const from = owner[run.start]!;
+  const to = owner[run.start + run.len - 1]!;
+  for (let i = from; i <= to; i++) {
+    spans[i]!.classList.add(SAVED_CLASS);
+    spans[i]!.dataset.color = color;
+    spans[i]!.dataset.note = id;
+  }
+  return true;
+}

@@ -6,6 +6,13 @@ import {
   MAX_DOCS_PER_USER,
   MAX_DOC_BYTES,
   MAX_DOC_PAGES,
+  MAX_NOTES_PER_DOC,
+  MAX_NOTE_CHARS,
+  MAX_NOTE_QUOTE_CHARS,
+  MIN_NOTE_QUOTE_CHARS,
+  NOTE_COLORS,
+  type DocNote,
+  type NoteColor,
   MAX_PAGES_PER_BATCH,
   MAX_QUESTION_CHARS,
   MAX_TOTAL_DOC_BYTES,
@@ -248,6 +255,7 @@ documentRoutes.patch("/:id", async (c) => {
 export async function deleteDocument(env: Pick<Bindings, "DB" | "FILES">, userId: string, id: string): Promise<void> {
   await Promise.all([env.FILES.delete(pdfKey(userId, id)), env.FILES.delete(coverKey(userId, id))]);
   await env.DB.batch([
+    env.DB.prepare("DELETE FROM doc_notes WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_qa WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_chunks WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM documents WHERE id = ?1 AND user_id = ?2").bind(id, userId),
@@ -402,4 +410,69 @@ documentRoutes.post("/:id/ask", async (c) => {
   }
   await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
   return c.json({ answer });
+});
+
+/* ---------------------------------------------------------------- highlights and notes */
+
+type NoteRow = { id: string; page: number; quote: string; note: string | null; color: NoteColor; created_at: string; updated_at: string };
+const toNote = (r: NoteRow): DocNote => ({ id: r.id, page: r.page, quote: r.quote, note: r.note ?? "", color: r.color, createdAt: fromSqliteTime(r.created_at), updatedAt: fromSqliteTime(r.updated_at) });
+const cleanText = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
+const NOTE_COLS = "id, page, quote, note, color, created_at, updated_at";
+
+documentRoutes.get("/:id/notes", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const rows = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE doc_id = ?1 ORDER BY page, created_at, rowid`).bind(row.id).all<NoteRow>();
+  return c.json({ items: rows.results.map(toNote), max: MAX_NOTES_PER_DOC });
+});
+
+documentRoutes.post("/:id/notes", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  const page = b?.page;
+  const quote = cleanText(b?.quote, MAX_NOTE_QUOTE_CHARS);
+  if (typeof page !== "number" || !Number.isInteger(page) || page < 1 || page > (row.pages ?? MAX_DOC_PAGES)) return deny(c, 400, "invalid_note", "That page is not in this paper");
+  if (quote.length < MIN_NOTE_QUOTE_CHARS) return deny(c, 400, "invalid_note", "Select some text first");
+  const color = NOTE_COLORS.includes(b?.color as NoteColor) ? (b!.color as NoteColor) : "yellow";
+  const note = cleanText(b?.note, MAX_NOTE_CHARS);
+  const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM doc_notes WHERE doc_id = ?1").bind(row.id).first<{ n: number }>();
+  if ((count?.n ?? 0) >= MAX_NOTES_PER_DOC) return deny(c, 409, "notes_full", "This paper has as many notes as it can hold", `The limit is ${MAX_NOTES_PER_DOC}.`);
+  const id = randomId();
+  await c.env.DB.prepare("INSERT INTO doc_notes (id, doc_id, page, quote, note, color) VALUES (?1, ?2, ?3, ?4, ?5, ?6)").bind(id, row.id, page, quote, note || null, color).run();
+  const saved = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE id = ?1`).bind(id).first<NoteRow>();
+  return c.json({ note: toNote(saved!) }, 201);
+});
+
+documentRoutes.patch("/:id/notes/:nid", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const existing = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE id = ?1 AND doc_id = ?2`).bind(c.req.param("nid"), row.id).first<NoteRow>();
+  if (!existing) return deny(c, 404, "not_found", "Note not found");
+  const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!b) return deny(c, 400, "invalid_note", "Nothing to change");
+  const note = "note" in b ? cleanText(b.note, MAX_NOTE_CHARS) : (existing.note ?? "");
+  const color = NOTE_COLORS.includes(b.color as NoteColor) ? (b.color as NoteColor) : existing.color;
+  await c.env.DB.prepare("UPDATE doc_notes SET note = ?2, color = ?3, updated_at = datetime('now') WHERE id = ?1").bind(existing.id, note || null, color).run();
+  const saved = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE id = ?1`).bind(existing.id).first<NoteRow>();
+  return c.json({ note: toNote(saved!) });
+});
+
+documentRoutes.delete("/:id/notes/:nid", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const r = await c.env.DB.prepare("DELETE FROM doc_notes WHERE id = ?1 AND doc_id = ?2").bind(c.req.param("nid"), row.id).run();
+  if ((r.meta.changes ?? 0) === 0) return deny(c, 404, "not_found", "Note not found");
+  return c.json({ ok: true });
 });

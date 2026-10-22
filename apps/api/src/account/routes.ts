@@ -38,6 +38,10 @@ accountRoutes.get("/export", async (c) => {
     .bind(user.id)
     .all<{ doc_id: string; question: string; answer: string; created_at: string }>();
 
+  const notes = await c.env.DB
+    .prepare("SELECT n.doc_id, n.page, n.quote, n.note, n.created_at FROM doc_notes n JOIN documents d ON d.id = n.doc_id WHERE d.user_id = ?1 ORDER BY n.page, n.created_at")
+    .bind(user.id)
+    .all<{ doc_id: string; page: number; quote: string; note: string | null; created_at: string }>();
   const reports = await c.env.DB
     .prepare("SELECT kind, problem, note, context, created_at FROM feedback WHERE user_id = ?1 ORDER BY created_at")
     .bind(user.id)
@@ -51,6 +55,7 @@ accountRoutes.get("/export", async (c) => {
       uploadedAt: new Date(fromSqliteTime(d.created_at)).toISOString(),
       paperInfo: d.info ? JSON.parse(d.info) : null,
       note: "The PDF itself can be downloaded from the paper’s page while signed in.",
+      highlightsAndNotes: notes.results.filter((n) => n.doc_id === d.id).map((n) => ({ page: n.page, quote: n.quote, note: n.note ?? "", madeAt: new Date(fromSqliteTime(n.created_at)).toISOString() })),
       questions: qa.results.filter((q) => q.doc_id === d.id).map((q) => ({ question: q.question, answer: (JSON.parse(q.answer) as { answer: string }).answer, askedAt: new Date(fromSqliteTime(q.created_at)).toISOString() })),
     })),
     reports: reports.results.map((r) => ({ kind: r.kind, problem: r.problem, note: r.note, sent: JSON.parse(r.context), reportedAt: new Date(fromSqliteTime(r.created_at)).toISOString() })),

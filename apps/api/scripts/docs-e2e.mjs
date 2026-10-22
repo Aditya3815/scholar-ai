@@ -197,6 +197,27 @@ try {
   ok(reput.document.title === "My own name", "a title the user chose is never overwritten");
   ok((await (await A.api(`/api/v1/documents/${doc.id}`)).json()).info === null, "a paper nobody analysed has no info");
 
+  console.log("highlights and notes");
+  const NP = `${P}/notes`;
+  ok((await createClient(APP).api(NP)).status === 401 && (await createClient(APP).api(NP, { method: "POST", body: { page: 1, quote: "some words here" } })).status === 401, "notes need sign-in");
+  const made = await A.api(NP, { method: "POST", body: { page: 2, quote: "  recruited 214\n participants  ", note: "Check   the sample size", color: "pink" } });
+  const note = (await made.json()).note;
+  ok(made.status === 201 && note.quote === "recruited 214 participants" && note.note === "Check the sample size" && note.color === "pink" && note.page === 2, "a note is saved with its quote tidied, its colour and its page");
+  const hl = (await (await A.api(NP, { method: "POST", body: { page: 1, quote: "Pune hospitals" } })).json()).note;
+  ok(hl.note === "" && hl.color === "yellow", "a highlight with no note text is just a quote, in the default colour");
+  const noteList = (await (await A.api(NP)).json()).items;
+  ok(noteList.length === 2 && noteList[0].page === 1 && noteList[1].id === note.id, "the list comes back in page order");
+  const edited = await A.api(`${NP}/${note.id}`, { method: "PATCH", body: { note: "Sample size is 214, not 241", color: "green" } });
+  ok(edited.status === 200 && (await edited.json()).note.note === "Sample size is 214, not 241", "a note can be edited, and its colour changed");
+  ok((await A.api(`${NP}/${note.id}`, { method: "PATCH", body: { color: "blue" } })).status === 200 && (await (await A.api(NP)).json()).items.find((n) => n.id === note.id).note.startsWith("Sample size"), "changing only the colour keeps the note text");
+  ok((await A.api(NP, { method: "POST", body: { page: 0, quote: "some words here" } })).status === 400 && (await A.api(NP, { method: "POST", body: { page: 999, quote: "some words here" } })).status === 400, "a page that is not in the paper is refused");
+  ok((await A.api(NP, { method: "POST", body: { page: 1, quote: "ab" } })).status === 400 && (await A.api(NP, { method: "POST", body: "nonsense" })).status === 400, "an empty selection and garbage are refused");
+  ok((await A.api(NP, { method: "POST", body: { page: 1, quote: "some words here" }, origin: null })).status === 403, "notes have the cross-origin check");
+  ok((await B.api(NP)).status === 404 && (await B.api(NP, { method: "POST", body: { page: 1, quote: "some words here" } })).status === 404, "another user cannot read or add notes to this paper");
+  ok((await B.api(`${NP}/${note.id}`, { method: "PATCH", body: { note: "mine now" } })).status === 404 && (await B.api(`${NP}/${note.id}`, { method: "DELETE" })).status === 404, "...or change or delete one");
+  ok((await A.api(`${NP}/${hl.id}`, { method: "DELETE" })).status === 200 && (await A.api(`${NP}/${hl.id}`, { method: "DELETE" })).status === 404, "a note can be deleted, once");
+  ok((await (await A.api(NP)).json()).items.length === 1, "...and the list shrinks");
+
   console.log("reporting a problem with an answer");
   const report = (client, body, origin = APP) => client.api("/api/v1/feedback", { method: "POST", body, origin });
   const answerId = hist.at(-1).id;
@@ -212,6 +233,7 @@ try {
   ok((await inStorage(doc.id)) && (await inStorage(scanned.id)), "both uploaded PDFs are in storage before deletion");
   const exp = await (await A.api("/api/v1/account/export")).json();
   ok(exp.reports?.length === 1 && exp.reports[0].sent.question && !/a@example\.com/.test(JSON.stringify(exp.reports)), "the export lists what the user reported, with e-mail addresses taken out of the note");
+  ok(exp.uploadedPapers.find((d) => d.id === doc.id).highlightsAndNotes.length === 1 && /Sample size is 214/.test(JSON.stringify(exp.uploadedPapers)), "the data export includes the highlights and notes");
   ok(exp.uploadedPapers.length === 2 && exp.uploadedPapers.find((d) => d.id === doc.id).questions.length === 4, "the data export lists the papers and the questions asked");
   ok((await A.api(P, { method: "DELETE" })).status === 200, "DELETE removes the paper");
   ok((await A.api(P)).status === 404 && (await A.api(`${P}/file`)).status === 404, "...and its file");

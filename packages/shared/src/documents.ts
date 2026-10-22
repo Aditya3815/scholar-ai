@@ -55,3 +55,15 @@ export type AskStreamEvent =
   | { type: "delta"; text: string }
   | { type: "answer"; answer: Answer }
   | { type: "error"; code: string; title: string; detail?: string };
+
+/* ---------------------------------------------------------------- highlights and notes */
+
+export const NOTE_COLORS = ["yellow", "green", "blue", "pink"] as const;
+export type NoteColor = (typeof NOTE_COLORS)[number];
+export const MAX_NOTES_PER_DOC = 500;
+export const MAX_NOTE_CHARS = 2000;
+export const MAX_NOTE_QUOTE_CHARS = 600;
+export const MIN_NOTE_QUOTE_CHARS = 3;
+
+/** A highlight (a quote with no note text) or a note (a quote with the researcher's own words), on one page of a paper. */
+export type DocNote = { id: string; page: number; quote: string; note: string; color: NoteColor; createdAt: number; updatedAt: number };

@@ -1,14 +1,17 @@
 import "pdfjs-dist/web/pdf_viewer.css";
 import { m } from "motion/react";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, ListTree, Loader2, Maximize2, Minus, Plus, Search, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, ListTree, Loader2, Maximize2, Minus, Plus, Search, StickyNote, X } from "lucide-react";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
-import type { OutlineItem } from "@scholar/shared";
+import { NOTE_COLORS, type DocNote, type NoteColor, type OutlineItem } from "@scholar/shared";
 import type { PDFDocumentProxy } from "../../lib/pdf";
 import { Pop } from "../Pop";
 import { pdfjs } from "../../lib/pdf";
-import { clearHighlights, highlightMatches, highlightQuote } from "../../lib/highlight";
+import { clearHighlights, clearSaved, highlightMatches, highlightQuote, markSaved } from "../../lib/highlight";
 import { locate, usePaperSearch } from "../../lib/paperSearch";
 import { spring } from "../../lib/motion";
+
+/** What the reader chose in the paper: a highlight in a colour, or a note. */
+export type NewNote = { page: number; quote: string; color: NoteColor; withNote: boolean };
 
 export type ViewerHandle = {
   /** Scroll to a page and, if a quote is given, highlight it once the page's text layer exists. */
@@ -185,7 +188,7 @@ function Contents({ items, detected, current, onPick }: { items: OutlineItem[]; 
   );
 }
 
-export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean } }) {
+export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, notes, onCreateNote }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void }) {
   const scroller = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
   const [zoomIdx, setZoomIdx] = useState(3);
@@ -194,6 +197,9 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents }: {
   const [current, setCurrent] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const layers = useRef(new Map<number, HTMLElement>());
+  const notesRef = useRef<DocNote[]>(notes ?? []);
+  notesRef.current = notes ?? [];
+  const [sel, setSel] = useState<{ page: number; quote: string; x: number; y: number } | null>(null);
   const pending = useRef<{ page: number; quote: string } | null>(null);
   const pendingFind = useRef<{ page: number; query: string; k: number } | null>(null);
   const [findOpen, setFindOpen] = useState(false);
@@ -251,10 +257,20 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents }: {
     return true;
   }, [scrollToSpan]);
 
+  /** Draws the saved highlights of one page onto its text layer. */
+  const paintSaved = useCallback((n: number) => {
+    const layer = layers.current.get(n);
+    if (!layer) return;
+    clearSaved(layer);
+    for (const note of notesRef.current) if (note.page === n) markSaved(layer, note.quote, note.id, note.color);
+  }, []);
+
   const onText = useCallback(
     (n: number, layer: HTMLElement | null) => {
-      if (layer) layers.current.set(n, layer);
-      else layers.current.delete(n);
+      if (layer) {
+        layers.current.set(n, layer);
+        paintSaved(n);
+      } else layers.current.delete(n);
       if (layer && pending.current?.page === n) {
         const { quote } = pending.current;
         pending.current = null;
@@ -266,8 +282,41 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents }: {
         applyFind(n, query, k);
       }
     },
-    [applyHighlight, applyFind],
+    [applyHighlight, applyFind, paintSaved],
   );
+
+  // A note was added, changed or deleted: redraw the pages that are on screen.
+  useEffect(() => {
+    layers.current.forEach((_l, n) => paintSaved(n));
+  }, [notes, paintSaved]);
+
+  /* ---- the toolbar that appears when text is selected ---- */
+  const captureSelection = useCallback(() => {
+    const s = window.getSelection();
+    if (!s || s.isCollapsed || s.rangeCount === 0) return setSel(null);
+    const node = s.anchorNode;
+    const el = node instanceof Element ? node : node?.parentElement;
+    const box = el?.closest<HTMLElement>("[data-page]");
+    if (!box || !scroller.current?.contains(box) || !el?.closest(".textLayer")) return setSel(null);
+    const quote = s.toString().replace(/\s+/g, " ").trim();
+    if (quote.length < 3) return setSel(null);
+    const r = s.getRangeAt(0).getBoundingClientRect();
+    setSel({ page: Number(box.dataset.page), quote: quote.slice(0, 600), x: r.left + r.width / 2, y: r.top });
+  }, []);
+  useEffect(() => {
+    const onChange = () => {
+      const s = window.getSelection();
+      if (!s || s.isCollapsed) setSel(null);
+    };
+    document.addEventListener("selectionchange", onChange);
+    return () => document.removeEventListener("selectionchange", onChange);
+  }, []);
+  const createFromSelection = (color: NoteColor, withNote: boolean) => {
+    if (!sel) return;
+    onCreateNote?.({ page: sel.page, quote: sel.quote, color, withNote });
+    window.getSelection()?.removeAllRanges();
+    setSel(null);
+  };
 
   const pageEl = (n: number) => scroller.current?.querySelector<HTMLElement>(`[data-page="${n}"]`);
 
@@ -448,13 +497,32 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents }: {
         </div>
       )}
 
+      {sel && onCreateNote && (
+        <div
+          className="pdfv-sel"
+          role="toolbar"
+          aria-label="Highlight the selected text"
+          style={{ left: Math.min(Math.max(sel.x, 150), window.innerWidth - 150), top: Math.max(sel.y - 48, 8) }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {NOTE_COLORS.map((c) => (
+            <button key={c} type="button" className="pdfv-sel-dot" data-color={c} aria-label={`Highlight in ${c}`} title={`Highlight in ${c}`} onClick={() => createFromSelection(c, false)} />
+          ))}
+          <span className="pdfv-sel-sep" aria-hidden="true" />
+          <button type="button" className="pdfv-sel-note" onClick={() => createFromSelection("yellow", true)}>
+            <StickyNote size={14} aria-hidden="true" />
+            <span>Add note</span>
+          </button>
+        </div>
+      )}
+
       <div className="pdfv-main">
         <div ref={rail} className="pdfv-rail" aria-label="Page thumbnails">
           {pages.map((n) => (
             <Thumb key={n} pdf={pdf} n={n} active={n === current} root={rail} onPick={(p) => goTo(p)} />
           ))}
         </div>
-        <div ref={scroller} className="pdfv-scroll" tabIndex={0} role="region" aria-label={`Pages of ${title}`}>
+        <div ref={scroller} className="pdfv-scroll" tabIndex={0} role="region" aria-label={`Pages of ${title}`} onMouseUp={onCreateNote ? captureSelection : undefined} onKeyUp={onCreateNote ? captureSelection : undefined} onScroll={() => sel && setSel(null)}>
           <div className="pdfv-pages">
             {pages.map((n) => (
               <PdfPage key={n} pdf={pdf} n={n} scale={scale} size={sizes[n] ?? first} root={scroller} onSize={onSize} onText={onText} />

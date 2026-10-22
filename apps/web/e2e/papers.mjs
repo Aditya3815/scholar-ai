@@ -224,6 +224,67 @@ try {
   ok(true, "Ctrl+F inside the paper opens the search instead of the browser's");
   await page.getByRole("button", { name: "Close search" }).click();
 
+  console.log("highlights and notes");
+  const pick = (idx) => page.evaluate(async (i) => {
+    const layer = document.querySelector('[data-page="1"] .textLayer');
+    const sp = [...layer.querySelectorAll("span")].filter((x) => x.children.length === 0 && (x.textContent ?? "").trim().length > 12)[i];
+    sp.scrollIntoView({ block: "center" });
+    await new Promise((res) => setTimeout(res, 250)); // let the scroll settle: a scroll hides the toolbar, as it should
+    const r = document.createRange();
+    r.selectNodeContents(sp);
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+    sp.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    return sp.textContent.trim();
+  }, idx);
+  const firstText = await pick(1);
+  const bar = page.getByRole("toolbar", { name: "Highlight the selected text" });
+  await bar.waitFor();
+  ok(true, "selecting text in the paper shows a small toolbar");
+  await page.waitForTimeout(300);
+  await shot("66b-selection-toolbar");
+  await axe("selection toolbar");
+  await pick(1); // the scan itself clears the selection, so select again
+  await bar.waitFor();
+  await bar.getByRole("button", { name: "Highlight in green" }).click();
+  await page.locator('[data-page="1"] .textLayer .pdf-saved[data-color="green"]').first().waitFor({ timeout: 8000 });
+  ok(true, "a highlight in a colour is drawn on the page straight away");
+  await bar.waitFor({ state: "detached" });
+  ok(true, "the toolbar goes away after choosing");
+
+  const secondText = await pick(2);
+  await bar.getByRole("button", { name: "Add note" }).click();
+  const noteBox = page.locator("textarea.note-text:focus");
+  await noteBox.waitFor({ timeout: 8000 });
+  ok(true, "'Add note' opens the Notes tab with the note box ready to type in");
+  await noteBox.fill("Check this against the second paper");
+  await noteBox.blur();
+  await page.waitForFunction(async (id) => (await (await fetch(`/api/v1/documents/${id}/notes`)).json()).items.some((n) => n.note === "Check this against the second paper"), await page.evaluate(() => location.pathname.split("/").pop()), { timeout: 8000 });
+  ok(true, "the note is saved when the box loses focus");
+  ok((await page.locator(".note").count()) === 2, "the Notes tab lists both, in page order");
+  ok((await page.locator(".dw-tab-n").filter({ hasText: "2" }).count()) >= 1, "the Notes tab shows how many there are");
+  await shot("66c-notes-panel");
+  await axe("notes panel");
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator('[data-page="1"] .textLayer .pdf-saved').first().waitFor({ timeout: 15000 });
+  ok(true, "after reloading, the highlights are drawn again");
+  ok(/\S/.test(firstText) && /\S/.test(secondText), "(the two pieces of text were real)");
+
+  await page.getByRole("tab", { name: /^Notes/ }).first().click();
+  const dl = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download" }).click();
+  const file = await dl;
+  ok(/notes\.md$/.test(file.suggestedFilename()), `the notes download as Markdown (${file.suggestedFilename()})`);
+
+  await page.getByRole("button", { name: /^Delete the note on page 1/ }).first().click();
+  await page.waitForFunction(() => document.querySelectorAll(".note").length === 1, null, { timeout: 8000 });
+  ok(true, "deleting a note removes it from the list");
+  await page.waitForFunction(() => document.querySelectorAll('[data-page="1"] .textLayer .pdf-saved').length > 0 && !document.querySelector('[data-page="1"] .textLayer .pdf-saved[data-color="green"]'), null, { timeout: 8000 });
+  ok(true, "...and its highlight leaves the page, while the other stays");
+  await page.locator(".dw-sidetab", { hasText: "Ask" }).click(); // back to the questions
+
   console.log("answer progress and stop");
   await page.locator("#ask-input").fill("What are the limitations?");
   await page.locator("#ask-input").press("Enter");

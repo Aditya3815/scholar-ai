@@ -1444,3 +1444,238 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* ---- highlights and notes ---- */
+:root {
+  --hl-yellow: #f2cf3e;
+  --hl-green: #7fcf93;
+  --hl-blue: #7ab0ee;
+  --hl-pink: #f08fb4;
+}
+.textLayer span.pdf-saved {
+  border-radius: 3px;
+}
+.textLayer span.pdf-saved[data-color="yellow"] {
+  background: color-mix(in srgb, var(--hl-yellow) 45%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--hl-yellow) 45%, transparent);
+}
+.textLayer span.pdf-saved[data-color="green"] {
+  background: color-mix(in srgb, var(--hl-green) 45%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--hl-green) 45%, transparent);
+}
+.textLayer span.pdf-saved[data-color="blue"] {
+  background: color-mix(in srgb, var(--hl-blue) 45%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--hl-blue) 45%, transparent);
+}
+.textLayer span.pdf-saved[data-color="pink"] {
+  background: color-mix(in srgb, var(--hl-pink) 45%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--hl-pink) 45%, transparent);
+}
+.pdfv-sel {
+  position: fixed;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.45rem;
+  transform: translateX(-50%);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  animation: sel-in 0.14s var(--ease) both;
+}
+@keyframes sel-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+}
+.pdfv-sel-dot,
+.note-dot {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.pdfv-sel-dot:hover,
+.note-dot:hover {
+  transform: scale(1.15);
+}
+.pdfv-sel-dot:focus-visible,
+.note-dot:focus-visible,
+.note-quote:focus-visible,
+.note-page:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pdfv-sel-dot[data-color="yellow"],
+.note-dot[data-color="yellow"] {
+  background: var(--hl-yellow);
+}
+.pdfv-sel-dot[data-color="green"],
+.note-dot[data-color="green"] {
+  background: var(--hl-green);
+}
+.pdfv-sel-dot[data-color="blue"],
+.note-dot[data-color="blue"] {
+  background: var(--hl-blue);
+}
+.pdfv-sel-dot[data-color="pink"],
+.note-dot[data-color="pink"] {
+  background: var(--hl-pink);
+}
+.note-dot[aria-pressed="true"] {
+  border-color: var(--text);
+}
+.pdfv-sel-sep {
+  width: 1px;
+  height: 1.3rem;
+  background: var(--border-strong);
+}
+.pdfv-sel-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.9rem;
+  padding: 0 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.notes {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.9rem 0.9rem 1rem;
+}
+.notes-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 0.8rem;
+}
+.notes-count {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.notes-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+.notes-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.875rem;
+}
+.notes-empty {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  padding: 1rem 1.1rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-s);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.notes-empty p {
+  margin: 0;
+}
+.notes-list {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.note {
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+.note[data-color="yellow"] {
+  border-left-color: var(--hl-yellow);
+}
+.note[data-color="green"] {
+  border-left-color: var(--hl-green);
+}
+.note[data-color="blue"] {
+  border-left-color: var(--hl-blue);
+}
+.note[data-color="pink"] {
+  border-left-color: var(--hl-pink);
+}
+.note-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.note-head .icon-btn {
+  margin-left: auto;
+}
+.note-colors {
+  display: flex;
+  gap: 0.3rem;
+}
+.note-page {
+  padding: 0.1rem 0.55rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.note-quote {
+  display: block;
+  width: 100%;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+}
+.note-quote:hover {
+  color: var(--accent);
+}
+.note-text {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+.note-text:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pdfv-sel {
+    animation: none;
+  }
+}
