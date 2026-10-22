@@ -1,0 +1,50 @@
+[
+  {
+    "id": "en-abstract",
+    "lang": "en",
+    "font": "Times New Roman",
+    "paragraphs": [
+      "Groundwater depletion is a growing concern across the north-western plains of India. This study examines changes in the water table between 2005 and 2020 using data from 412 monitoring wells in Punjab and Haryana. We find that the average decline was 0.41 metres per year, with the steepest fall in districts where paddy cultivation expanded most. A simple regression model explains 63 percent of the variation in decline (R² = 0.63, p < 0.01). The findings suggest that crop choice, rather than rainfall alone, drives the loss, and that targeted incentives for crop diversification could slow it. Limitations include missing data for 38 wells and the lack of village-level pumping records."
+    ]
+  },
+  {
+    "id": "en-refs",
+    "lang": "en",
+    "font": "Times New Roman",
+    "paragraphs": [
+      "References",
+      "[1] Rodell, M., Velicogna, I., & Famiglietti, J. S. (2009). Satellite-based estimates of groundwater depletion in India. Nature, 460(7258), 999–1002.",
+      "[2] Shah, T. (2009). Taming the Anarchy: Groundwater Governance in South Asia. Resources for the Future, Washington, DC.",
+      "[3] Gandhi, V. P., & Bhamoriya, V. (2011). Groundwater irrigation in India: Gains, costs and risks. Indian Institute of Management Ahmedabad, Working Paper 2011-03-01.",
+      "[4] Singh, R. K. (2018). Crop diversification and water use in Punjab. Journal of Agricultural Economics, 69(2), 301–318."
+    ]
+  },
+  {
+    "id": "hi-abstract",
+    "lang": "hi",
+    "font": "Nirmala UI",
+    "paragraphs": [
+      "भारत के उत्तर-पश्चिमी मैदानों में भूजल का स्तर तेज़ी से गिर रहा है। इस शोध में वर्ष 2005 से 2020 के बीच पंजाब और हरियाणा के 412 निगरानी कुओं के आँकड़ों का अध्ययन किया गया है। परिणाम बताते हैं कि जल स्तर में औसतन प्रति वर्ष 0.41 मीटर की गिरावट आई, और यह गिरावट उन ज़िलों में सबसे अधिक रही जहाँ धान की खेती का विस्तार हुआ। एक सरल समाश्रयण मॉडल इस गिरावट के 63 प्रतिशत भाग की व्याख्या करता है। निष्कर्ष यह है कि केवल वर्षा नहीं, बल्कि फ़सल का चुनाव भी भूजल की कमी का मुख्य कारण है। फ़सल विविधीकरण को प्रोत्साहन देने से इस गिरावट को धीमा किया जा सकता है।"
+    ]
+  },
+  {
+    "id": "hi-thesis",
+    "lang": "hi",
+    "font": "Nirmala UI",
+    "paragraphs": [
+      "शोध सारांश",
+      "इस शोध प्रबंध का उद्देश्य ग्रामीण विद्यालयों में डिजिटल शिक्षा के प्रभाव का मूल्यांकन करना है। अध्ययन में उत्तर प्रदेश के छह ज़िलों के 1,200 विद्यार्थियों को शामिल किया गया। आँकड़ों का विश्लेषण SPSS और Python की सहायता से किया गया। मशीन लर्निंग (Machine Learning) आधारित वर्गीकरण से यह पता चला कि जिन विद्यालयों में इंटरनेट की गति 10 Mbps से अधिक थी, वहाँ विद्यार्थियों के उपलब्धि-स्तर में 12 प्रतिशत की वृद्धि हुई। अध्ययन की सीमाएँ, नमूने का आकार और शिक्षकों के प्रशिक्षण की कमी हैं।"
+    ]
+  },
+  {
+    "id": "mixed",
+    "lang": "mixed",
+    "font": "Nirmala UI",
+    "paragraphs": [
+      "सार",
+      "इस शोध प्रबंध में ग्रामीण विद्यालयों में डिजिटल शिक्षा के प्रभाव का अध्ययन किया गया है। उत्तर प्रदेश के छह ज़िलों के 1,200 विद्यार्थियों के आँकड़ों से पता चला कि तेज़ इंटरनेट वाले विद्यालयों में उपलब्धि-स्तर 12 प्रतिशत अधिक रहा।",
+      "Abstract",
+      "This thesis evaluates the effect of digital education in rural schools. Data from 1,200 students in six districts of Uttar Pradesh were analysed using SPSS and Python. Schools with internet speeds above 10 Mbps showed a 12 percent higher attainment level. The main limitations are the sample size and the lack of teacher training."
+    ]
+  }
+]

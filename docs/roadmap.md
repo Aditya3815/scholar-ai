@@ -104,7 +104,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 | S2 | Collections and Q&A across papers (Vectorize, one namespace per user) | me | |
 | S3 | Retraction re-check of saved papers (weekly cron) with a notice | me | |
 | S4 | Long jobs as Workflows; bulk jobs on Queues | me | When a job no longer fits one request |
-| S5 | Scanned PDFs (OCR) and tables: Docling in Cloudflare Containers | me | |
+| S5 | Scanned PDFs (OCR) and tables: Docling in Cloudflare Containers | me | Spike done 22 Oct ([R4](spikes/R4-ocr.md)): **go for scans with Workers AI vision (Llama 4 Scout) behind a two-model reading gate**; clean 150 dpi Hindi/English scans read at 0 to 1% error, poor scans fail (Hindi 50 to 90%, numbers misread silently), so a page that the two models disagree on is marked "not read reliably". About $0.15 for a 100-page thesis. Needs real scans from you to set thresholds. Tables stay with Docling (later) |
 | S6 | OpenRouter free models as a fallback for public-data tasks only; paid zero-retention route only after it passes the Q&A gate | me | Needs the $10 credit decision (D2) |
 | S7 | Search in more Indian sources (Shodhganga theses, regional journals) | both | Research first: licences and APIs |
 | S8 | Uptime check, alert when a cron or workflow fails, cost alerts | both | Alerts need an e-mail or phone channel from you |
@@ -203,7 +203,7 @@ You, during week 1: decide whether an idea check should be saved for later (D4);
 | Day | What | Done when |
 | --- | --- | --- |
 | 6 | ✅ Filter or label software and dataset records in Idea Check (V4); add arXiv and PubMed to its sources; re-measure | Prior-art re-recorded with four source sets. Recall unchanged (85% / 48% / 7.4%), so gates stay 80% / 6%; the new sources are kept for recent preprints and papers the benchmark cannot see, not because the number rose |
-| 7 | Scanned PDFs: a two-hour spike on which OCR works for Hindi and English scans (Cloudflare's vision models first, Docling in a Container second), with a cost and a quality number; decide | A write-up in `docs/spikes/` and a go / no-go |
+| 7 | ✅ Scanned PDFs: a two-hour spike on which OCR works for Hindi and English scans (Cloudflare's vision models first, Docling in a Container second), with a cost and a quality number; decide | A write-up in `docs/spikes/` and a go / no-go. Done: [R4-ocr.md](spikes/R4-ocr.md), go with a reading gate; build order and thresholds in the write-up |
 | 8 | Backup and restore rehearsal on staging; alert when a workflow or cron fails; Sentry alert rules | Runbook updated, one real restore done |
 | 9 | Pilot kit: invitation text, a five-question survey, a Monday routine for reading `/admin` and the reports; sample paper if a licensed one is found | Kit in `docs/`, ready to send |
 | 10 | Buffer: whatever the earlier days found, plus the weekly checks | All workflows green; roadmap updated |
@@ -259,6 +259,7 @@ to keep the "Images Stream Basic" subscription (we do not use it).
 
 ## Log
 
+- 2026-10-22 (night): OCR spike on Hindi and English scans (R4): vision models read clean scans almost perfectly and fail on poor ones, two-model disagreement predicts the failure; go, with a "not read reliably" gate and a daily page cap. Needs 3 to 5 real scanned pages from you to set thresholds.
 - 2026-10-22 (evening): Idea Check V4 and new sources: kind label for every record, datasets/software hidden by default and out of the comparison, arXiv and PubMed searched; prior-art eval now compares four source sets (recall unchanged: the sources add recent papers, not cited references). Eval fixtures for Idea Check were re-recorded (the OpenAlex request now also asks for the work type).
 - 2026-10-22 (later): Idea Check M2 (compare the closest papers with each part of the idea; every match has a checked quote; measured about 10,000 tokens a full check); highlights and notes in the reader (migration 0009). Local test Worker no longer reports to the real Sentry.
 - 2026-10-22: Sentry live, staging live, keys for OpenAlex/S2/CORE rotated, admin account set, prior-art recall baseline recorded, search inside a paper, clearer wording for books/web pages/reports/theses. A two-week plan was written (section "Next two weeks").
