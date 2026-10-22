@@ -43,7 +43,7 @@ export function stubSearch(req: IdeaSearchRequest): IdeaSearchResult {
     authors: [...r.authors],
     year: r.year,
     venue: r.venue,
-    abstract: `Sample abstract ${i + 1} for the offline test: ${req.keywordQueries[0] ?? req.semanticQuery.slice(0, 80)}. It describes a study of the topic in enough words to be compared with an idea, for the tests only.`,
+    abstract: `Sample abstract ${i + 1} for the offline test: ${req.keywordQueries[0] ?? req.semanticQuery.slice(0, 80)}. It describes a study of the topic in enough words to be compared with an idea, for the tests only. The method reached good accuracy on the sample data. A remaining limitation is that only a small sample was studied, and further work is needed.`,
     citationCount: 10 * (i + 1),
     oaUrl: i === 0 ? "https://example.org/sample.pdf" : null,
     retracted: false,
@@ -75,6 +75,43 @@ export function stubSearch(req: IdeaSearchRequest): IdeaSearchResult {
  * testing "not stated"; field "different", except for paper 3 where it claims "same" with a sentence that is NOT in the abstract, which
  * verification has to drop. So the pages can show matches, gaps and a dropped claim without a network.
  */
+export const stubInsightsStream: StreamComplete = async (req, hooks) => {
+  const papers = [...req.user.matchAll(/^\[(\d+)\] .*\n([\s\S]*?)(?=\n\n\[\d+\] |$)/gm)].map((m) => ({ n: Number(m[1]), abstract: (m[2] ?? "").trim() }));
+  const sentence = (abstract: string, cue: RegExp) => (abstract.match(/[^.]+\./g) ?? []).map((s) => s.trim()).find((s) => cue.test(s)) ?? "";
+  const asked = !/asked no question/.test(req.user);
+  const json = {
+    // paper 1 and 2 state a limitation; paper 3 is given a sentence that is not in its abstract, which verification has to drop
+    open_problems: [
+      ...papers.filter((p) => p.n <= 2).map((p) => ({ n: p.n, quote: sentence(p.abstract, /remaining limitation/) })),
+      ...papers.filter((p) => p.n === 3).map((p) => ({ n: p.n, quote: "Nobody has yet tested this in a hospital setting at all" })),
+    ],
+    papers: papers.map((p) => ({
+      n: p.n,
+      outcome: p.n === 1 ? "positive" : p.n === 2 ? "mixed" : "not_stated",
+      outcome_quote: p.n <= 2 ? sentence(p.abstract, /reached good accuracy/) : "",
+      method_quote: p.n === 1 ? p.abstract.split(/\s+/).slice(5, 13).join(" ") : "",
+      data_quote: p.n === 1 ? "only a small sample was studied" : "",
+    })),
+    answer: asked
+      ? [
+          { statement: "The method reached good accuracy on the sample data.", n: 1, quote: sentence(papers[0]?.abstract ?? "", /reached good accuracy/) },
+          { statement: "Smartphones are cheap and widely available.", n: 1, quote: sentence(papers[0]?.abstract ?? "", /remaining limitation/) },
+        ]
+      : [],
+    opinion: ["Needs a few weeks of data collection and an ethics approval.", "This is a novel approach that nobody has tried.", "Some image-processing skill is needed."],
+  };
+  for (let i = 0; i < 3; i++) {
+    hooks.onThinking?.();
+    await new Promise((r) => setTimeout(r, 110));
+  }
+  const text = JSON.stringify(json);
+  for (let i = 0; i < text.length; i += 40) {
+    hooks.onContent?.(text.slice(i, i + 40));
+    await new Promise((r) => setTimeout(r, 8));
+  }
+  return { json: extractJson(text), model: "stub" };
+};
+
 export const stubCompareStream: StreamComplete = async (req, hooks) => {
   const papers = [...req.user.matchAll(/^\[(\d+)\] .*\n([\s\S]*?)(?=\n\n\[\d+\] |$)/gm)].map((m) => ({ n: Number(m[1]), abstract: (m[2] ?? "").trim() }));
   const piece = (abstract: string, from: number, len: number) => abstract.split(/\s+/).slice(from, from + len).join(" ");

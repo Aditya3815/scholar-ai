@@ -27,7 +27,7 @@ export function CompareAction({ run, available, onCompare }: { run: CompareRun; 
         <h2 className="cmp-title">See what the closest papers actually do</h2>
         <p>
           A private AI reads the abstracts of the {Math.min(available, COMPARE_PAPERS)} closest papers and compares each with the four parts of your idea. Every match comes with the sentence it is based on, checked to be in
-          the abstract. It never says whether your idea is new.
+          the abstract. It never says whether your idea is new. It takes under a minute and uses roughly an eighth of your daily AI allowance.
         </p>
         {run.status === "error" && <p className="cmp-error" role="alert"><TriangleAlert size={15} aria-hidden="true" /> {run.error}</p>}
       </div>

@@ -1,16 +1,17 @@
 import { AnimatePresence, m } from "motion/react";
 import { Lightbulb, LockKeyhole, ShieldCheck, Telescope } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { COMPARE_PAPERS, PRIVACY_VERSION, type IdeaPlan } from "@scholar/shared";
+import { COMPARE_PAPERS, PRIVACY_VERSION, buildIdeaReport, relatedIds, type IdeaPlan } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/documents";
-import { compareIdea, isData, planIdea, searchIdea } from "../../lib/idea";
+import { compareIdea, downloadText, insightsIdea, isData, planIdea, reportFileName, searchIdea } from "../../lib/idea";
 import { easeOut, stagger } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { ProviderButtons } from "../ProviderButtons";
 import { PrivacyCard } from "../legal/PrivacyCard";
 import { IdeaInput } from "./IdeaInput";
 import type { CompareRun } from "./Compare";
+import type { InsightsRun } from "./Insights";
 import { IdeaResults, type IdeaRun } from "./IdeaResults";
 import { PlanEditor, type PlanDraft } from "./PlanEditor";
 
@@ -35,6 +36,7 @@ type Step = (typeof STEPS)[number]["id"];
 
 const EMPTY_RUN: IdeaRun = { stage: null, papers: [], searched: [], result: null };
 const EMPTY_COMPARE: CompareRun = { status: "idle", stage: null, comparison: null, error: "" };
+const EMPTY_INSIGHTS: InsightsRun = { status: "idle", stage: null, insights: null, error: "" };
 
 function Steps({ step }: { step: Step }) {
   const at = STEPS.findIndex((s) => s.id === step);
@@ -66,6 +68,7 @@ export function IdeaPage() {
   const [run, setRun] = useState<IdeaRun>(EMPTY_RUN);
   const [searching, setSearching] = useState(false);
   const [compare, setCompare] = useState<CompareRun>(EMPTY_COMPARE);
+  const [insights, setInsights] = useState<InsightsRun>(EMPTY_INSIGHTS);
   const abort = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
@@ -100,6 +103,7 @@ export function IdeaPage() {
     setSearching(true);
     setRun({ ...EMPTY_RUN, stage: "searching" });
     setCompare(EMPTY_COMPARE);
+    setInsights(EMPTY_INSIGHTS);
     go("results");
     try {
       const result = await searchIdea(
@@ -141,6 +145,48 @@ export function IdeaPage() {
       if (msg) setCompare({ status: "error", stage: null, comparison: null, error: msg });
     }
   }, [plan, run.papers, question, text]);
+
+  const runInsights = useCallback(async () => {
+    if (!plan) return;
+    abort.current?.abort();
+    const ctl = new AbortController();
+    abort.current = ctl;
+    setInsights({ status: "running", stage: "reading", insights: null, error: "" });
+    // Only the papers that match some part of the idea are read further: what an unrelated paper reports says nothing about this idea.
+    const related = compare.comparison ? relatedIds(compare.comparison) : null;
+    const papers = run.papers.filter((p) => !isData(p) && (!related || related.has(p.id)) && (p.abstract?.length ?? 0) >= 80).slice(0, COMPARE_PAPERS).map((p) => ({ id: p.id, title: p.title, year: p.year, abstract: p.abstract! }));
+    try {
+      const result = await insightsIdea(
+        { title: plan.title, summary: plan.summary, facets: plan.facets, question: question.trim() || undefined, papers },
+        (stage) => setInsights((i) => ({ ...i, stage })),
+        ctl.signal,
+      );
+      setInsights({ status: "done", stage: null, insights: result, error: "" });
+    } catch (e) {
+      const msg = errorText(e, "Reading the papers was interrupted. Please try again.");
+      if (msg) setInsights({ status: "error", stage: null, insights: null, error: msg });
+    }
+  }, [plan, run.papers, question, compare.comparison]);
+
+  /** The whole check as a Markdown file: built here from what is on the page, never sent anywhere. */
+  const reportText = useCallback(
+    () =>
+      buildIdeaReport({
+        appName: "Scholar AI",
+        generatedAt: new Date().toISOString(),
+        title: plan?.title ?? "",
+        summary: plan?.summary ?? "",
+        facets: plan?.facets ?? { purpose: "", mechanism: "", evaluation: "", domain: "" },
+        question: question.trim() || undefined,
+        searched: run.searched,
+        considered: run.result?.considered ?? run.papers.length,
+        papers: run.papers.filter((p) => !isData(p)),
+        comparison: compare.comparison,
+        insights: insights.insights,
+      }),
+    [plan, question, run, compare.comparison, insights.insights],
+  );
+  const downloadReport = () => downloadText(reportFileName(plan?.title ?? ""), reportText());
 
   const clearAll = () => {
     setText("");
@@ -228,7 +274,7 @@ export function IdeaPage() {
 
             {step === "results" && (
               <m.div key="results" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10, transition: { duration: 0.15 } }} transition={{ duration: 0.35, ease: easeOut }}>
-                <IdeaResults run={run} compare={compare} facets={plan?.facets ?? null} onCompare={() => void runCompare()} onEditPlan={() => { abort.current?.abort(); setSearching(false); go("plan"); }} onSearchAgain={() => void search()} />
+                <IdeaResults run={run} compare={compare} insights={insights} hasQuestion={question.trim().length > 0} facets={plan?.facets ?? null} onCompare={() => void runCompare()} onInsights={() => void runInsights()} onDownload={downloadReport} onPrint={() => window.print()} onEditPlan={() => { abort.current?.abort(); setSearching(false); go("plan"); }} onSearchAgain={() => void search()} />
               </m.div>
             )}
           </AnimatePresence>

@@ -16,8 +16,9 @@ const IDEAS = process.argv[2]
       "Can sensors on a tractor measure soil moisture while it ploughs, so that irrigation can be planned per field strip for smallholder farmers in semi-arid India?",
     ];
 
+const IDEA_QUESTIONS = {};
 const idp = await startFakeIdp(9911);
-idp.setUser({ sub: "idea-live-1", email: "live@example.edu", email_verified: true, name: "Live Check" });
+idp.setUser({ sub: process.env.LIVE_SUB ?? "idea-live-1", email: `${process.env.LIVE_SUB ?? "live"}@example.edu`, email_verified: true, name: "Live Check" });
 const A = createClient(APP);
 await A.follow(`${APP}/api/v1/auth/google/start`);
 await A.ack();
@@ -70,6 +71,23 @@ for (const idea of IDEAS) {
     for (const row of c.coverage) console.log(`  ${row.facet.padEnd(10)} ${row.status.padEnd(10)} ${row.papers.slice(0, 2).map((p) => `${p.match}: "${p.quote.slice(0, 70)}"`).join(" | ")}`);
     console.log(`  combination: ${c.combination ? `${c.combination.found.length} of ${c.combination.compared}` : "n/a"}`);
     console.log("  levels: " + c.comparisons.map((x) => x.level).join(", "));
+  }
+  // M3: the second reading of the same papers
+  const ti = Date.now();
+  const question = IDEA_QUESTIONS[idea.slice(0, 20)] ?? "What results have similar approaches reported, and what data did they use?";
+  const ires = await A.api("/api/v1/idea/insights", { method: "POST", body: { title: plan.title, summary: plan.summary, facets: plan.facets, question, papers: withAbs } });
+  const iev = await events(ires);
+  const idone = iev.find((e) => e.type === "done");
+  if (!idone) console.log("insights failed", iev.find((e) => e.type === "error") ?? ires.status);
+  else {
+    const n = idone.insights;
+    console.log(`insights in ${((Date.now() - ti) / 1000).toFixed(1)} s: ${n.papersRead} papers read, ${n.droppedClaims} claims dropped, model ${n.model}`);
+    console.log(`  open problems (${n.openProblems.length}): ` + n.openProblems.slice(0, 3).map((o) => `"${o.quote.slice(0, 80)}"`).join(" | "));
+    const kinds = n.readings.reduce((a, x) => ((a[x.outcome.kind] = (a[x.outcome.kind] ?? 0) + 1), a), {});
+    console.log(`  outcomes: ${JSON.stringify(kinds)}; with method ${n.readings.filter((x) => x.method).length}, with data ${n.readings.filter((x) => x.data).length}`);
+    console.log(`  question: ${question}`);
+    console.log(`  answer statements (${n.answer?.statements.length ?? "none asked"}): ` + (n.answer?.statements ?? []).map((s) => `${s.text ? "" : "[sentence only] "}"${(s.text ?? s.cites[0].quote).slice(0, 90)}"`).join(" | "));
+    console.log(`  opinion (${n.opinion.length}): ` + n.opinion.map((o) => `"${o.slice(0, 80)}"`).join(" | "));
   }
   for (const [i, x] of r.papers.slice(0, 10).entries()) console.log(`  ${String(i + 1).padStart(2)}. ${x.year ?? "----"} ${x.title.slice(0, 95)}  [${x.foundBy.join(", ")}] ${x.doi ? "doi" : "no-doi"}${x.retracted ? " RETRACTED" : ""}${x.doiStatus?.startsWith("dropped") ? " DOI-DROPPED" : ""}`);
 }

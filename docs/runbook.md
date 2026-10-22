@@ -72,6 +72,10 @@ A question uses one gateway call (about 3 to 4k tokens); the per-user daily toke
 
 - **Idea Check** (`/idea`): the idea text is sent to `POST /api/v1/idea/plan` (private model), is not stored and is not logged. Only the approved search plan
   goes to OpenAlex and Semantic Scholar. Nothing about a check is kept server side.
+- **Comparison and second reading** (`POST /api/v1/idea/compare` and `/idea/insights`): the researcher asks for each; each is one model call on the private route, streamed as stages, nothing stored. Measured with the real model
+  (22 Oct): about 8,000 tokens and 20 to 60 s for the comparison, about 12,000 tokens and 35 to 80 s for the second reading (its time limit is 150 s); a whole check is 19,000 to 24,000 tokens, so the 60,000 a day is two to three checks
+  (roadmap D6). Locally, with `ENABLE_DEV_ROUTES=1` and a real model, the Worker logs every claim it dropped (`compare_dropped`, `insights_dropped`, with the quote and the abstract) so the prompts can be tuned; never in production.
+  `node apps/api/scripts/idea-live.mjs` runs all of it on three real ideas (use `LIVE_SUB=<name>` for a fresh test user when a day's allowance is used up).
 - **OpenAlex budget.** The API key has a daily budget of **$1** (response header `X-RateLimit-Limit-USD`), about 1,000 searches, shared by production, local testing and the
   eval. When it is used up OpenAlex answers 429 until the reset (`Retry-After` seconds): search then reports `openalex` as failed and the other sources carry on, Idea Check
   reports the failed searches, and the Verifier falls back to Crossref. A full `npm run eval:record` uses a large part of the day's budget: do not record while testing live.

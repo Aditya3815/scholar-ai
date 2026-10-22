@@ -129,3 +129,59 @@ export type IdeaCompareEvent =
   | { type: "stage"; stage: "reading" | "comparing" | "checking" }
   | { type: "done"; comparison: IdeaComparison }
   | { type: "error"; code: string; title: string; detail?: string };
+
+/* ---------------------------------------------------------------- M3: gaps, feasibility, an answer, a report */
+
+/**
+ * A second reading of the same closest papers (their abstracts only), for four things the comparison does not give:
+ *   open problems   sentences where an abstract itself says what is left open (a limitation, future work),
+ *   readings        for each paper: what it reports (worked / mixed / did not work), and the data and method it names,
+ *   an answer       to the researcher's own question, every statement resting on a quote from a paper,
+ *   opinion         short notes on time, cost and skills, written by the model from the idea alone and shown as opinion.
+ * Everything except the opinion rests on a quote that was checked to be in that paper's abstract; a claim whose quote is not there is dropped.
+ */
+export const MAX_OPINION_ITEMS = 3;
+export const MAX_OPEN_PROBLEMS = 8;
+export const MAX_ANSWER_STATEMENTS = 5;
+
+export type OutcomeKind = "positive" | "mixed" | "negative" | "not_stated";
+
+export type PaperReading = {
+  id: string;
+  /** What the abstract says the work achieved. `positive`, `mixed` and `negative` come with the sentence; without a verified sentence it is `not_stated`. */
+  outcome: { kind: OutcomeKind; quote: string | null };
+  /** A verified piece of the abstract naming the data, materials or instruments used, or null. */
+  data: string | null;
+  /** A verified piece of the abstract naming the method, or null. */
+  method: string | null;
+};
+
+export type OpenProblem = { id: string; quote: string };
+
+/**
+ * One piece of the answer to the researcher's question. `cites` is a sentence of a paper's abstract, checked to be there: the evidence, always shown.
+ * `text` is the model's own one-line statement of it, shown only when the sentence supports it (every number in it is in the sentence, and the words agree);
+ * otherwise it is null and the sentence is shown on its own, as one the AI picked for the question.
+ */
+export type AnswerStatement = { text: string | null; cites: { id: string; quote: string }[] };
+
+export type IdeaInsights = {
+  readings: PaperReading[];
+  openProblems: OpenProblem[];
+  /** null when the researcher asked no question. `statements` is empty when the abstracts do not answer it. */
+  answer: { question: string; statements: AnswerStatement[] } | null;
+  /** The model's own notes on time, money and skills. Opinion: not checked against any paper, and shown as such. */
+  opinion: string[];
+  /** Papers whose abstract was read. */
+  papersRead: number;
+  /** Claims whose quote was not in the abstract (or was not about the statement), so they were not shown. */
+  droppedClaims: number;
+  model: string;
+};
+
+export type IdeaInsightsRequest = IdeaCompareRequest;
+
+export type IdeaInsightsEvent =
+  | { type: "stage"; stage: "reading" | "analysing" | "checking" }
+  | { type: "done"; insights: IdeaInsights }
+  | { type: "error"; code: string; title: string; detail?: string };

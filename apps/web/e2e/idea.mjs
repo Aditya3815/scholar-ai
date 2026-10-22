@@ -191,6 +191,61 @@ try {
   await axe("idea, compared");
   await setTheme("Dark"); await shot("79b-idea-compare-dark"); await axe("idea, compared, dark"); await setTheme("Light");
 
+  // gaps (worked out without AI), then the second reading (M3)
+  console.log("gaps, feasibility, answer, report");
+  const gaps = page.getByRole("region", { name: /^Gaps among the/ });
+  await gaps.waitFor();
+  ok(/No compared paper covers/.test(await gaps.innerText()) && /Field/.test(await gaps.innerText()), "a part of the idea that no compared paper covers is listed as a gap, without using the AI");
+  ok(/not proof that nothing exists/.test(await gaps.innerText()), "...and the page says that a gap is not proof");
+  ok(/appears after you read them/.test(await gaps.innerText()), "what the papers say is still open waits for the reading");
+  await page.getByRole("button", { name: "Read the papers" }).click();
+  await page.getByRole("heading", { level: 2, name: /Has it been tried/ }).waitFor({ timeout: 15000 });
+  await page.waitForTimeout(900);
+  ok((await gaps.locator(".ins-quotes blockquote").count()) === 2, "two sentences where the papers say something is still open are shown, each with its paper");
+  ok(/Reports that it worked/.test(await page.locator(".ins-reading").first().innerText()) && /Reports mixed results/.test(await page.locator(".ins-reading").nth(1).innerText()), "what each paper reports is shown in words");
+  ok((await page.locator(".ins-reading").first().locator("blockquote").count()) === 1, "...with the sentence it comes from");
+  ok(/the AI.s opinion/i.test(await page.locator(".ins-opinion").innerText()) && /opinion, not checked against any paper/.test(await page.locator(".ins-opinion").innerText()), "the notes on time, cost and skills are labelled as the AI's opinion");
+  ok((await page.locator(".ins-opinion li").count()) === 2, "an opinion that calls the idea new is not shown");
+  ok(/not shown/.test(await page.locator("#feas-h").locator("xpath=..").innerText()), "the page says that claims whose sentence is not in the abstract were left out");
+  const answer = page.getByRole("region", { name: "Your question" });
+  ok((await answer.locator(".ins-statement").count()) === 1 && (await answer.locator("blockquote").count()) === 2, "the answer has one statement the sentence supports, and one sentence on its own");
+  ok(/A sentence the AI picked for your question/.test(await answer.innerText()), "...which is labelled as a sentence the AI picked, with no AI wording above it");
+  ok(/Has this been done with low-cost hardware/.test(await answer.innerText()), "...and repeats the question it answers");
+  ok(await page.getByRole("button", { name: "Read the papers" }).count() === 0, "the reading is not offered again once it is done");
+  await shot("82-idea-insights");
+  await axe("idea, gaps and feasibility");
+  await setTheme("Dark"); await shot("83-idea-insights-dark"); await axe("idea, gaps and feasibility, dark"); await setTheme("Light");
+
+  // the report
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download the report" }).click()]);
+  ok(/^idea-check-[a-z0-9-]*-?\d{4}-\d{2}-\d{2}\.md$/.test(download.suggestedFilename()), `the report file has a plain name (${download.suggestedFilename()})`);
+  const report = await new Promise((resolve, reject) => {
+    const chunks = [];
+    download.createReadStream().then((st) => { st.on("data", (c) => chunks.push(c)); st.on("end", () => resolve(Buffer.concat(chunks).toString("utf8"))); st.on("error", reject); }, reject);
+  });
+  ok(/^# Idea Check/.test(report) && /does not say whether the idea is new/.test(report), "the report says what it is, and that it does not say whether the idea is new");
+  ok(/## What was searched/.test(report) && /## The closest papers/.test(report) && /## Gaps among the compared papers/.test(report) && /## Feasibility: what the papers report/.test(report), "it has what was searched, the closest papers, the gaps and the feasibility");
+  ok(/## Practical feasibility: opinion\n\n\*Written by the AI model from your idea alone\. It is opinion/.test(report), "the opinion is in its own labelled section");
+  ok(/## Answer to your question/.test(report) && /> “/.test(report), "the answer is there with its sentence");
+  ok(/https:\/\/doi\.org\/10\.1234\/sample\.1/.test(report), "papers have DOI links");
+  ok(!/\bnovel\b/i.test(report), "nothing in it calls the idea novel");
+  ok(!/dataset or software/.test(report) && !/zenodo/i.test(report), "a hidden dataset record is not in the report");
+  ok(report.length < 30_000, `the report is a reasonable size (${report.length} characters)`);
+
+  // printing keeps the content and leaves the controls out
+  await page.emulateMedia({ media: "print" });
+  ok(await gaps.isVisible() && (await page.getByRole("button", { name: "Download the report" }).isHidden()), "when printed, the content stays and the buttons go");
+  await page.emulateMedia({ media: "screen" });
+
+  // a phone
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.waitForTimeout(700);
+  const ov = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  ok(ov <= 1, `no horizontal scrolling on a phone (${ov}px)`);
+  await axe("idea, gaps and feasibility, phone");
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.waitForTimeout(400);
+
   // filters
   await page.getByRole("button", { name: "Open access only" }).click();
   await page.waitForFunction(() => document.querySelectorAll(".result").length === 1);

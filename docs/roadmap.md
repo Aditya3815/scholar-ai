@@ -92,7 +92,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 | --- | --- | --- | --- |
 | I1 | **M2**: split the idea into facets, compare each of the top papers with a quoted sentence from its abstract (checked like Q&A quotes), show a coverage map | me | ✅ 22 Oct: built, tested with the real model (about 10,000 tokens a full check, 25 to 60 s for the comparison); design and numbers in `design/idea-check.md` ("M2 as built"). Still to do: judge its usefulness with real scholars (I5) |
 | I2 | Prior-art recall eval: hide a paper, rebuild its idea from the abstract, see how many of its own references come back | me | ✅ 22 Oct, first recording (40 papers from 2023 to 2025, 20 with an Indian author, 1,729 references; all 120 searches answered): **at least one reference found for 85% of papers, three or more for 48%, on average 7% of a paper's references** among the 30 closest results. A paper cites many things its abstract never mentions, so 7% is not "7% of what matters"; it is a baseline to beat. Gates (80% hit, 6% mean) run on every push. Not covered: the AI plan step, and the meaning re-rank |
-| I3 | **M3**: gaps, feasibility (grounded vs opinion, labelled), grounded answer to the question, downloadable report | me | |
+| I3 | **M3**: gaps, feasibility (grounded vs opinion, labelled), grounded answer to the question, downloadable report | me | ✅ 22 Oct: built and measured with the real model (design doc, "M3 as built"). Gaps (no AI: parts nobody covers, parts covered separately but never together; with AI: what the papers say is open), "Read the papers" (what each paper reports with its sentence, an answer whose evidence is a verified sentence, practical notes labelled as opinion), report download and print. A whole check is about 19,000 to 24,000 tokens: 2 to 3 a day under today's allowance (D6) |
 | I4 | More sources (arXiv, PubMed, CORE), open-access full text for the closest papers | me | Partly ✅ 22 Oct: arXiv and PubMed added (first two keyword searches each; arXiv one request per 3.1 s). Measured: no change in reference recall (see eval README), about 0.8 extra papers per check from each that no other search found. CORE and open-access full text still to do |
 | I5 | Calibration against RINoBench; 20 ideas judged by real scholars | both | Scholars are yours |
 | I6 | Hands-on comparison with Elicit, Undermind, Consensus, SciSpace before any public claim | you | I can prepare the comparison sheet |
@@ -135,6 +135,7 @@ Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it 
 | D3 | ~~Product name~~ (decided: Scholar AI). Still needed: legal entity, address, contact and grievance e-mail, jurisdiction (L2) | P1 final, L5 |
 | D4 | Do Idea Check results get saved (I7)? | I7 |
 | D5 | Ten pilot names (P8) | P8, I5 |
+| D6 | Daily AI allowance per person: 60,000 tokens is 2 to 3 whole Idea Checks. Raise it for the pilot (for example to 120,000: about 5 checks, roughly 1 to 2 cents each at Cloudflare's published price) or keep it small | Pilot use of Idea Check |
 
 ## Plan: four milestones
 
@@ -260,6 +261,7 @@ to keep the "Images Stream Basic" subscription (we do not use it).
 
 ## Log
 
+- 2026-10-22 (night, M3): Idea Check M3 built and measured with the real model: gaps, a second reading of the closest papers (what each reports, an answer, labelled opinion), downloadable report. A whole check uses 19,000 to 24,000 tokens.
 - 2026-10-22 (night, N5): admin "Erase an account" for people who cannot sign in.
 - 2026-10-22 (night, after Day 8): Sentry alert rule created and tested end to end (admin test event now a new issue on every press, at error level). Day 9: pilot kit in `docs/pilot/`.
 - 2026-10-22 (late night): Day 8. Daily-job heartbeat (`job_runs`, migration 0010) and `/api/v1/health/jobs`; admin page shows scheduled jobs; "Data checks" on `/admin` (paper records against stored files; re-apply deletions after a restore); deleted accounts leave a 35-day marker in R2 so a restore cannot bring them back (privacy text updated); hourly Watchdog workflow; failed workflows open and close their own GitHub issue; real restore rehearsal on staging passed; D1 Time Travel reach corrected to 30 days; R2 lifecycle rule `deletion-markers` added to both buckets.

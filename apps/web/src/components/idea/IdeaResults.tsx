@@ -1,13 +1,14 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowLeft, CircleAlert, Info, Loader2, Telescope } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { IdeaFacets, IdeaPaper, IdeaSearched, IdeaSearchResult } from "@scholar/shared";
+import { relatedIds, type IdeaFacets, type IdeaPaper, type IdeaSearched, type IdeaSearchResult } from "@scholar/shared";
 import { isData } from "../../lib/idea";
 import { openPreview } from "../../lib/preview";
 import { easeOut } from "../../lib/motion";
 import { ReportButton } from "../ReportButton";
 import { ResultCard } from "../ResultCard";
 import { CompareAction, CoverageMap, PaperStrip, type CompareRun } from "./Compare";
+import { AnswerPanel, FeasibilityPanel, GapsPanel, InsightsAction, ReportBar, type InsightsRun } from "./Insights";
 
 const SOURCE_NAME = { openalex: "OpenAlex", s2: "Semantic Scholar", pubmed: "PubMed", arxiv: "arXiv" } as const;
 /** What a record is, when it is not an ordinary journal paper. */
@@ -83,7 +84,7 @@ function Coverage({ searched, considered, done }: { searched: IdeaSearched[]; co
   );
 }
 
-export function IdeaResults({ run, compare, facets, onCompare, onEditPlan, onSearchAgain }: { run: IdeaRun; compare: CompareRun; facets: IdeaFacets | null; onCompare: () => void; onEditPlan: () => void; onSearchAgain: () => void }) {
+export function IdeaResults({ run, compare, insights, hasQuestion, facets, onCompare, onInsights, onDownload, onPrint, onEditPlan, onSearchAgain }: { run: IdeaRun; compare: CompareRun; insights: InsightsRun; hasQuestion: boolean; facets: IdeaFacets | null; onCompare: () => void; onInsights: () => void; onDownload: () => void; onPrint: () => void; onEditPlan: () => void; onSearchAgain: () => void }) {
   const [openOnly, setOpenOnly] = useState(false);
   const [hideRetracted, setHideRetracted] = useState(false);
   const [hideData, setHideData] = useState(true);
@@ -147,6 +148,11 @@ export function IdeaResults({ run, compare, facets, onCompare, onEditPlan, onSea
 
       {done && <CompareAction run={compare} available={run.papers.filter((p) => !isData(p) && (p.abstract?.length ?? 0) >= 80).length} onCompare={onCompare} />}
       {compare.comparison && facets && <CoverageMap comparison={compare.comparison} facets={facets} titles={byId} onOpen={(p) => openPreview(p, papers)} />}
+      {compare.comparison && facets && <GapsPanel comparison={compare.comparison} facets={facets} insights={insights.insights} titles={byId} onOpen={(p) => openPreview(p, papers)} />}
+      {done && compare.comparison && <InsightsAction run={insights} available={relatedIds(compare.comparison).size} hasQuestion={hasQuestion} onRun={onInsights} />}
+      {insights.insights && <FeasibilityPanel insights={insights.insights} related={compare.comparison ? relatedIds(compare.comparison) : null} titles={byId} onOpen={(p) => openPreview(p, papers)} />}
+      {insights.insights && <AnswerPanel insights={insights.insights} titles={byId} onOpen={(p) => openPreview(p, papers)} />}
+      {done && run.papers.length > 0 && <ReportBar onDownload={onDownload} onPrint={onPrint} />}
 
       {run.papers.length > 0 && (
         <div className="filters" role="group" aria-label="Filters">

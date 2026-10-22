@@ -549,3 +549,181 @@
     grid-column: 1 / -1;
   }
 }
+
+/* ---- gaps, feasibility, an answer, the report (M3) ---- */
+.ins-card {
+  padding: 1.15rem 1.35rem;
+}
+.ins-card .cmp-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.ins-block {
+  margin-top: 1rem;
+}
+.ins-h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+}
+.ins-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ins-list li {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  font-size: 0.9375rem;
+}
+.ins-list li > svg {
+  flex: none;
+  margin-top: 0.2rem;
+  color: var(--muted);
+}
+.ins-list-plain li {
+  display: list-item;
+  margin-left: 1.1rem;
+  list-style: disc;
+}
+.ins-quotes {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ins-none {
+  margin: 0.9rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.ins-question {
+  margin: 0.4rem 0 0;
+  font-weight: 600;
+}
+.ins-statement {
+  margin: 0 0 0.2rem;
+  font-size: 0.9375rem;
+}
+.ins-readings {
+  display: grid;
+  gap: 0.85rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ins-reading {
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 0.6rem;
+}
+.ins-reading[data-outcome="positive"] {
+  border-left-color: var(--ok);
+}
+.ins-reading[data-outcome="mixed"] {
+  border-left-color: var(--warn);
+}
+.ins-reading[data-outcome="negative"] {
+  border-left-color: var(--danger);
+}
+.ins-reading-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  align-items: center;
+  justify-content: space-between;
+}
+.ins-outcome {
+  min-width: 0;
+}
+.ins-outcome[data-outcome="positive"] {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.ins-outcome[data-outcome="mixed"] {
+  color: var(--warn);
+}
+.ins-outcome[data-outcome="negative"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.ins-fact {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.ins-fact span {
+  margin-right: 0.35rem;
+  color: var(--text);
+  font-weight: 650;
+}
+.ins-opinion {
+  margin-top: 1.1rem;
+  padding: 0.8rem 1rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 0.6rem;
+}
+.ins-opinion-note {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.ins-report {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1rem 1.25rem;
+  align-items: center;
+  padding: 1.1rem 1.3rem;
+}
+.ins-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+@media (max-width: 720px) {
+  .ins-report {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Printing the results page (or saving it as a PDF): only the content, without the controls around it. */
+@media print {
+  body:has(.idea-results) header,
+  body:has(.idea-results) footer,
+  body:has(.idea-results) nav,
+  .idea-results [data-print="hide"],
+  .idea-results .filters,
+  .idea-results .cmp-action,
+  .idea-results .idea-stage,
+  .idea-results .vin-actions,
+  .idea-results .btn,
+  .idea-results .report-btn {
+    display: none !important;
+  }
+  body:has(.idea-results) {
+    background: #fff;
+    color: #000;
+  }
+  .idea-results .card,
+  .idea-results .ins-reading,
+  .idea-results .result {
+    break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #999;
+    background: #fff;
+  }
+}
+.ins-picked {
+  margin: 0 0 0.2rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}

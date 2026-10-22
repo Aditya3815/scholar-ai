@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import { streamSSE } from "hono/streaming";
-import { PRIVACY_VERSION, IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaCompareEvent, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
+import { PRIVACY_VERSION, IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaCompareEvent, type IdeaInsightsEvent, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { d1Store } from "../cache/store";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "../docs/embed";
@@ -10,8 +10,9 @@ import type { SearchEnv } from "../search/types";
 import type { S2Throttle } from "../s2-throttle";
 import { PlanError, planIdea, scrubText } from "./plan";
 import { compareIdea, sanitizeCompareRequest } from "./compare";
+import { insightsIdea, sanitizeInsightsRequest } from "./insights";
 import { runIdeaSearch, sanitizeRequest } from "./search";
-import { stubCompareStream, stubPlan, stubSearch } from "./stub";
+import { stubCompareStream, stubInsightsStream, stubPlan, stubSearch } from "./stub";
 
 type Bindings = {
   DB: D1Database;
@@ -49,12 +50,12 @@ function completeFor(env: Bindings, subject: string): Complete | null {
   };
 }
 
-function streamFor(env: Bindings, subject: string, abort: AbortSignal): StreamComplete | null {
-  if (stubbed(env)) return stubCompareStream;
+function streamFor(env: Bindings, subject: string, abort: AbortSignal, stub: StreamComplete = stubCompareStream, timeoutMs = 90_000): StreamComplete | null {
+  if (stubbed(env)) return stub;
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
     // Same PRIVATE route, quota and ledger as the plan; `abort` stops the model when the researcher leaves.
-    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 90_000 }, hooks, abort);
+    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs }, hooks, abort);
     return { json: r.json, model: r.model };
   };
 }
@@ -191,6 +192,59 @@ ideaRoutes.post("/compare", async (c) => {
       } else {
         console.error(JSON.stringify({ level: "error", msg: "idea_compare_unexpected", error: e instanceof Error ? e.name : "unknown" }));
         await send({ type: "error", code: "internal_error", title: "The comparison failed", detail: "Please try again in a moment." });
+      }
+    }
+  });
+});
+
+/* ---------------------------------------------------------------- insights (M3) */
+
+/**
+ * A second reading of the closest papers' abstracts: what the authors say is still open, what each paper reports, an answer to the researcher's question and a few
+ * notes on practical feasibility. The researcher asks for it (it costs AI use). Every claim from a paper has a quote that was checked to be in its abstract; the notes
+ * are labelled as the model's opinion. Nothing is stored.
+ */
+ideaRoutes.post("/insights", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in to check an idea");
+  if (user.privacyAck !== PRIVACY_VERSION) return deny(c, 403, "privacy_ack_required", "Please read how your ideas are handled first", "A short note appears before your first check.");
+  if (Number(c.req.header("content-length") ?? 0) > 120_000) return deny(c, 413, "too_large", "That is too much text");
+
+  const req = sanitizeInsightsRequest(await c.req.json().catch(() => null));
+  if (!req) return deny(c, 400, "invalid_insights", "There is nothing to read", "Send the idea's plan and the papers to read.");
+  const abort = new AbortController();
+  // the second reading is the longest answer (about 80 s with the real model): a longer allowance than the comparison's
+  const stream = streamFor(c.env, user.id, abort.signal, stubInsightsStream, 150_000);
+  if (!stream) return deny(c, 503, "ai_unavailable", "Reading the papers is unavailable right now");
+
+  return streamSSE(c, async (sse) => {
+    let gone = false;
+    sse.onAbort(() => {
+      gone = true;
+      abort.abort();
+    });
+    const send = async (e: IdeaInsightsEvent) => {
+      if (!gone) await sse.writeSSE({ event: e.type, data: JSON.stringify(e) }).catch(() => (gone = true));
+    };
+    try {
+      const insights = await insightsIdea({
+        req,
+        stream,
+        hooks: { onStage: (stage) => void send({ type: "stage", stage }) },
+        // Only with the local dev switch: show why a claim was dropped, to tune the prompt. Never in production.
+        onDropped: c.env.ENABLE_DEV_ROUTES === "1" && !stubbed(c.env) ? (d) => console.log(JSON.stringify({ msg: "insights_dropped", kind: d.kind, quote: d.quote, statement: d.statement, abstract: d.abstract })) : undefined,
+      });
+      await send({ type: "done", insights });
+    } catch (e) {
+      if (e instanceof QuotaError) await send({ type: "error", code: "quota", title: "You have used today's AI allowance", detail: e.message });
+      else if (e instanceof NoRouteError) await send({ type: "error", code: "ai_unavailable", title: "Reading the papers is unavailable right now" });
+      else if (e instanceof AllProvidersFailedError) {
+        console.error(JSON.stringify({ level: "error", msg: "idea_insights_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
+        await send({ type: "error", code: "ai_failed", title: "The AI service could not read the papers just now", detail: "Please try again in a moment." });
+      } else {
+        console.error(JSON.stringify({ level: "error", msg: "idea_insights_unexpected", error: e instanceof Error ? e.name : "unknown" }));
+        await send({ type: "error", code: "internal_error", title: "Reading the papers failed", detail: "Please try again in a moment." });
       }
     }
   });

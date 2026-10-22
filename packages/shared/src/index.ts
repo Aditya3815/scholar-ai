@@ -93,6 +93,7 @@ export * from "./documents";
 export * from "./text";
 export * from "./paperinfo";
 export * from "./idea";
+export * from "./idea-m3";
 export * from "./ideafile";
 export * from "./feedback";
 export * from "./jobs";

@@ -1,6 +1,6 @@
 # Idea Check: "has my idea been done, what is close to it, where is the gap?"
 
-Status: researched 2026-10-18. **M1 built 2026-10-19** (steps 1 and 2 of the pipeline below: the search plan and the closest papers; no model judgment yet). M2 and M3 are not built.
+Status: researched 2026-10-18. **M1 built 2026-10-19** (the search plan and the closest papers). **M2 built 2026-10-22** (compare with each part of the idea, quotes checked). **M3 built 2026-10-22** (gaps, what was tried, an answer, a report; see "M3 as built"). Not yet done: calibration on RINoBench, open-access full text, saved history.
 
 **M1 as built:** `/idea` reads the idea in the browser (PDF, Word, LaTeX, Markdown, text); the private model proposes a plan (title, summary, four facets, a paragraph to search by meaning, 3 to 6 keyword searches) with
 identifying details left out and e-mail addresses and links removed; the researcher edits it; OpenAlex (by meaning and by keywords) and Semantic Scholar are searched, results merged by DOI/title, the
@@ -133,3 +133,38 @@ Measured with the real model (gpt-oss-120b on Workers AI), glaucoma-screening id
 | compare | 3,000 to 3,500 | about 5,700 | 25 to 60 s |
 So **a full check is about 10,000 tokens**, and the daily allowance of 60,000 tokens a person allows about **five or six full checks a day**. That is enough for a pilot; raise it (`dailyTokenQuota` in `src/llm/config.ts`) only if people hit it, after looking at real use on `/admin`.
 First live run: 11 of about 30 claimed matches were dropped because the model joined single keywords with "..."; after telling it to quote one or two real pieces and checking pieces separately, 4 of about 30 were dropped (no shown match lacks its sentence). The comparison call has a 90 s limit (the gateway's usual 25 s was too short).
+
+## M3 as built (22 Oct 2026): gaps, what was tried, an answer, a report
+
+After the comparison, the researcher sees **gaps**, and can press **Read the papers** for a second reading of the same abstracts. At the end, **Download the report** (Markdown) or print it.
+
+**Gaps** have three kinds, labelled as different things:
+1. *No compared paper covers a part of the idea.* From the comparison's coverage rows. No AI.
+2. *Two parts each covered, never in the same paper* (for example the method in one paper and the field in another). Every pair of parts is tested; computed from the verified matches only (`combinationGaps`, shared code). No AI, no quota.
+3. *What the papers themselves say is still open.* The AI picks sentences from the abstracts that state a limitation, a challenge or future work; each is shown only if it is in the abstract AND contains a cue word of that kind (`limit`, `future`, `remains`, `next step`, `need to`, ...). Real abstracts rarely contain such a sentence: in three real ideas it gave 0 to 2 a time, and the page says "none of the abstracts states one" when there is none. Model-invented "suggested gaps" are NOT included: they cannot be checked.
+
+**The second reading** (`POST /api/v1/idea/insights`, same safeguards as the comparison: sign-in, same origin, privacy note, size limit, private route, nothing stored) reads only the papers that matched some part of the idea (an unrelated paper's result says nothing about this idea) and returns four things:
+- *What each paper reports*: worked / mixed / did not work / not stated, **with the sentence**; plus a short quote naming the method and one naming the data. An outcome without a verified sentence is "not stated".
+- *An answer to the researcher's question.* The evidence is a sentence of an abstract, verified to be there. The model's own one-line wording is shown only if the sentence supports it: every number in it must be in the sentence, and more than half of its other content words (without numbers). Otherwise the sentence is shown alone as "a sentence the AI picked for your question". If nothing verifies, the page says the abstracts do not answer it.
+- *Practical feasibility* (time, cost, skills): the model's opinion, up to 3 notes, in a box labelled "the AI's opinion, not checked against any paper". Any note that says the idea is new or has been done is not shown (we never say that either way).
+- Claims whose sentence is not in the abstract are dropped and counted ("The AI also made N claims whose sentence is not in the abstract"). The shape of verification is the same as M2; the numbers are in the roadmap.
+
+**The report** is built in the browser from what is on the page (`buildIdeaReport`, shared code, tested): the idea as the plan states it, what was searched (and which searches failed), the closest papers with DOI links (no datasets), the coverage, the gaps, what the papers report with quotes, the answer, the opinion in its own labelled section, and a fixed "what this report cannot tell you" (theses, books and regional journals are not covered; abstracts only; the model can misread). Everything from a database or a model is escaped so it cannot add links, headings or HTML. It never says whether an idea is new. Nothing is sent anywhere to make it.
+
+### Measured with the real model (gpt-oss-120b on Workers AI), three ideas, 22 Oct
+
+| | tokens in | tokens out | time |
+| --- | --- | --- | --- |
+| plan | about 400 | about 700 | 5 to 18 s |
+| search | none | none | 15 to 17 s |
+| comparison (M2) | 2,300 to 3,900 | 4,500 to 6,500 | 20 to 60 s |
+| second reading (M3) | 2,500 to 4,000 | 7,700 to 9,500 | 34 to 80 s |
+| **whole check** | | **about 19,000 to 24,000** | about 2 to 3 minutes |
+
+So the daily allowance of 60,000 tokens a person is **two to three whole checks** (the comparison alone is about an eighth of it, the second reading about a fifth). Cloudflare's published price for this model (about $0.35 per million tokens in and $0.75 out; not re-checked today) makes a whole check roughly 1 to 2 cents. Decide the allowance before the pilot (roadmap, D6). The second reading's time limit is 150 s (the comparison's is 90 s).
+
+What the claim checks did on real abstracts (they work as designed, and they cost yield):
+- The model often changes a word of a quote ("disc-centred" for "disc-centered"), or copies 80% of a long sentence: such a claim is dropped (2 to 13 per reading). Asking it to copy exactly and to prefer short pieces helped a little; it varies from run to run.
+- Its one-line statements often add a figure the sentence does not contain ("208 adults", "63"): that is exactly what the figure check is for, and the sentence is then shown alone.
+- A method or data quote may be a short phrase (2 words or more) when it is in the abstract word for word; a sentence about a result needs 5 words or more.
+- Not yet measured: whether people find the gaps useful. That is the pilot's job (roadmap I5).

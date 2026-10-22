@@ -1,4 +1,4 @@
-import type { IdeaCompareEvent, IdeaCompareRequest, IdeaComparison, IdeaPaper, IdeaPlan, IdeaSearchEvent, IdeaSearchRequest, IdeaSearchResult } from "@scholar/shared";
+import type { IdeaCompareEvent, IdeaCompareRequest, IdeaComparison, IdeaInsights, IdeaInsightsEvent, IdeaInsightsRequest, IdeaPaper, IdeaPlan, IdeaSearchEvent, IdeaSearchRequest, IdeaSearchResult } from "@scholar/shared";
 import { ApiError } from "./documents";
 import { readSse } from "./sse";
 
@@ -57,4 +57,42 @@ export async function compareIdea(req: IdeaCompareRequest, onStage: (s: "reading
   if (failure) throw failure;
   if (!result) throw new TypeError("The comparison was cut off. Please try again.");
   return result;
+}
+
+/** Reads the closest papers a second time for what is still open, what each reports, an answer and notes on feasibility. Resolves with the checked result. */
+export async function insightsIdea(req: IdeaInsightsRequest, onStage: (s: "reading" | "analysing" | "checking") => void, signal?: AbortSignal): Promise<IdeaInsights> {
+  const res = await fetch("/api/v1/idea/insights", post(req, signal));
+  if (!res.ok) await fail(res);
+  let result: IdeaInsights | null = null;
+  let failure: ApiError | null = null;
+  await readSse<IdeaInsightsEvent>(
+    res,
+    (e) => {
+      if (e.type === "stage") onStage(e.stage);
+      else if (e.type === "done") result = e.insights;
+      else if (e.type === "error") failure = new ApiError(res.status, e.code, e.title, e.detail);
+    },
+    signal,
+  );
+  if (failure) throw failure;
+  if (!result) throw new TypeError("Reading the papers was cut off. Please try again.");
+  return result;
+}
+
+/** "idea-check-smartphone-glaucoma-screening-2026-10-22.md": letters and digits only, so every system accepts it. */
+export function reportFileName(title: string, now = new Date()): string {
+  const slug = title.normalize("NFKD").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase().slice(0, 40).replace(/-+$/, "");
+  return `idea-check-${slug ? `${slug}-` : ""}${now.toISOString().slice(0, 10)}.md`;
+}
+
+/** Hands text to the browser as a file to save. Nothing is sent anywhere. */
+export function downloadText(filename: string, text: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
