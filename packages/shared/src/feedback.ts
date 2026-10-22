@@ -1,4 +1,5 @@
 /** "Report a problem": what the researcher can report, and what the admin page shows. */
+import type { JobStatus } from "./jobs";
 
 export const FEEDBACK_KINDS = ["answer", "reference", "idea", "other"] as const;
 export type FeedbackKind = (typeof FEEDBACK_KINDS)[number];
@@ -46,4 +47,25 @@ export type AdminOverview = {
   usage: AdminDay[];
   byModel: { provider: string; model: string; calls: number; failed: number; tokens: number }[];
   feedback: AdminFeedback[];
+  /** Scheduled jobs (the daily clean-up) and whether they ran on time. */
+  jobs: JobStatus[];
+};
+
+/** GET /api/v1/admin/integrity: do the paper records and the stored files agree? Names are short paper ids only. */
+export type IntegrityReport = {
+  checkedAt: string;
+  /** PDF and cover files under docs/ that were looked at. */
+  files: number;
+  documents: number;
+  missingFiles: number;
+  missingCovers: number;
+  orphanFiles: number;
+  /** Keys under docs/ that are not in the shape we write. Reported, never judged. */
+  unrecognised: number;
+  /** A few short paper ids for each problem, so it can be looked up. */
+  samples: { missingFiles: string[]; missingCovers: string[]; orphanFiles: string[] };
+  /** The file list was cut short (too many files). The missing and orphan counts are then not reliable and the page says so. */
+  truncated: boolean;
+  /** Files and records younger than this were not judged: an upload or a delete may still be in progress. */
+  graceMinutes: number;
 };

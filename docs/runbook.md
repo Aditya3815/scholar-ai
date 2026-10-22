@@ -15,8 +15,12 @@ Manual deploy (only if CI is unavailable): `npx wrangler login`, then `npm run d
 
 ## Check that production is healthy
 
-`GET /api/v1/health` returns 200 with `{ok, db, migrations, version}`. It returns **503** if D1 is unreachable or no migrations
-are applied. Point an uptime monitor (for example UptimeRobot, free) at it and alert on non-200.
+Two addresses, both answer 200 when well and **503** when not, and neither shows anything private:
+
+- `GET /api/v1/health`: `{ok, db, migrations, version}`. 503 if D1 is unreachable or no migrations are applied. Used by the deploy check.
+- `GET /api/v1/health/jobs`: whether the daily job ran on time. 503 if it failed, did not finish, or has not run for 30 hours (see "Alerts"). Staging answers `{"scheduled": false}` because it has no schedule.
+
+An hourly check of both is already set up (the Watchdog workflow, see "Alerts"). For minute-level alerts point an uptime service (for example UptimeRobot, free) at the same two addresses and alert on non-200.
 
 ## Roll back
 
@@ -24,14 +28,7 @@ Code: `npx wrangler rollback` (pick the previous version), or revert the commit 
 **every migration must keep the previous version of the code working** (add columns/tables first, remove old ones in a later
 release). That is what makes a code rollback safe.
 
-Data: D1 Time Travel restores the database to any minute in the retention window (7 days on the free plan):
-
-```sh
-npx wrangler d1 time-travel info scholar-db
-npx wrangler d1 time-travel restore scholar-db --timestamp=<unix seconds or ISO time>
-```
-
-Restoring overwrites the live database, so note the "before" bookmark that the command prints.
+Data: see "Backups and restore" below. In short: `npx wrangler d1 time-travel restore scholar-db --timestamp=<time before the damage>`, then the checks on `/admin`.
 
 ## Logs
 
@@ -56,8 +53,9 @@ After rotating a pasted-in-chat credential, revoke the old one at the provider.
 ## Limits and housekeeping
 
 - Rate limits: `ratelimits` in `apps/api/wrangler.jsonc` (search 60/min, other API 240/min, per IP). Change and deploy.
-- Cron (daily 03:17 UTC) deletes expired cache, sessions and OAuth states and old usage rows. Look for the
-  `{"msg":"maintenance","deleted":{...}}` log line; if it stops appearing, the trigger is broken.
+- Cron (daily 03:17 UTC) deletes expired cache, sessions and OAuth states and old usage rows. Every run leaves a heartbeat in the `job_runs` table (started, finished, ok or failed, last error), shown on `/admin`
+  under "Scheduled jobs" and reported by `/api/v1/health/jobs`, so a trigger that stops, a run that throws and a run that hangs are all noticed. The log line `{"msg":"maintenance","deleted":{...}}` is still written.
+  `EXPECT_CRON` ("1" in production, "0" in staging) tells the health address that the job is expected; the migration counts as the first good run.
 - Semantic Scholar: calls go through the `S2Throttle` Durable Object (1 request/second). S2 also returns 429 on its own
   under load; the search then reports `s2` as failed and still returns the other three sources. That is upstream, not a bug.
 
@@ -66,8 +64,8 @@ After rotating a pasted-in-chat credential, revoke the old one at the provider.
 PDFs and covers live in R2 (`scholar-files`, keys `docs/<user>/<id>.pdf`), text and vectors in D1 (`doc_chunks`), answers in `doc_qa`.
 Limits are in `packages/shared/src/documents.ts`. An upload that stops half way leaves a paper in "uploaded" or "indexing":
 the user sees **Index again** on its card, which re-reads the stored PDF in the browser and re-sends the text; nothing to do server side.
-Orphaned R2 objects can only appear if a delete fails between the file and the rows; list `docs/` in R2 and compare with
-`SELECT id FROM documents` if storage grows unexpectedly. `QA_STUB` must never exist in production (the secrets script refuses to upload it).
+Orphaned R2 objects can only appear if a delete fails between the file and the rows, or after a database restore. `/admin`, "Data checks", **Compare papers with stored files** lists both kinds
+of drift (a paper without its file, a file without a paper) by short paper id; files and papers younger than 15 minutes are not judged. It is read only. `QA_STUB` must never exist in production (the secrets script refuses to upload it).
 A question uses one gateway call (about 3 to 4k tokens); the per-user daily token quota is in `src/llm/config.ts`.
 
 ## Idea Check, reports and the admin page
@@ -97,6 +95,55 @@ Set it up (once): in Sentry create a project (platform: Cloudflare Workers or Ja
 `npx wrangler secret put SENTRY_DSN` (or put `SENTRY_DSN=...` in `apps/api/.dev.vars` and run `npm run secrets:push -w apps/api -- --only=SENTRY_DSN`). Then open `/admin` while signed in as admin and press
 **Send a test event**: it should say Sentry accepted it, and a "Test event from the admin page" appears in the project. Optional: `SENTRY_ENVIRONMENT` (default `production`).
 
+## Backups and restore
+
+Rehearsed on 22 Oct 2026 on staging (`node apps/api/scripts/restore-rehearsal.mjs --yes`, about 80 s): put rows in every table, took a restore point, wiped every table and dropped one, restored (4.5 s), and every table, row and the schema came back
+identical; restoring to the bookmark the command printed brought the wiped state back exactly (so a restore can itself be undone); a plain SQL export loaded into a fresh database gave the same rows. Run it again before launch, after any change to the data layer,
+and about every quarter. It only ever touches `scholar-db-staging` (it refuses to run if `env.staging` points anywhere else).
+
+| What | Copy | How it comes back | Reach |
+| --- | --- | --- | --- |
+| D1: accounts, library, paper text and vectors, questions, notes, reports | D1 Time Travel, built in, nothing to schedule | `wrangler d1 time-travel restore` | any minute of the last **30 days** (Workers Paid; 7 days on the free plan) |
+| The same, as a file | `npx wrangler d1 export scholar-db --remote --output=<file>.sql` | load it into a database with `wrangler d1 execute <db> --file=<file>.sql` | the day you took it. Take one before a risky migration. It contains personal data: keep it encrypted, off shared drives, and delete it within 30 days (the privacy text promises 30) |
+| R2: the PDFs and covers | **none** (no versioning in R2) | the owner uploads the PDF again; the records stay, and "Index again" re-reads it | not restorable. A copy would outlive an account deletion, so none is kept on purpose |
+| Secrets | not readable back from Cloudflare | names are in `apps/api/.dev.vars.example`; keep the values in a password manager | |
+| Code | GitHub | `git` | |
+
+**To restore the database** (after a bad migration, a wrong `DELETE`, a bug that damaged rows):
+
+1. Stop the damage first: `npx wrangler rollback` for a bad deploy. Note the time just before it started.
+2. `npx wrangler d1 time-travel info scholar-db` prints the current bookmark. Write it down: it is your undo.
+3. `npx wrangler d1 time-travel restore scholar-db --timestamp=<ISO time before the damage>` (add `--json` to read the answer). It prints the bookmark it replaced; keep that too.
+4. Check `/api/v1/health` (200) and a count: `npx wrangler d1 execute scholar-db --remote --command "SELECT COUNT(*) FROM users"`.
+5. If the restore point is **before a migration**, the code expects a newer schema: run `npm run db:migrate:remote` again (migrations are forward only and re-apply) or roll the code back to match.
+6. Open `/admin`, "Data checks", and run both, in this order:
+   - **Re-apply deletions after a restore.** Someone who deleted their account after the restore point comes back with the restore. When an account is deleted a marker with its random id is written to R2 (`tombstones/<id>`; R2 is not rolled back by a D1 restore); this erases again every account that has a marker and a row. Not doing this would keep data we promised to delete. Markers expire after 35 days (R2 lifecycle rule `deletion-markers` on `scholar-files` and `scholar-files-staging`), a few days longer than the 30 days a restore can reach back.
+   - **Compare papers with stored files.** Files uploaded after the restore point have no record any more (orphans: delete them in the R2 dashboard once you are sure, under `docs/<owner>/`); papers whose file was deleted after it have a record but no file (the owner can delete the card and upload again).
+7. Tell people what they will notice: sign-ins and sessions after the restore point are gone (sign in again), and anything saved, uploaded, asked or reported after it is gone.
+8. If it did not help, restore to the bookmark from step 2 to undo it.
+
+What a restore does not cover: R2 files; Sentry and GitHub history; anything an outside service already received.
+
+## Alerts
+
+What can go wrong and what notices it. Everything below sends a GitHub issue, which GitHub e-mails to people watching the repository, except Sentry, which e-mails by its own rules.
+
+| What goes wrong | What notices | Where it shows |
+| --- | --- | --- |
+| The site, its database or its web app are down, or a deploy left the database unmigrated | **Watchdog** workflow, hourly (`.github/workflows/watchdog.yml`, script `.github/scripts/watchdog.mjs`): `/api/v1/health`, `/api/v1/health/jobs`, `/`. Each is tried 3 times, 15 s apart, before it counts | issue "Workflow failed: Watchdog" with the reason (for example `service: HTTP 503 (ok=false db=error migrations=0)`) |
+| The daily job did not run, threw, or hung | the `job_runs` heartbeat, read by the Watchdog (`daily job`), by `/admin` ("Scheduled jobs") and by Sentry (the exception) | same issue, and the admin page |
+| A workflow failed: CI on `main` (including the deploy), Q&A quality, Eval (live APIs), Browser e2e, Watchdog | an `alert` job at the end of each (`.github/scripts/workflow-alert.mjs`) | one issue per workflow, "Workflow failed: <name>", with the run link and commit. A workflow that keeps failing adds one comment every 6 hours, not one per run. The issue **closes itself** when the workflow passes again. Not for pull requests or other branches |
+| An unexpected error in production, or in a browser | Sentry | the Sentry project; rules below |
+
+Set up once (yours):
+1. GitHub, this repository, **Watch** (top right) → **Custom** → tick **Issues** (or "All activity"). Without this GitHub does not e-mail you about issues the workflows open. Check your e-mail address under Settings → Notifications.
+2. Sentry, project, **Alerts → Create Alert → Issues**. Three rules are enough: (a) "A new issue is created" → send an e-mail to yourself; (b) "The issue is seen more than 10 times in 1 hour" → e-mail; (c) condition "The event's tags match `source` equals `cron`" → e-mail every time (a failed daily job). Events carry the tags `source` (worker, browser, cron) and `route`. Then press "Send a test event" on `/admin` and check that an e-mail arrives. (Sentry's screens change; the idea is: new issues, spikes, and anything from the cron.)
+3. Optional: an uptime service on `/api/v1/health` and `/api/v1/health/jobs` for minute-level alerts (the Watchdog is hourly, and GitHub may start a scheduled run late).
+
+Test it: Actions → **Watchdog** → Run workflow (green means all three checks passed). To see the failure path without breaking anything: `GITHUB_WORKFLOW="Alert self-test" GITHUB_REPOSITORY=<owner>/<repo> GITHUB_EVENT_NAME=workflow_dispatch node .github/scripts/workflow-alert.mjs failure`, then the same with `success` (needs `gh auth login`); it opens and closes one issue. (Done once on 22 Oct against the real repository.)
+
+Limits to know: GitHub pauses scheduled workflows in a repository with no activity for 60 days (push anything or run one by hand to wake it; the alerts cannot tell you that they themselves stopped); a private repository has 2,000 free Actions minutes a month, and an hourly watchdog of about one minute uses roughly 720 of them.
+
 ## Staging
 
 A separate, empty copy of the service at https://scholar-staging.shodhsetu.workers.dev (Worker `scholar-staging`, database `scholar-db-staging`, bucket `scholar-files-staging`, queue `scholar-jobs-staging`),
@@ -116,9 +163,15 @@ Production does not read this file: its secrets live in Cloudflare (`npx wrangle
 ```sh
 npm run build && npm run integration -w apps/api              # auth + library against a real local Worker
 npm run integration -w apps/api -- --browser                  # plus the Playwright/axe suites (E2E_BROWSER=chrome|msedge)
+npm run integration -w apps/api -- --browser --only="browser: admin,operations"   # some suites only (substrings of their names, comma separated)
+npm run test:scripts                                          # the tests of the alert and watchdog scripts (.github/scripts) and the rehearsal helpers
 ```
+
+Rule for tests that need to change the database (age a row, rename a table, bring back a deleted account): do it **through the Worker** (`POST /api/v1/dev/sql`, which exists only with `ENABLE_DEV_ROUTES=1`),
+never with `wrangler d1 execute --local` from a second process while `wrangler dev` is running. On 22 Oct that made the dev server spin at 100% CPU (over 1,000 CPU-seconds) and stop answering anything, which showed up as
+random timeouts in whichever suite ran next. The integration runner's own clean-up between suites works this way too. Also stop a leftover `wrangler dev` (for example from a spike) before running the suites.
 
 ## Not done yet (decisions for later)
 
-Custom domain (needed before public launch; OAuth redirect URIs and cookies depend on it), a separate staging environment,
-Sentry or similar, Turnstile on sign-in, email login.
+Custom domain (needed before public launch; OAuth redirect URIs and cookies depend on it), Turnstile on sign-in, email login.
+Sentry alert rules (above, your side), "Watch: Issues" on the repository, a rehearsal of the restore with production-sized data.

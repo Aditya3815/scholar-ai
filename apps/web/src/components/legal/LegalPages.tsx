@@ -157,7 +157,7 @@ export function PrivacyPage() {
       <h2>Your rights, and how to use them</h2>
       <ul>
         <li><strong>See what we hold</strong>: Settings and data, then Export my data. You get everything about your account as one file.</li>
-        <li><strong>Delete</strong>: delete one paper from its card, or your whole account in Settings and data. This removes your papers, their files, your questions, your library and your reports straight away. Copies in our hosting service&apos;s database backups can last up to 30 days more, and then expire.</li>
+        <li><strong>Delete</strong>: delete one paper from its card, or your whole account in Settings and data. This removes your papers, their files, your questions, your library and your reports straight away. Copies in our hosting service&apos;s database backups can last up to 30 days more, and then expire. If we ever have to restore a backup, an account you deleted would come back with it; so for 35 days after you delete your account we keep one random account number (no name, e-mail or paper), only so that we can erase it again after a restore.</li>
         <li><strong>Correct</strong>: your name comes from Google or ORCID; change it there and it updates next time you sign in. For anything else, write to us.</li>
         <li><strong>Complain</strong>: to our grievance contact above. If you are not satisfied, India&apos;s Data Protection Board is the next step.</li>
         <li><strong>Withdraw</strong>: you can stop at any time. Deleting your account withdraws everything.</li>

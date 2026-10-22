@@ -1,0 +1,46 @@
+name: Watchdog
+
+# Hourly look at the live service from outside: is it up, is its database migrated, did the daily job run, is the web app served.
+# A failure opens a GitHub issue (you get an e-mail) and the issue closes itself when the checks pass again. The checks are in
+# .github/scripts/watchdog.mjs; each is tried three times 15 s apart before it counts.
+# GitHub pauses scheduled workflows in a repository with no activity for 60 days: push anything, or run this by hand, to wake it.
+on:
+  schedule:
+    - cron: "23 * * * *" # every hour, at 23 minutes past (not on the hour, when GitHub is busiest)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      detail: ${{ steps.watch.outputs.detail }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: watch
+        run: node .github/scripts/watchdog.mjs
+        env:
+          BASE_URL: https://scholar.shodhsetu.workers.dev
+
+  alert:
+    needs: [check]
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - run: node .github/scripts/workflow-alert.mjs auto
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEEDS: ${{ toJSON(needs) }}
+          ALERT_DETAIL: ${{ needs.check.outputs.detail }}

@@ -5,7 +5,7 @@ import { cookieOpts, currentUser, isHttps, sameOrigin } from "../auth/http";
 import { SESSION_COOKIE } from "../auth/session";
 import { fromSqliteTime } from "../library/validate";
 import { PRIVACY_VERSION } from "@scholar/shared";
-import { deleteDocument } from "../docs/routes";
+import { eraseAccount } from "./erase";
 
 type Env = { Bindings: { DB: D1Database; FILES: R2Bucket } };
 export const accountRoutes = new Hono<Env>();
@@ -85,19 +85,8 @@ accountRoutes.delete("/", async (c) => {
   const body = (await c.req.json().catch(() => null)) as { confirm?: unknown } | null;
   if (body?.confirm !== "DELETE") return c.json({ type: "confirmation_required", title: 'Send {"confirm":"DELETE"}' }, 400);
 
-  const db = c.env.DB;
-  // Files first: the rows that name them disappear with the user, so nothing is left behind in storage.
-  const owned = await db.prepare("SELECT id FROM documents WHERE user_id = ?1").bind(user.id).all<{ id: string }>();
-  for (const d of owned.results) await deleteDocument(c.env, user.id, d.id);
-  await db.batch([
-    db.prepare("DELETE FROM library_items WHERE user_id = ?1").bind(user.id),
-    db.prepare("DELETE FROM feedback WHERE user_id = ?1").bind(user.id),
-    db.prepare("DELETE FROM sessions WHERE user_id = ?1").bind(user.id),
-    db.prepare("DELETE FROM oauth_states WHERE link_user_id = ?1").bind(user.id),
-    db.prepare("DELETE FROM identities WHERE user_id = ?1").bind(user.id),
-    db.prepare("DELETE FROM users WHERE id = ?1").bind(user.id),
-    db.prepare("INSERT INTO audit_log (action) VALUES ('account_deleted')"),
-  ]);
+  // Files first (the rows that name them disappear with the user), and a deletion marker before both: see account/erase.ts.
+  await eraseAccount(c.env, user.id);
   deleteCookie(c, SESSION_COOKIE, { path: "/", ...cookieOpts(c), secure: isHttps(c) });
   return c.json({ ok: true });
 });

@@ -196,3 +196,25 @@
 .admin-test-result[data-state="failed"] {
   color: var(--danger);
 }
+
+/* scheduled jobs and data checks */
+.admin-job {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+.admin-job[data-state="ok"] {
+  color: var(--ok);
+}
+.admin-job:not([data-state="ok"]) {
+  color: var(--danger);
+}
+.admin-job-err {
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.admin-test-gap {
+  margin-top: 1rem;
+}

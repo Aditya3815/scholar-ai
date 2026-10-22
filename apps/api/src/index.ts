@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import type { HealthResponse } from "@scholar/shared";
+import type { HealthResponse, JobsHealthResponse } from "@scholar/shared";
 import { MAX_QUERY_LENGTH, runSearch } from "./search";
 import { AllProvidersFailedError, NoRouteError, PolicyError, QuotaError, gatewayFromEnv, type LlmRequest } from "./llm";
 import { authRoutes } from "./auth/routes";
@@ -20,6 +20,7 @@ import type { SearchEnv } from "./search/types";
 import { apiSecurityHeaders, requestLog } from "./middleware";
 import { rateLimit, type LimitEnv } from "./ratelimit";
 import { runMaintenance } from "./maintenance";
+import { readJobs, runJob } from "./jobs";
 import type { S2Throttle } from "./s2-throttle";
 
 type Bindings = AuthEnv & LimitEnv & {
@@ -42,6 +43,8 @@ type Bindings = AuthEnv & LimitEnv & {
   /** Optional: where unexpected errors are reported (Sentry). Nothing is sent when it is not set. */
   SENTRY_DSN?: string;
   SENTRY_ENVIRONMENT?: string;
+  /** "1" where the daily clean-up is scheduled (production): /api/v1/health/jobs then reports a job that did not run. Staging has no schedule and leaves it unset. */
+  EXPECT_CRON?: string;
 };
 
 const searchEnv = (env: Bindings): SearchEnv => ({
@@ -90,6 +93,22 @@ app.get("/api/v1/health", async (c) => {
   };
   c.header("Cache-Control", "no-store");
   return c.json(body, ok ? 200 : 503);
+});
+
+/** The scheduled jobs: 200 when each ran on time and well, 503 when one failed, hung or did not run. Point an uptime check at it (docs/runbook.md). */
+app.get("/api/v1/health/jobs", async (c) => {
+  c.header("Cache-Control", "no-store");
+  if (c.env.EXPECT_CRON !== "1") return c.json({ ok: true, scheduled: false, jobs: [] } satisfies JobsHealthResponse);
+  try {
+    const jobs = await readJobs(c.env.DB);
+    const ok = jobs.every((j) => j.state === "ok");
+    // Public: states and times only, never the error text.
+    const body: JobsHealthResponse = { ok, scheduled: true, jobs: jobs.map((j) => ({ name: j.name, state: j.state, lastOkAt: j.lastOkAt, runs: j.runs })) };
+    return c.json(body, ok ? 200 : 503);
+  } catch {
+    const body: JobsHealthResponse = { ok: false, scheduled: true, jobs: [], error: "db" };
+    return c.json(body, 503);
+  }
 });
 
 function parseSearch(query: (k: string) => string | undefined) {
@@ -168,6 +187,33 @@ app.get("/api/v1/dev/r2-exists", async (c) => {
   return c.json({ exists: (await c.env.FILES.head(c.req.query("key") ?? "")) !== null });
 });
 
+/** Local tests only: puts (an empty file) or removes a stored file, to make storage and the database disagree on purpose. */
+app.put("/api/v1/dev/r2-object", async (c) => {
+  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.json({ type: "not_found", title: "Not found" }, 404);
+  await c.env.FILES.put(c.req.query("key") ?? "", "x");
+  return c.json({ ok: true });
+});
+app.delete("/api/v1/dev/r2-object", async (c) => {
+  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.json({ type: "not_found", title: "Not found" }, 404);
+  await c.env.FILES.delete(c.req.query("key") ?? "");
+  return c.json({ ok: true });
+});
+
+/**
+ * Local tests only (ENABLE_DEV_ROUTES=1): runs SQL statements, one after the other, through the Worker itself and returns the rows of each.
+ * Tests must not write to the local database file from a second process (`wrangler d1 execute --local`) while `wrangler dev` has it open:
+ * that left the dev server spinning at 100% CPU and answering nothing.
+ */
+app.post("/api/v1/dev/sql", async (c) => {
+  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.json({ type: "not_found", title: "Not found" }, 404);
+  const body = (await c.req.json().catch(() => null)) as { sql?: unknown } | null;
+  const list = body?.sql;
+  if (!Array.isArray(list) || list.length === 0 || list.length > 100 || !list.every((s) => typeof s === "string" && s.length < 20_000)) return c.json({ type: "invalid", title: "Send {sql: [statement, ...]}" }, 400);
+  const results: unknown[][] = [];
+  for (const s of list) results.push((await c.env.DB.prepare(s).all()).results);
+  return c.json({ results });
+});
+
 /** Local tests only: makes the signed-in user an admin, so the admin page can be tested. */
 app.post("/api/v1/dev/make-admin", async (c) => {
   if (c.env.ENABLE_DEV_ROUTES !== "1") return c.json({ type: "not_found", title: "Not found" }, 404);
@@ -193,7 +239,7 @@ export default {
   fetch: app.fetch,
   async scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
     ctx.waitUntil(
-      runMaintenance(env.DB).then(
+      runJob(env.DB, "maintenance", () => runMaintenance(env.DB)).then(
         (deleted) => console.log(JSON.stringify({ level: "info", msg: "maintenance", deleted })),
         (err) => {
           console.error(JSON.stringify({ level: "error", msg: "maintenance_failed", error: String(err) }));

@@ -94,9 +94,46 @@ try {
   await page.getByRole("button", { name: "Send a test event" }).click();
   await page.getByText(/Not set up yet/).waitFor({ timeout: 8000 });
   ok(true, "the error-reporting check says plainly that it is not set up while there is no Sentry address");
+
+  console.log("scheduled jobs and data checks");
+  const jobs = page.getByRole("region", { name: "Scheduled jobs" });
+  ok(await jobs.getByText("Every scheduled job ran on time.").isVisible(), "the page says the scheduled jobs ran on time");
+  ok(/Daily clean-up[\s\S]*On time/.test(await jobs.locator("tbody").innerText()), "...and lists the daily clean-up as on time");
+  const checks = page.getByRole("region", { name: "Data checks" });
+  await checks.getByRole("button", { name: "Compare papers with stored files" }).click();
+  await checks.getByText(/^All \d+ papers and \d+ files match\.$/).waitFor({ timeout: 10000 });
+  ok(true, "comparing papers with stored files reports that they match");
+  await checks.getByRole("button", { name: "Re-apply deletions after a restore" }).click();
+  ok(await checks.getByText(/Only do it right after a restore/).isVisible(), "re-applying deletions asks first, and says when it is for");
+  await checks.getByRole("button", { name: "Cancel" }).click();
+  ok(await checks.getByRole("button", { name: "Re-apply deletions after a restore" }).isVisible(), "cancelling changes nothing");
+  await checks.getByRole("button", { name: "Re-apply deletions after a restore" }).click();
+  await checks.getByRole("button", { name: "Yes, erase them again" }).click();
+  await checks.getByText(/deletion marker\(s\) found; 0 account\(s\) that had come back were erased again/).waitFor({ timeout: 10000 });
+  ok(true, "re-applying deletions says what it did, and erases nobody who had not come back");
+
   await shot("80-admin");
   await axe("admin");
   await setTheme("Dark"); await shot("81-admin-dark"); await axe("admin, dark"); await setTheme("Light");
+
+  // What a failing job looks like (the overview is altered on its way to the page, so nothing real is broken).
+  await page.route("**/api/v1/admin/overview", async (route) => {
+    const res = await route.fetch();
+    const o = await res.json();
+    o.jobs = [{ name: "maintenance", state: "failing", lastOkAt: "2026-10-20T03:17:00.000Z", lastError: "no such table: audit_log", runs: 9, failures: 2 }];
+    await route.fulfill({ response: res, json: o });
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("heading", { level: 1, name: "How it is going" }).waitFor();
+  await page.waitForTimeout(900);
+  const bad = page.getByRole("region", { name: "Scheduled jobs" });
+  ok(/Daily clean-up: the last run failed/.test(await bad.getByRole("alert").innerText()), "a failing job is announced as an alert, in words");
+  ok(/The last run failed/.test(await bad.locator("tbody").innerText()) && /no such table: audit_log/.test(await bad.locator("tbody").innerText()), "...and the table shows the state and the error");
+  await axe("admin, a job failing");
+  await setTheme("Dark"); await axe("admin, a job failing, dark"); await setTheme("Light");
+  await page.unroute("**/api/v1/admin/overview");
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("heading", { level: 1, name: "How it is going" }).waitFor();
 
   await page.getByRole("button", { name: /^Account:/ }).click();
   ok((await page.getByRole("link", { name: "Admin" }).count()) === 1, "an admin has the Admin entry in the account menu");

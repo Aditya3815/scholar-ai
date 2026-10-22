@@ -33,6 +33,8 @@
   ],
   // Daily housekeeping (expired cache/sessions/oauth states, old usage rows): see src/maintenance.ts
   "triggers": { "crons": ["17 3 * * *"] },
+  // Tells /api/v1/health/jobs that the daily job is expected here (staging has no schedule, so it does not set this).
+  "vars": { "EXPECT_CRON": "1" },
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "observability": { "enabled": true },
 
@@ -69,7 +71,8 @@
       ],
       "version_metadata": { "binding": "CF_VERSION_METADATA" },
       "triggers": { "crons": [] },
-      "vars": { "SENTRY_ENVIRONMENT": "staging" },
+      // EXPECT_CRON is "0": staging has no schedule, so /api/v1/health/jobs must not report a job that was never meant to run.
+      "vars": { "SENTRY_ENVIRONMENT": "staging", "EXPECT_CRON": "0" },
       "observability": { "enabled": true }
     }
   }
