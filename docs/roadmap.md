@@ -52,6 +52,21 @@ every push. Cloudflare: Workers Paid, R2 Paid.
 | 5. OpenAlex as a second lookup source in the Verifier (arXiv/preprints) + fixes found by running real papers | ✅ built: 21% (rate-limited) → 78% of the five papers' 175 references verified (R1b spike, "Result: the Verifier"). Eval: genuine 98/100, held-out 57/60, fabricated verified 0/70. One recording to add, then push |
 | 6. Docling in Cloudflare Containers for scanned PDFs (OCR) and tables | ⏳ later |
 
+## Workspace redesign (W): one prompt box, approved 24 Oct
+
+Plan: [design/unified-workspace.md](design/unified-workspace.md) (version 2: decisions, intro and home design, open-access design, system design, edge-case register). POC: [design/poc/unified-workspace.html](design/poc/unified-workspace.html).
+Built after V5 and I4 (done 24 Oct). Everything else that was pending stays on the master backlog below and is not forgotten: S2 collections, S3 retraction re-check of saved papers, S4 long jobs on Workflows, S6 free-model fallback, S7 Indian sources,
+Docling tables, OCR resolution retest on pilot scans, the pilot, legal and money items (yours).
+
+| # | Phase | Status | Notes |
+| --- | --- | --- | --- |
+| W1 | Shell and look: new frame, **intro** and **home** with the real logo, Settings page, My papers cards without "Open and ask" (Cite and Notes instead); no new behaviour | ⏳ | gate: all suites pass, axe in three themes, phone |
+| W2 | Prompt box with explicit modes, streamed answers, Stop, chats kept in the browser | ⏳ | |
+| W3 | Router (rules, then a small model), English, Hindi and Hinglish; "I understood this as · Change" | ⏳ | router eval gate in CI |
+| W4 | Ask any open-access paper (S1): spike R8 for server-side extraction, shared index, queue ingest, safe fetch, abstract-only fallback, optional light save | ⏳ | |
+| W5 | General answers with the label; Idea Check inside the workspace | ⏳ | |
+| W6 | Polish, budgets, docs, remove the flag | ⏳ | |
+
 ## Master backlog (2026-10-21): everything that is left
 
 Owner: **me** = Claude can do it alone · **you** = Aditya must do or decide it · **both** = I build, you supply something. IDs are stable; the plan below refers to them.
@@ -263,6 +278,7 @@ to keep the "Images Stream Basic" subscription (we do not use it).
 
 ## Log
 
+- 2026-10-24 (redesign, version 2 of the [plan](design/unified-workspace.md)): your answers are in (My papers keeps its look and loses "Open and ask" for Cite and Notes; Hinglish from the first release; sources listed in the Idea Check report; nothing to buy; server-side open-access fetch). **POC v2** has the **intro** (signed-out) screen, the new **home**, the exact product logo, fonts embedded, three themes, a phone layout; 130 checks incl. axe in all themes pass. **Honest answer on my first open-access approach: it was not efficient** (one download, copy and embedding per person; the browser had to finish the job; "save first" for a one-off question), replaced by a shared public index built on the server in a queue (plan section 5). System design redone (section 6) and an edge-case register written (section 9, about 70 rows).
 - 2026-10-24 (V5 and I4, [R7](spikes/R7-lanes-and-core.md)): **one lane to Crossref and CORE** (Durable Object `ApiGate`; Crossref 3 a second, CORE 9 a minute and 800 a day; a 429 from the service closes the lane for as long as it asks; a call that cannot be placed is never read as "not found") and **CORE as an Idea Check source**. Found on the way: three Crossref calls had no limiter; CORE reads and/or/not as operators in any case (12 of 40 searches returned nothing until the words were dropped); Hindi vowel signs were being stripped from queries; the privacy text had never named arXiv. Privacy text lists arXiv and CORE, `PRIVACY_VERSION` is `2026-10-draft-3` (everyone is asked once more). Idea Check no longer names services while searching. Unit tests 800, eval gates green (recall unchanged), integration and browser suites green, a real Idea Check run with the real model and all sources worked (14 of 15 searches; the one miss was Semantic Scholar's own 429).
 - 2026-10-24 (redesign proposal, [plan](design/unified-workspace.md)): **one workspace with a prompt box** designed, not built. A single-file POC ([poc/unified-workspace.html](design/poc/unified-workspace.html), sample data, axe clean in light, dark and read, phone checked) shows the prompt box with a mode dropdown, "I understood this as X, Change", a streamed answer with citation buttons, Idea Check as its own six-step workspace, ask-any-paper with save-first, and My papers, Library and Settings as separate pages. The plan covers the router and fixed tools (ideas from building-claude-from-scratch, no free-running agent), S1 server-side open-access fetch with its safety checks, general answers labelled as such, what is used from Aceternity and Skiper (patterns only) and why Animmaster is not, and six phases with gates. **Waiting for your approval and six answers (section 12 of the plan) before any app code changes.**
 - 2026-10-24 (V6, [R6](spikes/R6-kv-cache.md)): **the public cache moved to Workers KV** (namespaces `scholar-cache` and `scholar-cache-staging`, bound as `CACHE`; without the binding the code uses the database table as before). More is kept and at a finer grain: one entry per DOI for the DOI check and the retraction check (read together in one operation), and every answer Crossref, OpenAlex and doi.org gave under a reference verdict (found: a week, not found: six hours, a failure: never). Identical lookups made at the same moment share one call. Hits and misses are counted (migration 0013) and shown on `/admin`. Real KV on staging: keys with the right lifetimes and labels, a PubMed search 2,979 ms then 9 ms. Measured honestly: different searches share only 6% of their DOIs. 51 new unit tests and 19 checks of the real local KV; everything else still passes.
