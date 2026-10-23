@@ -15,7 +15,7 @@ const LOGOS: Record<string, string> = { google: googleLogo, orcid: orcidLogo };
 
 const initialOf = (name: string | null, email: string | null) => (name ?? email ?? "?").trim().charAt(0).toUpperCase() || "?";
 
-function SignInDialog() {
+export function SignInDialog() {
   const [open, setOpen] = useState(false);
   const { providers } = useAuth();
   return (

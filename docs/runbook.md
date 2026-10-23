@@ -93,6 +93,12 @@ A question uses one gateway call (about 3 to 4k tokens); the per-user daily toke
 - **Weekly Q&A quality** (`.github/workflows/qa-eval.yml`, Tuesdays): downloads the five public gold-set papers, asks the 35 questions with the real models and fails below the gate
   (`qa-eval.mjs --gate`). It needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. First run: trigger it by hand (Actions, "Q&A quality", Run workflow).
 
+## The new look (workspace redesign, switched on with `?ws=1`)
+
+- It is **off by default**; the switch lives in the browser (`localStorage` key `scholar.ws`), nothing on the server. Open any page with `?ws=1` to turn it on and `?ws=0` to turn it off. To make it the default for everyone (after approval), change `WORKSPACE` in `apps/web/src/lib/workspace.ts` to `true` and deploy; to take it away again, set it back.
+- What is behind it: the intro page for signed-out visitors (`/`), the home screen (`/` signed in, `/home` for people who skipped signing in), the rail, `/library`, `/settings`, and My papers without the "Open and ask" button. Design and measurements: [design/scroll-site.md](design/scroll-site.md), plan: [design/unified-workspace.md](design/unified-workspace.md).
+- A promise the intro page may only make once the product keeps it is a switch in `FEATURES` (`lib/workspace.ts`), for example `hinglish` (turned on in phase W3).
+
 ## The shared lanes to Crossref and CORE (V5)
 
 - Every call to **Crossref** and **CORE** first asks one Durable Object, `ApiGate` (binding `API_GATE`, one instance per lane: `crossref`, `core`), so the limit holds for the whole product and not per process.

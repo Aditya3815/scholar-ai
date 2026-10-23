@@ -8,9 +8,9 @@ All data in it is sample data (DOIs `10.0000/sample.*`). Checks that ran on it: 
 
 | You said | What it became |
 | --- | --- |
-| My Papers stays as it is; remove the "Open and ask" button, put something else | Card, cover, rename, meta, scan mark, delete: unchanged. The cover and title open the paper. The button is replaced by **Cite** (the same menu as in search) and **Notes · n**; a quiet "Ready to ask" and "n references found" line says what the paper can do. Ask lives in the reader, as before, and in the prompt box ("Ask a paper") |
+| My Papers stays as it is; remove the "Open and ask" button | **Updated 24 Oct (later):** the page and the cards are exactly as today. The only change is that the "Open and ask" button is gone; the cover opens the paper as before, and Ask lives in the reader as before. **No Cite, no Notes, no new badges** (I had proposed them in the POC; you said no) |
 | Liked the features | Kept: prompt box with modes, "I understood this as… Change", streamed answer, Idea Check workspace, Settings page |
-| Design the home and the intro, the most important part, with the same logo, no change | Both are in the POC, see section 2. The logo is the product's own file (`Logo.tsx`), drawn exactly the same, with its hover |
+| Design the home and the intro, the most important part, with the same logo, no change | Both are in the POC, see section 2. The logo is the product's own file (`Logo.tsx`), drawn exactly the same, with its hover. **The intro is now a scroll-animated story** (research and decisions: [scroll-site.md](scroll-site.md)), built in the real app in W1 behind `?ws=1` |
 | Nothing to buy | Skiper premium and Animmaster are out; no new design dependency at all |
 | Hinglish from the first release | In the router, in the answers, in the eval set and in the demo: section 4.4 |
 | Idea Check may list its sources | The report keeps "what was searched" (already built, and CORE joins it) |
@@ -31,6 +31,8 @@ sent to public services (only a plan you approved, or a cleaned query, goes out)
 ## 2. The intro and the home
 
 ### 2.1 Intro (signed out). The first thing a new person sees
+
+**Built as a scroll-animated story in W1** (see [scroll-site.md](scroll-site.md) for why and how: Motion's scroll timelines, native scrolling, a pinned four-chapter tour whose product window is scrubbed by the scroll, a stacked static version for phones and reduced motion). The table below is the original POC outline; the real page follows scroll-site.md section 3.
 
 Goal: in ten seconds a scholar understands what it does and why to trust it, without reading a paragraph. Built on the Framer guide (oversized serif headline with one emphasised word, staggered entrance, a quiet ambient background), UI UX Pro Max rules and our springs.
 
@@ -62,8 +64,8 @@ Performance: no video, no WebGL, no library; fonts are the ones we already self-
 
 ### 2.3 My papers
 
-As today, restyled into the same frame: the drop zone, then the cards. The card has the cover (opens the paper), the title with its rename pencil, pages and size, a "Scan" mark for read-from-picture papers, **Ready to ask**
-and **n references found**, then **Cite**, **Notes · n** and delete. Open-access papers saved from search appear here too, marked "saved from search".
+**Exactly as today**: the hero, the drop zone, the cards (cover, title with its rename pencil, pages and size, the "Scan" mark, delete). Inside the new frame (the rail), nothing else changes, except that the "Open and ask" button is removed: the cover opens the paper, as it always did.
+(The POC card with Cite, Notes and "Ready to ask" badges was a proposal you rejected.) Open-access papers saved from search (W4) will appear here as ordinary papers.
 
 ## 3. Interaction model
 

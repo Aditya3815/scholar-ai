@@ -1,0 +1,122 @@
+/* ============================================================================================================
+   The new look (phase W1): the rail, the home screen with its prompt box, and the Library and Settings pages.
+   Only used when the new look is on (?ws=1). Product tokens only, so Light, Dark and Read all work.
+   ============================================================================================================ */
+.ws-shell {
+  --ws-rail: 17rem;
+  display: grid;
+  grid-template-columns: var(--ws-rail) minmax(0, 1fr);
+  min-height: 100vh;
+}
+.ws-rail {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 72%, var(--bg));
+}
+.ws-rail-in {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 0.9rem 0.75rem;
+  gap: 0.35rem;
+}
+.ws-logo { margin: 0.1rem 0 0.8rem 0.15rem; align-self: flex-start; }
+.ws-nav { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.ws-nav-h { margin: 1.1rem 0.75rem 0.3rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.ws-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.7rem;
+  color: var(--muted);
+  font-weight: 560;
+  font-size: 0.94rem;
+  text-decoration: none;
+}
+.ws-link:hover { background: var(--surface-2); color: var(--text); }
+.ws-link[aria-current="page"] { color: var(--accent); }
+.ws-link > * { position: relative; z-index: 1; }
+.ws-link-pill { position: absolute !important; z-index: 0 !important; inset: 0; border-radius: 0.7rem; background: var(--accent-soft); }
+.ws-link-label { flex: 1; }
+.ws-count { min-width: 1.4rem; padding: 0 0.4rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 0.76rem; text-align: center; font-variant-numeric: tabular-nums; }
+.ws-rail-foot { margin-top: auto; display: grid; gap: 0.5rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
+.ws-who { display: flex; align-items: center; gap: 0.6rem; padding: 0.3rem 0.4rem; }
+.ws-av { flex: none; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; overflow: hidden; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.ws-av img { width: 100%; height: 100%; object-fit: cover; }
+.ws-who-name { flex: 1; min-width: 0; line-height: 1.25; font-size: 0.9rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-who-name small { display: block; color: var(--muted); font-weight: 500; font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; }
+.ws-anon { display: grid; gap: 0.6rem; padding: 0.3rem 0.4rem; }
+.ws-anon p { margin: 0; font-size: 0.84rem; color: var(--muted); }
+.ws-rail-foot .seg { justify-self: start; }
+.ws-col { min-width: 0; display: flex; flex-direction: column; }
+.ws-col > .main { width: 100%; flex: 1; }
+.ws-top { display: none; }
+.ws-drawer { position: fixed; z-index: 70; inset: 0 auto 0 0; width: min(19rem, 88vw); overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border-strong); box-shadow: var(--shadow-2); }
+.ws-drawer-close { position: absolute; top: 0.6rem; right: 0.6rem; }
+
+@media (max-width: 920px) {
+  .ws-shell { grid-template-columns: minmax(0, 1fr); }
+  .ws-rail { display: none; }
+  .ws-top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 0.7rem; min-height: 3.4rem; padding: 0.4rem 0.9rem; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: saturate(1.4) blur(12px); -webkit-backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--border); }
+  .ws-top-title { font-weight: 600; color: var(--muted); font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* ---------- pages inside the shell ---------- */
+.ws-page { max-width: 44rem; margin: 0 auto; padding: 2.2rem 0 3rem; }
+.ws-page-h { display: flex; align-items: center; gap: 0.6rem; font-size: clamp(1.7rem, 4vw, 2.2rem); }
+.ws-page-lead { margin: 0.5rem 0 1.6rem; color: var(--muted); max-width: 52ch; }
+.ws-library { max-width: 40rem; }
+
+/* ---------- the home screen ---------- */
+.hm { position: relative; isolation: isolate; display: grid; justify-items: center; text-align: center; padding: clamp(1.5rem, 8vh, 4.5rem) 0 2rem; }
+.hm-greet { display: inline-flex; align-items: center; gap: 0.5rem; margin: 0 0 0.8rem; padding: 0.28rem 0.85rem; border: 1px solid var(--border); border-radius: 999px; background: color-mix(in srgb, var(--surface) 82%, transparent); font-size: 0.86rem; font-weight: 600; color: var(--muted); }
+.hm-greet i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.hm-title { font-size: clamp(2.2rem, 6vw, 3.9rem); line-height: 1.05; letter-spacing: -0.03em; text-wrap: balance; }
+.hm-sub { margin: 0.9rem auto 0; max-width: 54ch; color: var(--muted); font-size: 1.04rem; }
+.hm-box { position: relative; width: 100%; max-width: 50rem; margin-top: 1.7rem; text-align: left; border: 1px solid var(--border-strong); border-radius: 1.3rem; background: var(--surface); box-shadow: var(--shadow-2); transition: border-color 0.2s, box-shadow 0.3s; }
+.hm-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow-2); }
+.hm-input { display: block; width: 100%; min-height: 3.6rem; max-height: 14rem; padding: 1rem 1.1rem 0.4rem; border: 0; background: transparent; resize: none; outline: none; line-height: 1.5; font: inherit; color: var(--text); }
+.hm-input::placeholder { color: var(--muted); opacity: 1; }
+.hm-input:disabled { cursor: not-allowed; }
+.hm-bar { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.6rem 0.6rem; }
+.hm-mode { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 2.25rem; padding: 0.3rem 0.8rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-weight: 600; font-size: 0.86rem; color: var(--text); }
+.hm-mode:hover { border-color: var(--accent); }
+.hm-send { margin-left: auto; display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 0; border-radius: 50%; background: var(--accent); color: var(--accent-fg); }
+.hm-send:disabled { opacity: 0.4; cursor: default; }
+.hm-menu { display: grid; gap: 2px; min-width: min(20rem, 80vw); }
+.hm-menu-item { display: grid; grid-template-columns: 2.1rem 1fr 1.2rem; align-items: center; gap: 0.6rem; width: 100%; padding: 0.5rem 0.55rem; border: 0; border-radius: 0.7rem; background: none; text-align: left; }
+.hm-menu-item:hover, .hm-menu-item:focus-visible { background: var(--surface-2); }
+.hm-menu-ico { display: grid; place-items: center; width: 2.1rem; height: 2.1rem; border-radius: 0.6rem; background: var(--accent-soft); color: var(--accent); }
+.hm-menu-txt { display: grid; line-height: 1.3; }
+.hm-menu-txt small { color: var(--muted); font-size: 0.8rem; }
+.hm-tick { color: var(--accent); opacity: 0; }
+.hm-menu-item[aria-checked="true"] .hm-tick { opacity: 1; }
+.hm-fine { max-width: 50rem; margin: 0.6rem auto 0; font-size: 0.8rem; color: var(--muted); text-align: center; }
+.hm-pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; margin-top: 1.1rem; }
+.hm-pill { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.9rem 0.45rem 0.55rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); box-shadow: var(--shadow-1); font-weight: 600; font-size: 0.9rem; transition: transform 0.25s var(--ease), border-color 0.2s, background 0.2s; }
+.hm-pill:hover { transform: translateY(-2px); border-color: var(--accent); }
+.hm-pill[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.hm-pill-ico { display: grid; place-items: center; width: 1.65rem; height: 1.65rem; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+.hm-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.8rem; width: 100%; max-width: 50rem; margin-top: 2rem; text-align: left; }
+.hm-card { position: relative; display: grid; gap: 0.3rem; align-content: start; padding: 0.95rem 1rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--surface); box-shadow: var(--shadow-1); text-align: left; transition: transform 0.25s var(--ease), border-color 0.2s, box-shadow 0.3s; }
+.hm-card:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: var(--shadow-2); }
+.hm-k { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.hm-card strong { font-family: var(--font-serif); font-size: 1.02rem; line-height: 1.3; font-weight: 600; }
+.hm-meta { color: var(--muted); font-size: 0.84rem; }
+.hm-card-ico { position: absolute; top: 0.9rem; right: 0.9rem; color: var(--muted); }
+.hm-stack { display: flex; margin-top: 0.2rem; }
+.hm-stack img { width: 1.9rem; height: 2.5rem; margin-left: -0.5rem; object-fit: cover; border-radius: 0.3rem; border: 1px solid var(--border-strong); box-shadow: var(--shadow-1); transform: rotate(var(--r, 0deg)); background: var(--surface-2); }
+.hm-stack img:first-child { margin-left: 0; }
+.hm-starters { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.5rem; margin-top: 1.4rem; }
+.hm-try { color: var(--muted); font-size: 0.86rem; }
+
+@media (max-width: 760px) {
+  .hm-cards { grid-template-columns: 1fr; }
+}

@@ -13,29 +13,20 @@ const FONTS: { id: ReadingPrefs["font"]; label: string }[] = [
   { id: "easy", label: "Easy-read" },
 ];
 
-export function ReadingControls() {
+/** Text size, line width and font for abstracts and the paper reader. In the pop-over from the top bar, and on the Settings page of the new look. */
+export function ReadingForm({ heading = true, idPrefix = "rc" }: { heading?: boolean; idPrefix?: string }) {
   const prefs = readingStore.use();
   const set = (patch: Partial<ReadingPrefs>) => readingStore.set({ ...prefs, ...patch });
-
   return (
-    <Pop
-      label="Reading settings"
-      align="end"
-      trigger={(open) => (
-        <button type="button" className="icon-btn" aria-label="Reading settings" aria-expanded={open}>
-          <Type size={18} aria-hidden="true" />
-        </button>
-      )}
-    >
       <div className="rc">
-        <h2 className="pop-title">Reading settings</h2>
+        {heading && <h2 className="pop-title">Reading settings</h2>}
 
-        <label className="rc-row" htmlFor="rc-size">
+        <label className="rc-row" htmlFor={`${idPrefix}-size`}>
           <span>Text size</span>
           <output>{prefs.size}px</output>
         </label>
         <input
-          id="rc-size"
+          id={`${idPrefix}-size`}
           type="range"
           min={15}
           max={24}
@@ -66,6 +57,21 @@ export function ReadingControls() {
           The quick brown fox jumps over the lazy dog. हिंदी पाठ भी इसी सेटिंग के अनुसार बदलता है।
         </p>
       </div>
+  );
+}
+
+export function ReadingControls() {
+  return (
+    <Pop
+      label="Reading settings"
+      align="end"
+      trigger={(open) => (
+        <button type="button" className="icon-btn" aria-label="Reading settings" aria-expanded={open}>
+          <Type size={18} aria-hidden="true" />
+        </button>
+      )}
+    >
+      <ReadingForm />
     </Pop>
   );
 }

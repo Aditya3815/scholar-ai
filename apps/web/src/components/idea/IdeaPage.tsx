@@ -7,6 +7,7 @@ import { ApiError } from "../../lib/documents";
 import { compareIdea, downloadText, insightsIdea, isData, planIdea, reportFileName, searchIdea } from "../../lib/idea";
 import { easeOut, stagger } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
+import { takeHandoff } from "../../lib/workspace";
 import { ProviderButtons } from "../ProviderButtons";
 import { PrivacyCard } from "../legal/PrivacyCard";
 import { IdeaInput } from "./IdeaInput";
@@ -58,7 +59,7 @@ const errorText = (e: unknown, fallback: string) => (e instanceof ApiError ? e.m
 export function IdeaPage() {
   const { status, user } = useAuth();
   const [step, setStep] = useState<Step>("input");
-  const [text, setText] = useState("");
+  const [text, setText] = useState(() => takeHandoff("idea"));
   const [question, setQuestion] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [truncated, setTruncated] = useState(false);

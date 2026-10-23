@@ -30,6 +30,12 @@ export async function refreshAuth(): Promise<void> {
     const user = me.ok ? ((await me.json()) as { user: AuthUser | null }).user : null;
     const providers = prov.ok ? ((await prov.json()) as { providers: AuthProviderInfo[] }).providers : [];
     set({ status: "ready", user, providers });
+    try {
+      if (user) localStorage.setItem("scholar.signedin", "1");
+      else if (me.ok) localStorage.removeItem("scholar.signedin");
+    } catch {
+      /* storage blocked: the intro chunk is then fetched after sign-in status, as before */
+    }
   } catch {
     // Offline or API down: browse anonymously, hide sign-in.
     set({ status: "ready", user: null, providers: [] });

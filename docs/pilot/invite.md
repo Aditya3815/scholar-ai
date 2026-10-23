@@ -1,7 +1,7 @@
 # Invitation texts
 
 Written for the scholars and professors you invite, not for you. Replace `[YOUR NAME]`, `[SURVEY LINK]` and, if you want, the greeting. The reply address
-is the contact address already in the app (`atiadi@nativeorange.ai`). Nothing here promises more than the app does; if you change a sentence, keep it that way.
+is the contact address already in the app (`tiadiaditya@gmail.com`). Nothing here promises more than the app does; if you change a sentence, keep it that way.
 
 ## Email (for people you write to)
 
@@ -40,7 +40,7 @@ After a week, a **three-minute survey** (five questions): [SURVEY LINK]. You can
 
 Thank you,
 [YOUR NAME]
-atiadi@nativeorange.ai
+tiadiaditya@gmail.com
 
 ## Short message (WhatsApp or chat)
 
@@ -74,4 +74,4 @@ Hi [Name], thank you for trying Scholar AI this week. Here is the short survey (
 
 **Why can I only ask so many questions a day?** Each person has a daily allowance of AI use (roughly fifteen questions, or five Idea Checks, shared). It is small on purpose during the pilot.
 
-**Something is wrong.** Press **Report a problem** on the answer, reference or idea search, or write to atiadi@nativeorange.ai.
+**Something is wrong.** Press **Report a problem** on the answer, reference or idea search, or write to tiadiaditya@gmail.com.

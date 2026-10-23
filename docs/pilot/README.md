@@ -14,7 +14,7 @@ complaints exists.** Nothing about Idea Check "coverage" or "prior art" should b
 | --- | --- | --- | --- |
 | 1 | Anyone can sign in with Google (the consent screen is **published**, not "Testing") | Google Cloud, OAuth consent screen | you checked: works |
 | 2 | The privacy, terms and how-we-verify pages are linked in the footer and have no marked blanks | `/privacy`, `/terms`, `/how-we-verify`, `apps/web/src/lib/legal.ts` | **blanks remain** (entity, address, grievance name, jurisdiction, date). Fine for ten people you know, if you tell them it is a pilot and the pages are drafts; fill them before anyone you do not know |
-| 3 | A contact address that you read daily | `atiadi@nativeorange.ai` (already the contact and grievance address in `legal.ts`) | set |
+| 3 | A contact address that you read daily | `tiadiaditya@gmail.com` (already the contact and grievance address in `legal.ts`) | set |
 | 4 | Alerts reach you (GitHub issues, Sentry) | runbook, "Alerts" | done and tested 22 Oct |
 | 5 | A restore has been rehearsed | runbook, "Backups and restore" | done 22 Oct |
 | 6 | The survey form exists and you tested it once | [survey.md](survey.md) | **yours: 10 minutes** |

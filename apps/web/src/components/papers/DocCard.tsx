@@ -5,6 +5,7 @@ import type { DocumentInfo } from "@scholar/shared";
 import { continueScan, coverUrl, reindexDoc, renameDoc, useJobs } from "../../lib/documents";
 import { easeOut, springPop, stagger } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
+import { WORKSPACE } from "../../lib/workspace";
 
 const size = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const when = (t: number) => new Date(t).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
@@ -113,10 +114,13 @@ export function DocCard({ doc, index, onOpen, onDelete }: { doc: DocumentInfo; i
         {!scanLeft && (doc.status === "uploaded" || doc.status === "indexing") && <p className="dc-note">Not indexed yet. Open it to see the pages, or index it again.</p>}
 
         <div className="dc-actions">
-          <m.button type="button" className="btn btn-primary btn-sm" onClick={() => onOpen(doc.id)} whileTap={{ scale: 0.96 }} transition={springPop}>
-            <span>{ready ? "Open and ask" : "Open"}</span>
-            <ArrowRight size={15} aria-hidden="true" />
-          </m.button>
+          {/* In the new look the cover opens the paper (decision of 24 Oct: no "Open and ask" button); the old look keeps it until W6 */}
+          {!WORKSPACE && (
+            <m.button type="button" className="btn btn-primary btn-sm" onClick={() => onOpen(doc.id)} whileTap={{ scale: 0.96 }} transition={springPop}>
+              <span>{ready ? "Open and ask" : "Open"}</span>
+              <ArrowRight size={15} aria-hidden="true" />
+            </m.button>
+          )}
           {!ready && (
             <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void (scanLeft ? continueScan(doc) : reindexDoc(doc))}>
               <RefreshCw size={14} aria-hidden="true" />
