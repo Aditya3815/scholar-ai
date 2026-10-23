@@ -63,6 +63,9 @@ Prices at this size do not decide anything: a search reads about 6 keys, a refer
 
 - **Real KV, staging, 24 Oct:** after the deploy, keys with the expected lifetimes were in the namespace: `doicheck` 168 h, `lk-openalex-doi` 168 h, `lk-crossref-doi` (Crossref did not have an arXiv DOI) 6 h, `refverify` 24 h,
   `search:pubmed` 24 h, each with its source as metadata. PubMed: **2,979 ms, then 9 ms**.
+- **Production, after the deploy (24 Oct), the same search four times in a row:** 6,460 ms the first time (providers 1.5 to 2.4 s, then DOI and retraction checks); the second time every provider that had answered came back in
+  **4 to 10 ms** (the one that had failed was asked again, as it should be); the third time the whole search took **77 ms** and the fourth **16 ms**, with the DOI check (20 DOIs, one bulk read) in 5 ms and the retraction check in 6 ms.
+  The namespace then held 60 keys: 28 DOI checks, 28 retraction checks and four provider results, each labelled with its source.
 - **DOI overlap between different searches, production, 4 pairs of related queries:** 5 of 77 DOIs (**6%**) in common. Per-DOI entries therefore matter little across different searches; they matter when the same search comes back after its
   provider entry has expired, or when one provider's list changes.
 - Tests: 51 new unit tests (the KV store against a fake KV with a clock, the meter, `cached()` including concurrent misses and failures, per-DOI DOI and retraction checks, every lookup's lifetimes and "errors are not kept"),
