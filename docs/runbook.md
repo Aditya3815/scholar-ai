@@ -56,6 +56,8 @@ After rotating a pasted-in-chat credential, revoke the old one at the provider.
 - Cron (daily 03:17 UTC) deletes expired cache, sessions and OAuth states and old usage rows. Every run leaves a heartbeat in the `job_runs` table (started, finished, ok or failed, last error), shown on `/admin`
   under "Scheduled jobs" and reported by `/api/v1/health/jobs`, so a trigger that stops, a run that throws and a run that hangs are all noticed. The log line `{"msg":"maintenance","deleted":{...}}` is still written.
   `EXPECT_CRON` ("1" in production, "0" in staging) tells the health address that the job is expected; the migration counts as the first good run.
+- Scanned papers: pages per person per day is the Worker variable `OCR_PAGES_PER_DAY` (default 60; a value that is not a whole number from 1 to 2000 is ignored). It is a plain
+  variable, not a secret: set it in `wrangler.jsonc` `vars` (and the staging block) and deploy. Cost and how it works: [ocr.md](ocr.md).
 - Semantic Scholar: calls go through the `S2Throttle` Durable Object (1 request/second). S2 also returns 429 on its own
   under load; the search then reports `s2` as failed and still returns the other three sources. That is upstream, not a bug.
 

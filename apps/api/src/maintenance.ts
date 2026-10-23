@@ -8,6 +8,8 @@ const JOBS: { name: string; sql: string }[] = [
   { name: "oauth_states", sql: "DELETE FROM oauth_states WHERE expires_at < datetime('now')" },
   // Quota checks only look at today; 90 days is plenty for cost review.
   { name: "llm_usage", sql: "DELETE FROM llm_usage WHERE ts < datetime('now', '-90 days')" },
+  // The daily page count only matters for today; a few weeks stay for cost review.
+  { name: "ocr_usage", sql: "DELETE FROM ocr_usage WHERE day < date('now', '-35 days')" },
   // Reports are kept for a year, long enough to learn from, then removed.
   { name: "feedback", sql: "DELETE FROM feedback WHERE created_at < datetime('now', '-365 days')" },
   { name: "audit_log", sql: "DELETE FROM audit_log WHERE ts < datetime('now', '-365 days')" },

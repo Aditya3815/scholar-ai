@@ -30,9 +30,19 @@ accountRoutes.get("/export", async (c) => {
     .all<{ data: string; saved_at: string }>();
 
   const docs = await c.env.DB
-    .prepare("SELECT id, title, filename, size_bytes, pages, status, created_at, info FROM documents WHERE user_id = ?1 ORDER BY created_at DESC")
+    .prepare("SELECT id, title, filename, size_bytes, pages, status, created_at, info, scanned FROM documents WHERE user_id = ?1 ORDER BY created_at DESC")
     .bind(user.id)
-    .all<{ id: string; title: string; filename: string; size_bytes: number; pages: number | null; status: string; created_at: string; info: string | null }>();
+    .all<{ id: string; title: string; filename: string; size_bytes: number; pages: number | null; status: string; created_at: string; info: string | null; scanned: number }>();
+  // A scanned paper: how each page was read, and the text that was read (the only text the paper has). Text is capped so one export cannot run the Worker out of memory.
+  const SCAN_TEXT_ROWS = 1500;
+  const scanPages = await c.env.DB
+    .prepare("SELECT o.doc_id, o.page, o.status, o.disagreement, o.disputed, o.why FROM doc_ocr o JOIN documents d ON d.id = o.doc_id WHERE d.user_id = ?1 AND o.status != 'pending' ORDER BY o.doc_id, o.page")
+    .bind(user.id)
+    .all<{ doc_id: string; page: number; status: string; disagreement: number | null; disputed: string | null; why: string | null }>();
+  const scanText = await c.env.DB
+    .prepare("SELECT o.doc_id, o.page, o.text FROM doc_ocr o JOIN documents d ON d.id = o.doc_id WHERE d.user_id = ?1 AND o.text IS NOT NULL ORDER BY o.doc_id, o.page LIMIT ?2")
+    .bind(user.id, SCAN_TEXT_ROWS + 1)
+    .all<{ doc_id: string; page: number; text: string }>();
   const qa = await c.env.DB
     .prepare("SELECT q.doc_id, q.question, q.answer, q.created_at FROM doc_qa q JOIN documents d ON d.id = q.doc_id WHERE d.user_id = ?1 ORDER BY q.created_at")
     .bind(user.id)
@@ -54,6 +64,16 @@ accountRoutes.get("/export", async (c) => {
       id: d.id, title: d.title, filename: d.filename, sizeBytes: d.size_bytes, pages: d.pages, status: d.status,
       uploadedAt: new Date(fromSqliteTime(d.created_at)).toISOString(),
       paperInfo: d.info ? JSON.parse(d.info) : null,
+      ...(d.scanned === 1
+        ? {
+            readFromScan: {
+              note: "This paper is a scan. The text was read from page pictures by two AI models; a page they did not agree on was left out. Check numbers and names against the page.",
+              pages: scanPages.results.filter((p) => p.doc_id === d.id).map((p) => ({ page: p.page, status: p.status, readingsDifferBy: p.disagreement, numbersTheyDisagreedOn: JSON.parse(p.disputed ?? "[]") as string[], ...(p.why ? { why: p.why } : {}) })),
+              text: scanText.results.slice(0, SCAN_TEXT_ROWS).filter((p) => p.doc_id === d.id).map((p) => ({ page: p.page, text: p.text })),
+              textComplete: scanText.results.length <= SCAN_TEXT_ROWS,
+            },
+          }
+        : {}),
       note: "The PDF itself can be downloaded from the paper’s page while signed in.",
       highlightsAndNotes: notes.results.filter((n) => n.doc_id === d.id).map((n) => ({ page: n.page, quote: n.quote, note: n.note ?? "", madeAt: new Date(fromSqliteTime(n.created_at)).toISOString() })),
       questions: qa.results.filter((q) => q.doc_id === d.id).map((q) => ({ question: q.question, answer: (JSON.parse(q.answer) as { answer: string }).answer, askedAt: new Date(fromSqliteTime(q.created_at)).toISOString() })),

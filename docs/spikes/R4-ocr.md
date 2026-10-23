@@ -83,3 +83,21 @@ cd worker && wrangler dev --port 8799   # remote AI binding: costs a few neurons
 node run.mjs                         # every scan, every model
 python score.py                      # tables above
 ```
+
+## Follow-up, 23 Oct 2026: real scans, and what changed in the plan
+
+Six real scans were added (kept out of the repository): an old English book page (margin note, footnotes), a two-column English bibliography, a Hindi page (a 515 px wide
+screenshot), a Sanskrit and English page pair (a JBIG2-compressed, image-only PDF), a Russian transcript (creased, stamped) and a text PDF as a control. Each was read by both
+models through the finished route (`apps/api/scripts/scan-live.mjs`). Details and the build are in [../ocr.md](../ocr.md). What the real pages changed:
+
+1. **The 5% limit was wrong for real Hindi and Sanskrit.** Clean English pages differ by 0.3 to 2%, but the Hindi page differs by 9.9% and the Sanskrit and English pages by 9 to 12.5%,
+   although the first model's text on them is mostly right. The checking model (Mistral) is much weaker in Devanagari and invents words, so the disagreement measures its errors as well.
+   New limits: under 2% used, 2 to 15% used and marked "read with doubt", above that not read reliably.
+2. **A model that cannot read a page writes a different document, with confidence.** On the Russian transcript Llama 4 Scout produced a plausible, wrong "list of courses of an air force school"
+   and Mistral repeated one sentence until it ran out of room (11,000 characters, 166 neurons). Only the comparison, the loop test and the cut-off test caught it. Scout alone would have shown it.
+3. **Neurons per page are higher on dense real pages:** 50 to 119 for Scout and 56 to 166 for Mistral, about 180 for both (the spike's 71 was for light test pages). About $0.002 a page.
+4. **Time per page** is 6 to 40 seconds for both models together.
+5. **References read from a scan work:** all 24 entries of the two-column bibliography page were found in the text (a reference that omits the author because it repeats the one above
+   keeps its year first, "(1983). The Architecture of Cognition", as printed). One name was misread by the first model ("Cadiierno" for "Cadierno"), which is what "check names on the page" is for.
+6. **pdf.js needs its WebAssembly decoder for JBIG2** (the Sanskrit PDF): the app already serves it (`/pdfjs/wasm/`), the page then renders in the browser.
+7. **Plan change:** one page per request from the browser instead of a Queue job. The picture is not stored, so a background job could not read it later; the price is that the tab stays open.

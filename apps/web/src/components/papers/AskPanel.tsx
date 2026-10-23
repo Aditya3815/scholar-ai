@@ -1,7 +1,7 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowUp, BadgeCheck, Check, Copy, CornerDownRight, Loader2, RefreshCw, SearchX, ShieldCheck, Sparkles, Square, TriangleAlert } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { MAX_QUESTION_CHARS, type Answer, type AskStage, type Citation, type DocumentInfo } from "@scholar/shared";
+import { MAX_QUESTION_CHARS, type Answer, type AskStage, type Citation, type DocumentInfo, type ScanInfo } from "@scholar/shared";
 import { ApiError, askDocumentStream } from "../../lib/documents";
 import { easeOut, spring, springPop } from "../../lib/motion";
 import { CountUp } from "../ResultCard";
@@ -139,12 +139,15 @@ function CopyAnswer({ answer }: { answer: Answer }) {
   );
 }
 
-function AnswerCard({ answer, docId, onCite }: { answer: Answer; docId: string; onCite: (c: Citation) => void }) {
+function AnswerCard({ answer, docId, scan, onCite }: { answer: Answer; docId: string; scan: ScanInfo | null; onCite: (c: Citation) => void }) {
+  // For a scan, "checked against the paper" would promise more than is true: the quote matches the text that was READ, which may differ from the page.
   const status = !answer.found
     ? { Icon: SearchX, label: "Not in this paper", tone: "muted" }
     : answer.verified
-      ? { Icon: ShieldCheck, label: "Every source checked against the paper", tone: "ok" }
+      ? { Icon: ShieldCheck, label: scan ? "Sources match the text read from the scan" : "Every source checked against the paper", tone: "ok" }
       : { Icon: TriangleAlert, label: "Could not verify the source", tone: "warn" };
+  const doubtful = scan ? new Set(scan.items.filter((p) => p.status === "warn").map((p) => p.page)) : new Set<number>();
+  const cited = scan ? answer.citations.map((c) => c.page) : [];
   return (
     <m.div className="ask-answer" data-tone={status.tone} initial={{ opacity: 0.4 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
       <div className="ask-answer-head">
@@ -162,6 +165,15 @@ function AnswerCard({ answer, docId, onCite }: { answer: Answer; docId: string; 
 
       <AnswerText text={answer.answer} citations={answer.citations} onCite={onCite} />
 
+      {scan && answer.found && (
+        <p className="ask-warn" role="note" data-kind="scan">
+          <TriangleAlert size={15} aria-hidden="true" />
+          <span>
+            This paper is a scan: the words and numbers above were read from page pictures. Open {cited.length > 0 ? `page ${[...new Set(cited)].sort((a, b) => a - b).join(", ")}` : "the page"} and check them
+            {cited.some((p) => doubtful.has(p)) ? ". Some of these pages were read with doubt" : ""}.
+          </span>
+        </p>
+      )}
       {answer.found && !answer.verified && (
         <p className="ask-warn" role="note">
           <TriangleAlert size={15} aria-hidden="true" />
@@ -187,7 +199,7 @@ function AnswerCard({ answer, docId, onCite }: { answer: Answer; docId: string; 
   );
 }
 
-export function AskPanel({ doc, history, onCite, onGoToPage, onReindex }: { doc: DocumentInfo; history: Answer[]; onCite: (c: Citation) => void; onGoToPage: (page: number) => void; onReindex: () => void }) {
+export function AskPanel({ doc, history, scan = null, onCite, onGoToPage, onReindex }: { doc: DocumentInfo; history: Answer[]; scan?: ScanInfo | null; onCite: (c: Citation) => void; onGoToPage: (page: number) => void; onReindex: () => void }) {
   const [turns, setTurns] = useState<Turn[]>(() => history.map((a) => ({ key: a.id, question: a.question, answer: a })));
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -286,11 +298,15 @@ export function AskPanel({ doc, history, onCite, onGoToPage, onReindex }: { doc:
         <p className="ask-sub">
           {ready ? (
             <>
-              <BadgeCheck size={14} aria-hidden="true" /> <CountUp value={doc.chunkCount} /> passages indexed. Answers use only this paper and each source is checked against its text.
+              <BadgeCheck size={14} aria-hidden="true" /> <CountUp value={doc.chunkCount} /> passages {scan ? "read from the scan" : "indexed"}. Answers use only this paper{scan ? ", from the pages that were read reliably." : " and each source is checked against its text."}
             </>
           ) : doc.status === "failed" ? (
             <>
               <TriangleAlert size={14} aria-hidden="true" /> {doc.error ?? "This paper could not be indexed."}
+            </>
+          ) : doc.scanned ? (
+            <>
+              <TriangleAlert size={14} aria-hidden="true" /> {doc.scanPending > 0 ? `${doc.scanPending} scanned ${doc.scanPending === 1 ? "page is" : "pages are"} still to be read. Questions open when every page has been read.` : "This scanned paper is being finished."}
             </>
           ) : (
             <>
@@ -301,7 +317,7 @@ export function AskPanel({ doc, history, onCite, onGoToPage, onReindex }: { doc:
         {!ready && (
           <button type="button" className="btn btn-ghost btn-sm" onClick={onReindex}>
             <RefreshCw size={15} aria-hidden="true" />
-            <span>Index again</span>
+            <span>{doc.scanned ? "Continue reading" : "Index again"}</span>
           </button>
         )}
       </header>
@@ -330,7 +346,7 @@ export function AskPanel({ doc, history, onCite, onGoToPage, onReindex }: { doc:
               </m.li>
               <li className="ask-a">
                 {t.answer ? (
-                  <AnswerCard answer={t.answer} docId={doc.id} onCite={onCite} />
+                  <AnswerCard answer={t.answer} docId={doc.id} scan={scan} onCite={onCite} />
                 ) : t.error ? (
                   <div className="ask-error" role="alert">
                     <TriangleAlert size={16} aria-hidden="true" />

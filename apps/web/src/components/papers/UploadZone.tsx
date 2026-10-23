@@ -1,7 +1,7 @@
 import { AnimatePresence, m } from "motion/react";
-import { AlertCircle, FileUp, Loader2, RefreshCw, X } from "lucide-react";
+import { AlertCircle, FileUp, Loader2, Pause, Play, RefreshCw, X } from "lucide-react";
 import { useRef, useState, type DragEvent } from "react";
-import { dismissJob, retryJob, startUpload, useJobs, type Job } from "../../lib/documents";
+import { continueScan, dismissJob, pauseScan, retryJob, startUpload, useJobs, type Job } from "../../lib/documents";
 import { easeOut, spring, springPop } from "../../lib/motion";
 
 const STEPS: { id: Job["step"]; label: string }[] = [
@@ -9,7 +9,13 @@ const STEPS: { id: Job["step"]; label: string }[] = [
   { id: "uploading", label: "Upload" },
   { id: "indexing", label: "Index" },
 ];
-const order = (s: Job["step"]) => (s === "done" ? 3 : s === "error" ? -1 : STEPS.findIndex((x) => x.id === s));
+// A paper of page pictures has a different last step: its pages are read one by one, by models, which is the long part.
+const SCAN_STEPS: typeof STEPS = [
+  { id: "reading", label: "Read" },
+  { id: "uploading", label: "Upload" },
+  { id: "scanning", label: "Read the pages" },
+];
+const order = (s: Job["step"], steps: typeof STEPS) => (s === "done" ? 3 : s === "error" ? -1 : steps.findIndex((x) => x.id === s || (s === "paused" && x.id === "scanning") || (s === "indexing" && x.id === "scanning" && steps === SCAN_STEPS)));
 
 const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
@@ -22,13 +28,15 @@ function Tick() {
 }
 
 function JobRow({ job }: { job: Job }) {
-  const at = order(job.step);
+  const steps = job.scanned ? SCAN_STEPS : STEPS;
+  const at = order(job.step, steps);
   const failed = job.step === "error";
   const done = job.step === "done";
+  const paused = job.step === "paused";
   return (
     <m.li
       className="job"
-      data-state={failed ? "error" : done ? "done" : "busy"}
+      data-state={failed ? "error" : done ? "done" : paused ? "paused" : "busy"}
       layout="position"
       initial={{ opacity: 0, y: 12, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -37,7 +45,7 @@ function JobRow({ job }: { job: Job }) {
     >
       <div className="job-top">
         <span className="job-ico" aria-hidden="true">
-          {failed ? <AlertCircle size={18} /> : done ? <Tick /> : <Loader2 className="spin" size={18} />}
+          {failed ? <AlertCircle size={18} /> : done ? <Tick /> : paused ? <Pause size={18} /> : <Loader2 className="spin" size={18} />}
         </span>
         <div className="job-name">
           <p className="job-file">{job.name}</p>
@@ -45,13 +53,25 @@ function JobRow({ job }: { job: Job }) {
             {failed ? job.error : job.detail} <span className="job-size">· {kb(job.size)}</span>
           </p>
         </div>
+        {job.step === "scanning" && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => pauseScan(job.key)}>
+            <Pause size={14} aria-hidden="true" />
+            <span>Pause</span>
+          </button>
+        )}
+        {paused && job.docId && (
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => void continueScan({ id: job.docId!, filename: job.name, sizeBytes: job.size })}>
+            <Play size={14} aria-hidden="true" />
+            <span>Continue</span>
+          </button>
+        )}
         {failed && job.retryable && (
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => void retryJob(job.key)}>
             <RefreshCw size={14} aria-hidden="true" />
             <span>Try again</span>
           </button>
         )}
-        {(failed || done) && (
+        {(failed || done || paused) && (
           <button type="button" className="icon-btn icon-btn-sm" aria-label={`Dismiss ${job.name}`} onClick={() => dismissJob(job.key)}>
             <X size={15} aria-hidden="true" />
           </button>
@@ -61,7 +81,7 @@ function JobRow({ job }: { job: Job }) {
       {!failed && (
         <>
           <ol className="job-steps" aria-label="Progress">
-            {STEPS.map((s, i) => (
+            {steps.map((s, i) => (
               <li key={s.id} data-state={at > i ? "done" : at === i ? "now" : "todo"}>
                 <span className="job-dot" aria-hidden="true">
                   {at > i ? <Tick /> : at === i ? <span className="pulse-dot" /> : null}
@@ -70,7 +90,7 @@ function JobRow({ job }: { job: Job }) {
               </li>
             ))}
           </ol>
-          <div className="vbar" role="progressbar" aria-label={`${job.name} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(((Math.max(at, 0) + job.progress) / 3) * 100)} data-done={done}>
+          <div className="vbar" role="progressbar" aria-label={`${job.name} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(((Math.max(at, 0) + (done ? 0 : job.progress)) / 3) * 100)} data-done={done}>
             <m.span className="vbar-fill" initial={false} animate={{ width: `${Math.min(100, ((Math.max(at, 0) + (done ? 0 : job.progress)) / 3) * 100)}%` }} transition={spring} />
           </div>
         </>

@@ -1825,3 +1825,141 @@
   flex: 1;
   min-width: 8rem;
 }
+
+/* ---- a scanned paper: what it is, how well it was read, what is left ---- */
+.scan {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0 0 0.85rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+.scan[data-tone="ok"] {
+  border-left-color: var(--ok);
+}
+.scan[data-tone="warn"] {
+  border-left-color: var(--warn);
+}
+.scan-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+.scan-head .btn {
+  flex: none;
+  white-space: nowrap;
+}
+.scan-ico {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.scan[data-tone="ok"] .scan-ico {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.scan-title {
+  flex: 1;
+  min-width: 0;
+}
+.scan-line,
+.scan-sub,
+.scan-fine,
+.scan-note {
+  margin: 0;
+  font-size: 0.875rem;
+}
+.scan-sub,
+.scan-fine {
+  color: var(--muted);
+}
+.scan-fine {
+  font-size: 0.8125rem;
+}
+.scan-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+}
+.scan-note[data-tone="warn"] {
+  color: var(--warn);
+}
+.scan-note[data-tone="bad"] {
+  color: var(--danger);
+}
+.scan-note svg {
+  flex: none;
+  margin-top: 0.15rem;
+}
+.scan-note .link-btn {
+  padding: 0;
+  min-height: 0;
+  font-size: inherit;
+}
+.scan-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  vertical-align: middle;
+}
+.scan-chip {
+  min-height: 28px;
+  padding: 0 0.55rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: var(--surface);
+  color: inherit;
+  font-size: 0.8125rem;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.scan-chip:hover {
+  background: var(--surface-2);
+}
+.scan-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.scan-more {
+  align-self: center;
+  font-size: 0.8125rem;
+}
+.dc-scan {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.job[data-state="paused"] {
+  border-left-color: var(--warn);
+}
+.job[data-state="paused"] .job-ico {
+  background: var(--surface-2);
+  color: var(--warn);
+}
+.job[data-state="paused"] .job-detail {
+  color: var(--text);
+}
+.ask-warn[data-kind="scan"] {
+  color: var(--text);
+}
+@media (max-width: 640px) {
+  .scan-head {
+    flex-wrap: wrap;
+  }
+  .scan-head .btn {
+    margin-left: calc(32px + 0.7rem);
+  }
+}

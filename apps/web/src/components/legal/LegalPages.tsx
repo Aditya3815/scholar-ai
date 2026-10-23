@@ -95,7 +95,7 @@ export function HowWeVerifyPage() {
       <h2>Where it can go wrong</h2>
       <ul>
         <li>The databases have mistakes (wrong authors, wrong years, duplicate records). We show what they say.</li>
-        <li>Scanned PDFs have no text we can read yet.</li>
+        <li>Scanned papers (PDFs made of page pictures) are read by two AI models that check each other. Where they agree the page is used; where they do not, the page is marked as not read reliably and left out of answers. Two models can still make the same mistake, so check numbers and names on the page. Highlighting and notes need selectable text, which a scan does not have. Handwriting and most scripts other than English and Devanagari are not supported.</li>
         <li>A reprint can have a later year than the original, which we report as a year difference.</li>
         <li>Found a mistake? Use “Report a problem” on the answer, the reference or the idea search. It goes straight to us and we use it to improve the tests.</li>
       </ul>
@@ -140,7 +140,7 @@ export function PrivacyPage() {
       <h2>Your papers and ideas</h2>
       <ul>
         <li>They are <strong>private to your account</strong>. Other users cannot see them. We do not read them as part of running the service; the people who run it can reach the database in order to fix a fault, but the admin page shows numbers only.</li>
-        <li>To answer a question or plan a search, the relevant text is sent to an AI model run by <strong>Cloudflare (Workers AI)</strong>. We use only AI services whose terms say they do not keep or train on what we send. <strong>Your papers, questions and ideas are never sent to any other AI service</strong>, and are never used to train any AI.</li>
+        <li>To answer a question or plan a search, the relevant text is sent to an AI model run by <strong>Cloudflare (Workers AI)</strong>. For a scanned paper, a picture of each page is sent to the same service to be read; the picture is not stored by us, and the text that was read is kept like any other text of your paper. We use only AI services whose terms say they do not keep or train on what we send. <strong>Your papers, questions and ideas are never sent to any other AI service</strong>, and are never used to train any AI.</li>
         <li>Idea Check sends the search you approved, and only that, to OpenAlex and Semantic Scholar. They can see those words and our service&apos;s address, not you or your file. Look at the search before you send it; remove anything you would rather not share.</li>
         <li>The references you verify are sent as text to Crossref and OpenAlex to find the record. We keep the verdict (not your text) for up to a day so a repeat is fast.</li>
       </ul>

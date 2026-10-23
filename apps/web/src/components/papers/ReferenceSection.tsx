@@ -1,7 +1,7 @@
 import { CircleAlert, CircleCheck, FileText, Loader2, RotateCcw } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { MAX_PAPER_REFERENCES, splitReferences, type ReferenceSection as Section } from "@scholar/shared";
-import { readReferenceSection } from "../../lib/paperinfo";
+import { readReferenceSection, readScanReferenceSection } from "../../lib/paperinfo";
 import type { PDFDocumentProxy } from "../../lib/pdf";
 
 type Load = { status: "idle" | "reading" | "error" } | { status: "ready"; section: Section };
@@ -11,7 +11,7 @@ type Load = { status: "idle" | "reading" | "error" } | { status: "ready"; sectio
  * in a way the cutting cannot follow, the reader can see exactly what was found (and, for a numbered list, how many entries it says there are), fix it in the box
  * (one reference to a paragraph) and check that list instead. The corrected list is kept with the paper.
  */
-export function ReferenceSection({ pdf, current, onOpenPage, onUseList }: { pdf: PDFDocumentProxy | null; current: string[]; onOpenPage: (page: number) => void; onUseList: (entries: string[]) => Promise<void> }) {
+export function ReferenceSection({ pdf, scanDocId, current, onOpenPage, onUseList }: { pdf: PDFDocumentProxy | null; scanDocId?: string; current: string[]; onOpenPage: (page: number) => void; onUseList: (entries: string[]) => Promise<void> }) {
   const [load, setLoad] = useState<Load>({ status: "idle" });
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -20,10 +20,10 @@ export function ReferenceSection({ pdf, current, onOpenPage, onUseList }: { pdf:
   const boxId = useId();
 
   const open = () => {
-    if (started.current || !pdf) return;
+    if (started.current || (!pdf && !scanDocId)) return;
     started.current = true;
     setLoad({ status: "reading" });
-    readReferenceSection(pdf).then(
+    (scanDocId ? readScanReferenceSection(scanDocId) : readReferenceSection(pdf!)).then(
       (section) => {
         setLoad({ status: "ready", section });
         // what the box starts with: the list that is being checked now (it may be a corrected one), else what the section gave
@@ -36,7 +36,7 @@ export function ReferenceSection({ pdf, current, onOpenPage, onUseList }: { pdf:
     started.current = false; // another paper
     setLoad({ status: "idle" });
     setSaved(false);
-  }, [pdf]);
+  }, [pdf, scanDocId]);
 
   const entries = splitReferences(text).slice(0, MAX_PAPER_REFERENCES);
   const same = entries.length === current.length && entries.every((e, i) => e === current[i]);
@@ -69,10 +69,10 @@ export function ReferenceSection({ pdf, current, onOpenPage, onUseList }: { pdf:
         <span>The reference section of this PDF</span>
       </summary>
       <div className="refsec-body">
-        {!pdf && <p className="ask-hint">The paper is still opening.</p>}
+        {!pdf && !scanDocId && <p className="ask-hint">The paper is still opening.</p>}
         {load.status === "reading" && (
           <p className="ask-hint" role="status">
-            <Loader2 className="spin" size={14} aria-hidden="true" /> Reading the pages…
+            <Loader2 className="spin" size={14} aria-hidden="true" /> {scanDocId ? "Looking through the pages that were read…" : "Reading the pages…"}
           </p>
         )}
         {load.status === "error" && <p className="ask-hint" role="alert">The pages could not be read just now. Close this and open it again.</p>}

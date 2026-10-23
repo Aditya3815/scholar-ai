@@ -10,7 +10,7 @@ import { showNotice } from "../../lib/notice";
 const POINTS = {
   papers: [
     "Your PDF, the text read from it and your questions are private to your account. Nobody else can see them.",
-    "A private AI service (Cloudflare Workers AI) reads the relevant passages to answer. Your papers are never used to train AI and never sent to any other AI service.",
+    "A private AI service (Cloudflare Workers AI) reads the relevant passages to answer. If your PDF is a scan, a picture of each page is sent to it to be read, and the picture is not kept. Your papers are never used to train AI and never sent to any other AI service.",
     "They stay until you delete the paper or your account. Deleting removes the file and the text straight away.",
   ],
   ideas: [

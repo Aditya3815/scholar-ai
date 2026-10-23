@@ -22,6 +22,10 @@ export type DocumentInfo = {
   error: string | null;
   hasCover: boolean;
   chunkCount: number;
+  /** The PDF is page pictures (a scan); its text was read from the pictures by two models and checked against each other (see ocr.ts). */
+  scanned: boolean;
+  /** Scanned pages still to be read. While this is above 0 the paper is not ready, and reading can be continued. */
+  scanPending: number;
   createdAt: number;
   updatedAt: number;
 };

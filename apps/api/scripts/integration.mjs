@@ -39,7 +39,7 @@ const vars = {
   GOOGLE_CLIENT_ID: "dev", GOOGLE_CLIENT_SECRET: "dev-secret", ORCID_CLIENT_ID: "dev", ORCID_CLIENT_SECRET: "dev-secret",
   // .dev.vars is read by `wrangler dev` too: the tests must never report to the real Sentry project, so its address is blanked here.
   SENTRY_DSN: "",
-  DEV_IDP_URL: "http://localhost:9911", ORCID_BASE_URL: "http://localhost:9911/orcid", ENABLE_DEV_ROUTES: "1", QA_STUB: "1",
+  DEV_IDP_URL: "http://localhost:9911", ORCID_BASE_URL: "http://localhost:9911/orcid", ENABLE_DEV_ROUTES: "1", QA_STUB: "1", OCR_PAGES_PER_DAY: "25",
   CROSSREF_MAILTO: process.env.CROSSREF_MAILTO ?? "ci@example.com",
   // Only the browser smoke test searches; it needs the real provider keys (passed through from the environment).
   ...Object.fromEntries(["OPENALEX_API_KEY", "S2_API_KEY", "NCBI_API_KEY"].filter((k) => process.env[k]).map((k) => [k, process.env[k]])),
@@ -98,6 +98,7 @@ try {
   ok = await run("auth integration", "scripts/auth-e2e.mjs") && ok;
   ok = await run("library integration", "scripts/library-e2e.mjs") && ok;
   ok = await run("documents integration", "scripts/docs-e2e.mjs") && ok;
+  ok = await run("scanned papers integration", "scripts/scan-e2e.mjs") && ok;
   ok = await run("idea check integration", "scripts/idea-e2e.mjs") && ok;
   ok = await run("feedback integration", "scripts/feedback-e2e.mjs") && ok;
   if (withBrowser) {
@@ -106,6 +107,7 @@ try {
     ok = await run("browser: library", "e2e/library.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: verifier", "e2e/verify.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: papers", "e2e/papers.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: scanned papers", "e2e/scan.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: idea check", "e2e/idea.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: admin and reports", "e2e/admin.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: legal pages", "e2e/legal.mjs", [`http://localhost:${PORT}`], web) && ok;

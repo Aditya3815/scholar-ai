@@ -8,6 +8,10 @@ import {
   MAX_DOC_PAGES,
   MAX_NOTES_PER_DOC,
   MAX_NOTE_CHARS,
+  OCR_MAX_IMAGE_BYTES,
+  OCR_MAX_SIDE_PX,
+  OCR_MIN_SIDE_PX,
+  OCR_PAGES_PER_DAY,
   MAX_NOTE_QUOTE_CHARS,
   MIN_NOTE_QUOTE_CHARS,
   NOTE_COLORS,
@@ -32,6 +36,10 @@ import { hashEmbedder, workersAiEmbedder, type Embedder } from "./embed";
 import { answerQuestion, answerQuestionStream, type Complete, type StoredChunk, type StreamComplete } from "./qa";
 import { stubComplete, stubStream } from "./stub";
 import { decodeVec, encodeVec } from "./vector";
+import { readJpeg } from "../ocr/jpeg";
+import { DailyLimitError, ReadFailedError, finishIfDone, readScanPage, registerScan, scanInfo, scanTexts } from "../ocr/process";
+import { workersAiReader, type PageReader } from "../ocr/read";
+import { stubReader } from "../ocr/stub";
 
 type Bindings = {
   DB: D1Database;
@@ -43,6 +51,8 @@ type Bindings = {
   ENABLE_DEV_ROUTES?: string;
   /** "1" (with ENABLE_DEV_ROUTES) swaps the model and embeddings for deterministic stand-ins in local tests. */
   QA_STUB?: string;
+  /** Pages of a scanned paper one person may have read per day (default OCR_PAGES_PER_DAY). */
+  OCR_PAGES_PER_DAY?: string;
 };
 type Env = { Bindings: Bindings };
 export const documentRoutes = new Hono<Env>();
@@ -57,13 +67,14 @@ const deny = (c: Context<Env>, status: 400 | 401 | 403 | 404 | 409 | 413 | 415 |
 
 type Row = {
   id: string; user_id: string; title: string; filename: string; size_bytes: number; pages: number | null; status: DocStatus;
-  error: string | null; has_cover: number; chunk_count: number; created_at: string; updated_at: string;
+  error: string | null; has_cover: number; chunk_count: number; scanned: number; scan_pending: number; created_at: string; updated_at: string;
 };
-const COLS = "id, user_id, title, filename, size_bytes, pages, status, error, has_cover, chunk_count, created_at, updated_at";
+const COLS =
+  "id, user_id, title, filename, size_bytes, pages, status, error, has_cover, chunk_count, scanned, (SELECT COUNT(*) FROM doc_ocr o WHERE o.doc_id = documents.id AND o.status = 'pending') AS scan_pending, created_at, updated_at";
 
 const toInfo = (r: Row): DocumentInfo => ({
   id: r.id, title: r.title, filename: r.filename, sizeBytes: r.size_bytes, pages: r.pages, status: r.status, error: r.error,
-  hasCover: r.has_cover === 1, chunkCount: r.chunk_count, createdAt: fromSqliteTime(r.created_at), updatedAt: fromSqliteTime(r.updated_at),
+  hasCover: r.has_cover === 1, chunkCount: r.chunk_count, scanned: r.scanned === 1, scanPending: r.scan_pending, createdAt: fromSqliteTime(r.created_at), updatedAt: fromSqliteTime(r.updated_at),
 });
 
 const randomId = () => [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -83,6 +94,14 @@ const titleFrom = (filename: string) => filename.replace(/\.pdf$/i, "").replace(
 
 async function owned(c: Context<Env>, userId: string, id: string): Promise<Row | null> {
   return c.env.DB.prepare(`SELECT ${COLS} FROM documents WHERE id = ?1 AND user_id = ?2`).bind(id, userId).first<Row>();
+}
+
+const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+const readerFor = (env: Bindings): PageReader | null => (stubbed(env) ? stubReader : env.AI ? workersAiReader(env.AI) : null);
+/** Pages per person per day. A value that is not a whole number from 1 to 2000 is ignored (the default is used), so a typo cannot switch the limit off. */
+export function ocrPerDay(env: Pick<Bindings, "OCR_PAGES_PER_DAY">): number {
+  const n = Number(env.OCR_PAGES_PER_DAY);
+  return Number.isInteger(n) && n >= 1 && n <= 2000 ? n : OCR_PAGES_PER_DAY;
 }
 
 const embedderFor = (env: Bindings): Embedder | null =>
@@ -136,7 +155,8 @@ documentRoutes.get("/:id", async (c) => {
   if (!row) return deny(c, 404, "not_found", "Paper not found");
   const qa = await c.env.DB.prepare("SELECT answer FROM doc_qa WHERE doc_id = ?1 ORDER BY created_at, rowid LIMIT 100").bind(row.id).all<{ answer: string }>();
   const stored = await c.env.DB.prepare("SELECT info FROM documents WHERE id = ?1").bind(row.id).first<{ info: string | null }>();
-  return c.json({ document: toInfo(row), history: qa.results.map((r) => JSON.parse(r.answer) as Answer), info: stored?.info ? (JSON.parse(stored.info) as PaperInfo) : null });
+  const scan = row.scanned === 1 ? await scanInfo(c.env.DB, user.id, row.id, ocrPerDay(c.env)) : null;
+  return c.json({ document: toInfo(row), history: qa.results.map((r) => JSON.parse(r.answer) as Answer), info: stored?.info ? (JSON.parse(stored.info) as PaperInfo) : null, scan });
 });
 
 documentRoutes.get("/:id/file", async (c) => {
@@ -258,6 +278,7 @@ export async function deleteDocument(env: Pick<Bindings, "DB" | "FILES">, userId
     env.DB.prepare("DELETE FROM doc_notes WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_qa WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_chunks WHERE doc_id = ?1").bind(id),
+    env.DB.prepare("DELETE FROM doc_ocr WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM documents WHERE id = ?1 AND user_id = ?2").bind(id, userId),
   ]);
 }
@@ -346,6 +367,95 @@ documentRoutes.post("/:id/finish", async (c) => {
   const error = failed ?? (n === 0 ? "No readable text was found. This looks like a scanned PDF (page images). Upload a text-based PDF." : null);
   await c.env.DB.prepare("UPDATE documents SET status = ?1, error = ?2, pages = COALESCE(?3, pages), chunk_count = ?4, updated_at = datetime('now') WHERE id = ?5").bind(status, error, pages, n, row.id).run();
   return c.json({ document: toInfo((await owned(c, user.id, row.id))!) });
+});
+
+/* ---------------------------------------------------------------- scanned papers (docs/ocr.md) */
+
+/**
+ * The browser found that most pages of this PDF have no text, and says which pages have to be read from their pictures. The list is kept here, so reading
+ * can be stopped and continued (also from another day, when the daily limit has been reached). Asking again keeps what has been read.
+ */
+documentRoutes.post("/:id/scan", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const body = (await c.req.json().catch(() => null)) as { pages?: unknown; scanPages?: unknown } | null;
+  const pages = body?.pages;
+  const list = body?.scanPages;
+  if (typeof pages !== "number" || !Number.isInteger(pages) || pages < 1 || pages > MAX_DOC_PAGES) return deny(c, 400, "invalid_scan", "The number of pages is not valid");
+  if (!Array.isArray(list) || list.length === 0 || list.length > MAX_DOC_PAGES || list.some((p) => typeof p !== "number" || !Number.isInteger(p) || p < 1 || p > pages)) {
+    return deny(c, 400, "invalid_scan", "List the pages that have to be read from their pictures");
+  }
+  const pending = await registerScan(c.env.DB, row.id, pages, list as number[]);
+  if (pending === 0) await finishIfDone(c.env.DB, row.id);
+  return c.json({ document: toInfo((await owned(c, user.id, row.id))!), scan: await scanInfo(c.env.DB, user.id, row.id, ocrPerDay(c.env)) });
+});
+
+documentRoutes.get("/:id/scan", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  return c.json({ scan: await scanInfo(c.env.DB, user.id, row.id, ocrPerDay(c.env)) });
+});
+
+/** The text that was read from the scanned pages that were used (for the paper's title, DOI and reference list, and for showing what was read). */
+documentRoutes.get("/:id/scan/text", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  return c.json({ pages: await scanTexts(c.env.DB, row.id) });
+});
+
+/**
+ * One page picture (a JPEG in the body) is read by two models and checked. `?blank=1` with no body = the browser saw nothing on the page. The picture is
+ * not stored. The answer says how the page was read and, for a page that was used, what it says.
+ */
+documentRoutes.post("/:id/ocr", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  if (row.scanned !== 1) return deny(c, 409, "not_scanned", "This paper has a text layer, so nothing has to be read from pictures");
+  const page = Number(c.req.query("page"));
+  if (!Number.isInteger(page) || page < 1 || page > (row.pages ?? MAX_DOC_PAGES)) return deny(c, 400, "invalid_page", "That page is not in this paper");
+
+  let image: { bytes: Uint8Array; comment: string | null } | null = null;
+  if (c.req.query("blank") !== "1") {
+    const declared = Number(c.req.header("content-length") ?? "");
+    if (Number.isFinite(declared) && declared > OCR_MAX_IMAGE_BYTES) return deny(c, 413, "too_large", "That page picture is too large", "Pages are sent as a JPEG of about 150 dpi.");
+    const bytes = new Uint8Array(await c.req.arrayBuffer());
+    if (bytes.byteLength > OCR_MAX_IMAGE_BYTES) return deny(c, 413, "too_large", "That page picture is too large", "Pages are sent as a JPEG of about 150 dpi.");
+    const jpeg = readJpeg(bytes);
+    if (!jpeg) return deny(c, 415, "not_a_jpeg", "A page has to be sent as a JPEG picture");
+    const long = Math.max(jpeg.width, jpeg.height);
+    if (long < OCR_MIN_SIDE_PX || long > OCR_MAX_SIDE_PX + 200 || jpeg.width * jpeg.height > 4_500_000) {
+      return deny(c, 400, "invalid_image_size", "That page picture has an unusable size", `Send at most ${OCR_MAX_SIDE_PX} pixels on the long side.`);
+    }
+    image = { bytes, comment: jpeg.comment };
+  }
+
+  const reader = readerFor(c.env);
+  const embed = embedderFor(c.env);
+  if (!reader || !embed) return deny(c, 503, "ai_unavailable", "Reading scanned pages is unavailable right now");
+  try {
+    const result = await readScanPage({ db: c.env.DB, userId: user.id, docId: row.id, page, perDay: ocrPerDay(c.env), reader, embed, image });
+    if (!result) return deny(c, 404, "not_found", "That page is not on the list of pages to read");
+    return c.json({ result, document: toInfo((await owned(c, user.id, row.id))!) });
+  } catch (e) {
+    if (e instanceof DailyLimitError) {
+      return deny(c, 429, "ocr_daily_limit", "Today's limit for reading scanned pages is used", `You can have ${e.perDay} scanned pages read per day. What has been read is kept: continue tomorrow.`);
+    }
+    if (e instanceof ReadFailedError) {
+      console.error(JSON.stringify({ level: "error", msg: "ocr_failed", errors: e.errors }));
+      return deny(c, 502, "ai_failed", "The page could not be read just now", "Please try again in a moment.");
+    }
+    throw e;
+  }
 });
 
 /* ---------------------------------------------------------------- ask */

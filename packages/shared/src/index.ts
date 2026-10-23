@@ -103,3 +103,5 @@ export * from "./feedback";
 export * from "./jobs";
 export * from "./monitoring";
 export * from "./legal";
+export * from "./ocr";
+export * from "./scan-info";

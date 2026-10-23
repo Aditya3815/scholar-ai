@@ -84,7 +84,7 @@ markers the model forgot, citation tokens gpt-oss invents for itself, and garbag
 
 25 MB and 500 pages per PDF, 30 papers and 300 MB per user, 600 characters per question, 20 questions per minute per IP, and the
 gateway's daily token quota per user (about 15 answers a day on the free Workers AI allowance; raise it when the account is on a
-paid plan). **Scanned PDFs (page images with no text) fail with a clear message**; OCR is not built.
+paid plan). **Scanned PDFs (page images with no text) are read by two vision models and checked against each other**, 60 pages per person per day: see [ocr.md](ocr.md).
 
 ## Try it with the real models
 

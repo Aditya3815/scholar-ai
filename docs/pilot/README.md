@@ -40,7 +40,7 @@ complaints exists.** Nothing about Idea Check "coverage" or "prior art" should b
 
 ## Limits you promise nothing about (said plainly in the invite)
 
-Scanned PDFs (no OCR yet), tables, handwritten text, and papers behind a paywall (Scholar AI never fetches paywalled text; it works on what a person uploads and on public
+Scanned PDFs are supported as a beta (English and Hindi; 60 pages per person per day; a page the two AI models cannot agree on is marked and left out; check numbers on the page: [../ocr.md](../ocr.md)), but tables, handwritten text, and papers behind a paywall (Scholar AI never fetches paywalled text; it works on what a person uploads and on public
 metadata and abstracts). Languages: search and answers were tested in English, with one Hindi question per test paper; do not promise more than that.
 
 ## After the pilot

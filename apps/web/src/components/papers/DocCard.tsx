@@ -1,8 +1,8 @@
 import { m } from "motion/react";
-import { AlertCircle, ArrowRight, FileText, Loader2, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { AlertCircle, ArrowRight, FileText, Loader2, Pencil, RefreshCw, ScanLine, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { DocumentInfo } from "@scholar/shared";
-import { coverUrl, reindexDoc, renameDoc } from "../../lib/documents";
+import { continueScan, coverUrl, reindexDoc, renameDoc, useJobs } from "../../lib/documents";
 import { easeOut, springPop, stagger } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 
@@ -79,6 +79,9 @@ function Title({ doc }: { doc: DocumentInfo }) {
 
 export function DocCard({ doc, index, onOpen, onDelete }: { doc: DocumentInfo; index: number; onOpen: (id: string) => void; onDelete: (doc: DocumentInfo) => void }) {
   const ready = doc.status === "ready";
+  // a scanned paper that is part way: its pages are read from the picture, so it can be carried on
+  const scanLeft = doc.scanned && doc.status !== "ready" && doc.scanPending > 0;
+  const busy = useJobs().some((j) => j.docId === doc.id && ["reading", "uploading", "indexing", "scanning"].includes(j.step));
   return (
     <m.li
       className="card dc"
@@ -98,10 +101,16 @@ export function DocCard({ doc, index, onOpen, onDelete }: { doc: DocumentInfo; i
         <p className="dc-meta">
           {doc.pages ? `${doc.pages} ${doc.pages === 1 ? "page" : "pages"} · ` : ""}
           {size(doc.sizeBytes)} · {when(doc.createdAt)}
+          {doc.scanned && (
+            <span className="dc-scan" title="The text of this paper was read from page pictures">
+              {" "}· <ScanLine size={12} aria-hidden="true" /> Scan
+            </span>
+          )}
         </p>
 
         {doc.status === "failed" && <p className="dc-note" data-tone="warn">{doc.error ?? "Indexing failed."}</p>}
-        {(doc.status === "uploaded" || doc.status === "indexing") && <p className="dc-note">Not indexed yet. Open it to see the pages, or index it again.</p>}
+        {scanLeft && <p className="dc-note">{doc.scanPending} scanned {doc.scanPending === 1 ? "page" : "pages"} still to be read. What has been read is kept.</p>}
+        {!scanLeft && (doc.status === "uploaded" || doc.status === "indexing") && <p className="dc-note">Not indexed yet. Open it to see the pages, or index it again.</p>}
 
         <div className="dc-actions">
           <m.button type="button" className="btn btn-primary btn-sm" onClick={() => onOpen(doc.id)} whileTap={{ scale: 0.96 }} transition={springPop}>
@@ -109,9 +118,9 @@ export function DocCard({ doc, index, onOpen, onDelete }: { doc: DocumentInfo; i
             <ArrowRight size={15} aria-hidden="true" />
           </m.button>
           {!ready && (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => void reindexDoc(doc)}>
+            <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void (scanLeft ? continueScan(doc) : reindexDoc(doc))}>
               <RefreshCw size={14} aria-hidden="true" />
-              <span>Index again</span>
+              <span>{scanLeft ? "Continue reading" : "Index again"}</span>
             </button>
           )}
           <button type="button" className="icon-btn icon-btn-sm dc-del" aria-label={`Delete ${doc.title}`} title="Delete" onClick={() => onDelete(doc)}>

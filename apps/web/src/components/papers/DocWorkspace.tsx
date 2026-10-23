@@ -1,9 +1,10 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Loader2, MessageSquareText, Pencil, ScrollText } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type OutlineItem, type PaperInfo } from "@scholar/shared";
+import { analyzeScan, planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type OutlineItem, type PaperInfo, type ScanInfo } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
-import { ApiError, fetchDocument, fileUrl, reindexDoc, renameDoc, savePaperInfo, useJobs } from "../../lib/documents";
+import { ApiError, continueScan, fetchDocument, fileUrl, pauseScan, reindexDoc, renameDoc, savePaperInfo, useJobs } from "../../lib/documents";
+import { fetchScan, fetchScanText } from "../../lib/scan";
 import { analyzeOpenPdf } from "../../lib/paperinfo";
 import { useNotes } from "../../lib/notes";
 import { easeOut, spring } from "../../lib/motion";
@@ -12,12 +13,13 @@ import { PdfError, openPdf, type PDFDocumentProxy } from "../../lib/pdf";
 import { AskPanel } from "./AskPanel";
 import { NotesPanel } from "./NotesPanel";
 import { ReferencesPanel } from "./ReferencesPanel";
+import { ScanBanner } from "./ScanBanner";
 import type { NewNote, ViewerHandle } from "./PdfViewer";
 
 // The viewer (and pdf.js with it) is its own chunk: it is only downloaded when a paper is opened.
 const PdfViewer = lazy(() => import("./PdfViewer").then((m) => ({ default: m.PdfViewer })));
 
-type Load = { status: "loading" } | { status: "error"; message: string; notFound?: boolean } | { status: "ready"; doc: DocumentInfo; history: Answer[]; info: PaperInfo | null };
+type Load = { status: "loading" } | { status: "error"; message: string; notFound?: boolean } | { status: "ready"; doc: DocumentInfo; history: Answer[]; info: PaperInfo | null; scan: ScanInfo | null };
 type Pdf = { status: "loading"; progress: number } | { status: "error"; message: string } | { status: "ready"; pdf: PDFDocumentProxy };
 
 function TitleEditor({ doc, onChange }: { doc: DocumentInfo; onChange: (d: DocumentInfo) => void }) {
@@ -92,12 +94,13 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const [page, setPage] = useState(1);
   const viewer = useRef<ViewerHandle>(null);
   const jobs = useJobs();
-  const reindexing = jobs.some((j) => j.docId === id && j.step !== "done" && j.step !== "error");
+  const myJob = jobs.find((j) => j.docId === id && ["reading", "uploading", "indexing", "scanning"].includes(j.step));
+  const reindexing = !!myJob;
 
   const fetchIt = useCallback(async () => {
     try {
       const r = await fetchDocument(id);
-      setLoad({ status: "ready", doc: r.document, history: r.history, info: r.info });
+      setLoad({ status: "ready", doc: r.document, history: r.history, info: r.info, scan: r.scan });
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setLoad({ status: "error", message: "Sign in to open your papers." });
       else if (e instanceof ApiError && e.status === 404) setLoad({ status: "error", message: "We could not find that paper. It may have been deleted.", notFound: true });
@@ -132,13 +135,16 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     };
   }, [found, id]);
 
-  const needsInfo = load.status === "ready" && load.info === null;
+  const isScan = load.status === "ready" && load.doc.scanned;
+  const scanLeft = load.status === "ready" && load.doc.scanned ? load.doc.scanPending : 0;
+  const needsInfo = load.status === "ready" && load.info === null && scanLeft === 0;
   useEffect(() => {
     if (!needsInfo || pdf.status !== "ready" || analyzed.current === id) return;
     analyzed.current = id;
     let cancelled = false;
     setAnalyzing(true);
-    analyzeOpenPdf(pdf.pdf)
+    // a scan has no text layer: its DOI and references are looked for in the text that was read from its pictures
+    (isScan ? fetchScanText(id).then((pages) => analyzeScan(pages, pdf.pdf.numPages)) : analyzeOpenPdf(pdf.pdf))
       .then(async (found) => {
         const saved = await savePaperInfo(id, found).catch(() => null);
         if (!cancelled) setLoad((l) => (l.status === "ready" ? { ...l, doc: saved?.document ?? l.doc, info: saved?.info ?? found } : l));
@@ -148,7 +154,17 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     return () => {
       cancelled = true;
     };
-  }, [needsInfo, pdf, id]);
+  }, [needsInfo, isScan, pdf, id]);
+
+  // While a scanned paper is being read, its counts are kept up to date (the reading itself is a job that lives outside this page).
+  const scanRunning = !!myJob && myJob.step === "scanning";
+  useEffect(() => {
+    if (!isScan || !scanRunning) return;
+    const t = window.setInterval(() => {
+      void fetchScan(id).then((scan) => scan && setLoad((l) => (l.status === "ready" ? { ...l, scan } : l)), () => {});
+    }, 3000);
+    return () => window.clearInterval(t);
+  }, [isScan, scanRunning, id]);
 
   // When a re-index finishes, pick up the new status.
   const wasReindexing = useRef(false);
@@ -228,7 +244,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     );
   }
 
-  const { doc, history, info } = load;
+  const { doc, history, info, scan } = load;
   const meta = info?.metadata;
   const refCount = info?.references.length ?? 0;
   return (
@@ -239,10 +255,10 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
           <span>My papers</span>
         </button>
         <div className="dw-titles">
-          <TitleEditor doc={doc} onChange={(d) => setLoad({ status: "ready", doc: d, history, info })} />
+          <TitleEditor doc={doc} onChange={(d) => setLoad({ status: "ready", doc: d, history, info, scan })} />
           <p className="dw-meta">
             {doc.pages ? `${doc.pages} pages · ` : ""}
-            {doc.status === "ready" ? `${doc.chunkCount} passages indexed` : doc.status === "failed" ? "Not indexed" : "Indexing"}
+            {doc.status === "ready" ? `${doc.chunkCount} passages ${doc.scanned ? "read from a scan" : "indexed"}` : doc.status === "failed" ? "Not indexed" : doc.scanned ? "Reading the scanned pages" : "Indexing"}
           </p>
           {meta && (
             <p className="dw-byline">
@@ -256,6 +272,17 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
           )}
         </div>
       </div>
+
+      {doc.scanned && scan && (
+        <ScanBanner
+          doc={doc}
+          scan={scan}
+          running={scanRunning}
+          onContinue={() => void continueScan(doc)}
+          onPause={() => myJob && pauseScan(myJob.key)}
+          onGo={onGoToPage}
+        />
+      )}
 
       <div className="dw-tabs" role="tablist" aria-label="Workspace">
         {([["paper", "Paper", ScrollText], ["ask", "Ask", MessageSquareText], ["refs", "References", BookMarked], ["notes", "Notes", Highlighter]] as const).map(([t, label, Icon]) => {
@@ -327,7 +354,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
           </div>
           {/* Both stay mounted so a question being answered, or references being checked, are never lost by switching tabs. */}
           <div className="dw-side" hidden={side !== "ask"}>
-            <AskPanel doc={doc} history={history} onCite={onCite} onGoToPage={onGoToPage} onReindex={() => void reindexDoc(doc)} />
+            <AskPanel doc={doc} history={history} scan={doc.scanned ? scan : null} onCite={onCite} onGoToPage={onGoToPage} onReindex={() => void (doc.scanned ? continueScan(doc) : reindexDoc(doc))} />
             {reindexing && (
               <p className="ask-fine" role="status">
                 <Loader2 className="spin" size={13} aria-hidden="true" /> Indexing again…
@@ -335,7 +362,15 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             )}
           </div>
           <div className="dw-side" hidden={side !== "refs"}>
-            <ReferencesPanel info={info} analyzing={analyzing || (needsInfo && pdf.status !== "error")} pdf={pdf.status === "ready" ? pdf.pdf : null} onOpenPage={onGoToPage} onUseList={onUseReferenceList} />
+            <ReferencesPanel
+              info={info}
+              analyzing={analyzing || (needsInfo && pdf.status !== "error")}
+              pdf={pdf.status === "ready" ? pdf.pdf : null}
+              scanDocId={doc.scanned ? doc.id : undefined}
+              waiting={scanLeft > 0 ? `The references are looked for when every page has been read (${scanLeft} ${scanLeft === 1 ? "page is" : "pages are"} still to be read).` : undefined}
+              onOpenPage={onGoToPage}
+              onUseList={onUseReferenceList}
+            />
           </div>
           <div className="dw-side" hidden={side !== "notes"}>
             <NotesPanel doc={doc} api={notes} focusId={focusNote?.id ?? null} focusTick={focusNote?.tick ?? 0} onGo={onGoToNote} onFocusDone={(id) => setFocusNote((f) => (f?.id === id ? null : f))} />

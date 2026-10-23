@@ -16,7 +16,7 @@ import { VerifySummary, type Filter } from "../verify/VerifySummary";
  * The paper's own reference list, each entry checked against Crossref and OpenAlex by the Reference Verifier. Answers the questions
  * a reader has about a paper: does it cite things that do not exist, mix up details, or cite retracted work?
  */
-export function ReferencesPanel({ info, analyzing, pdf = null, onOpenPage, onUseList }: { info: PaperInfo | null; analyzing: boolean; pdf?: PDFDocumentProxy | null; onOpenPage?: (page: number) => void; onUseList?: (entries: string[]) => Promise<void> }) {
+export function ReferencesPanel({ info, analyzing, pdf = null, scanDocId, waiting, onOpenPage, onUseList }: { info: PaperInfo | null; analyzing: boolean; pdf?: PDFDocumentProxy | null; /** A scanned paper: its references are looked for in the text that was read. */ scanDocId?: string; /** Why there is nothing to show yet (the pages of a scan are still being read). */ waiting?: string; onOpenPage?: (page: number) => void; onUseList?: (entries: string[]) => Promise<void> }) {
   const { state, start, recheck, stop } = useVerify();
   const [filter, setFilter] = useState<Filter>("all");
   const started = useRef<string | null>(null);
@@ -36,7 +36,7 @@ export function ReferencesPanel({ info, analyzing, pdf = null, onOpenPage, onUse
   const shown = useMemo(() => state.items.map((it, i) => ({ it, i })).filter(({ it }) => filter === "all" || bucketOf(it) === filter), [state.items, filter]);
   const recheckBad = () => void recheck(state.items.filter((it) => bucketOf(it) === "unchecked" && it.verdict?.status !== "unparsed").map((it) => it.id));
 
-  const source = info?.referencesSource === "crossref" ? "from Crossref (this PDF's own list could not be read)" : "found in this PDF";
+  const source = info?.referencesSource === "crossref" ? "from Crossref (this PDF's own list could not be read)" : scanDocId ? "found in the text read from this scan" : "found in this PDF";
 
   return (
     <section className="ask refs-panel" aria-label="References of this paper">
@@ -45,7 +45,9 @@ export function ReferencesPanel({ info, analyzing, pdf = null, onOpenPage, onUse
           <BookMarked size={16} aria-hidden="true" /> References
         </h2>
         <p className="ask-sub">
-          {analyzing && !info ? (
+          {waiting ? (
+            <>{waiting}</>
+          ) : analyzing && !info ? (
             <>
               <Loader2 className="spin" size={14} aria-hidden="true" /> Reading this paper’s reference list…
             </>
@@ -60,7 +62,7 @@ export function ReferencesPanel({ info, analyzing, pdf = null, onOpenPage, onUse
       </header>
 
       <div className="ask-scroll refs-scroll">
-        {onOpenPage && onUseList && (info || !analyzing) && <ReferenceSection pdf={pdf} current={refs} onOpenPage={onOpenPage} onUseList={onUseList} />}
+        {onOpenPage && onUseList && !waiting && (info || !analyzing) && <ReferenceSection pdf={pdf} scanDocId={scanDocId} current={refs} onOpenPage={onOpenPage} onUseList={onUseList} />}
         {analyzing && !info && (
           <div className="refs-wait" aria-hidden="true">
             <span className="sk sk-title" />
@@ -69,14 +71,14 @@ export function ReferencesPanel({ info, analyzing, pdf = null, onOpenPage, onUse
           </div>
         )}
 
-        {info && refs.length === 0 && (
+        {info && refs.length === 0 && !waiting && (
           <m.div className="ask-empty" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: easeOut }}>
             <span className="principle-ico" aria-hidden="true">
               <FileSearch size={20} />
             </span>
             <p className="ask-empty-title">No references found</p>
             <p className="ask-hint">
-              The PDF has no heading we can recognise as “References” (some theses and scanned papers do not). If you have the list, paste it into{" "}
+              {scanDocId ? "No heading such as “References” was found in the text that was read (a page may not have been read reliably)." : "The PDF has no heading we can recognise as “References” (some theses and scanned papers do not)."} If you have the list, paste it into{" "}
               <a href="/verify">Verify references</a> and it is checked the same way.
             </p>
           </m.div>

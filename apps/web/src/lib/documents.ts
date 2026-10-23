@@ -1,29 +1,20 @@
 import { useSyncExternalStore } from "react";
-import { MAX_CHARS_PER_BATCH, MAX_DOC_BYTES, MAX_DOC_PAGES, MAX_PAGES_PER_BATCH, analyzePaper, type Answer, type AskStreamEvent, type DocumentInfo, type Line, type PageText, type PaperInfo } from "@scholar/shared";
+import {
+  MAX_CHARS_PER_BATCH, MAX_DOC_BYTES, MAX_DOC_PAGES, MAX_PAGES_PER_BATCH, analyzePaper, analyzeScan, isScanned, mergeScanInfo, needsReading,
+  type Answer, type AskStreamEvent, type DocumentInfo, type Line, type PageText, type PaperInfo, type ScanInfo,
+} from "@scholar/shared";
 import { readSse } from "./sse";
-import { openPdf, readOutline, readPage, renderCover, PdfError } from "./pdf";
+import { openPdf, readOutline, readPage, renderCover, PdfError, type PDFDocumentProxy } from "./pdf";
+import { ApiError, json, request } from "./docs-api";
+import { fetchScan, fetchScanText, readScannedPages, registerScan } from "./scan";
+
+export { ApiError };
 
 /* ---------------------------------------------------------------- API client */
 
-export class ApiError extends Error {
-  constructor(readonly status: number, readonly type: string, title: string, readonly detail?: string) {
-    super(detail ? `${title}. ${detail}` : title);
-  }
-}
-
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`/api/v1/documents${path}`, { credentials: "same-origin", ...init });
-  if (!res.ok) {
-    const j = (await res.json().catch(() => null)) as { type?: string; title?: string; detail?: string } | null;
-    throw new ApiError(res.status, j?.type ?? "error", j?.title ?? `The service answered ${res.status}`, j?.detail);
-  }
-  return (await res.json()) as T;
-}
-const json = (method: string, body: unknown): RequestInit => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-
 export type Usage = { count: number; maxCount: number; bytes: number; maxBytes: number };
 
-export const fetchDocument = (id: string) => request<{ document: DocumentInfo; history: Answer[]; info: PaperInfo | null }>(`/${id}`);
+export const fetchDocument = (id: string) => request<{ document: DocumentInfo; history: Answer[]; info: PaperInfo | null; scan: ScanInfo | null }>(`/${id}`);
 
 /** Store what was learned from reading the PDF; the server adds registry metadata and may give the paper its real title. */
 export const savePaperInfo = (id: string, info: PaperInfo) => request<{ document: DocumentInfo; info: PaperInfo }>(`/${id}/info`, json("PUT", info));
@@ -103,7 +94,7 @@ export async function removeDoc(id: string): Promise<void> {
 
 /* ---------------------------------------------------------------- ingest jobs (read -> upload -> index) */
 
-export type JobStep = "reading" | "uploading" | "indexing" | "done" | "error";
+export type JobStep = "reading" | "uploading" | "indexing" | "scanning" | "paused" | "done" | "error";
 export type Job = {
   key: string;
   name: string;
@@ -116,6 +107,8 @@ export type Job = {
   docId?: string;
   /** what the user can do about an error */
   retryable: boolean;
+  /** A paper of page pictures: its pages are read by models one by one (see scan.ts), which is a step of its own. */
+  scanned?: boolean;
 };
 
 let jobs: Job[] = [];
@@ -137,8 +130,12 @@ export const useJobs = (): Job[] =>
 export function dismissJob(key: string) {
   jobs = jobs.filter((j) => j.key !== key);
   retained.delete(key);
+  scanControllers.get(key)?.abort();
   emitJobs();
 }
+/** Stops reading a scanned paper's pages (what was read is kept). */
+export const pauseScan = (key: string) => scanControllers.get(key)?.abort();
+const scanControllers = new Map<string, AbortController>();
 
 /** Text of pages already read, kept only while a job is on screen so "Try again" does not re-read the PDF. */
 const retained = new Map<string, { docId: string; pages: PageText[] }>();
@@ -191,7 +188,7 @@ export function batches(pages: PageText[]): PageText[][] {
   return out;
 }
 
-async function indexPages(key: string, docId: string, pages: PageText[]): Promise<DocumentInfo> {
+async function indexPages(key: string, docId: string, pages: PageText[], total = pages.length): Promise<DocumentInfo> {
   const groups = batches(pages);
   for (const [i, group] of groups.entries()) {
     patchJob(key, { step: "indexing", progress: i / groups.length, detail: `Indexing pages ${group[0]!.page}–${group.at(-1)!.page} of ${pages.length}` });
@@ -204,7 +201,15 @@ async function indexPages(key: string, docId: string, pages: PageText[]): Promis
     }
   }
   patchJob(key, { progress: 1, detail: "Finishing up" });
-  return (await request<{ document: DocumentInfo }>(`/${docId}/finish`, json("POST", { pages: pages.length }))).document;
+  return (await request<{ document: DocumentInfo }>(`/${docId}/finish`, json("POST", { pages: total }))).document;
+}
+
+/** Index the few pages of a scanned paper that do have text (the pictures are read separately). No "finish": the paper is ready when its pictures are read. */
+async function indexTextPages(key: string, docId: string, pages: PageText[]): Promise<void> {
+  for (const [i, group] of batches(pages).entries()) {
+    patchJob(key, { step: "indexing", progress: i / Math.max(1, batches(pages).length), detail: `Indexing pages ${group[0]!.page}–${group.at(-1)!.page}` });
+    await request(`/${docId}/pages`, json("POST", { pages: group }));
+  }
 }
 
 async function readPages(key: string, pdf: Awaited<ReturnType<typeof openPdf>>): Promise<{ pages: PageText[]; info: PaperInfo }> {
@@ -222,10 +227,68 @@ async function readPages(key: string, pdf: Awaited<ReturnType<typeof openPdf>>):
   return { pages, info: analyzePaper({ lines, outline: await readOutline(pdf), pages: pdf.numPages }) };
 }
 
+/* ---------------------------------------------------------------- scanned papers: reading the page pictures */
+
+/** After every page has been tried: the DOI and the references are looked for in what was read, and kept with the paper. */
+async function saveScanInfo(docId: string, total: number, base: PaperInfo | null): Promise<void> {
+  const found = analyzeScan(await fetchScanText(docId), total);
+  const next = mergeScanInfo(base, found);
+  // nothing new to say: do not overwrite what the server has (and so do not repeat the registry lookups)
+  if (base && next.doi === base.doi && next.references.length === base.references.length) return;
+  await savePaperInfo(docId, next).catch(() => null);
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Registers the pages to read (the server keeps the list, so this can stop and go on later), reads them, and ends the job in the right state:
+ * ready, or paused with a plain reason (today's limit, the reader's own stop, the service not answering).
+ */
+async function scanPdf(key: string, docId: string, pdf: PDFDocumentProxy, scanPages: number[], base: PaperInfo | null): Promise<void> {
+  patchJob(key, { step: "scanning", scanned: true, progress: 0, detail: "Getting the pages ready", retryable: false });
+  const registered = await registerScan(docId, pdf.numPages, scanPages);
+  const todo = registered.scan?.pending ?? [];
+  const total = Math.max(1, registered.scan?.pages ?? todo.length);
+  let doc = registered.document;
+  if (todo.length > 0) {
+    const ctl = new AbortController();
+    scanControllers.set(key, ctl);
+    patchJob(key, { progress: (total - todo.length) / total, detail: `Reading ${plural(todo.length, "page")}…` });
+    const end = await readScannedPages({
+      docId, pdf, pages: todo, signal: ctl.signal,
+      onPage: (_r, document, left) => {
+        doc = document;
+        patchJob(key, { progress: (total - left) / total, detail: `Read ${total - left} of ${plural(total, "page")} (the models check each other)` });
+        void loadDocs();
+      },
+    });
+    scanControllers.delete(key);
+    if (end.document) doc = end.document;
+    if (end.reason !== "done" || end.left.length > 0) {
+      // the server's count: pages that were already on their way when the reading stopped are finished by it
+      const latest = await fetchScan(docId).catch(() => null);
+      const leftPages = latest ? latest.pending : end.left;
+      const left = plural(leftPages.length, "page");
+      const detail =
+        end.reason === "limit" ? `Today's limit for reading scanned pages is used. ${left} left: continue tomorrow, what is read is kept.`
+        : end.reason === "paused" ? `Paused. ${left} left to read.`
+        : end.reason === "signin" ? "You were signed out. Sign in again to continue; what is read is kept."
+        : end.reason === "unavailable" ? `The reading service did not answer. ${left} left; try again in a few minutes. What is read is kept.`
+        : `${left} could not be read just now. Continue to try them again.`;
+      patchJob(key, { step: end.reason === "signin" ? "error" : "paused", progress: (total - leftPages.length) / total, detail, error: end.reason === "signin" ? detail : undefined, retryable: false, docId });
+      void loadDocs();
+      return;
+    }
+  }
+  await saveScanInfo(docId, pdf.numPages, base).catch(() => {});
+  doc = (await fetchDocument(docId)).document;
+  finishJob(key, doc);
+}
+
 function finishJob(key: string, doc: DocumentInfo) {
   retained.delete(key);
   if (doc.status === "ready") {
-    patchJob(key, { step: "done", progress: 1, detail: `${doc.pages ?? ""} pages indexed`.trim(), docId: doc.id });
+    patchJob(key, { step: "done", progress: 1, detail: doc.scanned ? `${doc.pages ?? ""} pages read from the scan`.trim() : `${doc.pages ?? ""} pages indexed`.trim(), docId: doc.id });
     window.setTimeout(() => dismissJob(key), 1600);
   } else {
     patchJob(key, { step: "error", error: doc.error ?? "Indexing did not finish.", retryable: false, docId: doc.id });
@@ -248,13 +311,26 @@ export async function startUpload(file: File): Promise<void> {
     if (pdf.numPages > MAX_DOC_PAGES) throw new PdfError(`This PDF has ${pdf.numPages} pages. The limit is ${MAX_DOC_PAGES}.`, "invalid");
     const { pages, info } = await readPages(key, pdf);
     const cover = await renderCover(pdf);
-    void pdf.loadingTask.destroy();
+    const scanned = isScanned(pages.map((p) => p.text.length));
+    if (!scanned) void pdf.loadingTask.destroy();
 
-    patchJob(key, { step: "uploading", progress: 0, detail: `Uploading ${mb(file.size)}` });
+    patchJob(key, { step: "uploading", progress: 0, detail: `Uploading ${mb(file.size)}`, scanned });
     const doc = await uploadFile(file, (f) => patchJob(key, { progress: f }));
-    retained.set(key, { docId: doc.id, pages });
     patchJob(key, { docId: doc.id });
     if (cover) await request(`/${doc.id}/cover`, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: cover }).catch(() => {});
+
+    if (scanned) {
+      // A paper of page pictures: the pages with some text are indexed as usual, the others are read from their pictures (and never refused as "no text").
+      try {
+        const withText = pages.filter((p) => !needsReading(p.text.length));
+        if (withText.length > 0) await indexTextPages(key, doc.id, withText);
+        await scanPdf(key, doc.id, pdf, pages.filter((p) => needsReading(p.text.length)).map((p) => p.page), info);
+      } finally {
+        void pdf.loadingTask.destroy();
+      }
+      return;
+    }
+    retained.set(key, { docId: doc.id, pages });
 
     // The registry lookups behind this can take a few seconds, so it runs alongside indexing. It is a bonus: never a reason to fail.
     const saved = savePaperInfo(doc.id, info).catch(() => null);
@@ -287,6 +363,19 @@ export async function reindexDoc(doc: DocumentInfo): Promise<void> {
   try {
     const pdf = await openPdf({ url: fileUrl(doc.id) });
     const { pages, info } = await readPages(key, pdf);
+    if (isScanned(pages.map((p) => p.text.length))) {
+      // what has been read stays: the server keeps the list of pages and only the ones still to be read are read
+      try {
+        patchJob(key, { scanned: true });
+        const withText = pages.filter((p) => !needsReading(p.text.length));
+        if (withText.length > 0) await indexTextPages(key, doc.id, withText);
+        const server = await fetchDocument(doc.id).catch(() => null);
+        await scanPdf(key, doc.id, pdf, pages.filter((p) => needsReading(p.text.length)).map((p) => p.page), server?.info ?? info);
+      } finally {
+        void pdf.loadingTask.destroy();
+      }
+      return;
+    }
     void pdf.loadingTask.destroy();
     retained.set(key, { docId: doc.id, pages });
     const saved = savePaperInfo(doc.id, info).catch(() => null);
@@ -295,5 +384,31 @@ export async function reindexDoc(doc: DocumentInfo): Promise<void> {
     finishJob(key, indexed);
   } catch (e) {
     patchJob(key, { step: "error", error: friendly(e), retryable: retained.has(key) });
+  }
+}
+
+/**
+ * Carries on reading a scanned paper whose reading was stopped (the limit for the day, the reader's own stop, the tab was closed): opens the PDF again and
+ * reads the pages that are still to be read. Nothing that was read is read, or counted, twice.
+ */
+export async function continueScan(doc: Pick<DocumentInfo, "id" | "filename" | "sizeBytes">): Promise<void> {
+  const key = `scan-${doc.id}-${Date.now()}`;
+  jobs = [...jobs.filter((j) => !(j.docId === doc.id && (j.step === "paused" || j.step === "error"))), { key, name: doc.filename, size: doc.sizeBytes, step: "scanning", progress: 0, detail: "Opening the paper", retryable: false, docId: doc.id, scanned: true }];
+  emitJobs();
+  let pdf: PDFDocumentProxy | null = null;
+  try {
+    const [opened, server, scan] = await Promise.all([openPdf({ url: fileUrl(doc.id) }), fetchDocument(doc.id), fetchScan(doc.id)]);
+    pdf = opened;
+    if (!scan) {
+      // never registered as a scan (the upload stopped before that): read it as a new paper
+      dismissJob(key);
+      return void reindexDoc(server.document);
+    }
+    const list = scan.pending;
+    await scanPdf(key, doc.id, pdf, list.length > 0 ? list : scan.items.map((i) => i.page), server.info);
+  } catch (e) {
+    patchJob(key, { step: "error", error: friendly(e), retryable: false });
+  } finally {
+    void pdf?.loadingTask.destroy();
   }
 }

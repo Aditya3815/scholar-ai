@@ -1,5 +1,6 @@
-import { analyzePaper, referenceSection, type Line, type PaperInfo, type ReferenceSection } from "@scholar/shared";
+import { analyzePaper, referenceSection, scanReferenceSection, type Line, type PaperInfo, type ReferenceSection } from "@scholar/shared";
 import { readOutline, readPage, type PDFDocumentProxy } from "./pdf";
+import { fetchScanText } from "./scan";
 
 /**
  * Read an already open PDF for its title, DOI, contents and reference list. Papers uploaded before this existed (and any upload
@@ -26,3 +27,7 @@ export async function readReferenceSection(pdf: PDFDocumentProxy): Promise<Refer
   return referenceSection(lines, pdf.numPages);
 }
 
+/** The same for a scanned paper: found in the text that was read from its pages (only the pages that were used). */
+export async function readScanReferenceSection(docId: string): Promise<ReferenceSection> {
+  return scanReferenceSection(await fetchScanText(docId));
+}
