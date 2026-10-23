@@ -15,7 +15,7 @@ import { adminRoutes } from "./admin/routes";
 import { monitoringRoutes } from "./monitoring/routes";
 import { captureException } from "./monitoring/sentry";
 import type { AuthEnv } from "./auth/providers";
-import { d1Store } from "./cache/store";
+import { cacheStore, meter, writeCacheRows } from "./cache";
 import type { SearchEnv } from "./search/types";
 import { apiSecurityHeaders, requestLog } from "./middleware";
 import { rateLimit, type LimitEnv } from "./ratelimit";
@@ -26,6 +26,8 @@ import type { S2Throttle } from "./s2-throttle";
 type Bindings = AuthEnv & LimitEnv & {
   S2_THROTTLE: DurableObjectNamespace<S2Throttle>;
   DB: D1Database;
+  /** Workers KV: the public cache (src/cache/kv.ts). Absent in a local run without it: the database table is used. */
+  CACHE?: KVNamespace;
   CF_VERSION_METADATA?: WorkerVersionMetadata;
   JOBS: Queue;
   FILES: R2Bucket;
@@ -48,7 +50,7 @@ type Bindings = AuthEnv & LimitEnv & {
 };
 
 const searchEnv = (env: Bindings): SearchEnv => ({
-  store: d1Store(env.DB),
+  store: cacheStore(env),
   OPENALEX_API_KEY: env.OPENALEX_API_KEY,
   NCBI_API_KEY: env.NCBI_API_KEY,
   S2_API_KEY: env.S2_API_KEY,
@@ -59,6 +61,15 @@ const searchEnv = (env: Bindings): SearchEnv => ({
 const app = new Hono<{ Bindings: Bindings; Variables: { requestId: string } }>();
 
 app.use("*", requestLog());
+// cache hit and miss counts are written to the database after the response, in small batches (src/cache/meter.ts)
+app.use("/api/*", async (c, next) => {
+  try {
+    meter.attach(c.executionCtx, (rows) => writeCacheRows(c.env.DB, rows));
+  } catch {
+    /* no execution context (a test calling the app directly): counts stay in memory */
+  }
+  await next();
+});
 app.use("/api/*", apiSecurityHeaders);
 app.use("/api/*", rateLimit());
 
@@ -212,6 +223,24 @@ app.post("/api/v1/dev/sql", async (c) => {
   const results: unknown[][] = [];
   for (const s of list) results.push((await c.env.DB.prepare(s).all()).results);
   return c.json({ results });
+});
+
+/**
+ * Local tests only: reads and writes the public cache through the Worker's own binding, to prove the wiring (KV or the table) and the rules in kv.ts. Never in production
+ * (ENABLE_DEV_ROUTES is never set there).
+ */
+app.post("/api/v1/dev/cache", async (c) => {
+  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.json({ type: "not_found", title: "Not found" }, 404);
+  const b = (await c.req.json().catch(() => null)) as { op?: string; key?: string; keys?: string[]; value?: string; ttl?: number } | null;
+  const store = cacheStore(c.env);
+  const driver = c.env.CACHE ? "kv" : "d1";
+  if (b?.op === "set" && typeof b.key === "string" && typeof b.value === "string") {
+    await store.set(b.key, b.value, b.ttl ?? 300, "dev");
+    return c.json({ ok: true, driver });
+  }
+  if (b?.op === "get" && typeof b.key === "string") return c.json({ ok: true, driver, value: await store.get(b.key) });
+  if (b?.op === "getMany" && Array.isArray(b.keys) && b.keys.length <= 500) return c.json({ ok: true, driver, values: Object.fromEntries(await (store.getMany ? store.getMany(b.keys) : Promise.resolve(new Map()))) });
+  return c.json({ type: "invalid", title: "Send {op: set|get|getMany, key, value, ttl, keys}" }, 400);
 });
 
 /** Local tests only: makes the signed-in user an admin, so the admin page can be tested. */

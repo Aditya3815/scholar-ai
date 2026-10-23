@@ -99,6 +99,7 @@ try {
   ok = await run("library integration", "scripts/library-e2e.mjs") && ok;
   ok = await run("documents integration", "scripts/docs-e2e.mjs") && ok;
   ok = await run("scanned papers integration", "scripts/scan-e2e.mjs") && ok;
+  ok = await run("public cache integration", "scripts/cache-e2e.mjs") && ok;
   ok = await run("idea check integration", "scripts/idea-e2e.mjs") && ok;
   ok = await run("feedback integration", "scripts/feedback-e2e.mjs") && ok;
   if (withBrowser) {

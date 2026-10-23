@@ -1,14 +1,37 @@
 import { crossrefFetch } from "./crossref-gate";
 import { arxivYear, type Candidate } from "./match";
+import type { CacheStore } from "../cache/store";
+import { cacheKey, cached } from "../search/cache";
 
 export type LookupEnv = {
   CROSSREF_MAILTO: string;
   OPENALEX_API_KEY?: string;
+  /**
+   * Where answers from Crossref, OpenAlex and doi.org are remembered (public data only). Without it every lookup goes upstream (the eval harness, which replays recorded
+   * answers, and most tests leave it out). OpenAlex has a daily budget and Crossref a request rate; a reference list shared by many people asks the same questions again and again.
+   */
+  store?: CacheStore;
   /** Injectable for tests and for the eval harness (record/replay). Defaults to global fetch. */
   fetch?: typeof fetch;
 };
 
 export class LookupError extends Error {}
+
+/** An answer that exists keeps existing; "not found" may change tomorrow (a new paper is indexed, a DOI is registered), so it is kept for a shorter time. */
+const FOUND_TTL_S = 7 * 24 * 3600;
+const ABSENT_TTL_S = 6 * 3600;
+const isAbsent = (v: unknown) => v === null || v === false || (Array.isArray(v) && v.length === 0);
+
+/**
+ * Asks `load` unless the answer is already kept. Only what the service really said is kept (a LookupError is thrown past this, never stored), so a hiccup upstream
+ * is not remembered as "does not exist".
+ */
+async function remembered<T>(env: LookupEnv, name: string, parts: string[], load: () => Promise<T>): Promise<T> {
+  if (!env.store) return load();
+  const source = `lk-${name}`;
+  const { value } = await cached<T>(env.store, source, await cacheKey(source, ...parts), (v) => (isAbsent(v) ? ABSENT_TTL_S : FOUND_TTL_S), load);
+  return value;
+}
 
 const SELECT = "DOI,title,author,issued,container-title";
 const f = (env: LookupEnv) => env.fetch ?? fetch;
@@ -44,6 +67,9 @@ function fromCrossref(it: CRItem): Candidate | null {
 
 /** Crossref record for a DOI. null = Crossref says 404 (not registered with Crossref). Throws LookupError on other failures. */
 export async function crossrefByDoi(doi: string, env: LookupEnv): Promise<Candidate | null> {
+  return remembered(env, "crossref-doi", [doi.toLowerCase()], () => crossrefByDoiLive(doi, env));
+}
+async function crossrefByDoiLive(doi: string, env: LookupEnv): Promise<Candidate | null> {
   // No `select` here: Crossref rejects it on the single-work endpoint (HTTP 400); it only works on list queries.
   const url = `https://api.crossref.org/works/${encodeURIComponent(doi).replace(/%2F/g, "/")}?mailto=${encodeURIComponent(env.CROSSREF_MAILTO)}`;
   const res = await cr(env)(url, { headers: headers(env), signal: AbortSignal.timeout(10_000) }).catch((e) => {
@@ -57,6 +83,9 @@ export async function crossrefByDoi(doi: string, env: LookupEnv): Promise<Candid
 
 /** Crossref free-text bibliographic search: it ranks well on whole pasted citations. */
 export async function crossrefSearch(text: string, env: LookupEnv, rows = 8): Promise<Candidate[]> {
+  return remembered(env, "crossref-search", [text.slice(0, 350).toLowerCase(), String(rows)], () => crossrefSearchLive(text, env, rows));
+}
+async function crossrefSearchLive(text: string, env: LookupEnv, rows: number): Promise<Candidate[]> {
   const params = new URLSearchParams({ "query.bibliographic": text.slice(0, 350), rows: String(rows), select: SELECT, mailto: env.CROSSREF_MAILTO });
   const res = await cr(env)(`https://api.crossref.org/works?${params}`, { headers: headers(env), signal: AbortSignal.timeout(12_000) }).catch((e) => {
     throw new LookupError(`Crossref unreachable: ${e instanceof Error ? e.message : e}`);
@@ -68,6 +97,9 @@ export async function crossrefSearch(text: string, env: LookupEnv, rows = 8): Pr
 
 /** Title-focused search: ranks the right paper higher than the whole-string search when the reference carries long author lists. */
 export async function crossrefSearchTitle(title: string, env: LookupEnv, rows = 8): Promise<Candidate[]> {
+  return remembered(env, "crossref-title", [title.slice(0, 300).toLowerCase(), String(rows)], () => crossrefSearchTitleLive(title, env, rows));
+}
+async function crossrefSearchTitleLive(title: string, env: LookupEnv, rows: number): Promise<Candidate[]> {
   const params = new URLSearchParams({ "query.title": title.slice(0, 300), rows: String(rows), select: SELECT, mailto: env.CROSSREF_MAILTO });
   const res = await cr(env)(`https://api.crossref.org/works?${params}`, { headers: headers(env), signal: AbortSignal.timeout(12_000) }).catch((e) => {
     throw new LookupError(`Crossref unreachable: ${e instanceof Error ? e.message : e}`);
@@ -104,6 +136,9 @@ function fromOpenAlex(w: OAWork, fallbackDoi: string | null = null): Candidate |
 
 /** For DOIs Crossref does not hold (arXiv, Zenodo, other DataCite DOIs). Costs ~$0.001 per call, so only a fallback. */
 export async function openAlexByDoi(doi: string, env: LookupEnv): Promise<Candidate | null> {
+  return remembered(env, "openalex-doi", [doi.toLowerCase()], () => openAlexByDoiLive(doi, env));
+}
+async function openAlexByDoiLive(doi: string, env: LookupEnv): Promise<Candidate | null> {
   const params = new URLSearchParams({ select: OA_SELECT });
   if (env.OPENALEX_API_KEY) params.set("api_key", env.OPENALEX_API_KEY);
   const res = await f(env)(`https://api.openalex.org/works/doi:${encodeURIComponent(doi).replace(/%2F/g, "/")}?${params}`, { signal: AbortSignal.timeout(10_000) }).catch((e) => {
@@ -122,6 +157,9 @@ export async function openAlexByDoi(doi: string, env: LookupEnv): Promise<Candid
 export async function openAlexSearchTitle(title: string, env: LookupEnv, rows = 8): Promise<Candidate[]> {
   const clean = title.replace(/[^\p{L}\p{N}]+/gu, " ").trim().slice(0, 200);
   if (clean.split(" ").length < 2) return [];
+  return remembered(env, "openalex-title", [clean.toLowerCase(), String(rows)], () => openAlexSearchTitleLive(clean, env, rows));
+}
+async function openAlexSearchTitleLive(clean: string, env: LookupEnv, rows: number): Promise<Candidate[]> {
   const params = new URLSearchParams({ filter: `title.search:${clean}`, "per-page": String(rows), select: OA_SELECT });
   if (env.OPENALEX_API_KEY) params.set("api_key", env.OPENALEX_API_KEY);
   const res = await f(env)(`https://api.openalex.org/works?${params}`, { signal: AbortSignal.timeout(10_000) }).catch((e) => {
@@ -134,6 +172,9 @@ export async function openAlexSearchTitle(title: string, env: LookupEnv, rows = 
 
 /** Does the DOI resolve at all (any registration agency)? */
 export async function doiResolves(doi: string, env: LookupEnv): Promise<boolean> {
+  return remembered(env, "doi-handle", [doi.toLowerCase()], () => doiResolvesLive(doi, env));
+}
+async function doiResolvesLive(doi: string, env: LookupEnv): Promise<boolean> {
   const res = await f(env)(`https://doi.org/api/handles/${encodeURIComponent(doi).replace(/%2F/g, "/")}`, { signal: AbortSignal.timeout(8_000) }).catch((e) => {
     throw new LookupError(`doi.org unreachable: ${e instanceof Error ? e.message : e}`);
   });
@@ -159,6 +200,9 @@ type CRRef = {
  * gave one, otherwise built from its fields). Empty when the paper has none. Used when a PDF's own list could not be read.
  */
 export async function crossrefReferenceStrings(doi: string, env: LookupEnv): Promise<string[]> {
+  return remembered(env, "crossref-refs", [doi.toLowerCase()], () => crossrefReferenceStringsLive(doi, env));
+}
+async function crossrefReferenceStringsLive(doi: string, env: LookupEnv): Promise<string[]> {
   const url = `https://api.crossref.org/works/${encodeURIComponent(doi).replace(/%2F/g, "/")}?mailto=${encodeURIComponent(env.CROSSREF_MAILTO)}`;
   const res = await cr(env)(url, { headers: headers(env), signal: AbortSignal.timeout(10_000) }).catch((e) => {
     throw new LookupError(`Crossref unreachable: ${e instanceof Error ? e.message : e}`);

@@ -31,7 +31,7 @@ adminRoutes.get("/overview", async (c) => {
   const db = c.env.DB;
   const one = async <T>(sql: string) => (await db.prepare(sql).first<T>()) as T;
 
-  const [users, docs, questions, days, models, features, scans, feedback, jobs] = await Promise.all([
+  const [users, docs, questions, days, models, features, scans, cache, feedback, jobs] = await Promise.all([
     one<{ total: number; week: number }>("SELECT COUNT(*) AS total, COALESCE(SUM(created_at >= datetime('now', '-7 days')), 0) AS week FROM users WHERE deleted_at IS NULL"),
     one<{ total: number; ready: number; failed: number }>("SELECT COUNT(*) AS total, COALESCE(SUM(status = 'ready'), 0) AS ready, COALESCE(SUM(status = 'failed'), 0) AS failed FROM documents"),
     one<{ n: number }>("SELECT COUNT(*) AS n FROM doc_qa"),
@@ -39,6 +39,8 @@ adminRoutes.get("/overview", async (c) => {
     db.prepare("SELECT provider, model, COUNT(*) AS calls, COALESCE(SUM(ok = 0), 0) AS failed, COALESCE(SUM(tokens_in + tokens_out), 0) AS tokens, COALESCE(SUM(cost_cents), 0) AS cost FROM llm_usage WHERE ts >= date('now', '-6 days') GROUP BY provider, model ORDER BY tokens DESC").all<{ provider: string; model: string; calls: number; failed: number; tokens: number; cost: number }>(),
     db.prepare("SELECT COALESCE(label, '(not labelled)') AS feature, COUNT(*) AS calls, COALESCE(SUM(ok = 0), 0) AS failed, COALESCE(SUM(tokens_in), 0) AS tin, COALESCE(SUM(tokens_out), 0) AS tout, COALESCE(SUM(cost_cents), 0) AS cost FROM llm_usage WHERE ts >= date('now', '-6 days') GROUP BY feature ORDER BY cost DESC").all<{ feature: string; calls: number; failed: number; tin: number; tout: number; cost: number }>(),
     one<{ pages: number; neurons: number }>("SELECT COALESCE(SUM(pages), 0) AS pages, COALESCE(SUM(neurons), 0) AS neurons FROM ocr_usage WHERE day >= date('now', '-6 days')"),
+    // An unreadable table must not take the whole page down.
+    db.prepare("SELECT source, SUM(hits) AS hits, SUM(misses) AS misses FROM cache_stats WHERE day >= date('now', '-6 days') GROUP BY source ORDER BY SUM(hits) + SUM(misses) DESC").all<{ source: string; hits: number; misses: number }>().catch(() => ({ results: [] as { source: string; hits: number; misses: number }[] })),
     db.prepare("SELECT id, user_id, kind, problem, note, context, created_at FROM feedback ORDER BY created_at DESC, rowid DESC LIMIT 50").all<{ id: string; user_id: string; kind: FeedbackKind; problem: string; note: string | null; context: string; created_at: string }>(),
     // An unreadable heartbeat must not take the whole page down.
     readJobs(db).catch(() => []),
@@ -51,6 +53,7 @@ adminRoutes.get("/overview", async (c) => {
     usage: days.results.map((d) => ({ day: d.day, calls: d.calls, failed: d.failed, tokens: d.tokens, costCents: Math.round(d.cost * 100) / 100 })),
     byModel: models.results.map((r) => ({ provider: r.provider, model: r.model, calls: r.calls, failed: r.failed, tokens: r.tokens, costCents: Math.round(r.cost * 10000) / 10000 })),
     byFeature: features.results.map((r) => ({ feature: r.feature, calls: r.calls, failed: r.failed, tokensIn: r.tin, tokensOut: r.tout, costCents: Math.round(r.cost * 10000) / 10000 })),
+    cache: cache.results,
     scans: { pages: scans.pages, neurons: Math.round(scans.neurons), costCents: Math.round(scans.neurons * NEURON_CENTS * 10000) / 10000 },
     feedback: feedback.results.map((f) => ({ id: f.id, kind: f.kind, problem: f.problem, note: f.note, context: JSON.parse(f.context), createdAt: f.created_at.replace(" ", "T") + "Z", user: f.user_id.slice(0, 8) })),
     jobs,

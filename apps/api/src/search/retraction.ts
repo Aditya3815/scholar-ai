@@ -1,6 +1,8 @@
 import { crossrefHeaders } from "./crossref";
 import { normalizeDoi } from "./normalize";
 import { crossrefFetch } from "../references/crossref-gate";
+import { getMany, type CacheStore } from "../cache/store";
+import { cacheKey } from "./cache";
 type RetractionEnv = { CROSSREF_MAILTO: string; fetch?: typeof fetch };
 
 type NoticeItem = { "update-to"?: { DOI?: string; type?: string }[] };
@@ -41,4 +43,37 @@ export async function findRetracted(
     }
   }
   return [...retracted];
+}
+
+/** A retraction can be announced at any time, so what was found is kept for a day. */
+const RETRACTION_TTL_S = 24 * 3600;
+
+/**
+ * `findRetracted` with one cache entry per DOI ("1" retracted, "0" not): the DOIs already known are read in one operation and only the others are sent to Crossref. A DOI that
+ * `findRetracted` cannot ask about (one with a comma) is not in the answer and is not cached. Throws when Crossref could not be asked; nothing is kept then.
+ */
+export async function retractedDois(store: CacheStore | undefined, dois: string[], env: RetractionEnv, signal: AbortSignal): Promise<{ retracted: Set<string>; fromCache: boolean }> {
+  const usable = [...new Set(dois)].filter((d) => d && !d.includes(","));
+  if (!store) return { retracted: new Set(await findRetracted(usable, env, signal)), fromCache: false };
+  if (usable.length === 0) return { retracted: new Set(), fromCache: true };
+
+  const keys = await Promise.all(usable.map((d) => cacheKey("retraction", d)));
+  const kept = await getMany(store, keys).catch(() => new Map<string, string | null>());
+  const retracted = new Set<string>();
+  const missing: string[] = [];
+  usable.forEach((d, i) => {
+    const v = kept.get(keys[i]!);
+    if (v === "1") retracted.add(d);
+    else if (v !== "0") missing.push(d);
+  });
+  if (missing.length === 0) return { retracted, fromCache: true };
+
+  const found = new Set(await findRetracted(missing, env, signal));
+  await Promise.all(
+    missing.map((d) => {
+      if (found.has(d)) retracted.add(d);
+      return store.set(keys[usable.indexOf(d)]!, found.has(d) ? "1" : "0", RETRACTION_TTL_S, "retraction").catch((e) => console.warn("cache write failed", e));
+    }),
+  );
+  return { retracted, fromCache: false };
 }

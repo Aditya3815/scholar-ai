@@ -30,6 +30,7 @@ import {
 import { currentUser, sameOrigin } from "../auth/http";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
 import { fromSqliteTime } from "../library/validate";
+import { cacheStore } from "../cache";
 import { chunkPage } from "./chunk";
 import { enrichPaperInfo, sanitizePaperInfo } from "./info";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "./embed";
@@ -43,6 +44,7 @@ import { stubReader } from "../ocr/stub";
 
 type Bindings = {
   DB: D1Database;
+  CACHE?: KVNamespace;
   FILES: R2Bucket;
   AI?: Ai;
   GEMINI_API_KEY?: string;
@@ -259,7 +261,7 @@ documentRoutes.put("/:id/info", async (c) => {
   const clean = sanitizePaperInfo((() => { try { return JSON.parse(raw); } catch { return null; } })());
   if (!clean) return deny(c, 400, "invalid_info", "Could not read that information about the paper");
 
-  const info = await enrichPaperInfo(clean, c.env);
+  const info = await enrichPaperInfo(clean, { ...c.env, store: cacheStore(c.env) });
   const renamed = row.title === titleFrom(row.filename) ? (info.metadata?.title ?? info.title)?.slice(0, 200) : undefined;
   await c.env.DB
     .prepare("UPDATE documents SET info = ?1, title = COALESCE(?2, title), updated_at = datetime('now') WHERE id = ?3")

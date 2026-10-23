@@ -2,13 +2,14 @@ import { Hono } from "hono";
 import { MAX_REFERENCE_CHARS } from "@scholar/shared";
 import { sameOrigin } from "../auth/http";
 import { cacheKey } from "../search/cache";
-import { d1Store, type CacheStore } from "../cache/store";
+import { cacheStore } from "../cache";
+import type { CacheStore } from "../cache/store";
 import type { LookupEnv } from "./lookup";
 import { verifyReference, type RefResult } from "./verify";
 
 export { MAX_REFERENCE_CHARS };
 
-type Env = { DB: D1Database; CROSSREF_MAILTO: string; OPENALEX_API_KEY?: string };
+type Env = { DB: D1Database; CACHE?: KVNamespace; CROSSREF_MAILTO: string; OPENALEX_API_KEY?: string };
 
 /** Verified/mismatch answers change slowly; "not found" is re-checked sooner because Crossref keeps indexing new papers. */
 const TTL_SECONDS: Partial<Record<RefResult["status"], number>> = { verified: 86_400, mismatch: 86_400, not_found: 3_600 };
@@ -46,7 +47,9 @@ referenceRoutes.post("/verify", async (c) => {
   if (text.length > MAX_REFERENCE_CHARS) {
     return c.json({ type: "invalid_reference", title: "Reference too long", detail: `A single reference can be at most ${MAX_REFERENCE_CHARS} characters. Split the list into separate entries.` }, 413);
   }
-  const { result, cached } = await verifyCached(d1Store(c.env.DB), text, c.env);
+  // the same public cache keeps the final verdict and every answer the databases gave on the way to it
+  const store = cacheStore(c.env);
+  const { result, cached } = await verifyCached(store, text, { ...c.env, store });
   c.header("Cache-Control", "no-store");
   return c.json({ ...result, cached });
 });

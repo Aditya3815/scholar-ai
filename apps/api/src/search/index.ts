@@ -5,7 +5,7 @@ import { crossref } from "./crossref";
 import { mergeAndRank } from "./merge";
 import { openalex } from "./openalex";
 import { pubmed } from "./pubmed";
-import { findRetracted } from "./retraction";
+import { retractedDois } from "./retraction";
 import { FEW_RESULTS, interleave, queryVariants } from "./query";
 import { s2 } from "./s2";
 import type { Provider, ProviderPaper, SearchEnv } from "./types";
@@ -13,7 +13,6 @@ import type { Provider, ProviderPaper, SearchEnv } from "./types";
 const PROVIDERS: Provider[] = [openalex, s2, crossref, pubmed];
 const PROVIDER_TIMEOUT_MS = 6000;
 const SEARCH_TTL_S = 24 * 3600;
-const RETRACTION_TTL_S = 24 * 3600;
 const PER_PROVIDER = 20;
 
 export const MAX_QUERY_LENGTH = 300;
@@ -62,11 +61,7 @@ export async function applyRetractions(env: SearchEnv, results: Paper[]): Promis
   const dois = results.map((r) => r.doi).filter((d): d is string => !!d);
   if (dois.length === 0) return { ok: true, count: 0, ms: 0, cached: false };
   try {
-    const key = await cacheKey("retraction", [...new Set(dois)].sort().join("|"));
-    const { value, hit } = await cached<string[]>(env.store, "retraction", key, RETRACTION_TTL_S, () =>
-      findRetracted(dois, env, AbortSignal.timeout(PROVIDER_TIMEOUT_MS)),
-    );
-    const retracted = new Set(value);
+    const { retracted, fromCache } = await retractedDois(env.store, dois, env, AbortSignal.timeout(PROVIDER_TIMEOUT_MS));
     for (const r of results) {
       if (r.doi && retracted.has(r.doi)) {
         r.retracted = true;
@@ -75,7 +70,7 @@ export async function applyRetractions(env: SearchEnv, results: Paper[]): Promis
         }
       }
     }
-    return { ok: true, count: retracted.size, ms: Date.now() - t1, cached: hit };
+    return { ok: true, count: retracted.size, ms: Date.now() - t1, cached: fromCache };
   } catch (err) {
     return {
       ok: false,

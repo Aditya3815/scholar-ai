@@ -50,6 +50,8 @@ export type AdminOverview = {
   byFeature: { feature: string; calls: number; failed: number; tokensIn: number; tokensOut: number; costCents: number }[];
   /** Scanned pages read in the last seven days, and what they cost (Workers AI neurons at $0.011 per 1,000). */
   scans: { pages: number; neurons: number; costCents: number };
+  /** The public cache over the last seven days: for each source (search results of one provider, DOI checks, retraction checks, each kind of reference lookup) how often an answer was already kept. */
+  cache: { source: string; hits: number; misses: number }[];
   feedback: AdminFeedback[];
   /** Scheduled jobs (the daily clean-up) and whether they ran on time. */
   jobs: JobStatus[];

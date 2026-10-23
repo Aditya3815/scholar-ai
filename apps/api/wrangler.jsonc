@@ -21,6 +21,9 @@
     "producers": [{ "queue": "scholar-jobs", "binding": "JOBS" }]
   },
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "scholar-files" }],
+  // Public lookups (search results, DOI and retraction checks, reference lookups) are cached here, not in the database: docs/spikes/R6-kv-cache.md.
+  // Only public data is ever put in this namespace.
+  "kv_namespaces": [{ "binding": "CACHE", "id": "2e43e4d46b59423cafeecd08c383dba0" }],
   "ai": { "binding": "AI" },
   "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }],
@@ -60,6 +63,7 @@
       ],
       "queues": { "producers": [{ "queue": "scholar-jobs-staging", "binding": "JOBS" }] },
       "r2_buckets": [{ "binding": "FILES", "bucket_name": "scholar-files-staging" }],
+      "kv_namespaces": [{ "binding": "CACHE", "id": "4fba839cd6a84242955f48463b5bef02" }],
       "ai": { "binding": "AI" },
       "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }] },
       "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }],

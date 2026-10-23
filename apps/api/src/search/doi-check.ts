@@ -1,8 +1,8 @@
 import type { Paper } from "@scholar/shared";
-import type { CacheStore } from "../cache/store";
+import { getMany, type CacheStore } from "../cache/store";
 import { doiResolves } from "../references/lookup";
 import { tokenize } from "../references/match";
-import { cacheKey, cached } from "./cache";
+import { cacheKey } from "./cache";
 import { crossrefHeaders } from "./crossref";
 import { normalizeTitle } from "./normalize";
 
@@ -19,7 +19,8 @@ export type DoiCheck = { status: "registered" | "resolves" | "unresolvable" | "u
 
 type Env = { store: CacheStore; CROSSREF_MAILTO: string };
 const MAX_HANDLE_CHECKS = 12;
-const TTL_S = 7 * 24 * 3600;
+/** A DOI that exists keeps existing; one that does not may be registered tomorrow (a new paper), so that answer is kept shorter. "unchecked" (a hiccup) is not kept at all. */
+const TTL_BY_STATUS: Record<DoiCheck["status"], number> = { registered: 7 * 24 * 3600, resolves: 7 * 24 * 3600, unresolvable: 6 * 3600, unchecked: 0 };
 
 const containment = (a: string, b: string) => {
   const A = new Set(tokenize(a)), B = new Set(tokenize(b));
@@ -40,33 +41,62 @@ async function crossrefBatch(dois: string[], env: Env, signal: AbortSignal): Pro
   return new Map((body.message?.items ?? []).filter((i) => i.DOI).map((i) => [i.DOI!.toLowerCase(), i.title?.[0] ?? ""]));
 }
 
+/** Asks Crossref and doi.org about these DOIs (no cache). */
+async function liveChecks(dois: string[], env: Env, signal: AbortSignal): Promise<Record<string, DoiCheck>> {
+  const result: Record<string, DoiCheck> = {};
+  const registered = await crossrefBatch(dois, env, signal);
+  const rest: string[] = [];
+  for (const d of dois) {
+    if (registered.has(d)) result[d] = { status: "registered", title: registered.get(d) };
+    else rest.push(d);
+  }
+  await Promise.all(
+    rest.map(async (d, i) => {
+      if (i >= MAX_HANDLE_CHECKS) return void (result[d] = { status: "unchecked" });
+      try {
+        result[d] = { status: (await doiResolves(d, { CROSSREF_MAILTO: env.CROSSREF_MAILTO })) ? "resolves" : "unresolvable" };
+      } catch {
+        result[d] = { status: "unchecked" }; // doi.org hiccup: never drop a DOI on an error
+      }
+    }),
+  );
+  return result;
+}
+
+/**
+ * One cache entry PER DOI (a search that shares half its DOIs with an earlier one then asks only about the other half; keyed by the whole set, as before, two searches
+ * almost never shared an entry). The kept ones are read in one operation, the rest are asked in one Crossref call plus doi.org for the leftovers, and each answer is kept
+ * as long as that kind of answer stays true.
+ */
 export async function checkDois(dois: string[], env: Env, signal: AbortSignal): Promise<Record<string, DoiCheck>> {
   const usable = [...new Set(dois)].filter((d) => d && !d.includes(",")).sort();
   const out: Record<string, DoiCheck> = {};
   if (usable.length === 0) return out;
 
-  const key = await cacheKey("doicheck", usable.join("|"));
-  const { value } = await cached<Record<string, DoiCheck>>(env.store, "doicheck", key, TTL_S, async () => {
-    const result: Record<string, DoiCheck> = {};
-    const registered = await crossrefBatch(usable, env, signal);
-    const rest: string[] = [];
-    for (const d of usable) {
-      if (registered.has(d)) result[d] = { status: "registered", title: registered.get(d) };
-      else rest.push(d);
+  const keys = await Promise.all(usable.map((d) => cacheKey("doicheck", d)));
+  const kept = await getMany(env.store, keys).catch(() => new Map<string, string | null>());
+  const missing: string[] = [];
+  usable.forEach((d, i) => {
+    const raw = kept.get(keys[i]!);
+    try {
+      if (raw) return void (out[d] = JSON.parse(raw) as DoiCheck);
+    } catch {
+      /* a damaged entry is a miss */
     }
-    await Promise.all(
-      rest.map(async (d, i) => {
-        if (i >= MAX_HANDLE_CHECKS) return void (result[d] = { status: "unchecked" });
-        try {
-          result[d] = { status: (await doiResolves(d, { CROSSREF_MAILTO: env.CROSSREF_MAILTO })) ? "resolves" : "unresolvable" };
-        } catch {
-          result[d] = { status: "unchecked" }; // doi.org hiccup: never drop a DOI on an error
-        }
-      }),
-    );
-    return result;
+    missing.push(d);
   });
-  return Object.assign(out, value);
+  if (missing.length === 0) return out;
+
+  const fresh = await liveChecks(missing, env, signal);
+  await Promise.all(
+    missing.map(async (d) => {
+      const c = fresh[d]!;
+      out[d] = c;
+      const ttl = TTL_BY_STATUS[c.status];
+      if (ttl > 0) await env.store.set(keys[usable.indexOf(d)]!, JSON.stringify(c), ttl, "doicheck").catch((e) => console.warn("cache write failed", e));
+    }),
+  );
+  return out;
 }
 
 /** Applies the checks in place. Returns how many DOIs were removed. */

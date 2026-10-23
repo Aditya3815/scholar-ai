@@ -1,5 +1,5 @@
 import type { RefStatus } from "@scholar/shared";
-import { findRetracted } from "../search/retraction";
+import { retractedDois } from "../search/retraction";
 import {
   LookupError,
   crossrefByDoi,
@@ -47,8 +47,8 @@ async function withRetraction(r: RefResult, env: LookupEnv): Promise<RefResult> 
   const doi = r.match?.doi;
   if (!doi) return r;
   try {
-    const retracted = await findRetracted([doi], { CROSSREF_MAILTO: env.CROSSREF_MAILTO }, AbortSignal.timeout(8_000));
-    return { ...r, retracted: retracted.includes(doi) };
+    const { retracted } = await retractedDois(env.store, [doi], { CROSSREF_MAILTO: env.CROSSREF_MAILTO }, AbortSignal.timeout(8_000));
+    return { ...r, retracted: retracted.has(doi) };
   } catch {
     return r; // retraction status unknown: leave it unset rather than claiming "not retracted"
   }

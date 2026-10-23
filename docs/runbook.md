@@ -93,6 +93,15 @@ A question uses one gateway call (about 3 to 4k tokens); the per-user daily toke
 - **Weekly Q&A quality** (`.github/workflows/qa-eval.yml`, Tuesdays): downloads the five public gold-set papers, asks the 35 questions with the real models and fails below the gate
   (`qa-eval.mjs --gate`). It needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. First run: trigger it by hand (Actions, "Q&A quality", Run workflow).
 
+## The public cache (Workers KV)
+
+- Search results, DOI and retraction checks, reference lookups and public model answers are remembered in **Workers KV**, binding `CACHE` (namespace ids in `apps/api/wrangler.jsonc`: `scholar-cache`, and `scholar-cache-staging` for staging). Only public data goes in it; never a person's text, file or idea.
+  Entries expire by themselves (a day to a week; "not found" six hours); nothing to clean up. Why KV, what it can and cannot do, and what was measured: [spikes/R6-kv-cache.md](spikes/R6-kv-cache.md).
+- Look: `/admin`, "Public lookups kept" (hits and misses per source, 7 days). Contents: `wrangler kv key list --namespace-id <id> --remote` (use the staging id for staging).
+- Throw everything away: change `KV_VERSION` in `apps/api/src/cache/kv.ts` and deploy. Go back to the database table: remove `kv_namespaces` from the config and deploy; the code uses `api_cache` by itself when `CACHE` is not bound
+  (the daily job still cleans that table, and `cache_stats` older than 35 days).
+- A deploy needs the namespace to exist already (it does; created with `wrangler kv namespace create`). A new environment needs its own namespace and a `kv_namespaces` entry.
+
 ## What it costs (and how to look)
 
 - `/admin`, "AI use": the last 14 days (tokens, calls, failures and **cost at list prices**), then **by model** and **by feature** for the last 7 days (a document question `doc_qa`, the Idea Check steps `idea_plan`, `idea_compare`,

@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { streamSSE } from "hono/streaming";
 import { PRIVACY_VERSION, IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaCompareEvent, type IdeaInsightsEvent, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
-import { d1Store } from "../cache/store";
+import { cacheStore } from "../cache";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "../docs/embed";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
@@ -16,6 +16,7 @@ import { stubCompareStream, stubInsightsStream, stubPlan, stubSearch } from "./s
 
 type Bindings = {
   DB: D1Database;
+  CACHE?: KVNamespace;
   AI?: Ai;
   S2_THROTTLE: DurableObjectNamespace<S2Throttle>;
   GEMINI_API_KEY?: string;
@@ -63,7 +64,7 @@ function streamFor(env: Bindings, subject: string, abort: AbortSignal, stub: Str
 const embedderFor = (env: Bindings): Embedder | null => (stubbed(env) ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null);
 
 const searchEnv = (env: Bindings): SearchEnv => ({
-  store: d1Store(env.DB),
+  store: cacheStore(env),
   OPENALEX_API_KEY: env.OPENALEX_API_KEY,
   NCBI_API_KEY: env.NCBI_API_KEY,
   S2_API_KEY: env.S2_API_KEY,

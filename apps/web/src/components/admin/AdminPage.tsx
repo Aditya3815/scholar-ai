@@ -198,6 +198,21 @@ export function AdminPage() {
             </tbody>
           </table>
         )}
+        {data.cache.length > 0 && (
+          <table className="admin-table">
+            <caption>Public lookups kept (a hit is a call to OpenAlex, Crossref, PubMed or doi.org that was not made), last 7 days</caption>
+            <thead>
+              <tr><th scope="col">Source</th><th scope="col" className="num">Kept (hit)</th><th scope="col" className="num">Asked (miss)</th><th scope="col" className="num">Hit rate</th></tr>
+            </thead>
+            <tbody>
+              {data.cache.map((r) => (
+                <tr key={r.source}>
+                  <td>{r.source}</td><td className="num">{n(r.hits)}</td><td className="num">{n(r.misses)}</td><td className="num">{r.hits + r.misses > 0 ? `${Math.round((r.hits / (r.hits + r.misses)) * 100)}%` : "–"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
         <p className="admin-lead">
           Scanned pages, last 7 days: {n(data.scans.pages)} {data.scans.pages === 1 ? "page" : "pages"} read, {n(data.scans.neurons)} neurons, about {usd(data.scans.costCents)}.
         </p>

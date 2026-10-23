@@ -1,5 +1,6 @@
 import { DEFAULT_CONFIG } from "./config";
-import { d1Ledger, d1ResponseCache } from "./d1";
+import { cacheStore } from "../cache";
+import { d1Ledger } from "./d1";
 import { createGateway } from "./gateway";
 import { geminiProvider } from "./providers/gemini";
 import { workersAiProvider } from "./providers/workersai";
@@ -7,6 +8,7 @@ import type { LlmProvider } from "./types";
 
 export type LlmEnv = {
   DB: D1Database;
+  CACHE?: KVNamespace;
   AI?: Ai;
   GEMINI_API_KEY?: string;
   /**
@@ -30,7 +32,7 @@ export function gatewayFromEnv(env: LlmEnv) {
   return createGateway({
     providers,
     ledger: d1Ledger(env.DB),
-    cache: d1ResponseCache(env.DB),
+    cache: cacheStore(env), // only PUBLIC requests are ever cached by the gateway (private ones never reach it)
     config,
   });
 }
