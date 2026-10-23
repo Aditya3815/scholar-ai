@@ -52,8 +52,9 @@ type HeldPaper = Paper & { group: "india" | "global" };
 const heldPapers = subset(read<HeldPaper[]>("heldout_papers.json"), 12);
 const heldFakes = subset(read<Fake[]>("heldout_fakes.json"), 10);
 
+// No store here: the lookups (verifyReference, doiResolves ...) must make the same requests as when the fixtures were recorded. A search gets a fresh store of its own
+// (`searchEnv`), so its DOI and retraction checks ask for the whole set of DOIs, as the recorded requests do.
 const env = {
-  store: memoryStore(),
   OPENALEX_API_KEY: process.env.OPENALEX_API_KEY ?? "eval",
   NCBI_API_KEY: process.env.NCBI_API_KEY ?? "eval",
   S2_API_KEY: process.env.S2_API_KEY ?? "eval",
@@ -103,7 +104,7 @@ const M = {} as {
 };
 
 async function search(q: string): Promise<SearchRun> {
-  const r = await runSearch(env, q, 20);
+  const r = await runSearch({ ...env, store: memoryStore() }, q, 20);
   M.providers.runs += Object.keys(r.providers).length;
   M.providers.failures += Object.values(r.providers).filter((p) => !p.ok).length;
   M.doiPipeline.searches++;

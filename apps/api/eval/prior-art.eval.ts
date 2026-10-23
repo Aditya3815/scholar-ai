@@ -32,8 +32,8 @@ const FIXTURES = HERE + "fixtures-prior-art.json.gz";
 /** Until the first recording exists (it needs a valid OpenAlex key: the meaning search refuses calls without one) this eval is skipped in replay. */
 const SKIP = MODE === "replay" && !existsSync(FIXTURES);
 const layer = new FetchLayer(SKIP ? "live" : MODE, FIXTURES);
+// every check gets a fresh store: its DOI and retraction checks then ask for the whole set of DOIs, which is what the recorded requests are
 const env = {
-  store: memoryStore(),
   OPENALEX_API_KEY: process.env.OPENALEX_API_KEY ?? "eval",
   S2_API_KEY: process.env.S2_API_KEY ?? "eval",
   // no NCBI key: PubMed answers without one (3 requests a second), and a made-up key would be refused
@@ -67,7 +67,7 @@ beforeAll(async () => {
   layer.install();
   for (const it of items) {
     for (const name of Object.keys(CONFIGS) as ConfigName[]) {
-      const out = await runIdeaSearch({ env, embed: null, req: { semanticQuery: it.abstract, keywordQueries: [it.title.slice(0, 100)] }, retryPauseMs: 0, arxivGapMs: 0, sources: CONFIGS[name] });
+      const out = await runIdeaSearch({ env: { ...env, store: memoryStore() }, embed: null, req: { semanticQuery: it.abstract, keywordQueries: [it.title.slice(0, 100)] }, retryPauseMs: 0, arxivGapMs: 0, sources: CONFIGS[name] });
       const papers = out.papers.filter((p) => p.doi !== it.doi && !sameTitle(p.title, it.title));
       const found = it.refs.filter((r) => papers.some((p) => p.doi === r.doi || sameTitle(p.title, r.title))).length;
       rowsBy[name].push({ group: it.group, title: it.title, refs: it.refs.length, found, kept: papers.length, datasets: papers.filter((p) => p.kind === "data").length, onlyExtra: papers.filter((p) => p.foundBy.length > 0 && p.foundBy.every((f) => f === "PubMed" || f === "arXiv")).length, failedSearches: out.searched.filter((s) => !s.ok).length });

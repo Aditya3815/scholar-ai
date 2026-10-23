@@ -68,6 +68,14 @@ Prices at this size do not decide anything: a search reads about 6 keys, a refer
 - Tests: 51 new unit tests (the KV store against a fake KV with a clock, the meter, `cached()` including concurrent misses and failures, per-DOI DOI and retraction checks, every lookup's lifetimes and "errors are not kept"),
   and 19 checks of the real local KV through the Worker (values, a million characters, 250 keys at once, the counts reaching the database and the admin page).
 
+## 4b. The eval gates (found by CI, not by me locally)
+
+The citation and prior-art evals replay recorded Crossref and OpenAlex answers, and a replay fails on any request that was not recorded. With one cache shared by the whole eval run, the new per-DOI
+entries made later searches ask Crossref about fewer DOIs than were recorded (and an old whole-set entry had hidden that two searches asked about the same DOIs in a different order). Fix: each
+search in the eval gets a store of its own (so it asks about its whole set of DOIs, exactly as recorded), the lookups in the eval have no store (as recorded), and the two Crossref requests that were
+new in order only were added to the prior-art recording with `node eval/patch-fixtures.mjs --prior-art "GET ..."` (Crossref only, no OpenAlex budget). Results are unchanged: known-item recall 99/100
+at 10, held-out 58/60, 0 of 40 fabricated verified. **Run `npm run eval -w apps/api` before pushing a change to search or lookups**; it is a step of CI and I skipped it this time.
+
 ## 5. Not done, on purpose
 
 - **Staleness refresh** ("serve the old value and refresh in the background"): the Cache API cannot do it and KV does it only for hot keys by itself; at these lifetimes (a day to a week) it buys nothing.

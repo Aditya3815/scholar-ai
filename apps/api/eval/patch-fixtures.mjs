@@ -1,12 +1,14 @@
 // Adds the recordings a replay run reported as missing, without re-recording everything:
 //   npm run eval 2>&1 | grep "^  GET "      # the missing requests
 //   node eval/patch-fixtures.mjs "GET https://api.openalex.org/works?..." ...
+// (add --prior-art first to patch the prior-art recording, fixtures-prior-art.json.gz, instead of the citation one)
 // Each request is fetched live (keys from .dev.vars), trimmed and scrubbed exactly like a normal recording, and merged into fixtures.json.gz.
 import { readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { trimBody } from "./lib/trim.mjs";
 
-const file = new URL("./fixtures.json.gz", import.meta.url);
+const priorArt = process.argv.includes("--prior-art");
+const file = new URL(priorArt ? "./fixtures-prior-art.json.gz" : "./fixtures.json.gz", import.meta.url);
 const vars = {};
 try {
   for (const line of readFileSync(new URL("../.dev.vars", import.meta.url), "utf8").split(/\r?\n/)) {
@@ -21,7 +23,7 @@ vars.CROSSREF_MAILTO ??= "eval@example.org";
 const fixtures = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8"));
 
 let added = 0;
-for (const arg of process.argv.slice(2)) {
+for (const arg of process.argv.slice(2).filter((a) => a !== "--prior-art")) {
   const key = arg.replace(/^GET /, "");
   const u = new URL(key);
   if (u.host === "api.openalex.org" && vars.OPENALEX_API_KEY) u.searchParams.set("api_key", vars.OPENALEX_API_KEY);
