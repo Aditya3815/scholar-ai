@@ -1,10 +1,13 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { IdeaSearchEvent } from "@scholar/shared";
 import { memoryStore } from "../cache/store";
+import { resetGates } from "../gate";
 import type { SearchEnv } from "../search/types";
 import { sanitizeRequest, runIdeaSearch } from "./search";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+// the CORE lane of this test file starts open and without a gap between calls (the gate's own timing is tested in gate/)
+beforeEach(() => resetGates({ core: { minIntervalMs: 0, window: undefined } }));
 afterEach(() => vi.unstubAllGlobals());
 
 const oa = (title: string, over: Record<string, unknown> = {}) => ({
@@ -168,10 +171,16 @@ describe("more sources and kinds of record", () => {
   const PUBMED_SEARCH = { esearchresult: { idlist: ["111"] } };
   const PUBMED_SUMMARY = { result: { "111": { uid: "111", title: "A PubMed-only clinical study of glaucoma screening.", pubdate: "2021 Mar", source: "Ophthalmology", authors: [{ name: "Rao K" }], articleids: [{ idtype: "doi", value: "10.1000/pm.111" }] } } };
 
-  function network(extra: { arxiv?: () => Response; semantic?: unknown[]; keyword?: unknown[] } = {}) {
+  /** What was asked of CORE (the URLs), kept apart from `hits` so the checks above stay as they were. */
+  let coreCalls: string[] = [];
+  const CORE_ANSWER = { results: [{ title: "A repository-only thesis on smartphone fundus imaging", yearPublished: 2022, abstract: "A thesis abstract about fundus imaging with a smartphone.", authors: [{ name: "Rao, K" }], documentType: "thesis", downloadUrl: "https://core.ac.uk/download/9.pdf", doi: null }] };
+
+  function network(extra: { arxiv?: () => Response; semantic?: unknown[]; keyword?: unknown[]; core?: () => Response } = {}) {
     const hits = { arxiv: 0, pubmed: 0 };
+    coreCalls = [];
     vi.stubGlobal("fetch", async (input: unknown) => {
       const url = String(input);
+      if (url.includes("api.core.ac.uk")) return (coreCalls.push(decodeURIComponent(url)), extra.core?.() ?? json(CORE_ANSWER));
       if (url.includes("export.arxiv.org")) return (hits.arxiv++, extra.arxiv?.() ?? new Response(FEED));
       if (url.includes("esearch.fcgi")) return (hits.pubmed++, json(PUBMED_SEARCH));
       if (url.includes("esummary.fcgi")) return json(PUBMED_SUMMARY);
@@ -204,6 +213,43 @@ describe("more sources and kinds of record", () => {
     const out = await run({ sources: { pubmed: false, arxiv: false } });
     expect(off).toEqual({ arxiv: 0, pubmed: 0 });
     expect(out.searched.some((s) => s.source === "arxiv" || s.source === "pubmed")).toBe(false);
+  });
+
+  it("asks CORE about the first two keyword searches when there is a key, and labels what only CORE found", async () => {
+    network();
+    const out = await run({ env: env({ CORE_API_KEY: "k" }), req: { semanticQuery: PLAN.semanticQuery, keywordQueries: ["alpha beta", "beta gamma", "gamma delta"] } });
+    expect(coreCalls).toHaveLength(2);
+    expect(coreCalls[0]).toContain("q=alpha+beta&");
+    expect(coreCalls[1]).toContain("q=beta+gamma&");
+    const thesis = out.papers.find((p) => p.title === "A repository-only thesis on smartphone fundus imaging")!;
+    expect(thesis.foundBy).toEqual(["CORE"]);
+    expect(thesis.sources).toEqual(["core"]);
+    expect(thesis.kind).toBe("thesis");
+    expect(thesis.oaUrl).toBe("https://core.ac.uk/download/9.pdf");
+    expect(out.searched.filter((s) => s.source === "core")).toEqual([
+      expect.objectContaining({ kind: "keyword", query: "alpha beta", ok: true, count: 1 }),
+      expect.objectContaining({ query: "beta gamma", ok: true }),
+    ]);
+  });
+
+  it("does not ask CORE without a key, or when it is switched off, and never counts it as a failed search then", async () => {
+    network();
+    const none = await run();
+    expect(coreCalls).toHaveLength(0);
+    expect(none.searched.some((s) => s.source === "core")).toBe(false);
+    network();
+    await run({ env: env({ CORE_API_KEY: "k" }), sources: { core: false } });
+    expect(coreCalls).toHaveLength(0);
+  });
+
+  it("a CORE that is busy or down is reported by name and changes nothing else, and is not retried like a 429", async () => {
+    network({ core: () => new Response("", { status: 429, headers: { "x-ratelimit-retry-after": new Date(Date.now() + 30_000).toISOString() } }) });
+    const out = await run({ env: env({ CORE_API_KEY: "k" }) });
+    const failed = out.searched.filter((s) => !s.ok);
+    expect(failed.map((s) => s.source)).toEqual(["core", "core"]);
+    expect(failed[0]!.error).toMatch(/CORE/);
+    expect(coreCalls).toHaveLength(1); // the second search found the lane closed; nobody asked CORE again
+    expect(out.papers.length).toBeGreaterThan(0);
   });
 
   it("a failing arXiv is reported and changes nothing else", async () => {

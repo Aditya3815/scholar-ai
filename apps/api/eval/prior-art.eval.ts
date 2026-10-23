@@ -36,6 +36,8 @@ const layer = new FetchLayer(SKIP ? "live" : MODE, FIXTURES);
 const env = {
   OPENALEX_API_KEY: process.env.OPENALEX_API_KEY ?? "eval",
   S2_API_KEY: process.env.S2_API_KEY ?? "eval",
+  // CORE is asked only where a key is set; in replay any value does (the key is not part of a recorded request)
+  CORE_API_KEY: process.env.CORE_API_KEY ?? "eval",
   // no NCBI key: PubMed answers without one (3 requests a second), and a made-up key would be refused
   CROSSREF_MAILTO: process.env.CROSSREF_MAILTO ?? "eval@example.org",
 };
@@ -50,15 +52,16 @@ const sameTitle = (a: string, b: string) => {
 
 type Row = { group: Item["group"]; title: string; refs: number; found: number; kept: number; datasets: number; onlyExtra: number; failedSearches: number };
 
-/** The same 40 papers searched with each set of sources, to measure what PubMed and arXiv add (the OpenAlex and Semantic Scholar answers are shared, so recording costs the same). */
+/** The same 40 papers searched with each set of sources, to measure what PubMed, arXiv and CORE add (the OpenAlex and Semantic Scholar answers are shared, so recording costs the same). */
 const CONFIGS = {
-  base: { pubmed: false, arxiv: false },
-  "+PubMed": { pubmed: true, arxiv: false },
-  "+arXiv": { pubmed: false, arxiv: true },
-  all: { pubmed: true, arxiv: true },
+  base: { pubmed: false, arxiv: false, core: false },
+  "+PubMed": { pubmed: true, arxiv: false, core: false },
+  "+arXiv": { pubmed: false, arxiv: true, core: false },
+  "+CORE": { pubmed: false, arxiv: false, core: true },
+  all: { pubmed: true, arxiv: true, core: true },
 } as const;
 type ConfigName = keyof typeof CONFIGS;
-const rowsBy: Record<ConfigName, Row[]> = { base: [], "+PubMed": [], "+arXiv": [], all: [] };
+const rowsBy: Record<ConfigName, Row[]> = { base: [], "+PubMed": [], "+arXiv": [], "+CORE": [], all: [] };
 /** What the product ships: gated below. */
 const SHIPPED: ConfigName = "all";
 
@@ -70,7 +73,7 @@ beforeAll(async () => {
       const out = await runIdeaSearch({ env: { ...env, store: memoryStore() }, embed: null, req: { semanticQuery: it.abstract, keywordQueries: [it.title.slice(0, 100)] }, retryPauseMs: 0, arxivGapMs: 0, sources: CONFIGS[name] });
       const papers = out.papers.filter((p) => p.doi !== it.doi && !sameTitle(p.title, it.title));
       const found = it.refs.filter((r) => papers.some((p) => p.doi === r.doi || sameTitle(p.title, r.title))).length;
-      rowsBy[name].push({ group: it.group, title: it.title, refs: it.refs.length, found, kept: papers.length, datasets: papers.filter((p) => p.kind === "data").length, onlyExtra: papers.filter((p) => p.foundBy.length > 0 && p.foundBy.every((f) => f === "PubMed" || f === "arXiv")).length, failedSearches: out.searched.filter((s) => !s.ok).length });
+      rowsBy[name].push({ group: it.group, title: it.title, refs: it.refs.length, found, kept: papers.length, datasets: papers.filter((p) => p.kind === "data").length, onlyExtra: papers.filter((p) => p.foundBy.length > 0 && p.foundBy.every((f) => f === "PubMed" || f === "arXiv" || f === "CORE")).length, failedSearches: out.searched.filter((s) => !s.ok).length });
     }
   }
 }, 90 * 60 * 1000);
@@ -91,7 +94,7 @@ describe.skipIf(SKIP)("prior-art recall", () => {
     const all = stats(rows);
     const lines = [
       "\n=== WHAT EACH SOURCE ADDS (same 40 papers, closest 30 kept) ===",
-      "sources    hit≥1  ≥3 refs  mean recall  datasets/paper  only from PubMed/arXiv  failed searches",
+      "sources    hit≥1  ≥3 refs  mean recall  datasets/paper  only from PubMed/arXiv/CORE  failed searches",
       ...(Object.keys(CONFIGS) as ConfigName[]).map((n) => {
         const s = stats(rowsBy[n]);
         return `${n.padEnd(9)}  ${pct(s.hit).padStart(5)}  ${pct(s.atLeast3).padStart(7)}  ${(Math.round(s.recall * 1000) / 10 + "%").padStart(11)}  ${(Math.round(mean(rowsBy[n].map((r) => r.datasets)) * 10) / 10 + "").padStart(14)}  ${(Math.round(mean(rowsBy[n].map((r) => r.onlyExtra)) * 10) / 10 + "").padStart(21)}  ${rowsBy[n].reduce((a, r) => a + r.failedSearches, 0)}`;
@@ -101,12 +104,12 @@ describe.skipIf(SKIP)("prior-art recall", () => {
       `at least one reference found              ${pct(all.hit)}`,
       `three or more references found            ${pct(all.atLeast3)}`,
       `mean share of a paper's references found  ${pct(all.recall)}   (india ${pct(stats(rows.filter((r) => r.group === "india")).recall)}, global ${pct(stats(rows.filter((r) => r.group === "global")).recall)})`,
-      `searches that failed                      ${rows.reduce((n, r) => n + r.failedSearches, 0)} of ${rows.length * 5}`,
+      `searches that failed                      ${rows.reduce((n, r) => n + r.failedSearches, 0)} of ${rows.length * 6}`,
       "--- papers where nothing was found ---",
       ...rows.filter((r) => r.found === 0).map((r) => `  [${r.group}] ${r.title.slice(0, 90)} (${r.refs} refs)`),
     ];
     process.stdout.write(lines.join("\n") + "\n");
-    if (MODE === "replay") expect(layer.missing.slice(0, 3), "re-record the prior-art fixtures if the search code changed on purpose").toEqual([]);
+    if (MODE === "replay") expect(layer.missing.slice(0, Number(process.env.EVAL_LIST_MISSING ?? 3)), "re-record the prior-art fixtures if the search code changed on purpose").toEqual([]);
     expect(all.hit, "share of papers with at least one reference found").toBeGreaterThanOrEqual(GATES.hitRate);
     expect(all.recall, "mean share of references found").toBeGreaterThanOrEqual(GATES.meanRecall);
   });

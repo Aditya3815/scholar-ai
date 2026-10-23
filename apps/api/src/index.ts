@@ -22,9 +22,13 @@ import { rateLimit, type LimitEnv } from "./ratelimit";
 import { runMaintenance } from "./maintenance";
 import { readJobs, runJob } from "./jobs";
 import type { S2Throttle } from "./s2-throttle";
+import { ApiGate, remoteGate } from "./gate/api-gate";
+import { installGates, withGate, GATES, type GateName } from "./gate";
 
 type Bindings = AuthEnv & LimitEnv & {
   S2_THROTTLE: DurableObjectNamespace<S2Throttle>;
+  /** The shared lanes to Crossref and CORE (src/gate): one limit for every isolate. Absent in a test: each isolate then keeps its own lane. */
+  API_GATE?: DurableObjectNamespace<ApiGate>;
   DB: D1Database;
   /** Workers KV: the public cache (src/cache/kv.ts). Absent in a local run without it: the database table is used. */
   CACHE?: KVNamespace;
@@ -54,6 +58,7 @@ const searchEnv = (env: Bindings): SearchEnv => ({
   OPENALEX_API_KEY: env.OPENALEX_API_KEY,
   NCBI_API_KEY: env.NCBI_API_KEY,
   S2_API_KEY: env.S2_API_KEY,
+  CORE_API_KEY: env.CORE_API_KEY,
   CROSSREF_MAILTO: env.CROSSREF_MAILTO,
   s2Gate: (maxWaitMs) => env.S2_THROTTLE.getByName("global").reserve(maxWaitMs),
 });
@@ -61,6 +66,11 @@ const searchEnv = (env: Bindings): SearchEnv => ({
 const app = new Hono<{ Bindings: Bindings; Variables: { requestId: string } }>();
 
 app.use("*", requestLog());
+// every call to Crossref and CORE asks the shared lane first (the binding is the same for the life of an isolate)
+app.use("/api/*", async (c, next) => {
+  installGates(c.env.API_GATE ? remoteGate(c.env.API_GATE) : null);
+  await next();
+});
 // cache hit and miss counts are written to the database after the response, in small batches (src/cache/meter.ts)
 app.use("/api/*", async (c, next) => {
   try {
@@ -243,6 +253,37 @@ app.post("/api/v1/dev/cache", async (c) => {
   return c.json({ type: "invalid", title: "Send {op: set|get|getMany, key, value, ttl, keys}" }, 400);
 });
 
+/**
+ * Local tests only: sends `n` calls through one lane at once, each holding it for `holdMs`, and reports when each started and the most that were in
+ * flight together, so the limits of the real Durable Object can be checked (scripts/gate-e2e.mjs).
+ */
+app.post("/api/v1/dev/gate", async (c) => {
+  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.json({ type: "not_found", title: "Not found" }, 404);
+  const b = (await c.req.json().catch(() => null)) as { name?: string; n?: number; holdMs?: number; maxWaitMs?: number } | null;
+  if (!b?.name || !(b.name in GATES)) return c.json({ type: "invalid", title: "name must be a lane" }, 400);
+  const name = b.name as GateName;
+  const n = Math.min(Math.max(1, b.n ?? 1), 40);
+  const t0 = Date.now();
+  let running = 0;
+  let peak = 0;
+  const out = await Promise.all(
+    Array.from({ length: n }, async () => {
+      try {
+        return await withGate(name, b.maxWaitMs ?? 5000, async () => {
+          const startedAt = Date.now() - t0;
+          peak = Math.max(peak, ++running);
+          await new Promise((r) => setTimeout(r, Math.min(b.holdMs ?? 0, 2000)));
+          running--;
+          return { startedAt };
+        });
+      } catch (e) {
+        return { refused: e instanceof Error ? e.message : "refused" };
+      }
+    }),
+  );
+  return c.json({ results: out, peak });
+});
+
 /** Local tests only: makes the signed-in user an admin, so the admin page can be tested. */
 app.post("/api/v1/dev/make-admin", async (c) => {
   if (c.env.ENABLE_DEV_ROUTES !== "1") return c.json({ type: "not_found", title: "Not found" }, 404);
@@ -263,6 +304,7 @@ app.onError((err, c) => {
 });
 
 export { S2Throttle } from "./s2-throttle";
+export { ApiGate } from "./gate/api-gate";
 
 export default {
   fetch: app.fetch,

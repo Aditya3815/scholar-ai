@@ -75,7 +75,7 @@ export type ReportInput = {
   insights?: IdeaInsights | null;
 };
 
-const SOURCE_NAME: Record<IdeaSearched["source"], string> = { openalex: "OpenAlex", s2: "Semantic Scholar", pubmed: "PubMed", arxiv: "arXiv" };
+const SOURCE_NAME: Record<IdeaSearched["source"], string> = { openalex: "OpenAlex", s2: "Semantic Scholar", pubmed: "PubMed", arxiv: "arXiv", core: "CORE" };
 const KIND_NAME: Record<IdeaPaper["kind"], string> = { paper: "", preprint: "preprint", book: "book", thesis: "thesis", report: "report", data: "dataset or software" };
 const OUTCOME_TEXT: Record<OutcomeKind, string> = { positive: "reports that it worked", mixed: "reports mixed results", negative: "reports that it did not work", not_stated: "no result stated in the abstract" };
 const COVERAGE_TEXT = { covered: "covered", similar: "something similar", none: "no compared paper covers it", not_stated: "not stated in your idea" } as const;
@@ -89,6 +89,13 @@ export function md(s: unknown, max = 400): string {
 const quote = (q: string) => `> “${md(q, 320)}”`;
 const doiLink = (doi: string | null) => (doi && /^10\.\d{4,9}\/[^\s<>]+$/.test(doi) ? `https://doi.org/${encodeURI(doi)}` : null);
 const dayOf = (iso: string) => (Number.isFinite(Date.parse(iso)) ? new Date(iso).toISOString().slice(0, 10) : "");
+
+/** The services that were really asked, in the order of the list above, as a sentence part: "OpenAlex, PubMed and arXiv". */
+function searchedNames(searched: IdeaSearched[]): { text: string; many: boolean } {
+  const names = [...new Set(searched.map((s) => SOURCE_NAME[s.source]))];
+  if (names.length === 0) return { text: "no service", many: false };
+  return { text: names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`, many: names.length > 1 };
+}
 
 export function buildIdeaReport(r: ReportInput): string {
   const out: string[] = [];
@@ -186,7 +193,7 @@ export function buildIdeaReport(r: ReportInput): string {
   push(
     "## What this report cannot tell you",
     "- It does not say whether your idea is new. Not finding a paper here does not mean it does not exist.",
-    "- Only OpenAlex, Semantic Scholar, PubMed and arXiv were searched (as listed above). Theses, books, many regional-language and non-indexed journals, unpublished work and paywalled full texts are not covered.",
+    `- Only ${searchedNames(r.searched).text} ${searchedNames(r.searched).many ? "were" : "was"} searched (as listed above). Theses, books, many regional-language and non-indexed journals, unpublished work and paywalled full texts are covered only as far as those services list them.`,
     "- Papers were compared by their abstracts, not their full text. A paper can do more (or less) than its abstract says.",
     "- An AI model read the abstracts. Every statement from a paper is shown with its sentence, checked to be in the abstract, so you can judge it; the model can still read a sentence wrongly.",
     "- Please read the papers before relying on any of this.",

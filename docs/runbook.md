@@ -58,7 +58,7 @@ After rotating a pasted-in-chat credential, revoke the old one at the provider.
   `EXPECT_CRON` ("1" in production, "0" in staging) tells the health address that the job is expected; the migration counts as the first good run.
 - Scanned papers: pages per person per day is the Worker variable `OCR_PAGES_PER_DAY` (default 60; a value that is not a whole number from 1 to 2000 is ignored). It is a plain
   variable, not a secret: set it in `wrangler.jsonc` `vars` (and the staging block) and deploy. Cost and how it works: [ocr.md](ocr.md).
-- Semantic Scholar: calls go through the `S2Throttle` Durable Object (1 request/second). S2 also returns 429 on its own
+- Semantic Scholar: calls go through the `S2Throttle` Durable Object (1 request/second); Crossref and CORE through `ApiGate` (next section). S2 also returns 429 on its own
   under load; the search then reports `s2` as failed and still returns the other three sources. That is upstream, not a bug.
 
 ## Uploaded papers
@@ -92,6 +92,19 @@ A question uses one gateway call (about 3 to 4k tokens); the per-user daily toke
 - Answers reported as wrong are the raw material for the Q&A gold set: copy the question and passage into `apps/api/scripts/r2/questions.json` (new `id`) once the right answer is known.
 - **Weekly Q&A quality** (`.github/workflows/qa-eval.yml`, Tuesdays): downloads the five public gold-set papers, asks the 35 questions with the real models and fails below the gate
   (`qa-eval.mjs --gate`). It needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. First run: trigger it by hand (Actions, "Q&A quality", Run workflow).
+
+## The shared lanes to Crossref and CORE (V5)
+
+- Every call to **Crossref** and **CORE** first asks one Durable Object, `ApiGate` (binding `API_GATE`, one instance per lane: `crossref`, `core`), so the limit holds for the whole product and not per process.
+  Settings are in `apps/api/src/gate/index.ts` (`GATES`): Crossref a start every 340 ms and three at once (what its polite pool says in `x-rate-limit-limit` and `x-concurrency-limit`); CORE nine starts a minute and 800 a day (it allows ten a minute; the daily
+  allowance of 1,000 is from CORE's documentation, nothing in its answers shows it). State is kept in the object's storage, so a restart does not forget what was spent.
+- A call the lane cannot place in time is **not made**: Search gives up after 2.5 s and goes on without Crossref, a reference check queues up to 15 s. To the caller it looks like a 429, which every caller reports as "could not check", never as "not found".
+  When Crossref or CORE answer 429 themselves, the lane is closed for the time they ask (CORE: its `x-ratelimit-retry-after`), so the other callers do not walk into the same wall.
+- If the Durable Object cannot be reached, each isolate keeps its own lane (a log line `gate_unreachable` is written once per isolate): a little too loose is better than every lookup failing.
+- Look: no page yet. A burst test against a deployed Worker: `node apps/api/scripts/crossref-burst.mjs <base url> refs 40 15 <offset>` (use a new offset each time: answers are cached). Local: `scripts/gate-e2e.mjs`, part of `npm run integration`.
+- Change a limit: edit `GATES` and deploy (the object reads it when it starts; to apply it at once change nothing else, a deploy restarts it). Reset a lane that was closed by mistake: deploy; or delete the object's storage key `state:<lane>` (Dashboard, Durable Objects, `ApiGate`).
+- Adding a lane for another service: add it to `GATES`, wrap the call in `withGate(name, maxWaitMs, ...)`, and say in the wording of its errors that it is busy, not "HTTP 429" (Idea Check retries that after a pause).
+- Numbers and why: [spikes/R7-lanes-and-core.md](spikes/R7-lanes-and-core.md).
 
 ## The public cache (Workers KV)
 

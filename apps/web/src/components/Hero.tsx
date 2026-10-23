@@ -12,7 +12,7 @@ const EXAMPLES = [
 ];
 
 const PRINCIPLES = [
-  { Icon: BadgeCheck, title: "Real records only", body: "Every citation comes from OpenAlex, Semantic Scholar, Crossref or PubMed. Nothing is invented by AI." },
+  { Icon: BadgeCheck, title: "Real records only", body: "Every citation comes from OpenAlex, Semantic Scholar, Crossref, PubMed, arXiv or CORE. Nothing is invented by AI." },
   { Icon: ShieldAlert, title: "Retractions flagged", body: "Each result is checked against Retraction Watch data, so you never cite a withdrawn paper by accident." },
   { Icon: Layers, title: "Four sources, one list", body: "Duplicates are merged by DOI, and papers that several sources agree on rise to the top." },
 ];

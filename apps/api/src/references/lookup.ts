@@ -1,4 +1,4 @@
-import { crossrefFetch } from "./crossref-gate";
+import { crossrefFetch, type CrossrefInit } from "./crossref-gate";
 import { arxivYear, type Candidate } from "./match";
 import type { CacheStore } from "../cache/store";
 import { cacheKey, cached } from "../search/cache";
@@ -35,7 +35,7 @@ async function remembered<T>(env: LookupEnv, name: string, parts: string[], load
 
 const SELECT = "DOI,title,author,issued,container-title";
 const f = (env: LookupEnv) => env.fetch ?? fetch;
-const cr = (env: LookupEnv) => (url: string, init: RequestInit) => crossrefFetch(f(env), url, init);
+const cr = (env: LookupEnv) => (url: string, init: CrossrefInit) => crossrefFetch(f(env), url, init);
 const headers = (env: LookupEnv): HeadersInit => ({ "User-Agent": `ScholarRefCheck/0.1 (mailto:${env.CROSSREF_MAILTO})` });
 
 type CRItem = {
@@ -72,7 +72,7 @@ export async function crossrefByDoi(doi: string, env: LookupEnv): Promise<Candid
 async function crossrefByDoiLive(doi: string, env: LookupEnv): Promise<Candidate | null> {
   // No `select` here: Crossref rejects it on the single-work endpoint (HTTP 400); it only works on list queries.
   const url = `https://api.crossref.org/works/${encodeURIComponent(doi).replace(/%2F/g, "/")}?mailto=${encodeURIComponent(env.CROSSREF_MAILTO)}`;
-  const res = await cr(env)(url, { headers: headers(env), signal: AbortSignal.timeout(10_000) }).catch((e) => {
+  const res = await cr(env)(url, { headers: headers(env), timeoutMs: 10_000 }).catch((e) => {
     throw new LookupError(`Crossref unreachable: ${e instanceof Error ? e.message : e}`);
   });
   if (res.status === 404) return null;
@@ -87,7 +87,7 @@ export async function crossrefSearch(text: string, env: LookupEnv, rows = 8): Pr
 }
 async function crossrefSearchLive(text: string, env: LookupEnv, rows: number): Promise<Candidate[]> {
   const params = new URLSearchParams({ "query.bibliographic": text.slice(0, 350), rows: String(rows), select: SELECT, mailto: env.CROSSREF_MAILTO });
-  const res = await cr(env)(`https://api.crossref.org/works?${params}`, { headers: headers(env), signal: AbortSignal.timeout(12_000) }).catch((e) => {
+  const res = await cr(env)(`https://api.crossref.org/works?${params}`, { headers: headers(env), timeoutMs: 12_000 }).catch((e) => {
     throw new LookupError(`Crossref unreachable: ${e instanceof Error ? e.message : e}`);
   });
   if (!res.ok) throw new LookupError(`Crossref HTTP ${res.status}`);
@@ -101,7 +101,7 @@ export async function crossrefSearchTitle(title: string, env: LookupEnv, rows = 
 }
 async function crossrefSearchTitleLive(title: string, env: LookupEnv, rows: number): Promise<Candidate[]> {
   const params = new URLSearchParams({ "query.title": title.slice(0, 300), rows: String(rows), select: SELECT, mailto: env.CROSSREF_MAILTO });
-  const res = await cr(env)(`https://api.crossref.org/works?${params}`, { headers: headers(env), signal: AbortSignal.timeout(12_000) }).catch((e) => {
+  const res = await cr(env)(`https://api.crossref.org/works?${params}`, { headers: headers(env), timeoutMs: 12_000 }).catch((e) => {
     throw new LookupError(`Crossref unreachable: ${e instanceof Error ? e.message : e}`);
   });
   if (!res.ok) throw new LookupError(`Crossref HTTP ${res.status}`);
@@ -204,7 +204,7 @@ export async function crossrefReferenceStrings(doi: string, env: LookupEnv): Pro
 }
 async function crossrefReferenceStringsLive(doi: string, env: LookupEnv): Promise<string[]> {
   const url = `https://api.crossref.org/works/${encodeURIComponent(doi).replace(/%2F/g, "/")}?mailto=${encodeURIComponent(env.CROSSREF_MAILTO)}`;
-  const res = await cr(env)(url, { headers: headers(env), signal: AbortSignal.timeout(10_000) }).catch((e) => {
+  const res = await cr(env)(url, { headers: headers(env), timeoutMs: 10_000 }).catch((e) => {
     throw new LookupError(`Crossref unreachable: ${e instanceof Error ? e.message : e}`);
   });
   if (res.status === 404) return [];

@@ -1,5 +1,6 @@
 import type { Paper } from "@scholar/shared";
 import { getMany, type CacheStore } from "../cache/store";
+import { crossrefFetch, SEARCH_GATE_WAIT_MS } from "../references/crossref-gate";
 import { doiResolves } from "../references/lookup";
 import { tokenize } from "../references/match";
 import { cacheKey } from "./cache";
@@ -35,7 +36,7 @@ async function crossrefBatch(dois: string[], env: Env, signal: AbortSignal): Pro
     select: "DOI,title",
     mailto: env.CROSSREF_MAILTO,
   });
-  const res = await fetch(`https://api.crossref.org/works?${params}`, { signal, headers: crossrefHeaders(env) });
+  const res = await crossrefFetch(fetch, `https://api.crossref.org/works?${params}`, { signal, headers: crossrefHeaders(env) }, SEARCH_GATE_WAIT_MS);
   if (!res.ok) throw new Error(`Crossref DOI batch HTTP ${res.status}`);
   const body = (await res.json()) as { message?: { items?: { DOI?: string; title?: string[] }[] } };
   return new Map((body.message?.items ?? []).filter((i) => i.DOI).map((i) => [i.DOI!.toLowerCase(), i.title?.[0] ?? ""]));

@@ -1,3 +1,4 @@
+import { crossrefFetch, SEARCH_GATE_WAIT_MS } from "../references/crossref-gate";
 import { normalizeDoi, stripJats } from "./normalize";
 import type { Provider, ProviderPaper, SearchEnv } from "./types";
 
@@ -32,10 +33,7 @@ export const crossref: Provider = {
       filter: "type:journal-article,type:proceedings-article,type:book-chapter",
       mailto: env.CROSSREF_MAILTO,
     });
-    const res = await fetch(`https://api.crossref.org/works?${params}`, {
-      signal,
-      headers: crossrefHeaders(env),
-    });
+    const res = await crossrefFetch(fetch, `https://api.crossref.org/works?${params}`, { signal, headers: crossrefHeaders(env) }, SEARCH_GATE_WAIT_MS);
     if (!res.ok) throw new Error(`Crossref HTTP ${res.status}`);
     const body = (await res.json()) as { message?: { items?: CRItem[] } };
 

@@ -64,6 +64,7 @@ export function stubSearch(req: IdeaSearchRequest): IdeaSearchResult {
       ...req.keywordQueries.slice(0, 3).map((q) => ({ source: "s2" as const, kind: "keyword" as const, query: q, ok: true, count: 20 })),
       ...req.keywordQueries.slice(0, 2).map((q) => ({ source: "pubmed" as const, kind: "keyword" as const, query: q, ok: true, count: 12 })),
       ...req.keywordQueries.slice(0, 2).map((q) => ({ source: "arxiv" as const, kind: "keyword" as const, query: q, ok: true, count: 9 })),
+      ...req.keywordQueries.slice(0, 2).map((q) => ({ source: "core" as const, kind: "keyword" as const, query: q, ok: true, count: 14 })),
     ],
     checked: { doi: true, retraction: true },
     tookMs: 1,

@@ -24,6 +24,7 @@ type Bindings = {
   OPENALEX_API_KEY?: string;
   NCBI_API_KEY?: string;
   S2_API_KEY?: string;
+  CORE_API_KEY?: string;
   ENABLE_DEV_ROUTES?: string;
   /** "1" (with ENABLE_DEV_ROUTES) swaps the model, embeddings and literature services for stand-ins in local tests. */
   QA_STUB?: string;
@@ -68,6 +69,7 @@ const searchEnv = (env: Bindings): SearchEnv => ({
   OPENALEX_API_KEY: env.OPENALEX_API_KEY,
   NCBI_API_KEY: env.NCBI_API_KEY,
   S2_API_KEY: env.S2_API_KEY,
+  CORE_API_KEY: env.CORE_API_KEY,
   CROSSREF_MAILTO: env.CROSSREF_MAILTO,
   s2Gate: (maxWaitMs) => env.S2_THROTTLE.getByName("global").reserve(maxWaitMs),
 });

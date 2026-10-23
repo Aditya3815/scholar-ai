@@ -10,7 +10,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const env = { ...process.env, EVAL_MODE: mode };
 try {
   for (const line of readFileSync(root + ".dev.vars", "utf8").split(/\r?\n/)) {
-    const m = line.match(/^(OPENALEX_API_KEY|NCBI_API_KEY|S2_API_KEY|CROSSREF_MAILTO)=(.+)$/);
+    const m = line.match(/^(OPENALEX_API_KEY|NCBI_API_KEY|S2_API_KEY|CORE_API_KEY|CROSSREF_MAILTO)=(.+)$/);
     if (m && !env[m[1]]) env[m[1]] = m[2].trim();
   }
 } catch { /* in CI the keys come from the environment (repository secrets) */ }

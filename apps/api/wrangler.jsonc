@@ -25,8 +25,8 @@
   // Only public data is ever put in this namespace.
   "kv_namespaces": [{ "binding": "CACHE", "id": "2e43e4d46b59423cafeecd08c383dba0" }],
   "ai": { "binding": "AI" },
-  "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }],
+  "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }, { "name": "API_GATE", "class_name": "ApiGate" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }, { "tag": "v2", "new_sqlite_classes": ["ApiGate"] }],
   // Per-IP limits (the binding's period can only be 10 or 60 seconds). Search is the expensive route: it fans out to 4 APIs.
   "ratelimits": [
     { "name": "SEARCH_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
@@ -65,8 +65,8 @@
       "r2_buckets": [{ "binding": "FILES", "bucket_name": "scholar-files-staging" }],
       "kv_namespaces": [{ "binding": "CACHE", "id": "4fba839cd6a84242955f48463b5bef02" }],
       "ai": { "binding": "AI" },
-      "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }] },
-      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }],
+      "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }, { "name": "API_GATE", "class_name": "ApiGate" }] },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }, { "tag": "v2", "new_sqlite_classes": ["ApiGate"] }],
       "ratelimits": [
         { "name": "SEARCH_LIMITER", "namespace_id": "2001", "simple": { "limit": 60, "period": 60 } },
         { "name": "VERIFY_LIMITER", "namespace_id": "2003", "simple": { "limit": 120, "period": 60 } },

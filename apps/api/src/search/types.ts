@@ -6,6 +6,8 @@ export type SearchEnv = {
   OPENALEX_API_KEY?: string;
   NCBI_API_KEY?: string;
   S2_API_KEY?: string;
+  /** CORE (api.core.ac.uk): used by Idea Check only, and only when a key is set. */
+  CORE_API_KEY?: string;
   CROSSREF_MAILTO: string;
   /** Reserves a Semantic Scholar slot (1 req/s global). Resolves to ms to wait, or null if the queue is too long. Absent in tests/eval. */
   s2Gate?: (maxWaitMs: number) => Promise<number | null>;

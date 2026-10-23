@@ -35,7 +35,7 @@ export type IdeaPlanRequest = { text: string; question?: string };
 export type IdeaSearchRequest = { semanticQuery: string; keywordQueries: string[] };
 
 /** Where a record was found. */
-export type IdeaSource = "openalex" | "s2" | "pubmed" | "arxiv";
+export type IdeaSource = "openalex" | "s2" | "pubmed" | "arxiv" | "core";
 
 /** What a record is. A "data" record (a dataset or software deposit) is hidden by default: it is not prior art the way a paper is. */
 export type IdeaKind = "paper" | "preprint" | "book" | "thesis" | "report" | "data";

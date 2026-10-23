@@ -29,6 +29,7 @@ const HOST_INTERVAL_MS: Record<string, number> = {
   "eutils.ncbi.nlm.nih.gov": 110,
   "api.openalex.org": 0,
   "export.arxiv.org": 3100, // arXiv asks for one request every three seconds
+  "api.core.ac.uk": 7000, // CORE: ten requests a minute for a key
 };
 
 export class FetchLayer {

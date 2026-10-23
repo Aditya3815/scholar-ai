@@ -10,10 +10,10 @@ import { ResultCard } from "../ResultCard";
 import { CompareAction, CoverageMap, PaperStrip, type CompareRun } from "./Compare";
 import { AnswerPanel, FeasibilityPanel, GapsPanel, InsightsAction, ReportBar, type InsightsRun } from "./Insights";
 
-const SOURCE_NAME = { openalex: "OpenAlex", s2: "Semantic Scholar", pubmed: "PubMed", arxiv: "arXiv" } as const;
+const SOURCE_NAME = { openalex: "OpenAlex", s2: "Semantic Scholar", pubmed: "PubMed", arxiv: "arXiv", core: "CORE" } as const;
 /** What a record is, when it is not an ordinary journal paper. */
 const KIND_NAME: Partial<Record<IdeaPaper["kind"], string>> = { preprint: "Preprint", book: "Book", thesis: "Thesis", report: "Report", data: "Dataset or software" };
-const STAGE_TEXT = { searching: "Searching OpenAlex, Semantic Scholar, PubMed and arXiv…", ranking: "Choosing the papers closest to your idea…", checking: "Checking every DOI and retraction notice…" } as const;
+const STAGE_TEXT = { searching: "Searching the literature…", ranking: "Choosing the papers closest to your idea…", checking: "Checking every DOI and retraction notice…" } as const;
 
 export type IdeaRun = {
   stage: keyof typeof STAGE_TEXT | null;

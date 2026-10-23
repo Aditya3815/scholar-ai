@@ -48,7 +48,7 @@ export function HowWeVerifyPage() {
     <Layout title="How we verify" intro="What “verified” means in this service, how it is checked, and where it can be wrong. Every number here comes from our own tests and will move; the tests run on every change and every week.">
       <h2>The one rule</h2>
       <p>
-        <strong>No citation is ever written by AI.</strong> Every paper you see is a record we fetched from OpenAlex, Semantic Scholar, Crossref or PubMed. An AI model may read your text and help find papers, but it never
+        <strong>No citation is ever written by AI.</strong> Every paper you see is a record we fetched from OpenAlex, Semantic Scholar, Crossref, PubMed, arXiv or CORE. An AI model may read your text and help find papers, but it never
         produces a reference.
       </p>
 
@@ -141,7 +141,7 @@ export function PrivacyPage() {
       <ul>
         <li>They are <strong>private to your account</strong>. Other users cannot see them. We do not read them as part of running the service; the people who run it can reach the database in order to fix a fault, but the admin page shows numbers only.</li>
         <li>To answer a question or plan a search, the relevant text is sent to an AI model run by <strong>Cloudflare (Workers AI)</strong>. For a scanned paper, a picture of each page is sent to the same service to be read; the picture is not stored by us, and the text that was read is kept like any other text of your paper. We use only AI services whose terms say they do not keep or train on what we send. <strong>Your papers, questions and ideas are never sent to any other AI service</strong>, and are never used to train any AI.</li>
-        <li>Idea Check sends the search you approved, and only that, to OpenAlex and Semantic Scholar. They can see those words and our service&apos;s address, not you or your file. Look at the search before you send it; remove anything you would rather not share.</li>
+        <li>Idea Check sends the search you approved, and only that, to OpenAlex, Semantic Scholar, PubMed, arXiv and CORE. They can see those words and our service&apos;s address, not you or your file. Look at the search before you send it; remove anything you would rather not share.</li>
         <li>The references you verify are sent as text to Crossref and OpenAlex to find the record. We keep the verdict (not your text) for up to a day so a repeat is fast.</li>
       </ul>
 
@@ -149,7 +149,7 @@ export function PrivacyPage() {
       <ul>
         <li><strong>Cloudflare</strong>: runs the service, stores the database and files, and runs the AI that reads your text. Data may be processed in data centres outside India.</li>
         <li><strong>Google</strong> and <strong>ORCID</strong>: only when you choose to sign in with them.</li>
-        <li><strong>OpenAlex, Semantic Scholar, Crossref, PubMed, doi.org</strong>: public databases we ask about papers. See above for what they receive.</li>
+        <li><strong>OpenAlex, Semantic Scholar, Crossref, PubMed, arXiv, CORE, doi.org</strong>: public databases we ask about papers. See above for what they receive.</li>
         <li><strong>Sentry</strong>: receives the error reports described in the table.</li>
         <li>We do not sell personal data and do not share it for advertising.</li>
       </ul>
@@ -208,7 +208,7 @@ export function TermsPage() {
       </ul>
 
       <h2>Third-party services and open data</h2>
-      <p>Paper information comes from OpenAlex, Semantic Scholar, Crossref and PubMed, and retraction data from Retraction Watch through Crossref. Their data belongs to them and is used under their terms. They can change or stop at any time, and then parts of the service can be slow or unavailable.</p>
+      <p>Paper information comes from OpenAlex, Semantic Scholar, Crossref, PubMed, arXiv and CORE, and retraction data from Retraction Watch through Crossref. Their data belongs to them and is used under their terms. They can change or stop at any time, and then parts of the service can be slow or unavailable.</p>
 
       <h2>The service itself</h2>
       <ul>

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { resetGates, gatesOff, withGate } from "../gate";
 import { verifyReference } from "./verify";
 
 const env = { CROSSREF_MAILTO: "test@example.org" };
@@ -29,7 +30,10 @@ function stub(...handlers: Handler[]) {
 }
 const retractedNotice = (doi: string) => ({ message: { items: [{ DOI: "10.1000/notice", "update-to": [{ DOI: doi, type: "retraction" }] }] } });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  gatesOff(); // a test that turned the lane on leaves it off again
+});
 
 const GOOD = "Desai, A., & Verma, R. (2021). Graph neural networks for protein function prediction. Bioinformatics, 37(5), 1-12.";
 
@@ -254,6 +258,15 @@ describe("failure handling never lies", () => {
   it("unverifiable on HTTP 500 from Crossref", async () => {
     stub((u) => (u.includes("query.bibliographic") ? new Response("", { status: 500 }) : undefined));
     expect((await verifyReference(GOOD, env)).status).toBe("unverifiable");
+  });
+
+  it("unverifiable, never not_found, when the shared Crossref lane is closed or too busy to place the calls (nothing was asked)", async () => {
+    resetGates({ crossref: { minIntervalMs: 0 } });
+    await withGate("crossref", 0, async (lane) => lane.closeUntil(Date.now() + 3_600_000));
+    const calls = stub();
+    expect((await verifyReference(GOOD, env)).status).toBe("unverifiable");
+    expect((await verifyReference(`${GOOD} 10.1000/real.1`, env)).status).toBe("unverifiable");
+    expect(calls.filter((u) => u.includes("api.crossref.org"))).toHaveLength(0);
   });
 
   it("unparsed for tiny or empty input, without any network call", async () => {

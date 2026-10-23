@@ -1,6 +1,6 @@
 import { crossrefHeaders } from "./crossref";
 import { normalizeDoi } from "./normalize";
-import { crossrefFetch } from "../references/crossref-gate";
+import { crossrefFetch, SEARCH_GATE_WAIT_MS } from "../references/crossref-gate";
 import { getMany, type CacheStore } from "../cache/store";
 import { cacheKey } from "./cache";
 type RetractionEnv = { CROSSREF_MAILTO: string; fetch?: typeof fetch };
@@ -28,10 +28,7 @@ export async function findRetracted(
     select: "DOI,update-to",
     mailto: env.CROSSREF_MAILTO,
   });
-  const res = await crossrefFetch(env.fetch ?? fetch, `https://api.crossref.org/works?${params}`, {
-    signal,
-    headers: crossrefHeaders(env),
-  });
+  const res = await crossrefFetch(env.fetch ?? fetch, `https://api.crossref.org/works?${params}`, { signal, headers: crossrefHeaders(env) }, SEARCH_GATE_WAIT_MS);
   if (!res.ok) throw new Error(`Crossref retraction HTTP ${res.status}`);
   const body = (await res.json()) as { message?: { items?: NoticeItem[] } };
 

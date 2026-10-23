@@ -17,6 +17,7 @@ import { applyDoiIntegrity, applyRetractions, runProvider } from "../search";
 import { normalizeTitle } from "../search/normalize";
 import { mergeAndRank } from "../search/merge";
 import { arxiv } from "../search/arxiv";
+import { core } from "../search/core";
 import { openalexForIdea, openalexSemantic } from "../search/openalex";
 import { pubmed } from "../search/pubmed";
 import { s2 } from "../search/s2";
@@ -36,9 +37,11 @@ const W_MEANING = 0.7;
 /** PubMed and arXiv are asked about the first two keyword searches only: arXiv allows one request every three seconds. */
 const MAX_PUBMED_QUERIES = 2;
 const MAX_ARXIV_QUERIES = 2;
+/** CORE allows ten requests a minute for everyone together (see search/core.ts): two a check. */
+const MAX_CORE_QUERIES = 2;
 const ARXIV_GAP_MS = 3100;
 
-const LABEL: Record<string, string> = { "openalex:semantic": "OpenAlex (meaning)", "openalex:keyword": "OpenAlex (keywords)", "s2:keyword": "Semantic Scholar", "pubmed:keyword": "PubMed", "arxiv:keyword": "arXiv" };
+const LABEL: Record<string, string> = { "openalex:semantic": "OpenAlex (meaning)", "openalex:keyword": "OpenAlex (keywords)", "s2:keyword": "Semantic Scholar", "pubmed:keyword": "PubMed", "arxiv:keyword": "arXiv", "core:keyword": "CORE" };
 
 /** The plan comes back from the browser: it is untrusted, so it is cleaned again here. */
 export function sanitizeRequest(raw: unknown): IdeaSearchRequest | null {
@@ -151,11 +154,12 @@ const toSources = (keys: string[]): IdeaSource[] => [...new Set(keys.map((k) => 
  * meaning to the idea, then check every kept DOI and retraction status. A service that fails is reported, never hidden: the report
  * states what was searched. `emit` receives progress (the papers found so far, the stage) for the streaming route.
  */
-export async function runIdeaSearch(input: { env: SearchEnv; embed: Embedder | null; req: IdeaSearchRequest; emit?: (e: IdeaSearchEvent) => void | Promise<void>; /** Pause before a retry after a 429 (tests pass 0). */ retryPauseMs?: number; /** Which extra sources to ask (default: all). The eval turns them off to measure what each one adds. */ sources?: { pubmed?: boolean; arxiv?: boolean }; /** Gap between two arXiv requests (tests pass 0). */ arxivGapMs?: number }): Promise<IdeaSearchResult> {
+export async function runIdeaSearch(input: { env: SearchEnv; embed: Embedder | null; req: IdeaSearchRequest; emit?: (e: IdeaSearchEvent) => void | Promise<void>; /** Pause before a retry after a 429 (tests pass 0). */ retryPauseMs?: number; /** Which extra sources to ask (default: all). The eval turns them off to measure what each one adds. */ sources?: { pubmed?: boolean; arxiv?: boolean; core?: boolean }; /** Gap between two arXiv requests (tests pass 0). */ arxivGapMs?: number }): Promise<IdeaSearchResult> {
   const { env, embed, req } = input;
   const emit = input.emit ?? (() => {});
   const pause = input.retryPauseMs ?? 1100;
-  const useSources = { pubmed: input.sources?.pubmed ?? true, arxiv: input.sources?.arxiv ?? true };
+  // CORE is asked only where there is a key for it (it answers nothing without one)
+  const useSources = { pubmed: input.sources?.pubmed ?? true, arxiv: input.sources?.arxiv ?? true, core: (input.sources?.core ?? true) && !!env.CORE_API_KEY };
   const arxivGap = input.arxivGapMs ?? ARXIV_GAP_MS;
   const openalexLane = lane(2);
   const started = Date.now();
@@ -207,6 +211,14 @@ export async function runIdeaSearch(input: { env: SearchEnv; embed: Embedder | n
           if (i > 0) await sleep(arxivGap); // arXiv asks for one request every three seconds
           await record(`arxiv:keyword:${i}`, "arxiv", "keyword", q, async () => (await runProvider(arxiv, q, env)).value);
         }
+      })(),
+    );
+  }
+  // CORE (repository copies, theses, working papers): the first two keyword searches, one after the other; the shared lane spaces them out.
+  if (useSources.core) {
+    jobs.push(
+      (async () => {
+        for (const [i, q] of req.keywordQueries.slice(0, MAX_CORE_QUERIES).entries()) await record(`core:keyword:${i}`, "core", "keyword", q, async () => (await runProvider(core, q, env)).value);
       })(),
     );
   }

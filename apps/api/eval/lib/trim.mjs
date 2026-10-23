@@ -12,6 +12,15 @@ export function trimBody(url, text) {
   if (url.includes("export.arxiv.org")) return scrubEmails(text.replace(/<summary>[\s\S]*?<\/summary>/g, "<summary></summary>"));
   try {
     const j = JSON.parse(text);
+    if (url.includes("api.core.ac.uk")) {
+      // what search/core.ts reads, without the abstracts (not needed to measure recall) and without the full texts
+      j.results = (j.results ?? []).map((w) => ({
+        title: w.title ?? null, doi: w.doi ?? null, abstract: null, yearPublished: w.yearPublished ?? null, publishedDate: w.publishedDate ?? null,
+        authors: (w.authors ?? []).slice(0, 10).map((a) => ({ name: a?.name ?? null })), documentType: w.documentType ?? null,
+        downloadUrl: w.downloadUrl ?? null, journals: (w.journals ?? []).slice(0, 1).map((x) => ({ title: x?.title ?? null })),
+      }));
+      return scrubEmails(JSON.stringify({ totalHits: j.totalHits, results: j.results }));
+    }
     if (url.includes("api.openalex.org")) {
       for (const r of j.results ?? []) {
         r.abstract_inverted_index = null;
