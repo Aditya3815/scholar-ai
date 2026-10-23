@@ -105,7 +105,25 @@ describe("readChatStream (Workers AI / OpenAI-style server-sent events)", () => 
     const events: string[] = [];
     const r = await readChatStream(streamOf(text), { onThinking: () => events.push("think"), onContent: (d) => events.push(d) }, new AbortController().signal);
     expect(events).toEqual(["think", '{"answer":"नमस्ते', '"}']);
-    expect(r).toEqual({ text: '{"answer":"नमस्ते"}', tokensIn: 85, tokensOut: 8 });
+    expect(r).toEqual({ text: '{"answer":"नमस्ते"}', tokensIn: 85, tokensOut: 8, tokensCached: null });
+  });
+
+  it("does not count output tokens twice: the last usage chunk is the totals for the whole call (measured on Workers AI, 23 Oct 2026)", async () => {
+    // a real stream: the pieces ("completion_tokens": 4, 1, 1 ... = 66 in all), then one chunk with both counts, which IS the whole call
+    const pieces = [4, 1, 1, 10, 25, 25];
+    const text = sse(
+      { choices: [{ delta: { role: "assistant", content: "" } }], usage: { prompt_tokens: 76, completion_tokens: 0, total_tokens: 76 } },
+      ...pieces.map((n, i) => ({ choices: [{ delta: i < 2 ? { reasoning: "t" } : { content: "x" } }], usage: { prompt_tokens: 0, completion_tokens: n, total_tokens: n } })),
+      { choices: [], usage: { prompt_tokens: 76, completion_tokens: 66, total_tokens: 142, prompt_tokens_details: { cached_tokens: 0 } } },
+    );
+    const r = await readChatStream(streamOf(text), {}, new AbortController().signal);
+    expect(r).toMatchObject({ tokensIn: 76, tokensOut: 66, tokensCached: 0 });
+  });
+
+  it("reports cached input tokens when the provider says so", async () => {
+    const text = sse({ choices: [{ delta: { content: "{}" } }], usage: { prompt_tokens: 300, completion_tokens: 40, prompt_tokens_details: { cached_tokens: 128 } } });
+    const r = await readChatStream(streamOf(text), {}, new AbortController().signal);
+    expect(r).toMatchObject({ tokensIn: 300, tokensOut: 40, tokensCached: 128 });
   });
 
   it("reports thinking only once, and ignores junk lines", async () => {

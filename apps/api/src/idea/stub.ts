@@ -71,31 +71,41 @@ export function stubSearch(req: IdeaSearchRequest): IdeaSearchResult {
 }
 
 /**
- * The comparison model, offline. For paper i it says: purpose "same" and mechanism "similar", each with a real piece of that paper's abstract;
- * testing "not stated"; field "different", except for paper 3 where it claims "same" with a sentence that is NOT in the abstract, which
- * verification has to drop. So the pages can show matches, gaps and a dropped claim without a network.
+ * What the model is shown for each paper, read back out of the prompt: its number, and its abstract's sentences by the numbers printed before them ("(1) ... (2) ...").
+ * The offline models answer the way a real one is asked to: by sentence number.
+ */
+const papersInPrompt = (user: string) =>
+  [...user.matchAll(/^\[(\d+)\] .*\n([\s\S]*?)(?=\n\n\[\d+\] |$)/gm)].map((m) => {
+    const text = (m[2] ?? "").trim();
+    const sentences = [...text.matchAll(/\((\d+)\) ([\s\S]*?)(?= \(\d+\) |$)/g)].map((s) => ({ s: Number(s[1]), text: (s[2] ?? "").trim() }));
+    return { n: Number(m[1]), sentences, plain: sentences.map((s) => s.text).join(" ") };
+  });
+/** The number of the first sentence that matches `cue`, or 0. */
+const numberOf = (sentences: { s: number; text: string }[], cue: RegExp) => sentences.find((x) => cue.test(x.text))?.s ?? 0;
+
+/**
+ * The second-reading model, offline. Papers 1 and 2 state a limitation and a result; paper 3 is pointed at a sentence number that does not exist, which verification
+ * has to drop and count. A phrase for the method and for the data is copied, as a real model is asked to.
  */
 export const stubInsightsStream: StreamComplete = async (req, hooks) => {
-  const papers = [...req.user.matchAll(/^\[(\d+)\] .*\n([\s\S]*?)(?=\n\n\[\d+\] |$)/gm)].map((m) => ({ n: Number(m[1]), abstract: (m[2] ?? "").trim() }));
-  const sentence = (abstract: string, cue: RegExp) => (abstract.match(/[^.]+\./g) ?? []).map((s) => s.trim()).find((s) => cue.test(s)) ?? "";
+  const papers = papersInPrompt(req.user);
   const asked = !/asked no question/.test(req.user);
   const json = {
-    // paper 1 and 2 state a limitation; paper 3 is given a sentence that is not in its abstract, which verification has to drop
     open_problems: [
-      ...papers.filter((p) => p.n <= 2).map((p) => ({ n: p.n, quote: sentence(p.abstract, /remaining limitation/) })),
-      ...papers.filter((p) => p.n === 3).map((p) => ({ n: p.n, quote: "Nobody has yet tested this in a hospital setting at all" })),
+      ...papers.filter((p) => p.n <= 2).map((p) => ({ n: p.n, s: numberOf(p.sentences, /remaining limitation/) })),
+      ...papers.filter((p) => p.n === 3).map((p) => ({ n: p.n, s: 99 })),
     ],
     papers: papers.map((p) => ({
       n: p.n,
       outcome: p.n === 1 ? "positive" : p.n === 2 ? "mixed" : "not_stated",
-      outcome_quote: p.n <= 2 ? sentence(p.abstract, /reached good accuracy/) : "",
-      method_quote: p.n === 1 ? p.abstract.split(/\s+/).slice(5, 13).join(" ") : "",
+      outcome_s: p.n <= 2 ? numberOf(p.sentences, /reached good accuracy/) : 0,
+      method_quote: p.n === 1 ? p.plain.split(/\s+/).slice(5, 13).join(" ") : "",
       data_quote: p.n === 1 ? "only a small sample was studied" : "",
     })),
     answer: asked
       ? [
-          { statement: "The method reached good accuracy on the sample data.", n: 1, quote: sentence(papers[0]?.abstract ?? "", /reached good accuracy/) },
-          { statement: "Smartphones are cheap and widely available.", n: 1, quote: sentence(papers[0]?.abstract ?? "", /remaining limitation/) },
+          { statement: "The method reached good accuracy on the sample data.", n: 1, s: numberOf(papers[0]?.sentences ?? [], /reached good accuracy/) },
+          { statement: "Smartphones are cheap and widely available.", n: 1, s: numberOf(papers[0]?.sentences ?? [], /remaining limitation/) },
         ]
       : [],
     opinion: ["Needs a few weeks of data collection and an ethics approval.", "This is a novel approach that nobody has tried.", "Some image-processing skill is needed."],
@@ -112,16 +122,16 @@ export const stubInsightsStream: StreamComplete = async (req, hooks) => {
   return { json: extractJson(text), model: "stub" };
 };
 
+/** The comparison model, offline: purpose "same" (sentence 1) and mechanism "similar" (sentence 2, or 1) for every paper; paper 3's field is "same" with a sentence number that does not exist, which is dropped. */
 export const stubCompareStream: StreamComplete = async (req, hooks) => {
-  const papers = [...req.user.matchAll(/^\[(\d+)\] .*\n([\s\S]*?)(?=\n\n\[\d+\] |$)/gm)].map((m) => ({ n: Number(m[1]), abstract: (m[2] ?? "").trim() }));
-  const piece = (abstract: string, from: number, len: number) => abstract.split(/\s+/).slice(from, from + len).join(" ");
+  const papers = papersInPrompt(req.user);
   const json = {
-    papers: papers.map(({ n, abstract }) => ({
+    papers: papers.map(({ n, sentences }) => ({
       n,
-      purpose: { match: "same", quote: piece(abstract, 0, 8) },
-      mechanism: { match: "similar", quote: piece(abstract, 2, 8) },
-      evaluation: { match: "not_stated", quote: "" },
-      domain: n === 3 ? { match: "same", quote: "a sentence that is not anywhere in this abstract at all" } : { match: "different", quote: "" },
+      purpose: { match: "same", s: sentences.length >= 1 ? 1 : 0 },
+      mechanism: { match: "similar", s: sentences.length >= 2 ? 2 : sentences.length },
+      evaluation: { match: "not_stated", s: 0 },
+      domain: n === 3 ? { match: "same", s: 99 } : { match: "different", s: 0 },
     })),
   };
   for (let i = 0; i < 3; i++) {

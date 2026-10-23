@@ -157,11 +157,14 @@ After the comparison, the researcher sees **gaps**, and can press **Read the pap
 | --- | --- | --- | --- |
 | plan | about 400 | about 700 | 5 to 18 s |
 | search | none | none | 15 to 17 s |
-| comparison (M2) | 2,300 to 3,900 | 4,500 to 6,500 | 20 to 60 s |
-| second reading (M3) | 2,500 to 4,000 | 7,700 to 9,500 | 34 to 80 s |
-| **whole check** | | **about 19,000 to 24,000** | about 2 to 3 minutes |
+| comparison (M2) | 2,300 to 3,900 | ~~4,500 to 6,500~~ 2,200 to 3,200 | 20 to 60 s |
+| second reading (M3) | 2,500 to 4,000 | ~~7,700 to 9,500~~ 2,700 to 4,400 | 25 to 80 s |
+| **whole check** | | ~~about 19,000 to 24,000~~ **about 12,000 to 14,000** (in and out together) | about 2 to 3 minutes |
 
-So the daily allowance of 60,000 tokens a person is **two to three whole checks** (the comparison alone is about an eighth of it, the second reading about a fifth). Cloudflare's published price for this model (about $0.35 per million tokens in and $0.75 out; not re-checked today) makes a whole check roughly 1 to 2 cents. Decide the allowance before the pilot (roadmap, D6). The second reading's time limit is 150 s (the comparison's is 90 s).
+**Correction, 23 Oct 2026.** The struck-through output numbers were counted twice: Workers AI sends usage in every chunk of a stream and the totals in the last one, and the app added both ([R5](../spikes/R5-cost.md), section 2).
+Recounted correctly, the daily allowance of 60,000 tokens a person is **about five whole checks**, and a whole check costs about **0.7 of a cent** at Cloudflare's published price ($0.35 per million tokens in, $0.75 out, read 23 Oct), not 1 to 2 cents.
+The same day the evidence of the comparison and the second reading changed from "copy the sentence" to "give the sentence's number" (section "Evidence by sentence number", [R5](../spikes/R5-cost.md) 3.2): no more claims dropped because a copied
+sentence differs by a hyphen (before 2 to 13 a check, now 0 to 1) and more matches shown. Decide the allowance before the pilot (roadmap, D6). The second reading's time limit is 150 s (the comparison's is 90 s).
 
 What the claim checks did on real abstracts (they work as designed, and they cost yield):
 - The model often changes a word of a quote ("disc-centred" for "disc-centered"), or copies 80% of a long sentence: such a claim is dropped (2 to 13 per reading). Asking it to copy exactly and to prefer short pieces helped a little; it varies from run to run.

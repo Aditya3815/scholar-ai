@@ -92,6 +92,6 @@ export function sanitizePlan(raw: unknown): IdeaPlan {
 }
 
 export async function planIdea(input: { text: string; question: string; complete: Complete }): Promise<{ plan: IdeaPlan; model: string }> {
-  const out = await input.complete({ system: SYSTEM, user: buildPlanPrompt(input.text, input.question), schema: SCHEMA as unknown as Record<string, unknown>, maxTokens: 1800 });
+  const out = await input.complete({ system: SYSTEM, user: buildPlanPrompt(input.text, input.question), schema: SCHEMA as unknown as Record<string, unknown>, maxTokens: 1800, label: "idea_plan" });
   return { plan: sanitizePlan(out.json), model: out.model };
 }

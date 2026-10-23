@@ -38,6 +38,20 @@ try {
   const o = await res.json();
   ok(res.status === 200 && res.headers.get("cache-control") === "no-store", "an admin gets the overview, never cached");
   ok(o.users.total >= 1 && typeof o.documents.total === "number" && Array.isArray(o.usage) && Array.isArray(o.byModel), "it has users, papers, usage and models");
+  ok(Array.isArray(o.byFeature) && o.scans && typeof o.scans.costCents === "number", "...and cost by feature and for scanned pages");
+  // cost is read from the ledger: three calls of two kinds, one scanned-page day
+  await fetch(`${APP}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: [
+    "INSERT INTO llm_usage (subject, task, sensitivity, provider, model, tokens_in, tokens_out, cost_cents, ok, ms, label) VALUES ('t', 'qa', 'private', 'workersai', '@cf/openai/gpt-oss-120b', 1000, 300, 0.05, 1, 100, 'doc_qa')",
+    "INSERT INTO llm_usage (subject, task, sensitivity, provider, model, tokens_in, tokens_out, cost_cents, ok, ms, label) VALUES ('t', 'qa', 'private', 'workersai', '@cf/openai/gpt-oss-120b', 2000, 3000, 0.3, 1, 100, 'idea_compare')",
+    "INSERT INTO llm_usage (subject, task, sensitivity, provider, model, tokens_in, tokens_out, cost_cents, ok, ms, label) VALUES ('t', 'qa', 'private', 'workersai', '@cf/openai/gpt-oss-120b', 0, 0, 0, 0, 100, 'idea_compare')",
+    "INSERT INTO ocr_usage (user_id, day, pages, neurons) SELECT id, date('now'), 10, 1800 FROM users LIMIT 1",
+  ] }) });
+  const o2 = await (await U.api("/api/v1/admin/overview")).json();
+  const cmp = o2.byFeature.find((f) => f.feature === "idea_compare");
+  ok(cmp && cmp.calls === 2 && cmp.failed === 1 && cmp.tokensOut === 3000 && Math.abs(cmp.costCents - 0.3) < 1e-6, "cost by feature adds up what each step used, failed calls included");
+  ok(o2.byFeature[0].feature === "idea_compare", "the dearest feature is listed first");
+  ok(o2.byModel.find((m) => m.model === "@cf/openai/gpt-oss-120b" && Math.abs(m.costCents - 0.35) < 1e-6), "cost by model adds up too");
+  ok(o2.scans.pages >= 10 && o2.scans.neurons >= 1800 && Math.abs(o2.scans.costCents - o2.scans.neurons * 0.0011) < 1e-3, "scanned pages are priced from their neurons ($0.011 per 1,000)");
   const fr = o.feedback.find((f) => f.kind === "reference");
   ok(fr && fr.context.reference.includes("Deep learning") && !/kumar@example\.org/.test(JSON.stringify(fr)) && !/https?:/.test(fr.note), "a report shows what was reported, without e-mail addresses or links");
   ok(o.feedback.find((f) => f.problem === "other" && f.note?.length === 1000), "the long note was cut to 1,000 characters");

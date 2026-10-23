@@ -1,4 +1,5 @@
 import { NoRouteError, PolicyError, QuotaError, assertAllowed, selectChain } from "./policy";
+import { costCents } from "./pricing";
 import type {
   Attempt,
   Ledger,
@@ -113,6 +114,8 @@ export function createGateway(deps: GatewayDeps) {
         const ms = Date.now() - t0;
         attempts.push({ provider: ref.provider, model: ref.model, ok: true, ms });
 
+        const tokensIn = r.tokensIn ?? Math.ceil((req.system.length + req.user.length) / 4);
+        const tokensOut = r.tokensOut ?? Math.ceil(r.text.length / 4);
         await ledger
           .record({
             subject: req.subject,
@@ -120,11 +123,13 @@ export function createGateway(deps: GatewayDeps) {
             sensitivity: req.sensitivity,
             provider: ref.provider,
             model: ref.model,
-            tokensIn: r.tokensIn ?? Math.ceil((req.system.length + req.user.length) / 4),
-            tokensOut: r.tokensOut ?? Math.ceil(r.text.length / 4),
-            costCents: 0, // free tiers for now; real pricing arrives with paid providers
+            tokensIn,
+            tokensOut,
+            costCents: costCents(ref.model, tokensIn, tokensOut, r.tokensCached ?? 0).cents,
             ok: true,
             ms,
+            label: req.label ?? null,
+            tokensCached: r.tokensCached ?? 0,
           })
           .catch((e) => console.warn("ledger write failed", e));
 
@@ -154,7 +159,7 @@ export function createGateway(deps: GatewayDeps) {
     await ledger
       .record({
         subject: req.subject, task: req.task, sensitivity: req.sensitivity,
-        provider: last.provider, model: last.model, tokensIn: 0, tokensOut: 0, costCents: 0, ok: false, ms: last.ms,
+        provider: last.provider, model: last.model, tokensIn: 0, tokensOut: 0, costCents: 0, ok: false, ms: last.ms, label: req.label ?? null,
       })
       .catch(() => {});
     throw new AllProvidersFailedError(attempts);

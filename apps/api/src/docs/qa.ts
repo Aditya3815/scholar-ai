@@ -6,11 +6,11 @@ import { rank } from "./vector";
 export type StoredChunk = { idx: number; page: number; text: string; embedding: Float32Array | null };
 
 /** The language model, injected: production passes the LLM Gateway (private route), tests pass a fake. */
-export type Complete = (req: { system: string; user: string; schema: Record<string, unknown>; maxTokens: number }) => Promise<{ json: unknown; model: string }>;
+export type Complete = (req: { system: string; user: string; schema: Record<string, unknown>; maxTokens: number; label?: string }) => Promise<{ json: unknown; model: string }>;
 
 /** The language model, streaming: hooks fire as it thinks and as the JSON text arrives. Resolves with the full parsed JSON. */
 export type StreamComplete = (
-  req: { system: string; user: string; schema: Record<string, unknown>; maxTokens: number },
+  req: { system: string; user: string; schema: Record<string, unknown>; maxTokens: number; label?: string },
   hooks: { onThinking?: () => void; onContent?: (delta: string) => void },
 ) => Promise<{ json: unknown; model: string }>;
 
@@ -56,8 +56,8 @@ export function quoteInText(quote: string, text: string): boolean {
 
 export type Retrieved = StoredChunk & { score: number };
 
-export function retrieve(question: string, qVec: number[] | null, chunks: StoredChunk[]): Retrieved[] {
-  const top = rank(question, qVec, chunks, BROAD.test(question) ? TOP_K - 1 : TOP_K);
+export function retrieve(question: string, qVec: number[] | null, chunks: StoredChunk[], k = TOP_K): Retrieved[] {
+  const top = rank(question, qVec, chunks, BROAD.test(question) ? Math.max(1, k - 1) : k);
   if (BROAD.test(question) && chunks.length > 0 && !top.some((c) => c.idx === chunks[0]!.idx)) top.unshift({ ...chunks[0]!, score: 1 });
   // Present in reading order: it is easier for the model (and for the reader checking the citations).
   return top.sort((a, b) => a.idx - b.idx);
@@ -105,6 +105,8 @@ export async function answerQuestion(args: {
   meta: { id: string; createdAt: number };
   /** Local debugging only: receives the model's raw JSON and the excerpts it was shown. */
   onRaw?: (raw: unknown, excerpts: Retrieved[]) => void;
+  /** Passages shown to the model (default 6). Only the cost experiments change it (docs/spikes/R5-cost.md). */
+  topK?: number;
 }): Promise<Answer> {
   const { question, chunks } = args;
   let qVec: number[] | null = null;
@@ -113,8 +115,8 @@ export async function answerQuestion(args: {
   } catch {
     qVec = null; // keyword-only retrieval is worse but still better than failing the question
   }
-  const ex = retrieve(question, qVec, chunks);
-  const { json, model } = await args.complete({ system: SYSTEM, user: buildPrompt(question, ex), schema: SCHEMA as unknown as Record<string, unknown>, maxTokens: 700 });
+  const ex = retrieve(question, qVec, chunks, args.topK);
+  const { json, model } = await args.complete({ system: SYSTEM, user: buildPrompt(question, ex), schema: SCHEMA as unknown as Record<string, unknown>, maxTokens: 700, label: "doc_qa" });
   args.onRaw?.(json, ex);
   return verifyAnswer(json, ex, question, { ...args.meta, model });
 }
@@ -131,6 +133,7 @@ export async function answerQuestionStream(args: {
   stream: StreamComplete;
   meta: { id: string; createdAt: number };
   emit: (e: AskStreamEvent) => void | Promise<void>;
+  topK?: number;
 }): Promise<Answer> {
   const { question, chunks, emit } = args;
   await emit({ type: "stage", stage: "retrieving" });
@@ -140,7 +143,7 @@ export async function answerQuestionStream(args: {
   } catch {
     qVec = null;
   }
-  const ex = retrieve(question, qVec, chunks);
+  const ex = retrieve(question, qVec, chunks, args.topK);
   await emit({ type: "sources", pages: [...new Set(ex.map((c) => c.page))].sort((a, b) => a - b) });
 
   const field = new AnswerFieldStreamer();
@@ -152,7 +155,7 @@ export async function answerQuestionStream(args: {
     chain = chain.then(() => emit(e));
   };
   const { json, model } = await args.stream(
-    { system: SYSTEM, user: buildPrompt(question, ex), schema: SCHEMA as unknown as Record<string, unknown>, maxTokens: 700 },
+    { system: SYSTEM, user: buildPrompt(question, ex), schema: SCHEMA as unknown as Record<string, unknown>, maxTokens: 700, label: "doc_qa" },
     {
       onThinking: () => {
         if (thinking || writing) return;

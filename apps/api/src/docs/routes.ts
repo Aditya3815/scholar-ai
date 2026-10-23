@@ -53,6 +53,10 @@ type Bindings = {
   QA_STUB?: string;
   /** Pages of a scanned paper one person may have read per day (default OCR_PAGES_PER_DAY). */
   OCR_PAGES_PER_DAY?: string;
+  /** Cost experiments only, with ENABLE_DEV_ROUTES (docs/spikes/R5-cost.md): passages shown to the model, and the model / thinking effort (read by llm/index.ts). */
+  QA_TOP_K?: string;
+  LLM_QA_MODEL?: string;
+  LLM_REASONING?: string;
 };
 type Env = { Bindings: Bindings };
 export const documentRoutes = new Hono<Env>();
@@ -104,6 +108,12 @@ export function ocrPerDay(env: Pick<Bindings, "OCR_PAGES_PER_DAY">): number {
   return Number.isInteger(n) && n >= 1 && n <= 2000 ? n : OCR_PAGES_PER_DAY;
 }
 
+/** Dev-only: passages per question for the cost experiments. Undefined (the default of 6) everywhere else. */
+const devTopK = (env: Bindings): number | undefined => {
+  const n = Number(env.QA_TOP_K);
+  return env.ENABLE_DEV_ROUTES === "1" && Number.isInteger(n) && n >= 1 && n <= 12 ? n : undefined;
+};
+
 const embedderFor = (env: Bindings): Embedder | null =>
   env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null;
 
@@ -112,7 +122,7 @@ function completeFor(env: Bindings, subject: string): Complete | null {
   const gateway = gatewayFromEnv(env);
   return async (req) => {
     // An uploaded paper and the questions about it are PRIVATE: the gateway will only use privacy-safe providers.
-    const r = await gateway.complete({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens });
+    const r = await gateway.complete({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, label: req.label });
     return { json: r.json, model: r.model };
   };
 }
@@ -122,7 +132,7 @@ function streamFor(env: Bindings, subject: string, abort: AbortSignal): StreamCo
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
     // Same PRIVATE route, same quota and ledger as the non-streaming call; `abort` stops the model when the reader leaves.
-    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens }, hooks, abort);
+    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, label: req.label }, hooks, abort);
     return { json: r.json, model: r.model };
   };
 }
@@ -494,7 +504,7 @@ documentRoutes.post("/:id/ask", async (c) => {
         if (!gone) await sse.writeSSE({ event: e.type, data: JSON.stringify(e) }).catch(() => (gone = true));
       };
       try {
-        const answer = await answerQuestionStream({ question, chunks, embed, stream, meta: { id: randomId(), createdAt: Date.now() }, emit: send });
+        const answer = await answerQuestionStream({ question, chunks, embed, stream, meta: { id: randomId(), createdAt: Date.now() }, emit: send, topK: devTopK(c.env) });
         if (gone) return; // the reader left: nothing to save or send
         await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
         await send({ type: "answer", answer });
@@ -509,7 +519,7 @@ documentRoutes.post("/:id/ask", async (c) => {
   let answer: Answer;
   try {
     answer = await answerQuestion({
-      question, chunks, embed, complete, meta: { id: randomId(), createdAt: Date.now() },
+      question, chunks, embed, complete, meta: { id: randomId(), createdAt: Date.now() }, topK: devTopK(c.env),
       // Only with the local dev switch: print what the model said and saw, to tune prompts. Never in production.
       onRaw: c.env.ENABLE_DEV_ROUTES === "1" ? (raw, ex) => console.log(JSON.stringify({ msg: "qa_debug", raw, excerpts: ex.map((e) => ({ page: e.page, text: e.text.slice(0, 160) })) })) : undefined,
     });

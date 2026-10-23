@@ -75,8 +75,8 @@ A question uses one gateway call (about 3 to 4k tokens); the per-user daily toke
 - **Idea Check** (`/idea`): the idea text is sent to `POST /api/v1/idea/plan` (private model), is not stored and is not logged. Only the approved search plan
   goes to OpenAlex and Semantic Scholar. Nothing about a check is kept server side.
 - **Comparison and second reading** (`POST /api/v1/idea/compare` and `/idea/insights`): the researcher asks for each; each is one model call on the private route, streamed as stages, nothing stored. Measured with the real model
-  (22 Oct): about 8,000 tokens and 20 to 60 s for the comparison, about 12,000 tokens and 35 to 80 s for the second reading (its time limit is 150 s); a whole check is 19,000 to 24,000 tokens, so the 60,000 a day is two to three checks
-  (roadmap D6). Locally, with `ENABLE_DEV_ROUTES=1` and a real model, the Worker logs every claim it dropped (`compare_dropped`, `insights_dropped`, with the quote and the abstract) so the prompts can be tuned; never in production.
+  (22 Oct): about 5,500 tokens and 20 to 60 s for the comparison, about 6,500 tokens and 25 to 80 s for the second reading (its time limit is 150 s); a whole check is 12,000 to 14,000 tokens (23 Oct: the earlier 19,000 to 24,000 counted streamed
+  output twice, see [spikes/R5-cost.md](spikes/R5-cost.md)), so the 60,000 a day is about five checks (roadmap D6). Locally, with `ENABLE_DEV_ROUTES=1` and a real model, the Worker logs every claim it dropped (`compare_dropped`, `insights_dropped`, with the quote and the abstract) so the prompts can be tuned; never in production.
   `node apps/api/scripts/idea-live.mjs` runs all of it on three real ideas (use `LIVE_SUB=<name>` for a fresh test user when a day's allowance is used up).
 - **OpenAlex budget.** The API key has a daily budget of **$1** (response header `X-RateLimit-Limit-USD`), about 1,000 searches, shared by production, local testing and the
   eval. When it is used up OpenAlex answers 429 until the reset (`Retry-After` seconds): search then reports `openalex` as failed and the other sources carry on, Idea Check
@@ -92,6 +92,15 @@ A question uses one gateway call (about 3 to 4k tokens); the per-user daily toke
 - Answers reported as wrong are the raw material for the Q&A gold set: copy the question and passage into `apps/api/scripts/r2/questions.json` (new `id`) once the right answer is known.
 - **Weekly Q&A quality** (`.github/workflows/qa-eval.yml`, Tuesdays): downloads the five public gold-set papers, asks the 35 questions with the real models and fails below the gate
   (`qa-eval.mjs --gate`). It needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. First run: trigger it by hand (Actions, "Q&A quality", Run workflow).
+
+## What it costs (and how to look)
+
+- `/admin`, "AI use": the last 14 days (tokens, calls, failures and **cost at list prices**), then **by model** and **by feature** for the last 7 days (a document question `doc_qa`, the Idea Check steps `idea_plan`, `idea_compare`,
+  `idea_insights`), and the scanned pages (pages and neurons, at $0.011 per 1,000). Each call is priced from `apps/api/src/llm/pricing.ts` when it is made; a model that is not in the table counts as free and a test fails if one that can be routed to is missing.
+  **When Cloudflare changes a price or a model is added, edit that table** (source and date are in its header), or the cost shown is wrong.
+- Measured unit costs and the reasoning behind not using cheaper models: [spikes/R5-cost.md](spikes/R5-cost.md). About $0.0008 a question, $0.007 an Idea Check, $0.002 a scanned page.
+- From the command line: `wrangler d1 execute scholar-db --remote --command "SELECT label, COUNT(*) calls, ROUND(SUM(tokens_in)) tin, ROUND(SUM(tokens_out)) tout, ROUND(SUM(cost_cents), 3) cents FROM llm_usage WHERE ts >= date('now', '-6 days') GROUP BY label"`.
+- The account's free 10,000 neurons a day are shared by tests and the weekly evals too; the daily bill above that is what the cost table adds up.
 
 ## Error reporting (Sentry)
 

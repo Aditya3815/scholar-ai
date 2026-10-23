@@ -45,7 +45,11 @@ export type AdminOverview = {
   documents: { total: number; ready: number; failed: number };
   questions: number;
   usage: AdminDay[];
-  byModel: { provider: string; model: string; calls: number; failed: number; tokens: number }[];
+  byModel: { provider: string; model: string; calls: number; failed: number; tokens: number; costCents: number }[];
+  /** The same last seven days by what the call was for (a document question, each Idea Check step ...), dearest first. */
+  byFeature: { feature: string; calls: number; failed: number; tokensIn: number; tokensOut: number; costCents: number }[];
+  /** Scanned pages read in the last seven days, and what they cost (Workers AI neurons at $0.011 per 1,000). */
+  scans: { pages: number; neurons: number; costCents: number };
   feedback: AdminFeedback[];
   /** Scheduled jobs (the daily clean-up) and whether they ran on time. */
   jobs: JobStatus[];

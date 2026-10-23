@@ -13,9 +13,9 @@ export function d1Ledger(db: D1Database): Ledger {
     async record(r: UsageRow) {
       await db
         .prepare(
-          "INSERT INTO llm_usage (subject, task, sensitivity, provider, model, tokens_in, tokens_out, cost_cents, ok, ms) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+          "INSERT INTO llm_usage (subject, task, sensitivity, provider, model, tokens_in, tokens_out, cost_cents, ok, ms, label, tokens_cached) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
         )
-        .bind(r.subject, r.task, r.sensitivity, r.provider, r.model, r.tokensIn, r.tokensOut, r.costCents, r.ok ? 1 : 0, r.ms)
+        .bind(r.subject, r.task, r.sensitivity, r.provider, r.model, r.tokensIn, r.tokensOut, r.costCents, r.ok ? 1 : 0, r.ms, r.label ?? null, r.tokensCached ?? 0)
         .run();
     },
   };

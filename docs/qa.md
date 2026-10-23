@@ -83,8 +83,8 @@ markers the model forgot, citation tokens gpt-oss invents for itself, and garbag
 ## Limits (all in `packages/shared/src/documents.ts`)
 
 25 MB and 500 pages per PDF, 30 papers and 300 MB per user, 600 characters per question, 20 questions per minute per IP, and the
-gateway's daily token quota per user (about 15 answers a day on the free Workers AI allowance; raise it when the account is on a
-paid plan). **Scanned PDFs (page images with no text) are read by two vision models and checked against each other**, 60 pages per person per day: see [ocr.md](ocr.md).
+gateway's daily token quota per user (60,000 tokens; a question uses about 1,850, so about 30 questions a day, or fewer if the same person also runs Idea Checks; the account is on the paid plan; measured cost
+$0.0008 a question, [spikes/R5-cost.md](spikes/R5-cost.md)). **Scanned PDFs (page images with no text) are read by two vision models and checked against each other**, 60 pages per person per day: see [ocr.md](ocr.md).
 
 ## Try it with the real models
 

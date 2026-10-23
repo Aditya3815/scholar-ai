@@ -8,6 +8,8 @@ import { DataChecks, EraseAccount, Jobs } from "./AdminOps";
 
 const rise = (i: number) => ({ initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.45, ease: easeOut, delay: 0.05 + stagger(i, 0.06) } });
 const n = (v: number) => v.toLocaleString("en-IN");
+/** Cents as dollars: a normal call costs a small fraction of a cent, so small amounts keep four decimals. */
+const usd = (cents: number) => `$${(cents / 100).toFixed(cents < 100 ? 4 : 2)}`;
 const problemLabel = (f: AdminFeedback) => FEEDBACK_PROBLEMS[f.kind]?.find((p) => p.id === f.problem)?.label ?? f.problem;
 
 function Stat({ Icon, label, value, sub, i }: { Icon: typeof Users; label: string; value: string; sub?: string; i: number }) {
@@ -144,6 +146,7 @@ export function AdminPage() {
   const tokens14 = data.usage.reduce((a, d) => a + d.tokens, 0);
   const failed14 = data.usage.reduce((a, d) => a + d.failed, 0);
   const calls14 = data.usage.reduce((a, d) => a + d.calls, 0);
+  const cost14 = data.usage.reduce((a, d) => a + d.costCents, 0);
 
   return (
     <div className="admin">
@@ -162,24 +165,42 @@ export function AdminPage() {
       <section className="card admin-sec" aria-labelledby="usage-h">
         <h2 id="usage-h" className="admin-h2">AI use, last 14 days</h2>
         <p className="admin-lead">
-          {n(tokens14)} tokens in {n(calls14)} calls{failed14 > 0 ? `, ${n(failed14)} failed` : ", none failed"}.
+          {n(tokens14)} tokens in {n(calls14)} calls{failed14 > 0 ? `, ${n(failed14)} failed` : ", none failed"}; about {usd(cost14)} at the providers' list prices.
         </p>
         <Usage days={data.usage} />
         {data.byModel.length > 0 && (
           <table className="admin-table">
             <caption>By model, last 7 days</caption>
             <thead>
-              <tr><th scope="col">Provider</th><th scope="col">Model</th><th scope="col" className="num">Calls</th><th scope="col" className="num">Failed</th><th scope="col" className="num">Tokens</th></tr>
+              <tr><th scope="col">Provider</th><th scope="col">Model</th><th scope="col" className="num">Calls</th><th scope="col" className="num">Failed</th><th scope="col" className="num">Tokens</th><th scope="col" className="num">Cost</th></tr>
             </thead>
             <tbody>
               {data.byModel.map((r) => (
                 <tr key={`${r.provider}/${r.model}`}>
-                  <td>{r.provider}</td><td>{r.model}</td><td className="num">{n(r.calls)}</td><td className="num">{n(r.failed)}</td><td className="num">{n(r.tokens)}</td>
+                  <td>{r.provider}</td><td>{r.model}</td><td className="num">{n(r.calls)}</td><td className="num">{n(r.failed)}</td><td className="num">{n(r.tokens)}</td><td className="num">{usd(r.costCents)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+        {data.byFeature.length > 0 && (
+          <table className="admin-table">
+            <caption>By feature, last 7 days</caption>
+            <thead>
+              <tr><th scope="col">Feature</th><th scope="col" className="num">Calls</th><th scope="col" className="num">Failed</th><th scope="col" className="num">Tokens in</th><th scope="col" className="num">Tokens out</th><th scope="col" className="num">Cost</th></tr>
+            </thead>
+            <tbody>
+              {data.byFeature.map((r) => (
+                <tr key={r.feature}>
+                  <td>{r.feature}</td><td className="num">{n(r.calls)}</td><td className="num">{n(r.failed)}</td><td className="num">{n(r.tokensIn)}</td><td className="num">{n(r.tokensOut)}</td><td className="num">{usd(r.costCents)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <p className="admin-lead">
+          Scanned pages, last 7 days: {n(data.scans.pages)} {data.scans.pages === 1 ? "page" : "pages"} read, {n(data.scans.neurons)} neurons, about {usd(data.scans.costCents)}.
+        </p>
       </section>
 
       <Jobs jobs={data.jobs} />

@@ -23,6 +23,8 @@ export type LlmRequest = {
   maxTokens?: number;
   /** Longer than the gateway default for a job that reads a lot (comparing several abstracts). */
   timeoutMs?: number;
+  /** Which feature this call is for ("doc_qa", "idea_plan", ...): the ledger keeps it so cost can be read per feature. */
+  label?: string;
 };
 
 export type ProviderRequest = Pick<LlmRequest, "system" | "user" | "schema" | "maxTokens">;
@@ -31,6 +33,8 @@ export type ProviderResponse = {
   text: string;
   tokensIn: number | null;
   tokensOut: number | null;
+  /** Of tokensIn, the ones served from the provider's prompt cache, when it reports it. */
+  tokensCached?: number | null;
 };
 
 /** Callbacks for streaming a completion. Reasoning models think silently first; `onThinking` tells the caller they are working. */
@@ -77,6 +81,8 @@ export type UsageRow = {
   costCents: number;
   ok: boolean;
   ms: number;
+  label?: string | null;
+  tokensCached?: number;
 };
 
 export interface Ledger {

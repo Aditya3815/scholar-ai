@@ -105,3 +105,4 @@ export * from "./monitoring";
 export * from "./legal";
 export * from "./ocr";
 export * from "./scan-info";
+export * from "./sentences";

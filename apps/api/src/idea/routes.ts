@@ -45,7 +45,7 @@ function completeFor(env: Bindings, subject: string): Complete | null {
   const gateway = gatewayFromEnv(env);
   return async (req) => {
     // The idea is the researcher's own, unpublished work: PRIVATE, so the gateway only uses providers that do not keep or train on it.
-    const r = await gateway.complete({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens });
+    const r = await gateway.complete({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, label: req.label });
     return { json: r.json, model: r.model };
   };
 }
@@ -55,7 +55,7 @@ function streamFor(env: Bindings, subject: string, abort: AbortSignal, stub: Str
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
     // Same PRIVATE route, quota and ledger as the plan; `abort` stops the model when the researcher leaves.
-    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs }, hooks, abort);
+    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs, label: req.label }, hooks, abort);
     return { json: r.json, model: r.model };
   };
 }
