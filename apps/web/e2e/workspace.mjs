@@ -1,5 +1,5 @@
 // Browser e2e for the new look (phase W1, switched on with ?ws=1): the scroll-animated intro page, the home screen with its prompt box,
-// the rail, the Library and Settings pages, My papers without the "Open and ask" button. Three themes, a phone, reduced motion.
+// the rail, the Library and Settings pages, My Workspace (the paper opens on the whole window; pen, highlighter, eraser, undo and redo, saved with the paper). Three themes, a phone, reduced motion.
 // Needs the Worker with the fake identity provider: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/workspace.mjs [baseUrl]    (default http://localhost:8788)
 import { chromium } from "playwright-core";
@@ -26,7 +26,7 @@ const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "mse
 const errors = [];
 const watch = (p) => {
   p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404)/.test(m.text())) errors.push("console: " + m.text()); });
+  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409)/.test(m.text())) errors.push("console: " + m.text()); });
 };
 const newCtx = (opts = {}) => browser.newContext({ viewport: { width: 1360, height: 900 }, ...opts });
 const withFlag = (ctx) => ctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "1"); } catch {} });
@@ -67,6 +67,8 @@ try {
   ok(!/openalex|crossref|pubmed|semantic scholar|arxiv|\bcore\b/i.test(await page.locator(".in-herowin").innerText()), "the demo window names no source");
   ok(await page.getByRole("button", { name: "Continue with Google" }).first().isVisible(), "the hero offers Continue with Google");
   ok(await page.getByRole("link", { name: /Try it without signing in/ }).first().isVisible(), "and trying it without signing in");
+  const chip = await page.locator(".in-herowin .in-chip").first().evaluate((el) => { const r = el.getBoundingClientRect(); const visible = [...el.children].find((c) => c.dataset.show === "true"); const k = visible.getBoundingClientRect(); const icon = visible.querySelector("svg").getBoundingClientRect(); return { pill: r.width, content: k.width, gapLeft: icon.left - r.left, gapRight: r.right - k.right }; });
+  ok(chip.gapLeft < 14 && Math.abs(chip.pill - chip.content - 2 * 11.2) < 3, `the mode chip fits its words: the icon is ${Math.round(chip.gapLeft)} px from the left edge and the pill is no wider than its content (pill ${Math.round(chip.pill)} px, content ${Math.round(chip.content)} px)`);
   await page.screenshot({ path: OUT + "01-intro-hero.png" });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(500);
@@ -262,12 +264,15 @@ try {
   await page.screenshot({ path: OUT + "14-settings.png" });
   await axe("settings page", page);
 
-  // My papers: the cover opens the paper; there is no "Open and ask" button
-  await page.locator(".ws-rail").getByRole("link", { name: /My papers/ }).click();
+  // My Workspace (the section of your own papers): the card is as before, a click opens it, the title draws a line, no "Open and ask" button
+  await page.locator(".ws-rail").getByRole("link", { name: /My Workspace/ }).click();
+  ok(await page.locator(".ws-rail").getByRole("link", { name: /My papers/ }).count() === 0, 'the section is called "My Workspace", not "My papers"');
   const note = page.getByRole("region", { name: /how your papers are handled/ });
   await note.waitFor();
   await note.getByRole("button", { name: "I understand, continue" }).click();
   await note.waitFor({ state: "detached", timeout: 8000 });
+  ok(await page.locator(".vhead .eyebrow").first().innerText().then((t) => /My Workspace/i.test(t)), "the page's own heading says My Workspace");
+  ok(await page.locator("footer.footer").count() === 0, "the list of sources at the foot is not shown in My Workspace");
   await page.locator('input[type="file"]').waitFor({ state: "attached" });
   await page.locator('input[type="file"]').setInputFiles({ name: "glaucoma_screening.pdf", mimeType: "application/pdf", buffer: makePdf(SAMPLE_PAPER, { title: "Glaucoma screening" }) });
   await page.locator(".dc").first().waitFor({ timeout: 40000 });
@@ -277,12 +282,161 @@ try {
   ok((await page.locator(".dc").getByRole("button", { name: /open and ask/i }).count()) === 0, 'no "Open and ask" button on a paper card');
   ok((await page.locator(".dc .dc-open").count()) >= 1 && (await page.locator(".dc").first().getByRole("button", { name: /^Delete/ }).count()) === 1, "the card is otherwise as before: the cover opens it, rename and delete are there");
   ok((await page.locator(".dc").getByRole("button", { name: /^(Cite|Notes)/ }).count()) === 0, "and it has no Cite or Notes buttons");
-  await axe("my papers in the shell", page);
-  await page.locator(".dc .dc-open").first().click();
+  // the title draws a line under itself when the card is pointed at
+  const scaleOf = () => page.locator(".dc .dc-title-t").first().evaluate((el) => new DOMMatrix(getComputedStyle(el, "::after").transform).a);
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(600);
+  const lineBefore = await scaleOf();
+  await page.locator(".dc").first().hover();
+  await page.waitForTimeout(700);
+  const lineAfter = await scaleOf();
+  ok(lineBefore === 0 && lineAfter === 1, `pointing at a card draws a line under its title (${lineBefore} then ${lineAfter})`);
+  await page.screenshot({ path: OUT + "15b-papers-hover.png" });
+  await axe("my workspace list", page);
+  // a click on the card (the title area, not the cover) opens the paper
+  await page.locator(".dc .dc-meta").first().click();
   await page.waitForFunction(() => /^\/papers\/[a-f0-9]+$/.test(location.pathname), null, { timeout: 15000 });
-  ok(true, "the cover opens the paper as before");
-  await page.goBack();
+  ok(true, "a click on the card opens the paper");
+
+  /* ---------- reading and drawing: the paper has the whole window ---------- */
+  console.log("drawing");
+  const docId = new URL(page.url()).pathname.split("/").pop();
+  await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+  ok(await page.locator(".ws-rail").count() === 0 && await page.getByRole("button", { name: "Open the menu" }).count() === 0, "while a paper is open the rail is not shown");
+  ok(await page.locator("footer.footer").count() === 0, "and neither is the foot of the page");
+  ok(await page.locator(".dw-head").getByRole("button", { name: /My Workspace/ }).isVisible(), "the paper's own header has the way back, named My Workspace");
+  ok(await noSideways(page), "no sideways scroll while reading");
+  await page.screenshot({ path: OUT + "20-reader.png" });
+  await axe("reader without the rail", page);
+
+  const drawBtn = page.getByRole("button", { name: /^Draw$/ });
+  ok(await drawBtn.isVisible() && (await drawBtn.getAttribute("aria-pressed")) === "false", "the reader has a Draw button, and the tools are not in the way until it is pressed");
+  await drawBtn.click();
+  const bar = page.getByRole("toolbar", { name: "Draw on the paper" });
+  await bar.waitFor();
+  await page.waitForTimeout(500);
+  ok((await drawBtn.getAttribute("aria-pressed")) === "true", "pressing it opens the drawing tools");
+  for (const name of ["Select and read", "Pen", "Highlighter", "Eraser"]) ok(await bar.getByRole("button", { name }).isVisible(), `the toolbar has ${name}`);
+  ok((await bar.getByRole("radio", { name: /Thin|Medium|Thick|Extra thick/ }).count()) === 4, "four sizes");
+  ok((await bar.getByRole("radio", { name: /Black|Blue|Red|Green|Orange|Violet/ }).count()) === 6, "six pen colours");
+  await bar.locator('[role=status]').filter({ hasText: "Saved" }).waitFor({ timeout: 8000 });
+  ok(true, "it says the drawing is saved (nothing to save yet)");
+  ok(await bar.getByRole("button", { name: "Pen" }).getAttribute("aria-pressed") === "true", "the pen is in hand when it opens");
+  await page.screenshot({ path: OUT + "21-draw-open.png" });
+  await axe("drawing tools open", page);
+
+  const pageBox = async () => { const el = page.locator('.pdfp[data-page="1"]'); await el.scrollIntoViewIfNeeded(); return (await el.boundingBox()); };
+  const drag = async (from, to, steps = 12) => { const b = await pageBox(); await page.mouse.move(b.x + b.width * from[0], b.y + b.width * from[1]); await page.mouse.down(); for (let i = 1; i <= steps; i++) await page.mouse.move(b.x + b.width * (from[0] + ((to[0] - from[0]) * i) / steps), b.y + b.width * (from[1] + ((to[1] - from[1]) * i) / steps) + Math.sin(i) * 3); await page.mouse.up(); };
+  const strokesOnServer = async () => (await (await page.request.get(`${BASE}/api/v1/documents/${docId}/ink`)).json());
+  const savedBar = () => bar.locator('[role=status]').filter({ hasText: "Saved" }).waitFor({ timeout: 8000 });
+
+  // a pen stroke
+  await drag([0.2, 0.2], [0.6, 0.26]);
+  ok(await page.locator('.pdfp[data-page="1"] .ink-pen path[fill]:not(.ink-live)').count() === 1, "a pen stroke is drawn on the page");
+  await savedBar();
+  let srv = await strokesOnServer();
+  ok(srv.strokes.length === 1 && srv.strokes[0].tool === "pen" && srv.strokes[0].page === 1 && srv.rev === 1, "and it is saved with the paper (a vector stroke on page 1, revision 1)");
+  ok(srv.strokes[0].pts.length >= 9 && srv.strokes[0].pts.every((n) => Number.isFinite(n)), "with its points");
+  await page.screenshot({ path: OUT + "22-pen.png" });
+
+  // size and colour: a thick red stroke
+  await bar.getByRole("radio", { name: "Extra thick" }).click();
+  await bar.getByRole("radio", { name: "Red" }).click();
+  await drag([0.2, 0.32], [0.6, 0.36]);
+  await savedBar();
+  srv = await strokesOnServer();
+  ok(srv.strokes.length === 2 && srv.strokes[1].color === "red" && srv.strokes[1].w > srv.strokes[0].w * 2, `the size and colour chosen are used (red, ${srv.strokes[1]?.w} wide against ${srv.strokes[0]?.w})`);
+
+  // a highlighter stroke goes in its own layer, multiplied into the page
+  await page.keyboard.press("h");
+  ok(await bar.getByRole("button", { name: "Highlighter" }).getAttribute("aria-pressed") === "true", "the letter H picks the highlighter");
+  await drag([0.2, 0.42], [0.65, 0.42]);
+  ok(await page.locator('.pdfp[data-page="1"] .ink-hl path:not(.ink-live)[stroke]').count() === 1, "a highlighter stroke is drawn in the highlighter layer");
+  ok(await page.locator('.pdfp[data-page="1"] .ink-hl').evaluate((el) => getComputedStyle(el).mixBlendMode) === "multiply", "which multiplies into the page, like a marker");
+  await savedBar();
+  srv = await strokesOnServer();
+  ok(srv.strokes.length === 3 && srv.strokes[2].tool === "highlighter", "and is saved");
+  await page.screenshot({ path: OUT + "23-highlighter.png" });
+
+  // undo and redo, by button and by key
+  await bar.getByRole("button", { name: "Undo" }).click();
+  ok(await page.locator('.pdfp[data-page="1"] .ink-hl path:not(.ink-live)[stroke]').count() === 0, "Undo takes the last stroke away");
+  await bar.getByRole("button", { name: "Redo" }).click();
+  ok(await page.locator('.pdfp[data-page="1"] .ink-hl path:not(.ink-live)[stroke]').count() === 1, "Redo brings it back");
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
+  ok(await page.locator('.pdfp[data-page="1"] .ink-pen path[fill]:not(.ink-live)').count() === 1, "Ctrl+Z undoes, twice here (two strokes gone, one left)");
+  await page.keyboard.press("Control+Shift+z");
+  ok(await page.locator('.pdfp[data-page="1"] .ink-pen path[fill]:not(.ink-live)').count() === 2, "Ctrl+Shift+Z redoes");
+  await page.keyboard.press("Control+y");
+  ok(await page.locator('.pdfp[data-page="1"] .ink-hl path:not(.ink-live)[stroke]').count() === 1, "Ctrl+Y redoes too");
+  await savedBar();
+  srv = await strokesOnServer();
+  ok(srv.strokes.length === 3, "after all that the saved drawing is the three strokes");
+
+  // the eraser removes whole strokes, as one step that can be undone
+  await page.keyboard.press("e");
+  ok(await bar.getByRole("button", { name: "Eraser" }).getAttribute("aria-pressed") === "true", "the letter E picks the eraser");
+  await bar.getByRole("radio", { name: "Thick", exact: true }).click();
+  await drag([0.4, 0.14], [0.4, 0.5], 24);
+  await page.waitForTimeout(200);
+  ok(await page.locator('.pdfp[data-page="1"] .ink path:not(.ink-live)').count() === 0, "dragging the eraser across the strokes removes them all");
+  await savedBar();
+  ok((await strokesOnServer()).strokes.length === 0, "and the saved drawing is empty");
+  await bar.getByRole("button", { name: "Undo" }).click();
+  ok(await page.locator('.pdfp[data-page="1"] .ink path:not(.ink-live)').count() === 3, "one Undo brings back everything that one sweep erased");
+  await savedBar();
+  ok((await strokesOnServer()).strokes.length === 3, "and the saved drawing has it again");
+
+  // it all stays when the paper is opened again
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+  await page.waitForFunction(() => document.querySelectorAll('.pdfp[data-page="1"] .ink path:not(.ink-live)').length === 3, null, { timeout: 8000 });
+  ok(true, "after opening the paper again the three strokes are there");
+  await page.screenshot({ path: OUT + "24-reopened.png" });
+
+  // with the tools closed, and with "select and read", the drawing layer does not take the pointer, so text can be selected
+  ok(await page.locator('.pdfp[data-page="1"] .ink-pen').evaluate((el) => getComputedStyle(el).pointerEvents) === "none", "with the tools closed the drawing layer lets the pointer through to the text");
+  await page.getByRole("button", { name: /^Draw$/ }).click();
+  const bar2 = page.getByRole("toolbar", { name: "Draw on the paper" });
+  await bar2.waitFor();
+  ok(await page.locator('.pdfp[data-page="1"] .ink-pen').evaluate((el) => getComputedStyle(el).pointerEvents) === "auto", "with a drawing tool in hand it takes the pointer");
+  await page.keyboard.press("v");
+  ok(await bar2.getByRole("button", { name: "Select and read" }).getAttribute("aria-pressed") === "true", "the letter V picks select and read");
+  ok(await page.locator('.pdfp[data-page="1"] .ink-pen').evaluate((el) => getComputedStyle(el).pointerEvents) === "none", "in which the drawing layer does not take the pointer");
+  await page.keyboard.press("Escape");
+  await bar2.waitFor({ state: "hidden", timeout: 5000 });
+  ok(true, "Escape closes the tools");
+
+  // another window drawing in between: this one is told, and shows the newer drawing
+  await page.getByRole("button", { name: /^Draw$/ }).click();
+  const bar3 = page.getByRole("toolbar", { name: "Draw on the paper" });
+  await bar3.waitFor();
+  const cur = await strokesOnServer();
+  const other = await page.request.put(`${BASE}/api/v1/documents/${docId}/ink`, { headers: { Origin: BASE, "Content-Type": "application/json" }, data: { strokes: cur.strokes.slice(0, 1), rev: cur.rev } });
+  ok(other.ok(), "(another window saves a smaller drawing)");
+  await page.keyboard.press("p");
+  await drag([0.2, 0.55], [0.5, 0.58]);
+  await bar3.locator('[role=status]').filter({ hasText: /Updated from another window/ }).waitFor({ timeout: 8000 });
+  ok(await page.locator('.pdfp[data-page="1"] .ink path:not(.ink-live)').count() === 1, "this window is told and shows the other window's drawing, not its own lost stroke");
+  await page.screenshot({ path: OUT + "25-conflict.png" });
+  await page.keyboard.press("Escape");
+
+  // dark and read themes with the tools open
+  await page.getByRole("button", { name: /^Draw$/ }).click();
+  await bar3.waitFor();
+  for (const theme of ["dark", "read"]) {
+    await setTheme(page, theme);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: OUT + `26-draw-${theme}.png` });
+    await axe(`drawing tools, ${theme}`, page);
+  }
+  await setTheme(page, "light");
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: /My Workspace/ }).first().click();
   await page.locator(".dc").first().waitFor();
+  ok(await page.locator(".ws-rail").isVisible(), "going back to the list brings the rail back");
   const mine = (await (await page.request.get(BASE + "/api/v1/documents")).json()).items;
   for (const d of mine) await page.request.delete(BASE + "/api/v1/documents/" + d.id, { headers: { Origin: BASE } });
 
@@ -302,7 +456,7 @@ try {
   await drawer.waitFor();
   await page.waitForTimeout(500);
   await page.screenshot({ path: OUT + "17-drawer-phone.png" });
-  ok(await drawer.getByRole("link", { name: /My papers/ }).isVisible(), "the menu on a phone is the same rail, as a drawer");
+  ok(await drawer.getByRole("link", { name: /My Workspace/ }).isVisible(), "the menu on a phone is the same rail, as a drawer");
   await axe("drawer open, phone", page);
   await page.keyboard.press("Escape");
   await drawer.waitFor({ state: "hidden" });

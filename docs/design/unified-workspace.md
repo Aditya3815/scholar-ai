@@ -64,7 +64,7 @@ Performance: no video, no WebGL, no library; fonts are the ones we already self-
 
 ### 2.3 My papers
 
-**Exactly as today**: the hero, the drop zone, the cards (cover, title with its rename pencil, pages and size, the "Scan" mark, delete). Inside the new frame (the rail), nothing else changes, except that the "Open and ask" button is removed: the cover opens the paper, as it always did.
+**Exactly as today**: the hero, the drop zone, the cards (cover, title with its rename pencil, pages and size, the "Scan" mark, delete). Inside the new frame (the rail), nothing else changes, except that the "Open and ask" button is removed: the cover opens the paper, as it always did. **Renamed "My Workspace" on 24 Oct**: a paper opens on the whole window (no rail, no footer) and can be drawn on; see [my-workspace.md](my-workspace.md).
 (The POC card with Cite, Notes and "Ready to ask" badges was a proposal you rejected.) Open-access papers saved from search (W4) will appear here as ordinary papers.
 
 ## 3. Interaction model

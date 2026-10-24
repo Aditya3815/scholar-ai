@@ -52,6 +52,10 @@ accountRoutes.get("/export", async (c) => {
     .prepare("SELECT n.doc_id, n.page, n.quote, n.note, n.created_at FROM doc_notes n JOIN documents d ON d.id = n.doc_id WHERE d.user_id = ?1 ORDER BY n.page, n.created_at")
     .bind(user.id)
     .all<{ doc_id: string; page: number; quote: string; note: string | null; created_at: string }>();
+  const ink = await c.env.DB
+    .prepare("SELECT i.doc_id, i.data FROM doc_ink i JOIN documents d ON d.id = i.doc_id WHERE d.user_id = ?1")
+    .bind(user.id)
+    .all<{ doc_id: string; data: string }>();
   const reports = await c.env.DB
     .prepare("SELECT kind, problem, note, context, created_at FROM feedback WHERE user_id = ?1 ORDER BY created_at")
     .bind(user.id)
@@ -75,6 +79,10 @@ accountRoutes.get("/export", async (c) => {
           }
         : {}),
       note: "The PDF itself can be downloaded from the paper’s page while signed in.",
+      drawing: (() => {
+        const row = ink.results.find((i) => i.doc_id === d.id);
+        return row ? { note: "Pen and highlighter strokes you drew on this paper. Each stroke is a list of points (x, y, pressure) as fractions of the page width.", strokes: JSON.parse(row.data) as unknown } : null;
+      })(),
       highlightsAndNotes: notes.results.filter((n) => n.doc_id === d.id).map((n) => ({ page: n.page, quote: n.quote, note: n.note ?? "", madeAt: new Date(fromSqliteTime(n.created_at)).toISOString() })),
       questions: qa.results.filter((q) => q.doc_id === d.id).map((q) => ({ question: q.question, answer: (JSON.parse(q.answer) as { answer: string }).answer, askedAt: new Date(fromSqliteTime(q.created_at)).toISOString() })),
     })),

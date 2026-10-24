@@ -1,14 +1,18 @@
 import "pdfjs-dist/web/pdf_viewer.css";
 import { m } from "motion/react";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, ListTree, Loader2, Maximize2, Minus, Plus, Search, StickyNote, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, ListTree, Loader2, Maximize2, Minus, PencilLine, Plus, Search, StickyNote, X } from "lucide-react";
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type Ref } from "react";
-import { NOTE_COLORS, anchoredScroll, clampZoom, pinchFactor, stepZoom, wheelFactor, type DocNote, type MarkRect, type NoteColor, type OutlineItem } from "@scholar/shared";
+import { NOTE_COLORS, anchoredScroll, clampZoom, pinchFactor, stepZoom, wheelFactor, type DocNote, type InkSize, type InkStroke, type MarkRect, type NoteColor, type OutlineItem } from "@scholar/shared";
 import type { PDFDocumentProxy } from "../../lib/pdf";
 import { Pop } from "../Pop";
 import { pdfjs } from "../../lib/pdf";
 import { clearHighlights, highlightMatches, highlightQuote, quoteRects } from "../../lib/highlight";
 import { locate, usePaperSearch } from "../../lib/paperSearch";
 import { spring } from "../../lib/motion";
+import { showNotice } from "../../lib/notice";
+import type { InkApi } from "../../lib/ink";
+import { InkLayer, type DrawTool } from "./InkLayer";
+import { InkToolbar, type InkPrefs } from "./InkToolbar";
 
 /** What the reader chose in the paper: a highlight in a colour, or a note. */
 export type NewNote = { page: number; quote: string; color: NoteColor; withNote: boolean };
@@ -19,6 +23,26 @@ export type ViewerHandle = {
 };
 
 const MAX_PAGE_PX = 920;
+
+const INK_PREFS_KEY = "scholar.ink.prefs.v1";
+const DEFAULT_PREFS: InkPrefs = { tool: "pen", color: { pen: "blue", highlighter: "yellow" }, size: { pen: "m", highlighter: "m", eraser: "m" }, finger: false };
+/** The colours, sizes and finger setting the reader used last time (checked, since storage can hold anything). */
+function readInkPrefs(): InkPrefs {
+  try {
+    const raw = JSON.parse(localStorage.getItem(INK_PREFS_KEY) ?? "null") as Partial<InkPrefs> | null;
+    if (!raw) return DEFAULT_PREFS;
+    const sizes = ["s", "m", "l", "xl"];
+    const size = (v: unknown, d: InkSize): InkSize => (typeof v === "string" && sizes.includes(v) ? (v as InkSize) : d);
+    return {
+      tool: "hand",
+      color: { pen: typeof raw.color?.pen === "string" ? raw.color.pen : "blue", highlighter: typeof raw.color?.highlighter === "string" ? raw.color.highlighter : "yellow" },
+      size: { pen: size(raw.size?.pen, "m"), highlighter: size(raw.size?.highlighter, "m"), eraser: size(raw.size?.eraser, "m") },
+      finger: raw.finger === true,
+    };
+  } catch {
+    return DEFAULT_PREFS;
+  }
+}
 const NO_MARKS: PageMark[] = [];
 
 /** True while the element is within `margin` of the scroll area; used to render only what can be seen. */
@@ -50,7 +74,12 @@ type PageProps = {
   /** A note being written now shows its icon even before it has any words. */
   focusId: string | null;
   onOpenNote?: (id: string) => void;
+  /** The drawing on this paper and the tool in hand; absent where drawing is not offered. */
+  draw?: DrawProps;
 };
+
+/** What a page needs to show and take drawing. */
+export type DrawProps = { strokes: InkStroke[]; tool: DrawTool; color: string; sizeKey: InkSize; finger: boolean; onStroke: (s: InkStroke) => void; onErase: (ids: string[]) => void; onFingerBlocked: () => void };
 
 const ICON = 18;
 
@@ -72,7 +101,7 @@ function noteIcons(marks: PageMark[], notesById: Map<string, DocNote>, focusId: 
   return out;
 }
 
-function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, focusId, onOpenNote }: PageProps) {
+function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, focusId, onOpenNote, draw }: PageProps) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const text = useRef<HTMLDivElement>(null);
@@ -133,6 +162,7 @@ function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, 
   return (
     <div ref={box} className="pdfp" data-page={n} role="group" style={{ width: size.w * scale, height: size.h * scale }} aria-label={`Page ${n}`}>
       <canvas ref={canvas} className="pdfp-canvas" data-painted={painted} />
+      {draw && <InkLayer page={n} size={size} strokes={draw.strokes} tool={draw.tool} color={draw.color} sizeKey={draw.sizeKey} finger={draw.finger} onStroke={draw.onStroke} onErase={draw.onErase} onFingerBlocked={draw.onFingerBlocked} />}
       <div ref={text} className="textLayer pdfp-text" />
       {marks.length > 0 && (
         <div className="pdfp-marks">
@@ -238,7 +268,7 @@ function Contents({ items, detected, current, onPick }: { items: OutlineItem[]; 
   );
 }
 
-export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void }) {
+export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote, ink }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void; /** Drawing on the paper (My Workspace). Without it the viewer has no drawing tools. */ ink?: InkApi }) {
   const scroller = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -375,6 +405,78 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
       if (live.current) window.clearTimeout(live.current.timer);
     };
   }, [pinchBy]);
+
+  /* ---- drawing: pen, highlighter, eraser (only where `ink` is given) ---- */
+  const [drawOpen, setDrawOpen] = useState(false);
+  const [prefs, setPrefs] = useState<InkPrefs>(readInkPrefs);
+  const savePrefs = useCallback((p: InkPrefs) => {
+    setPrefs(p);
+    try {
+      localStorage.setItem(INK_PREFS_KEY, JSON.stringify(p));
+    } catch {
+      /* private mode: the choices are just not remembered */
+    }
+  }, []);
+  const canTouch = typeof navigator !== "undefined" && (navigator.maxTouchPoints > 0 || (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches));
+  /** Drawing starts when the strokes saved before have been loaded (else a first stroke could cover them). */
+  const tool: DrawTool = ink && drawOpen && ink.ready ? prefs.tool : "hand";
+  const hintShown = useRef(false);
+  const inkRef = useRef(ink);
+  inkRef.current = ink;
+  const draw = useMemo<DrawProps | undefined>(() => {
+    if (!ink) return undefined;
+    const kind = tool === "hand" ? "pen" : tool;
+    return {
+      strokes: ink.strokes,
+      tool,
+      color: kind === "eraser" ? "" : prefs.color[kind],
+      sizeKey: prefs.size[kind],
+      finger: prefs.finger,
+      onStroke: (s) => inkRef.current?.add(s),
+      onErase: (ids) => inkRef.current?.erase(ids),
+      onFingerBlocked: () => {
+        if (hintShown.current) return;
+        hintShown.current = true;
+        showNotice("A finger scrolls the paper. Turn on \u201CDraw with a finger\u201D in the drawing tools to draw with it. A stylus always draws.");
+      },
+    };
+  }, [ink, tool, prefs]);
+  const closeDraw = useCallback(() => {
+    setDrawOpen(false);
+    setPrefs((p) => ({ ...p, tool: "hand" }));
+  }, []);
+  // keyboard: V P H E choose the tool, Ctrl+Z undoes, Ctrl+Shift+Z or Ctrl+Y redoes, Esc closes (never while typing, or inside a dialog)
+  useEffect(() => {
+    if (!ink || !drawOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable=true], [role=dialog]")) return;
+      const mod = e.ctrlKey || e.metaKey;
+      const k = e.key.toLowerCase();
+      if (mod && k === "z") {
+        e.preventDefault();
+        (e.shiftKey ? inkRef.current?.redo : inkRef.current?.undo)?.();
+      } else if (mod && k === "y") {
+        e.preventDefault();
+        inkRef.current?.redo();
+      } else if (!mod && !e.altKey && ["v", "p", "h", "e"].includes(k)) {
+        e.preventDefault();
+        setPrefs((p) => {
+          const next: InkPrefs = { ...p, tool: ({ v: "hand", p: "pen", h: "highlighter", e: "eraser" } as const)[k as "v"] };
+          try {
+            localStorage.setItem(INK_PREFS_KEY, JSON.stringify(next));
+          } catch {
+            /* ignore */
+          }
+          return next;
+        });
+      } else if (k === "escape" && !mod) {
+        closeDraw();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [ink, drawOpen, closeDraw]);
 
   const first = sizes[1] ?? { w: 595, h: 842 };
   const fit = width > 0 ? Math.min((width - 32) / first.w, MAX_PAGE_PX / first.w) : 1;
@@ -591,6 +693,7 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
   return (
     <div
       className="pdfv"
+      data-drawing={tool !== "hand"}
       onKeyDown={(e) => {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
           e.preventDefault();
@@ -624,6 +727,12 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
           <button type="button" className="icon-btn icon-btn-sm" aria-label="Find in this paper" aria-pressed={findOpen} title="Find in this paper (Ctrl+F)" onClick={() => (findOpen ? closeFind() : openFind())}>
             <Search size={15} aria-hidden="true" />
           </button>
+          {ink && (
+            <button type="button" className="btn btn-ghost btn-sm pdfv-draw" aria-pressed={drawOpen} title="Draw and highlight on the paper" onClick={() => (drawOpen ? closeDraw() : (setDrawOpen(true), setPrefs((p) => (p.tool === "hand" ? { ...p, tool: "pen" } : p))))}>
+              <PencilLine size={15} aria-hidden="true" />
+              <span>Draw</span>
+            </button>
+          )}
           {contents && <Contents items={contents.items} detected={contents.detected} current={current} onPick={(p) => goTo(p)} />}
           <button type="button" className="icon-btn icon-btn-sm" aria-label="Zoom out" disabled={zoomLevel <= 0.6} onClick={() => zoomTo(stepZoom(zoomLevel, -1))}>
             <Minus size={16} aria-hidden="true" />
@@ -642,6 +751,8 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
           </a>
         </div>
       </div>
+
+      {ink && <InkToolbar open={drawOpen} prefs={prefs} onPrefs={savePrefs} ink={ink} canTouch={canTouch} onClose={closeDraw} />}
 
       {findOpen && (
         <div className="pdfv-find" role="search" aria-label="Find in this paper">
@@ -707,7 +818,7 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
         <div ref={scroller} className="pdfv-scroll" tabIndex={0} role="region" aria-label={`Pages of ${title}`} onMouseUp={onCreateNote ? captureSelection : undefined} onKeyUp={onCreateNote ? captureSelection : undefined} onScroll={sel ? followSelection : undefined}>
           <div ref={pagesEl} className="pdfv-pages">
             {pages.map((n) => (
-              <PdfPage key={n} pdf={pdf} n={n} scale={scale} size={sizes[n] ?? first} root={scroller} onSize={onSize} onText={onText} marks={marks[n] ?? NO_MARKS} notesById={notesById} focusId={focusNoteId} onOpenNote={onOpenNote} />
+              <PdfPage key={n} pdf={pdf} n={n} scale={scale} size={sizes[n] ?? first} root={scroller} onSize={onSize} onText={onText} marks={marks[n] ?? NO_MARKS} notesById={notesById} focusId={focusNoteId} onOpenNote={onOpenNote} draw={draw} />
             ))}
           </div>
         </div>

@@ -5,7 +5,9 @@ import {
   MAX_COVER_BYTES,
   MAX_DOCS_PER_USER,
   MAX_DOC_BYTES,
+  INK_LIMITS,
   MAX_DOC_PAGES,
+  checkInk,
   MAX_NOTES_PER_DOC,
   MAX_NOTE_CHARS,
   OCR_MAX_IMAGE_BYTES,
@@ -532,6 +534,52 @@ documentRoutes.post("/:id/ask", async (c) => {
   }
   await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
   return c.json({ answer });
+});
+
+/* ---------------------------------------------------------------- drawing: pen, highlighter, eraser (My Workspace) */
+
+/** One paper's strokes are saved as a whole, with a revision, so two tabs cannot silently overwrite each other (the later one is told and shows the newer drawing). */
+const INK_MAX_BODY = INK_LIMITS.bytes + 100_000;
+
+documentRoutes.get("/:id/ink", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const ink = await c.env.DB.prepare("SELECT data, rev FROM doc_ink WHERE doc_id = ?1").bind(row.id).first<{ data: string; rev: number }>();
+  return c.json({ strokes: ink ? (JSON.parse(ink.data) as unknown) : [], rev: ink?.rev ?? 0 });
+});
+
+documentRoutes.put("/:id/ink", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const length = Number(c.req.header("content-length") ?? 0);
+  if (length > INK_MAX_BODY) return deny(c, 413, "too_big", "There is too much drawing on this paper to save", "Erase some of it, or draw on a copy.");
+  const text = await c.req.text().catch(() => "");
+  if (text.length > INK_MAX_BODY) return deny(c, 413, "too_big", "There is too much drawing on this paper to save", "Erase some of it, or draw on a copy.");
+  let body: { strokes?: unknown; rev?: unknown } | null = null;
+  try {
+    body = JSON.parse(text) as { strokes?: unknown; rev?: unknown };
+  } catch {
+    /* handled below */
+  }
+  if (!body || typeof body.rev !== "number" || !Number.isInteger(body.rev) || body.rev < 0) return deny(c, 400, "invalid_ink", "Nothing to save");
+  const checked = checkInk(body.strokes, row.pages ?? MAX_DOC_PAGES);
+  if (!checked.ok) return deny(c, checked.reason.startsWith("too") ? 413 : 400, "invalid_ink", "That drawing could not be saved", checked.reason);
+  const data = JSON.stringify(checked.strokes);
+  // first save: insert only if nobody saved before; later saves: only if the revision is the one the browser started from
+  const res =
+    body.rev === 0
+      ? await c.env.DB.prepare("INSERT INTO doc_ink (doc_id, data, rev) VALUES (?1, ?2, 1) ON CONFLICT (doc_id) DO NOTHING").bind(row.id, data).run()
+      : await c.env.DB.prepare("UPDATE doc_ink SET data = ?2, rev = rev + 1, updated_at = datetime('now') WHERE doc_id = ?1 AND rev = ?3").bind(row.id, data, body.rev).run();
+  if ((res.meta.changes ?? 0) === 0) {
+    const now = await c.env.DB.prepare("SELECT data, rev FROM doc_ink WHERE doc_id = ?1").bind(row.id).first<{ data: string; rev: number }>();
+    return c.json({ type: "conflict", title: "This paper was drawn on in another window", strokes: now ? (JSON.parse(now.data) as unknown) : [], rev: now?.rev ?? 0 }, 409);
+  }
+  return c.json({ rev: body.rev + 1 });
 });
 
 /* ---------------------------------------------------------------- highlights and notes */

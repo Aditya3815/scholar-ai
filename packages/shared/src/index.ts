@@ -106,3 +106,4 @@ export * from "./legal";
 export * from "./ocr";
 export * from "./scan-info";
 export * from "./sentences";
+export * from "./ink";

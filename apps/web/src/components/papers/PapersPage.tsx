@@ -3,6 +3,7 @@ import { FileSearch, LockKeyhole, ShieldCheck, Sparkles, WifiOff } from "lucide-
 import { useEffect, useState } from "react";
 import type { DocumentInfo } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
+import { PAPERS_NAME } from "../../lib/workspace";
 import { loadDocs, removeDoc, resetDocs, useDocs } from "../../lib/documents";
 import { PRIVACY_VERSION } from "@scholar/shared";
 import { easeOut, stagger } from "../../lib/motion";
@@ -45,7 +46,7 @@ export function PapersPage({ onOpen }: { onOpen: (id: string) => void }) {
           <span className="orb orb-1" />
           <span className="orb orb-2" />
         </div>
-        <m.p className="eyebrow" {...rise(0)}>My papers</m.p>
+        <m.p className="eyebrow" {...rise(0)}>{PAPERS_NAME}</m.p>
         <m.h1 id="papers-h" className="vtitle" {...rise(1)}>
           Ask your papers anything. Get answers you can{" "}
           <span className="hero-em">

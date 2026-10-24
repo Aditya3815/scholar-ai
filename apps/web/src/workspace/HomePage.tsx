@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth";
 import { coverUrl, loadDocs, useDocs } from "../lib/documents";
 import { useLibrary } from "../lib/library";
 import { easeOut, springPop, stagger } from "../lib/motion";
-import { putHandoff } from "../lib/workspace";
+import { PAPERS_NAME, putHandoff } from "../lib/workspace";
 import { Pop } from "../components/Pop";
 
 /** The four tools. In W1 each opens the page that already does the work (the prompt box does not choose for you yet: that is W3). */
@@ -14,7 +14,7 @@ const TOOLS: { id: Tool; name: string; short: string; help: string; placeholder:
   { id: "search", name: "Search papers", short: "Search", help: "Real records with a checked DOI, retractions flagged.", placeholder: "Ask about a topic, or paste a DOI…", Icon: Search },
   { id: "verify", name: "Check references", short: "References", help: "Paste a bibliography: does each reference exist, and does it say what you cited?", placeholder: "Paste your references, one per line…", Icon: ListChecks },
   { id: "idea", name: "Idea Check", short: "Idea", help: "Closest papers, part by part, and the gaps. Never a verdict on novelty.", placeholder: "Describe your idea in a few sentences…", Icon: Lightbulb },
-  { id: "paper", name: "Ask a paper", short: "Papers", help: "Answers from your own papers, with the page and the exact quote.", placeholder: "Open My papers to ask one of your papers…", Icon: FileStack },
+  { id: "paper", name: "Ask a paper", short: "Papers", help: "Answers from your own papers, with the page and the exact quote.", placeholder: "Open My Workspace to ask one of your papers…", Icon: FileStack },
 ];
 const STARTERS = ["graph neural networks", "NEP 2020 higher education India", "CRISPR off-target effects", "plagiarism detection techniques"];
 
@@ -150,7 +150,7 @@ export function HomePage({ query, onQuery, onSearch, onOpenTool, inputRef }: { q
         />
         <div className="hm-bar">
           <ModeMenu tool={tool} onChange={setTool} />
-          <m.button type="submit" className="hm-send" aria-label={tool === "paper" ? "Open My papers" : `${current.name}: send`} disabled={tool !== "paper" && !ready} whileTap={{ scale: 0.92 }} transition={springPop}>
+          <m.button type="submit" className="hm-send" aria-label={tool === "paper" ? `Open ${PAPERS_NAME}` : `${current.name}: send`} disabled={tool !== "paper" && !ready} whileTap={{ scale: 0.92 }} transition={springPop}>
             <ArrowUp size={18} aria-hidden="true" />
           </m.button>
         </div>
@@ -169,7 +169,7 @@ export function HomePage({ query, onQuery, onSearch, onOpenTool, inputRef }: { q
       <m.div className="hm-cards" {...rise(5)}>
         {user ? (
           <button type="button" className="hm-card" onClick={() => onOpenTool("papers")}>
-            <span className="hm-k">My papers</span>
+            <span className="hm-k">{PAPERS_NAME}</span>
             <strong>{docs.items.length > 0 ? `${docs.items.length} ${docs.items.length === 1 ? "paper" : "papers"} to read and ask` : "Upload a paper and ask it questions"}</strong>
             {covers.length > 0 ? (
               <span className="hm-stack" aria-hidden="true">
@@ -181,7 +181,7 @@ export function HomePage({ query, onQuery, onSearch, onOpenTool, inputRef }: { q
           </button>
         ) : (
           <button type="button" className="hm-card" onClick={() => onOpenTool("papers")}>
-            <span className="hm-k">My papers</span>
+            <span className="hm-k">{PAPERS_NAME}</span>
             <strong>Sign in to upload papers and ask them questions</strong>
             <span className="hm-meta">Private to your account</span>
           </button>

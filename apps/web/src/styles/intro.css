@@ -73,10 +73,9 @@
 .in-w[data-on="true"] { visibility: visible; }
 .in-over { display: grid; }
 .in-over > * { grid-area: 1 / 1; min-width: 0; }
-.in-chip { display: inline-grid; }
-.in-chip > span { grid-area: 1 / 1; display: inline-flex; align-items: center; gap: 0.4rem; visibility: hidden; }
+.in-chip > span { grid-area: 1 / 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; visibility: hidden; }
 .in-chip > span[data-show="true"] { visibility: visible; }
-.in-chip { flex: none; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.28rem 0.7rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-size: 0.78rem; font-weight: 650; color: var(--muted); transition: color 0.3s, border-color 0.3s, background 0.3s; }
+.in-chip { flex: none; display: inline-grid; align-items: center; padding: 0.28rem 0.7rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-size: 0.78rem; font-weight: 650; color: var(--muted); transition: color 0.3s, border-color 0.3s, background 0.3s; }
 .in-chip[data-on="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .in-win-out { position: relative; flex: 1; min-height: 0; padding: 0 1.05rem 1rem; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent); }
 .in-understood { display: flex; width: fit-content; max-width: 100%; align-items: center; gap: 0.5rem; margin: 0 0 0.6rem; padding: 0.22rem 0.7rem; border: 1px dashed var(--border-strong); border-radius: 999px; font-size: 0.8rem; color: var(--muted); }

@@ -7,6 +7,8 @@ import { ApiError, continueScan, fetchDocument, fileUrl, pauseScan, reindexDoc, 
 import { fetchScan, fetchScanText } from "../../lib/scan";
 import { analyzeOpenPdf } from "../../lib/paperinfo";
 import { useNotes } from "../../lib/notes";
+import { useInk } from "../../lib/ink";
+import { PAPERS_NAME, WORKSPACE } from "../../lib/workspace";
 import { easeOut, spring } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { PdfError, openPdf, type PDFDocumentProxy } from "../../lib/pdf";
@@ -87,6 +89,8 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const [tab, setTab] = useState<"paper" | "side">("paper");
   const [side, setSide] = useState<"ask" | "refs" | "notes">("ask");
   const notes = useNotes(id);
+  // drawing (pen, highlighter, eraser) is part of My Workspace, the new look; the old look does not load it
+  const ink = useInk(id, WORKSPACE);
   // the note being written, or the one whose icon was pressed; `tick` makes a second press on the same note work again
   const [focusNote, setFocusNote] = useState<{ id: string; tick: number } | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -233,7 +237,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
           <div className="empty-actions">
             <button type="button" className="btn btn-primary" onClick={onBack}>
               <ArrowLeft size={16} aria-hidden="true" />
-              <span>Back to my papers</span>
+              <span>Back to {PAPERS_NAME === "My papers" ? "my papers" : PAPERS_NAME}</span>
             </button>
             {!load.notFound && authStatus === "ready" && user && (
               <button type="button" className="btn btn-ghost" onClick={() => { setLoad({ status: "loading" }); void fetchIt(); }}>Try again</button>
@@ -252,7 +256,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
       <div className="dw-head">
         <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>
           <ArrowLeft size={15} aria-hidden="true" />
-          <span>My papers</span>
+          <span>{PAPERS_NAME}</span>
         </button>
         <div className="dw-titles">
           <TitleEditor doc={doc} onChange={(d) => setLoad({ status: "ready", doc: d, history, info, scan })} />
@@ -332,7 +336,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             {pdf.status === "ready" && (
               <m.div key="r" className="dw-viewer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }}>
                 <Suspense fallback={<OpeningPaper progress={1} />}>
-                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} notes={notes.notes} onCreateNote={(n) => void onCreateNote(n)} focusNoteId={focusNote?.id ?? null} onOpenNote={openNote} />
+                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} notes={notes.notes} onCreateNote={(n) => void onCreateNote(n)} focusNoteId={focusNote?.id ?? null} onOpenNote={openNote} ink={WORKSPACE ? ink : undefined} />
                 </Suspense>
               </m.div>
             )}

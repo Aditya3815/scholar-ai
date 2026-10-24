@@ -24,7 +24,7 @@ import { easeOut } from "./lib/motion";
 import { clearNotice, showNotice, useNotice } from "./lib/notice";
 import { openPreview } from "./lib/preview";
 import { useSearch } from "./lib/search";
-import { WORKSPACE } from "./lib/workspace";
+import { PAPERS_NAME, WORKSPACE } from "./lib/workspace";
 import { Shell } from "./workspace/Shell";
 import { HomePage } from "./workspace/HomePage";
 import { LibraryPage, SettingsPage } from "./workspace/Pages";
@@ -56,7 +56,7 @@ const routeFromPath = (): Route => {
   if (m) return { view: "papers", docId: m[1] ?? null };
   return { view: "search", docId: null };
 };
-const TITLES: Record<View, string> = { search: "Scholar AI", verify: "Verify references · Scholar AI", papers: "My papers · Scholar AI", idea: "Idea Check · Scholar AI", admin: "Admin · Scholar AI", privacy: "Privacy · Scholar AI", terms: "Terms · Scholar AI", how: "How we verify · Scholar AI", library: "Library · Scholar AI", settings: "Settings · Scholar AI" };
+const TITLES: Record<View, string> = { search: "Scholar AI", verify: "Verify references · Scholar AI", papers: `${PAPERS_NAME} · Scholar AI`, idea: "Idea Check · Scholar AI", admin: "Admin · Scholar AI", privacy: "Privacy · Scholar AI", terms: "Terms · Scholar AI", how: "How we verify · Scholar AI", library: "Library · Scholar AI", settings: "Settings · Scholar AI" };
 
 export function App() {
   const { state, run, reset } = useSearch();
@@ -296,7 +296,7 @@ export function App() {
     return (
       <MotionConfig reducedMotion="user">
         <LazyMotion features={loadFeatures} strict={false}>
-          <Shell view={view === "search" ? "home" : view} onNavigate={navigate} onHome={goHome} title={view === "search" && idle ? "Home" : TITLES[view].replace(" · Scholar AI", "")} footer={<Footer />}>
+          <Shell view={view === "search" ? "home" : view} onNavigate={navigate} onHome={goHome} title={view === "search" && idle ? "Home" : TITLES[view].replace(" · Scholar AI", "")} focus={view === "papers" && !!route.docId} footer={view === "papers" ? null : <Footer />}>
             {noticeEl}
             {mainEl}
           </Shell>

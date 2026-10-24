@@ -9,6 +9,7 @@ import { easeOut, spring } from "../lib/motion";
 import { Logo } from "../components/Logo";
 import { SignInDialog } from "../components/AccountMenu";
 import { ThemeSwitch } from "../components/ThemeSwitch";
+import { PAPERS_NAME } from "../lib/workspace";
 import type { View } from "../components/TopNav";
 
 type Item = { id: View | "home"; label: string; href: string; Icon: typeof Home; count?: number };
@@ -24,7 +25,7 @@ function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home
   };
   const main: Item[] = [
     { id: "home", label: "Home", href: "/", Icon: Home },
-    { id: "papers", label: "My papers", href: "/papers", Icon: FileStack, count: user ? papers : undefined },
+    { id: "papers", label: PAPERS_NAME, href: "/papers", Icon: FileStack, count: user ? papers : undefined },
     { id: "library", label: "Library", href: "/library", Icon: Bookmark, count: saved },
   ];
   const tools: Item[] = [
@@ -105,16 +106,20 @@ function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home
   );
 }
 
-export function Shell({ view, onNavigate, onHome, title, children, footer }: { view: View | "home"; onNavigate: (v: View) => void; onHome: () => void; title: string; children: ReactNode; footer: ReactNode }) {
+/** `focus`: reading a paper. The rail and the menu bar are not shown, so the paper has the whole window (the paper's own header has the way back). */
+export function Shell({ view, onNavigate, onHome, title, children, footer, focus = false }: { view: View | "home"; onNavigate: (v: View) => void; onHome: () => void; title: string; children: ReactNode; footer: ReactNode; focus?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="ws-shell">
+    <div className="ws-shell" data-focus={focus}>
       <a className="skip-link" href="#main">Skip to content</a>
-      <aside className="ws-rail" aria-label="Scholar AI">
-        <RailContent view={view} onNavigate={onNavigate} onHome={onHome} />
-      </aside>
+      {!focus && (
+        <aside className="ws-rail" aria-label="Scholar AI">
+          <RailContent view={view} onNavigate={onNavigate} onHome={onHome} />
+        </aside>
+      )}
 
       <div className="ws-col">
+        {!focus && (
         <header className="ws-top">
           <Dialog.Root open={open} onOpenChange={setOpen}>
             <Dialog.Trigger asChild>
@@ -143,6 +148,7 @@ export function Shell({ view, onNavigate, onHome, title, children, footer }: { v
           </Dialog.Root>
           <p className="ws-top-title">{title}</p>
         </header>
+        )}
         {children}
         {footer}
       </div>

@@ -70,7 +70,7 @@ function Title({ doc }: { doc: DocumentInfo }) {
   }
   return (
     <span className="dc-title-row">
-      <span className="dc-title">{doc.title}</span>
+      <span className="dc-title"><span className="dc-title-t">{doc.title}</span></span>
       <button type="button" className="dc-rename" aria-label={`Rename ${doc.title}`} title="Rename" onClick={() => setEditing(true)}>
         <Pencil size={14} aria-hidden="true" />
       </button>
@@ -85,7 +85,7 @@ export function DocCard({ doc, index, onOpen, onDelete }: { doc: DocumentInfo; i
   const busy = useJobs().some((j) => j.docId === doc.id && ["reading", "uploading", "indexing", "scanning"].includes(j.step));
   return (
     <m.li
-      className="card dc"
+      className={`card dc${WORKSPACE ? " dc-ws" : ""}`}
       data-status={doc.status}
       layout="position"
       initial={{ opacity: 0, y: 16, scale: 0.98 }}
@@ -97,7 +97,11 @@ export function DocCard({ doc, index, onOpen, onDelete }: { doc: DocumentInfo; i
       <button type="button" className="dc-open" onClick={() => onOpen(doc.id)} aria-label={`Open ${doc.title}`}>
         <Cover doc={doc} />
       </button>
-      <div className="dc-body">
+      <div
+        className="dc-body"
+        // in My Workspace a click anywhere on the card opens the paper (buttons keep their own job); the cover button is the keyboard way in
+        onClick={WORKSPACE ? (e) => { if (!(e.target as HTMLElement).closest("button, a, input, label")) onOpen(doc.id); } : undefined}
+      >
         <Title doc={doc} />
         <p className="dc-meta">
           {doc.pages ? `${doc.pages} ${doc.pages === 1 ? "page" : "pages"} · ` : ""}

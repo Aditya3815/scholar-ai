@@ -27,6 +27,9 @@ function read(): boolean {
 
 export const WORKSPACE: boolean = typeof location === "undefined" ? false : read();
 
+/** What the section of your own papers is called: "My Workspace" in the new look (you draw and highlight on the papers there), "My papers" in the old one. */
+export const PAPERS_NAME = WORKSPACE ? "My Workspace" : "My papers";
+
 /** A one-line hand-off from the home box to a tool page that keeps its own draft (read once, then removed). */
 const HANDOFF = "scholar.handoff";
 export function putHandoff(tool: "verify" | "idea", text: string) {
