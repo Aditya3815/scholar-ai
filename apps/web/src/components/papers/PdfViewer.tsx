@@ -19,8 +19,19 @@ export type NewNote = { page: number; quote: string; color: NoteColor; withNote:
 
 export type ViewerHandle = {
   /** Scroll to a page and, if a quote is given, highlight it once the page's text layer exists. */
-  goTo: (page: number, quote?: string) => void;
+  goTo: (page: number, quote?: string, instant?: boolean) => void;
 };
+
+const ZOOM_KEY = "scholar.pdf.zoom";
+/** The zoom the reader left the paper at, kept on this device for every paper (checked: storage can hold anything). */
+function readZoom(): number {
+  try {
+    const v = Number(localStorage.getItem(ZOOM_KEY));
+    return Number.isFinite(v) && v >= 0.6 && v <= 2.5 ? v : 1;
+  } catch {
+    return 1;
+  }
+}
 
 const MAX_PAGE_PX = 920;
 
@@ -271,7 +282,14 @@ function Contents({ items, detected, current, onPick }: { items: OutlineItem[]; 
 export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote, ink }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void; /** Drawing on the paper (My Workspace). Without it the viewer has no drawing tools. */ ink?: InkApi }) {
   const scroller = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
-  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomLevel, setZoomLevel] = useState(readZoom);
+  useEffect(() => {
+    try {
+      localStorage.setItem(ZOOM_KEY, String(zoomLevel));
+    } catch {
+      /* private mode: the zoom is just not remembered */
+    }
+  }, [zoomLevel]);
   const [width, setWidth] = useState(0);
   const [sizes, setSizes] = useState<Record<number, { w: number; h: number }>>({});
   const [current, setCurrent] = useState(1);
@@ -606,11 +624,11 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
   const pageEl = (n: number) => scroller.current?.querySelector<HTMLElement>(`[data-page="${n}"]`);
 
   const goTo = useCallback(
-    (page: number, quote?: string) => {
+    (page: number, quote?: string, instant = false) => {
       const n = Math.min(Math.max(1, page), N);
       layers.current.forEach((l) => clearHighlights(l));
       const el = pageEl(n);
-      if (el && scroller.current) scroller.current.scrollTo({ top: el.offsetTop - 12, behavior: reduced ? "auto" : "smooth" });
+      if (el && scroller.current) scroller.current.scrollTo({ top: el.offsetTop - 12, behavior: reduced || instant ? "auto" : "smooth" });
       if (quote) {
         pending.current = { page: n, quote };
         // The page may already be rendered (then there is no new text-layer event).
@@ -651,6 +669,20 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
     window.setTimeout(() => findInput.current?.select(), 0);
   }, []);
 
+  // Where the reader is, as a page and how far down it: kept so that a change of the window's width (a tablet turned round, a side panel opened)
+  // does not leave them on another page when the pages change height.
+  const place = useRef<{ page: number; frac: number } | null>(null);
+  const lastWidth = useRef(0);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    const was = lastWidth.current;
+    lastWidth.current = width;
+    const at = place.current;
+    if (!el || !at || was <= 0 || Math.abs(width - was) < 2 || anchor.current || live.current) return;
+    const pg = el.querySelector<HTMLElement>(`[data-page="${at.page}"]`);
+    if (pg) el.scrollTop = pg.offsetTop + at.frac * pg.offsetHeight - el.clientHeight / 2;
+  }, [width]);
+
   // Which page is "current": the one whose middle is closest to the middle of the visible area.
   useEffect(() => {
     const el = scroller.current;
@@ -661,13 +693,17 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
       const mid = el.scrollTop + el.clientHeight / 2;
       let best = 1;
       let bestD = Infinity;
+      const hit: { el: HTMLElement | null } = { el: null };
       el.querySelectorAll<HTMLElement>("[data-page]").forEach((p) => {
         const d = Math.abs(p.offsetTop + p.offsetHeight / 2 - mid);
         if (d < bestD) {
           bestD = d;
           best = Number(p.dataset.page);
+          hit.el = p;
         }
       });
+      const b = hit.el;
+      if (b && b.offsetHeight > 0) place.current = { page: best, frac: Math.min(1, Math.max(0, (mid - b.offsetTop) / b.offsetHeight)) };
       setCurrent((c) => (c === best ? c : best));
     };
     const onScroll = () => {

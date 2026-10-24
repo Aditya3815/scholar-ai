@@ -6,6 +6,8 @@ import { refreshAuth, useAuth } from "../lib/auth";
 import { resetLibraryView } from "../lib/library";
 import { easeOut, spring } from "../lib/motion";
 import { showNotice } from "../lib/notice";
+import { setRememberOn, useRememberOn } from "../lib/remember";
+import { WORKSPACE } from "../lib/workspace";
 
 /**
  * The three sections of the account settings (details, a copy of your data, erasing the account: DPDP access, portability, erasure).
@@ -13,6 +15,7 @@ import { showNotice } from "../lib/notice";
  */
 export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: () => void; idPrefix?: string }) {
   const { user } = useAuth();
+  const rememberOn = useRememberOn();
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +62,17 @@ export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: 
           <dd>{user.providers.map((p) => (p === "google" ? "Google" : "ORCID")).join(", ")}</dd>
         </dl>
       </section>
+
+      {WORKSPACE && (
+        <section className="settings-sec" aria-labelledby={`${idPrefix}-home`}>
+          <h3 id={`${idPrefix}-home`} className="settings-h">Home screen</h3>
+          <label className="settings-check">
+            <input type="checkbox" checked={rememberOn} onChange={(e) => setRememberOn(e.target.checked)} />
+            <span>Show “Remember this?” with one of my highlights</span>
+          </label>
+          <p className="settings-p">One highlight from your own papers, the same one all day. It is chosen on your account and shown only to you. This choice is kept on this device.</p>
+        </section>
+      )}
 
       <section className="settings-sec" aria-labelledby={`${idPrefix}-data`}>
         <h3 id={`${idPrefix}-data`} className="settings-h">Your data</h3>

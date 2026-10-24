@@ -1,9 +1,9 @@
 import { AnimatePresence, m } from "motion/react";
 import { FileSearch, LockKeyhole, ShieldCheck, Sparkles, WifiOff } from "lucide-react";
-import { useEffect, useState } from "react";
-import type { DocumentInfo } from "@scholar/shared";
+import { useEffect, useMemo, useState } from "react";
+import { tagKey, type DocumentInfo, type ReadState } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
-import { PAPERS_NAME } from "../../lib/workspace";
+import { PAPERS_NAME, WORKSPACE } from "../../lib/workspace";
 import { loadDocs, removeDoc, resetDocs, useDocs } from "../../lib/documents";
 import { PRIVACY_VERSION } from "@scholar/shared";
 import { easeOut, stagger } from "../../lib/motion";
@@ -11,6 +11,8 @@ import { ConfirmDialog } from "../ConfirmDialog";
 import { ProviderButtons } from "../ProviderButtons";
 import { PrivacyCard } from "../legal/PrivacyCard";
 import { DocCard } from "./DocCard";
+import { STATES, STATE_LABEL } from "./DocMeta";
+import { SearchResults, WorkspaceSearch } from "./WorkspaceSearch";
 import { UploadZone } from "./UploadZone";
 
 const rise = (i: number) => ({
@@ -25,10 +27,39 @@ const HOW = [
   { Icon: LockKeyhole, title: "Private to you", body: "Your PDFs and questions are visible only to your account, are never used to train AI, and can be deleted any time." },
 ];
 
+type Sort = "added" | "opened" | "title";
+
+/** Filters of My Workspace: a status, a tag, and an order. Kept in the page, not saved: a fresh visit starts with everything shown. */
+function useFilters(items: DocumentInfo[]) {
+  const [state, setState] = useState<ReadState | "all">("all");
+  const [tag, setTag] = useState<string | null>(null);
+  const [sort, setSort] = useState<Sort>("added");
+  // a tag that no paper has any more (it was removed, or the paper was deleted) must not leave the list empty with no way to see why
+  const tags = useMemo(() => {
+    const n = new Map<string, { label: string; n: number }>();
+    for (const d of items) for (const t of d.tags) n.set(tagKey(t), { label: t, n: (n.get(tagKey(t))?.n ?? 0) + 1 });
+    return [...n.values()].sort((a, b) => b.n - a.n || a.label.localeCompare(b.label));
+  }, [items]);
+  const activeTag = tag && tags.some((t) => tagKey(t.label) === tagKey(tag)) ? tag : null;
+  const counts = useMemo(() => ({ all: items.length, to_read: items.filter((d) => d.readState === "to_read").length, reading: items.filter((d) => d.readState === "reading").length, done: items.filter((d) => d.readState === "done").length }), [items]);
+  const shown = useMemo(() => {
+    const list = items.filter((d) => (state === "all" || d.readState === state) && (!activeTag || d.tags.some((t) => tagKey(t) === tagKey(activeTag))));
+    if (sort === "title") return [...list].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base", numeric: true }));
+    if (sort === "opened") return [...list].sort((a, b) => (b.openedAt ?? 0) - (a.openedAt ?? 0));
+    return list;
+  }, [items, state, activeTag, sort]);
+  return { state, setState, tag: activeTag, setTag, sort, setSort, tags, counts, shown };
+}
+
 export function PapersPage({ onOpen }: { onOpen: (id: string) => void }) {
   const { status, user } = useAuth();
   const docs = useDocs();
   const [toDelete, setToDelete] = useState<DocumentInfo | null>(null);
+  const [query, setQuery] = useState("");
+  const f = useFilters(docs.items);
+  const searching = WORKSPACE && query.trim().length > 0;
+  const filtered = WORKSPACE && (f.state !== "all" || f.tag !== null);
+  const list = WORKSPACE ? f.shown : docs.items;
 
   useEffect(() => {
     if (status !== "ready") return;
@@ -107,13 +138,58 @@ export function PapersPage({ onOpen }: { onOpen: (id: string) => void }) {
                 </h2>
                 {docs.usage && <p className="papers-usage">{docs.usage.count} of {docs.usage.maxCount} · {(docs.usage.bytes / 1024 / 1024).toFixed(1)} MB used</p>}
               </div>
-              <ul className="dgrid" aria-label="Your papers">
-                <AnimatePresence initial>
-                  {docs.items.map((d, i) => (
-                    <DocCard key={d.id} doc={d} index={i} onOpen={onOpen} onDelete={setToDelete} />
-                  ))}
-                </AnimatePresence>
-              </ul>
+              {WORKSPACE && (
+                <div className="wtools">
+                  <WorkspaceSearch query={query} onQuery={setQuery} />
+                  {!searching && (
+                    <>
+                      <div className="wfilters" role="group" aria-label="Show papers by status">
+                        {(["all", ...STATES] as const).map((s) => (
+                          <button key={s} type="button" className="chip-btn" aria-pressed={f.state === s} onClick={() => f.setState(s)}>
+                            {s === "all" ? "All" : STATE_LABEL[s]} <span className="wfilters-n">{f.counts[s]}</span>
+                          </button>
+                        ))}
+                        <label className="wsort">
+                          <span className="sr-only">Order</span>
+                          <select value={f.sort} onChange={(e) => f.setSort(e.target.value as Sort)}>
+                            <option value="added">Newest first</option>
+                            <option value="opened">Recently opened</option>
+                            <option value="title">Title A to Z</option>
+                          </select>
+                        </label>
+                      </div>
+                      {f.tags.length > 0 && (
+                        <div className="wfilters" role="group" aria-label="Show papers by tag">
+                          {f.tags.slice(0, 12).map((t) => (
+                            <button key={t.label} type="button" className="chip-btn tag-filter" aria-pressed={!!f.tag && tagKey(f.tag) === tagKey(t.label)} onClick={() => f.setTag(f.tag && tagKey(f.tag) === tagKey(t.label) ? null : t.label)}>
+                              {t.label} <span className="wfilters-n">{t.n}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+              {searching ? (
+                <SearchResults query={query} onOpen={onOpen} />
+              ) : (
+                <>
+                  {list.length === 0 && filtered && (
+                    <p className="sres-empty" role="status">
+                      No paper matches this filter.{" "}
+                      <button type="button" className="link-btn" onClick={() => { f.setState("all"); f.setTag(null); }}>Show all papers</button>
+                    </p>
+                  )}
+                  <ul className="dgrid" aria-label="Your papers">
+                    <AnimatePresence initial>
+                      {list.map((d, i) => (
+                        <DocCard key={d.id} doc={d} index={i} onOpen={onOpen} onDelete={setToDelete} onTag={WORKSPACE ? (t) => f.setTag(f.tag && tagKey(f.tag) === tagKey(t) ? null : t) : undefined} activeTag={f.tag} />
+                      ))}
+                    </AnimatePresence>
+                  </ul>
+                </>
+              )}
             </section>
           )}
         </>

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import {
   MAX_CHARS_PER_BATCH, MAX_DOC_BYTES, MAX_DOC_PAGES, MAX_PAGES_PER_BATCH, analyzePaper, analyzeScan, isScanned, mergeScanInfo, needsReading,
-  type Answer, type AskStreamEvent, type DocumentInfo, type Line, type PageText, type PaperInfo, type ScanInfo,
+  type Answer, type AskStreamEvent, type DocumentInfo, type Line, type PageText, type PaperInfo, type ReadState, type ScanInfo,
 } from "@scholar/shared";
 import { readSse } from "./sse";
 import { openPdf, readOutline, readPage, renderCover, PdfError, type PDFDocumentProxy } from "./pdf";
@@ -85,6 +85,30 @@ export async function renameDoc(id: string, title: string): Promise<void> {
   const { document } = await request<{ document: DocumentInfo }>(`/${id}`, json("PATCH", { title }));
   setDocs({ items: docs.items.map((d) => (d.id === id ? document : d)) });
 }
+
+/** Reading status and tags (My Workspace). The server tidies the tags, so what comes back is what the card shows. */
+export async function setMeta(id: string, change: { readState?: ReadState; tags?: string[] }): Promise<DocumentInfo> {
+  const { document } = await request<{ document: DocumentInfo }>(`/${id}/meta`, json("PUT", change));
+  setDocs({ items: docs.items.map((d) => (d.id === id ? document : d)) });
+  return document;
+}
+
+/** Where the reader is. Fire and forget on purpose: a place that is not saved costs the reader nothing but a page. */
+export function postProgress(id: string, page: number, keepalive = false): void {
+  void request<{ document: DocumentInfo }>(`/${id}/progress`, { ...json("POST", { page }), keepalive })
+    .then(({ document }) => setDocs({ items: docs.items.map((d) => (d.id === id ? document : d)) }))
+    .catch(() => {});
+}
+
+export type WorkspaceHits = {
+  papers: { docId: string; title: string }[];
+  passages: { docId: string; title: string; page: number; snippet: string }[];
+  highlights: { docId: string; title: string; page: number; quote: string; note: string | null; color: string }[];
+};
+export const searchWorkspace = (q: string, signal?: AbortSignal) => request<WorkspaceHits>(`/search?q=${encodeURIComponent(q)}`, { signal });
+
+export type Remembered = { docId: string; title: string; page: number; quote: string; note: string | null; color: string };
+export const fetchRemember = (skip = 0) => request<{ highlight: Remembered | null; total: number }>(`/remember?skip=${skip}`);
 
 export async function removeDoc(id: string): Promise<void> {
   await request<{ ok: true }>(`/${id}`, { method: "DELETE" });

@@ -28,7 +28,27 @@ export type DocumentInfo = {
   scanPending: number;
   createdAt: number;
   updatedAt: number;
+  /** My Workspace: reading status, where the reader was, how far they got, when they last opened it, and their tags. */
+  readState: ReadState;
+  lastPage: number | null;
+  maxPage: number | null;
+  openedAt: number | null;
+  tags: string[];
 };
+
+export const READ_STATES = ["to_read", "reading", "done"] as const;
+export type ReadState = (typeof READ_STATES)[number];
+export const READ_STATE_LABEL: Record<ReadState, string> = { to_read: "To read", reading: "Reading", done: "Done" };
+export const MAX_TAGS_PER_DOC = 10;
+export const MAX_TAG_CHARS = 30;
+
+/** A tag as it is kept: spaces tidied, no control characters, at most 30 characters; null if nothing is left. Two tags that differ only in case are the same tag (`tagKey`). */
+export function cleanTag(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const t = raw.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TAG_CHARS).trim();
+  return t.length > 0 ? t : null;
+}
+export const tagKey = (label: string) => label.toLowerCase();
 
 /** One passage that backs a statement in an answer. `quote` was checked against the stored text of that passage. */
 export type Citation = { n: number; page: number; idx: number; quote: string };

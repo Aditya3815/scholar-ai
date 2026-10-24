@@ -7,7 +7,12 @@ import {
   MAX_DOC_BYTES,
   INK_LIMITS,
   MAX_DOC_PAGES,
+  MAX_TAGS_PER_DOC,
+  READ_STATES,
   checkInk,
+  cleanTag,
+  tagKey,
+  type ReadState,
   MAX_NOTES_PER_DOC,
   MAX_NOTE_CHARS,
   OCR_MAX_IMAGE_BYTES,
@@ -76,13 +81,15 @@ const deny = (c: Context<Env>, status: 400 | 401 | 403 | 404 | 409 | 413 | 415 |
 type Row = {
   id: string; user_id: string; title: string; filename: string; size_bytes: number; pages: number | null; status: DocStatus;
   error: string | null; has_cover: number; chunk_count: number; scanned: number; scan_pending: number; created_at: string; updated_at: string;
+  read_state: ReadState; last_page: number | null; max_page: number | null; opened_at: string | null; tags: string | null;
 };
 const COLS =
-  "id, user_id, title, filename, size_bytes, pages, status, error, has_cover, chunk_count, scanned, (SELECT COUNT(*) FROM doc_ocr o WHERE o.doc_id = documents.id AND o.status = 'pending') AS scan_pending, created_at, updated_at";
+  "id, user_id, title, filename, size_bytes, pages, status, error, has_cover, chunk_count, scanned, (SELECT COUNT(*) FROM doc_ocr o WHERE o.doc_id = documents.id AND o.status = 'pending') AS scan_pending, created_at, updated_at, read_state, last_page, max_page, opened_at, (SELECT group_concat(label, char(31)) FROM (SELECT label FROM doc_tags WHERE doc_id = documents.id ORDER BY label COLLATE NOCASE)) AS tags";
 
 const toInfo = (r: Row): DocumentInfo => ({
   id: r.id, title: r.title, filename: r.filename, sizeBytes: r.size_bytes, pages: r.pages, status: r.status, error: r.error,
   hasCover: r.has_cover === 1, chunkCount: r.chunk_count, scanned: r.scanned === 1, scanPending: r.scan_pending, createdAt: fromSqliteTime(r.created_at), updatedAt: fromSqliteTime(r.updated_at),
+  readState: r.read_state, lastPage: r.last_page, maxPage: r.max_page, openedAt: r.opened_at ? fromSqliteTime(r.opened_at) : null, tags: r.tags ? r.tags.split("\u001f") : [],
 });
 
 const randomId = () => [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -160,6 +167,52 @@ documentRoutes.get("/", async (c) => {
   const rows = await c.env.DB.prepare(`SELECT ${COLS} FROM documents WHERE user_id = ?1 ORDER BY created_at DESC, rowid DESC`).bind(user.id).all<Row>();
   const used = rows.results.reduce((n, r) => n + r.size_bytes, 0);
   return c.json({ items: rows.results.map(toInfo), usage: { count: rows.results.length, maxCount: MAX_DOCS_PER_USER, bytes: used, maxBytes: MAX_TOTAL_DOC_BYTES } });
+});
+
+/* these two are before "/:id" on purpose: a path segment "search" or "remember" must not be taken for a paper id */
+const likeWord = (w: string) => `%${w.replace(/[\\%_]/g, (m) => "\\" + m)}%`;
+/** The words of a search (at least two characters, at most six, lower case). */
+export const searchWords = (q: string): string[] => [...new Set(q.toLowerCase().normalize("NFKC").split(/[^\p{L}\p{M}\p{N}]+/u).filter((w) => w.length >= 2))].slice(0, 6);
+const snippet = (text: string, words: string[], len = 220): string => {
+  const flat = text.replace(/\s+/g, " ");
+  const at = Math.min(...words.map((w) => { const i = flat.toLowerCase().indexOf(w); return i < 0 ? Infinity : i; }));
+  const from = Math.max(0, (Number.isFinite(at) ? at : 0) - 70);
+  return (from > 0 ? "\u2026" : "") + flat.slice(from, from + len) + (from + len < flat.length ? "\u2026" : "");
+};
+
+/** Search across everything of one person's: paper titles and tags, the passages of the papers, highlights and notes. Words must all be present; nothing leaves the database. */
+documentRoutes.get("/search", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const q = (c.req.query("q") ?? "").slice(0, 200);
+  const words = searchWords(q);
+  if (words.length === 0) return c.json({ q, papers: [], passages: [], highlights: [] });
+  const cond = (cols: string[]) => words.map((_, i) => `(${cols.map((col) => `${col} LIKE ?${i + 2} ESCAPE '\\'`).join(" OR ")})`).join(" AND ");
+  const binds = (extra: unknown[] = []) => [user.id, ...words.map(likeWord), ...extra];
+  const [papers, passages, highlights] = await Promise.all([
+    c.env.DB.prepare(`SELECT d.id, d.title FROM documents d WHERE d.user_id = ?1 AND (${words.map((_, i) => `(d.title LIKE ?${i + 2} ESCAPE '\\' OR EXISTS (SELECT 1 FROM doc_tags g WHERE g.doc_id = d.id AND g.label LIKE ?${i + 2} ESCAPE '\\'))`).join(" AND ")}) ORDER BY d.created_at DESC LIMIT 20`).bind(...binds()).all<{ id: string; title: string }>(),
+    c.env.DB.prepare(`SELECT c.doc_id, d.title, c.page, c.text FROM doc_chunks c JOIN documents d ON d.id = c.doc_id WHERE d.user_id = ?1 AND ${cond(["c.text"])} ORDER BY d.created_at DESC, c.idx LIMIT 40`).bind(...binds()).all<{ doc_id: string; title: string; page: number; text: string }>(),
+    c.env.DB.prepare(`SELECT n.doc_id, d.title, n.page, n.quote, n.note, n.color FROM doc_notes n JOIN documents d ON d.id = n.doc_id WHERE d.user_id = ?1 AND ${cond(["n.quote", "n.note"])} ORDER BY d.created_at DESC, n.page LIMIT 40`).bind(...binds()).all<{ doc_id: string; title: string; page: number; quote: string; note: string | null; color: string }>(),
+  ]);
+  return c.json({
+    q,
+    papers: papers.results.map((r) => ({ docId: r.id, title: r.title })),
+    passages: passages.results.slice(0, 20).map((r) => ({ docId: r.doc_id, title: r.title, page: r.page, snippet: snippet(r.text, words) })),
+    highlights: highlights.results.slice(0, 20).map((r) => ({ docId: r.doc_id, title: r.title, page: r.page, quote: r.quote, note: r.note ?? "", color: r.color })),
+  });
+});
+
+/** One of the person's own highlights for "Remember this?" on the home screen: the same one all day, another on `?skip=1`, `?skip=2`... Nothing is sent to anyone. */
+documentRoutes.get("/remember", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const rows = await c.env.DB.prepare("SELECT n.doc_id, d.title, n.page, n.quote, n.note, n.color FROM doc_notes n JOIN documents d ON d.id = n.doc_id WHERE d.user_id = ?1 AND length(n.quote) >= 40 ORDER BY n.id").bind(user.id).all<{ doc_id: string; title: string; page: number; quote: string; note: string | null; color: string }>();
+  if (rows.results.length === 0) return c.json({ highlight: null, total: 0 });
+  const skip = Math.max(0, Math.min(1000, Number(c.req.query("skip")) || 0));
+  const day = Math.floor(Date.now() / 86_400_000);
+  const pick = (day + skip) % rows.results.length;
+  const r = rows.results[pick]!;
+  return c.json({ highlight: { docId: r.doc_id, title: r.title, page: r.page, quote: r.quote, note: r.note ?? "", color: r.color }, total: rows.results.length });
 });
 
 documentRoutes.get("/:id", async (c) => {
@@ -290,6 +343,8 @@ export async function deleteDocument(env: Pick<Bindings, "DB" | "FILES">, userId
   await Promise.all([env.FILES.delete(pdfKey(userId, id)), env.FILES.delete(coverKey(userId, id))]);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM doc_notes WHERE doc_id = ?1").bind(id),
+    env.DB.prepare("DELETE FROM doc_ink WHERE doc_id = ?1").bind(id),
+    env.DB.prepare("DELETE FROM doc_tags WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_qa WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_chunks WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_ocr WHERE doc_id = ?1").bind(id),
@@ -534,6 +589,59 @@ documentRoutes.post("/:id/ask", async (c) => {
   }
   await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
   return c.json({ answer });
+});
+
+
+/* ---------------------------------------------------------------- My Workspace: status, tags, progress, search, "remember this" */
+
+/** Reading status and tags (collections) of one paper. Tags are replaced as a set: the browser sends the whole list. */
+documentRoutes.put("/:id/meta", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const b = (await c.req.json().catch(() => null)) as { readState?: unknown; tags?: unknown } | null;
+  if (!b || (b.readState === undefined && b.tags === undefined)) return deny(c, 400, "invalid_meta", "Nothing to change");
+  const statements: D1PreparedStatement[] = [];
+  if (b.readState !== undefined) {
+    if (!READ_STATES.includes(b.readState as ReadState)) return deny(c, 400, "invalid_meta", "That is not a reading status");
+    statements.push(c.env.DB.prepare("UPDATE documents SET read_state = ?2 WHERE id = ?1").bind(row.id, b.readState));
+  }
+  if (b.tags !== undefined) {
+    if (!Array.isArray(b.tags) || b.tags.length > MAX_TAGS_PER_DOC * 3) return deny(c, 400, "invalid_meta", "Tags must be a short list");
+    const seen = new Map<string, string>();
+    for (const raw of b.tags) {
+      const label = cleanTag(raw);
+      if (!label) continue;
+      if (!seen.has(tagKey(label))) seen.set(tagKey(label), label);
+    }
+    if (seen.size > MAX_TAGS_PER_DOC) return deny(c, 400, "too_many_tags", "A paper can have up to " + MAX_TAGS_PER_DOC + " tags");
+    statements.push(c.env.DB.prepare("DELETE FROM doc_tags WHERE doc_id = ?1").bind(row.id));
+    for (const [key, label] of seen) statements.push(c.env.DB.prepare("INSERT INTO doc_tags (doc_id, tag_key, label) VALUES (?1, ?2, ?3)").bind(row.id, key, label));
+  }
+  await c.env.DB.batch(statements);
+  return c.json({ document: toInfo((await owned(c, user.id, row.id))!) });
+});
+
+/**
+ * Where the reader is. Sent from the reader a couple of seconds after the page changes. The furthest page only ever grows; a paper that was "to read" becomes
+ * "reading" once the reader is past its first page. "Done" is always the reader's own decision.
+ */
+documentRoutes.post("/:id/progress", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const b = (await c.req.json().catch(() => null)) as { page?: unknown } | null;
+  const limit = row.pages ?? MAX_DOC_PAGES;
+  if (typeof b?.page !== "number" || !Number.isInteger(b.page) || b.page < 1 || b.page > limit) return deny(c, 400, "invalid_progress", "That page is not in this paper");
+  await c.env.DB
+    .prepare("UPDATE documents SET last_page = ?2, max_page = MAX(COALESCE(max_page, 0), ?2), opened_at = datetime('now'), read_state = CASE WHEN read_state = 'to_read' AND ?2 >= 2 THEN 'reading' ELSE read_state END WHERE id = ?1")
+    .bind(row.id, b.page)
+    .run();
+  return c.json({ document: toInfo((await owned(c, user.id, row.id))!) });
 });
 
 /* ---------------------------------------------------------------- drawing: pen, highlighter, eraser (My Workspace) */

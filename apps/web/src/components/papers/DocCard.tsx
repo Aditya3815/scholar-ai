@@ -6,6 +6,7 @@ import { continueScan, coverUrl, reindexDoc, renameDoc, useJobs } from "../../li
 import { easeOut, springPop, stagger } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { WORKSPACE } from "../../lib/workspace";
+import { DocMeta, TagChips, progressOf } from "./DocMeta";
 
 const size = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const when = (t: number) => new Date(t).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
@@ -78,7 +79,20 @@ function Title({ doc }: { doc: DocumentInfo }) {
   );
 }
 
-export function DocCard({ doc, index, onOpen, onDelete }: { doc: DocumentInfo; index: number; onOpen: (id: string) => void; onDelete: (doc: DocumentInfo) => void }) {
+/** A thin bar for how far the paper has been read, with the words next to it (so it is not only colour). Nothing is drawn for a paper that has not been started. */
+function Progress({ doc }: { doc: DocumentInfo }) {
+  const f = progressOf(doc);
+  if (f === 0) return null;
+  const label = doc.readState === "done" ? "Finished" : `Page ${doc.maxPage} of ${doc.pages} · ${Math.round(f * 100)}%`;
+  return (
+    <div className="dc-prog" role="img" aria-label={label}>
+      <span className="dc-prog-bar" aria-hidden="true"><span style={{ transform: `scaleX(${f})` }} /></span>
+      <span className="dc-prog-t" aria-hidden="true">{label}</span>
+    </div>
+  );
+}
+
+export function DocCard({ doc, index, onOpen, onDelete, onTag, activeTag }: { doc: DocumentInfo; index: number; onOpen: (id: string) => void; onDelete: (doc: DocumentInfo) => void; onTag?: (t: string) => void; activeTag?: string | null }) {
   const ready = doc.status === "ready";
   // a scanned paper that is part way: its pages are read from the picture, so it can be carried on
   const scanLeft = doc.scanned && doc.status !== "ready" && doc.scanPending > 0;
@@ -100,7 +114,7 @@ export function DocCard({ doc, index, onOpen, onDelete }: { doc: DocumentInfo; i
       <div
         className="dc-body"
         // in My Workspace a click anywhere on the card opens the paper (buttons keep their own job); the cover button is the keyboard way in
-        onClick={WORKSPACE ? (e) => { if (!(e.target as HTMLElement).closest("button, a, input, label")) onOpen(doc.id); } : undefined}
+        onClick={WORKSPACE ? (e) => { const el = e.target as HTMLElement; /* a popover is drawn elsewhere in the page but its clicks still reach this card in React: only clicks inside the card count */ if (e.currentTarget.contains(el) && !el.closest("button, a, input, label")) onOpen(doc.id); } : undefined}
       >
         <Title doc={doc} />
         <p className="dc-meta">
@@ -112,6 +126,9 @@ export function DocCard({ doc, index, onOpen, onDelete }: { doc: DocumentInfo; i
             </span>
           )}
         </p>
+
+        {WORKSPACE && ready && <Progress doc={doc} />}
+        {WORKSPACE && <TagChips tags={doc.tags} active={activeTag} onPick={onTag} />}
 
         {doc.status === "failed" && <p className="dc-note" data-tone="warn">{doc.error ?? "Indexing failed."}</p>}
         {scanLeft && <p className="dc-note">{doc.scanPending} scanned {doc.scanPending === 1 ? "page" : "pages"} still to be read. What has been read is kept.</p>}
@@ -125,6 +142,7 @@ export function DocCard({ doc, index, onOpen, onDelete }: { doc: DocumentInfo; i
               <ArrowRight size={15} aria-hidden="true" />
             </m.button>
           )}
+          {WORKSPACE && ready && <DocMeta doc={doc} />}
           {!ready && (
             <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void (scanLeft ? continueScan(doc) : reindexDoc(doc))}>
               <RefreshCw size={14} aria-hidden="true" />

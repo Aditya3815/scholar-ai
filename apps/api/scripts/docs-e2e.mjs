@@ -247,6 +247,59 @@ try {
   ok(clamped[0].w === 0.0005 && clamped[1].w === 0.08 && clamped[1].pts[2] === 1 && clamped[1].pts[5] === 0, "the saved values are the clamped ones");
   ok((await A.api(IP, { method: "PUT", body: { strokes: [dot("s1")], rev: 3 } })).status === 200, "(put one stroke back for the export check)");
 
+  console.log("My Workspace: status, tags, progress, search, remember");
+  const MP = `${P}/meta`;
+  const base0 = (await (await A.api(P)).json()).document;
+  ok(base0.readState === "to_read" && base0.lastPage === null && base0.maxPage === null && base0.openedAt === null && Array.isArray(base0.tags) && base0.tags.length === 0, "a new paper is 'to read', has no place, no progress and no tags");
+  ok((await createClient(APP).api(MP, { method: "PUT", body: { readState: "done" } })).status === 401, "status and tags need sign-in");
+  ok((await B.api(MP, { method: "PUT", body: { readState: "done" } })).status === 404 && (await B.api(`${P}/progress`, { method: "POST", body: { page: 2 } })).status === 404, "another user cannot change them");
+  ok((await A.api(MP, { method: "PUT", body: { readState: "done" }, origin: null })).status === 403, "they have the cross-origin check");
+  ok((await A.api(MP, { method: "PUT", body: { readState: "finished" } })).status === 400 && (await A.api(MP, { method: "PUT", body: {} })).status === 400 && (await A.api(MP, { method: "PUT", body: { tags: "x" } })).status === 400, "a status that does not exist, an empty change and a tag list that is not a list are refused");
+  const withTags = await (await A.api(MP, { method: "PUT", body: { readState: "reading", tags: ["  Methods ", "thesis", "METHODS", "", "शोध"] } })).json();
+  ok(withTags.document.readState === "reading" && JSON.stringify(withTags.document.tags) === JSON.stringify(["Methods", "thesis", "शोध"]), "status and tags are saved, tidied, de-duplicated without regard to case, sorted");
+  ok((await A.api(MP, { method: "PUT", body: { tags: Array.from({ length: 11 }, (_, i) => `t${i}`) } })).status === 400, "more than ten tags are refused");
+  ok((await (await A.api(P)).json()).document.tags.length === 3, "a refused change changed nothing");
+  ok(JSON.stringify((await (await A.api(MP, { method: "PUT", body: { tags: [] } })).json()).document.tags) === "[]" && (await (await A.api(P)).json()).document.readState === "reading", "tags can be emptied without touching the status");
+  await A.api(MP, { method: "PUT", body: { readState: "to_read", tags: ["thesis"] } });
+
+  const pr = `${P}/progress`;
+  ok((await A.api(pr, { method: "POST", body: { page: 0 } })).status === 400 && (await A.api(pr, { method: "POST", body: { page: 999 } })).status === 400 && (await A.api(pr, { method: "POST", body: { page: "2" } })).status === 400, "a page that is not in the paper, or not a number, is refused");
+  const p1 = (await (await A.api(pr, { method: "POST", body: { page: 1 } })).json()).document;
+  ok(p1.lastPage === 1 && p1.maxPage === 1 && p1.readState === "to_read" && p1.openedAt > 0, "being on page 1 records the place and the time but does not make it 'reading'");
+  const p3 = (await (await A.api(pr, { method: "POST", body: { page: 3 } })).json()).document;
+  ok(p3.lastPage === 3 && p3.maxPage === 3 && p3.readState === "reading", "going past page 1 makes a 'to read' paper 'reading'");
+  const goneBack = (await (await A.api(pr, { method: "POST", body: { page: 2 } })).json()).document;
+  ok(goneBack.lastPage === 2 && goneBack.maxPage === 3, "going back moves the place but never the furthest page");
+  await A.api(MP, { method: "PUT", body: { readState: "done" } });
+  ok((await (await A.api(pr, { method: "POST", body: { page: 3 } })).json()).document.readState === "done", "a paper marked done stays done when it is opened again");
+  ok((await A.api(pr, { method: "POST", body: { page: 2 }, origin: null })).status === 403, "progress has the cross-origin check");
+
+  console.log("search across papers, highlights and notes");
+  const find = async (client, q) => (await client.api(`/api/v1/documents/search?q=${encodeURIComponent(q)}`)).json();
+  ok((await createClient(APP).api("/api/v1/documents/search?q=glaucoma")).status === 401, "search needs sign-in");
+  const sr = await find(A, "glaucoma screening");
+  ok(sr.papers.some((x) => x.docId === doc.id) && sr.passages.some((x) => x.docId === doc.id && /glaucoma/i.test(x.snippet)) , "a search finds the paper by its title and the passages that hold the words");
+  ok((await find(A, "thesis")).papers.some((x) => x.docId === doc.id), "a tag is found too");
+  ok((await find(A, "glaucoma zzzznotthere")).passages.length === 0, "all the words must be present");
+  ok((await find(A, "  ?  ")).papers.length === 0 && (await find(A, "")).passages.length === 0, "a search with no usable word finds nothing and is not an error");
+  ok((await find(A, "100% _ glaucoma")).passages.length === 0 && (await find(A, "%")).papers.length === 0, "the characters % and _ are ordinary characters, not wildcards");
+  const hlText = "a distinctive quotation about calibration drift in tractor sensors";
+  await A.api(`${P}/notes`, { method: "POST", body: { page: 1, quote: hlText, note: "revisit the xylophone claim", color: "green" } });
+  const sh = await find(A, "calibration drift");
+  ok(sh.highlights.some((x) => x.docId === doc.id && x.color === "green" && x.quote === hlText), "highlights are found by their words");
+  ok((await find(A, "xylophone")).highlights.length === 1, "and notes by theirs");
+  ok((await find(B, "glaucoma")).passages.length === 0 && (await find(B, "xylophone")).highlights.length === 0 && (await find(B, "glaucoma")).papers.length === 0, "another person's search never sees these");
+
+  console.log("remember this");
+  const rem0 = await (await B.api("/api/v1/documents/remember")).json();
+  ok(rem0.highlight === null && rem0.total === 0, "someone with no highlights gets nothing");
+  const rem = await (await A.api("/api/v1/documents/remember")).json();
+  ok(rem.total === 1 && rem.highlight.quote === hlText && rem.highlight.docId === doc.id && rem.highlight.page === 1, "someone with a highlight gets it, with its paper and page");
+  await A.api(`${P}/notes`, { method: "POST", body: { page: 2, quote: "short" } });
+  ok((await (await A.api("/api/v1/documents/remember")).json()).total === 1, "a highlight shorter than 40 characters is not offered");
+  ok((await A.api("/api/v1/documents/remember")).status === 200 && (await createClient(APP).api("/api/v1/documents/remember")).status === 401, "it needs sign-in");
+  for (const n of (await (await A.api(`${P}/notes`)).json()).items) if (n.quote === hlText || n.quote === "short") await A.api(`${P}/notes/${n.id}`, { method: "DELETE" }); // (back to the notes the later checks expect)
+
   console.log("reporting a problem with an answer");
   const report = (client, body, origin = APP) => client.api("/api/v1/feedback", { method: "POST", body, origin });
   const answerId = hist.at(-1).id;
@@ -264,8 +317,13 @@ try {
   ok(exp.reports?.length === 1 && exp.reports[0].sent.question && !/a@example\.com/.test(JSON.stringify(exp.reports)), "the export lists what the user reported, with e-mail addresses taken out of the note");
   ok(exp.uploadedPapers.find((d) => d.id === doc.id).drawing?.strokes?.length === 1 && exp.uploadedPapers.find((d) => d.id === scanned.id).drawing === null, "the data export includes the drawing of the paper that has one, and null for the one that has none");
   ok(exp.uploadedPapers.find((d) => d.id === doc.id).highlightsAndNotes.length === 1 && /Sample size is 214/.test(JSON.stringify(exp.uploadedPapers)), "the data export includes the highlights and notes");
+  const expDoc = exp.uploadedPapers.find((d) => d.id === doc.id);
+  ok(expDoc.readingStatus === "done" && JSON.stringify(expDoc.tags) === '["thesis"]' && expDoc.readingProgress.furthestPage === 3 && !!expDoc.readingProgress.lastOpenedAt, "the data export includes the reading status, tags and how far the paper was read");
+  ok(expDoc.highlightsAndNotes.every((n) => typeof n.colour === "string"), "...and the colour of each highlight");
   ok(exp.uploadedPapers.length === 2 && exp.uploadedPapers.find((d) => d.id === doc.id).questions.length === 4, "the data export lists the papers and the questions asked");
   ok((await A.api(P, { method: "DELETE" })).status === 200, "DELETE removes the paper");
+  const gone = async (table) => ((await (await A.api("/api/v1/dev/sql", { method: "POST", body: { sql: [`SELECT COUNT(*) AS n FROM ${table} WHERE doc_id = '${doc.id}'`] } })).json()).results?.[0]?.[0]?.n);
+  ok((await gone("doc_tags")) === 0 && (await gone("doc_notes")) === 0, "...and its tags and highlights are gone with it");
   ok((await A.api(P)).status === 404 && (await A.api(`${P}/file`)).status === 404, "...and its file");
   ok(!(await inStorage(doc.id)) && (await inStorage(scanned.id)), "...and the PDF is gone from storage, while the other paper's stays");
   ok(((await (await A.api("/api/v1/dev/sql", { method: "POST", body: { sql: [`SELECT COUNT(*) AS n FROM doc_ink WHERE doc_id = '${doc.id}'`] } })).json()).results?.[0]?.[0]?.n) === 0, "...and its drawing is deleted with it");

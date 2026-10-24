@@ -30,9 +30,9 @@ accountRoutes.get("/export", async (c) => {
     .all<{ data: string; saved_at: string }>();
 
   const docs = await c.env.DB
-    .prepare("SELECT id, title, filename, size_bytes, pages, status, created_at, info, scanned FROM documents WHERE user_id = ?1 ORDER BY created_at DESC")
+    .prepare("SELECT id, title, filename, size_bytes, pages, status, created_at, info, scanned, read_state, last_page, max_page, opened_at, (SELECT group_concat(label, char(31)) FROM (SELECT label FROM doc_tags WHERE doc_id = documents.id ORDER BY label COLLATE NOCASE)) AS tags FROM documents WHERE user_id = ?1 ORDER BY created_at DESC")
     .bind(user.id)
-    .all<{ id: string; title: string; filename: string; size_bytes: number; pages: number | null; status: string; created_at: string; info: string | null; scanned: number }>();
+    .all<{ id: string; title: string; filename: string; size_bytes: number; pages: number | null; status: string; created_at: string; info: string | null; scanned: number; read_state: string; last_page: number | null; max_page: number | null; opened_at: string | null; tags: string | null }>();
   // A scanned paper: how each page was read, and the text that was read (the only text the paper has). Text is capped so one export cannot run the Worker out of memory.
   const SCAN_TEXT_ROWS = 1500;
   const scanPages = await c.env.DB
@@ -49,9 +49,9 @@ accountRoutes.get("/export", async (c) => {
     .all<{ doc_id: string; question: string; answer: string; created_at: string }>();
 
   const notes = await c.env.DB
-    .prepare("SELECT n.doc_id, n.page, n.quote, n.note, n.created_at FROM doc_notes n JOIN documents d ON d.id = n.doc_id WHERE d.user_id = ?1 ORDER BY n.page, n.created_at")
+    .prepare("SELECT n.doc_id, n.page, n.quote, n.note, n.color, n.created_at FROM doc_notes n JOIN documents d ON d.id = n.doc_id WHERE d.user_id = ?1 ORDER BY n.page, n.created_at")
     .bind(user.id)
-    .all<{ doc_id: string; page: number; quote: string; note: string | null; created_at: string }>();
+    .all<{ doc_id: string; page: number; quote: string; note: string | null; color: string; created_at: string }>();
   const ink = await c.env.DB
     .prepare("SELECT i.doc_id, i.data FROM doc_ink i JOIN documents d ON d.id = i.doc_id WHERE d.user_id = ?1")
     .bind(user.id)
@@ -79,11 +79,14 @@ accountRoutes.get("/export", async (c) => {
           }
         : {}),
       note: "The PDF itself can be downloaded from the paper’s page while signed in.",
+      readingStatus: d.read_state,
+      tags: d.tags ? d.tags.split("\u001f") : [],
+      readingProgress: { lastPage: d.last_page, furthestPage: d.max_page, lastOpenedAt: d.opened_at ? new Date(fromSqliteTime(d.opened_at)).toISOString() : null },
       drawing: (() => {
         const row = ink.results.find((i) => i.doc_id === d.id);
         return row ? { note: "Pen and highlighter strokes you drew on this paper. Each stroke is a list of points (x, y, pressure) as fractions of the page width.", strokes: JSON.parse(row.data) as unknown } : null;
       })(),
-      highlightsAndNotes: notes.results.filter((n) => n.doc_id === d.id).map((n) => ({ page: n.page, quote: n.quote, note: n.note ?? "", madeAt: new Date(fromSqliteTime(n.created_at)).toISOString() })),
+      highlightsAndNotes: notes.results.filter((n) => n.doc_id === d.id).map((n) => ({ page: n.page, quote: n.quote, colour: n.color, note: n.note ?? "", madeAt: new Date(fromSqliteTime(n.created_at)).toISOString() })),
       questions: qa.results.filter((q) => q.doc_id === d.id).map((q) => ({ question: q.question, answer: (JSON.parse(q.answer) as { answer: string }).answer, askedAt: new Date(fromSqliteTime(q.created_at)).toISOString() })),
     })),
     reports: reports.results.map((r) => ({ kind: r.kind, problem: r.problem, note: r.note, sent: JSON.parse(r.context), reportedAt: new Date(fromSqliteTime(r.created_at)).toISOString() })),

@@ -24,7 +24,10 @@ idp.setUser({ sub: "ws-ui-1", email: "asha.rao@example.edu", email_verified: tru
 
 const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
 const errors = [];
+const failedCalls = [];
 const watch = (p) => {
+  p.on("request", (r) => { if (/\/(meta|progress)$/.test(r.url())) failedCalls.push(`SENT ${r.method()} ${r.url()} ${r.postData()}`); });
+  p.on("response", (r) => { if (r.status() >= 400 && r.url().includes("/api/")) failedCalls.push(`${r.status()} ${r.request().method()} ${new URL(r.url()).pathname}`); });
   p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
   p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409)/.test(m.text())) errors.push("console: " + m.text()); });
 };
@@ -49,9 +52,15 @@ const visibleChapter = (p) => p.evaluate(() => [...document.querySelectorAll(".i
 try {
   /* ============================ the intro page, signed out, desktop ============================ */
   console.log("intro");
+  const html0 = await (await fetch(BASE + "/")).text();
+  const preloads = [...html0.matchAll(/<link rel="preload" as="font" type="font\/woff2" href="([^"]+)"/g)].map((m) => m[1]);
+  ok(preloads.length === 2 && preloads.some((u) => /inter-latin/.test(u)) && preloads.some((u) => /source-serif-4-latin/.test(u)), "the two fonts of the first screen are preloaded (no jump when they arrive)");
+  const fontRes = await Promise.all(preloads.map((u) => fetch(BASE + u)));
+  ok(fontRes.every((r) => r.ok && /font\/woff2/.test(r.headers.get("content-type") ?? "")), "and they are served as fonts");
   const ctx = await newCtx();
   await withFlag(ctx);
   const page = await ctx.newPage();
+  globalThis.__page = page; // for the screenshot taken if something unexpected happens
   watch(page);
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
   await page.locator("#in-h1").waitFor({ timeout: 15000 });
@@ -293,10 +302,73 @@ try {
   ok(lineBefore === 0 && lineAfter === 1, `pointing at a card draws a line under its title (${lineBefore} then ${lineAfter})`);
   await page.screenshot({ path: OUT + "15b-papers-hover.png" });
   await axe("my workspace list", page);
+  console.log("status, tags, progress, filters");
+  const card0 = page.locator(".dc").first();
+  ok(await card0.getByRole("button", { name: /^To read/ }).isVisible(), "a new paper says 'To read'");
+  ok(await card0.locator(".dc-prog").count() === 0, "and has no progress bar until it is started");
+  await card0.getByRole("button", { name: /^To read/ }).click();
+  const ed = page.getByRole("dialog", { name: /Status and tags/ });
+  await ed.waitFor();
+  await ed.getByRole("button", { name: "Reading", exact: true }).click();
+  await page.waitForFunction(() => /Reading/.test(document.querySelector(".meta-chip")?.textContent ?? ""));
+  await ed.getByLabel("Add a tag").fill("Methods, thesis");
+  await ed.getByLabel("Add a tag").press("Enter");
+  await page.waitForFunction(() => document.querySelectorAll(".meta-tags li").length === 2);
+  await ed.getByLabel("Add a tag").fill("METHODS");
+  await ed.getByLabel("Add a tag").press("Enter");
+  await page.waitForTimeout(400);
+  ok(await ed.locator(".meta-tags li").count() === 2, "tags are added (several with commas), and the same tag in another case is not added twice");
+  await page.screenshot({ path: OUT + "15c-status-tags.png" });
+  await axe("status and tags popover", page);
+  await page.keyboard.press("Escape");
+  await ed.waitFor({ state: "detached" });
+  ok(await page.locator(".dc .dc-tags li").count() === 2 && /Reading/.test(await page.locator(".dc .meta-chip").first().innerText()), "the card shows the status and the tags");
+  const apiDoc = async () => (await (await page.request.get(BASE + "/api/v1/documents")).json()).items[0];
+  const saved0 = await apiDoc();
+  ok(saved0.readState === "reading" && saved0.tags.length === 2, "and they are saved with the paper, not only on the screen");
+  await page.locator(".wfilters").first().getByRole("button", { name: /^Done/ }).click();
+  await page.getByText("No paper matches this filter.").waitFor();
+  await page.locator(".dc").first().waitFor({ state: "detached" });
+  ok(true, "a filter with no match says so");
+  await page.getByRole("button", { name: "Show all papers" }).click();
+  await page.locator(".dc").first().waitFor();
+  await page.locator(".wfilters").first().getByRole("button", { name: /^Reading/ }).click();
+  ok(await page.locator(".dc").count() === 1, "the 'Reading' filter shows the paper");
+  await page.locator(".wfilters").first().getByRole("button", { name: /^All/ }).click();
+  await page.locator('.wfilters[aria-label="Show papers by tag"]').getByRole("button", { name: /^thesis/ }).click();
+  ok(await page.locator(".dc").count() === 1, "a tag filter shows the paper that has it");
+  await page.locator('.wfilters[aria-label="Show papers by tag"]').getByRole("button", { name: /^thesis/ }).click();
+  ok(await noSideways(page), "no sideways scroll with the filters");
+
+  console.log("search across papers");
+  await page.locator("#ws-search").fill("ophthalmologists");
+  await page.locator(".sres-item").first().waitFor({ timeout: 10000 });
+  ok(await page.locator(".dgrid").count() === 0 && (await page.locator(".sres mark").count()) >= 1, "a search replaces the list with results, the searched word marked");
+  await page.screenshot({ path: OUT + "15d-search.png" });
+  await axe("search results", page);
+  await page.locator("#ws-search").fill("zzzzqqqq");
+  await page.getByText(/Nothing found for/).waitFor({ timeout: 10000 });
+  ok(true, "a word that is nowhere says so");
+  await page.locator("#ws-search").fill("ophthalmologists");
+  await page.locator(".sres-item").first().waitFor({ timeout: 10000 });
+  await page.locator(".sres-item").filter({ hasText: /page 2/ }).first().click();
+  await page.waitForFunction(() => /^\/papers\/[a-f0-9]+$/.test(location.pathname), null, { timeout: 15000 });
+  await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+  await page.waitForFunction(() => document.getElementById("pdfv-page")?.value === "2", null, { timeout: 8000 });
+  ok(true, "a result opens the paper on the page where the words are (page 2)");
+  await page.waitForTimeout(1500); // the place is saved once the paper has settled on the page
+  await page.getByRole("button", { name: /My Workspace/ }).first().click();
+  await page.locator(".dc").first().waitFor();
+
   // a click on the card (the title area, not the cover) opens the paper
   await page.locator(".dc .dc-meta").first().click();
   await page.waitForFunction(() => /^\/papers\/[a-f0-9]+$/.test(location.pathname), null, { timeout: 15000 });
   ok(true, "a click on the card opens the paper");
+  // it was last left on page 2 (the search result above), so it opens there; the drawing checks below start from page 1
+  await page.getByText(/Continued from page 2/).waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Back to page 1" }).click();
+  await page.waitForFunction(() => document.getElementById("pdfv-page")?.value === "1", null, { timeout: 8000 });
+  await page.waitForTimeout(1200); // the smooth scroll has to finish before anything is drawn
 
   /* ---------- reading and drawing: the paper has the whole window ---------- */
   console.log("drawing");
@@ -437,6 +509,89 @@ try {
   await page.getByRole("button", { name: /My Workspace/ }).first().click();
   await page.locator(".dc").first().waitFor();
   ok(await page.locator(".ws-rail").isVisible(), "going back to the list brings the rail back");
+
+  console.log("resume, theme switch, home");
+  await page.locator(".dc .dc-open").first().click();
+  await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+  await page.getByRole("button", { name: "Next page" }).click();
+  await page.waitForFunction(() => document.getElementById("pdfv-page")?.value === "2", null, { timeout: 8000 });
+  await page.waitForTimeout(2600);
+  await page.getByRole("button", { name: /My Workspace/ }).first().click();
+  await page.locator(".dc").first().waitFor();
+  await page.locator(".dc .dc-open").first().click();
+  await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+  await page.getByText(/Continued from page 2/).waitFor({ timeout: 8000 });
+  ok(await page.evaluate(() => document.getElementById("pdfv-page").value) === "2", "a paper opens where the reader left it, and says so");
+  await page.screenshot({ path: OUT + "27-resume.png" });
+  await page.getByRole("button", { name: "Back to page 1" }).click();
+  await page.waitForFunction(() => document.getElementById("pdfv-page")?.value === "1", null, { timeout: 8000 });
+  ok(true, "'Back to page 1' goes to the start");
+  await page.getByRole("button", { name: "Next page" }).click();
+  await page.waitForFunction(() => document.getElementById("pdfv-page")?.value === "2", null, { timeout: 8000 });
+  await page.getByRole("button", { name: "Next page" }).click();
+  await page.waitForFunction(() => document.getElementById("pdfv-page")?.value === "3", null, { timeout: 8000 });
+  await page.waitForTimeout(2600);
+  const afterRead = await apiDoc();
+  ok(afterRead.lastPage === 3 && afterRead.maxPage === 3 && afterRead.openedAt > 0, `the place is saved while reading (page ${afterRead.lastPage}, furthest ${afterRead.maxPage})`);
+  // the theme switch in the empty top right of the reader
+  const sw = page.locator(".dw-head-end");
+  ok(await sw.getByRole("button", { name: "Dark theme" }).isVisible() && await sw.getByRole("button", { name: "Read theme" }).isVisible(), "the reader's header has the theme switch (Auto, Light, Dark, Read)");
+  for (const [name, want] of [["Dark theme", "dark"], ["Read theme", "read"], ["Light theme", "light"]]) {
+    await sw.getByRole("button", { name }).click();
+    await page.waitForFunction((w) => document.documentElement.getAttribute("data-theme") === w, want, { timeout: 4000 });
+    ok(await sw.getByRole("button", { name }).getAttribute("aria-pressed") === "true", `${name} applies at once and shows as chosen`);
+  }
+  await sw.getByRole("button", { name: "Dark theme" }).click();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: OUT + "28-reader-dark-switch.png" });
+  await axe("reader header with the theme switch, dark", page);
+  await sw.getByRole("button", { name: "Light theme" }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(500);
+  ok(await noSideways(page) && await sw.getByRole("button", { name: "Dark theme" }).isVisible(), "on a phone the switch is there and nothing runs off the side");
+  await page.screenshot({ path: OUT + "29-reader-phone-header.png" });
+  await page.setViewportSize({ width: 1360, height: 900 });
+  // leaving the paper keeps the place
+  await page.getByRole("button", { name: /My Workspace/ }).first().click();
+  await page.locator(".dc").first().waitFor();
+  await page.waitForTimeout(500);
+  ok(/Page 3 of 3|Finished/.test(await page.locator(".dc .dc-prog").first().getAttribute("aria-label").catch(() => "") ?? ""), "the card now shows how far the paper has been read");
+  await page.screenshot({ path: OUT + "30-card-progress.png" });
+
+  const did = (await apiDoc()).id;
+  const quote = "The model reached a sensitivity of 91 percent at a specificity of 88 percent";
+  const made = await page.request.post(`${BASE}/api/v1/documents/${did}/notes`, { headers: { Origin: BASE }, data: { page: 3, quote, color: "green", note: "check this against the cataract subgroup" } });
+  ok(made.ok(), "a highlight with a note is saved (for 'Remember this?')");
+  await page.locator(".ws-rail").getByRole("link", { name: "Home", exact: true }).click();
+  await page.locator(".hm-continue").waitFor({ timeout: 10000 });
+  const contText = await page.locator(".hm-continue").innerText();
+  ok(/Page 3 of 3/.test(contText), `Home has 'Continue reading' with the page the reader reached (${JSON.stringify(contText)})`);
+  await page.locator(".hm-remember").waitFor({ timeout: 10000 });
+  ok((await page.locator(".hm-rem-q").innerText()).includes("sensitivity of 91 percent") && /cataract subgroup/.test(await page.locator(".hm-remember").innerText()), "and 'Remember this?' with one of the reader's own highlights and its note");
+  await page.screenshot({ path: OUT + "31-home-continue-remember.png" });
+  await axe("home with continue and remember", page);
+  await page.getByRole("button", { name: "Open at page 3" }).click();
+  await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+  await page.waitForFunction(() => document.getElementById("pdfv-page")?.value === "3", null, { timeout: 8000 });
+  ok(true, "'Open at page 3' opens the paper there");
+  await page.getByRole("button", { name: /My Workspace/ }).first().click();
+  await page.locator(".dc").first().waitFor();
+  await page.locator(".ws-rail").getByRole("link", { name: "Home", exact: true }).click();
+  await page.locator(".hm-remember").waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Turn this off" }).click();
+  await page.getByText(/“Remember this\?” is off/).waitFor();
+  ok(await page.locator(".hm-remember").count() === 0, "'Turn this off' removes it, and says where to turn it on");
+  await page.locator(".ws-rail").getByRole("link", { name: "Settings" }).click();
+  const chk = page.getByRole("checkbox", { name: /Remember this/ });
+  await chk.waitFor();
+  ok(!(await chk.isChecked()), "Settings shows it as off");
+  await chk.check();
+  await page.locator(".ws-rail").getByRole("link", { name: "Home", exact: true }).click();
+  await page.locator(".hm-remember").waitFor({ timeout: 10000 });
+  ok(true, "and turning it on in Settings brings it back");
+  await page.locator(".ws-rail").getByRole("link", { name: /My Workspace/ }).click();
+  await page.locator(".dc").first().waitFor();
+
   const mine = (await (await page.request.get(BASE + "/api/v1/documents")).json()).items;
   for (const d of mine) await page.request.delete(BASE + "/api/v1/documents/" + d.id, { headers: { Origin: BASE } });
 
@@ -488,6 +643,8 @@ try {
   ok(errors.length === 0, `no console or page errors${errors.length ? ": " + errors.slice(0, 4).join(" | ") : ""}`);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
+  await globalThis.__page?.screenshot({ path: OUT + "zz-failure.png" }).catch(() => {});
+  console.log("        errors seen so far:", errors.slice(0, 6), "failed calls:", failedCalls.slice(-6));
   failures++;
 } finally {
   await browser.close();

@@ -62,6 +62,16 @@ Ordered by value to a researcher against the work and the risk. "Engaging" here 
 
 My suggestion for the next three: **1, 2 and 3** (the drawing becomes something you keep, reuse and ask about), then 4 and 5.
 
+## Status of the list in section 3 (24 Oct)
+
+| # | State |
+| --- | --- |
+| 4 resume reading, Home "Continue reading" | done (page per paper on the server, zoom per device) |
+| 5 search across papers, highlights and notes | done (word search, not meaning search; meaning search across papers waits for S2) |
+| 6 tags, status, progress | done (collections are tags; no separate folders) |
+| 7 Remember this? | done in the app, opt-out; no e-mail |
+| 1, 2, 3, 8, 9, 10 | in progress, in this order: highlights page, ask about highlights, annotated PDF, more tools, split view / shortcuts / palette, offline |
+
 ## 4. Not done, on purpose
 
 - No pixel eraser, no hand-writing recognition, no sharing of a marked-up paper by link (privacy: it would need an explicit, revocable, read-only design).

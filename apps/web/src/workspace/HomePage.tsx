@@ -7,6 +7,7 @@ import { useLibrary } from "../lib/library";
 import { easeOut, springPop, stagger } from "../lib/motion";
 import { PAPERS_NAME, putHandoff } from "../lib/workspace";
 import { Pop } from "../components/Pop";
+import { ContinueReading, RememberThis } from "./HomeExtras";
 
 /** The four tools. In W1 each opens the page that already does the work (the prompt box does not choose for you yet: that is W3). */
 export type Tool = "search" | "verify" | "idea" | "paper";
@@ -73,7 +74,7 @@ function ModeMenu({ tool, onChange }: { tool: Tool; onChange: (t: Tool) => void 
  * The home of the new look: one prompt box. In this first step (W1) you choose the tool with the menu or the pills, and Enter opens that tool with what you wrote.
  * Choosing for you from what you write comes in W3; streamed answers in the same screen in W2.
  */
-export function HomePage({ query, onQuery, onSearch, onOpenTool, inputRef }: { query: string; onQuery: (v: string) => void; onSearch: (q: string) => void; onOpenTool: (t: "verify" | "idea" | "papers") => void; inputRef: RefObject<HTMLTextAreaElement | null> }) {
+export function HomePage({ query, onQuery, onSearch, onOpenTool, onOpenPaper, inputRef }: { query: string; onQuery: (v: string) => void; onSearch: (q: string) => void; onOpenTool: (t: "verify" | "idea" | "papers") => void; onOpenPaper: (id: string) => void; inputRef: RefObject<HTMLTextAreaElement | null> }) {
   const { user, status } = useAuth();
   const docs = useDocs();
   const saved = useLibrary().length;
@@ -198,6 +199,13 @@ export function HomePage({ query, onQuery, onSearch, onOpenTool, inputRef }: { q
           {saved > 0 && <Bookmark className="hm-card-ico" size={16} aria-hidden="true" />}
         </button>
       </m.div>
+
+      {user && (
+        <div className="hm-extras">
+          <ContinueReading onOpen={onOpenPaper} />
+          <RememberThis onOpen={onOpenPaper} />
+        </div>
+      )}
 
       <m.div className="hm-starters" role="group" aria-label="Example searches" {...rise(6)}>
         <span className="hm-try">Try</span>

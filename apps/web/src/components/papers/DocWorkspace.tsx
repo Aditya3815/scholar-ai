@@ -1,9 +1,10 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Loader2, MessageSquareText, Pencil, ScrollText } from "lucide-react";
+import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Loader2, MessageSquareText, Pencil, ScrollText, X } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { analyzeScan, planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type OutlineItem, type PaperInfo, type ScanInfo } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
-import { ApiError, continueScan, fetchDocument, fileUrl, pauseScan, reindexDoc, renameDoc, savePaperInfo, useJobs } from "../../lib/documents";
+import { ApiError, continueScan, fetchDocument, fileUrl, pauseScan, postProgress, reindexDoc, renameDoc, savePaperInfo, useJobs } from "../../lib/documents";
+import { takeJump } from "../../lib/jump";
 import { fetchScan, fetchScanText } from "../../lib/scan";
 import { analyzeOpenPdf } from "../../lib/paperinfo";
 import { useNotes } from "../../lib/notes";
@@ -12,7 +13,9 @@ import { PAPERS_NAME, WORKSPACE } from "../../lib/workspace";
 import { easeOut, spring } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { PdfError, openPdf, type PDFDocumentProxy } from "../../lib/pdf";
+import { ThemeSwitch } from "../ThemeSwitch";
 import { AskPanel } from "./AskPanel";
+import { DocMeta } from "./DocMeta";
 import { NotesPanel } from "./NotesPanel";
 import { ReferencesPanel } from "./ReferencesPanel";
 import { ScanBanner } from "./ScanBanner";
@@ -97,6 +100,9 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const analyzed = useRef<string | null>(null);
   const [page, setPage] = useState(1);
   const viewer = useRef<ViewerHandle>(null);
+  // My Workspace remembers the page: the paper opens where the reader left it ("resume"), and the place is saved while they read
+  const [resumedFrom, setResumedFrom] = useState<number | null>(null);
+  const [tracking, setTracking] = useState(false);
   const jobs = useJobs();
   const myJob = jobs.find((j) => j.docId === id && ["reading", "uploading", "indexing", "scanning"].includes(j.step));
   const reindexing = !!myJob;
@@ -176,6 +182,82 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     if (wasReindexing.current && !reindexing) void fetchIt();
     wasReindexing.current = reindexing;
   }, [reindexing, fetchIt]);
+
+  const resumed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!WORKSPACE || pdf.status !== "ready" || load.status !== "ready" || resumed.current === id) return;
+    resumed.current = id;
+    const jump = takeJump(id);
+    const wanted = jump?.page ?? (load.doc.lastPage && load.doc.lastPage > 1 ? load.doc.lastPage : null);
+    const target = wanted ? Math.min(wanted, pdf.pdf.numPages) : null;
+    if (!target || target < 1 || (target === 1 && !jump?.quote)) return void setTracking(true);
+    let tries = 0;
+    let timer = 0;
+    // the viewer is a lazy chunk: wait until it is there, go to the page at once, and once more when the pages near it have taken their real size
+    const go = () => {
+      const v = viewer.current;
+      if (!v) {
+        if (tries++ < 40) timer = window.setTimeout(go, 100);
+        else setTracking(true);
+        return;
+      }
+      v.goTo(target, jump?.quote, true);
+      if (!jump && target > 1) setResumedFrom(target);
+      timer = window.setTimeout(() => {
+        stop();
+        viewer.current?.goTo(target, jump?.quote, true);
+        setTracking(true);
+      }, 500);
+      // if the reader does anything in that half second the second go is dropped: it must never pull them back
+      window.addEventListener("pointerdown", mine, true);
+      window.addEventListener("wheel", mine, true);
+      window.addEventListener("keydown", mine, true);
+    };
+    const events = ["pointerdown", "wheel", "keydown"] as const;
+    const stop = () => events.forEach((e) => window.removeEventListener(e, mine, true));
+    const mine = () => {
+      window.clearTimeout(timer);
+      stop();
+      setTracking(true);
+    };
+    go();
+    return () => {
+      window.clearTimeout(timer);
+      stop();
+    };
+  }, [pdf, load.status, id]);
+  useEffect(() => {
+    if (!resumedFrom) return;
+    const t = window.setTimeout(() => setResumedFrom(null), 10_000);
+    return () => window.clearTimeout(t);
+  }, [resumedFrom]);
+
+  // the place is saved two seconds after the reader stops turning pages, when they leave the paper, and when the tab is hidden
+  const pageNow = useRef(1);
+  pageNow.current = page;
+  const sent = useRef<number | null>(null);
+  const flush = useCallback((keepalive: boolean) => {
+    if (!WORKSPACE || !tracking || sent.current === pageNow.current) return;
+    sent.current = pageNow.current;
+    postProgress(id, pageNow.current, keepalive);
+  }, [id, tracking]);
+  useEffect(() => {
+    if (!tracking) return;
+    const t = window.setTimeout(() => flush(false), sent.current === null ? 0 : 2000);
+    return () => window.clearTimeout(t);
+  }, [page, tracking, flush]);
+  useEffect(() => {
+    if (!tracking) return;
+    const hide = () => document.visibilityState === "hidden" && flush(true);
+    const leave = () => flush(true);
+    document.addEventListener("visibilitychange", hide);
+    window.addEventListener("pagehide", leave);
+    return () => {
+      document.removeEventListener("visibilitychange", hide);
+      window.removeEventListener("pagehide", leave);
+      flush(true);
+    };
+  }, [tracking, flush]);
 
   const onCite = useCallback((c: Citation) => {
     setTab("paper");
@@ -275,6 +357,12 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             </p>
           )}
         </div>
+        {WORKSPACE && (
+          <div className="dw-head-end">
+            <DocMeta doc={doc} onChange={(d) => setLoad((l) => (l.status === "ready" ? { ...l, doc: { ...l.doc, readState: d.readState, tags: d.tags } } : l))} />
+            <ThemeSwitch scope="reader" />
+          </div>
+        )}
       </div>
 
       {doc.scanned && scan && (
@@ -342,6 +430,15 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             )}
           </AnimatePresence>
           {pdf.status === "ready" && <p className="sr-only" aria-live="polite">Page {page} of {pdf.pdf.numPages}</p>}
+          <AnimatePresence>
+            {resumedFrom && (
+              <m.div className="dw-resume" role="status" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.25, ease: easeOut }}>
+                <span>Continued from page {resumedFrom}</span>
+                <button type="button" className="link-btn" onClick={() => { viewer.current?.goTo(1); setResumedFrom(null); }}>Back to page 1</button>
+                <button type="button" className="icon-btn icon-btn-sm" aria-label="Dismiss" onClick={() => setResumedFrom(null)}><X size={14} aria-hidden="true" /></button>
+              </m.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <div id="dw-panel-side" role="tabpanel" className="dw-panel dw-ask" data-active={tab === "side"}>
