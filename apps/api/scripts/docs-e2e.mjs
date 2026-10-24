@@ -298,6 +298,24 @@ try {
   await A.api(`${P}/notes`, { method: "POST", body: { page: 2, quote: "short" } });
   ok((await (await A.api("/api/v1/documents/remember")).json()).total === 1, "a highlight shorter than 40 characters is not offered");
   ok((await A.api("/api/v1/documents/remember")).status === 200 && (await createClient(APP).api("/api/v1/documents/remember")).status === 401, "it needs sign-in");
+
+  console.log("ask about my highlights");
+  const AH = `${P}/ask-highlights`;
+  const askH = (client, q, extra = {}) => client.api(AH, { method: "POST", body: { question: q, ...extra } });
+  const histBefore = (await (await A.api(P)).json()).history.length;
+  ok((await askH(createClient(APP), "what did I mark?")).status === 401, "asking about highlights needs sign-in");
+  ok((await askH(B, "what did I mark?")).status === 404, "another user cannot ask about this paper's highlights");
+  ok((await A.api(AH, { method: "POST", body: { question: "what did I mark?" }, origin: null })).status === 403, "it has the cross-origin check");
+  ok((await askH(A, "x")).status === 400 && (await askH(A, "x".repeat(700))).status === 400 && (await A.api(AH, { method: "POST", body: "nonsense" })).status === 400, "a question that is too short, too long or not JSON is refused");
+  const hq = await (await askH(A, "calibration drift in tractor sensors", { legend: { yellow: "Key result", green: 7, pink: "x".repeat(99) } })).json();
+  ok(hq.answer.found && hq.answer.verified && hq.answer.citations.length === 1 && hq.answer.citations[0].page === 1 && /calibration drift/.test(hq.answer.citations[0].quote), "the answer cites the highlight it came from, checked against that highlight, with its page");
+  ok(hq.used === 3 && hq.total === 3, "and says how many highlights it used out of how many there are");
+  const hallu = await (await askH(A, "hallucinate something about calibration")).json();
+  ok(hallu.answer.verified === false && hallu.answer.citations.length === 0, "an invented quote is not accepted");
+  ok((await (await askH(A, "an unanswerable question")).json()).answer.found === false, "a question the highlights do not cover says so");
+  ok((await (await A.api(P)).json()).history.length === histBefore, "none of this is added to the paper's own question history");
+  const scannedAsk = await A.api(`/api/v1/documents/${scanned.id}/ask-highlights`, { method: "POST", body: { question: "what did I mark?" } });
+  ok(scannedAsk.status === 409 && (await scannedAsk.json()).type === "no_highlights", "a paper with no highlights says so (409) instead of asking the model");
   for (const n of (await (await A.api(`${P}/notes`)).json()).items) if (n.quote === hlText || n.quote === "short") await A.api(`${P}/notes/${n.id}`, { method: "DELETE" }); // (back to the notes the later checks expect)
 
   console.log("reporting a problem with an answer");

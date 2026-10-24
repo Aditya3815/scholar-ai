@@ -270,3 +270,20 @@
 .hm-rem-off { margin-left: auto; }
 .settings-check { display: flex; align-items: center; gap: 0.6rem; min-height: 44px; }
 .settings-check input { width: 20px; height: 20px; accent-color: var(--accent); }
+
+/* ---------- My Workspace: highlights by colour, named colours, asking about them ---------- */
+.hl-tools { display: grid; gap: 0.4rem; padding: 0 0 0.6rem; }
+.hl-filter { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.hl-chip { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 32px; padding: 0 0.7rem; font-size: 0.8125rem; }
+.hl-chip:disabled { opacity: 0.45; }
+.hl-legend .link-btn { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8125rem; }
+.hl-legend-grid { display: grid; gap: 0.4rem; margin-top: 0.5rem; }
+.hl-legend-row { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.5rem; }
+.hl-group .seg-label, .hl-group .hl-seg-label { display: inline; padding: 0 0.5rem; font-size: 0.8125rem; }
+.hl-group-sec { margin-bottom: 0.8rem; }
+.hl-ask { display: grid; gap: 0.5rem; margin-bottom: 1rem; padding: 0.8rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.hl-ask-h { margin: 0; font-size: 0.9375rem; }
+.hl-ask-form { display: grid; grid-template-columns: 1fr auto; gap: 0.4rem; }
+.hl-suggest { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.hl-suggest .chip-btn { min-height: 32px; font-size: 0.8125rem; }
+.hl-answer { margin: 0; }

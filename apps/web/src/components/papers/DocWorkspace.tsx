@@ -424,7 +424,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             {pdf.status === "ready" && (
               <m.div key="r" className="dw-viewer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }}>
                 <Suspense fallback={<OpeningPaper progress={1} />}>
-                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} notes={notes.notes} onCreateNote={(n) => void onCreateNote(n)} focusNoteId={focusNote?.id ?? null} onOpenNote={openNote} ink={WORKSPACE ? ink : undefined} />
+                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} docId={doc.id} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} notes={notes.notes} onCreateNote={(n) => void onCreateNote(n)} focusNoteId={focusNote?.id ?? null} onOpenNote={openNote} ink={WORKSPACE ? ink : undefined} />
                 </Suspense>
               </m.div>
             )}

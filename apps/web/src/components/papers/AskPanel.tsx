@@ -28,7 +28,7 @@ const STEPS: { id: AskStage; label: string; say: string }[] = [
 const stepIndex = (s: AskStage) => STEPS.findIndex((x) => x.id === s);
 
 /** "[1]" and "[2][3]" in a finished answer become buttons that jump to (and highlight) the quoted passage in the PDF. */
-function AnswerText({ text, citations, onCite }: { text: string; citations: Citation[]; onCite: (c: Citation) => void }) {
+export function AnswerText({ text, citations, onCite }: { text: string; citations: Citation[]; onCite: (c: Citation) => void }) {
   return (
     <p className="reading ask-text">
       {text.split(/(\[\d{1,2}\])/g).map((part, i) => {

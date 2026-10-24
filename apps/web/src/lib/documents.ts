@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import {
   MAX_CHARS_PER_BATCH, MAX_DOC_BYTES, MAX_DOC_PAGES, MAX_PAGES_PER_BATCH, analyzePaper, analyzeScan, isScanned, mergeScanInfo, needsReading,
-  type Answer, type AskStreamEvent, type DocumentInfo, type Line, type PageText, type PaperInfo, type ReadState, type ScanInfo,
+  type Answer, type AskStreamEvent, type DocumentInfo, type Legend, type Line, type PageText, type PaperInfo, type ReadState, type ScanInfo,
 } from "@scholar/shared";
 import { readSse } from "./sse";
 import { openPdf, readOutline, readPage, renderCover, PdfError, type PDFDocumentProxy } from "./pdf";
@@ -18,6 +18,9 @@ export const fetchDocument = (id: string) => request<{ document: DocumentInfo; h
 
 /** Store what was learned from reading the PDF; the server adds registry metadata and may give the paper its real title. */
 export const savePaperInfo = (id: string, info: PaperInfo) => request<{ document: DocumentInfo; info: PaperInfo }>(`/${id}/info`, json("PUT", info));
+/** A question about what the reader marked in this paper. `used` of `total` highlights were shown to the model (all of them unless there are very many). Not added to the paper's question history. */
+export const askHighlights = (id: string, question: string, legend: Legend) =>
+  request<{ answer: Answer; used: number; total: number }>(`/${id}/ask-highlights`, json("POST", { question, legend }));
 export const askDocument = (id: string, question: string) => request<{ answer: Answer }>(`/${id}/ask`, json("POST", { question })).then((r) => r.answer);
 /**
  * Ask with progress: `onEvent` gets the stages, the pages being read, the answer text as it is written, and finally the verified

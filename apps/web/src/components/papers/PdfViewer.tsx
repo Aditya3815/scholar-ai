@@ -13,6 +13,7 @@ import { showNotice } from "../../lib/notice";
 import type { InkApi } from "../../lib/ink";
 import { InkLayer, type DrawTool } from "./InkLayer";
 import { InkToolbar, type InkPrefs } from "./InkToolbar";
+import { AnnotatedDownload } from "./AnnotatedDownload";
 
 /** What the reader chose in the paper: a highlight in a colour, or a note. */
 export type NewNote = { page: number; quote: string; color: NoteColor; withNote: boolean };
@@ -279,7 +280,7 @@ function Contents({ items, detected, current, onPick }: { items: OutlineItem[]; 
   );
 }
 
-export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote, ink }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void; /** Drawing on the paper (My Workspace). Without it the viewer has no drawing tools. */ ink?: InkApi }) {
+export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote, ink }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; docId: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void; /** Drawing on the paper (My Workspace). Without it the viewer has no drawing tools. */ ink?: InkApi }) {
   const scroller = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
   const [zoomLevel, setZoomLevel] = useState(readZoom);
@@ -785,6 +786,7 @@ export function PdfViewer({ pdf, ref, title, downloadHref, onPage, contents, not
           <a className="icon-btn icon-btn-sm" href={downloadHref} download aria-label={`Download ${title}`} title="Download the PDF">
             <Download size={15} aria-hidden="true" />
           </a>
+          {ink && <AnnotatedDownload docId={docId} pdf={pdf} title={title} notes={notes ?? []} strokes={ink.strokes} />}
         </div>
       </div>
 

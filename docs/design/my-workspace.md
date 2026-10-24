@@ -70,7 +70,10 @@ My suggestion for the next three: **1, 2 and 3** (the drawing becomes something 
 | 5 search across papers, highlights and notes | done (word search, not meaning search; meaning search across papers waits for S2) |
 | 6 tags, status, progress | done (collections are tags; no separate folders) |
 | 7 Remember this? | done in the app, opt-out; no e-mail |
-| 1, 2, 3, 8, 9, 10 | in progress, in this order: highlights page, ask about highlights, annotated PDF, more tools, split view / shortcuts / palette, offline |
+| 2 highlights page | done as part of the Notes tab of the reader (per paper: filter, group by colour, named colours, Markdown). A page across all papers is not built |
+| 3 ask about highlights | done (per paper) |
+| 1 annotated PDF | done; Hindi and other non-Western letters in notes show as "?" on the notes page (Helvetica); embedding a Devanagari font would fix it |
+| 8, 9, 10 | in progress, in this order: more tools, split view / shortcuts / palette, offline |
 
 ## 4. Not done, on purpose
 

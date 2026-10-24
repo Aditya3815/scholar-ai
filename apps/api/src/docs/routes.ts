@@ -9,6 +9,7 @@ import {
   MAX_DOC_PAGES,
   MAX_TAGS_PER_DOC,
   READ_STATES,
+  cleanLegend,
   checkInk,
   cleanTag,
   tagKey,
@@ -35,6 +36,7 @@ import {
   PRIVACY_VERSION,
 } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
+import { answerAboutHighlights } from "./highlights-qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
 import { fromSqliteTime } from "../library/validate";
 import { cacheStore } from "../cache";
@@ -591,6 +593,31 @@ documentRoutes.post("/:id/ask", async (c) => {
   return c.json({ answer });
 });
 
+
+/** A question about what the reader marked: the highlights are the passages, the answer's quotes are checked against them, and it is not added to the paper's question history. */
+documentRoutes.post("/:id/ask-highlights", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const row = await owned(c, user.id, c.req.param("id"));
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const body = (await c.req.json().catch(() => null)) as { question?: unknown; legend?: unknown } | null;
+  const question = typeof body?.question === "string" ? body.question.replace(/\s+/g, " ").trim() : "";
+  if (question.length < 3) return deny(c, 400, "invalid_question", "Ask a question about your highlights");
+  if (question.length > MAX_QUESTION_CHARS) return deny(c, 400, "invalid_question", "That question is too long", `Keep it under ${MAX_QUESTION_CHARS} characters.`);
+  const rows = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE doc_id = ?1 ORDER BY page, created_at, rowid LIMIT ?2`).bind(row.id, MAX_NOTES_PER_DOC).all<NoteRow>();
+  if (rows.results.length === 0) return deny(c, 409, "no_highlights", "You have not highlighted anything in this paper yet", "Select text in the paper to highlight it, then ask about your highlights.");
+  const complete = completeFor(c.env, user.id);
+  if (!complete) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
+  try {
+    const r = await answerAboutHighlights({ question, notes: rows.results.map(toNote), legend: cleanLegend(body?.legend), complete, meta: { id: randomId(), createdAt: Date.now() } });
+    return c.json(r);
+  } catch (e) {
+    const d = describeAskError(e);
+    if (d) return deny(c, d.status, d.code, d.title, d.detail);
+    throw e;
+  }
+});
 
 /* ---------------------------------------------------------------- My Workspace: status, tags, progress, search, "remember this" */
 

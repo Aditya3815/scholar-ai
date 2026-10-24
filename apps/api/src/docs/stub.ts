@@ -13,7 +13,8 @@ export const stubComplete: Complete = async ({ user }) => {
   const question = /^Question: (.*)$/m.exec(user)?.[1] ?? "";
   if (/unanswerable/i.test(question)) return { model: "stub", json: { found: false, answer: "The paper does not seem to cover this.", evidence: [] } };
 
-  const excerpts = [...user.matchAll(/\[(\d+)\] \(page \d+\) ([\s\S]*?)(?=\n---\n\[\d+\] \(page|$)/g)].map((m) => ({ n: Number(m[1]), text: m[2]!.trim() }));
+  // "(page 3)" for a passage of the paper, "(page 3, green)" for a highlight; a highlight's note is the reader's, not the paper's, so it is not quoted
+  const excerpts = [...user.matchAll(/\[(\d+)\] \(page \d+(?:, \w+)?\) ([\s\S]*?)(?=\n---\n\[\d+\] \(page|$)/g)].map((m) => ({ n: Number(m[1]), text: m[2]!.replace(/\n\s+Reader's note:[^\n]*/g, "").trim() }));
   const q = keywords(question);
   const best = [...excerpts].sort((a, b) => lexical(q, b.text) - lexical(q, a.text))[0] ?? { n: 1, text: "" };
   // The sentence that shares the most words with the question (not just the first one on the page).

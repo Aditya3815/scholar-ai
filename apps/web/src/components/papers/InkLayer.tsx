@@ -37,8 +37,8 @@ function outlinePath(points: number[][]): string {
   return d + "Z";
 }
 
-/** A pen stroke as a filled outline, thicker where the pressure was greater. A mouse has no pressure (all 0.5), so the speed of the hand shapes the line instead. */
-export function penPath(pts: number[], w: number, pageW: number): string {
+/** The outline of a pen stroke as a list of points (in page units: a width of 1 is the page width times `pageW`). The same outline is drawn on screen and put into the annotated PDF. */
+export function penOutline(pts: number[], w: number, pageW: number): number[][] {
   const points: number[][] = [];
   let simulate = true;
   for (let i = 0; i < pts.length; i += 3) {
@@ -46,7 +46,11 @@ export function penPath(pts: number[], w: number, pageW: number): string {
     if (pts[i + 2] !== 0.5) simulate = false;
   }
   if (points.length === 1) points.push([points[0]![0]! + 0.01, points[0]![1]!, points[0]![2]!]);
-  return outlinePath(getStroke(points, { size: Math.max(0.6, w * pageW), thinning: simulate ? 0.45 : 0.6, smoothing: 0.5, streamline: 0.45, simulatePressure: simulate, last: true }));
+  return getStroke(points, { size: Math.max(0.6, w * pageW), thinning: simulate ? 0.45 : 0.6, smoothing: 0.5, streamline: 0.45, simulatePressure: simulate, last: true });
+}
+/** A pen stroke as a filled outline, thicker where the pressure was greater. A mouse has no pressure (all 0.5), so the speed of the hand shapes the line instead. */
+export function penPath(pts: number[], w: number, pageW: number): string {
+  return outlinePath(penOutline(pts, w, pageW));
 }
 /** A highlighter stroke: a flat-ended wide line of one width (no pressure), which is how a real marker looks. */
 export function markerPath(pts: number[], pageW: number): string {

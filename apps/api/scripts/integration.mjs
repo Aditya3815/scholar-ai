@@ -114,6 +114,7 @@ try {
     ok = await run("browser: admin and reports", "e2e/admin.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: legal pages", "e2e/legal.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: workspace (new look)", "e2e/workspace.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: annotated PDF", "e2e/annotated.mjs", [`http://localhost:${PORT}`], web) && ok;
     // Only when asked for (needs real PDFs, live Crossref/OpenAlex and a few minutes): REAL_PDFS=<folder> [REAL_VERIFY=1]
     if (process.env.REAL_PDFS) ok = await run("browser: real papers", "e2e/real-papers.mjs", [process.env.REAL_PDFS, `http://localhost:${PORT}`, ...(process.env.REAL_VERIFY ? ["--verify"] : [])], web) && ok;
   }
