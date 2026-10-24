@@ -84,7 +84,7 @@ accountRoutes.get("/export", async (c) => {
       readingProgress: { lastPage: d.last_page, furthestPage: d.max_page, lastOpenedAt: d.opened_at ? new Date(fromSqliteTime(d.opened_at)).toISOString() : null },
       drawing: (() => {
         const row = ink.results.find((i) => i.doc_id === d.id);
-        return row ? { note: "Pen and highlighter strokes you drew on this paper. Each stroke is a list of points (x, y, pressure) as fractions of the page width.", strokes: JSON.parse(row.data) as unknown } : null;
+        return row ? { note: "What you drew and wrote on this paper: pen and highlighter strokes (a list of points x, y, pressure), shapes (two points), text boxes and sticky notes (position and words). Positions are fractions of the page width.", strokes: JSON.parse(row.data) as unknown } : null;
       })(),
       highlightsAndNotes: notes.results.filter((n) => n.doc_id === d.id).map((n) => ({ page: n.page, quote: n.quote, colour: n.color, note: n.note ?? "", madeAt: new Date(fromSqliteTime(n.created_at)).toISOString() })),
       questions: qa.results.filter((q) => q.doc_id === d.id).map((q) => ({ question: q.question, answer: (JSON.parse(q.answer) as { answer: string }).answer, askedAt: new Date(fromSqliteTime(q.created_at)).toISOString() })),

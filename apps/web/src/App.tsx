@@ -22,6 +22,9 @@ import { Footer } from "./components/Footer";
 import { takeAuthError, useAuth } from "./lib/auth";
 import { easeOut } from "./lib/motion";
 import { clearNotice, showNotice, useNotice } from "./lib/notice";
+import { CommandPalette, ShortcutSheet, useGlobalKeys } from "./workspace/CommandPalette";
+import { useBaseCommands } from "./workspace/baseCommands";
+import { resumeOffline } from "./lib/offline";
 import { openPreview } from "./lib/preview";
 import { useSearch } from "./lib/search";
 import { PAPERS_NAME, WORKSPACE } from "./lib/workspace";
@@ -95,6 +98,17 @@ export function App() {
     [view, route.docId, state.status, query],
   );
 
+  // offline reading, when the reader has switched it on: the worker is kept registered and current
+  useEffect(() => {
+    if (WORKSPACE) resumeOffline();
+  }, []);
+  // the command palette (Ctrl+K) and the list of shortcuts (?) of the new look
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const openPalette = useCallback(() => WORKSPACE && (setSheetOpen(false), setPaletteOpen(true)), []);
+  const openSheet = useCallback(() => WORKSPACE && (setPaletteOpen(false), setSheetOpen(true)), []);
+  useGlobalKeys(openPalette, openSheet);
+
   // ?auth_error=... left by the server redirect becomes a dismissible banner
   useEffect(() => {
     const message = takeAuthError();
@@ -160,6 +174,7 @@ export function App() {
     }
     window.setTimeout(() => (inputRef.current ?? homeRef.current)?.focus(), 0);
   };
+  useBaseCommands({ navigate, goHome, openSheet });
   /** The intro page's "Try it without signing in". */
   const startAnonymous = () => {
     history.pushState(null, "", "/home");
@@ -301,6 +316,8 @@ export function App() {
             {mainEl}
           </Shell>
           <PaperPreview />
+          <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+          <ShortcutSheet open={sheetOpen} onOpenChange={setSheetOpen} />
         </LazyMotion>
       </MotionConfig>
     );

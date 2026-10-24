@@ -10,3 +10,15 @@ export function takeJump(docId: string): { page: number; quote?: string } | null
   pending = null;
   return j && j.docId === docId && Date.now() - j.at < 10_000 ? { page: j.page, quote: j.quote } : null;
 }
+
+/** "Search my papers for this": the palette sets it, My Workspace takes it (when it opens, or at once if it is already open). */
+let pendingSearch: string | null = null;
+export function requestSearch(q: string) {
+  pendingSearch = q;
+  window.dispatchEvent(new Event("scholar:search"));
+}
+export function takeSearch(): string | null {
+  const q = pendingSearch;
+  pendingSearch = null;
+  return q;
+}

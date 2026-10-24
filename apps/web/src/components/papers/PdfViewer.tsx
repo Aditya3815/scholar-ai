@@ -2,7 +2,7 @@ import "pdfjs-dist/web/pdf_viewer.css";
 import { m } from "motion/react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, ListTree, Loader2, Maximize2, Minus, PencilLine, Plus, Search, StickyNote, X } from "lucide-react";
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type Ref } from "react";
-import { NOTE_COLORS, anchoredScroll, clampZoom, pinchFactor, stepZoom, wheelFactor, type DocNote, type InkSize, type InkStroke, type MarkRect, type NoteColor, type OutlineItem } from "@scholar/shared";
+import { NOTE_COLORS, anchoredScroll, clampZoom, pinchFactor, stepZoom, wheelFactor, type DocNote, type InkItem, type InkSize, type MarkRect, type NoteColor, type OutlineItem } from "@scholar/shared";
 import type { PDFDocumentProxy } from "../../lib/pdf";
 import { Pop } from "../Pop";
 import { pdfjs } from "../../lib/pdf";
@@ -12,7 +12,7 @@ import { spring } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import type { InkApi } from "../../lib/ink";
 import { InkLayer, type DrawTool } from "./InkLayer";
-import { InkToolbar, type InkPrefs } from "./InkToolbar";
+import { InkToolbar, TOOL_KEYS, paletteOf, sizeOf, type InkPrefs } from "./InkToolbar";
 import { AnnotatedDownload } from "./AnnotatedDownload";
 
 /** What the reader chose in the paper: a highlight in a colour, or a note. */
@@ -21,6 +21,10 @@ export type NewNote = { page: number; quote: string; color: NoteColor; withNote:
 export type ViewerHandle = {
   /** Scroll to a page and, if a quote is given, highlight it once the page's text layer exists. */
   goTo: (page: number, quote?: string, instant?: boolean) => void;
+  /** Open or close the drawing tools (where the viewer has them). */
+  toggleDraw: () => void;
+  /** Open the search box of the paper. */
+  find: () => void;
 };
 
 const ZOOM_KEY = "scholar.pdf.zoom";
@@ -37,7 +41,7 @@ function readZoom(): number {
 const MAX_PAGE_PX = 920;
 
 const INK_PREFS_KEY = "scholar.ink.prefs.v1";
-const DEFAULT_PREFS: InkPrefs = { tool: "pen", color: { pen: "blue", highlighter: "yellow" }, size: { pen: "m", highlighter: "m", eraser: "m" }, finger: false };
+const DEFAULT_PREFS: InkPrefs = { tool: "pen", color: { pen: "blue", highlighter: "yellow" }, size: { pen: "m", highlighter: "m", eraser: "m", text: "m" }, finger: false };
 /** The colours, sizes and finger setting the reader used last time (checked, since storage can hold anything). */
 function readInkPrefs(): InkPrefs {
   try {
@@ -48,7 +52,7 @@ function readInkPrefs(): InkPrefs {
     return {
       tool: "hand",
       color: { pen: typeof raw.color?.pen === "string" ? raw.color.pen : "blue", highlighter: typeof raw.color?.highlighter === "string" ? raw.color.highlighter : "yellow" },
-      size: { pen: size(raw.size?.pen, "m"), highlighter: size(raw.size?.highlighter, "m"), eraser: size(raw.size?.eraser, "m") },
+      size: { pen: size(raw.size?.pen, "m"), highlighter: size(raw.size?.highlighter, "m"), eraser: size(raw.size?.eraser, "m"), text: size(raw.size?.text, "m") },
       finger: raw.finger === true,
     };
   } catch {
@@ -91,7 +95,24 @@ type PageProps = {
 };
 
 /** What a page needs to show and take drawing. */
-export type DrawProps = { strokes: InkStroke[]; tool: DrawTool; color: string; sizeKey: InkSize; finger: boolean; onStroke: (s: InkStroke) => void; onErase: (ids: string[]) => void; onFingerBlocked: () => void };
+export type DrawProps = {
+  strokes: InkItem[];
+  tool: DrawTool;
+  /** The drawing tools are open (text boxes can be edited). */
+  open: boolean;
+  color: string;
+  sizeKey: InkSize;
+  textSize: InkSize;
+  finger: boolean;
+  /** What the lasso has chosen: the page it is on, and the items. */
+  selection: { page: number; ids: ReadonlySet<string> } | null;
+  onStroke: (s: InkItem) => void;
+  onErase: (ids: string[]) => void;
+  onEdit: (items: InkItem[]) => void;
+  onSelect: (page: number, ids: string[]) => void;
+  onFingerBlocked: () => void;
+};
+const NO_IDS: ReadonlySet<string> = new Set();
 
 const ICON = 18;
 
@@ -174,7 +195,7 @@ function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, 
   return (
     <div ref={box} className="pdfp" data-page={n} role="group" style={{ width: size.w * scale, height: size.h * scale }} aria-label={`Page ${n}`}>
       <canvas ref={canvas} className="pdfp-canvas" data-painted={painted} />
-      {draw && <InkLayer page={n} size={size} strokes={draw.strokes} tool={draw.tool} color={draw.color} sizeKey={draw.sizeKey} finger={draw.finger} onStroke={draw.onStroke} onErase={draw.onErase} onFingerBlocked={draw.onFingerBlocked} />}
+      {draw && <InkLayer page={n} size={size} scale={scale} items={draw.strokes} tool={draw.tool} open={draw.open} color={draw.color} sizeKey={draw.sizeKey} textSize={draw.textSize} finger={draw.finger} selection={draw.selection?.page === n ? draw.selection.ids : NO_IDS} onAdd={draw.onStroke} onErase={draw.onErase} onEdit={draw.onEdit} onSelect={(ids) => draw.onSelect(n, ids)} onFingerBlocked={draw.onFingerBlocked} />}
       <div ref={text} className="textLayer pdfp-text" />
       {marks.length > 0 && (
         <div className="pdfp-marks">
@@ -280,7 +301,7 @@ function Contents({ items, detected, current, onPick }: { items: OutlineItem[]; 
   );
 }
 
-export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote, ink }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; docId: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void; /** Drawing on the paper (My Workspace). Without it the viewer has no drawing tools. */ ink?: InkApi }) {
+export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote, ink, idPrefix = "pdfv" }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; docId: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void; /** Drawing on the paper (My Workspace). Without it the viewer has no drawing tools. */ ink?: InkApi; /** Start of the ids inside the viewer: a second viewer on the page needs another one. */ idPrefix?: string }) {
   const scroller = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
   const [zoomLevel, setZoomLevel] = useState(readZoom);
@@ -442,24 +463,45 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
   const hintShown = useRef(false);
   const inkRef = useRef(ink);
   inkRef.current = ink;
+  const selectionRef = useRef<{ page: number; ids: ReadonlySet<string> } | null>(null);
+  const [selection, setSelection] = useState<{ page: number; ids: ReadonlySet<string> } | null>(null);
+  selectionRef.current = selection;
+  // what is chosen only means something while the lasso is in hand and the items are still there
+  useEffect(() => {
+    if (!ink) return;
+    setSelection((sel) => {
+      if (!sel) return sel;
+      const live = new Set(ink.strokes.filter((s) => sel.ids.has(s.id)).map((s) => s.id));
+      return live.size === sel.ids.size ? sel : live.size === 0 ? null : { page: sel.page, ids: live };
+    });
+  }, [ink, ink?.strokes]);
+  useEffect(() => {
+    if (tool !== "lasso") setSelection(null);
+  }, [tool]);
   const draw = useMemo<DrawProps | undefined>(() => {
     if (!ink) return undefined;
-    const kind = tool === "hand" ? "pen" : tool;
+    const pal = paletteOf(tool);
+    const sk = sizeOf(tool);
     return {
       strokes: ink.strokes,
       tool,
-      color: kind === "eraser" ? "" : prefs.color[kind],
-      sizeKey: prefs.size[kind],
+      open: drawOpen && ink.ready,
+      color: pal ? prefs.color[pal] : prefs.color.pen,
+      sizeKey: sk && sk !== "text" ? prefs.size[sk] : prefs.size.pen,
+      textSize: prefs.size.text,
       finger: prefs.finger,
+      selection,
       onStroke: (s) => inkRef.current?.add(s),
       onErase: (ids) => inkRef.current?.erase(ids),
+      onEdit: (items) => inkRef.current?.edit(items),
+      onSelect: (page, ids) => setSelection(ids.length > 0 ? { page, ids: new Set(ids) } : null),
       onFingerBlocked: () => {
         if (hintShown.current) return;
         hintShown.current = true;
-        showNotice("A finger scrolls the paper. Turn on \u201CDraw with a finger\u201D in the drawing tools to draw with it. A stylus always draws.");
+        showNotice("A finger scrolls the paper. Turn on “Draw with a finger” in the drawing tools to draw with it. A stylus always draws.");
       },
     };
-  }, [ink, tool, prefs]);
+  }, [ink, tool, prefs, drawOpen, selection]);
   const closeDraw = useCallback(() => {
     setDrawOpen(false);
     setPrefs((p) => ({ ...p, tool: "hand" }));
@@ -478,10 +520,18 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
       } else if (mod && k === "y") {
         e.preventDefault();
         inkRef.current?.redo();
-      } else if (!mod && !e.altKey && ["v", "p", "h", "e"].includes(k)) {
+      } else if ((k === "delete" || k === "backspace") && !mod) {
+        // the lasso's choice goes (Undo brings it back)
+        const sel = selectionRef.current;
+        if (sel && sel.ids.size > 0) {
+          e.preventDefault();
+          inkRef.current?.erase([...sel.ids]);
+          setSelection(null);
+        }
+      } else if (!mod && !e.altKey && k in TOOL_KEYS) {
         e.preventDefault();
         setPrefs((p) => {
-          const next: InkPrefs = { ...p, tool: ({ v: "hand", p: "pen", h: "highlighter", e: "eraser" } as const)[k as "v"] };
+          const next: InkPrefs = { ...p, tool: TOOL_KEYS[k]! };
           try {
             localStorage.setItem(INK_PREFS_KEY, JSON.stringify(next));
           } catch {
@@ -490,7 +540,8 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
           return next;
         });
       } else if (k === "escape" && !mod) {
-        closeDraw();
+        if (selectionRef.current) setSelection(null);
+        else closeDraw();
       }
     };
     document.addEventListener("keydown", onKey);
@@ -640,7 +691,6 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
     },
     [N, applyHighlight, reduced],
   );
-  useImperativeHandle(ref, () => ({ goTo }), [goTo]);
 
   /* ---- find in the paper ---- */
   const hit = find.state.status === "idle" ? null : locate(find.state.hits, findIdx);
@@ -725,6 +775,18 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
     rail.current?.querySelector<HTMLElement>(`[aria-current="true"]`)?.scrollIntoView({ block: "nearest" });
   }, [current, onPage]);
 
+  const drawOpenRef = useRef(false);
+  drawOpenRef.current = drawOpen;
+  const toggleDraw = useCallback(() => {
+    if (!inkRef.current) return;
+    if (drawOpenRef.current) closeDraw();
+    else {
+      setDrawOpen(true);
+      setPrefs((p) => (p.tool === "hand" ? { ...p, tool: "pen" } : p));
+    }
+  }, [closeDraw]);
+  useImperativeHandle(ref, () => ({ goTo, toggleDraw, find: openFind }), [goTo, toggleDraw, openFind]);
+
   const pages = useMemo(() => Array.from({ length: N }, (_, i) => i + 1), [N]);
 
   return (
@@ -751,8 +813,8 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
               if (Number.isInteger(n)) goTo(n);
             }}
           >
-            <label className="sr-only" htmlFor="pdfv-page">Page number</label>
-            <input id="pdfv-page" inputMode="numeric" pattern="[0-9]*" value={pageInput} onChange={(e) => setPageInput(e.target.value.replace(/\D/g, "").slice(0, 3))} onBlur={() => setPageInput(String(current))} />
+            <label className="sr-only" htmlFor={`${idPrefix}-page`}>Page number</label>
+            <input id={`${idPrefix}-page`} inputMode="numeric" pattern="[0-9]*" value={pageInput} onChange={(e) => setPageInput(e.target.value.replace(/\D/g, "").slice(0, 3))} onBlur={() => setPageInput(String(current))} />
             <span aria-hidden="true">/ {N}</span>
             <span className="sr-only">of {N}</span>
           </form>

@@ -1,9 +1,11 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Loader2, MessageSquareText, Pencil, ScrollText, X } from "lucide-react";
+import { ArrowLeft, BookMarked, Columns2, ExternalLink, FileWarning, Highlighter, Loader2, Maximize2, MessageSquareText, Minimize2, Pencil, ScrollText, X } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { analyzeScan, planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type OutlineItem, type PaperInfo, type ScanInfo } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
-import { ApiError, continueScan, fetchDocument, fileUrl, pauseScan, postProgress, reindexDoc, renameDoc, savePaperInfo, useJobs } from "../../lib/documents";
+import { ApiError, continueScan, fetchDocument, fileUrl, pauseScan, postProgress, reindexDoc, renameDoc, savePaperInfo, useDocs, useJobs } from "../../lib/documents";
+import { registerCommands } from "../../lib/commands";
+import { useOnline } from "../../lib/offline";
 import { takeJump } from "../../lib/jump";
 import { fetchScan, fetchScanText } from "../../lib/scan";
 import { analyzeOpenPdf } from "../../lib/paperinfo";
@@ -16,6 +18,8 @@ import { PdfError, openPdf, type PDFDocumentProxy } from "../../lib/pdf";
 import { ThemeSwitch } from "../ThemeSwitch";
 import { AskPanel } from "./AskPanel";
 import { DocMeta } from "./DocMeta";
+import { Pop } from "../Pop";
+import { SecondPaper } from "./SecondPaper";
 import { NotesPanel } from "./NotesPanel";
 import { ReferencesPanel } from "./ReferencesPanel";
 import { ScanBanner } from "./ScanBanner";
@@ -103,6 +107,28 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   // My Workspace remembers the page: the paper opens where the reader left it ("resume"), and the place is saved while they read
   const [resumedFrom, setResumedFrom] = useState<number | null>(null);
   const [tracking, setTracking] = useState(false);
+  // focus mode: the paper takes the whole window (the Ask, References and Notes panel is put away); kept on this device
+  const [focus, setFocus] = useState(() => {
+    try {
+      return localStorage.getItem("scholar.focus") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleFocus = useCallback(() => {
+    setFocus((f) => {
+      try {
+        localStorage.setItem("scholar.focus", f ? "0" : "1");
+      } catch {
+        /* private mode: only for this visit */
+      }
+      return !f;
+    });
+  }, []);
+  // a second paper beside this one (compare two); not kept: a fresh visit starts with one
+  const [split, setSplit] = useState<string | null>(null);
+  const online = useOnline();
+  const otherPapers = useDocs().items.filter((d) => d.id !== id && d.status === "ready");
   const jobs = useJobs();
   const myJob = jobs.find((j) => j.docId === id && ["reading", "uploading", "indexing", "scanning"].includes(j.step));
   const reindexing = !!myJob;
@@ -307,6 +333,47 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     window.setTimeout(() => viewer.current?.goTo(page), 120);
   }, []);
 
+  // what the command palette (Ctrl+K) can do while this paper is open
+  const doc0 = load.status === "ready" ? load.doc : null;
+  const hasOthers = otherPapers.length > 0;
+  useEffect(() => {
+    if (!WORKSPACE || !doc0) return;
+    return registerCommands({
+      id: "reader",
+      commands: () => [
+        { id: "r-focus", label: focus ? "Leave focus mode" : "Focus mode: paper on the whole window", group: "This paper", keywords: "focus full width reading side panel hide", hint: "F", run: toggleFocus },
+        ...(pdf.status === "ready" ? [
+          { id: "r-draw", label: "Draw, highlight and write on the paper", group: "This paper", keywords: "pen highlighter tools annotate shapes text note lasso", run: () => viewer.current?.toggleDraw() },
+          { id: "r-find", label: "Find in this paper", group: "This paper", keywords: "search", hint: "Ctrl+F", run: () => viewer.current?.find() },
+          { id: "r-pdf", label: "Download a copy with my marks", group: "This paper", keywords: "annotated pdf export save", run: () => window.dispatchEvent(new Event("scholar:annotated")) },
+        ] : []),
+        { id: "r-ask", label: "Ask this paper a question", group: "This paper", keywords: "chat questions", run: () => { setSide("ask"); setTab("side"); if (focus) toggleFocus(); } },
+        { id: "r-notes", label: "Show my highlights and notes", group: "This paper", keywords: "notes colours legend", run: () => { setSide("notes"); setTab("side"); if (focus) toggleFocus(); } },
+        { id: "r-refs", label: "Show the references of this paper", group: "This paper", keywords: "bibliography", run: () => { setSide("refs"); setTab("side"); if (focus) toggleFocus(); } },
+        ...(split ? [{ id: "r-split-off", label: "Close the second paper", group: "This paper", keywords: "split beside compare", run: () => setSplit(null) }] : []),
+        ...(!split && hasOthers ? [{ id: "r-split", label: "Open another paper beside this one", group: "This paper", keywords: "split compare two side by side", run: () => document.getElementById("dw-split-btn")?.click() }] : []),
+        { id: "r-back", label: `Back to ${PAPERS_NAME}`, group: "This paper", keywords: "close list", run: onBack },
+      ],
+      dynamic: (q) => {
+        const n = /^\s*(?:p(?:age)?\s*)?(\d{1,4})\s*$/i.exec(q)?.[1];
+        const total = pdf.status === "ready" ? pdf.pdf.numPages : 0;
+        return n && total > 0 && Number(n) >= 1 && Number(n) <= total ? [{ id: "r-page", label: `Go to page ${Number(n)} of ${total}`, group: "This paper", run: () => viewer.current?.goTo(Number(n)) }] : [];
+      },
+    });
+  }, [doc0, focus, split, hasOthers, pdf, toggleFocus, onBack]);
+  // F: focus mode (not while typing, not with a modifier)
+  useEffect(() => {
+    if (!WORKSPACE) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "f" || e.ctrlKey || e.metaKey || e.altKey) return;
+      if ((e.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable=true], [role=dialog]")) return;
+      e.preventDefault();
+      toggleFocus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleFocus]);
+
   if (load.status === "loading") {
     return <div className="dw dw-center"><OpeningPaper progress={0} /></div>;
   }
@@ -334,7 +401,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const meta = info?.metadata;
   const refCount = info?.references.length ?? 0;
   return (
-    <m.div className="dw" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: easeOut }}>
+    <m.div className="dw" data-focus={focus} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: easeOut }}>
       <div className="dw-head">
         <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>
           <ArrowLeft size={15} aria-hidden="true" />
@@ -360,10 +427,52 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
         {WORKSPACE && (
           <div className="dw-head-end">
             <DocMeta doc={doc} onChange={(d) => setLoad((l) => (l.status === "ready" ? { ...l, doc: { ...l.doc, readState: d.readState, tags: d.tags } } : l))} />
+            <button type="button" className="icon-btn icon-btn-sm dw-focus-btn" aria-pressed={focus} aria-keyshortcuts="F" aria-label="Focus mode" title={focus ? "Bring the side panel back (F)" : "Paper on the whole window (F)"} onClick={toggleFocus}>
+              {focus ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
+            </button>
+            {split ? (
+              <button type="button" id="dw-split-btn" className="icon-btn icon-btn-sm dw-split-btn" aria-pressed="true" aria-label="Close the second paper" title="Close the second paper" onClick={() => setSplit(null)}>
+                <Columns2 size={16} aria-hidden="true" />
+              </button>
+            ) : (
+              <Pop
+                label="Open another paper beside this one"
+                align="end"
+                trigger={() => (
+                  <button type="button" id="dw-split-btn" className="icon-btn icon-btn-sm dw-split-btn" aria-label="Open another paper beside this one" title="Open another paper beside this one">
+                    <Columns2 size={16} aria-hidden="true" />
+                  </button>
+                )}
+              >
+                {(close) => (
+                  <div className="split-pick">
+                    <p className="pop-title">Compare with</p>
+                    {otherPapers.length === 0 ? (
+                      <p className="meta-fine">You have no other paper that is ready. Add one in {PAPERS_NAME} first.</p>
+                    ) : (
+                      <ul className="split-list" aria-label="Your other papers">
+                        {otherPapers.map((d) => (
+                          <li key={d.id}>
+                            <button type="button" className="split-item" onClick={() => { setSplit(d.id); close(); }}>
+                              <span>{d.title}</span>
+                              {d.tags.length > 0 && <small>{d.tags.join(", ")}</small>}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </Pop>
+            )}
             <ThemeSwitch scope="reader" />
           </div>
         )}
       </div>
+
+      {WORKSPACE && !online && (
+        <p className="offline-banner" role="status">You are offline. You can keep reading and drawing; what you draw is kept on this device and sent when you are back online.</p>
+      )}
 
       {doc.scanned && scan && (
         <ScanBanner
@@ -407,7 +516,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
       </div>
 
       <div className="dw-grid">
-        <div id="dw-panel-paper" role="tabpanel" aria-labelledby="dw-tab-paper" className="dw-panel dw-paper" data-active={tab === "paper"}>
+        <div id="dw-panel-paper" role="tabpanel" aria-labelledby="dw-tab-paper" className="dw-panel dw-paper" data-active={tab === "paper"} data-split={!!split}>
           <AnimatePresence mode="wait" initial={false}>
             {pdf.status === "loading" && (
               <m.div key="l" exit={{ opacity: 0 }}>
@@ -429,6 +538,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
               </m.div>
             )}
           </AnimatePresence>
+          {split && pdf.status === "ready" && <SecondPaper key={split} docId={split} onClose={() => setSplit(null)} />}
           {pdf.status === "ready" && <p className="sr-only" aria-live="polite">Page {page} of {pdf.pdf.numPages}</p>}
           <AnimatePresence>
             {resumedFrom && (

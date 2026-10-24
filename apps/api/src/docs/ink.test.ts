@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { INK_LIMITS, apply, checkInk, eraseStrokes, emptyHistory, inkHex, record, redo, restoreStrokes, simplify, touches, undo, type InkStroke } from "@scholar/shared";
+import { INK_LIMITS, apply, checkInk, eraseStrokes, emptyHistory, inkHex, record, redo, restoreStrokes, simplify, touches, undo, type InkItem, type InkStroke } from "@scholar/shared";
 
 const stroke = (id: string, over: Partial<InkStroke> = {}): InkStroke => ({ id, page: 1, tool: "pen", color: "blue", w: 0.0034, pts: [0.1, 0.1, 0.5, 0.2, 0.1, 0.5, 0.3, 0.12, 0.5], ...over });
 
@@ -7,7 +7,7 @@ describe("checkInk", () => {
   it("accepts good strokes and rounds the numbers", () => {
     const r = checkInk([stroke("a", { pts: [0.123456, 0.987654, 0.555, 0.2, 0.2, 0.5] })], 3);
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.strokes[0]!.pts).toEqual([0.1235, 0.9877, 0.56, 0.2, 0.2, 0.5]);
+    if (r.ok) expect((r.strokes[0] as InkStroke).pts).toEqual([0.1235, 0.9877, 0.56, 0.2, 0.2, 0.5]);
   });
   it("refuses what is not a list, and each kind of bad stroke, with a reason", () => {
     expect(checkInk("no", 3)).toMatchObject({ ok: false });
@@ -30,8 +30,8 @@ describe("checkInk", () => {
     const r = checkInk([stroke("a", { w: 5, pts: [9, 99, 7, -3, -3, -1] })], 3);
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.strokes[0]!.w).toBe(INK_LIMITS.maxW);
-      expect(r.strokes[0]!.pts).toEqual([1.05, INK_LIMITS.maxY, 1, -0.05, -0.05, 0]);
+      expect((r.strokes[0] as InkStroke).w).toBe(INK_LIMITS.maxW);
+      expect((r.strokes[0] as InkStroke).pts).toEqual([1.05, INK_LIMITS.maxY, 1, -0.05, -0.05, 0]);
     }
   });
   it("enforces the limits: strokes, points in one stroke, points in all, bytes", () => {
@@ -114,7 +114,7 @@ describe("undo and redo", () => {
   });
 
   it("a new step after an undo throws the redo steps away", () => {
-    let strokes = [a, b];
+    let strokes: InkItem[] = [a, b];
     let h = record(record(emptyHistory(), { type: "add", stroke: a }), { type: "add", stroke: b });
     const u = undo(h, strokes)!;
     strokes = [...u.strokes, c];

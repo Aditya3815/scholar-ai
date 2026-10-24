@@ -1,4 +1,4 @@
-import { DEFAULT_LEGEND, inkHex, quadsForQuote, type DocNote, type InkStroke, type Legend, type NoteColor, type Quad, type TextBox } from "@scholar/shared";
+import { DEFAULT_LEGEND, STICKY_SIDE, arrowHead, inkHex, itemHex, quadsForQuote, shapeOutline, type DocNote, type InkItem, type Legend, type NoteColor, type Quad, type TextBox } from "@scholar/shared";
 import type { PDFDocumentProxy, PDFPageProxy } from "./pdf";
 import { penOutline } from "../components/papers/InkLayer";
 
@@ -8,7 +8,10 @@ const NOTE_HEX: Record<NoteColor, string> = { yellow: "#f2cf3e", green: "#7fcf93
 export class ExportError extends Error {}
 
 export type ExportReport = {
+  /** pen, highlighter and shapes */
   strokes: number;
+  /** text boxes and sticky notes drawn on pages */
+  texts: number;
   highlights: number;
   /** Text highlights whose words could not be found on their page (a scan, or text the PDF does not keep in order): they are listed on the notes page but not marked. */
   notPlaced: number;
@@ -55,12 +58,12 @@ export async function buildAnnotatedPdf(args: {
   pdf: PDFDocumentProxy;
   title: string;
   notes: DocNote[];
-  strokes: InkStroke[];
+  strokes: InkItem[];
   legend?: Legend;
   notesPage?: boolean;
 }): Promise<{ bytes: Uint8Array; report: ExportReport }> {
   const lib = await import("@cantoo/pdf-lib");
-  const { PDFDocument, StandardFonts, rgb, pushGraphicsState, popGraphicsState, setGraphicsState, setFillingRgbColor, setStrokingRgbColor, setLineWidth, setLineCap, setLineJoin, moveTo, lineTo, closePath, fill, stroke, LineCapStyle, LineJoinStyle } = lib;
+  const { PDFDocument, StandardFonts, degrees, rgb, pushGraphicsState, popGraphicsState, setGraphicsState, setFillingRgbColor, setStrokingRgbColor, setLineWidth, setLineCap, setLineJoin, moveTo, lineTo, closePath, fill, fillAndStroke, stroke, LineCapStyle, LineJoinStyle } = lib;
   const legend = args.legend ?? DEFAULT_LEGEND;
 
   let doc: Awaited<ReturnType<typeof PDFDocument.load>>;
@@ -75,7 +78,12 @@ export async function buildAnnotatedPdf(args: {
 
   // multiply, so the colour goes over the words instead of covering them (the same as on screen)
   const multiply = doc.context.register(doc.context.obj({ Type: "ExtGState", BM: "Multiply", CA: 1, ca: 1 }));
-  const report: ExportReport = { strokes: 0, highlights: 0, notPlaced: 0, notesPage: false, replacedChars: 0 };
+  const report: ExportReport = { strokes: 0, texts: 0, highlights: 0, notPlaced: 0, notesPage: false, replacedChars: 0 };
+
+  const helv = await doc.embedFont(StandardFonts.Helvetica);
+  const helvShown = new Set(helv.getCharacterSet());
+  /** Helvetica shows Western European letters only: anything else becomes "?" and is counted, so the reader is told. */
+  const latin = (s: string) => [...s].map((ch) => (helvShown.has(ch.codePointAt(0)!) ? ch : (report.replacedChars++, "?"))).join("");
 
   const pageNumbers = [...new Set([...args.notes.map((n) => n.page), ...args.strokes.map((s) => s.page)])].filter((n) => n >= 1 && n <= args.pdf.numPages).sort((a, b) => a - b);
   for (const n of pageNumbers) {
@@ -113,32 +121,78 @@ export async function buildAnnotatedPdf(args: {
       }
     }
 
-    // 2. the highlighter, then the pen, in the order they were drawn
+    // 2. the highlighter first (it goes under), then pens and shapes in the order they were drawn, then text boxes and sticky notes
     const W = vp.width;
     const ink = args.strokes.filter((s) => s.page === n);
-    for (const s of [...ink.filter((x) => x.tool === "highlighter"), ...ink.filter((x) => x.tool === "pen")]) {
-      const [r, g, b] = rgbOf(inkHex(s.tool, s.color));
+    const thick = (w: number) => Math.max(0.6, w * W);
+    for (const s of [...ink.filter((x) => x.tool === "highlighter"), ...ink.filter((x) => x.tool === "pen" || x.tool === "shape")]) {
+      if (s.tool === "text" || s.tool === "sticky") continue;
+      const [r, g, b] = rgbOf(itemHex(s));
       if (s.tool === "pen") {
         const outline = penOutline(s.pts, s.w, W) as [number, number][];
         if (outline.length < 3) continue;
         page.pushOperators(pushGraphicsState(), setFillingRgbColor(r, g, b), ...poly(outline, true), fill(), popGraphicsState());
-      } else {
+      } else if (s.tool === "highlighter") {
         const pts: [number, number][] = [];
         for (let i = 0; i < s.pts.length; i += 3) pts.push([s.pts[i]! * W, s.pts[i + 1]! * W]);
         if (pts.length === 1) pts.push([pts[0]![0] + 0.01, pts[0]![1]]);
         page.pushOperators(pushGraphicsState(), setGraphicsState(gs), setStrokingRgbColor(r, g, b), setLineWidth(s.w * W), setLineCap(LineCapStyle.Butt), setLineJoin(LineJoinStyle.Round), ...poly(pts, false), stroke(), popGraphicsState());
+      } else if (s.tool === "shape") {
+        // a shape: a line or an outline in the pen colour; an arrow also has a filled head
+        const scaled = (o: readonly (readonly [number, number])[]) => o.map(([x, y]) => [x * W, y * W] as [number, number]);
+        const head = s.kind === "arrow" ? arrowHead([s.pts[0]!, s.pts[1]!], [s.pts[3]!, s.pts[4]!], s.w) : null;
+        const outline = head ? scaled([[s.pts[0]!, s.pts[1]!], head.stop]) : scaled(shapeOutline(s));
+        page.pushOperators(pushGraphicsState(), setStrokingRgbColor(r, g, b), setLineWidth(thick(s.w)), setLineCap(LineCapStyle.Round), setLineJoin(LineJoinStyle.Round), ...poly(outline, s.kind === "rect" || s.kind === "ellipse"), stroke(), popGraphicsState());
+        if (head) page.pushOperators(pushGraphicsState(), setFillingRgbColor(r, g, b), setStrokingRgbColor(r, g, b), setLineWidth(thick(s.w) * 0.5), setLineJoin(LineJoinStyle.Round), ...poly(scaled([head.tip, head.left, head.right]), true), fillAndStroke(), popGraphicsState());
       }
       report.strokes++;
+    }
+    for (const s of ink) {
+      if (s.tool === "text") {
+        const fs = s.size * W;
+        const [r, g, b] = rgbOf(itemHex(s));
+        const maxW = s.w * W;
+        // the browser wrapped the words by its own font; they are wrapped again here with Helvetica's widths, so the lines can break in other places
+        const lines: string[] = [];
+        for (const para of latin(s.text).split(/\r?\n/)) {
+          let cur = "";
+          for (const word of para.split(/ +/)) {
+            const trial = cur ? `${cur} ${word}` : word;
+            if (!cur || helv.widthOfTextAtSize(trial, fs) <= maxW) cur = trial;
+            else {
+              lines.push(cur);
+              cur = word;
+            }
+          }
+          lines.push(cur);
+        }
+        const o = toPdf(s.x * W, s.y * W);
+        const along = toPdf(s.x * W + 1, s.y * W);
+        const angle = (Math.atan2(along[1] - o[1], along[0] - o[0]) * 180) / Math.PI;
+        lines.forEach((line, i) => {
+          if (!line) return;
+          const at = toPdf(s.x * W, s.y * W + (i * 1.3 + 1.0) * fs);
+          page.drawText(line, { x: at[0], y: at[1], size: fs, font: helv, color: rgb(r, g, b), rotate: degrees(angle) });
+        });
+        report.texts++;
+      } else if (s.tool === "sticky") {
+        const [r, g, b] = rgbOf(itemHex(s));
+        const side = STICKY_SIDE * W;
+        const q: [number, number][] = [[s.x * W, s.y * W], [s.x * W + side, s.y * W], [s.x * W + side, s.y * W + side], [s.x * W, s.y * W + side]];
+        page.pushOperators(pushGraphicsState(), setFillingRgbColor(r, g, b), setStrokingRgbColor(0.35, 0.3, 0.1), setLineWidth(0.6), ...poly(q, true), fillAndStroke(), popGraphicsState());
+        report.texts++;
+      }
     }
   }
 
   // 3. the notes, listed on a page of their own at the end (the marks above show where; this shows what was written)
   const listed = args.notes;
-  if (args.notesPage !== false && listed.length > 0) {
-    const font = await doc.embedFont(StandardFonts.Helvetica);
+  const stickies = args.strokes.filter((s): s is Extract<InkItem, { tool: "sticky" }> => s.tool === "sticky" && s.text.trim() !== "");
+  if (args.notesPage !== false && (listed.length > 0 || stickies.length > 0)) {
+    const font = helv;
     const bold = await doc.embedFont(StandardFonts.HelveticaBold);
     // Helvetica can only show Western European letters; anything else is replaced and counted, so the reader is told rather than shown wrong text
-    const shown = new Set(font.getCharacterSet());
+    const shown = helvShown;
     const safe = (s: string) => [...s.replace(/\s+/g, " ")].map((ch) => { if (shown.has(ch.codePointAt(0)!)) return ch; report.replacedChars++; return "?"; }).join("");
     const M = 54, SIZE = 10, LEAD = 14, PW = 595, PH = 842, MAXW = PW - 2 * M;
     let page = doc.addPage([PW, PH]);
@@ -188,6 +242,14 @@ export async function buildAnnotatedPdf(args: {
       for (const l of wrap(`“${n.quote}”`, font, SIZE, MAXW - 14)) line(l, font, SIZE, 14);
       if (n.note.trim()) for (const l of wrap(n.note, font, SIZE, MAXW - 28)) line(l, font, SIZE, 28, rgb(0.15, 0.25, 0.6));
       y -= 8;
+    }
+    if (stickies.length > 0) {
+      line("Sticky notes", bold, 12);
+      for (const s of [...stickies].sort((a, b) => a.page - b.page)) {
+        line(safe(`Page ${s.page}`), bold, SIZE, 14);
+        for (const l of wrap(s.text, font, SIZE, MAXW - 14)) line(l, font, SIZE, 14, rgb(0.15, 0.25, 0.6));
+        y -= 8;
+      }
     }
     if (report.replacedChars > 0) line("Some characters could not be shown here and appear as “?”. The full text is in the Markdown export.", font, 9, 0, rgb(0.6, 0.2, 0.1));
     report.notesPage = true;

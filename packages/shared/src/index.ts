@@ -109,3 +109,4 @@ export * from "./sentences";
 export * from "./ink";
 export * from "./notes-md";
 export * from "./quote-quads";
+export * from "./palette";

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { AuthProviderInfo, AuthUser } from "@scholar/shared";
+import { clearOfflineData, pendingDrawings } from "./offline";
 
 export type AuthState = {
   status: "loading" | "ready";
@@ -66,7 +67,12 @@ export function linkProvider(provider: string) {
 }
 
 export async function signOut(): Promise<void> {
+  // drawings made offline that have not reached the server would be lost with the sign-out: ask first
+  const pending = await pendingDrawings();
+  if (pending > 0 && !window.confirm(`${pending === 1 ? "A drawing" : `${pending} drawings`} made without a connection ${pending === 1 ? "has" : "have"} not been sent yet and will be lost if you sign out now. Sign out anyway?`)) return;
   await fetch("/api/v1/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
+  // what was kept on this device for this person (papers for offline reading) goes with the session
+  await clearOfflineData();
   await refreshAuth();
 }
 

@@ -217,6 +217,15 @@ Rule for tests that need to change the database (age a row, rename a table, brin
 never with `wrangler d1 execute --local` from a second process while `wrangler dev` is running. On 22 Oct that made the dev server spin at 100% CPU (over 1,000 CPU-seconds) and stop answering anything, which showed up as
 random timeouts in whichever suite ran next. The integration runner's own clean-up between suites works this way too. Also stop a leftover `wrangler dev` (for example from a spike) before running the suites.
 
+## Offline reading (service worker)
+
+`apps/web/public/sw.js` is served at `/sw.js` (`Cache-Control: no-cache` in `_headers`, so a new version replaces the old at the next visit). It does nothing unless a person switched on "Offline reading" in Settings (the page registers it and sends it "on"; the flag lives in the cache `scholar-meta`). Caches: `scholar-shell-v1` (the page, `/assets`, `/pdfjs`), `scholar-data-v1` (the few small reads: paper details, notes, drawing, list, who is signed in), `scholar-papers-v1` (PDFs, the ten last). Reads go to the network first, with a 6 second wait before a kept copy is used. Drawings that could not be sent are in IndexedDB (`scholar` / `pendingInk`).
+
+- **Change what is cached**: edit `readable()` or `isAsset()` in `sw.js`; if the shape of what is kept changes, bump `VERSION` (old caches are deleted when the new worker activates).
+- **Kill switch** (if a worker ever misbehaves for everyone): deploy a `sw.js` that contains only `self.addEventListener("install", () => self.skipWaiting()); self.addEventListener("activate", async () => { for (const k of await caches.keys()) await caches.delete(k); await self.registration.unregister(); });`. Browsers pick it up at the next visit.
+- Signing out, deleting the account, deleting a paper and switching the setting off clear what was kept (`lib/offline.ts`); a person who signs out with an unsent drawing is asked first.
+- Tested by `apps/web/e2e/offline.mjs` with real network cuts (`context.setOffline`).
+
 ## Not done yet (decisions for later)
 
 Custom domain (needed before public launch; OAuth redirect URIs and cookies depend on it), Turnstile on sign-in, email login.

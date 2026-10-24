@@ -5,6 +5,8 @@ import { tagKey, type DocumentInfo, type ReadState } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { PAPERS_NAME, WORKSPACE } from "../../lib/workspace";
 import { loadDocs, removeDoc, resetDocs, useDocs } from "../../lib/documents";
+import { takeSearch } from "../../lib/jump";
+import { useCachedPapers, useOnline } from "../../lib/offline";
 import { PRIVACY_VERSION } from "@scholar/shared";
 import { easeOut, stagger } from "../../lib/motion";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -55,8 +57,19 @@ export function PapersPage({ onOpen }: { onOpen: (id: string) => void }) {
   const { status, user } = useAuth();
   const docs = useDocs();
   const [toDelete, setToDelete] = useState<DocumentInfo | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => takeSearch() ?? "");
+  // "Search my papers for..." from the command palette, while this page is already open
+  useEffect(() => {
+    const onAsk = () => {
+      const q = takeSearch();
+      if (q) setQuery(q);
+    };
+    window.addEventListener("scholar:search", onAsk);
+    return () => window.removeEventListener("scholar:search", onAsk);
+  }, []);
   const f = useFilters(docs.items);
+  const kept = useCachedPapers(docs.items.length);
+  const online = useOnline();
   const searching = WORKSPACE && query.trim().length > 0;
   const filtered = WORKSPACE && (f.state !== "all" || f.tag !== null);
   const list = WORKSPACE ? f.shown : docs.items;
@@ -104,6 +117,11 @@ export function PapersPage({ onOpen }: { onOpen: (id: string) => void }) {
         </m.div>
       ) : (
         <>
+          {WORKSPACE && !online && (
+            <p className="offline-banner" role="status">
+              You are offline. {kept.size > 0 ? "Papers marked “On this device” can still be opened." : "Papers can be opened offline once you have switched that on in Settings and opened them while connected."}
+            </p>
+          )}
           <PrivacyCard kind="papers" />
           <m.div {...rise(3)}>
             <UploadZone disabled={full || !acked} reason={full ? `You have reached ${docs.usage!.maxCount} papers. Delete one to add another.` : !acked ? "Read the note above first." : undefined} />
@@ -184,7 +202,7 @@ export function PapersPage({ onOpen }: { onOpen: (id: string) => void }) {
                   <ul className="dgrid" aria-label="Your papers">
                     <AnimatePresence initial>
                       {list.map((d, i) => (
-                        <DocCard key={d.id} doc={d} index={i} onOpen={onOpen} onDelete={setToDelete} onTag={WORKSPACE ? (t) => f.setTag(f.tag && tagKey(f.tag) === tagKey(t) ? null : t) : undefined} activeTag={f.tag} />
+                        <DocCard key={d.id} doc={d} index={i} kept={kept.has(d.id)} onOpen={onOpen} onDelete={setToDelete} onTag={WORKSPACE ? (t) => f.setTag(f.tag && tagKey(f.tag) === tagKey(t) ? null : t) : undefined} activeTag={f.tag} />
                       ))}
                     </AnimatePresence>
                   </ul>

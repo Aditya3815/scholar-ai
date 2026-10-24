@@ -36,6 +36,11 @@ const STROKES = [
   line("s2", 2, "red", 0.3, 0.7, 0.2),
   line("s3", 3, "green", 0.3, 0.6, 0.45),
   line("s4", 1, "yellow", 0.25, 0.65, 0.55, "highlighter", 0.03),
+  // shapes, a text box and a sticky note: a red rectangle on page 1, a blue arrow on the turned page, a text box on the cropped page, a yellow sticky note on page 1
+  { id: "r1", page: 1, tool: "shape", kind: "rect", color: "red", w: 0.006, pts: [0.2, 0.62, 0.5, 0.5, 0.74, 0.5] },
+  { id: "a1", page: 2, tool: "shape", kind: "arrow", color: "blue", w: 0.006, pts: [0.3, 0.4, 0.5, 0.7, 0.4, 0.5] },
+  { id: "t1", page: 3, tool: "text", color: "ink", x: 0.2, y: 0.6, w: 0.4, h: 0.05, size: 0.027, text: "Check this table" },
+  { id: "n1", page: 1, tool: "sticky", color: "yellow", x: 0.7, y: 0.35, text: "ask the supervisor" },
 ];
 const HEX = { blue: [43, 76, 207], red: [209, 52, 43], green: [31, 138, 82], yellow: [255, 216, 77] };
 
@@ -68,7 +73,7 @@ try {
 
   const H = { headers: { Origin: BASE } };
   const put = await page.request.put(`${BASE}/api/v1/documents/${id}/ink`, { ...H, data: { strokes: STROKES, rev: 0 } });
-  ok(put.ok(), "(drawings saved with the paper: a pen on each of three pages and a highlighter on the first: four drawings)");
+  ok(put.ok(), "(drawings saved with the paper: a pen on each of three pages, a highlighter, a rectangle and an arrow: six drawings; a text box and a sticky note: two written notes)");
   const q1 = "Glaucoma Screening with Deep Learning in Rural Clinics";
   const q3 = "Limitations include a single country and a small number of cases of angle closure";
   ok((await page.request.post(`${BASE}/api/v1/documents/${id}/notes`, { ...H, data: { page: 1, quote: q1, color: "yellow", note: "title of the paper" } })).ok()
@@ -90,7 +95,7 @@ try {
   ok(copyDoc.getPageCount() === 4, "it has the three pages and one more, the notes");
   ok(copyDoc.getPage(1).getRotation().angle === 90 && copyDoc.getPage(2).getCropBox().x === 20, "the turned and the cropped page keep their turn and their crop");
   const notice = await page.locator("[role=status], .notice").allInnerTexts();
-  ok(notice.some((t) => /Your copy is ready \(4 drawings? and 2 highlights? marked, notes on the last page\)/.test(t) && /1 highlight could not be found on the page/.test(t) && /could not be shown on the notes page/.test(t)), `it says what was marked and what was not (${JSON.stringify(notice.filter((t) => /copy/.test(t)))})`);
+  ok(notice.some((t) => /Your copy is ready \(6 drawings?, 2 written notes and 2 highlights? marked, notes on the last page\)/.test(t) && /1 highlight could not be found on the page/.test(t) && /could not be shown on the notes page/.test(t)), `it says what was marked and what was not (${JSON.stringify(notice.filter((t) => /copy/.test(t)))})`);
   const afterBytes = Buffer.from(await (await page.request.get(`${BASE}/api/v1/documents/${id}/file`)).body());
   ok(sha(afterBytes) === sha(original), "the paper in storage is still byte for byte the original");
 
@@ -125,11 +130,32 @@ try {
     ["page 1: the yellow highlighter", 1, 0.45, 0.55, HEX.yellow],
     ["page 2 (turned a quarter round): the red pen", 2, 0.5, 0.2, HEX.red],
     ["page 3 (cropped, corner at 20, 30): the green pen", 3, 0.45, 0.45, HEX.green],
+    ["page 1: the top edge of the red rectangle", 1, 0.35, 0.62, HEX.red],
+    ["page 2 (turned): the line of the blue arrow", 2, 0.4, 0.4, HEX.blue],
+    ["page 2 (turned): the head of the blue arrow", 2, 0.69, 0.4, HEX.blue],
+    ["page 1: the yellow sticky note", 1, 0.717, 0.367, HEX.yellow],
   ];
   for (const [label, n, fx, fy, want] of checks) {
     const r = await probe(n, fx, fy, want);
     ok(r.best <= 70, `${label} is on the page where it was drawn (nearest pixel ${JSON.stringify(r.at)}, wanted about ${JSON.stringify(want)})`);
   }
+  // the text box on the cropped page: dark letters where it was written, nothing where it was not
+  const textPixels = async (n, f) => {
+    await page.evaluate((n) => document.querySelector(`[data-page="${n}"]`).scrollIntoView({ block: "center" }), n);
+    await page.waitForTimeout(700);
+    return page.evaluate(({ n, f }) => {
+      const cv = document.querySelector(`[data-page="${n}"] .pdfp-canvas`);
+      const ctx2 = cv.getContext("2d");
+      const x0 = Math.round(f[0] * cv.width), y0 = Math.round(f[1] * cv.width), w = Math.round((f[2] - f[0]) * cv.width), h = Math.round((f[3] - f[1]) * cv.width);
+      const d = ctx2.getImageData(x0, y0, w, h).data;
+      let dark = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i] < 90 && d[i + 1] < 90 && d[i + 2] < 100) dark++;
+      return dark;
+    }, { n, f });
+  };
+  const inBox = await textPixels(3, [0.2, 0.6, 0.6, 0.65]);
+  const outBox = await textPixels(3, [0.2, 0.7, 0.6, 0.75]);
+  ok(inBox > 30 && outBox === 0, `page 3: the text box's letters are on the page where it was written (${inBox} dark pixels there, ${outBox} below it)`);
   // and where nothing was drawn it is not: the same height, away from the stroke, is white or text
   const off = await probe(1, 0.8, 0.3, HEX.blue);
   ok(off.best > 150, "far from the stroke the page is as it was");
@@ -142,6 +168,7 @@ try {
     return [...document.querySelectorAll('[data-page="4"] .textLayer span')].map((s) => s.textContent).join(" ");
   });
   ok(/Notes on turned/.test(lastText) && /Page 1/.test(lastText) && /title of the paper/.test(lastText) && /Page 3/.test(lastText), `the last page lists the highlights and the notes (${lastText.slice(0, 120)}…)`);
+  ok(/Sticky notes/.test(lastText) && /ask the supervisor/.test(lastText), "the words of the sticky note are on the notes page (the square on the page has no room for them)");
   ok(/\?/.test(lastText) && !/मोतियाबिंद/.test(lastText), "letters the font cannot show appear as '?', not as wrong letters");
 
   ok(failedCalls.filter((c) => !/409/.test(c)).length === 0, `no failed calls (${failedCalls.join(", ")})`);

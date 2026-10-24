@@ -73,7 +73,9 @@ My suggestion for the next three: **1, 2 and 3** (the drawing becomes something 
 | 2 highlights page | done as part of the Notes tab of the reader (per paper: filter, group by colour, named colours, Markdown). A page across all papers is not built |
 | 3 ask about highlights | done (per paper) |
 | 1 annotated PDF | done; Hindi and other non-Western letters in notes show as "?" on the notes page (Helvetica); embedding a Devanagari font would fix it |
-| 8, 9, 10 | in progress, in this order: more tools, split view / shortcuts / palette, offline |
+| 8 more tools | done: line, arrow, rectangle, ellipse, text box, sticky note, lasso (select, move, delete). Not done: resize or rotate, ruler, snapping |
+| 10 split view, focus mode, shortcuts, palette | done |
+| 9 offline | done (opt-in; reading, drawing and Q&A history kept; highlights and notes need a connection) |
 
 ## 4. Not done, on purpose
 

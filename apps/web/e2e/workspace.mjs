@@ -490,7 +490,7 @@ try {
   await page.keyboard.press("p");
   await drag([0.2, 0.55], [0.5, 0.58]);
   await bar3.locator('[role=status]').filter({ hasText: /Updated from another window/ }).waitFor({ timeout: 8000 });
-  ok(await page.locator('.pdfp[data-page="1"] .ink path:not(.ink-live)').count() === 1, "this window is told and shows the other window's drawing, not its own lost stroke");
+  ok(await page.locator('.pdfp[data-page="1"] .ink path:not(.ink-live)').count() === 2, "this window is told, shows the other window's drawing, and keeps the new stroke drawn here (what the other window erased does not come back)");
   await page.screenshot({ path: OUT + "25-conflict.png" });
   await page.keyboard.press("Escape");
 
@@ -505,6 +505,171 @@ try {
   }
   await setTheme(page, "light");
   await page.keyboard.press("Escape");
+
+  console.log("shapes, text boxes, sticky notes and the lasso");
+  await page.setViewportSize({ width: 1360, height: 1700 }); // the whole page on screen, so every point can be reached with the mouse
+  await page.waitForTimeout(600);
+  await page.getByRole("button", { name: /^Draw$/ }).click();
+  const bar4 = page.getByRole("toolbar", { name: "Draw on the paper" });
+  await bar4.waitFor();
+  for (const name of ["Line", "Arrow", "Rectangle", "Ellipse", "Text box", "Sticky note", "Lasso: select, move, delete"]) ok(await bar4.getByRole("button", { name }).isVisible(), `the toolbar has ${name}`);
+  const items = async () => (await strokesOnServer()).strokes;
+  // saving happens a moment after a change: wait until the server has it (not for a status that may still be showing the last save)
+  const eventually = async (fn, what) => { const end = Date.now() + 10000; let v; while (Date.now() < end) { v = await fn(); if (v) return v; await page.waitForTimeout(150); } throw new Error("timed out waiting for " + what); };
+  const settle = async () => { await page.waitForTimeout(1600); await bar4.locator('[role=status]').filter({ hasText: "Saved" }).waitFor({ timeout: 8000 }); };
+  const base0 = (await items()).length;
+
+  // shapes
+  await page.keyboard.press("r");
+  await drag([0.2, 0.62], [0.45, 0.72]);
+  await page.keyboard.press("o");
+  await drag([0.5, 0.62], [0.75, 0.72]);
+  await page.keyboard.press("a");
+  await drag([0.2, 0.78], [0.45, 0.84]);
+  await page.keyboard.press("l");
+  await drag([0.5, 0.78], [0.75, 0.8]);
+  await settle();
+  const sh = (await items()).filter((i) => i.tool === "shape");
+  ok(sh.map((i) => i.kind).join() === "rect,ellipse,arrow,line", `a rectangle, an ellipse, an arrow and a line are saved (${sh.map((i) => i.kind).join()})`);
+  ok(await page.locator('.pdfp[data-page="1"] rect.ink-shape').count() === 1 && await page.locator('.pdfp[data-page="1"] ellipse.ink-shape').count() === 1 && await page.locator('.pdfp[data-page="1"] g.ink-shape polygon').count() === 1 && await page.locator('.pdfp[data-page="1"] line.ink-shape').count() === 1, "and drawn on the page as shapes (rectangle, ellipse, arrow with a head, line)");
+  ok(sh.every((i) => i.pts.length === 6) && Math.abs(sh[0].pts[0] - 0.2) < 0.01 && Math.abs(sh[0].pts[3] - 0.45) < 0.01, "each is two points, where it was dragged");
+  await page.keyboard.press("l");
+  await page.mouse.move((await pageBox()).x + 100, (await pageBox()).y + 300);
+  const bb = await pageBox();
+  await page.keyboard.down("Shift");
+  await page.mouse.move(bb.x + bb.width * 0.1, bb.y + bb.width * 0.9);
+  await page.mouse.down();
+  await page.mouse.move(bb.x + bb.width * 0.4, bb.y + bb.width * 0.9 + 12, { steps: 8 });
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+  await settle();
+  const snapped = (await items()).filter((i) => i.tool === "shape").at(-1);
+  ok(Math.abs(snapped.pts[1] - snapped.pts[4]) < 1e-3, "with Shift a line snaps to a straight angle (a slightly slanted drag came out level)");
+  await page.screenshot({ path: OUT + "34-shapes.png" });
+  await axe("shapes drawn", page);
+
+  // a text box, in Hindi and English
+  await page.keyboard.press("t");
+  const pb = await pageBox();
+  await page.mouse.click(pb.x + pb.width * 0.15, pb.y + pb.width * 0.95);
+  const ta = page.getByRole("textbox", { name: "New text box" });
+  await ta.waitFor();
+  await ta.fill("Check this table\nमोतियाबिंद");
+  await page.keyboard.press("Escape");
+  await page.locator(".pdfp[data-page=\"1\"] .ink-text:not(textarea)").first().waitFor();
+  await settle();
+  const tx = (await items()).find((i) => i.tool === "text");
+  ok(tx && tx.text === "Check this table\nमोतियाबिंद" && tx.size > 0 && tx.h > 0 && tx.w > 0, "a text box is typed in, in English and Hindi, and saved with its size");
+  ok(await page.locator('.pdfp[data-page="1"] .ink-text:not(textarea)').first().innerText().then((x) => /मोतियाबिंद/.test(x)), "and shown on the page");
+  // changed (with the hand), then undone
+  await page.keyboard.press("v");
+  await page.locator('.pdfp[data-page="1"] .ink-text:not(textarea)').first().click();
+  const ta2 = page.getByRole("textbox", { name: "Edit the text box" });
+  await ta2.waitFor();
+  await ta2.fill("Changed words");
+  await ta2.blur();
+  await settle();
+  ok((await items()).find((i) => i.tool === "text").text === "Changed words", "a text box can be edited");
+  await page.keyboard.press("Control+z");
+  await settle();
+  ok((await items()).find((i) => i.tool === "text").text.startsWith("Check this table"), "Undo brings the old words back");
+  await page.keyboard.press("Control+Shift+z");
+  await settle();
+  ok((await items()).find((i) => i.tool === "text").text === "Changed words", "and Redo the new ones");
+  // emptied, so removed
+  await page.locator('.pdfp[data-page="1"] .ink-text:not(textarea)').first().click();
+  await page.getByRole("textbox", { name: "Edit the text box" }).fill("");
+  await page.getByRole("textbox", { name: "Edit the text box" }).blur();
+  await settle();
+  ok((await items()).filter((i) => i.tool === "text").length === 0, "a text box that is emptied goes away");
+  await page.keyboard.press("Control+z");
+  await settle();
+  ok((await items()).filter((i) => i.tool === "text").length === 1, "and Undo brings it back");
+
+  // a sticky note
+  await page.keyboard.press("n");
+  await page.mouse.click(pb.x + pb.width * 0.85, pb.y + pb.width * 0.3);
+  const st = page.getByRole("textbox", { name: "Words of the sticky note" });
+  await st.waitFor();
+  await st.fill("ask the supervisor about this");
+  await st.blur();
+  await settle();
+  const stickyNote = (await items()).find((i) => i.tool === "sticky");
+  ok(stickyNote && stickyNote.text === "ask the supervisor about this" && stickyNote.color === "yellow", "a sticky note is put down, written in, and saved");
+  await page.screenshot({ path: OUT + "35-text-and-note.png" });
+  await axe("text box and sticky note", page);
+
+  // the lasso: choose the rectangle, move it, undo, delete it
+  await page.keyboard.press("s");
+  const before = (await items()).find((i) => i.tool === "shape" && i.kind === "rect");
+  const lb = await pageBox();
+  await page.mouse.move(lb.x + lb.width * 0.15, lb.y + lb.width * 0.58);
+  await page.mouse.down();
+  for (const [fx, fy] of [[0.8, 0.58], [0.8, 0.76], [0.15, 0.76], [0.15, 0.58]]) await page.mouse.move(lb.x + lb.width * fx, lb.y + lb.width * fy, { steps: 6 });
+  await page.mouse.up();
+  await page.locator(".ink-selbar").waitFor();
+  ok(/2 selected/.test(await page.locator(".ink-selbar").innerText()), "a loop round the rectangle and the ellipse chooses both, and not the arrow and line below them");
+  await page.keyboard.press("Escape");
+  await page.mouse.move(lb.x + lb.width * 0.15, lb.y + lb.width * 0.6);
+  await page.mouse.down();
+  for (const [fx, fy] of [[0.47, 0.6], [0.47, 0.74], [0.15, 0.74], [0.15, 0.6]]) await page.mouse.move(lb.x + lb.width * fx, lb.y + lb.width * fy, { steps: 6 });
+  await page.mouse.up();
+  await page.locator(".ink-selbar").waitFor();
+  ok(/1 selected/.test(await page.locator(".ink-selbar").innerText()) && await page.locator(".ink-sel").count() === 1, "a tighter loop chooses just the rectangle, shown with a dashed box and a bar");
+  await page.screenshot({ path: OUT + "36-lasso.png" });
+  await axe("lasso selection", page);
+  const mid = [lb.x + lb.width * 0.325, lb.y + lb.width * 0.67];
+  await page.mouse.move(mid[0], mid[1]);
+  await page.mouse.down();
+  await page.mouse.move(mid[0] + lb.width * 0.1, mid[1] + lb.width * 0.05, { steps: 10 });
+  await page.mouse.up();
+  await settle();
+  const after = (await items()).find((i) => i.id === before.id);
+  ok(Math.abs(after.pts[0] - before.pts[0] - 0.1) < 0.01 && Math.abs(after.pts[1] - before.pts[1] - 0.05) < 0.01 && Math.abs(after.pts[3] - after.pts[0] - (before.pts[3] - before.pts[0])) < 1e-3, `dragging inside the box moves it (by about 0.1 and 0.05 page widths: ${(after.pts[0] - before.pts[0]).toFixed(3)}, ${(after.pts[1] - before.pts[1]).toFixed(3)}) without changing its size`);
+  await page.keyboard.press("Control+z");
+  await settle();
+  const undone = (await items()).find((i) => i.id === before.id);
+  ok(undone.pts[0] === before.pts[0] && undone.pts[1] === before.pts[1], "Undo puts it back");
+  await page.keyboard.press("Control+Shift+z");
+  await settle();
+  await page.keyboard.press("Delete");
+  await settle();
+  ok(!(await items()).some((i) => i.id === before.id), "Delete removes what the lasso chose");
+  await page.keyboard.press("Control+z");
+  await settle();
+  ok((await items()).some((i) => i.id === before.id), "and Undo brings it back");
+  // a click on a thing chooses just that thing; a click on nothing chooses nothing
+  const nowRect = (await items()).find((i) => i.id === before.id);
+  await page.mouse.click(lb.x + lb.width * ((nowRect.pts[0] + nowRect.pts[3]) / 2), lb.y + lb.width * nowRect.pts[1]);
+  await page.waitForTimeout(150);
+  await page.waitForTimeout(300);
+  const clicked = { bars: await page.locator(".ink-selbar").count(), sel: await page.locator(".ink-sel").count(), tool: await page.locator(".pdfp[data-page=\"1\"] .ink-pen").getAttribute("data-tool"), rect: (await items()).find((i) => i.tool === "shape" && i.kind === "rect")?.pts };
+  ok(/1 selected/.test(await page.locator(".ink-selbar").innerText({ timeout: 1000 }).catch(() => "")), `a click on a shape chooses it (${JSON.stringify(clicked)})`);
+  await page.mouse.click(lb.x + lb.width * 0.9, lb.y + lb.width * 1.05);
+  await page.waitForTimeout(150);
+  ok(await page.locator(".ink-selbar").count() === 0, "a click on nothing chooses nothing");
+
+  // the eraser takes them too
+  await page.keyboard.press("e");
+  const nShapes = (await items()).length;
+  await page.mouse.move(lb.x + lb.width * 0.5, lb.y + lb.width * 0.79);
+  await page.mouse.down();
+  await page.mouse.move(lb.x + lb.width * 0.75, lb.y + lb.width * 0.79, { steps: 10 });
+  await page.mouse.up();
+  await settle();
+  ok((await items()).length < nShapes, "the eraser removes a shape it touches");
+  const left = (await items()).length;
+
+  // it all comes back after a reload, and the toolbar closed, notes can be read
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+  await page.locator('.pdfp[data-page="1"] .ink-text:not(textarea)').first().waitFor({ timeout: 10000 });
+  ok((await items()).length === left && await page.locator('.pdfp[data-page="1"] .ink-shape').count() >= 3, "after a reload the shapes, text and notes are all still there");
+  ok(await page.locator('.pdfp[data-page="1"] .ink-text').first().evaluate((el) => getComputedStyle(el).pointerEvents) === "none", "with the tools closed a text box does not take the pointer (the paper's own text can be selected under it)");
+  await page.locator(".ink-sticky-btn").first().click();
+  ok(/ask the supervisor/.test(await page.locator(".ink-sticky-read").innerText()), "and a sticky note can be opened and read");
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 1360, height: 900 });
 
   await page.getByRole("button", { name: /My Workspace/ }).first().click();
   await page.locator(".dc").first().waitFor();
@@ -639,6 +804,113 @@ try {
   for (const d of mine) await page.request.delete(BASE + "/api/v1/documents/" + d.id, { headers: { Origin: BASE } });
 
   /* ============================ a phone, signed in: the drawer ============================ */
+  console.log("command palette, shortcuts, focus mode, two papers side by side");
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator('input[type="file"]').waitFor({ state: "attached" });
+  await page.locator('input[type="file"]').setInputFiles({ name: "glaucoma_screening.pdf", mimeType: "application/pdf", buffer: makePdf(SAMPLE_PAPER, { title: "Glaucoma screening" }) });
+  await page.waitForFunction(() => document.querySelectorAll(".dc").length === 1 && document.querySelector(".dc")?.getAttribute("data-status") === "ready", null, { timeout: 60000 });
+  await page.locator('input[type="file"]').setInputFiles({ name: "methods_paper.pdf", mimeType: "application/pdf", buffer: makePdf(["Methods of the second study. We interviewed forty farmers about tractor sensor calibration drift in the monsoon.", "Results of the second study. Calibration drift was worst in July."], { title: "Methods paper" }) });
+  await page.waitForFunction(() => document.querySelectorAll(".dc").length === 2 && [...document.querySelectorAll(".dc")].every((c) => c.getAttribute("data-status") === "ready"), null, { timeout: 60000 });
+  await page.keyboard.press("Control+k");
+  const pal = page.getByRole("combobox", { name: "Search commands, papers and pages" });
+  await pal.waitFor({ timeout: 8000 }).catch(async (e) => {
+    console.log("        palette did not open:", JSON.stringify(await page.evaluate(() => ({ dialogs: document.querySelectorAll("[role=dialog]").length, palette: !!document.querySelector(".palette"), active: document.activeElement?.tagName + "." + document.activeElement?.className, overlay: !!document.querySelector(".overlay") }))));
+    throw e;
+  });
+  ok(await page.getByRole("dialog").count() === 1 && await pal.evaluate((el) => el === document.activeElement), "Ctrl+K opens the command palette with the cursor in its box");
+  ok(await page.getByRole("option").count() >= 8 && await page.getByRole("group", { name: "Go to" }).isVisible() && await page.getByRole("group", { name: "Your papers" }).isVisible(), "it lists where to go, the themes and the reader's own papers");
+  await page.screenshot({ path: OUT + "37-palette.png" });
+  await axe("command palette", page);
+  await pal.fill("dark");
+  ok(await page.getByRole("option").first().innerText().then((x) => /Dark theme/.test(x)), "typing 'dark' finds the dark theme");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.documentElement.getAttribute("data-theme") === "dark", null, { timeout: 4000 });
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  ok(true, "Enter does it and closes the palette");
+  await page.keyboard.press("Control+k");
+  await pal.fill("light th");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.documentElement.getAttribute("data-theme") === "light", null, { timeout: 4000 });
+  await page.keyboard.press("Control+k");
+  await pal.fill("zzzzqq");
+  ok(await page.getByRole("option").count() === 1 && /Search my papers, highlights and notes for/.test(await page.getByRole("option").first().innerText()), "a word that is no command offers to search the papers for it, and nothing else");
+  await pal.fill("q");
+  ok(await page.getByText(/Nothing matches/).isVisible(), "a letter that matches nothing says so");
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  ok(true, "Esc closes it");
+  await page.keyboard.press("Control+k");
+  await pal.fill("methods");
+  ok(await page.getByRole("option", { name: /methods paper/i }).isVisible(), "a paper is found by its title");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => /^\/papers\/[a-f0-9]+$/.test(location.pathname), null, { timeout: 15000 });
+  await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+  ok(await page.locator(".dw-title").innerText().then((x) => /methods/i.test(x)), "choosing it opens that paper");
+  // palette commands for the paper that is open
+  await page.keyboard.press("Control+k");
+  await pal.fill("2");
+  ok(await page.getByRole("option", { name: /Go to page 2 of 2/ }).isVisible(), "in a paper, a number offers 'Go to page'");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.getElementById("pdfv-page")?.value === "2", null, { timeout: 8000 });
+  await page.keyboard.press("Control+k");
+  await pal.fill("focus");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.querySelector(".dw")?.getAttribute("data-focus") === "true", null, { timeout: 4000 });
+  ok(await page.locator(".dw-ask").evaluate((el) => getComputedStyle(el).display) === "none", "'Focus mode' puts the side panel away so the paper has the whole window");
+  await page.screenshot({ path: OUT + "38-focus.png" });
+  await axe("focus mode", page);
+  await page.locator(".palette").waitFor({ state: "detached", timeout: 8000 }); // the palette has finished closing (F is not a shortcut while a text box has the keys)
+  await page.keyboard.press("f");
+  await page.waitForFunction(() => document.querySelector(".dw")?.getAttribute("data-focus") === "false", null, { timeout: 4000 });
+  ok(await page.locator(".dw-ask").isVisible(), "the letter F brings it back");
+  await page.getByRole("button", { name: "Focus mode" }).click();
+  ok(await page.getByRole("button", { name: "Focus mode" }).getAttribute("aria-pressed") === "true", "and the Focus button does the same");
+  await page.getByRole("button", { name: "Focus mode" }).click();
+
+  // the list of shortcuts
+  await page.keyboard.press("Shift+?");
+  const keys = page.getByRole("dialog", { name: /Keyboard shortcuts/ });
+  await keys.waitFor();
+  ok(await keys.getByText("Command palette: go anywhere").isVisible() && await keys.getByText("Lasso: loop round things").isVisible(), "? opens the list of shortcuts, with the drawing keys in it");
+  await page.waitForTimeout(600); // the dialog has finished fading in (axe reads colours as they are drawn)
+  await axe("keyboard shortcuts", page);
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  ok(true, "Esc closes the list of shortcuts too");
+
+  // two papers side by side
+  await page.getByRole("button", { name: "Open another paper beside this one" }).click();
+  await page.getByText("Compare with").waitFor();
+  ok(await page.getByRole("button", { name: /glaucoma screening/i }).isVisible() && !(await page.getByRole("button", { name: /methods paper/i }).count()), "the picker offers the other papers, not this one");
+  await page.getByRole("button", { name: /glaucoma screening/i }).click();
+  await page.locator(".dw-second .pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+  ok(await page.locator(".dw-second").isVisible() && await page.locator(".dw-viewer .pdfv").count() === 2, "a second paper opens beside the first, each with its own viewer");
+  ok(await page.getByRole("region", { name: /Second paper: glaucoma screening/i }).isVisible() && await page.locator("#pdfv2-page").count() === 1, "it is a region of its own, and its ids do not clash with the first");
+  const two = await page.evaluate(() => [...document.querySelectorAll(".dw-paper > .dw-viewer, .dw-paper > .dw-second")].map((e) => Math.round(e.getBoundingClientRect().width)));
+  ok(two.length === 2 && Math.abs(two[0] - two[1]) < 40, `they share the width (${two.join(" and ")} px)`);
+  ok(await noSideways(page), "no sideways scroll with two papers");
+  await page.screenshot({ path: OUT + "39-split.png" });
+  await axe("two papers side by side", page);
+  await page.getByRole("button", { name: "Close the second paper" }).first().click();
+  ok(await page.locator(".dw-second").count() === 0, "the second paper can be closed");
+  await page.setViewportSize({ width: 900, height: 800 });
+  await page.waitForTimeout(400);
+  ok(await page.locator(".dw-split-btn").evaluate((el) => getComputedStyle(el).display) === "none", "on a narrow window the second-paper button is not offered");
+  await page.setViewportSize({ width: 1360, height: 900 });
+
+  // "search my papers" from the palette, with the list already open
+  await page.getByRole("button", { name: /My Workspace/ }).first().click();
+  await page.locator(".dc").first().waitFor();
+  await page.keyboard.press("Control+k");
+  await pal.fill("tractor");
+  await page.getByRole("option", { name: /Search my papers, highlights and notes for/ }).click();
+  await page.locator(".sres-item").first().waitFor({ timeout: 10000 });
+  ok(await page.locator("#ws-search").inputValue() === "tractor" && (await page.locator(".sres-item").count()) >= 1, "'Search my papers for …' fills the search of My Workspace and shows the results");
+  await page.locator("#ws-search").fill("");
+  for (const d of (await (await page.request.get(BASE + "/api/v1/documents")).json()).items.filter((d) => /methods/i.test(d.title))) await page.request.delete(BASE + "/api/v1/documents/" + d.id, { headers: { Origin: BASE } });
+
   console.log("drawer on a phone");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator(".ws-rail").waitFor({ state: "hidden" });

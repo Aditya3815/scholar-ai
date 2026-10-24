@@ -1,5 +1,5 @@
 import { m } from "motion/react";
-import { AlertCircle, ArrowRight, FileText, Loader2, Pencil, RefreshCw, ScanLine, Trash2 } from "lucide-react";
+import { AlertCircle, ArrowRight, FileText, HardDrive, Loader2, Pencil, RefreshCw, ScanLine, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { DocumentInfo } from "@scholar/shared";
 import { continueScan, coverUrl, reindexDoc, renameDoc, useJobs } from "../../lib/documents";
@@ -92,7 +92,7 @@ function Progress({ doc }: { doc: DocumentInfo }) {
   );
 }
 
-export function DocCard({ doc, index, onOpen, onDelete, onTag, activeTag }: { doc: DocumentInfo; index: number; onOpen: (id: string) => void; onDelete: (doc: DocumentInfo) => void; onTag?: (t: string) => void; activeTag?: string | null }) {
+export function DocCard({ doc, index, onOpen, onDelete, onTag, activeTag, kept = false }: { doc: DocumentInfo; index: number; onOpen: (id: string) => void; onDelete: (doc: DocumentInfo) => void; onTag?: (t: string) => void; activeTag?: string | null; /** The paper's file is kept on this device (offline reading). */ kept?: boolean }) {
   const ready = doc.status === "ready";
   // a scanned paper that is part way: its pages are read from the picture, so it can be carried on
   const scanLeft = doc.scanned && doc.status !== "ready" && doc.scanPending > 0;
@@ -143,6 +143,7 @@ export function DocCard({ doc, index, onOpen, onDelete, onTag, activeTag }: { do
             </m.button>
           )}
           {WORKSPACE && ready && <DocMeta doc={doc} />}
+          {WORKSPACE && kept && <span className="dc-offline" title="Kept on this device: it opens without a connection"><HardDrive size={11} aria-hidden="true" /> On this device</span>}
           {!ready && (
             <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void (scanLeft ? continueScan(doc) : reindexDoc(doc))}>
               <RefreshCw size={14} aria-hidden="true" />

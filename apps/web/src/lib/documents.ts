@@ -7,6 +7,7 @@ import { readSse } from "./sse";
 import { openPdf, readOutline, readPage, renderCover, PdfError, type PDFDocumentProxy } from "./pdf";
 import { ApiError, json, request } from "./docs-api";
 import { fetchScan, fetchScanText, readScannedPages, registerScan } from "./scan";
+import { removeCachedPaper } from "./offline";
 
 export { ApiError };
 
@@ -115,6 +116,7 @@ export const fetchRemember = (skip = 0) => request<{ highlight: Remembered | nul
 
 export async function removeDoc(id: string): Promise<void> {
   await request<{ ok: true }>(`/${id}`, { method: "DELETE" });
+  void removeCachedPaper(id); // a deleted paper is not kept on this device either
   setDocs({ items: docs.items.filter((d) => d.id !== id) });
   void loadDocs();
 }

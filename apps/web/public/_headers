@@ -13,6 +13,10 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
+# The service worker for offline reading must be looked at again at every visit so a new version replaces the old one.
+/sw.js
+  Cache-Control: no-cache
+
 # pdf.js data files (copied at build time): safe to cache for a day.
 /pdfjs/*
   Cache-Control: public, max-age=86400

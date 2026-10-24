@@ -7,6 +7,8 @@ import { resetLibraryView } from "../lib/library";
 import { easeOut, spring } from "../lib/motion";
 import { showNotice } from "../lib/notice";
 import { setRememberOn, useRememberOn } from "../lib/remember";
+import { clearOfflineData } from "../lib/offline";
+import { OfflineSettings } from "./OfflineSettings";
 import { WORKSPACE } from "../lib/workspace";
 
 /**
@@ -37,6 +39,7 @@ export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: 
       return;
     }
     resetLibraryView();
+    await clearOfflineData();
     await refreshAuth();
     onDeleted?.();
     setConfirm("");
@@ -73,6 +76,8 @@ export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: 
           <p className="settings-p">One highlight from your own papers, the same one all day. It is chosen on your account and shown only to you. This choice is kept on this device.</p>
         </section>
       )}
+
+      {WORKSPACE && <OfflineSettings idPrefix={idPrefix} />}
 
       <section className="settings-sec" aria-labelledby={`${idPrefix}-data`}>
         <h3 id={`${idPrefix}-data`} className="settings-h">Your data</h3>
