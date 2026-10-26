@@ -116,6 +116,14 @@ function setActive(id: string | null) {
 
 /** Another tab changed the list: take it up (the current conversation of this tab stays). */
 if (typeof window !== "undefined") {
+  // a page that is closed or put away with a save still waiting (words arrive faster than the 800 ms save) starts that save now, while it can
+  const saveWaiting = () => {
+    for (const id of [...timers.keys()]) persist(id, true);
+  };
+  window.addEventListener("pagehide", saveWaiting);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") saveWaiting();
+  });
   window.addEventListener("storage", (e) => {
     if (e.key === INDEX_KEY) set({ index: readIndex() });
   });

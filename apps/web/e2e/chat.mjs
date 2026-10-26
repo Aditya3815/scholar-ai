@@ -58,6 +58,13 @@ try {
     await page.keyboard.press("Enter");
   };
   const sendAuto = (text) => send(text, { tool: "Auto" });
+  // what is kept is written a moment after it changes: a reload straight after the last word could beat the write, so these wait until nothing in storage is still "working"
+  const settled = (p) => p.waitForFunction(async () => {
+    const db = await new Promise((resolve, reject) => { const r = indexedDB.open("scholar"); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+    const all = await new Promise((resolve) => { const q = db.transaction("chats").objectStore("chats").getAll(); q.onsuccess = () => resolve(q.result); });
+    db.close();
+    return all.length > 0 && all.every((c) => c.messages.every((m) => m.role !== "assistant" || m.status !== "working"));
+  }, null, { timeout: 15000 });
   const turns = () => page.locator(".chat-turn");
   const lastDone = () => page.locator('.chat-turn[data-status="done"]').last();
 
@@ -169,6 +176,7 @@ try {
   ok(true, "the next message works as usual");
 
   console.log("kept in this browser");
+  await settled(page);
   const total = await page.locator(".chat-bubble").count();
   await page.reload({ waitUntil: "networkidle" });
   await page.locator(".chat-bubble").first().waitFor({ timeout: 15000 });
@@ -267,6 +275,7 @@ try {
   await page.waitForFunction(() => /too long for a search/.test([...document.querySelectorAll(".chat-turn")].at(-1)?.textContent ?? ""), null, { timeout: 30000 });
   ok(await lastTurn().locator(".result").count() === 0 && /characters, the start is shown/.test(await page.locator(".chat-bubble").last().innerText()), "a long text the router could not shorten is not searched: a plain line");
 
+  await settled(page);
   await page.reload({ waitUntil: "networkidle" });
   await page.locator(".chat-offer").first().waitFor({ timeout: 15000 });
   ok(await page.locator(".chat-offer").count() >= 1 && await page.locator(".chat-searched").count() === 0, "after a reload the offers are still there, with the same text");
@@ -318,6 +327,7 @@ try {
   ok(await ap.locator(".chat-turn .result").count() === 5 && await ap.locator(".chat-answer").count() === 0, "a person who has not signed in gets the papers and no written answer");
   ok(/Sign in to get a short written answer/.test(await ap.locator(".chat-why").innerText()) && await ap.locator(".chat-why").getByRole("button", { name: "Sign in" }).isVisible(), "and a line, with a Sign in button, says why");
   ok(await ap.locator(".chat-steps").count() === 0, "(the steps of a written answer are not promised to them)");
+  await ap.waitForTimeout(900); // the cards and the reply are still fading in: axe would read half-transparent colours
   await ap.evaluate(() => window.scrollTo(0, 0)); // axe reads what is on screen: the box at the bottom covers part of whatever is scrolled under it
   await axe("conversation, signed out", ap);
   await ap.locator(".hm-input").fill("check my references please");
