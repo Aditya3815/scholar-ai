@@ -1,0 +1,22 @@
+[
+  { "name": "arxiv-attention-15p", "kind": "short ML", "url": "https://arxiv.org/pdf/1706.03762" },
+  { "name": "arxiv-bert-16p", "kind": "short ML", "url": "https://arxiv.org/pdf/1810.04805" },
+  { "name": "arxiv-resnet-12p", "kind": "short ML", "url": "https://arxiv.org/pdf/1512.03385" },
+  { "name": "arxiv-vit-22p", "kind": "figures", "url": "https://arxiv.org/pdf/2010.11929" },
+  { "name": "arxiv-adam-15p", "kind": "maths", "url": "https://arxiv.org/pdf/1412.6980" },
+  { "name": "arxiv-lora-26p", "kind": "tables", "url": "https://arxiv.org/pdf/2106.09685" },
+  { "name": "arxiv-cot-43p", "kind": "tables", "url": "https://arxiv.org/pdf/2201.11903" },
+  { "name": "arxiv-batchnorm-11p", "kind": "maths", "url": "https://arxiv.org/pdf/1502.03167" },
+  { "name": "arxiv-gpt3-75p", "kind": "long", "url": "https://arxiv.org/pdf/2005.14165" },
+  { "name": "arxiv-llama2-77p", "kind": "long", "url": "https://arxiv.org/pdf/2307.09288" },
+  { "name": "arxiv-gpt4-100p", "kind": "long", "url": "https://arxiv.org/pdf/2303.08774" },
+  { "name": "arxiv-foundation-211p", "kind": "very long", "url": "https://arxiv.org/pdf/2108.07258" },
+  { "name": "pmc-7029158", "kind": "medical", "url": "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC7029158&blobtype=pdf" },
+  { "name": "pmc-6987162", "kind": "medical", "url": "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC6987162&blobtype=pdf" },
+  { "name": "pmc-4468148", "kind": "medical", "url": "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC4468148&blobtype=pdf" },
+  { "name": "pmc-3737249", "kind": "medical", "url": "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC3737249&blobtype=pdf" },
+  { "name": "pmc-5543460", "kind": "medical", "url": "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC5543460&blobtype=pdf" },
+  { "name": "pmc-8017211", "kind": "medical", "url": "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC8017211&blobtype=pdf" },
+  { "name": "pmc-7184237", "kind": "medical", "url": "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC7184237&blobtype=pdf" },
+  { "name": "pmc-6234567", "kind": "medical", "url": "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC6234567&blobtype=pdf" }
+]

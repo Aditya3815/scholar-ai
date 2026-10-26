@@ -1,0 +1,319 @@
+[
+  {
+    "topic": "glaucoma screening",
+    "host": "journals.sagepub.com",
+    "license": null,
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "glaucoma screening",
+    "host": "doi.org",
+    "license": "other-oa",
+    "ok": true,
+    "mb": 0.71,
+    "name": "oa-02-doi-org"
+  },
+  {
+    "topic": "glaucoma screening",
+    "host": "doi.org",
+    "license": null,
+    "ok": true,
+    "mb": 0.58,
+    "name": "oa-03-doi-org"
+  },
+  {
+    "topic": "glaucoma screening",
+    "host": "onlinelibrary.wiley.com",
+    "license": null,
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "glaucoma screening",
+    "host": "sciencedirect.com",
+    "license": "cc-by",
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "glaucoma screening",
+    "host": "glaucomajournal.ru",
+    "license": "cc-by",
+    "ok": false,
+    "why": "fetch failed"
+  },
+  {
+    "topic": "diabetes exercise",
+    "host": "bajangjournal.com",
+    "license": "cc-by",
+    "ok": true,
+    "mb": 0.23,
+    "name": "oa-07-bajangjournal-com"
+  },
+  {
+    "topic": "diabetes exercise",
+    "host": "journal.uny.ac.id",
+    "license": "cc-by-sa",
+    "ok": true,
+    "mb": 0.17,
+    "name": "oa-08-journal-uny-ac-id"
+  },
+  {
+    "topic": "diabetes exercise",
+    "host": "jurnal.unpad.ac.id",
+    "license": "cc-by-sa",
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "diabetes exercise",
+    "host": "jurnal.fk.untad.ac.id",
+    "license": "cc-by-nc-sa",
+    "ok": true,
+    "mb": 0.87,
+    "name": "oa-10-jurnal-fk-untad-ac-id"
+  },
+  {
+    "topic": "diabetes exercise",
+    "host": "ojs.phb.ac.id",
+    "license": "cc-by-sa",
+    "ok": true,
+    "mb": 0.37,
+    "name": "oa-11-ojs-phb-ac-id"
+  },
+  {
+    "topic": "diabetes exercise",
+    "host": "jurnal.unprimdn.ac.id",
+    "license": "cc-by",
+    "ok": true,
+    "mb": 0.54,
+    "name": "oa-12-jurnal-unprimdn-ac-id"
+  },
+  {
+    "topic": "tuberculosis vaccine",
+    "host": "cell.com",
+    "license": null,
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "tuberculosis vaccine",
+    "host": "academic.oup.com",
+    "license": null,
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "tuberculosis vaccine",
+    "host": "thelancet.com",
+    "license": null,
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "tuberculosis vaccine",
+    "host": "thelancet.com",
+    "license": null,
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "tuberculosis vaccine",
+    "host": "thorax.bmj.com",
+    "license": null,
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "tuberculosis vaccine",
+    "host": "thelancet.com",
+    "license": null,
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "machine learning crop yield",
+    "host": "journals.ametsoc.org",
+    "license": null,
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "machine learning crop yield",
+    "host": "doi.org",
+    "license": null,
+    "ok": true,
+    "mb": 0.56,
+    "name": "oa-20-doi-org"
+  },
+  {
+    "topic": "machine learning crop yield",
+    "host": "doi.org",
+    "license": null,
+    "ok": true,
+    "mb": 0.61,
+    "name": "oa-21-doi-org"
+  },
+  {
+    "topic": "machine learning crop yield",
+    "host": "doi.org",
+    "license": null,
+    "ok": true,
+    "mb": 0.92,
+    "name": "oa-22-doi-org"
+  },
+  {
+    "topic": "machine learning crop yield",
+    "host": "link.springer.com",
+    "license": "cc-by",
+    "ok": false,
+    "why": "not a PDF (text/html)"
+  },
+  {
+    "topic": "machine learning crop yield",
+    "host": "lib.physcon.ru",
+    "license": "cc-by",
+    "ok": false,
+    "why": "HTTP 404"
+  },
+  {
+    "topic": "air pollution asthma children",
+    "host": "erj.ersjournals.com",
+    "license": null,
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "air pollution asthma children",
+    "host": "academic.oup.com",
+    "license": null,
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "air pollution asthma children",
+    "host": "journals.viamedica.pl",
+    "license": "cc-by-nc-nd",
+    "ok": false,
+    "why": "not a PDF (text/html)"
+  },
+  {
+    "topic": "air pollution asthma children",
+    "host": "jstage.jst.go.jp",
+    "license": null,
+    "ok": true,
+    "mb": 0.12,
+    "name": "oa-28-jstage-jst-go-jp"
+  },
+  {
+    "topic": "air pollution asthma children",
+    "host": "carcinogenesis.com",
+    "license": null,
+    "ok": true,
+    "mb": 0.32,
+    "name": "oa-29-carcinogenesis-com"
+  },
+  {
+    "topic": "air pollution asthma children",
+    "host": "thorax.bmj.com",
+    "license": null,
+    "ok": false,
+    "why": "HTTP 403"
+  },
+  {
+    "topic": "mindfulness student anxiety",
+    "host": "shanlaxjournals.in",
+    "license": "cc-by-sa",
+    "ok": true,
+    "mb": 0.24,
+    "name": "oa-31-shanlaxjournals-in"
+  },
+  {
+    "topic": "mindfulness student anxiety",
+    "host": "kont.zsf.jcu.cz",
+    "license": "cc-by-nc-nd",
+    "ok": true,
+    "mb": 0.2,
+    "name": "oa-32-kont-zsf-jcu-cz"
+  },
+  {
+    "topic": "mindfulness student anxiety",
+    "host": "journal.civiliza.org",
+    "license": "cc-by-sa",
+    "ok": true,
+    "mb": 0.82,
+    "name": "oa-33-journal-civiliza-org"
+  },
+  {
+    "topic": "mindfulness student anxiety",
+    "host": "apsijournal.com",
+    "license": "cc-by",
+    "ok": true,
+    "mb": 0.35,
+    "name": "oa-34-apsijournal-com"
+  },
+  {
+    "topic": "mindfulness student anxiety",
+    "host": "iiardjournals.org",
+    "license": "cc-by-nc",
+    "ok": true,
+    "mb": 0.37,
+    "name": "oa-35-iiardjournals-org"
+  },
+  {
+    "topic": "mindfulness student anxiety",
+    "host": "journal-gehu.com",
+    "license": "cc-by-sa",
+    "ok": true,
+    "mb": 0.67,
+    "name": "oa-36-journal-gehu-com"
+  },
+  {
+    "topic": "NEP 2020 higher education India",
+    "host": "ijsr.net",
+    "license": "cc-by",
+    "ok": true,
+    "mb": 0.14,
+    "name": "oa-37-ijsr-net"
+  },
+  {
+    "topic": "NEP 2020 higher education India",
+    "host": "rsisinternational.org",
+    "license": null,
+    "ok": true,
+    "mb": 0.19,
+    "name": "oa-38-rsisinternational-org"
+  },
+  {
+    "topic": "NEP 2020 higher education India",
+    "host": "doi.org",
+    "license": null,
+    "ok": false,
+    "why": "fetch failed"
+  },
+  {
+    "topic": "NEP 2020 higher education India",
+    "host": "twistjournal.net",
+    "license": "cc-by-nc-sa",
+    "ok": true,
+    "mb": 0.31,
+    "name": "oa-40-twistjournal-net"
+  },
+  {
+    "topic": "NEP 2020 higher education India",
+    "host": "doi.org",
+    "license": null,
+    "ok": true,
+    "mb": 0.48,
+    "name": "oa-41-doi-org"
+  },
+  {
+    "topic": "NEP 2020 higher education India",
+    "host": "ijnrd.org",
+    "license": "cc-by-nc",
+    "ok": true,
+    "mb": 0.97,
+    "name": "oa-42-ijnrd-org"
+  }
+]

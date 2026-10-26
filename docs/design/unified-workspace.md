@@ -181,6 +181,10 @@ A scanned PDF with no text layer is reported as "scanned, cannot be read here" (
 
 A first ingest is a download, text extraction in the queue consumer and embeddings of about 60 to 200 chunks (cents at most); a question is about $0.0008 (R5). A shared paper is paid for once. Spike R8 (below) measures extraction time and memory on 20 real open-access PDFs before the design is fixed.
 
+### 5.5 Spike R8, measured (26 Oct): what changed in this design
+
+[R8-server-extraction.md](../spikes/R8-server-extraction.md). A Worker reads PDFs fine (35 of 35, up to 13.75 MB and 214 pages, on Cloudflare's real runtime). But a server can **fetch** only about **half** of the open-access PDF links a search returns (large publishers answer 403 even for CC BY), and Europe PMC's PDF link answers 403 to scripts, while its **full-text XML** works and carries the licence. So ingest uses a **source ladder**: (1) Europe PMC full-text XML when the DOI has a PMCID and is open access, (2) arXiv PDF, (3) the record's open-access PDF when fetchable, (4) abstract only. Quotes from XML sources cite a section, from PDFs a page. "Cannot read this one" is a normal outcome (offered with the abstract answer and the upload), not an error. How the ingest is built (a checkpointed job, idempotent steps, state in D1): [agent-concepts.md](agent-concepts.md) sections 4 and 5.
+
 ## 6. System design (redone)
 
 ```
@@ -313,7 +317,7 @@ Each row is something I assumed or a case that can happen, what the product does
 | 1 | **Shell and look**: the new frame (rail, Settings page, My papers cards without "Open and ask"), the **intro** and the **home** in the real app with the real logo; old URLs redirect; **no new behaviour** | all current unit, integration and browser suites pass; axe clean in three themes; phone check; the new screens match the POC |
 | 2 | **(done 26 Oct, [chat-w2.md](chat-w2.md))** **Prompt box with explicit modes**: streamed search answer with citations, partial-results line, Stop, chats kept in the browser | e2e on staging; the eval gates unchanged |
 | 3 | **(done 26 Oct, [router-w3.md](router-w3.md))** **Router** (rules, then model) with English, Hindi and Hinglish; "I understood this as · Change"; Auto in the mode menu | router eval gate in CI (overall 90%, Hinglish and Hindi 85%; measured 100% on its 203 messages) |
-| 4 | **Ask any open-access paper**: spike R8 (server extraction), shared index, queue ingest, safe fetch, abstract-only fallback, optional light save | SSRF and edge-case tests (section 9, P-1 to P-16), Q&A eval on shared papers incl. a Hinglish slice |
+| 4 | **(started 26 Oct: spike R8 done, [R8-server-extraction.md](../spikes/R8-server-extraction.md))** **Ask any open-access paper**: spike R8 (server extraction), shared index, queue ingest, safe fetch, abstract-only fallback, optional light save | SSRF and edge-case tests (section 9, P-1 to P-16), Q&A eval on shared papers incl. a Hinglish slice |
 | 5 | **General answers** with the label; **Idea Check inside the workspace** | groundedness eval; Idea Check suites unchanged |
 | 6 | Polish, bundle and first-paint budget, docs, remove the flag | pilot-ready checklist stays yours |
 
