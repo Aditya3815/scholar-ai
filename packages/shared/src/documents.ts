@@ -51,7 +51,7 @@ export function cleanTag(raw: unknown): string | null {
 export const tagKey = (label: string) => label.toLowerCase();
 
 /** One passage that backs a statement in an answer. `quote` was checked against the stored text of that passage. */
-export type Citation = { n: number; page: number; idx: number; quote: string };
+export type Citation = { n: number; page: number; idx: number; quote: string; /** For a paper read from XML (no pages): where in it, "Methods > Participants". */ section?: string };
 
 export type Answer = {
   id: string;

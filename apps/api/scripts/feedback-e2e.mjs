@@ -55,6 +55,7 @@ try {
   ok(res.status === 200 && res.headers.get("cache-control") === "no-store", "an admin gets the overview, never cached");
   ok(o.users.total >= 1 && typeof o.documents.total === "number" && Array.isArray(o.usage) && Array.isArray(o.byModel), "it has users, papers, usage and models");
   ok(Array.isArray(o.byFeature) && o.scans && typeof o.scans.costCents === "number", "...and cost by feature and for scanned pages");
+  ok(o.openAccess && ["ready", "working", "failed", "unreadable"].every((k) => typeof o.openAccess[k] === "number") && Array.isArray(o.openAccess.bySource) && Array.isArray(o.openAccess.reasons), "...and the shared index of open-access papers, as numbers");
   // cost is read from the ledger: three calls of two kinds, one scanned-page day
   await fetch(`${APP}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: [
     "INSERT INTO llm_usage (subject, task, sensitivity, provider, model, tokens_in, tokens_out, cost_cents, ok, ms, label) VALUES ('t', 'qa', 'private', 'workersai', '@cf/openai/gpt-oss-120b', 1000, 300, 0.05, 1, 100, 'doc_qa')",

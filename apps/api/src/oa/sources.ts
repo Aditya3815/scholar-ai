@@ -7,18 +7,22 @@ import { fetchPdf, safeFetch, type FetchOptions } from "./safe-fetch";
  * the big publishers answer 403 even for CC BY articles, and Europe PMC's PDF link is 403 to a program while its full-text XML is not):
  *   1. Europe PMC full-text XML, when the DOI has a PubMed Central copy that is open access: structured, the licence is known, nothing to extract, never blocked;
  *   2. the arXiv PDF, by arXiv number;
- *   3. the open-access PDF the search record links to, when it can be fetched;
+ *   3. the open-access PDF that OpenAlex knows for the DOI, when it can be fetched (the address comes from OpenAlex, never from the browser: the shared index must not
+ *      be fillable with a stranger's file under a real paper's name);
  *   4. nothing: the caller answers from the abstract alone and says so.
  * Every network call goes through `deps.gated`, which is where the polite limits live (one lane per service), and through `safeFetch`, which is where the safety checks live.
  */
 
-export type Lane = "europepmc" | "arxiv" | "oahost";
+export type Lane = "europepmc" | "arxiv" | "openalex" | "oahost";
 export type SourceDeps = {
   fetchImpl?: typeof fetch;
   /** Runs one network call inside the limits of its lane. The default does not limit. */
   gated?: <T>(lane: Lane, run: () => Promise<T>) => Promise<T>;
   /** Identifies us to the services we call, with a contact address. */
   userAgent: string;
+  /** Sent to OpenAlex, which asks for it and gives a better service for it. */
+  mailto?: string;
+  openAlexKey?: string;
 };
 const passThrough: NonNullable<SourceDeps["gated"]> = (_lane, run) => run();
 
@@ -88,18 +92,43 @@ export async function fetchArxivMeta(id: string, deps: SourceDeps): Promise<{ ti
   return { title: tag("title"), abstract: tag("summary") };
 }
 
+/* ---------------------------------------------------------------- OpenAlex */
+
+export type OpenAlexRecord = { title: string | null; pdfUrl: string | null; license: string | null };
+
+/** The title, and where OpenAlex says a free PDF (or a landing page that names one) is, for a DOI. Null if it knows nothing or could not be asked. */
+export async function lookupOpenAlex(doi: string, deps: SourceDeps): Promise<OpenAlexRecord | null> {
+  const clean = cleanDoi(doi);
+  if (!clean) return null;
+  const gated = deps.gated ?? passThrough;
+  const path = clean.replace(/[%?#]/g, (c) => encodeURIComponent(c));
+  const q = new URLSearchParams({ select: "title,best_oa_location" });
+  if (deps.mailto) q.set("mailto", deps.mailto);
+  if (deps.openAlexKey) q.set("api_key", deps.openAlexKey);
+  const r = await gated("openalex", () => safeFetch(`https://api.openalex.org/works/doi:${path}?${q}`, opts(deps, { accept: "application/json", maxBytes: 1_000_000 })));
+  if (!r.ok) return null;
+  try {
+    const w = JSON.parse(new TextDecoder().decode(r.bytes)) as { title?: unknown; best_oa_location?: { pdf_url?: unknown; landing_page_url?: unknown; license?: unknown } | null };
+    const loc = w.best_oa_location;
+    const link = typeof loc?.pdf_url === "string" ? loc.pdf_url : typeof loc?.landing_page_url === "string" ? loc.landing_page_url : null;
+    return { title: typeof w.title === "string" ? w.title : null, pdfUrl: link, license: normaliseLicense(typeof loc?.license === "string" ? loc.license : null) };
+  } catch {
+    return null;
+  }
+}
+
 /* ---------------------------------------------------------------- the ladder */
 
 export type PaperSource =
   | { ok: true; source: Exclude<OaSource, "abstract">; format: "xml"; xml: string; title: string | null; license: string | null }
   | { ok: true; source: Exclude<OaSource, "abstract">; format: "pdf"; pdf: Uint8Array; title: string | null; license: string | null }
-  | { ok: false; reason: OaReason };
+  | { ok: false; reason: OaReason; /** what the services said about the paper even though it could not be read */ title?: string | null };
 
 /** The reason to report when every source failed: the most informative, not the last. */
 const RANK: OaReason[] = ["blocked", "not_a_pdf", "too_large", "timeout", "fetch_failed", "no_source"];
 const worst = (reasons: OaReason[]): OaReason | null => RANK.find((r) => reasons.includes(r)) ?? reasons[0] ?? null;
 
-export async function fetchPaperSource(ref: OaRef & { oaUrl?: string | null }, deps: SourceDeps): Promise<PaperSource> {
+export async function fetchPaperSource(ref: OaRef, deps: SourceDeps): Promise<PaperSource> {
   const gated = deps.gated ?? passThrough;
   const failures: OaReason[] = [];
   const doi = cleanDoi(ref.doi);
@@ -120,20 +149,26 @@ export async function fetchPaperSource(ref: OaRef & { oaUrl?: string | null }, d
   // 2. arXiv
   if (arxivId) {
     const r = await gated("arxiv", () => fetchPdf(arxivPdfUrl(arxivId), opts(deps)));
-    if (r.ok) return { ok: true, source: "arxiv", format: "pdf", pdf: r.bytes, title: null, license: null };
+    if (r.ok) return { ok: true, source: "arxiv", format: "pdf", pdf: r.bytes, title: record?.title ?? null, license: null };
     failures.push(r.reason);
   }
 
-  // 3. the link the record gave
-  if (ref.oaUrl) {
-    const r = await gated("oahost", () => fetchPdf(ref.oaUrl!, opts(deps)));
-    if (r.ok) return { ok: true, source: "pdf", format: "pdf", pdf: r.bytes, title: null, license: null };
-    failures.push(r.reason);
+  // 3. the free PDF OpenAlex knows for this DOI
+  let oa: OpenAlexRecord | null = null;
+  if (doi) {
+    oa = await lookupOpenAlex(doi, deps).catch(() => null);
+    if (oa?.pdfUrl) {
+      const link = oa.pdfUrl;
+      const r = await gated("oahost", () => fetchPdf(link, opts(deps)));
+      if (r.ok) return { ok: true, source: "pdf", format: "pdf", pdf: r.bytes, title: oa.title ?? record?.title ?? null, license: oa.license };
+      failures.push(r.reason);
+    }
   }
+  const title = record?.title ?? oa?.title ?? null;
 
   // nothing could be read: say why as plainly as the facts allow
-  if (failures.length === 0) return { ok: false, reason: record && !record.isOpenAccess ? "not_open_access" : "no_source" };
-  if (record && !record.isOpenAccess && failures.every((f) => f === "no_source")) return { ok: false, reason: "not_open_access" };
-  return { ok: false, reason: worst(failures) ?? "no_source" };
+  if (failures.length === 0) return { ok: false, reason: record && !record.isOpenAccess ? "not_open_access" : "no_source", title };
+  if (record && !record.isOpenAccess && failures.every((f) => f === "no_source")) return { ok: false, reason: "not_open_access", title };
+  return { ok: false, reason: worst(failures) ?? "no_source", title };
 }
 

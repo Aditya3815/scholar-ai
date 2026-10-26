@@ -16,6 +16,8 @@ const JOBS: { name: string; sql: string }[] = [
   { name: "feedback", sql: "DELETE FROM feedback WHERE created_at < datetime('now', '-365 days')" },
   // A key only matters for a retry made soon after the first request; a day is plenty.
   { name: "idempotency_keys", sql: "DELETE FROM idempotency_keys WHERE created_at < datetime('now', '-1 day')" },
+  // How many new papers a person brought into the shared index on a day: only today matters; a few weeks stay for a look at use.
+  { name: "oa_daily", sql: "DELETE FROM oa_daily WHERE day < date('now', '-35 days')" },
   { name: "audit_log", sql: "DELETE FROM audit_log WHERE ts < datetime('now', '-365 days')" },
 ];
 

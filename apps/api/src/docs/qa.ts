@@ -3,7 +3,8 @@ import { AnswerFieldStreamer } from "./stream-json";
 import type { Embedder } from "./embed";
 import { rank } from "./vector";
 
-export type StoredChunk = { idx: number; page: number; text: string; embedding: Float32Array | null };
+/** `section` is set for a paper read from XML, which has no pages (`page` is then the number of the section): "Methods > Participants". */
+export type StoredChunk = { idx: number; page: number; text: string; embedding: Float32Array | null; section?: string };
 
 /** The language model, injected: production passes the LLM Gateway (private route), tests pass a fake. */
 export type Complete = (req: { system: string; user: string; schema: Record<string, unknown>; maxTokens: number; label?: string }) => Promise<{ json: unknown; model: string }>;
@@ -64,7 +65,7 @@ export function retrieve(question: string, qVec: number[] | null, chunks: Stored
 }
 
 export const buildPrompt = (question: string, ex: Retrieved[]) =>
-  `Question: ${question}\n\nExcerpts:\n${ex.map((c, i) => `[${i + 1}] (page ${c.page}) ${c.text}`).join("\n---\n")}`;
+  `Question: ${question}\n\nExcerpts:\n${ex.map((c, i) => `[${i + 1}] (${c.section ? `section: ${c.section}` : `page ${c.page}`}) ${c.text}`).join("\n---\n")}`;
 
 /** Turn the model's JSON into an Answer in which every citation has been checked against the paper's own text. */
 export function verifyAnswer(raw: unknown, ex: Retrieved[], question: string, meta: { id: string; createdAt: number; model?: string }): Answer {
@@ -82,7 +83,7 @@ export function verifyAnswer(raw: unknown, ex: Retrieved[], question: string, me
     const quote = typeof o.quote === "string" ? o.quote.trim().slice(0, 300) : "";
     const chunk = ex[n - 1];
     if (!chunk || !quote || !quoteInText(quote, chunk.text)) continue;
-    if (!citations.some((c) => c.n === n)) citations.push({ n, page: chunk.page, idx: chunk.idx, quote });
+    if (!citations.some((c) => c.n === n)) citations.push({ n, page: chunk.page, idx: chunk.idx, quote, ...(chunk.section ? { section: chunk.section } : {}) });
   }
   citations.sort((a, b) => a.n - b.n);
 

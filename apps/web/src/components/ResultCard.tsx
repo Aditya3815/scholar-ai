@@ -1,9 +1,11 @@
 import { animate, m, useReducedMotion } from "motion/react";
 import { PROVIDER_LABELS, type Paper } from "@scholar/shared";
-import { BadgeCheck, Bookmark, BookmarkCheck, Eye, ExternalLink, FileText, LockOpen, ShieldAlert, TriangleAlert } from "lucide-react";
+import { BadgeCheck, Bookmark, BookmarkCheck, Eye, ExternalLink, FileText, LockOpen, MessageSquareText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { easeOut, springPop, stagger } from "../lib/motion";
 import { toggleSaved, useLibrary } from "../lib/library";
+import { canAsk, openOaAsk } from "../lib/oa-ask";
+import { WORKSPACE } from "../lib/workspace";
 import { CiteMenu } from "./CiteMenu";
 
 const fmt = (n: number) => n.toLocaleString("en-IN");
@@ -146,6 +148,12 @@ export function ResultCard({ paper, index, onPreview, extra, below, anchor }: { 
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => onPreview(paper)} aria-label={`Preview: ${paper.title}`}>
             <Eye size={15} aria-hidden="true" />
             <span>Preview</span>
+          </button>
+        )}
+        {WORKSPACE && canAsk(paper) && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => openOaAsk(paper)} aria-label={`Ask this paper: ${paper.title}`}>
+            <MessageSquareText size={15} aria-hidden="true" />
+            <span>Ask this paper</span>
           </button>
         )}
         <SaveButton paper={paper} />

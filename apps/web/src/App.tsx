@@ -5,6 +5,7 @@ import { AccountMenu } from "./components/AccountMenu";
 import { Hero } from "./components/Hero";
 import { LibraryDrawer } from "./components/LibraryDrawer";
 import { PaperPreview } from "./components/PaperPreview";
+import { OaAskSheet } from "./components/oa/OaAskSheet";
 import { Logo } from "./components/Logo";
 import { ReadingControls } from "./components/ReadingControls";
 import { ResultCard, SkeletonCard } from "./components/ResultCard";
@@ -316,6 +317,7 @@ export function App() {
             {mainEl}
           </Shell>
           <PaperPreview />
+          <OaAskSheet onOpenPapers={() => navigate("papers")} />
           <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
           <ShortcutSheet open={sheetOpen} onOpenChange={setSheetOpen} />
         </LazyMotion>

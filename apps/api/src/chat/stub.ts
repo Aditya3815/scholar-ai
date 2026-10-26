@@ -35,9 +35,19 @@ export function stubPapers(): Paper[] {
   }));
 }
 
+/** "oapapers": four papers whose DOIs the offline network of src/oa/stub.ts knows (full text from XML, a slow one, a free PDF, one that cannot be read), for the "Ask this paper" tests. */
+const OA_RECORDS = [
+  { doi: "10.5555/oa.xml", title: "Smartphone Retinal Imaging for Glaucoma Screening in Rural Clinics", abstract: "We evaluated a smartphone adapter for retinal imaging in rural primary clinics. Sensitivity for glaucoma was 91 percent and specificity was 87 percent." },
+  { doi: "10.5555/oa.slow", title: "A Slowly Read Paper on Glaucoma Screening", abstract: "This paper takes a few seconds to be read into the shared index, so that a progress line can be seen while it happens." },
+  { doi: "10.5555/oa.pdf", title: "Federated Learning for Hospital Data: A Practical Guide", abstract: "We train a federated model across five hospitals without sharing patient records. The method keeps every record inside the hospital that holds it." },
+  { doi: "10.5555/oa.retracted", title: "A Retracted Paper About Glaucoma Risk", abstract: "This abstract is long enough to be read, but the paper it belongs to has been retracted by the journal because of problems with its data.", retracted: true },
+  { doi: "10.5555/oa.blocked", title: "A Paper From A Big Publisher", abstract: "This paper describes a screening programme in rural clinics. The programme reached eight thousand people in two years and found glaucoma in four percent of them." },
+];
+const stubOaPapers = (): Paper[] => stubPapers().slice(0, OA_RECORDS.length).map((p, i) => ({ ...p, id: `doi:${OA_RECORDS[i]!.doi}`, doi: OA_RECORDS[i]!.doi, title: OA_RECORDS[i]!.title, abstract: OA_RECORDS[i]!.abstract, retracted: "retracted" in OA_RECORDS[i]! && OA_RECORDS[i]!.retracted === true, retractionSources: [], oaUrl: null }));
+
 export function stubSearchFor(q: string): SearchResponse {
   const none = /\bnothing\b/i.test(q);
-  const results = none ? [] : stubPapers();
+  const results = none ? [] : /\boapapers\b/i.test(q) ? stubOaPapers() : stubPapers();
   // "longabstract": the first paper has an abstract far longer than a folded card shows (to see the interim lists carry only its start)
   if (/\blongabstract\b/i.test(q) && results[0]?.abstract) results[0] = { ...results[0], abstract: `${results[0].abstract} ${"Further detail of the method and its limits is given in the full text of this stand-in paper. ".repeat(8)}`.trim() };
   const partial = /\bpartial\b/i.test(q);

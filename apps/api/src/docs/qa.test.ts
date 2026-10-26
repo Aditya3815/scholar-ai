@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hashEmbedder } from "./embed";
-import { answerQuestion, quoteInText, retrieve, verifyAnswer, type Complete, type Retrieved, type StoredChunk } from "./qa";
+import { answerQuestion, buildPrompt, quoteInText, retrieve, verifyAnswer, type Complete, type Retrieved, type StoredChunk } from "./qa";
 import { stubComplete } from "./stub";
 
 const ex = (texts: string[]): Retrieved[] => texts.map((text, i) => ({ idx: (i + 1) * 1000, page: i + 1, text, embedding: null, score: 1 }));
@@ -155,5 +155,24 @@ describe("answerQuestion", () => {
   it("still answers when the embedding service is down (keyword retrieval)", async () => {
     const a = await answerQuestion({ question: "What is the loss function?", chunks, embed: async () => { throw new Error("down"); }, complete: stubComplete, meta });
     expect(a.found).toBe(true);
+  });
+});
+
+describe("a paper read from XML has sections, not pages", () => {
+  const ex: Retrieved[] = [
+    { idx: 1000, page: 1, text: "We enrolled 120 adults from three rural clinics.", embedding: null, score: 1, section: "Methods > Participants" },
+    { idx: 2000, page: 2, text: "Sensitivity was 92% and specificity 88%.", embedding: null, score: 1 },
+  ];
+  it("the prompt names the section where there is one, the page where there is not", () => {
+    const p = buildPrompt("Who took part?", ex);
+    expect(p).toContain("[1] (section: Methods > Participants) We enrolled 120 adults");
+    expect(p).toContain("[2] (page 2) Sensitivity was 92%");
+  });
+  it("a verified citation carries the section, and has none for a page", () => {
+    const a = verifyAnswer({ found: true, answer: "120 adults [1] with 92% sensitivity [2].", evidence: [{ excerpt: 1, quote: "We enrolled 120 adults" }, { excerpt: 2, quote: "Sensitivity was 92% and specificity 88%" }] }, ex, "q", { id: "a", createdAt: 1 });
+    expect(a.citations).toEqual([
+      { n: 1, page: 1, idx: 1000, quote: "We enrolled 120 adults", section: "Methods > Participants" },
+      { n: 2, page: 2, idx: 2000, quote: "Sensitivity was 92% and specificity 88%" },
+    ]);
   });
 });

@@ -1,10 +1,12 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
-import { BadgeCheck, ChevronLeft, ChevronRight, ExternalLink, FileText, Hash, LockOpen, ShieldAlert, TriangleAlert, X } from "lucide-react";
+import { BadgeCheck, ChevronLeft, ChevronRight, ExternalLink, FileText, Hash, LockOpen, MessageSquareText, ShieldAlert, TriangleAlert, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PROVIDER_LABELS, type Paper } from "@scholar/shared";
 import { easeOut, spring, springPop, stagger } from "../lib/motion";
+import { canAsk, openOaAsk } from "../lib/oa-ask";
 import { closePreview, stepPreview, usePreview } from "../lib/preview";
+import { WORKSPACE } from "../lib/workspace";
 import { CiteMenu, CopyButton } from "./CiteMenu";
 import { CountUp, SaveButton } from "./ResultCard";
 
@@ -118,6 +120,12 @@ function Body({ paper }: { paper: Paper }) {
       </m.section>
 
       <m.div className="actions pv-actions" {...rise(6)}>
+        {WORKSPACE && canAsk(paper) && (
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => { closePreview(); openOaAsk(paper); }}>
+            <MessageSquareText size={15} aria-hidden="true" />
+            <span>Ask this paper</span>
+          </button>
+        )}
         <SaveButton paper={paper} />
         <CiteMenu paper={paper} />
         {doiHref && (

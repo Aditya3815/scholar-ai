@@ -50,6 +50,8 @@ export type AdminOverview = {
   byFeature: { feature: string; calls: number; failed: number; tokensIn: number; tokensOut: number; costCents: number }[];
   /** Scanned pages read in the last seven days, and what they cost (Workers AI neurons at $0.011 per 1,000). */
   scans: { pages: number; neurons: number; costCents: number };
+  /** The shared index of open-access papers (W4): how many are ready, being read, failed for now, or cannot be read, where the text came from, and why papers could not be read. Numbers only. */
+  openAccess: { ready: number; working: number; failed: number; unreadable: number; bySource: { source: string; n: number }[]; reasons: { reason: string; n: number }[] };
   /** The public cache over the last seven days: for each source (search results of one provider, DOI checks, retraction checks, each kind of reference lookup) how often an answer was already kept. */
   cache: { source: string; hits: number; misses: number }[];
   feedback: AdminFeedback[];

@@ -99,6 +99,18 @@ A question uses one gateway call (about 3 to 4k tokens); the per-user daily toke
 - What is behind it: the intro page for signed-out visitors (`/`), the home screen (`/` signed in, `/home` for people who skipped signing in), the rail, `/library`, `/settings`, and My papers without the "Open and ask" button. Design and measurements: [design/scroll-site.md](design/scroll-site.md), plan: [design/unified-workspace.md](design/unified-workspace.md).
 - A promise the intro page may only make once the product keeps it is a switch in `FEATURES` (`lib/workspace.ts`), for example `hinglish` (turned on in phase W3).
 
+## Open-access papers (W4, the shared index)
+
+Design: [design/oa-w4.md](design/oa-w4.md). A paper is read once into `oa_papers` / `oa_chunks` by a Cloudflare Workflow (`OaIngest`, binding `OA_INGEST`, named `scholar-oa-ingest` in production and `scholar-oa-ingest-staging`). The first deploy that contains it creates the Workflow; nothing else to set up.
+
+- **Look at it**: the admin page ("Open-access papers in the shared index") shows how many are ready, being read, failed for now, or cannot be read, and the reasons. Instances: `npx wrangler workflows instances list scholar-oa-ingest` and `... describe scholar-oa-ingest <instance>` (an instance is `oa-<hash>-<attempt>`; the row in D1 names its current instance).
+- **A paper that is stuck "reading"**: it gives itself up after 15 minutes and is tried again by whoever asks next. To do it by hand: `UPDATE oa_papers SET status = 'failed', retry_after = NULL WHERE key = 'doi:...'`.
+- **Read a paper again** (a bad extraction, or its source changed): delete its row, `DELETE FROM oa_papers WHERE key = 'doi:...'` (its passages go with it), and the next question reads it afresh. Its file stays in R2 under `oa/<hash>/` until overwritten.
+- **A paper that cannot be read** (`unreadable`) stays so: `blocked`, `scanned`, `too_long`, `not_open_access`, `wrong_paper`. A `failed` one (download failed, timeout, our fault) is tried again after an hour.
+- **Limits**: 20 new papers a person a day and 300 for the whole service (`oa_daily`, the row with user `*`). To raise the service's brake, change `OA_NEW_PAPERS_PER_DAY_ALL` in `packages/shared/src/oa.ts`.
+- **After the first deploy, check** the share of papers that become `ready` against what spike R8 measured (about 55% of publisher PDF links fetchable by a server; Europe PMC XML and arXiv always), from a few real searches. If Cloudflare's addresses are blocked by publishers more than a laptop was, the ladder's third step is the one that suffers; the other two do not.
+- **Cost**: a first reading is one download, text extraction (CPU seconds), and 60 to 600 embeddings: cents at most; a shared paper is paid for once.
+
 ## The shared lanes to Crossref and CORE (V5)
 
 - Every call to **Crossref** and **CORE** first asks one Durable Object, `ApiGate` (binding `API_GATE`, one instance per lane: `crossref`, `core`), so the limit holds for the whole product and not per process.

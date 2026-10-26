@@ -179,3 +179,26 @@
   background: var(--surface-2);
   font: 600 0.75rem/1.4 var(--font-ui);
 }
+
+/* ---------- Ask this paper (W4): the side sheet for any paper of a search ---------- */
+.oa-sheet { display: flex; flex-direction: column; }
+.oa-scroll { display: grid; align-content: start; gap: 0.9rem; }
+.oa-title { margin: 0; font: 600 1.15rem/1.35 var(--font-serif, inherit); }
+.oa-suggest { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.oa-turns { display: grid; gap: 1.4rem; margin: 0; padding: 0; list-style: none; }
+.oa-turn { display: grid; gap: 0.7rem; }
+.oa-q { justify-self: end; max-width: 90%; margin: 0; padding: 0.5rem 0.85rem; border-radius: 1rem 1rem 0.3rem 1rem; background: var(--accent); color: var(--accent-fg); overflow-wrap: anywhere; }
+.oa-basis { display: flex; gap: 0.5rem; align-items: flex-start; margin: 0; color: var(--muted); font-size: 0.85rem; }
+.oa-basis svg { flex: none; margin-top: 0.15rem; }
+.oa-basis[data-kind="abstract"] { padding: 0.55rem 0.75rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-s); color: var(--text); }
+.oa-reading { display: grid; gap: 0.5rem; }
+.oa-reading p { margin: 0; color: var(--muted); font-size: 0.85rem; }
+.oa-bar { height: 6px; overflow: hidden; border-radius: 999px; background: var(--surface-2); }
+.oa-bar span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.oa-stage { margin: 0; color: var(--muted); font-size: 0.875rem; }
+.oa-source[data-flash] .oa-quote { border-color: var(--accent); background: var(--accent-soft); }
+.oa-quote { display: flex; gap: 0.6rem; width: 100%; padding: 0.5rem 0.65rem; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface-2); color: var(--text); text-align: left; cursor: default; }
+.oa-signin { display: grid; gap: 0.6rem; justify-items: start; }
+.oa-form { position: sticky; bottom: 0; display: flex; gap: 0.6rem; align-items: flex-end; margin-top: auto; padding: 0.7rem 1.1rem 0.9rem; border-top: 1px solid var(--border); background: var(--surface); }
+.oa-input { flex: 1; min-height: 3rem; max-height: 9rem; resize: vertical; padding: 0.55rem 0.7rem; border: 1px solid var(--border-strong); border-radius: var(--radius-s); background: var(--bg); color: var(--text); font: inherit; }
+.oa-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

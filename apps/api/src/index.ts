@@ -11,6 +11,8 @@ import { referenceRoutes } from "./references/routes";
 import { documentRoutes } from "./docs/routes";
 import { ideaRoutes } from "./idea/routes";
 import { chatRoutes } from "./chat/routes";
+import { oaRoutes } from "./oa/routes";
+import type { OaParams } from "./oa/workflow";
 import { feedbackRoutes } from "./feedback/routes";
 import { adminRoutes } from "./admin/routes";
 import { monitoringRoutes } from "./monitoring/routes";
@@ -35,6 +37,8 @@ type Bindings = AuthEnv & LimitEnv & {
   CACHE?: KVNamespace;
   CF_VERSION_METADATA?: WorkerVersionMetadata;
   JOBS: Queue;
+  /** The reading of an open-access paper into the shared index (src/oa/workflow.ts). */
+  OA_INGEST: Workflow<OaParams>;
   FILES: R2Bucket;
   AI: Ai;
   GEMINI_API_KEY?: string;
@@ -91,6 +95,7 @@ app.route("/api/v1/references", referenceRoutes);
 app.route("/api/v1/documents", documentRoutes);
 app.route("/api/v1/idea", ideaRoutes);
 app.route("/api/v1/chat", chatRoutes);
+app.route("/api/v1/papers/oa", oaRoutes);
 app.route("/api/v1/feedback", feedbackRoutes);
 app.route("/api/v1/admin", adminRoutes);
 app.route("/api/v1/monitoring", monitoringRoutes);
@@ -307,6 +312,7 @@ app.onError((err, c) => {
 
 export { S2Throttle } from "./s2-throttle";
 export { ApiGate } from "./gate/api-gate";
+export { OaIngest } from "./oa/workflow";
 
 export default {
   fetch: app.fetch,

@@ -20,6 +20,8 @@
   "queues": {
     "producers": [{ "queue": "scholar-jobs", "binding": "JOBS" }]
   },
+  // The reading of an open-access paper into the shared index (src/oa/workflow.ts, docs/spikes/R9-workflows.md): one instance per try, named steps, retries, checkpoints.
+  "workflows": [{ "name": "scholar-oa-ingest", "binding": "OA_INGEST", "class_name": "OaIngest" }],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "scholar-files" }],
   // Public lookups (search results, DOI and retraction checks, reference lookups) are cached here, not in the database: docs/spikes/R6-kv-cache.md.
   // Only public data is ever put in this namespace.
@@ -62,6 +64,7 @@
         }
       ],
       "queues": { "producers": [{ "queue": "scholar-jobs-staging", "binding": "JOBS" }] },
+      "workflows": [{ "name": "scholar-oa-ingest-staging", "binding": "OA_INGEST", "class_name": "OaIngest" }],
       "r2_buckets": [{ "binding": "FILES", "bucket_name": "scholar-files-staging" }],
       "kv_namespaces": [{ "binding": "CACHE", "id": "4fba839cd6a84242955f48463b5bef02" }],
       "ai": { "binding": "AI" },

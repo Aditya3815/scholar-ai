@@ -128,7 +128,7 @@ const devTopK = (env: Bindings): number | undefined => {
   return env.ENABLE_DEV_ROUTES === "1" && Number.isInteger(n) && n >= 1 && n <= 12 ? n : undefined;
 };
 
-const embedderFor = (env: Bindings): Embedder | null =>
+export const embedderFor = (env: Bindings): Embedder | null =>
   env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null;
 
 function completeFor(env: Bindings, subject: string): Complete | null {
@@ -141,7 +141,7 @@ function completeFor(env: Bindings, subject: string): Complete | null {
   };
 }
 
-function streamFor(env: Bindings, subject: string, abort: AbortSignal): StreamComplete | null {
+export function streamFor(env: Bindings, subject: string, abort: AbortSignal): StreamComplete | null {
   if (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1") return stubStream;
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
@@ -152,7 +152,7 @@ function streamFor(env: Bindings, subject: string, abort: AbortSignal): StreamCo
 }
 
 /** One place that turns a failure into what the browser is told (as an HTTP error, or as a stream `error` event). */
-function describeAskError(e: unknown): { status: 429 | 502 | 503; code: string; title: string; detail?: string } | null {
+export function describeAskError(e: unknown): { status: 429 | 502 | 503; code: string; title: string; detail?: string } | null {
   if (e instanceof QuotaError) return { status: 429, code: "quota", title: "You have used today's AI allowance", detail: e.message };
   if (e instanceof NoRouteError) return { status: 503, code: "ai_unavailable", title: "Answering is unavailable right now" };
   if (e instanceof AllProvidersFailedError) {

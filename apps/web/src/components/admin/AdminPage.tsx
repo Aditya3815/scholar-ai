@@ -214,6 +214,8 @@ export function AdminPage() {
           </table>
         )}
         <p className="admin-lead">
+          Open-access papers in the shared index: {n(data.openAccess.ready)} ready{data.openAccess.bySource.length > 0 ? ` (${data.openAccess.bySource.map((s) => `${n(s.n)} from ${s.source}`).join(", ")})` : ""}, {n(data.openAccess.working)} being read, {n(data.openAccess.failed)} failed for now, {n(data.openAccess.unreadable)} cannot be read{data.openAccess.reasons.length > 0 ? `: ${data.openAccess.reasons.map((r) => `${n(r.n)} ${r.reason.replace(/_/g, " ")}`).join(", ")}` : ""}.
+          <br />
           Scanned pages, last 7 days: {n(data.scans.pages)} {data.scans.pages === 1 ? "page" : "pages"} read, {n(data.scans.neurons)} neurons, about {usd(data.scans.costCents)}.
         </p>
       </section>

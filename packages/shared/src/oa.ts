@@ -2,6 +2,7 @@
  * Open-access papers in the shared index (W4). One public copy of the text of a paper, read once on the server and used to answer anyone's question about it. It holds no
  * personal data: nobody is recorded as having asked. Types and limits shared by the API and the web app.
  */
+import type { AskStreamEvent } from "./documents";
 import type { Paper } from "./index";
 
 /** Where the text came from, best first: Europe PMC's full-text XML, an arXiv PDF, the open-access PDF a record links to, or (when none can be read) the abstract alone. */
@@ -14,7 +15,7 @@ export type OaStatus = (typeof OA_STATUSES)[number];
 export const OA_WORKING: readonly OaStatus[] = ["queued", "fetching", "reading", "embedding"];
 
 /** Why a paper cannot be read here. Plain words for each are in `OA_UNREADABLE_TEXT`. */
-export const OA_REASONS = ["not_open_access", "no_source", "blocked", "not_a_pdf", "too_large", "too_long", "scanned", "empty", "fetch_failed", "timeout", "internal"] as const;
+export const OA_REASONS = ["not_open_access", "no_source", "blocked", "not_a_pdf", "too_large", "too_long", "scanned", "empty", "wrong_paper", "daily_cap", "fetch_failed", "timeout", "internal"] as const;
 export type OaReason = (typeof OA_REASONS)[number];
 export const OA_UNREADABLE_TEXT: Record<OaReason, string> = {
   not_open_access: "This paper is not open access.",
@@ -25,6 +26,8 @@ export const OA_UNREADABLE_TEXT: Record<OaReason, string> = {
   too_long: "This paper is too long to read here.",
   scanned: "This PDF is a scan (pictures of pages), which cannot be read here.",
   empty: "No readable text was found in this paper.",
+  wrong_paper: "The link led to a different paper.",
+  daily_cap: "The day's limit of new papers for the shared index has been reached, so this one was not read. Papers that are already there still work.",
   fetch_failed: "The paper could not be downloaded just now.",
   timeout: "Downloading the paper took too long.",
   internal: "Something went wrong while reading this paper.",
@@ -42,6 +45,8 @@ export const OA_REFRESH_DAYS = 180;
 export const OA_RETRY_AFTER_MINUTES = 60;
 /** New papers one person may bring into the shared index in a day (papers already there are free). */
 export const OA_NEW_PAPERS_PER_DAY = 20;
+/** An emergency brake for the whole service: new papers brought into the shared index in a day by everyone (each costs a download, some storage and some embeddings: cents). */
+export const OA_NEW_PAPERS_PER_DAY_ALL = 300;
 /** The longest a question waits for a paper that is being read, before it says "still reading, ask again in a minute". */
 export const OA_WAIT_MS = 120_000;
 
@@ -105,3 +110,19 @@ export type OaIngestEvent = {
   /** the person asking started this reading (true) or joined one that was already going (false) */
   started?: boolean;
 };
+
+/** Which paper the answer is about and what it is made from: sent once, before the answer. `source: "abstract"` means the full text could not be read and `reason` says why. */
+export type OaPaperEvent = {
+  type: "paper";
+  key: string;
+  title: string | null;
+  source: OaSource;
+  license: string | null;
+  /** The PDF itself may be shown to others under this licence (CC0, CC BY, CC BY-SA). The text is used for answers whatever the licence. */
+  permissive: boolean;
+  reason?: OaReason;
+};
+
+/** The stream of POST /papers/oa/ask: the ingest, the paper, then the events of a question about a paper of your own (stage, sources, delta, answer; error ends it). */
+export type OaAskEvent = AskStreamEvent | OaIngestEvent | OaPaperEvent;
+export const MAX_OA_ABSTRACT_CHARS = 4000;

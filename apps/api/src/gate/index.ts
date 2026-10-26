@@ -10,6 +10,12 @@ import { GateCore, type Acquired, type GateConfig } from "./core";
 export const GATES = {
   crossref: { minIntervalMs: 340, maxConcurrent: 3, leaseMs: 20_000 },
   core: { minIntervalMs: 1_000, maxConcurrent: 1, window: { max: 9, ms: 60_000 }, dailyBudget: 800, leaseMs: 20_000 },
+  // The open-access ingest (W4). Europe PMC and OpenAlex ask for reasonable use and answer fast; arXiv asks for one request every three seconds; the free PDFs of
+  // publishers and repositories are one lane of two at a time and one start a second, so no host is asked for more than a polite trickle (the ingest itself runs three papers at most).
+  europepmc: { minIntervalMs: 200, maxConcurrent: 3, leaseMs: 40_000 },
+  openalex: { minIntervalMs: 250, maxConcurrent: 2, leaseMs: 20_000 },
+  arxiv: { minIntervalMs: 3_200, maxConcurrent: 1, leaseMs: 40_000 },
+  oahost: { minIntervalMs: 1_000, maxConcurrent: 2, leaseMs: 40_000 },
 } satisfies Record<string, GateConfig>;
 export type GateName = keyof typeof GATES;
 
