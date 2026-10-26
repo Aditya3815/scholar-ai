@@ -2,6 +2,7 @@
   {
     "topic": "glaucoma screening",
     "host": "journals.sagepub.com",
+    "url": "https://journals.sagepub.com/doi/pdf/10.1177/216507998102900606",
     "license": null,
     "ok": false,
     "why": "HTTP 403"
@@ -9,6 +10,7 @@
   {
     "topic": "glaucoma screening",
     "host": "doi.org",
+    "url": "https://doi.org/10.56726/irjmets81281",
     "license": "other-oa",
     "ok": true,
     "mb": 0.71,
@@ -17,6 +19,7 @@
   {
     "topic": "glaucoma screening",
     "host": "doi.org",
+    "url": "https://doi.org/10.14257/ijmue.2015.10.9.14",
     "license": null,
     "ok": true,
     "mb": 0.58,
@@ -25,6 +28,7 @@
   {
     "topic": "glaucoma screening",
     "host": "onlinelibrary.wiley.com",
+    "url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1111/ceo.13138",
     "license": null,
     "ok": false,
     "why": "HTTP 403"
@@ -32,6 +36,7 @@
   {
     "topic": "glaucoma screening",
     "host": "sciencedirect.com",
+    "url": "https://www.sciencedirect.com/science/article/pii/S156849462200967X/pdf",
     "license": "cc-by",
     "ok": false,
     "why": "HTTP 403"
@@ -39,6 +44,7 @@
   {
     "topic": "glaucoma screening",
     "host": "glaucomajournal.ru",
+    "url": "https://www.glaucomajournal.ru/jour/article/download/472/427",
     "license": "cc-by",
     "ok": false,
     "why": "fetch failed"
@@ -46,6 +52,7 @@
   {
     "topic": "diabetes exercise",
     "host": "bajangjournal.com",
+    "url": "https://bajangjournal.com/index.php/J-ABDI/article/download/7623/5946",
     "license": "cc-by",
     "ok": true,
     "mb": 0.23,
@@ -53,15 +60,8 @@
   },
   {
     "topic": "diabetes exercise",
-    "host": "journal.uny.ac.id",
-    "license": "cc-by-sa",
-    "ok": true,
-    "mb": 0.17,
-    "name": "oa-08-journal-uny-ac-id"
-  },
-  {
-    "topic": "diabetes exercise",
     "host": "jurnal.unpad.ac.id",
+    "url": "http://jurnal.unpad.ac.id/jnc/article/download/17062/12927",
     "license": "cc-by-sa",
     "ok": false,
     "why": "HTTP 403"
@@ -69,30 +69,42 @@
   {
     "topic": "diabetes exercise",
     "host": "jurnal.fk.untad.ac.id",
+    "url": "https://jurnal.fk.untad.ac.id/index.php/htj/article/download/1785/796",
     "license": "cc-by-nc-sa",
     "ok": true,
     "mb": 0.87,
-    "name": "oa-10-jurnal-fk-untad-ac-id"
+    "name": "oa-09-jurnal-fk-untad-ac-id"
   },
   {
     "topic": "diabetes exercise",
     "host": "ojs.phb.ac.id",
+    "url": "https://ojs.phb.ac.id/index.php/jcsh/article/download/1205/951",
     "license": "cc-by-sa",
     "ok": true,
     "mb": 0.37,
-    "name": "oa-11-ojs-phb-ac-id"
+    "name": "oa-10-ojs-phb-ac-id"
   },
   {
     "topic": "diabetes exercise",
     "host": "jurnal.unprimdn.ac.id",
+    "url": "https://jurnal.unprimdn.ac.id/index.php/jukep/article/download/8523/5064",
     "license": "cc-by",
     "ok": true,
     "mb": 0.54,
-    "name": "oa-12-jurnal-unprimdn-ac-id"
+    "name": "oa-11-jurnal-unprimdn-ac-id"
+  },
+  {
+    "topic": "diabetes exercise",
+    "host": "turkiyeklinikleri.com",
+    "url": "https://www.turkiyeklinikleri.com/pdf/?pdf=3126f80a4ae001b0ee5a3520e5ee8252",
+    "license": "cc-by-nc-nd",
+    "ok": false,
+    "why": "HTTP 403"
   },
   {
     "topic": "tuberculosis vaccine",
     "host": "cell.com",
+    "url": "http://www.cell.com/article/S0092867406001887/pdf",
     "license": null,
     "ok": false,
     "why": "HTTP 403"
@@ -100,6 +112,7 @@
   {
     "topic": "tuberculosis vaccine",
     "host": "academic.oup.com",
+    "url": "https://academic.oup.com/femspd/article-pdf/58/1/75/19171898/58-1-75.pdf",
     "license": null,
     "ok": false,
     "why": "HTTP 403"
@@ -107,6 +120,7 @@
   {
     "topic": "tuberculosis vaccine",
     "host": "thelancet.com",
+    "url": "http://www.thelancet.com/article/S0140673613614828/pdf",
     "license": null,
     "ok": false,
     "why": "HTTP 403"
@@ -114,6 +128,7 @@
   {
     "topic": "tuberculosis vaccine",
     "host": "thelancet.com",
+    "url": "http://www.thelancet.com/article/S0140673613614816/pdf",
     "license": null,
     "ok": false,
     "why": "HTTP 403"
@@ -121,6 +136,7 @@
   {
     "topic": "tuberculosis vaccine",
     "host": "thorax.bmj.com",
+    "url": "https://thorax.bmj.com/content/thoraxjnl/66/11/976.full.pdf",
     "license": null,
     "ok": false,
     "why": "HTTP 403"
@@ -128,6 +144,7 @@
   {
     "topic": "tuberculosis vaccine",
     "host": "thelancet.com",
+    "url": "http://www.thelancet.com/article/S0140673613601373/pdf",
     "license": null,
     "ok": false,
     "why": "HTTP 403"
@@ -135,6 +152,7 @@
   {
     "topic": "machine learning crop yield",
     "host": "journals.ametsoc.org",
+    "url": "https://journals.ametsoc.org/downloadpdf/journals/aies/1/4/AIES-D-22-0002.1.pdf",
     "license": null,
     "ok": false,
     "why": "HTTP 403"
@@ -142,6 +160,7 @@
   {
     "topic": "machine learning crop yield",
     "host": "doi.org",
+    "url": "https://doi.org/10.33564/ijeast.2019.v04i05.055",
     "license": null,
     "ok": true,
     "mb": 0.56,
@@ -150,6 +169,7 @@
   {
     "topic": "machine learning crop yield",
     "host": "doi.org",
+    "url": "https://doi.org/10.33564/ijeast.2020.v04i09.019",
     "license": null,
     "ok": true,
     "mb": 0.61,
@@ -158,6 +178,7 @@
   {
     "topic": "machine learning crop yield",
     "host": "doi.org",
+    "url": "https://doi.org/10.22214/ijraset.2021.37413",
     "license": null,
     "ok": true,
     "mb": 0.92,
@@ -166,6 +187,7 @@
   {
     "topic": "machine learning crop yield",
     "host": "link.springer.com",
+    "url": "https://link.springer.com/content/pdf/10.1007/s11540-024-09753-w.pdf",
     "license": "cc-by",
     "ok": false,
     "why": "not a PDF (text/html)"
@@ -173,6 +195,7 @@
   {
     "topic": "machine learning crop yield",
     "host": "lib.physcon.ru",
+    "url": "http://lib.physcon.ru/file?id=c096ee42ccb5",
     "license": "cc-by",
     "ok": false,
     "why": "HTTP 404"
@@ -180,6 +203,7 @@
   {
     "topic": "air pollution asthma children",
     "host": "erj.ersjournals.com",
+    "url": "https://erj.ersjournals.com/content/erj/19/4/699.full.pdf",
     "license": null,
     "ok": false,
     "why": "HTTP 403"
@@ -187,6 +211,7 @@
   {
     "topic": "air pollution asthma children",
     "host": "academic.oup.com",
+    "url": "https://academic.oup.com/aje/article-pdf/164/6/505/300872/kwj225.pdf",
     "license": null,
     "ok": false,
     "why": "HTTP 403"
@@ -194,6 +219,7 @@
   {
     "topic": "air pollution asthma children",
     "host": "journals.viamedica.pl",
+    "url": "https://journals.viamedica.pl/advances_in_respiratory_medicine/article/download/PiAP.2015.0047/29155",
     "license": "cc-by-nc-nd",
     "ok": false,
     "why": "not a PDF (text/html)"
@@ -201,6 +227,7 @@
   {
     "topic": "air pollution asthma children",
     "host": "jstage.jst.go.jp",
+    "url": "https://www.jstage.jst.go.jp/article/jspaci1987/12/2/12_2_120/_pdf",
     "license": null,
     "ok": true,
     "mb": 0.12,
@@ -209,6 +236,7 @@
   {
     "topic": "air pollution asthma children",
     "host": "carcinogenesis.com",
+    "url": "https://carcinogenesis.com/index.php/JOC/article/download/1697/1986",
     "license": null,
     "ok": true,
     "mb": 0.32,
@@ -217,6 +245,7 @@
   {
     "topic": "air pollution asthma children",
     "host": "thorax.bmj.com",
+    "url": "https://thorax.bmj.com/content/thoraxjnl/64/2/98.full.pdf",
     "license": null,
     "ok": false,
     "why": "HTTP 403"
@@ -224,6 +253,7 @@
   {
     "topic": "mindfulness student anxiety",
     "host": "shanlaxjournals.in",
+    "url": "https://shanlaxjournals.in/journals/index.php/sijash/article/download/10482/8713",
     "license": "cc-by-sa",
     "ok": true,
     "mb": 0.24,
@@ -232,6 +262,7 @@
   {
     "topic": "mindfulness student anxiety",
     "host": "kont.zsf.jcu.cz",
+    "url": "http://kont.zsf.jcu.cz/doi/10.32725/kont.2026.003.pdf",
     "license": "cc-by-nc-nd",
     "ok": true,
     "mb": 0.2,
@@ -240,6 +271,7 @@
   {
     "topic": "mindfulness student anxiety",
     "host": "journal.civiliza.org",
+    "url": "https://journal.civiliza.org/index.php/gej/article/download/1290/1137",
     "license": "cc-by-sa",
     "ok": true,
     "mb": 0.82,
@@ -248,6 +280,7 @@
   {
     "topic": "mindfulness student anxiety",
     "host": "apsijournal.com",
+    "url": "https://www.apsijournal.com/index.php/psyjournal/article/download/740/472",
     "license": "cc-by",
     "ok": true,
     "mb": 0.35,
@@ -256,6 +289,7 @@
   {
     "topic": "mindfulness student anxiety",
     "host": "iiardjournals.org",
+    "url": "https://iiardjournals.org/get/IJSSMR/VOL. 11 NO. 10 2025/Academic anxiety and mindfulness 66-78.pdf",
     "license": "cc-by-nc",
     "ok": true,
     "mb": 0.37,
@@ -264,6 +298,7 @@
   {
     "topic": "mindfulness student anxiety",
     "host": "journal-gehu.com",
+    "url": "https://journal-gehu.com/index.php/gehu/article/download/1101/1267",
     "license": "cc-by-sa",
     "ok": true,
     "mb": 0.67,
@@ -272,6 +307,7 @@
   {
     "topic": "NEP 2020 higher education India",
     "host": "ijsr.net",
+    "url": "https://www.ijsr.net/archive/v11i5/SR22217175101.pdf",
     "license": "cc-by",
     "ok": true,
     "mb": 0.14,
@@ -280,6 +316,7 @@
   {
     "topic": "NEP 2020 higher education India",
     "host": "rsisinternational.org",
+    "url": "https://rsisinternational.org/journals/ijriss/uploads/vol10-iss7-pg5866-5873-202608_pdf.pdf",
     "license": null,
     "ok": true,
     "mb": 0.19,
@@ -288,6 +325,7 @@
   {
     "topic": "NEP 2020 higher education India",
     "host": "doi.org",
+    "url": "https://doi.org/10.53469/jrve.2022.04(06).04",
     "license": null,
     "ok": false,
     "why": "fetch failed"
@@ -295,6 +333,7 @@
   {
     "topic": "NEP 2020 higher education India",
     "host": "twistjournal.net",
+    "url": "https://twistjournal.net/twist/article/download/237/286",
     "license": "cc-by-nc-sa",
     "ok": true,
     "mb": 0.31,
@@ -303,6 +342,7 @@
   {
     "topic": "NEP 2020 higher education India",
     "host": "doi.org",
+    "url": "https://doi.org/10.51386/25815946/ijsms-v8i4p117",
     "license": null,
     "ok": true,
     "mb": 0.48,
@@ -311,6 +351,7 @@
   {
     "topic": "NEP 2020 higher education India",
     "host": "ijnrd.org",
+    "url": "https://ijnrd.org/papers/IJNRD2604114.pdf",
     "license": "cc-by-nc",
     "ok": true,
     "mb": 0.97,

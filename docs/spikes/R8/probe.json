@@ -1,0 +1,254 @@
+[
+  {
+    "host": "journals.sagepub.com",
+    "laptop": false,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "doi.org",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "doi.org",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "onlinelibrary.wiley.com",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 200
+  },
+  {
+    "host": "sciencedirect.com",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 403
+  },
+  {
+    "host": "glaucomajournal.ru",
+    "laptop": false,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "bajangjournal.com",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "jurnal.unpad.ac.id",
+    "laptop": false,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "jurnal.fk.untad.ac.id",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "ojs.phb.ac.id",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "jurnal.unprimdn.ac.id",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "turkiyeklinikleri.com",
+    "laptop": false,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "cell.com",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 403
+  },
+  {
+    "host": "academic.oup.com",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 403
+  },
+  {
+    "host": "thelancet.com",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 403
+  },
+  {
+    "host": "thelancet.com",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 403
+  },
+  {
+    "host": "thorax.bmj.com",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 404
+  },
+  {
+    "host": "thelancet.com",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 403
+  },
+  {
+    "host": "journals.ametsoc.org",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 403
+  },
+  {
+    "host": "doi.org",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "doi.org",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "doi.org",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "link.springer.com",
+    "laptop": false,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "lib.physcon.ru",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 404
+  },
+  {
+    "host": "erj.ersjournals.com",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 404
+  },
+  {
+    "host": "academic.oup.com",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 403
+  },
+  {
+    "host": "journals.viamedica.pl",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 200
+  },
+  {
+    "host": "jstage.jst.go.jp",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "carcinogenesis.com",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "thorax.bmj.com",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 404
+  },
+  {
+    "host": "shanlaxjournals.in",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "kont.zsf.jcu.cz",
+    "laptop": true,
+    "cloudflare": false,
+    "status": 403
+  },
+  {
+    "host": "journal.civiliza.org",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "apsijournal.com",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "iiardjournals.org",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "journal-gehu.com",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "ijsr.net",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "rsisinternational.org",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "doi.org",
+    "laptop": false,
+    "cloudflare": false,
+    "status": 530
+  },
+  {
+    "host": "twistjournal.net",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "doi.org",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  },
+  {
+    "host": "ijnrd.org",
+    "laptop": true,
+    "cloudflare": true,
+    "status": 200
+  }
+]

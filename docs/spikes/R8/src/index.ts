@@ -7,6 +7,18 @@ import { getDocumentProxy } from "unpdf";
  */
 export default {
   async fetch(req: Request): Promise<Response> {
+    // GET /probe?url=...: what Cloudflare's own network gets from an address (status, type, first bytes), to compare with a laptop's answer. Local preview only.
+    const probe = new URL(req.url);
+    if (req.method === "GET" && probe.pathname === "/probe") {
+      const target = probe.searchParams.get("url") ?? "";
+      try {
+        const r = await fetch(target, { headers: { "User-Agent": "scholar-ai-spike/1.0 (mailto:tiadiaditya@gmail.com)", Accept: "application/pdf,*/*;q=0.5" }, redirect: "follow" });
+        const head = new Uint8Array((await r.arrayBuffer()).slice(0, 5));
+        return Response.json({ status: r.status, type: r.headers.get("content-type"), pdf: new TextDecoder().decode(head) === "%PDF-" });
+      } catch (e) {
+        return Response.json({ status: 0, error: String(e) });
+      }
+    }
     if (req.method !== "POST") return new Response("POST a PDF", { status: 405 });
     const url = new URL(req.url);
     const maxPages = Number(url.searchParams.get("maxPages") ?? 120);

@@ -23,9 +23,13 @@ The question W4 depends on ([unified-workspace.md](../design/unified-workspace.m
 5. **Say so when a paper cannot be fetched.** The "cannot read" outcome is expected for roughly half of publisher PDFs, so the panel must offer the abstract answer and the upload at once, not look like an error.
 6. **The shared index is a bigger win than planned**: only a quarter to a half of papers a person meets can be ingested at all, so every success is worth sharing.
 
+## Cloudflare's network against a laptop (checked later the same day)
+
+The same 42 links, fetched by a Worker running on Cloudflare (`wrangler dev --remote`, `probe.mjs`) and by the laptop: **Cloudflare 26 of 42, laptop 22 of 42** (the OpenAlex list is a little different on each run), the same answer for 36. So Cloudflare's addresses are not treated worse than a laptop's: the large publishers (Elsevier, The Lancet, Oxford, Cell, AMS) answer 403 to both, a few smaller sites answered Cloudflare and not the laptop and one the other way round. The probe follows redirects without the per-step checks and does not try a landing page's `citation_pdf_url`, so it is a fair comparison of the two networks and a rough one of the app's own logic.
+
 ## What was not tested
 
-Peak memory as a number; two-column and table quality; extraction under concurrent requests (the design caps ingest concurrency at 3); a PDF over 25 MB; fetching from the deployed Worker (Cloudflare's outbound IPs may be treated differently from a laptop by some publishers: **first thing to check after the first deploy**, with the numbers above as the baseline).
+Peak memory as a number; two-column and table quality; extraction under concurrent requests; a PDF over 25 MB; and the app's whole reading on the deployed Worker with real publishers (the first deploy is the test, with these numbers as the baseline; see the runbook).
 
 ## How to repeat
 

@@ -54,7 +54,7 @@ for (const topic of TOPICS) {
     try { res = await tryFetch(loc.pdf_url); } catch (e) { res = { ok: false, why: e?.name === "TimeoutError" ? "timeout 25 s" : String(e.message ?? e).slice(0, 60) }; }
     const name = `oa-${String(++n).padStart(2, "0")}-${host.replace(/[^a-z0-9]+/g, "-").slice(0, 24)}`;
     if (res.ok) writeFileSync(new URL(`./pdfs/${name}.pdf`, import.meta.url), res.buf);
-    rows.push({ topic, host, license: loc.license ?? null, ok: res.ok, why: res.why, mb: res.mb, name: res.ok ? name : undefined });
+    rows.push({ topic, host, url: loc.pdf_url, license: loc.license ?? null, ok: res.ok, why: res.why, mb: res.mb, name: res.ok ? name : undefined });
     console.log(`${res.ok ? "ok  " : "FAIL"} ${host.padEnd(34)} ${String(loc.license ?? "-").padEnd(10)} ${res.ok ? res.mb + " MB" : res.why}`);
     await new Promise((r) => setTimeout(r, host.includes("arxiv") ? 3200 : 700));
   }
