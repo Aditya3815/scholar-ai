@@ -16,6 +16,19 @@ describe("quoteInText", () => {
     expect(quoteInText("recruited 900 participants from five hospitals in Delhi", text)).toBe(false);
     expect(quoteInText("participants Pune hospitals followed months", text)).toBe(false); // right words, wrong order
   });
+  it("takes a quote whose pieces are joined by '...' piece by piece: each must be in the text", () => {
+    const t = "Weighted gene co-expression network analysis is a systems biology method for describing the correlation patterns among genes across microarray samples. It can be used for finding clusters (modules) of highly correlated genes, and for relating modules to one another.";
+    expect(quoteInText("is a systems biology method for describing the correlation patterns ... finding clusters (modules) of highly correlated genes", t)).toBe(true);
+    expect(quoteInText("is a systems biology method for describing the correlation patterns … finding clusters (modules) of highly correlated genes", t)).toBe(true);
+    expect(quoteInText("is a systems biology method for describing the correlation patterns [...] finding clusters (modules) of highly correlated genes", t)).toBe(true);
+    // one piece invented
+    expect(quoteInText("is a systems biology method for describing the correlation patterns ... predicting the weather in coastal regions next week", t)).toBe(false);
+    // only short connective pieces next to a gap prove nothing
+    expect(quoteInText("a ... of ... the ... and", t)).toBe(false);
+    expect(quoteInText("... ...", t)).toBe(false);
+    // a short piece beside a real one is connective
+    expect(quoteInText("is a systems biology method for describing ... and", t)).toBe(true);
+  });
   it("rejects quotes that are too short to prove anything", () => {
     expect(quoteInText("214 participants", text)).toBe(false);
   });

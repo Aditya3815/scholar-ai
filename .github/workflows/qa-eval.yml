@@ -7,6 +7,8 @@ name: Q&A quality (real models)
 # that is not in its abstract, a mark that is not a checked citation, a retracted paper cited, an answer to nonsense, or fewer than 75% answered.
 # Then it asks the router of Auto mode about 200 labelled messages in English, Hindi and Hinglish (no search is run) and fails if it picks the wrong tool more than 10% of the time
 # (more than 15% in Hindi or Hinglish), does not translate a Hindi search, or follows an order hidden in a message. That step uses roughly a day's free Workers AI allowance.
+# Then it asks eight real papers (Europe PMC XML, arXiv PDFs, one closed paper that must fall back to its abstract), 15 questions in English, Hinglish and Hindi, through "Ask this paper"
+# (real sources, real embeddings, real model) and fails if a paper that should be readable is not, an answer has no verified quote, a known fact is missing, or a control is invented.
 # Needs repository secrets CLOUDFLARE_API_TOKEN (Workers AI) and CLOUDFLARE_ACCOUNT_ID. Uses a few thousand free Workers AI neurons.
 # The papers are public arXiv preprints, downloaded at run time (their text is not committed).
 on:
@@ -76,6 +78,12 @@ jobs:
           set -o pipefail
           node apps/api/scripts/router-eval.mjs --set=all --gate | tee router-eval.txt
 
+      - name: Ask real open-access papers (Europe PMC, arXiv, real model)
+        shell: bash
+        run: |
+          set -o pipefail
+          node apps/api/scripts/oa-eval.mjs --gate | tee oa-eval.txt
+
       - name: Keep the results
         if: always()
         uses: actions/upload-artifact@v7
@@ -85,6 +93,7 @@ jobs:
             qa-eval.txt
             chat-eval.txt
             router-eval.txt
+            oa-eval.txt
             worker.log
             apps/api/scripts/r2/results/
 

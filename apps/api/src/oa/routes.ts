@@ -186,7 +186,9 @@ async function ask(c: Ctx, s: Session, a: AskArgs): Promise<void> {
   const stream = streamFor(c.env as never, a.subject, a.abort.signal);
   if (!stream) return void (await s.send({ type: "error", code: "ai_unavailable", title: "Answering is unavailable right now" }));
   const topK = c.env.ENABLE_DEV_ROUTES === "1" && Number.isInteger(Number(c.env.QA_TOP_K)) && Number(c.env.QA_TOP_K) >= 1 ? Number(c.env.QA_TOP_K) : undefined;
-  const answer = await answerQuestionStream({ question: a.question, chunks: a.chunks, embed: a.embed, stream, meta: { id: crypto.randomUUID().replace(/-/g, "").slice(0, 20), createdAt: Date.now() }, emit: s.send, topK });
+  // Only with the local dev switch (and not the stand-ins): print what the model said and was shown, to tune prompts. Never in production.
+  const onRaw = c.env.ENABLE_DEV_ROUTES === "1" && c.env.QA_STUB !== "1" ? (raw: unknown, ex: { idx: number; section?: string; text: string }[]) => console.log(JSON.stringify({ msg: "oa_debug", raw, excerpts: ex.map((e) => ({ idx: e.idx, section: e.section, text: e.text })) })) : undefined;
+  const answer = await answerQuestionStream({ question: a.question, chunks: a.chunks, embed: a.embed, stream, meta: { id: crypto.randomUUID().replace(/-/g, "").slice(0, 20), createdAt: Date.now() }, emit: s.send, topK, onRaw });
   if (s.gone) return;
   await s.send({ type: "answer", answer });
 }

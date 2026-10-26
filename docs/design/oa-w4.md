@@ -31,10 +31,25 @@ Every search result that has a DOI or an arXiv number has **Ask this paper** (in
 
 Spike R8 (35 real PDFs read on Cloudflare's runtime; 23 of 42 open-access PDF links fetchable by a server; Europe PMC XML works and carries the licence) and R9 (Workflows locally: one instance per key, retries, checkpoints). In this build: about 150 new unit tests (safe fetch, JATS on a real article, PDF text, the ladder, identity, chunks, identifiers), 49 end-to-end checks of the endpoint with Workflows running locally (a paper from XML, from a PDF, from a landing page, from arXiv; two people at once; a step that fails once; every kind of unreadable paper; the two daily limits; a lost Workflow; nothing personal in the tables), 26 browser checks (the sheet, progress, Stop, abstract-only, preview, phone, signed out, axe in light and dark).
 
+## The real-data eval (`scripts/oa-eval.mjs`, 26 Oct, from a laptop; real Europe PMC, arXiv, OpenAlex, embeddings and model)
+
+Eight papers: four from Europe PMC XML (Ioannidis, PRISMA, WGCNA, a deep-learning-in-ophthalmology review), three arXiv PDFs (Attention Is All You Need, BERT, GPT-3 at 75 pages) and one closed Nature paper. 15 questions: English, two in Hinglish, one in Hindi, two controls the paper does not answer.
+
+| Line | Limit | Result |
+| --- | --- | --- |
+| papers that should be read in full, read in full | 80% | **7 of 7** (first answer, which includes the reading, in 8.6 to 22.5 s; a paper already in the index: 2 to 7 s) |
+| questions about those, answered with every quote found in the text | 75% | **10 of 10** |
+| of those, the known fact is in the answer or its quotes | 70% | **9 of 9** |
+| controls ("which hospital ...", "which chest X-ray dataset ...") get "not in this paper" | 80% | **2 of 2** |
+| Hinglish and Hindi answered, in the right script | 70% / 90% | **3 of 3**, all in the right script |
+| the closed paper is answered from its abstract | 100% | **1 of 1** (the reason shown was "not a PDF": its landing page names no PDF) |
+
+What it taught, in the order it happened: the first run answered 7 of 10 because (a) the answer call allowed 700 tokens, which a reasoning model uses up before it finishes a Hindi or Hinglish answer ("Unterminated string in JSON": now 2,500, for papers of your own too), and (b) a model joins two stretches of a passage with "..." in its quote, which no longer matched as one run (a quote is now checked piece by piece, each piece of four words or more must be in the text; the prompt also asks for one continuous stretch). After that: 10 of 10. The eval is small; a number of 100% is a reason to grow it, not to relax.
+
 ## Not done, on purpose
 
 - **Not tried on the deployed Worker with real publishers.** The first thing to look at after the deploy: the share of papers that become `ready` against the 55% of R8, and the reasons on the admin page ("Open-access papers in the shared index").
-- **No quality evaluation yet** of answers on real papers (two-column text, tables, equations; Hindi and Hinglish questions about English papers). That is the next piece before this leaves the `?ws=1` flag: a small eval on 10 real papers with a Hinglish slice, like `chat-eval.mjs`.
+- **The eval is small.** `scripts/oa-eval.mjs` (weekly, with a gate) asks 8 real papers 15 questions; it says little about two-column text, tables and equations, and nothing about papers in other languages. Grow it before this leaves the `?ws=1` flag.
 - **No refresh after 180 days** and no retraction check at ask time beyond the badge the card already carries.
 - **No "Save to My papers" pointer**, and no reader for the shared PDF (it is kept only to be read again; nothing serves it back). The licence is stored so that decision can be made later (CC0, CC BY and CC BY-SA only).
 - Scanned open-access PDFs are not read (OCR stays for a person's own uploads).
