@@ -72,12 +72,31 @@ export function normaliseMarks(raw: string): string {
     .replace(new RegExp(String.raw`\[(\d{1,2})\]\s*${side}`, "g"), "[$1]")
     .replace(new RegExp(String.raw`\((\d{1,2})\)\s*${side}`, "g"), "[$1]")
     .replace(/\[(\d{1,2})\s*\(\s*\d{1,3}\s*\)\]/g, "[$1]")
+    // papers and sentences in words, one or several: (evidence 1 S7), (source 2, S6-S8), (paper 3), (evidence 1:S9), (evidence: 1:S1, 6:S5, 6:S7)
+    .replace(/\(\s*(?:evidence|sources?|papers?|refs?)\.?\s*:?\s*((?:\d{1,2}\s*[:,]?\s*S?\d{0,3}(?:\s*[-‐-―]\s*S?\d{1,3})?\s*[,;]?\s*)+)\)/gi, (_m, body: string) => {
+      const papers = body.split(/\s*[,;]\s*/).map((part) => /^\d{1,2}/.exec(part.trim())?.[0]).filter((d): d is string => !!d);
+      return [...new Set(papers)].map((d) => `[${d}]`).join("");
+    })
+    // any round bracket that holds nothing but paper numbers, sentence labels, the words evidence/source/paper and punctuation: (12 S1-S6; 14 S1-S8). Its paper numbers become marks.
+    .replace(/\(([^()]{1,80})\)/g, (whole, inner: string) => {
+      if (!/\bS\d/.test(inner) || /[^\s\dA-Za-z.:;,‐-―-]/.test(inner)) return whole;
+      // sentence labels and their ranges (S5, S5-8, S5-S8) first: what is left are the paper numbers
+      const bare = inner.replace(/\bS\d{1,3}(?:\s*[-‐-―]\s*S?\d{1,3})?/g, " ").replace(/\b(?:evidence|sources?|papers?|refs?)\b\.?:?/gi, " ");
+      if (!/^[\s\d.:;,‐-―-]*$/.test(bare)) return whole;
+      const papers = bare.split(/[\s.:;,‐-―-]+/).filter((d) => /^\d{1,2}$/.test(d));
+      return [...new Set(papers)].map((d) => `[${d}]`).join("");
+    })
+    // a sentence label left after a mark, with or without a comma: [7], S7-S9
+    .replace(/(\])\s*[,;]?\s*S\d{1,3}(?:\s*[-‐-―]\s*S?\d{1,3})?/g, "$1")
+    // a bracket that is only about evidence and could not be read as marks is bookkeeping, not part of the answer
+    .replace(/\s*\((?:evidence|sources?)\b[^()]{0,60}\)/gi, "")
     // the paper and its sentence in one pair of round brackets: (1 S2-S4)
     .replace(/\(\s*(\d{1,2})\s*S\d{1,3}(?:\s*[-‐-―]\s*S?\d{1,3})?\s*\)/g, "[$1]")
     // a sentence label written after a mark: [1]S4, [1](S2), [1] (S5-8)
     .replace(/(\[\d{1,2}\])\s*\(?\s*S\d{1,3}(?:\s*[-‐-―]\s*S?\d{1,3})?\s*\)?/g, "$1")
     .replace(/\[(\d{1,2}(?:\s*[,;]\s*\d{1,2})+)\]/g, (_m, list: string) => list.split(/\s*[,;]\s*/).map((d) => `[${d}]`).join(""))
     .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.,;:])/g, "$1")
     .trim();
 }
 

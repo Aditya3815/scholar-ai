@@ -3,6 +3,8 @@ name: Q&A quality (real models)
 # Weekly: asks the 35 gold questions (5 open-access papers, one Hindi question each) through the real upload -> index -> ask -> verify
 # path with the REAL embedding and language models, and fails if answers get worse (answerable >= 85% correct, unanswerable >= 90%
 # declined, sources verified). The per-push CI uses stand-in models and cannot see a changed model or prompt.
+# The same job then asks twelve searches of the prompt box (live sources, real model) and fails if answers are not real: a sentence shown as evidence
+# that is not in its abstract, a mark that is not a checked citation, a retracted paper cited, an answer to nonsense, or fewer than 75% answered.
 # Needs repository secrets CLOUDFLARE_API_TOKEN (Workers AI) and CLOUDFLARE_ACCOUNT_ID. Uses a few thousand free Workers AI neurons.
 # The papers are public arXiv preprints, downloaded at run time (their text is not committed).
 on:
@@ -60,6 +62,12 @@ jobs:
           set -o pipefail
           node apps/api/scripts/qa-eval.mjs qa-papers --gate | tee qa-eval.txt
 
+      - name: Ask the search questions of the prompt box (live search, real model)
+        shell: bash
+        run: |
+          set -o pipefail
+          node apps/api/scripts/chat-eval.mjs --gate | tee chat-eval.txt
+
       - name: Keep the results
         if: always()
         uses: actions/upload-artifact@v7
@@ -67,6 +75,7 @@ jobs:
           name: qa-eval
           path: |
             qa-eval.txt
+            chat-eval.txt
             worker.log
             apps/api/scripts/r2/results/
 

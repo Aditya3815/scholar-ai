@@ -38,7 +38,18 @@ The written answer (`apps/api/src/chat/answer.ts`):
 | First run, six questions in English, Hindi and Hinglish: 4 answered with checked sources (23 marks), 1 correctly "papers do not answer" (the Hindi query found Hindi papers on other subjects), 1 "no abstracts" (the Hinglish query found one paper with an abstract) | the last two are search-quality problems, not answer problems: the query is not translated yet. That is the router's job in W3 |
 | Time | papers first after about 30 ms (cache) to 2 s (cold); the whole reply 6 to 18 s, median about 12 s |
 
-Not measured yet: a labelled set of questions with a groundedness number in CI. Every mark is checked to be a real sentence by construction; whether the sentence supports the claim is the model's, as in Q&A on one paper. A small eval like the Q&A one (35 questions) is the gate before W3 builds on this.
+## The eval (`scripts/chat-eval.mjs`, weekly in `.github/workflows/qa-eval.yml`, gate with `--gate`)
+
+Twelve questions on topics with plenty of literature (English, some with an Indian setting), two nonsense controls and two Hindi or Hinglish questions (not gated yet). It checks properties, not words, because the papers found change from week to week:
+
+| Line | Limit | First gated run (26 Oct) |
+| --- | --- | --- |
+| answered (of the questions that found at least two abstracts) | at least 75% | **12 of 12** |
+| every sentence shown as evidence is in that paper's abstract, no mark points at a retracted paper, every `[n]` in the words is a checked citation, no label (S3), round-bracket number or 【】 token is left | 0 problems | **0 in 13 answers** (the first runs found 3, then 4, then 2, then 2 of them: new mark styles every time, now all handled by `normaliseMarks` with a general clean-up for brackets that hold only paper numbers and sentence labels) |
+| nonsense questions that got an answer | 0 | **0 of 2** |
+| median reply | information | 14 to 17 s |
+
+What the gate does not and cannot say: whether a checked sentence really supports the claim it is attached to (that is the model's judgement, as in Q&A on one paper; a reader sees the sentence and can judge), and how answers behave when the abstracts contain instructions (the system message says they are untrusted, and the server only ever uses the model's numbers; there is no fixture with an injected abstract yet).
 
 ## Decisions of 25 Oct that came with W2
 

@@ -194,11 +194,19 @@ describe("normaliseMarks", () => {
     ["Worked 【12†S1-S7】[2].", "Worked [12][2]."],
     ["Worked 【no digits here】[2].", "Worked [2]."],
     ["Worked (1 S2-S4) and (3 S5).", "Worked [1] and [3]."],
+    ["Worked (evidence 1 S7). Also (source 2, S6-S8) and (paper 3).", "Worked [1]. Also [2] and [3]."],
+    ["Worked (evidence 1:S9). And (evidence: 1:S1, 6:S5, 6:S7).", "Worked [1]. And [1][6]."],
+    ["Worked (evidence: see the first abstract).", "Worked."],
+    ["Sensitivities of 83‑97 % (12 S1‑S6; 14 S1‑S8).", "Sensitivities of 83‑97 % [12][14]."],
+    ["It may help [7], S7‑S9. Next.", "It may help [7]. Next."],
     ["Worked [1]S4; [7]S9.", "Worked [1]; [7]."],
     ["Worked [1](S2)[3](S3).", "Worked [1][3]."],
     ["Worked [1] (S5-8) and [2] (S1).", "Worked [1] and [2]."],
     ["Two  spaces   go.", "Two spaces go."],
   ])("%s", (input, want) => expect(normaliseMarks(input)).toBe(want));
+  it("a round bracket with a real remark in it is left alone", () => {
+    expect(normaliseMarks("Rates fell (by 12 points, p < 0.01) in S1 patients [3].")).toBe("Rates fell (by 12 points, p < 0.01) in S1 patients [3].");
+  });
   it("a label S1 in the text itself, not right after a mark, is left", () => {
     expect(normaliseMarks("See Figure S1 for the setup [2].")).toBe("See Figure S1 for the setup [2].");
   });
