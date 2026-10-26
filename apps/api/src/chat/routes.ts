@@ -1,11 +1,11 @@
 import { Hono, type Context } from "hono";
-import { streamSSE } from "hono/streaming";
-import { NOTHING_NOTICE, PARTIAL_NOTICE, cleanAutoMessage, cleanChatMessage, detectLanguage, ruleRoute, type ChatEvent, type ChatNoAnswer, type Route, type SearchResponse } from "@scholar/shared";
+import { NOTHING_NOTICE, PARTIAL_NOTICE, cleanAutoMessage, cleanChatMessage, detectLanguage, ruleRoute, slimForInterim, type ChatEvent, type ChatNoAnswer, type Route, type SearchResponse, type SearchSnapshot } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { cacheStore } from "../cache";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
 import { runSearch } from "../search";
+import { sseStream } from "../sse";
 import type { SearchEnv } from "../search/types";
 import type { S2Throttle } from "../s2-throttle";
 import { answerFromResults, pickEvidencePapers } from "./answer";
@@ -87,16 +87,9 @@ chatRoutes.post("/", async (c) => {
   const user = await currentUser(c);
   const started = Date.now();
 
-  return streamSSE(c, async (sse) => {
-    let gone = false;
-    const abort = new AbortController();
-    sse.onAbort(() => {
-      gone = true;
-      abort.abort();
-    });
-    const send = async (e: ChatEvent) => {
-      if (!gone) await sse.writeSSE({ event: e.type, data: JSON.stringify(e) }).catch(() => (gone = true));
-    };
+  const abort = new AbortController();
+  return sseStream<ChatEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (s) => {
+    const send = s.send;
     const done = (answered: boolean, reason?: ChatNoAnswer) => send({ type: "done", answered, ...(reason ? { reason } : {}), tookMs: Date.now() - started });
 
     try {
@@ -105,7 +98,7 @@ chatRoutes.post("/", async (c) => {
         // the rules settle most messages without a model; only when they cannot, a step says so while the model looks
         if (user && !ruleRoute(text)) await send({ type: "step", step: "route" });
         route = await routeMessage(text, user ? routeCompleteFor(c.env, user.id) : null);
-        if (gone) return;
+        if (s.gone) return;
       } else {
         route = { mode: "search", how: "chosen", confidence: 1, language: detectLanguage(text) };
       }
@@ -118,8 +111,17 @@ chatRoutes.post("/", async (c) => {
       if (query.length > 300) return void (await done(false, "too_long"));
 
       await send({ type: "step", step: "search" });
-      const found = stubbed(c.env) ? stubSearchFor(query) : await runSearch(searchEnv(c.env), query, 20, { onSnapshot: (s) => send({ type: "papers", results: s.results, final: false }) });
-      if (gone) return;
+      // while the sources answer, each list carries only the start of the abstracts; the final one below carries all of them (slimForInterim)
+      const interim = (r: SearchResponse | SearchSnapshot) => send({ type: "papers", results: slimForInterim(r.results), final: false });
+      let found: SearchResponse;
+      if (stubbed(c.env)) {
+        if (/\bstalled\b/i.test(query)) await new Promise((r) => setTimeout(r, 3500)); // a silent wait, to see the keep-alive line and the "still working" hint
+        found = stubSearchFor(query);
+        if (found.results.length > 0) await interim(found);
+      } else {
+        found = await runSearch(searchEnv(c.env), query, 20, { onSnapshot: interim });
+      }
+      if (s.gone) return;
       await send({ type: "papers", results: found.results, final: true });
       if (!complete(found)) await send({ type: "notice", kind: "partial", text: PARTIAL_NOTICE });
       if (found.results.length === 0) {
@@ -137,7 +139,7 @@ chatRoutes.post("/", async (c) => {
         // the question the answer is for is what the person wrote (so it is answered in their language), not the English words the indexes were asked
         answer = await answerFromResults({ question: text.replace(/\s+/g, " ").slice(0, 600), language: route.language, picked, stream: streamFor(c.env, user.id, abort.signal), emit: send, onRaw: c.env.ENABLE_DEV_ROUTES === "1" ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
       } catch (e) {
-        if (gone) return;
+        if (s.gone) return;
         if (e instanceof QuotaError) return void (await done(false, "quota"));
         if (e instanceof NoRouteError || e instanceof AllProvidersFailedError) {
           if (e instanceof AllProvidersFailedError) console.error(JSON.stringify({ level: "error", msg: "chat_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
@@ -145,7 +147,7 @@ chatRoutes.post("/", async (c) => {
         }
         throw e;
       }
-      if (gone) return;
+      if (s.gone) return;
       await send({ type: "step", step: "check" });
       await send({ type: "answer", answer: { text: answer.text, citations: answer.citations, grounded: answer.grounded } });
       await done(answer.grounded, answer.grounded ? undefined : answer.enough ? "not_grounded" : "not_answered");

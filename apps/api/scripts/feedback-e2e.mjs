@@ -13,7 +13,7 @@ const login = async (sub, email, name) => {
   await c.follow(`${APP}/api/v1/auth/google/start`);
   return c;
 };
-const report = (c, body, origin = APP) => c.api("/api/v1/feedback", { method: "POST", body, origin });
+const report = (c, body, origin = APP, headers = {}) => c.api("/api/v1/feedback", { method: "POST", body, origin, headers });
 
 try {
   const anon = createClient(APP);
@@ -29,6 +29,22 @@ try {
   ok(r1.status === 201, "a reference verdict can be reported");
   ok((await report(U, { kind: "idea", problem: "missed_paper", note: "Missing the 2019 survey", semanticQuery: "graph networks for fraud detection in banks", keywordQueries: ["graph fraud", "bank invoice fraud"] })).status === 201, "an idea search can be reported");
   ok((await report(U, { kind: "other", problem: "other", note: "x".repeat(5000) })).status === 201, "an overlong note is accepted but cut, not rejected");
+
+  console.log("a repeated report with the same Idempotency-Key");
+  {
+    const key = "44444444-5555-4666-8777-888888888888";
+    const body = { kind: "other", problem: "other", note: "sent twice because the reply was lost" };
+    const count = async () => (await (await fetch(`${APP}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: ["SELECT COUNT(*) AS n FROM feedback WHERE note LIKE 'sent twice%'"] }) })).json()).results?.[0]?.[0]?.n;
+    const a = await report(U, body, APP, { "Idempotency-Key": key });
+    const b = await report(U, body, APP, { "Idempotency-Key": key });
+    ok(a.status === 201 && b.status === 201 && b.headers.get("idempotent-replayed") === "true", "the second try gets the first reply back");
+    ok((await a.json()).id === (await b.json()).id && (await count()) === 1, "and the report was filed once");
+    ok((await report(U, { ...body, note: "something else" }, APP, { "Idempotency-Key": key })).status === 422, "the same key with a different report is refused (422)");
+    ok((await report(U, body, APP, { "Idempotency-Key": "bad key" })).status === 400, "an unacceptable key is refused (400)");
+    const refused = await report(U, { kind: "nonsense", problem: "other" }, APP, { "Idempotency-Key": "55555555-6666-4777-8888-999999999999" });
+    const fixed = await report(U, body, APP, { "Idempotency-Key": "55555555-6666-4777-8888-999999999999" });
+    ok(refused.status === 400 && fixed.status === 201, "an error is not kept: the key can be used again for a good report");
+  }
 
   console.log("the admin page");
   ok((await anon.api("/api/v1/admin/overview")).status === 404, "signed-out visitors are told it does not exist");

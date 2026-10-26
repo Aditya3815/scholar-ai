@@ -1,6 +1,6 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowRight, ChevronDown, FileStack, Lightbulb, ListChecks, RefreshCw, Search, ShieldCheck, TriangleAlert } from "lucide-react";
-import { Fragment, useCallback, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MAX_CHAT_CHARS, ROUTE_NAMES, type AssistantMsg, type ChatMsg, type ChatNoAnswer, type RouteMode } from "@scholar/shared";
 import { SignInDialog } from "../components/AccountMenu";
 import { Pop } from "../components/Pop";
@@ -36,6 +36,28 @@ const OFFER: Record<Exclude<RouteMode, "search">, { text: string; open: string }
   idea: { text: "This looks like an idea to test against the literature. Idea Check starts only when you open it and approve the search.", open: "Open Idea Check" },
   paper: { text: "This looks like a question about one of your own papers.", open: `Open ${PAPERS_NAME}` },
 };
+
+/** After this long without a single event from the server (the model can think for 9 to 12 s before its first word), the reply says it is still working. A test can shorten it with sessionStorage "scholar.quiet.ms". */
+const quietMs = () => {
+  try {
+    const v = Number(sessionStorage.getItem("scholar.quiet.ms"));
+    return Number.isFinite(v) && v >= 500 ? v : 15_000;
+  } catch {
+    return 15_000;
+  }
+};
+/** True once a working reply has been silent for `quietMs()`. Every event gives the reply a new identity, which starts the wait again. */
+function useQuiet(msg: AssistantMsg): boolean {
+  const [quiet, setQuiet] = useState(false);
+  const working = msg.status === "working";
+  useEffect(() => {
+    setQuiet(false);
+    if (!working) return;
+    const t = window.setTimeout(() => setQuiet(true), quietMs());
+    return () => window.clearTimeout(t);
+  }, [msg, working]);
+  return quiet && working;
+}
 
 const STEPS = [
   { id: "route", label: "Understanding" },
@@ -145,6 +167,7 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange }
   const answer = msg.answer?.grounded ? msg.answer : null;
   const titleOf = (n: number) => byN(n)?.title ?? `paper ${n}`;
   const routed = msg.status === "done" && msg.reason === "routed" && msg.mode !== "search";
+  const quiet = useQuiet(msg);
   const announce = working ? "" : msg.status === "done" ? (routed ? "Understood. A tool can be opened." : `${answer ? "Answer ready" : "Papers ready"}, ${msg.papers.length} ${msg.papers.length === 1 ? "paper" : "papers"}.`) : msg.status === "stopped" ? "Stopped." : msg.error ?? "This answer was interrupted.";
 
   return (
@@ -163,6 +186,7 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange }
       )}
 
       {working && <Progress m={msg} signedIn={signedIn} />}
+      {quiet && <p className="chat-quiet" role="status">Still working… this is taking longer than usual. You can press Stop and try again.</p>}
 
       {answer ? (
         <m.div className="chat-answer" initial={{ opacity: 0.4 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>

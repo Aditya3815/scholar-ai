@@ -1,0 +1,7 @@
+{
+  "name": "r9-spike",
+  "private": true,
+  "type": "module",
+  "description": "Spike R9: can a Cloudflare Workflow run the open-access ingest (durable steps, retries, one instance per paper) and be tested locally? Not part of the app.",
+  "devDependencies": { "wrangler": "4.151.1" }
+}

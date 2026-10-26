@@ -133,6 +133,7 @@ export function PrivacyPage() {
           <tr><td>Reports you send with “Report a problem”, with what the page says it sends</td><td>To fix mistakes and improve the tests</td><td>One year, or until you delete your account</td></tr>
           <tr><td>How much AI you used (a count of tokens, the model, whether it worked), tied to your account but never the text</td><td>To keep use fair and to see what the service costs</td><td>90 days</td></tr>
           <tr><td>Technical logs: the page asked for, the result and how long it took. No page content, no questions, no ideas</td><td>To find and fix faults</td><td>Short-lived, as kept by our hosting service</td></tr>
+          <tr><td>A short-lived record that a request to store a paper or send a report has already been handled: a random key and our reply (which names the paper or the report, not its text)</td><td>So a retry after a lost connection does not store it twice</td><td>One day</td></tr>
           <tr><td>A short note that you read the privacy text, and which version</td><td>So we can show we asked</td><td>Until you delete your account</td></tr>
           <tr><td>Errors from the app (the kind of error, a shortened message, where in the code, which page), sent to an error-tracking service</td><td>To find bugs. Anything that looks like an e-mail address, a link or an id is removed first, and no one&apos;s name, address or text is included</td><td>For the period that service keeps them</td></tr>
         </tbody>

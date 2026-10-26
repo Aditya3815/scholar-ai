@@ -5,7 +5,7 @@ import { extractJson } from "../llm/gateway";
 /**
  * Offline stand-ins for the search and the model, used ONLY by tests and the local end-to-end run (QA_STUB=1 with ENABLE_DEV_ROUTES=1, never production secrets).
  * Words in the question steer them: "nothing" finds no papers, "partial" makes one source fail, "unanswerable" makes the model say the papers do not answer,
- * "hallucinate" makes it cite a sentence that does not exist, "slowly" makes the answer take a few seconds (to press Stop).
+ * "hallucinate" makes it cite a sentence that does not exist, "slowly" makes the answer take a few seconds (to press Stop), "longabstract" gives the first paper a long abstract, "stalled" keeps the stream silent for a few seconds.
  */
 const RECORDS = [
   { doi: "10.1000/glaucoma.1", title: "Deep learning for glaucoma screening from fundus photographs", year: 2021, venue: "Journal of Ophthalmic AI", abstract: "We trained a convolutional network on 12,000 fundus photographs to detect glaucoma. The model reached an AUC of 0.94 on a held-out set. Performance was lower for images with cataract." },
@@ -38,6 +38,8 @@ export function stubPapers(): Paper[] {
 export function stubSearchFor(q: string): SearchResponse {
   const none = /\bnothing\b/i.test(q);
   const results = none ? [] : stubPapers();
+  // "longabstract": the first paper has an abstract far longer than a folded card shows (to see the interim lists carry only its start)
+  if (/\blongabstract\b/i.test(q) && results[0]?.abstract) results[0] = { ...results[0], abstract: `${results[0].abstract} ${"Further detail of the method and its limits is given in the full text of this stand-in paper. ".repeat(8)}`.trim() };
   const partial = /\bpartial\b/i.test(q);
   return {
     query: q,

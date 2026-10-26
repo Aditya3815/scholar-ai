@@ -34,6 +34,7 @@ export async function eraseAccount(env: Env, userId: string, opts: { tombstone?:
     db.prepare("DELETE FROM ocr_usage WHERE user_id = ?1").bind(userId),
     db.prepare("DELETE FROM library_items WHERE user_id = ?1").bind(userId),
     db.prepare("DELETE FROM feedback WHERE user_id = ?1").bind(userId),
+    db.prepare("DELETE FROM idempotency_keys WHERE user_id = ?1").bind(userId),
     db.prepare("DELETE FROM sessions WHERE user_id = ?1").bind(userId),
     db.prepare("DELETE FROM oauth_states WHERE link_user_id = ?1").bind(userId),
     db.prepare("DELETE FROM identities WHERE user_id = ?1").bind(userId),

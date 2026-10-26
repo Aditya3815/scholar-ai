@@ -55,3 +55,18 @@ export function cleanChatMessage(raw: unknown): string | null {
   const t = raw.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
   return t.length >= MIN_CHAT_CHARS && t.length <= MAX_CHAT_CHARS && /[\p{L}\p{N}]/u.test(t) ? t : null;
 }
+
+/**
+ * The list of papers is sent as a full snapshot each time a source answers (so a lost or repeated event cannot corrupt it), and measured on a real search it was 82 to 87% of
+ * the stream: the same twenty abstracts, five times. Until the final list, each paper carries only the start of its abstract (about what a card shows folded); the final
+ * list has all of it.
+ */
+export const INTERIM_ABSTRACT_CHARS = 280;
+export function slimForInterim(papers: readonly Paper[]): Paper[] {
+  return papers.map((p) => {
+    if (!p.abstract || p.abstract.length <= INTERIM_ABSTRACT_CHARS) return p;
+    const cut = p.abstract.slice(0, INTERIM_ABSTRACT_CHARS);
+    const at = cut.lastIndexOf(" ");
+    return { ...p, abstract: `${(at > INTERIM_ABSTRACT_CHARS * 0.6 ? cut.slice(0, at) : cut).replace(/[\s,;:.]+$/, "")}…` };
+  });
+}

@@ -1,5 +1,4 @@
 import { Hono, type Context } from "hono";
-import { streamSSE } from "hono/streaming";
 import { PRIVACY_VERSION, IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaCompareEvent, type IdeaInsightsEvent, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { cacheStore } from "../cache";
@@ -8,6 +7,7 @@ import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
 import type { SearchEnv } from "../search/types";
 import type { S2Throttle } from "../s2-throttle";
+import { sseStream } from "../sse";
 import { PlanError, planIdea, scrubText } from "./plan";
 import { compareIdea, sanitizeCompareRequest } from "./compare";
 import { insightsIdea, sanitizeInsightsRequest } from "./insights";
@@ -124,14 +124,8 @@ ideaRoutes.post("/search", async (c) => {
   const req = sanitizeRequest(await c.req.json().catch(() => null));
   if (!req) return deny(c, 400, "invalid_plan", "The search plan is empty", "Keep at least one keyword search, or a description of a few sentences.");
 
-  return streamSSE(c, async (sse) => {
-    let gone = false;
-    sse.onAbort(() => {
-      gone = true;
-    });
-    const send = async (e: IdeaSearchEvent) => {
-      if (!gone) await sse.writeSSE({ event: e.type, data: JSON.stringify(e) }).catch(() => (gone = true));
-    };
+  return sseStream<IdeaSearchEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" } }, async (sse) => {
+    const send = sse.send;
     try {
       if (stubbed(c.env)) {
         await send({ type: "stage", stage: "searching" });
@@ -168,15 +162,8 @@ ideaRoutes.post("/compare", async (c) => {
   const stream = streamFor(c.env, user.id, abort.signal);
   if (!stream) return deny(c, 503, "ai_unavailable", "Comparing is unavailable right now");
 
-  return streamSSE(c, async (sse) => {
-    let gone = false;
-    sse.onAbort(() => {
-      gone = true;
-      abort.abort();
-    });
-    const send = async (e: IdeaCompareEvent) => {
-      if (!gone) await sse.writeSSE({ event: e.type, data: JSON.stringify(e) }).catch(() => (gone = true));
-    };
+  return sseStream<IdeaCompareEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (sse) => {
+    const send = sse.send;
     try {
       const comparison = await compareIdea({
         req,
@@ -221,15 +208,8 @@ ideaRoutes.post("/insights", async (c) => {
   const stream = streamFor(c.env, user.id, abort.signal, stubInsightsStream, 150_000);
   if (!stream) return deny(c, 503, "ai_unavailable", "Reading the papers is unavailable right now");
 
-  return streamSSE(c, async (sse) => {
-    let gone = false;
-    sse.onAbort(() => {
-      gone = true;
-      abort.abort();
-    });
-    const send = async (e: IdeaInsightsEvent) => {
-      if (!gone) await sse.writeSSE({ event: e.type, data: JSON.stringify(e) }).catch(() => (gone = true));
-    };
+  return sseStream<IdeaInsightsEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (sse) => {
+    const send = sse.send;
     try {
       const insights = await insightsIdea({
         req,

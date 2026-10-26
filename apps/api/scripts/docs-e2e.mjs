@@ -17,8 +17,8 @@ const login = async (sub, email, name) => {
   return c;
 };
 const pdf = makePdf(SAMPLE_PAPER, { title: "Glaucoma screening" });
-const upload = (c, body, { name = "glaucoma_screening.pdf", origin = APP, type = "application/pdf" } = {}) =>
-  c.send(`${APP}/api/v1/documents`, { method: "POST", headers: { ...(origin ? { Origin: origin } : {}), "Content-Type": type, "X-Filename": encodeURIComponent(name) }, body });
+const upload = (c, body, { name = "glaucoma_screening.pdf", origin = APP, type = "application/pdf", key } = {}) =>
+  c.send(`${APP}/api/v1/documents`, { method: "POST", headers: { ...(origin ? { Origin: origin } : {}), "Content-Type": type, "X-Filename": encodeURIComponent(name), ...(key ? { "Idempotency-Key": key } : {}) }, body });
 const pages = (texts) => texts.map((text, i) => ({ page: i + 1, text }));
 
 try {
@@ -60,6 +60,33 @@ try {
   const back = Buffer.from(await f.arrayBuffer());
   ok(f.status === 200 && f.headers.get("content-type") === "application/pdf" && back.equals(pdf), "the file downloads byte for byte");
   ok(/no-store/.test(f.headers.get("cache-control") ?? ""), "the file is never cached by shared caches");
+
+  console.log("a repeated upload with the same Idempotency-Key");
+  {
+    const I = await login("doc-idem", "idem@example.com", "Ida Idem");
+    await I.ack();
+    const key = "11111111-2222-4333-8444-555555555555";
+    const first = await upload(I, pdf, { key });
+    const again = await upload(I, pdf, { key });
+    const d1 = (await first.json()).document;
+    const d2 = (await again.json()).document;
+    ok(first.status === 201 && again.status === 201 && again.headers.get("idempotent-replayed") === "true" && first.headers.get("idempotent-replayed") === null, "the second try gets the first reply back, marked as a replay");
+    ok(d1.id === d2.id && (await (await I.api("/api/v1/documents")).json()).items.length === 1, "and only one paper exists (a lost reply followed by a retry stores nothing twice)");
+    ok((await upload(I, pdf, { key, name: "another_file.pdf" })).status === 422, "the same key with a different file is refused (422)");
+    ok((await upload(I, pdf, { key: "short" })).status === 400, "a key that is not acceptable is refused (400)");
+    const noKey = await upload(I, pdf);
+    ok(noKey.status === 201 && (await (await I.api("/api/v1/documents")).json()).items.length === 2, "without a key an upload works as before (and a second paper is a second paper)");
+    const bad = await upload(I, Buffer.from("not a pdf at all"), { key: "22222222-3333-4444-8555-666666666666" });
+    const bad2 = await upload(I, pdf, { key: "22222222-3333-4444-8555-666666666666" });
+    ok(bad.status === 415 && bad2.status === 201, "an error is not kept: after a refused file the same key can be used for a good one");
+    const other = await login("doc-idem-2", "idem2@example.com", "Ivan Other");
+    await other.ack();
+    const theirs = await upload(other, pdf, { key });
+    ok(theirs.status === 201 && theirs.headers.get("idempotent-replayed") === null, "another person using the same key is a different request");
+    const both = await Promise.all([upload(I, pdf, { key: "33333333-4444-4555-8666-777777777777" }), upload(I, pdf, { key: "33333333-4444-4555-8666-777777777777" })]);
+    const codes = both.map((r) => r.status).sort();
+    ok((codes[0] === 201 && (codes[1] === 201 || codes[1] === 409)) && (await (await I.api("/api/v1/documents")).json()).items.length === 4, `two uploads at the same moment with one key store one paper (${codes.join(" and ")})`);
+  }
 
   console.log("asking before the paper is indexed");
   ok((await A.api(`/api/v1/documents/${doc.id}/ask`, { method: "POST", body: { question: "What is this?" } })).status === 409, "not ready -> 409");

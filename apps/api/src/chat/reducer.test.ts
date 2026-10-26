@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyChatEvent, chatTitle, interruptAssistant, startAssistant, stopAssistant, trimForStorage, type ChatEvent, type Paper } from "@scholar/shared";
+import { INTERIM_ABSTRACT_CHARS, applyChatEvent, chatTitle, interruptAssistant, slimForInterim, startAssistant, stopAssistant, trimForStorage, type ChatEvent, type Paper } from "@scholar/shared";
 import { stubPapers } from "./stub";
 
 const run = (events: ChatEvent[]) => events.reduce(applyChatEvent, startAssistant("a1", "glaucoma", 1));
@@ -84,5 +84,34 @@ describe("chatTitle", () => {
     expect(t.endsWith("…")).toBe(true);
     expect(t.length).toBeLessThanOrEqual(61);
     expect(t).not.toMatch(/\s…$/);
+  });
+});
+
+describe("slimForInterim", () => {
+  const long = { ...stubPapers()[0]!, abstract: "Word ".repeat(200).trim() };
+  it("cuts a long abstract at a word, with an ellipsis, to about what a folded card shows", () => {
+    const [s] = slimForInterim([long]);
+    expect(s!.abstract!.length).toBeLessThanOrEqual(INTERIM_ABSTRACT_CHARS + 1);
+    expect(s!.abstract!.endsWith("…")).toBe(true);
+    expect(s!.abstract).not.toMatch(/\s…$/);
+    expect(long.abstract!.startsWith(s!.abstract!.slice(0, -1))).toBe(true);
+  });
+  it("leaves short, missing and exactly-long-enough abstracts as they are, and does not change its input", () => {
+    const p = stubPapers();
+    const none = { ...p[0]!, abstract: null };
+    const exact = { ...p[1]!, abstract: "a".repeat(INTERIM_ABSTRACT_CHARS) };
+    const out = slimForInterim([p[2]!, none, exact]);
+    expect(out[0]).toBe(p[2]);
+    expect(out[1]!.abstract).toBeNull();
+    expect(out[2]!.abstract).toBe(exact.abstract);
+    const copy = JSON.stringify(long);
+    slimForInterim([long]);
+    expect(JSON.stringify(long)).toBe(copy);
+  });
+  it("is a large saving on a real-sized list and keeps every other field", () => {
+    const list = Array.from({ length: 20 }, (_, i) => ({ ...long, id: `x${i}`, abstract: "A sentence of an abstract about the method. ".repeat(30) }));
+    const slim = slimForInterim(list);
+    expect(JSON.stringify(slim).length).toBeLessThan(JSON.stringify(list).length * 0.4);
+    expect(slim.every((p, i) => p.id === list[i]!.id && p.title === list[i]!.title && p.doi === list[i]!.doi)).toBe(true);
   });
 });

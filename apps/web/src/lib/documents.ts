@@ -177,14 +177,18 @@ const friendly = (e: unknown): string => {
 
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(n > 10 * 1024 * 1024 ? 0 : 1)} MB`;
 
+/** A random key for one upload. It is sent again, unchanged, if the upload is tried again, so a reply that never arrived cannot make the server store the paper twice. */
+const newIdempotencyKey = () => crypto.randomUUID();
+
 /** POST the file with upload progress (fetch cannot report it). */
-function uploadFile(file: File, onProgress: (f: number) => void): Promise<DocumentInfo> {
+function uploadFile(file: File, idempotencyKey: string, onProgress: (f: number) => void): Promise<DocumentInfo> {
   return new Promise((resolve, reject) => {
     const x = new XMLHttpRequest();
     x.open("POST", "/api/v1/documents");
     x.withCredentials = true;
     x.setRequestHeader("Content-Type", "application/pdf");
     x.setRequestHeader("X-Filename", encodeURIComponent(file.name));
+    x.setRequestHeader("Idempotency-Key", idempotencyKey);
     x.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
     x.onerror = () => reject(new TypeError("network"));
     x.onload = () => {
@@ -344,7 +348,19 @@ export async function startUpload(file: File): Promise<void> {
     if (!scanned) void pdf.loadingTask.destroy();
 
     patchJob(key, { step: "uploading", progress: 0, detail: `Uploading ${mb(file.size)}`, scanned });
-    const doc = await uploadFile(file, (f) => patchJob(key, { progress: f }));
+    // A lost connection, or a first try the server is still finishing, is tried again with the same key (at most three tries): the server stores the paper once.
+    const idem = newIdempotencyKey();
+    let doc: DocumentInfo | undefined;
+    for (let attempt = 1; !doc; attempt++) {
+      try {
+        doc = await uploadFile(file, idem, (f) => patchJob(key, { progress: f }));
+      } catch (e) {
+        const again = e instanceof TypeError || (e instanceof ApiError && e.type === "idempotency_in_progress");
+        if (!again || attempt >= 3) throw e;
+        patchJob(key, { progress: 0, detail: "The connection was lost. Trying again" });
+        await new Promise((r) => setTimeout(r, 900 * attempt));
+      }
+    }
     patchJob(key, { docId: doc.id });
     if (cover) await request(`/${doc.id}/cover`, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: cover }).catch(() => {});
 

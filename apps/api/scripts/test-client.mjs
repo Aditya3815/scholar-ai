@@ -24,10 +24,10 @@ export function createClient(APP) {
     return { res, final: new URL(url) };
   };
   /** Same-origin JSON request (browsers send Origin on these; Node does not, so add it). */
-  const api = (path, { method = "GET", body, origin = APP } = {}) =>
+  const api = (path, { method = "GET", body, origin = APP, headers = {} } = {}) =>
     send(`${APP}${path}`, {
       method,
-      headers: { ...(origin ? { Origin: origin } : {}), ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
+      headers: { ...(origin ? { Origin: origin } : {}), ...(body !== undefined ? { "Content-Type": "application/json" } : {}), ...headers },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   const me = async () => (await (await send(`${APP}/api/v1/auth/me`)).json()).user;

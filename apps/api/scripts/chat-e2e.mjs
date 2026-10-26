@@ -144,6 +144,24 @@ try {
   const forced = await chat(A, "mere references check karo");
   ok(understood(forced).mode === "search" && understood(forced).auto === false && understood(forced).how === "chosen" && understood(forced).confidence === 1 && types(forced.events).includes("papers") && !stepsOf(forced).includes("route"), "a search chosen by hand is never re-routed: it is searched as written");
 
+  console.log("streams: keep-alive, terminal event, lighter interim lists");
+  const rawText = async (client, message) => {
+    const res = await client.send(`${APP}/api/v1/chat`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify({ mode: "search", message }) });
+    return await res.text();
+  };
+  const quiet = await rawText(A, "stalled glaucoma screening");
+  ok((quiet.match(/^: keep-alive$/gm) ?? []).length >= 2, "while the stream is silent a keep-alive comment arrives every interval (here 1 s; 15 s in production)");
+  ok(!/keep-alive/.test(await rawText(A, "glaucoma screening")), "and none comes when the answer is quick");
+  const lastBlock = (raw) => raw.trim().split("\n\n").at(-1) ?? "";
+  ok(/^event: done$/m.test(lastBlock(quiet)), "the stream ends with its terminal event (done), after the keep-alive lines");
+  const lg = await chat(A, "longabstract glaucoma screening");
+  const interim = lg.events.filter((e) => e.type === "papers" && !e.final);
+  const fin = lg.events.filter((e) => e.type === "papers" && e.final).at(-1);
+  ok(interim.length >= 1 && interim.every((e) => e.results[0].abstract.length <= 281 && e.results[0].abstract.endsWith("…")), "the lists sent while sources answer carry only the start of a long abstract");
+  ok(fin.results[0].abstract.length > 600 && !fin.results[0].abstract.endsWith("…"), "the final list carries the whole abstract");
+  ok(fin.results.slice(1).every((p, i) => p.abstract === interim[0].results[i + 1].abstract), "short abstracts are never cut");
+  ok(lg.events.find((e) => e.type === "answer")?.answer.grounded === true, "and the answer, made from the full abstracts, is still checked and shown");
+
   console.log("Stop");
   const stopped = await chat(A, "slowly glaucoma", { stopAfter: 6 });
   ok(stopped.events.length >= 6 && !types(stopped.events).includes("done"), "closing the stream part way stops it (no done)");

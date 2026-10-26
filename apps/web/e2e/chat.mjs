@@ -156,6 +156,17 @@ try {
   ok(/could not be checked/.test(await page.locator(".chat-list > li:last-child .chat-why").innerText()), "an answer that could not be checked says so");
   ok(await page.locator(".chat-list > li:last-child .chat-answer").count() === 0, "an answer whose evidence is not a real sentence is not shown");
 
+  console.log("a silent wait says so");
+  await page.evaluate(() => sessionStorage.setItem("scholar.quiet.ms", "1500")); // production waits 15 s
+  await send("stalled glaucoma screening", { tool: "Search papers" });
+  await page.locator(".chat-quiet").waitFor({ timeout: 6000 });
+  ok(/Still working/.test(await page.locator(".chat-quiet").innerText()) && await page.locator(".chat-quiet").getAttribute("role") === "status", "after a silence the reply says 'Still working…' (a polite status for a screen reader)");
+  await page.locator(".chat-turn .result").first().waitFor({ timeout: 10000 });
+  await page.locator(".chat-quiet").waitFor({ state: "detached", timeout: 6000 });
+  ok(true, "and the line goes as soon as the server speaks again");
+  await page.locator('.chat-turn[data-status="done"]').last().waitFor({ timeout: 30000 });
+  await page.evaluate(() => sessionStorage.removeItem("scholar.quiet.ms"));
+
   console.log("Stop, and one message at a time");
   const before = await page.locator(".chat-bubble").count();
   await send("slowly glaucoma", { tool: false });

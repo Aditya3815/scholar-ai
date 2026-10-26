@@ -14,6 +14,8 @@ const JOBS: { name: string; sql: string }[] = [
   { name: "cache_stats", sql: "DELETE FROM cache_stats WHERE day < date('now', '-35 days')" },
   // Reports are kept for a year, long enough to learn from, then removed.
   { name: "feedback", sql: "DELETE FROM feedback WHERE created_at < datetime('now', '-365 days')" },
+  // A key only matters for a retry made soon after the first request; a day is plenty.
+  { name: "idempotency_keys", sql: "DELETE FROM idempotency_keys WHERE created_at < datetime('now', '-1 day')" },
   { name: "audit_log", sql: "DELETE FROM audit_log WHERE ts < datetime('now', '-365 days')" },
 ];
 

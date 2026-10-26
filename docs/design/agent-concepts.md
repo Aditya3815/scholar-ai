@@ -130,6 +130,14 @@ Design rules taken from the docs: a paper becomes *ready* only when every chunk 
 
 **When to revisit.** If Scholar AI ever accepts agents or tools from other people and has to show their results, or exposes itself as an agent others embed.
 
+## Done so far (26 Oct)
+
+- **One stream helper for every endpoint** (`apps/api/src/sse.ts`): a keep-alive comment every 15 s, a guaranteed single terminal event (a stream that ends without one gets a plain error event, a second terminal event is dropped), the model call aborted when the reader leaves. Chat, the three Idea Check streams and paper Q&A use it; 7 unit tests, plus an end-to-end check that the keep-alive arrives and that the stream ends with `done`.
+- **"Still working…"** after 15 s without any event (a polite status line, gone when the server speaks again; browser test).
+- **Lighter interim lists**: until the final list each paper carries the first 280 characters of its abstract (`slimForInterim`); the answer is still made from the full abstracts. Measured on the stand-in data in the end-to-end test; the saving on a live search is to be measured after deploy (expected: about 40% of the stream, less than the 75% first estimated, because the folded card shows three lines and a jump when the full abstract arrives would be worse than the bytes).
+- **Idempotency keys** (`apps/api/src/idempotency.ts`, migration 0016) on `POST /documents` and `POST /feedback`: a repeat with the same key returns the first reply (`Idempotent-Replayed`), a different request under the same key is refused (422), two at once run once (409 for the other), errors are not kept, keys live a day. The browser sends one key per upload and per report and tries again once or twice on a lost connection. 13 unit tests, 14 end-to-end checks. Privacy text lists the record (version `2026-10-draft-7`).
+- **Spike R9** ([R9-workflows.md](../spikes/R9-workflows.md)): a Workflow works locally with the one-instance-per-key rule, retries and checkpoints; it is the engine for the W4 ingest.
+
 ## What I would do, in order
 
 1. **Now, small:** SSE keep-alive comment plus a "Still working…" line; interim paper snapshots without abstracts (after checking the cards); tests that every stream ends with `done` or `error` and that a repeat of the two unsafe POSTs is harmless. About a day.

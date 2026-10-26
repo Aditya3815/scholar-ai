@@ -1,5 +1,6 @@
 import { Hono, type Context } from "hono";
-import { streamSSE } from "hono/streaming";
+import { d1KeyStore, readKey, runIdempotent } from "../idempotency";
+import { sseStream } from "../sse";
 import {
   MAX_CHARS_PER_BATCH,
   MAX_COVER_BYTES,
@@ -264,29 +265,32 @@ documentRoutes.post("/", async (c) => {
   if (!user) return deny(c, 401, "unauthorized", "Sign in to upload papers");
   if (user.privacyAck !== PRIVACY_VERSION) return deny(c, 403, "privacy_ack_required", "Please read how your papers are handled first", "A short note appears before your first upload.");
 
-  const declared = Number(c.req.header("content-length") ?? "");
-  if (Number.isFinite(declared) && declared > MAX_DOC_BYTES) return deny(c, 413, "too_large", "That PDF is too large", `The limit is ${MAX_DOC_BYTES / 1024 / 1024} MB.`);
+  // A retry with the same Idempotency-Key (a reply that never arrived) returns the first result instead of storing the paper twice; see idempotency.ts.
+  return runIdempotent(d1KeyStore(c.env.DB), { userId: user.id, route: "documents" }, readKey(c.req.header("Idempotency-Key")), `${c.req.header("content-length") ?? ""}:${c.req.header("x-filename") ?? ""}`, Date.now(), async () => {
+    const declared = Number(c.req.header("content-length") ?? "");
+    if (Number.isFinite(declared) && declared > MAX_DOC_BYTES) return deny(c, 413, "too_large", "That PDF is too large", `The limit is ${MAX_DOC_BYTES / 1024 / 1024} MB.`);
 
-  const totals = await c.env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(size_bytes), 0) AS bytes FROM documents WHERE user_id = ?1").bind(user.id).first<{ n: number; bytes: number }>();
-  if ((totals?.n ?? 0) >= MAX_DOCS_PER_USER) return deny(c, 409, "library_full", "Your paper library is full", `You can keep ${MAX_DOCS_PER_USER} papers. Delete one to add another.`);
+    const totals = await c.env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(size_bytes), 0) AS bytes FROM documents WHERE user_id = ?1").bind(user.id).first<{ n: number; bytes: number }>();
+    if ((totals?.n ?? 0) >= MAX_DOCS_PER_USER) return deny(c, 409, "library_full", "Your paper library is full", `You can keep ${MAX_DOCS_PER_USER} papers. Delete one to add another.`);
 
-  const body = await c.req.arrayBuffer();
-  if (body.byteLength > MAX_DOC_BYTES) return deny(c, 413, "too_large", "That PDF is too large", `The limit is ${MAX_DOC_BYTES / 1024 / 1024} MB.`);
-  if ((totals?.bytes ?? 0) + body.byteLength > MAX_TOTAL_DOC_BYTES) return deny(c, 409, "storage_full", "Your storage is full", "Delete a paper to free up space.");
-  // Magic bytes, not the Content-Type header, decide whether this is a PDF.
-  const head = new TextDecoder().decode(new Uint8Array(body.slice(0, 1024)));
-  if (!head.includes("%PDF-")) return deny(c, 415, "not_a_pdf", "That file is not a PDF");
+    const body = await c.req.arrayBuffer();
+    if (body.byteLength > MAX_DOC_BYTES) return deny(c, 413, "too_large", "That PDF is too large", `The limit is ${MAX_DOC_BYTES / 1024 / 1024} MB.`);
+    if ((totals?.bytes ?? 0) + body.byteLength > MAX_TOTAL_DOC_BYTES) return deny(c, 409, "storage_full", "Your storage is full", "Delete a paper to free up space.");
+    // Magic bytes, not the Content-Type header, decide whether this is a PDF.
+    const head = new TextDecoder().decode(new Uint8Array(body.slice(0, 1024)));
+    if (!head.includes("%PDF-")) return deny(c, 415, "not_a_pdf", "That file is not a PDF");
 
-  const id = randomId();
-  const filename = safeFilename(c.req.header("x-filename"));
-  await c.env.FILES.put(pdfKey(user.id, id), body, { httpMetadata: { contentType: "application/pdf" } });
-  try {
-    await c.env.DB.prepare("INSERT INTO documents (id, user_id, title, filename, size_bytes) VALUES (?1, ?2, ?3, ?4, ?5)").bind(id, user.id, titleFrom(filename), filename, body.byteLength).run();
-  } catch (e) {
-    await c.env.FILES.delete(pdfKey(user.id, id)).catch(() => {});
-    throw e;
-  }
-  return c.json({ document: toInfo((await owned(c, user.id, id))!) }, 201);
+    const id = randomId();
+    const filename = safeFilename(c.req.header("x-filename"));
+    await c.env.FILES.put(pdfKey(user.id, id), body, { httpMetadata: { contentType: "application/pdf" } });
+    try {
+      await c.env.DB.prepare("INSERT INTO documents (id, user_id, title, filename, size_bytes) VALUES (?1, ?2, ?3, ?4, ?5)").bind(id, user.id, titleFrom(filename), filename, body.byteLength).run();
+    } catch (e) {
+      await c.env.FILES.delete(pdfKey(user.id, id)).catch(() => {});
+      throw e;
+    }
+    return c.json({ document: toInfo((await owned(c, user.id, id))!) }, 201);
+  });
 });
 
 documentRoutes.put("/:id/cover", async (c) => {
@@ -555,18 +559,11 @@ documentRoutes.post("/:id/ask", async (c) => {
     const abort = new AbortController();
     const stream = streamFor(c.env, user.id, abort.signal);
     if (!stream) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
-    return streamSSE(c, async (sse) => {
-      let gone = false;
-      sse.onAbort(() => {
-        gone = true;
-        abort.abort();
-      });
-      const send = async (e: AskStreamEvent) => {
-        if (!gone) await sse.writeSSE({ event: e.type, data: JSON.stringify(e) }).catch(() => (gone = true));
-      };
+    return sseStream<AskStreamEvent>(c, { terminal: ["answer", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (sse) => {
+      const send = sse.send;
       try {
         const answer = await answerQuestionStream({ question, chunks, embed, stream, meta: { id: randomId(), createdAt: Date.now() }, emit: send, topK: devTopK(c.env) });
-        if (gone) return; // the reader left: nothing to save or send
+        if (sse.gone) return; // the reader left: nothing to save or send
         await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
         await send({ type: "answer", answer });
       } catch (e) {
