@@ -53,7 +53,8 @@ try {
 
   console.log("what is accepted");
   ok((await chat(A, "glaucoma screening", { origin: null })).res.status === 403, "a cross-origin request is refused");
-  ok((await chat(A, "glaucoma", { mode: "verify" })).res.status === 400 && (await chat(A, "glaucoma", { raw: JSON.stringify({ message: "glaucoma" }) })).res.status === 400, "only the search mode exists so far");
+  ok((await chat(A, "glaucoma", { mode: "verify" })).res.status === 400 && (await chat(A, "glaucoma", { raw: JSON.stringify({ message: "glaucoma" }) })).res.status === 400, "only the search and auto modes exist (the other tools open on their own pages)");
+  ok((await chat(A, "", { mode: "auto" })).res.status === 400 && (await chat(A, "?!?", { mode: "auto" })).res.status === 400 && (await chat(A, null, { raw: JSON.stringify({ mode: "auto", message: 42 }) })).res.status === 400 && (await chat(A, "y".repeat(20_001), { mode: "auto" })).res.status === 400, "Auto refuses what is not a message, and what is longer than 20,000 characters");
   ok((await chat(A, "x")).res.status === 400 && (await chat(A, "")).res.status === 400 && (await chat(A, "?!?")).res.status === 400 && (await chat(A, "y".repeat(301))).res.status === 400, "a message that is too short, too long or has no letter is refused");
   ok((await chat(A, null, { raw: "not json" })).res.status === 400 && (await chat(A, null, { raw: JSON.stringify({ mode: "search", message: 42 }) })).res.status === 400, "garbage is refused");
 
@@ -92,6 +93,56 @@ try {
   ok(un.events.at(-1).answered === false && un.events.at(-1).reason === "not_answered" && un.events.find((e) => e.type === "answer").answer.text === "", "when the papers do not answer, no sentence of the model's is shown");
   const ha = await chat(A, "hallucinate glaucoma");
   ok(ha.events.at(-1).reason === "not_grounded" && ha.events.find((e) => e.type === "answer").answer.citations.length === 0, "an answer whose evidence is not a real sentence is not shown");
+
+  console.log("Auto: the rules settle it (no model, no step)");
+  const auto = (c, m, o) => chat(c, m, { mode: "auto", ...o });
+  const understood = (r) => r.events.find((e) => e.type === "understood");
+  const stepsOf = (r) => r.events.filter((e) => e.type === "step").map((e) => e.step).join();
+  const a1 = await auto(A, "glaucoma screening in India");
+  ok(understood(a1).mode === "search" && understood(a1).auto === true && understood(a1).how === "rules" && understood(a1).language === "en" && understood(a1).searchQuery === undefined, "a short English question is a search by the rules, with the words as written");
+  ok(stepsOf(a1) === "search,read,write,check" && a1.events.at(-1).answered === true, "...and it goes the whole way, with no Understanding step and with an answer");
+  const REFS = "[1] LeCun, Y., Bengio, Y., & Hinton, G. (2015). Deep learning. Nature, 521, 436-444.\n[2] Vaswani, A., Shazeer, N., Parmar, N., et al. (2017). Attention is all you need. NeurIPS.\n[3] Krizhevsky, A., Sutskever, I., & Hinton, G. E. (2012). ImageNet classification with deep convolutional neural networks. NIPS.";
+  const a2 = await auto(A, REFS);
+  ok(understood(a2).mode === "verify" && understood(a2).how === "rules" && understood(a2).confidence === 1 && a2.events.at(-1).reason === "routed" && a2.events.at(-1).answered === false, "a pasted list of references is Check references, and the stream ends: the tool opens on its own page");
+  ok(!types(a2.events).includes("papers") && !types(a2.events).includes("token") && !types(a2.events).includes("step"), "...nothing was searched, written or asked of a model");
+  const a3 = await auto(A, "10.1038/nature14539");
+  ok(understood(a3).mode === "search" && understood(a3).how === "rules" && types(a3.events).includes("papers"), "a bare DOI is searched as written");
+
+  console.log("Auto: the model decides (signed in)");
+  const a4 = await auto(A, "mere references check karo");
+  ok(types(a4.events)[0] === "step" && a4.events[0].step === "route" && understood(a4).mode === "verify" && understood(a4).how === "model" && understood(a4).language === "hinglish" && a4.events.at(-1).reason === "routed", "a Hinglish request to check references: an Understanding step, then Check references, then the end");
+  const a5 = await auto(A, "my idea about using bees to detect cancer, is it novel");
+  ok(understood(a5).mode === "idea" && a5.events.at(-1).reason === "routed" && !types(a5.events).includes("papers"), "an idea is Idea Check, offered and not started: no search, no model call for it");
+  const a6 = await auto(A, "what does my uploaded paper say about methods");
+  ok(understood(a6).mode === "paper" && a6.events.at(-1).reason === "routed", "a question about the reader's own paper is Ask a paper");
+  const a7 = await auto(A, "diabetes me exercise ka kya asar hota hai");
+  const u7 = understood(a7);
+  ok(u7.mode === "search" && u7.how === "model" && u7.language === "hinglish" && u7.searchQuery === "translated: diabetes me exercise ka kya" && u7.query === "diabetes me exercise ka kya asar hota hai", "a Hinglish question is searched with English words (shown), and the reader's own words are kept");
+  ok(stepsOf(a7) === "route,search,read,write,check" && a7.events.at(-1).answered === true, "...and it is answered");
+  const a8 = await auto(A, "मधुमेह में व्यायाम का प्रभाव");
+  ok(understood(a8).language === "hi" && understood(a8).searchQuery === "translated: मधुमेह में व्यायाम का प्रभाव" && types(a8.events).includes("answer"), "a Hindi question in Devanagari is searched with English words and answered");
+
+  console.log("Auto: when it is not sure, or the model fails, it searches (harmless) and says so");
+  const a9 = await auto(A, "unsure my idea about sleep");
+  ok(understood(a9).mode === "search" && understood(a9).how === "fallback" && understood(a9).confidence === 0.3 && types(a9.events).includes("papers"), "a doubtful choice runs a search and keeps the doubt, so the screen can say Change");
+  const a10 = await auto(A, "garbled my idea about sleep");
+  ok(understood(a10).mode === "search" && understood(a10).how === "fallback" && types(a10.events).includes("papers"), "an answer that is not one of the four tools is a search");
+  const a11 = await auto(A, "boom my idea about sleep");
+  ok(understood(a11).mode === "search" && understood(a11).how === "fallback" && understood(a11).confidence === 0 && types(a11.events).includes("papers") && a11.events.at(-1).type === "done", "a router that fails is a search, not an error");
+  const long = await auto(A, `boom ${"sleep and memory ".repeat(30)}`);
+  ok(understood(long).mode === "search" && long.events.at(-1).reason === "too_long" && !types(long.events).includes("papers"), "a long text that the router could not shorten is not sent to the indexes: a plain line");
+
+  console.log("Auto: not signed in (no model: the rules and the cues)");
+  const n1 = await auto(anon, "glaucoma screening");
+  ok(understood(n1).how === "rules" && types(n1.events).includes("papers") && n1.events.at(-1).reason === "sign_in" && !stepsOf(n1).includes("route"), "a plain question is searched; no written answer without signing in");
+  const n2 = await auto(anon, "check my references please");
+  ok(understood(n2).mode === "verify" && understood(n2).how === "rules" && n2.events.at(-1).reason === "routed", "the cues still choose the tool");
+  const n3 = await auto(anon, "मधुमेह में व्यायाम का प्रभाव");
+  ok(understood(n3).mode === "search" && understood(n3).how === "fallback" && understood(n3).language === "hi" && understood(n3).searchQuery === undefined && types(n3.events).includes("papers"), "another language is searched as written (nothing translates it)");
+  const n4 = await auto(anon, `my idea: ${"sleep and memory ".repeat(25)}`);
+  ok(understood(n4).mode === "idea" && n4.events.at(-1).reason === "routed", "a long text is an idea or a paper, not a search");
+  const forced = await chat(A, "mere references check karo");
+  ok(understood(forced).mode === "search" && understood(forced).auto === false && understood(forced).how === "chosen" && understood(forced).confidence === 1 && types(forced.events).includes("papers") && !stepsOf(forced).includes("route"), "a search chosen by hand is never re-routed: it is searched as written");
 
   console.log("Stop");
   const stopped = await chat(A, "slowly glaucoma", { stopAfter: 6 });

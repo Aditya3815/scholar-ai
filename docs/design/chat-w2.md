@@ -17,7 +17,7 @@ Conversations are kept **only in this browser** (list in localStorage, each conv
 
 ## How it works
 
-`POST /api/v1/chat` (same-origin, `mode: "search"` only so far, 2 to 300 characters) answers with server-sent events: `understood`, `step`, `papers` (a snapshot after each source; the last marked final), `notice`, `token` (the answer as it is written, provisional), `answer` (checked), `done` (with the reason when there is no written answer), `error`. It shares the search rate limit. The server keeps nothing: no chat table (a test asserts it).
+`POST /api/v1/chat` (same-origin, `mode: "search"` in W2, 2 to 300 characters; W3 adds `"auto"`) answers with server-sent events: `understood`, `step`, `papers` (a snapshot after each source; the last marked final), `notice`, `token` (the answer as it is written, provisional), `answer` (checked), `done` (with the reason when there is no written answer), `error`. It shares the search rate limit. The server keeps nothing: no chat table (a test asserts it).
 
 The written answer (`apps/api/src/chat/answer.ts`):
 
@@ -58,7 +58,7 @@ What the gate does not and cannot say: whether a checked sentence really support
 
 ## Not done in W2 (on purpose)
 
-- The prompt box does not choose the tool: **W3** (the router, with Hinglish and Hindi, and a translated query for the indexes).
+- ~~The prompt box does not choose the tool~~ (done in W3: Auto, with Hinglish and Hindi and a translated query for the indexes; see [router-w3.md](router-w3.md)).
 - Check references, Idea Check and Ask a paper still open their own pages: Idea Check inside the workspace is **W5**; Ask any open-access paper is **W4**.
 - General answers (no paper) with the label: **W5**.
 - Follow-up messages ("only after 2020") are new searches: the server does not use the earlier messages yet.

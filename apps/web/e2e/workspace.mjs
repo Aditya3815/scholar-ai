@@ -218,10 +218,12 @@ try {
   await setTheme(page, "light");
 
   // the mode menu
-  await page.getByRole("button", { name: /Search papers/ }).first().click();
+  ok(/Auto/.test(await page.locator(".hm-mode").innerText()), "the box starts in Auto");
+  await page.locator(".hm-mode").click();
   const menu = page.getByRole("menu", { name: "What should I do?" });
   await menu.waitFor();
-  ok((await menu.getByRole("menuitemradio").count()) === 4, "the mode menu lists four tools");
+  ok((await menu.getByRole("menuitemradio").count()) === 5, "the mode menu lists Auto and the four tools");
+  ok(/^Auto/.test(await menu.getByRole("menuitemradio").first().innerText()) && await menu.getByRole("menuitemradio").first().getAttribute("aria-checked") === "true", "Auto comes first and is the one chosen");
   await page.keyboard.press("ArrowDown");
   await page.waitForTimeout(600);
   await axe("mode menu open", page);
@@ -244,6 +246,12 @@ try {
   ok(/glaucoma/.test(await page.locator("textarea").first().inputValue()), "Idea Check opens with the idea already in it");
   await page.goBack();
   await page.locator("#hm-h").waitFor();
+
+  // a second press on the chosen tool gives the choice back to Auto
+  await page.locator(".hm-pill", { hasText: "Idea Check" }).click();
+  ok(/Idea Check/.test(await page.locator(".hm-mode").innerText()), "a pill chooses its tool");
+  await page.locator(".hm-pill", { hasText: "Idea Check" }).click();
+  ok(/Auto/.test(await page.locator(".hm-mode").innerText()), "pressing the chosen pill again gives the choice back to Auto");
 
   // a search from the box is a conversation: the question, the papers, a written answer (the full test of it is e2e/chat.mjs)
   await page.locator(".hm-pill", { hasText: "Search papers" }).click();

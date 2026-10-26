@@ -58,7 +58,7 @@ export function takeHandoff(tool: "verify" | "idea"): string {
  */
 export const FEATURES = {
   /** W3: the router and the answers understand Roman-letter Hinglish and Hindi. */
-  hinglish: false,
+  hinglish: true,
 } as const;
 
 /**

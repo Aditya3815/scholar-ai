@@ -381,7 +381,7 @@ function Hinglish() {
       <div className="in-wrap in-two">
         <div>
           <Reveal><h2 id="hing-h" className="in-h2">Ask the way <em>you think</em>.</h2></Reveal>
-          <Reveal delay={0.08}><p className="in-lead">English, Hindi or Hinglish: write it the way you would say it to a colleague. Scholar AI works out what you want, shows you what it understood, and replies in your language.</p></Reveal>
+          <Reveal delay={0.08}><p className="in-lead">English, Hindi or Hinglish: write it the way you would say it to a colleague. Scholar AI works out what you want, shows you what it understood, and writes its answers in your language.</p></Reveal>
           <Reveal delay={0.16}><ul className="in-pills"><li>English</li><li lang="hi">हिन्दी</li><li>Hinglish</li><li>Scanned pages</li></ul></Reveal>
         </div>
         <div className="in-chatpair" aria-label="Example exchange">

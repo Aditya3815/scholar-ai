@@ -1,5 +1,6 @@
 import type { Paper } from "./index";
 import type { ChatAnswer, ChatEvent, ChatMode, ChatNoAnswer, ChatStep } from "./chat";
+import type { Lang, RouteHow } from "./route";
 
 /* The conversation as the browser keeps it: a reply is built event by event while it streams, and kept as it is when it is done. All of it is pure, so it is tested without a browser. */
 
@@ -9,8 +10,16 @@ export type AssistantMsg = {
   id: string;
   role: "assistant";
   mode: ChatMode;
-  /** What was asked, as the server understood it (the message, tidied). */
+  /** What was asked, as the server understood it (the message, tidied; a long one is cut). */
   query: string;
+  /** How the message was understood: the language, whether the router chose (`auto`), by what, how surely, and the English words the indexes were asked when they are not the message. */
+  language: Lang;
+  auto: boolean;
+  how: RouteHow;
+  confidence: number;
+  searchQuery?: string;
+  /** False while Auto is still reading the message (no `understood` event yet); absent in chats kept before Auto existed, which count as understood. */
+  understood?: boolean;
   status: AssistantStatus;
   /** The step it is on, and those it has finished. */
   step: ChatStep | null;
@@ -28,10 +37,11 @@ export type AssistantMsg = {
 };
 export type ChatMsg = UserMsg | AssistantMsg;
 
-const STEP_ORDER: ChatStep[] = ["search", "read", "write", "check"];
+const STEP_ORDER: ChatStep[] = ["route", "search", "read", "write", "check"];
 
-export const startAssistant = (id: string, query: string, at: number): AssistantMsg => ({
-  id, role: "assistant", mode: "search", query, status: "working", step: "search", stepsDone: [], papers: [], papersFinal: false, notices: [], live: "", answer: null, at,
+/** A reply that has just been asked for. `auto` is whether the router will choose the tool (the reader left the choice to it); then the first step is understanding the message. */
+export const startAssistant = (id: string, query: string, at: number, auto = false): AssistantMsg => ({
+  id, role: "assistant", mode: "search", query, language: "en", auto, understood: !auto, how: auto ? "rules" : "chosen", confidence: 1, status: "working", step: auto ? "route" : "search", stepsDone: [], papers: [], papersFinal: false, notices: [], live: "", answer: null, at,
 });
 
 /** One event applied to a reply. Pure: the same events always give the same reply. Events that arrive after the reply has ended are ignored. */
@@ -39,10 +49,12 @@ export function applyChatEvent(m: AssistantMsg, e: ChatEvent): AssistantMsg {
   if (m.status !== "working") return m;
   switch (e.type) {
     case "understood":
-      return { ...m, query: e.query, mode: e.mode };
+      return { ...m, understood: true, query: e.query, mode: e.mode, language: e.language, auto: e.auto, how: e.how, confidence: e.confidence, searchQuery: e.searchQuery };
     case "step": {
       const at = STEP_ORDER.indexOf(e.step);
-      return { ...m, step: e.step, stepsDone: STEP_ORDER.filter((s) => STEP_ORDER.indexOf(s) < at) };
+      // "route" is only a step when the router really had to look (a message sent to Auto that the rules could not settle)
+      const routed = m.step === "route" || m.stepsDone.includes("route");
+      return { ...m, step: e.step, stepsDone: STEP_ORDER.filter((s) => STEP_ORDER.indexOf(s) < at && (s !== "route" || routed)) };
     }
     case "papers":
       return { ...m, papers: e.results, papersFinal: e.final };
@@ -53,7 +65,7 @@ export function applyChatEvent(m: AssistantMsg, e: ChatEvent): AssistantMsg {
     case "answer":
       return { ...m, answer: e.answer, live: "" };
     case "done":
-      return { ...m, status: "done", step: null, stepsDone: [...STEP_ORDER], live: "", tookMs: e.tookMs, reason: e.reason, papersFinal: true };
+      return { ...m, status: "done", step: null, stepsDone: STEP_ORDER.filter((s) => s !== "route" || m.step === "route" || m.stepsDone.includes("route")), live: "", tookMs: e.tookMs, reason: e.reason, papersFinal: true };
     case "error":
       return { ...m, status: "error", step: null, live: "", error: e.title };
   }

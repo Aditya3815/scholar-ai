@@ -405,11 +405,17 @@ kbd {
 .chat-list { display: grid; gap: 1.4rem; margin: 0; padding: 0; list-style: none; }
 .chat-u { display: flex; justify-content: flex-end; }
 .chat-bubble { display: inline-flex; align-items: baseline; gap: 0.45rem; max-width: 85%; margin: 0; padding: 0.55rem 0.9rem; border-radius: 1.1rem 1.1rem 0.3rem 1.1rem; background: var(--accent); color: var(--accent-fg); overflow-wrap: anywhere; }
+.chat-bubble { flex-wrap: wrap; white-space: pre-line; }
 .chat-bubble svg { flex: none; align-self: center; opacity: 0.8; }
+.chat-long { flex-basis: 100%; font-size: 0.75rem; opacity: 0.85; }
 .chat-turn { display: grid; gap: 0.8rem; }
 .chat-und { margin: 0; color: var(--muted); font-size: 0.875rem; }
 .chat-und b { color: var(--text); }
+.chat-searched { margin-top: -0.35rem; }
 .chat-change { display: inline-flex; align-items: center; gap: 0.15rem; }
+/* Auto took the message for another tool: it is offered here, never started */
+.chat-offer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); }
+.chat-offer p { flex: 1 1 16rem; margin: 0; }
 .chat-change-menu { display: grid; gap: 2px; min-width: min(19rem, 80vw); }
 .chat-steps { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; margin: 0; padding: 0; list-style: none; font-size: 0.875rem; color: var(--muted); }
 .chat-steps li { display: inline-flex; align-items: center; gap: 0.4rem; }

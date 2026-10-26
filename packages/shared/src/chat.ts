@@ -1,17 +1,21 @@
 import type { Paper } from "./index";
+import type { Lang, RouteHow, RouteMode as ChatMode } from "./route";
 
 /**
  * The prompt box of the new home (W2): what the browser sends to `POST /api/v1/chat` and what comes back as server-sent events.
  * Only the "search" mode exists so far: the papers found, and a short answer written from them whose every claim points at a sentence of a paper's abstract.
  */
-export const CHAT_MODES = ["search"] as const;
-export type ChatMode = (typeof CHAT_MODES)[number];
+export type { RouteMode as ChatMode } from "./route";
+/** What the browser may ask for: "search" (the reader chose Search papers) or "auto" (the router chooses the tool). The other tools open their own pages. */
+export const CHAT_REQUEST_MODES = ["search", "auto"] as const;
+export type ChatRequestMode = (typeof CHAT_REQUEST_MODES)[number];
 
 /** The shortest and longest message. A search question is short; a longer text is something else (a reference list, an idea) and belongs to another mode. */
 export const MIN_CHAT_CHARS = 2;
 export const MAX_CHAT_CHARS = 300;
 
-export type ChatStep = "search" | "read" | "write" | "check";
+/** `route` is only there when the router's model had to look at the message. */
+export type ChatStep = "route" | "search" | "read" | "write" | "check";
 
 /** A claim's evidence: the sentence (by its number in the abstract) of paper number `n` of the list. `sentence` is that sentence, word for word, taken from the abstract by the server. */
 export type ChatCitation = { n: number; paperId: string; sentenceNo: number; sentence: string };
@@ -23,10 +27,14 @@ export type ChatCitation = { n: number; paperId: string; sentenceNo: number; sen
 export type ChatAnswer = { text: string; citations: ChatCitation[]; grounded: boolean };
 
 /** Why a message has papers but no written answer. */
-export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_grounded" | "quota" | "unavailable" | "stopped";
+export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_grounded" | "quota" | "unavailable" | "stopped" | "routed" | "too_long";
 
 export type ChatEvent =
-  | { type: "understood"; mode: ChatMode; query: string }
+  /**
+   * What the message was taken to be. `query` is the message as written (a long one is cut); `searchQuery` is what the search indexes are asked when that is not the words as
+   * written (a translation). `auto` is true when the router chose, `how` says by what, `confidence` how sure it was.
+   */
+  | { type: "understood"; mode: ChatMode; query: string; language: Lang; auto: boolean; how: RouteHow; confidence: number; searchQuery?: string }
   | { type: "step"; step: ChatStep }
   /** The papers so far (a snapshot, in rank order); `final` once every source has answered and the checks are done. */
   | { type: "papers"; results: Paper[]; final: boolean }

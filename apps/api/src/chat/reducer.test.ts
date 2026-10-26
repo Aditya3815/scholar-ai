@@ -8,7 +8,7 @@ const papers: Paper[] = stubPapers();
 describe("applyChatEvent", () => {
   it("builds a reply event by event: steps, papers, words, the checked answer, done", () => {
     const m = run([
-      { type: "understood", mode: "search", query: "glaucoma screening" },
+      { type: "understood", mode: "search", query: "glaucoma screening", language: "en", auto: true, how: "rules", confidence: 0.9, searchQuery: "glaucoma screening india" },
       { type: "step", step: "search" },
       { type: "papers", results: papers.slice(0, 2), final: false },
       { type: "papers", results: papers, final: true },
@@ -18,6 +18,7 @@ describe("applyChatEvent", () => {
       { type: "token", text: "paper [1]." },
     ]);
     expect(m.query).toBe("glaucoma screening");
+    expect(m).toMatchObject({ language: "en", auto: true, how: "rules", confidence: 0.9, searchQuery: "glaucoma screening india" });
     expect(m.papers).toHaveLength(5);
     expect(m.papersFinal).toBe(true);
     expect(m.step).toBe("write");

@@ -202,6 +202,14 @@ describe("normaliseMarks", () => {
     ["Worked [1]S4; [7]S9.", "Worked [1]; [7]."],
     ["Worked [1](S2)[3](S3).", "Worked [1][3]."],
     ["Worked [1] (S5-8) and [2] (S1).", "Worked [1] and [2]."],
+    ["Rat models improved[2][S11][S13]. Next [4][S10][S11][S12].", "Rat models improved[2]. Next [4]."],
+    ["Used for brain graphs [1] [1] and diagnosis [1] [1]. Also [7] [7] aur [19] [19].", "Used for brain graphs [1] and diagnosis [1]. Also [7] aur [19]."],
+    ["A range [S3-S5] and [S2] go.", "A range and go."],
+    ["Two different marks stay [1] [2].", "Two different marks stay [1] [2]."],
+    ["Specificity in several studies [12:S6][14:S8][18:S9‑S10]. Next.", "Specificity in several studies [12][14][18]. Next."],
+    ["as several Indian studies [1 S4‑S5]. A review [3 S1, 5 S2].", "as several Indian studies [1]. A review [3][5]."],
+    ["Worked [12S6] and [7: S2; 9: S3].", "Worked [12] and [7][9]."],
+    ["A range [1-3] and a year [2020] stay.", "A range [1-3] and a year [2020] stay."],
     ["Two  spaces   go.", "Two spaces go."],
   ])("%s", (input, want) => expect(normaliseMarks(input)).toBe(want));
   it("a round bracket with a real remark in it is left alone", () => {

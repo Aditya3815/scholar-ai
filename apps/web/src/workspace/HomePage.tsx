@@ -1,7 +1,7 @@
 import { m } from "motion/react";
-import { ArrowUp, Bookmark, Check, ChevronDown, FileStack, Lightbulb, ListChecks, Plus, Search, Square } from "lucide-react";
+import { ArrowUp, Bookmark, Check, ChevronDown, FileStack, Lightbulb, ListChecks, Plus, Search, Sparkles, Square } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
-import { MAX_CHAT_CHARS } from "@scholar/shared";
+import { MAX_CHAT_CHARS, type RouteMode } from "@scholar/shared";
 import { useAuth } from "../lib/auth";
 import { coverUrl, loadDocs, useDocs } from "../lib/documents";
 import { useLibrary } from "../lib/library";
@@ -12,9 +12,13 @@ import { ContinueReading, RememberThis } from "./HomeExtras";
 import { ChatView } from "./ChatView";
 import { resumeChat, retryReply, sendMessage, startNewChat, stopReply, useChatState } from "../lib/chat";
 
-/** The four tools. In W1 each opens the page that already does the work (the prompt box does not choose for you yet: that is W3). */
-export type Tool = "search" | "verify" | "idea" | "paper";
+/**
+ * Auto, and the four tools. With Auto (the default) the router reads the message and chooses (W3); a tool chosen by hand is never overridden.
+ * Search papers runs in this screen; the others open the page that does the work, with what was written.
+ */
+export type Tool = "auto" | RouteMode;
 const TOOLS: { id: Tool; name: string; short: string; help: string; placeholder: string; Icon: typeof Search }[] = [
+  { id: "auto", name: "Auto", short: "Auto", help: "I choose the right tool from what you write, and say what I chose. You can change it.", placeholder: "Ask a question, paste references, or describe an idea…", Icon: Sparkles },
   { id: "search", name: "Search papers", short: "Search", help: "Real records with a checked DOI, retractions flagged.", placeholder: "Ask about a topic, or paste a DOI…", Icon: Search },
   { id: "verify", name: "Check references", short: "References", help: "Paste a bibliography: does each reference exist, and does it say what you cited?", placeholder: "Paste your references, one per line…", Icon: ListChecks },
   { id: "idea", name: "Idea Check", short: "Idea", help: "Closest papers, part by part, and the gaps. Never a verdict on novelty.", placeholder: "Describe your idea in a few sentences…", Icon: Lightbulb },
@@ -74,14 +78,14 @@ function ModeMenu({ tool, onChange }: { tool: Tool; onChange: (t: Tool) => void 
 }
 
 /**
- * The home of the new look: one prompt box. In this first step (W1) you choose the tool with the menu or the pills, and Enter opens that tool with what you wrote.
- * Choosing for you from what you write comes in W3; streamed answers in the same screen in W2.
+ * The home of the new look: one prompt box. With Auto the router chooses the tool from what you write; with the menu or the pills you choose it yourself.
+ * A search is answered in this screen (the conversation below the box); the other tools open on their own page with your text.
  */
 export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: { query: string; onQuery: (v: string) => void; onOpenTool: (t: "verify" | "idea" | "papers") => void; onOpenPaper: (id: string) => void; inputRef: RefObject<HTMLTextAreaElement | null> }) {
   const { user, status } = useAuth();
   const docs = useDocs();
   const saved = useLibrary().length;
-  const [tool, setTool] = useState<Tool>("search");
+  const [tool, setTool] = useState<Tool>("auto");
   const id = useId();
   const current = TOOLS.find((t) => t.id === tool)!;
   // the conversation of this tab: the box glides to the bottom once there is one
@@ -105,15 +109,15 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
     el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
   }, [query, inputRef]);
 
-  const ready = query.trim().length >= (tool === "search" ? 2 : 1) && tool !== "paper";
+  const ready = query.trim().length >= (tool === "auto" || tool === "search" ? 2 : 1) && tool !== "paper";
   const send = () => {
     const text = query.trim();
     if (tool === "paper") return onOpenTool("papers");
     if (!text) return;
-    if (tool === "search") {
+    if (tool === "auto" || tool === "search") {
       if (busy) return;
-      if (text.length > MAX_CHAT_CHARS) return setProblem(`A search is at most ${MAX_CHAT_CHARS} characters (this is ${text.length}). For a longer text, choose Check references or Idea Check.`);
-      const r = sendMessage(text);
+      if (tool === "search" && text.length > MAX_CHAT_CHARS) return setProblem(`A search is at most ${MAX_CHAT_CHARS} characters (this is ${text.length}). For a longer text, choose Auto, Check references or Idea Check.`);
+      const r = sendMessage(text, tool);
       if (r === "sent") onQuery("");
       else if (r === "invalid") setProblem("Write at least two letters or numbers.");
       return;
@@ -121,8 +125,10 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
     putHandoff(tool, text);
     onOpenTool(tool);
   };
-  /** "I understood this as … Change": the same text, handed to the tool the reader chose instead. */
-  const changeMode = (to: "verify" | "idea", text: string) => {
+  /** "I understood this as … Change": the same text, given to the tool the reader chose instead. Search papers runs here, with the exact words; the others open on their own page. */
+  const changeMode = (to: RouteMode, replyId: string, text: string) => {
+    if (to === "search") return void retryReply(replyId, "search");
+    if (to === "paper") return onOpenTool("papers");
     putHandoff(to, text);
     onOpenTool(to);
   };
@@ -163,11 +169,11 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
         </span>
         ?
       </m.h1>
-      <m.p className="hm-sub" {...rise(2)}>Search real papers, check a bibliography, test an idea against the literature, or open one of your own papers. Pick the tool, write, press Enter.</m.p>
+      <m.p className="hm-sub" {...rise(2)}>Search real papers, check a bibliography, test an idea against the literature, or open one of your own papers. Just write: Auto picks the tool, or choose one yourself.</m.p>
         </>
       )}
 
-      {conversing && <ChatView messages={messages} signedIn={!!user} onRetry={(rid) => void retryReply(rid)} onChange={changeMode} />}
+      {conversing && <ChatView messages={messages} signedIn={!!user} onRetry={(rid, as) => void retryReply(rid, as)} onChange={changeMode} />}
 
       <m.form className="hm-box" layout="position" transition={{ type: "spring", stiffness: 260, damping: 30 }} onSubmit={(e) => { e.preventDefault(); if (busy) stopReply(); else send(); }} {...(conversing ? {} : rise(3))}>
         <label className="sr-only" htmlFor={`${id}-in`}>Your question or text</label>
@@ -199,8 +205,9 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
         <>
 
       <m.div className="hm-pills" role="group" aria-label="Choose a tool" {...rise(4)}>
-        {TOOLS.map((t) => (
-          <button key={t.id} type="button" className="hm-pill" aria-pressed={tool === t.id} onClick={() => { setTool(t.id); inputRef.current?.focus(); }}>
+        {TOOLS.filter((t) => t.id !== "auto").map((t) => (
+          // a second press on the tool that is already chosen gives the choice back to Auto
+          <button key={t.id} type="button" className="hm-pill" aria-pressed={tool === t.id} onClick={() => { setTool(tool === t.id ? "auto" : t.id); inputRef.current?.focus(); }}>
             <span className="hm-pill-ico"><t.Icon size={15} aria-hidden="true" /></span>
             {t.name}
           </button>

@@ -44,11 +44,20 @@ try {
   await flag(ctx);
   const page = await ctx.newPage();
   watch(page);
-  const send = async (text, { tool = true } = {}) => {
-    if (tool) await page.locator(".hm-pill", { hasText: "Search papers" }).click().catch(() => {});
+  // the tool is chosen from the mode menu (a choice that is already made stays as it is)
+  const pick = async (p, name) => {
+    if (new RegExp(name).test(await p.locator(".hm-mode").innerText())) return;
+    await p.locator(".hm-mode").click();
+    await p.getByRole("menuitemradio", { name: new RegExp("^" + name) }).click();
+    await p.getByRole("menu", { name: "What should I do?" }).waitFor({ state: "hidden" });
+  };
+  const send = async (text, { tool = "Search papers" } = {}) => {
+    await page.waitForFunction(() => !document.querySelector('.chat-turn[data-status="working"]'), null, { timeout: 30000 }); // one message at a time
+    if (tool) await pick(page, tool);
     await page.locator(".hm-input").fill(text);
     await page.keyboard.press("Enter");
   };
+  const sendAuto = (text) => send(text, { tool: "Auto" });
   const turns = () => page.locator(".chat-turn");
   const lastDone = () => page.locator('.chat-turn[data-status="done"]').last();
 
@@ -60,6 +69,7 @@ try {
 
   console.log("a search becomes a conversation");
   ok(await page.locator(".hm-title").isVisible() && await page.locator(".chat-list").count() === 0, "before the first message the home is as it was: the headline and the box in the middle");
+  ok(/Auto/.test(await page.locator(".hm-mode").innerText()), "the box starts in Auto");
   const boxBefore = await page.locator(".hm-box").boundingBox();
   await send("  glaucoma   screening ");
   await page.locator(".chat-bubble").waitFor();
@@ -69,7 +79,7 @@ try {
   const boxAfter = await page.locator(".hm-box").boundingBox();
   ok(boxAfter.y > boxBefore.y - 5 && boxAfter.y + boxAfter.height <= 900, `the box has glided to the bottom of the window (from y ${Math.round(boxBefore.y)} to ${Math.round(boxAfter.y)})`);
   ok(await page.locator(".hm-title").count() === 0 && await page.locator(".chat-title").isVisible(), "the headline gives way to the conversation's title");
-  ok(/I understood this as Search papers/.test(await turns().first().innerText()), "'I understood this as Search papers' stands above the answer");
+  ok(/Searching papers, as you chose/.test(await turns().first().innerText()), "a search chosen by hand says so above the answer");
   ok(await page.locator(".chat-turn .result").count() === 5, "the five papers are listed");
   ok((await page.locator(".chat-turn .result-no").allInnerTexts()).join() === "1,2,3,4,5", "numbered 1 to 5, as the marks in the answer are");
   const answer = page.locator(".chat-answer");
@@ -175,7 +185,7 @@ try {
 
   console.log("a page closed in the middle of an answer");
   await page.locator(".ws-rail").getByRole("button", { name: "New chat" }).click();
-  await send("slowly glaucoma interrupted", { tool: true });
+  await send("slowly glaucoma interrupted");
   await page.locator(".chat-turn .result").first().waitFor({ timeout: 10000 });
   await page.waitForTimeout(900); // the papers are kept a moment after they arrive
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -187,7 +197,7 @@ try {
 
   console.log("Change");
   await page.locator(".ws-rail").getByRole("button", { name: "New chat" }).click();
-  await send("Mere thesis ke references check karo", { tool: true });
+  await send("Mere thesis ke references check karo");
   await page.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
   await page.locator(".chat-change").click();
   await page.getByRole("menuitem", { name: /Idea Check/ }).click();
@@ -196,13 +206,81 @@ try {
   await page.goBack();
   await page.locator("#hm-h").waitFor();
 
+  console.log("Auto: the tool is chosen from what is written (W3)");
+  await page.locator(".ws-rail").getByRole("button", { name: "New chat" }).click();
+  await page.locator(".hm-title").waitFor();
+  await pick(page, "Auto");
+  const lastTurn = () => page.locator(".chat-turn").last();
+  const doneTurns = () => page.locator('.chat-turn[data-status="done"]').count();
+  await sendAuto("glaucoma screening in India");
+  await page.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
+  ok(/I understood this as Search papers/.test(await lastTurn().innerText()) && await lastTurn().locator(".result").count() === 5 && await lastTurn().locator(".chat-answer").isVisible(), "a plain question: 'I understood this as Search papers', the papers and the answer");
+  ok(await lastTurn().locator(".chat-searched").count() === 0, "(English words are searched as written: no 'I searched for' line)");
+
+  await sendAuto("diabetes me exercise ka kya asar hota hai");
+  await page.waitForFunction(() => document.querySelectorAll('.chat-turn[data-status="done"]').length === 2, null, { timeout: 30000 });
+  ok(/I searched for:\s*translated: diabetes me exercise ka kya/.test(await lastTurn().locator(".chat-searched").innerText()), "a Hinglish question: the English words that were searched are shown");
+  ok(await lastTurn().locator(".chat-searched b").getAttribute("lang") === "en" && await lastTurn().locator(".result").count() === 5, "(marked as English for a screen reader) and the papers are there");
+  await lastTurn().getByRole("button", { name: "Use my exact words" }).click();
+  await page.waitForFunction(() => /Searching papers, as you chose/.test(document.querySelectorAll(".chat-turn")[1]?.textContent ?? ""), null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelectorAll('.chat-turn[data-status="done"]').length === 2, null, { timeout: 30000 });
+  ok(await page.locator(".chat-bubble").count() === 2 && await lastTurn().locator(".chat-searched").count() === 0, "'Use my exact words' searches them as written, in the same place, with no new message");
+
+  const REFS = "[1] LeCun, Y., Bengio, Y., & Hinton, G. (2015). Deep learning. Nature, 521, 436-444.\n[2] Vaswani, A., Shazeer, N., Parmar, N., et al. (2017). Attention is all you need. NeurIPS.\n[3] Krizhevsky, A., Sutskever, I., & Hinton, G. E. (2012). ImageNet classification with deep convolutional neural networks. NIPS.";
+  await sendAuto(REFS);
+  await page.locator(".chat-offer").waitFor({ timeout: 20000 });
+  ok(new URL(page.url()).pathname === "/" && /Check references/.test(await lastTurn().locator(".chat-und").first().innerText()) && await lastTurn().locator(".result").count() === 0, "pasted references: it says Check references and offers it; nothing was searched and the page did not move");
+  await page.getByRole("button", { name: "Open Check references" }).click();
+  await page.waitForFunction(() => location.pathname === "/verify", null, { timeout: 10000 });
+  await page.waitForTimeout(600);
+  ok(/Deep learning/.test(await page.locator("textarea").first().inputValue()) && /Attention is all you need/.test(await page.locator("textarea").first().inputValue()), "'Open Check references' hands over the whole list");
+  await page.goBack();
+  await page.locator("#hm-h").waitFor();
+
+  await sendAuto("my idea about using bees to detect cancer, is it novel");
+  await page.waitForFunction(() => document.querySelectorAll(".chat-offer").length === 2, null, { timeout: 20000 });
+  ok(new URL(page.url()).pathname === "/" && /starts only when you open it and approve the search/.test(await page.locator(".chat-offer").last().innerText()), "an idea is offered to Idea Check, which starts only by a click and an approval: the page did not move");
+  await page.locator(".chat-offer").last().scrollIntoViewIfNeeded();
+  await page.waitForTimeout(700);
+  await axe("an offer to open Idea Check, light", page);
+  await setTheme(page, "dark");
+  await page.waitForTimeout(500);
+  await axe("an offer to open Idea Check, dark", page);
+  await setTheme(page, "light");
+  await page.screenshot({ path: OUT + "3-auto-offer.png" });
+  await lastTurn().locator(".chat-change").click();
+  ok((await page.getByRole("menuitem").allInnerTexts()).filter((t) => /Search papers|Check references|Ask a paper|Idea Check/.test(t)).length === 3, "Change lists the other three tools, not the one chosen");
+  await page.getByRole("menuitem", { name: /Search papers/ }).click();
+  await page.waitForFunction(() => /Searching papers, as you chose/.test([...document.querySelectorAll(".chat-turn")].at(-1)?.textContent ?? "") && document.querySelectorAll(".chat-turn .result").length > 10, null, { timeout: 30000 });
+  ok(await lastTurn().locator(".chat-offer").count() === 0, "Change to Search papers searches the exact words in place and the offer goes");
+
+  await sendAuto("my uploaded paper, what does it say about methods");
+  await page.waitForFunction(() => document.querySelectorAll(".chat-offer").length === 2 && /Open My Workspace/.test(document.body.textContent ?? ""), null, { timeout: 20000 });
+  ok(true, "a question about the reader's own paper is offered to My Workspace");
+
+  await sendAuto("boom my idea about sleep");
+  await page.waitForFunction(() => /I was not sure what you wanted, so I searched for papers/.test([...document.querySelectorAll(".chat-turn")].at(-1)?.textContent ?? ""), null, { timeout: 30000 });
+  await page.waitForFunction(() => [...document.querySelectorAll(".chat-turn")].at(-1)?.getAttribute("data-status") === "done", null, { timeout: 30000 });
+  ok(await lastTurn().locator(".result").count() === 5, "when the router fails it says it was not sure and searches (harmless), with Change at hand");
+
+  await sendAuto("boom " + "sleep and memory ".repeat(30));
+  await page.waitForFunction(() => /too long for a search/.test([...document.querySelectorAll(".chat-turn")].at(-1)?.textContent ?? ""), null, { timeout: 30000 });
+  ok(await lastTurn().locator(".result").count() === 0 && /characters, the start is shown/.test(await page.locator(".chat-bubble").last().innerText()), "a long text the router could not shorten is not searched: a plain line");
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".chat-offer").first().waitFor({ timeout: 15000 });
+  ok(await page.locator(".chat-offer").count() >= 1 && await page.locator(".chat-searched").count() === 0, "after a reload the offers are still there, with the same text");
+  await page.waitForTimeout(600);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await axe("Auto conversation after a reload", page);
+
   console.log("another tab");
   const page2 = await ctx.newPage();
   watch(page2);
   await page2.goto(BASE + "/", { waitUntil: "networkidle" });
   await page2.locator("#hm-h").waitFor();
   ok(await page2.locator(".hm-title").isVisible() && await page2.locator(".ws-rail .ws-recent").getByRole("button").count() >= 2, "a second tab has a conversation of its own (it starts empty) and sees the same Recent list");
-  await page2.locator(".hm-pill", { hasText: "Search papers" }).click();
+  await pick(page2, "Search papers");
   await page2.locator(".hm-input").fill("tab two question");
   await page2.keyboard.press("Enter");
   await page2.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
@@ -232,15 +310,20 @@ try {
   watch(ap);
   await ap.goto(BASE + "/home", { waitUntil: "networkidle" });
   await ap.locator("#hm-h").waitFor({ timeout: 20000 });
-  await ap.locator(".hm-pill", { hasText: "Search papers" }).click();
+  ok(/Auto/.test(await ap.locator(".hm-mode").innerText()), "a person who is not signed in starts in Auto too");
   await ap.locator(".hm-input").fill("glaucoma screening");
   await ap.keyboard.press("Enter");
   await ap.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
+  ok(/I understood this as Search papers/.test(await ap.locator(".chat-turn").first().innerText()), "Auto reads a plain question without a model: 'I understood this as Search papers'");
   ok(await ap.locator(".chat-turn .result").count() === 5 && await ap.locator(".chat-answer").count() === 0, "a person who has not signed in gets the papers and no written answer");
   ok(/Sign in to get a short written answer/.test(await ap.locator(".chat-why").innerText()) && await ap.locator(".chat-why").getByRole("button", { name: "Sign in" }).isVisible(), "and a line, with a Sign in button, says why");
   ok(await ap.locator(".chat-steps").count() === 0, "(the steps of a written answer are not promised to them)");
   await ap.evaluate(() => window.scrollTo(0, 0)); // axe reads what is on screen: the box at the bottom covers part of whatever is scrolled under it
   await axe("conversation, signed out", ap);
+  await ap.locator(".hm-input").fill("check my references please");
+  await ap.keyboard.press("Enter");
+  await ap.locator(".chat-offer").waitFor({ timeout: 20000 });
+  ok(/Check references/.test(await ap.locator(".chat-und").last().innerText()), "the words of a tool are enough for it to be offered, with no model");
   await anon.close();
 
   console.log("storage that refuses");
@@ -251,7 +334,7 @@ try {
   watch(bp);
   await bp.goto(BASE + "/home", { waitUntil: "networkidle" });
   await bp.locator("#hm-h").waitFor();
-  await bp.locator(".hm-pill", { hasText: "Search papers" }).click();
+  await pick(bp, "Search papers");
   await bp.locator(".hm-input").fill("glaucoma screening");
   await bp.keyboard.press("Enter");
   await bp.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });

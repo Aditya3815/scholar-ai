@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import {
-  applyChatEvent, chatTitle, cleanChatMessage, interruptAssistant, startAssistant, stopAssistant, trimForStorage,
+  applyChatEvent, chatTitle, cleanAutoMessage, cleanChatMessage, interruptAssistant, MAX_CHAT_CHARS, startAssistant, stopAssistant, trimForStorage,
   type AssistantMsg, type ChatEvent, type ChatMsg,
 } from "@scholar/shared";
 import { idbClear, idbDelete, idbGet, idbSet } from "./idb";
@@ -147,10 +147,12 @@ export function resumeChat() {
 const runs = new Map<string, { ctl: AbortController; assistantId: string }>();
 
 export type SendResult = "sent" | "busy" | "invalid";
+/** "search": the words are searched as written (the reader chose it). "auto": the router chooses the tool. */
+export type SendMode = "search" | "auto";
 
 /** Send a message in the current conversation (starting one if there is none). A second message while one is being answered is not sent: it waits for the answer or for Stop. */
-export function sendMessage(raw: string): SendResult {
-  const text = cleanChatMessage(raw);
+export function sendMessage(raw: string, mode: SendMode = "search"): SendResult {
+  const text = mode === "auto" ? cleanAutoMessage(raw) : cleanChatMessage(raw);
   if (!text) return "invalid";
   let id = state.active;
   if (id && (runs.has(id) || (state.index.some((e) => e.id === id) && !state.chats.has(id)))) return "busy"; // answering, or still being opened
@@ -161,26 +163,42 @@ export function sendMessage(raw: string): SendResult {
   }
   const now = Date.now();
   const user: ChatMsg = { id: newId(), role: "user", text, at: now };
-  const reply = startAssistant(newId(), text, now);
+  const reply = startAssistant(newId(), text.replace(/\s+/g, " ").slice(0, 300), now, mode === "auto");
   setChat(id, [...(state.chats.get(id) ?? []), user, reply]);
   touch(id, state.index.find((e) => e.id === id)?.title ?? chatTitle(text));
   persist(id, true);
-  void run(id, reply.id, text);
+  void run(id, reply.id, text, mode);
   return "sent";
 }
 
-/** "Search again" on a reply: the same question asked again, in the same place. */
-export function retryReply(assistantId: string): SendResult {
+/** The words the reader wrote for a reply: the message just before it (the reply itself keeps only a tidied start of them). */
+function askedFor(msgs: ChatMsg[], at: number): string | null {
+  const before = msgs[at - 1];
+  return before?.role === "user" ? before.text : null;
+}
+
+/**
+ * "Search again" on a reply: the same question asked again, in the same place, the same way (Auto chooses again; a search chosen by hand is searched as written).
+ * With `as: "search"` ("Use my exact words", or Change to Search papers) it is asked as an explicit search whatever the router did before.
+ */
+export function retryReply(assistantId: string, as?: "search"): SendResult {
   const id = state.active;
   if (!id || runs.has(id)) return "busy";
   const msgs = state.chats.get(id);
   const at = msgs?.findIndex((m) => m.id === assistantId) ?? -1;
   const old = msgs?.[at];
   if (!msgs || !old || old.role !== "assistant") return "invalid";
-  const reply = startAssistant(assistantId, old.query, Date.now());
+  const mode: SendMode = as === "search" || !old.auto ? "search" : "auto";
+  const written = askedFor(msgs, at);
+  const text = mode === "auto" ? cleanAutoMessage(written) : cleanChatMessage(written ?? old.query);
+  if (!text) {
+    showNotice(`A search is at most ${MAX_CHAT_CHARS} characters. For a longer text, use Check references or Idea Check.`);
+    return "invalid";
+  }
+  const reply = startAssistant(assistantId, text.replace(/\s+/g, " ").slice(0, 300), Date.now(), mode === "auto");
   setChat(id, msgs.map((m, i) => (i === at ? reply : m)));
   persist(id, true);
-  void run(id, assistantId, old.query);
+  void run(id, assistantId, text, mode);
   return "sent";
 }
 
@@ -190,7 +208,7 @@ export function stopReply() {
   r?.ctl.abort();
 }
 
-async function run(chatId: string, assistantId: string, query: string) {
+async function run(chatId: string, assistantId: string, text: string, mode: SendMode) {
   const ctl = new AbortController();
   runs.set(chatId, { ctl, assistantId });
   set({ running: new Set(runs.keys()) });
@@ -211,7 +229,7 @@ async function run(chatId: string, assistantId: string, query: string) {
     }
   };
   try {
-    const res = await fetch("/api/v1/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify({ mode: "search", message: query }), signal: ctl.signal });
+    const res = await fetch("/api/v1/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify({ mode, message: text }), signal: ctl.signal });
     if (!res.ok) {
       const j = (await res.json().catch(() => null)) as { title?: string; detail?: string } | null;
       throw new Error(res.status === 429 ? "Too many searches just now. Please wait a minute and try again." : (j?.title ?? "That could not be sent. Please try again."));

@@ -5,6 +5,8 @@ name: Q&A quality (real models)
 # declined, sources verified). The per-push CI uses stand-in models and cannot see a changed model or prompt.
 # The same job then asks twelve searches of the prompt box (live sources, real model) and fails if answers are not real: a sentence shown as evidence
 # that is not in its abstract, a mark that is not a checked citation, a retracted paper cited, an answer to nonsense, or fewer than 75% answered.
+# Then it asks the router of Auto mode about 200 labelled messages in English, Hindi and Hinglish (no search is run) and fails if it picks the wrong tool more than 10% of the time
+# (more than 15% in Hindi or Hinglish), does not translate a Hindi search, or follows an order hidden in a message. That step uses roughly a day's free Workers AI allowance.
 # Needs repository secrets CLOUDFLARE_API_TOKEN (Workers AI) and CLOUDFLARE_ACCOUNT_ID. Uses a few thousand free Workers AI neurons.
 # The papers are public arXiv preprints, downloaded at run time (their text is not committed).
 on:
@@ -68,6 +70,12 @@ jobs:
           set -o pipefail
           node apps/api/scripts/chat-eval.mjs --gate | tee chat-eval.txt
 
+      - name: Ask the router of Auto mode (English, Hindi, Hinglish; real model, no search)
+        shell: bash
+        run: |
+          set -o pipefail
+          node apps/api/scripts/router-eval.mjs --set=all --gate | tee router-eval.txt
+
       - name: Keep the results
         if: always()
         uses: actions/upload-artifact@v7
@@ -76,6 +84,7 @@ jobs:
           path: |
             qa-eval.txt
             chat-eval.txt
+            router-eval.txt
             worker.log
             apps/api/scripts/r2/results/
 

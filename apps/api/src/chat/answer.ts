@@ -1,4 +1,4 @@
-import { sentenceAt, splitSentences, words, type ChatAnswer, type ChatCitation, type ChatEvent, type Paper } from "@scholar/shared";
+import { sentenceAt, splitSentences, words, type ChatAnswer, type ChatCitation, type ChatEvent, type Lang, type Paper } from "@scholar/shared";
 import { AnswerFieldStreamer } from "../docs/stream-json";
 import type { StreamComplete } from "../docs/qa";
 
@@ -23,6 +23,14 @@ export const CHAT_SYSTEM = [
   "In coverage say whether the papers answer it: full, partial (some papers are about the subject: say what they report and plainly what they do not settle), or none (no paper is about the subject: leave the answer empty).",
   "Do not use anything you know from elsewhere and do not write a title, author, DOI or number that is not in the papers.",
 ].join(" ");
+
+/** The system message, with one more sentence when the question is in Hindi or in Hinglish: the summary is written in the way the question is. */
+export const chatSystem = (language: Lang = "en"): string =>
+  language === "hinglish"
+    ? `${CHAT_SYSTEM} The question is in Hinglish (Hindi in Roman letters): write the summary in Hinglish too, in Roman letters, keeping technical terms in English.`
+    : language === "hi"
+      ? `${CHAT_SYSTEM} The question is in Hindi: write the summary in Hindi (Devanagari), keeping technical terms in English.`
+      : CHAT_SYSTEM;
 
 export const CHAT_SCHEMA = {
   type: "object",
@@ -95,6 +103,16 @@ export function normaliseMarks(raw: string): string {
     // a sentence label written after a mark: [1]S4, [1](S2), [1] (S5-8)
     .replace(/(\[\d{1,2}\])\s*\(?\s*S\d{1,3}(?:\s*[-‐-―]\s*S?\d{1,3})?\s*\)?/g, "$1")
     .replace(/\[(\d{1,2}(?:\s*[,;]\s*\d{1,2})+)\]/g, (_m, list: string) => list.split(/\s*[,;]\s*/).map((d) => `[${d}]`).join(""))
+    // paper and sentence together in square brackets, in any order of punctuation: [12:S6], [1 S4-S5], [12:S6, 14:S8]. The sentence labels go; the paper numbers are the marks
+    .replace(/\[([^[\]]{1,60})\]/g, (whole, inner: string) => {
+      if (!/(?<![A-Za-z])S\d/.test(inner) || /[^\s\dS:;,‐-―-]/.test(inner)) return whole;
+      const bare = inner.replace(/(?<![A-Za-z])S\d{1,3}(?:\s*[-‐-―]\s*S?\d{1,3})?/g, " ");
+      const papers = bare.split(/[\s:;,‐-―-]+/).filter((d) => /^\d{1,2}$/.test(d));
+      return [...new Set(papers)].map((d) => `[${d}]`).join("");
+    })
+    // a sentence label alone in square brackets, [S11] or [S3-S5], is bookkeeping too; and the same mark twice in a row is one mark
+    .replace(/\s*\[\s*S\d{1,3}(?:\s*[-‐-―]\s*S?\d{1,3})?\s*\]/g, "")
+    .replace(/(\[\d{1,2}\])(?:\s*\1)+/g, "$1")
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([.,;:])/g, "$1")
     .trim();
@@ -143,7 +161,7 @@ export function papersOnTheSubject(question: string, picked: readonly Picked[]):
 }
 
 /** Write the answer, telling `emit` the text as it comes, and return the checked answer. The caller handles the model's failures. */
-export async function answerFromResults(args: { question: string; picked: readonly Picked[]; stream: StreamComplete; emit: (e: ChatEvent) => void | Promise<void>; /** Local debugging only: receives the model's raw JSON. */ onRaw?: (raw: unknown) => void }): Promise<ChatAnswer & { enough: boolean }> {
+export async function answerFromResults(args: { question: string; /** The language of the question: the summary is written in it. */ language?: Lang; picked: readonly Picked[]; stream: StreamComplete; emit: (e: ChatEvent) => void | Promise<void>; /** Local debugging only: receives the model's raw JSON. */ onRaw?: (raw: unknown) => void }): Promise<ChatAnswer & { enough: boolean }> {
   const field = new AnswerFieldStreamer();
   // hooks are synchronous callbacks: events are queued in order and awaited at the end
   let chain: Promise<void> = Promise.resolve();
@@ -153,7 +171,7 @@ export async function answerFromResults(args: { question: string; picked: readon
   let writing = false;
   const ask = async (note?: string) =>
     (await args.stream(
-    { system: CHAT_SYSTEM, user: `${note ? `${note}\n\n` : ""}${buildChatPrompt(args.question, args.picked)}`, schema: CHAT_SCHEMA as unknown as Record<string, unknown>, maxTokens: 3500, label: "chat_search" },
+    { system: chatSystem(args.language), user: `${note ? `${note}\n\n` : ""}${buildChatPrompt(args.question, args.picked)}`, schema: CHAT_SCHEMA as unknown as Record<string, unknown>, maxTokens: 3500, label: "chat_search" },
     {
       onContent: (piece) => {
         const text = field.push(piece);
