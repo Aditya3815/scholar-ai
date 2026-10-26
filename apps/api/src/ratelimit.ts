@@ -12,7 +12,7 @@ export function rateLimit(): MiddlewareHandler<{ Bindings: LimitEnv }> {
   return async (c, next) => {
     const path = c.req.path;
     if (path === "/api/v1/health") return next();
-    const limiter = path.startsWith("/api/v1/search")
+    const limiter = path.startsWith("/api/v1/search") || path === "/api/v1/chat"
       ? c.env.SEARCH_LIMITER
       : path.startsWith("/api/v1/references")
         ? c.env.VERIFY_LIMITER

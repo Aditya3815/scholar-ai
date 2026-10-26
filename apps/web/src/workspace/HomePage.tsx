@@ -1,6 +1,7 @@
 import { m } from "motion/react";
-import { ArrowUp, Bookmark, Check, ChevronDown, FileStack, Lightbulb, ListChecks, Search } from "lucide-react";
+import { ArrowUp, Bookmark, Check, ChevronDown, FileStack, Lightbulb, ListChecks, Plus, Search, Square } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { MAX_CHAT_CHARS } from "@scholar/shared";
 import { useAuth } from "../lib/auth";
 import { coverUrl, loadDocs, useDocs } from "../lib/documents";
 import { useLibrary } from "../lib/library";
@@ -8,6 +9,8 @@ import { easeOut, springPop, stagger } from "../lib/motion";
 import { PAPERS_NAME, putHandoff } from "../lib/workspace";
 import { Pop } from "../components/Pop";
 import { ContinueReading, RememberThis } from "./HomeExtras";
+import { ChatView } from "./ChatView";
+import { resumeChat, retryReply, sendMessage, startNewChat, stopReply, useChatState } from "../lib/chat";
 
 /** The four tools. In W1 each opens the page that already does the work (the prompt box does not choose for you yet: that is W3). */
 export type Tool = "search" | "verify" | "idea" | "paper";
@@ -74,13 +77,22 @@ function ModeMenu({ tool, onChange }: { tool: Tool; onChange: (t: Tool) => void 
  * The home of the new look: one prompt box. In this first step (W1) you choose the tool with the menu or the pills, and Enter opens that tool with what you wrote.
  * Choosing for you from what you write comes in W3; streamed answers in the same screen in W2.
  */
-export function HomePage({ query, onQuery, onSearch, onOpenTool, onOpenPaper, inputRef }: { query: string; onQuery: (v: string) => void; onSearch: (q: string) => void; onOpenTool: (t: "verify" | "idea" | "papers") => void; onOpenPaper: (id: string) => void; inputRef: RefObject<HTMLTextAreaElement | null> }) {
+export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: { query: string; onQuery: (v: string) => void; onOpenTool: (t: "verify" | "idea" | "papers") => void; onOpenPaper: (id: string) => void; inputRef: RefObject<HTMLTextAreaElement | null> }) {
   const { user, status } = useAuth();
   const docs = useDocs();
   const saved = useLibrary().length;
   const [tool, setTool] = useState<Tool>("search");
   const id = useId();
   const current = TOOLS.find((t) => t.id === tool)!;
+  // the conversation of this tab: the box glides to the bottom once there is one
+  const chat = useChatState();
+  const messages = chat.active ? chat.chats.get(chat.active) ?? [] : [];
+  const conversing = messages.length > 0;
+  const busy = !!chat.active && chat.running.has(chat.active);
+  const title = chat.index.find((e) => e.id === chat.active)?.title ?? "New chat";
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => resumeChat(), []);
+  useEffect(() => setProblem(null), [query, tool]);
 
   useEffect(() => {
     if (status === "ready" && user) void loadDocs();
@@ -99,16 +111,25 @@ export function HomePage({ query, onQuery, onSearch, onOpenTool, onOpenPaper, in
     if (tool === "paper") return onOpenTool("papers");
     if (!text) return;
     if (tool === "search") {
-      if (text.length < 2) return;
-      return onSearch(text);
+      if (busy) return;
+      if (text.length > MAX_CHAT_CHARS) return setProblem(`A search is at most ${MAX_CHAT_CHARS} characters (this is ${text.length}). For a longer text, choose Check references or Idea Check.`);
+      const r = sendMessage(text);
+      if (r === "sent") onQuery("");
+      else if (r === "invalid") setProblem("Write at least two letters or numbers.");
+      return;
     }
     putHandoff(tool, text);
     onOpenTool(tool);
   };
+  /** "I understood this as … Change": the same text, handed to the tool the reader chose instead. */
+  const changeMode = (to: "verify" | "idea", text: string) => {
+    putHandoff(to, text);
+    onOpenTool(to);
+  };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
-      send();
+      if (!busy) send();
     }
   };
 
@@ -116,7 +137,17 @@ export function HomePage({ query, onQuery, onSearch, onOpenTool, onOpenPaper, in
   const rise = (i: number) => ({ initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.6, ease: easeOut, delay: 0.06 + stagger(i, 0.08) } });
 
   return (
-    <section className="hm" aria-labelledby="hm-h">
+    <section className="hm" data-chat={conversing} aria-labelledby="hm-h">
+      {conversing ? (
+        <header className="chat-head">
+          <h1 id="hm-h" className="chat-title">{title}</h1>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => { startNewChat(); onQuery(""); window.setTimeout(() => inputRef.current?.focus(), 0); }}>
+            <Plus size={15} aria-hidden="true" />
+            <span>New chat</span>
+          </button>
+        </header>
+      ) : (
+        <>
       <div className="orbs" aria-hidden="true">
         <span className="orb orb-1" />
         <span className="orb orb-2" />
@@ -133,8 +164,12 @@ export function HomePage({ query, onQuery, onSearch, onOpenTool, onOpenPaper, in
         ?
       </m.h1>
       <m.p className="hm-sub" {...rise(2)}>Search real papers, check a bibliography, test an idea against the literature, or open one of your own papers. Pick the tool, write, press Enter.</m.p>
+        </>
+      )}
 
-      <m.form className="hm-box" onSubmit={(e) => { e.preventDefault(); send(); }} {...rise(3)}>
+      {conversing && <ChatView messages={messages} signedIn={!!user} onRetry={(rid) => void retryReply(rid)} onChange={changeMode} />}
+
+      <m.form className="hm-box" layout="position" transition={{ type: "spring", stiffness: 260, damping: 30 }} onSubmit={(e) => { e.preventDefault(); if (busy) stopReply(); else send(); }} {...(conversing ? {} : rise(3))}>
         <label className="sr-only" htmlFor={`${id}-in`}>Your question or text</label>
         <textarea
           id={`${id}-in`}
@@ -144,6 +179,7 @@ export function HomePage({ query, onQuery, onSearch, onOpenTool, onOpenPaper, in
           value={query}
           placeholder={current.placeholder}
           disabled={tool === "paper"}
+          aria-invalid={problem ? true : undefined}
           onChange={(e) => onQuery(e.target.value)}
           onKeyDown={onKey}
           aria-describedby={`${id}-help`}
@@ -151,12 +187,16 @@ export function HomePage({ query, onQuery, onSearch, onOpenTool, onOpenPaper, in
         />
         <div className="hm-bar">
           <ModeMenu tool={tool} onChange={setTool} />
-          <m.button type="submit" className="hm-send" aria-label={tool === "paper" ? `Open ${PAPERS_NAME}` : `${current.name}: send`} disabled={tool !== "paper" && !ready} whileTap={{ scale: 0.92 }} transition={springPop}>
-            <ArrowUp size={18} aria-hidden="true" />
+          <m.button type="submit" className="hm-send" data-busy={busy} aria-label={busy ? "Stop answering" : tool === "paper" ? `Open ${PAPERS_NAME}` : `${current.name}: send`} disabled={!busy && tool !== "paper" && !ready} whileTap={{ scale: 0.92 }} transition={springPop}>
+            {busy ? <Square size={15} fill="currentColor" aria-hidden="true" /> : <ArrowUp size={18} aria-hidden="true" />}
           </m.button>
         </div>
       </m.form>
+      {problem && <p className="hm-problem" role="alert">{problem}</p>}
       <p className="hm-fine" id={`${id}-help`}>{current.help} AI can misread a paper; every paper listed is a real record.</p>
+
+      {!conversing && (
+        <>
 
       <m.div className="hm-pills" role="group" aria-label="Choose a tool" {...rise(4)}>
         {TOOLS.map((t) => (
@@ -210,9 +250,11 @@ export function HomePage({ query, onQuery, onSearch, onOpenTool, onOpenPaper, in
       <m.div className="hm-starters" role="group" aria-label="Example searches" {...rise(6)}>
         <span className="hm-try">Try</span>
         {STARTERS.map((s) => (
-          <button key={s} type="button" className="chip-btn" onClick={() => onSearch(s)}>{s}</button>
+          <button key={s} type="button" className="chip-btn" onClick={() => sendMessage(s)}>{s}</button>
         ))}
       </m.div>
+        </>
+      )}
     </section>
   );
 }

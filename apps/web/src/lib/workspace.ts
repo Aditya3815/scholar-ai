@@ -60,3 +60,19 @@ export const FEATURES = {
   /** W3: the router and the answers understand Roman-letter Hinglish and Hindi. */
   hinglish: false,
 } as const;
+
+/**
+ * Built and tested, but set aside for now (decision of 25 Oct): naming the highlight colours, and reading two papers side by side. Their code stays; they are off
+ * for everyone. To look at one, put its name in this browser's storage: localStorage.setItem("scholar.parked", "names,split") (the test of each does exactly that).
+ */
+function parkedOn(name: string): boolean {
+  try {
+    return (localStorage.getItem("scholar.parked") ?? "").split(",").map((x) => x.trim()).includes(name);
+  } catch {
+    return false;
+  }
+}
+export const PARKED = {
+  colourNames: typeof localStorage === "undefined" ? false : parkedOn("names"),
+  splitView: typeof localStorage === "undefined" ? false : parkedOn("split"),
+} as const;

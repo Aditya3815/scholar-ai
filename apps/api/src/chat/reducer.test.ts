@@ -1,0 +1,87 @@
+import { describe, expect, it } from "vitest";
+import { applyChatEvent, chatTitle, interruptAssistant, startAssistant, stopAssistant, trimForStorage, type ChatEvent, type Paper } from "@scholar/shared";
+import { stubPapers } from "./stub";
+
+const run = (events: ChatEvent[]) => events.reduce(applyChatEvent, startAssistant("a1", "glaucoma", 1));
+const papers: Paper[] = stubPapers();
+
+describe("applyChatEvent", () => {
+  it("builds a reply event by event: steps, papers, words, the checked answer, done", () => {
+    const m = run([
+      { type: "understood", mode: "search", query: "glaucoma screening" },
+      { type: "step", step: "search" },
+      { type: "papers", results: papers.slice(0, 2), final: false },
+      { type: "papers", results: papers, final: true },
+      { type: "step", step: "read" },
+      { type: "step", step: "write" },
+      { type: "token", text: "The first " },
+      { type: "token", text: "paper [1]." },
+    ]);
+    expect(m.query).toBe("glaucoma screening");
+    expect(m.papers).toHaveLength(5);
+    expect(m.papersFinal).toBe(true);
+    expect(m.step).toBe("write");
+    expect(m.stepsDone).toEqual(["search", "read"]);
+    expect(m.live).toBe("The first paper [1].");
+    expect(m.status).toBe("working");
+    const d = applyChatEvent(m, { type: "answer", answer: { text: "The first paper [1].", citations: [], grounded: true } });
+    expect(d.live).toBe("");
+    expect(d.answer?.text).toBe("The first paper [1].");
+    const end = applyChatEvent(d, { type: "done", answered: true, tookMs: 900 });
+    expect(end).toMatchObject({ status: "done", step: null, tookMs: 900 });
+    expect(end.stepsDone).toEqual(["search", "read", "write", "check"]);
+  });
+  it("a notice of a kind is kept once", () => {
+    const m = run([{ type: "notice", kind: "partial", text: "x" }, { type: "notice", kind: "partial", text: "x" }, { type: "notice", kind: "retracted", text: "y" }]);
+    expect(m.notices.map((n) => n.kind)).toEqual(["partial", "retracted"]);
+  });
+  it("done carries the reason there is no answer; an error ends the reply and drops the half-written words", () => {
+    expect(run([{ type: "done", answered: false, reason: "sign_in", tookMs: 5 }]).reason).toBe("sign_in");
+    const e = run([{ type: "token", text: "half" }, { type: "error", code: "x", title: "Something went wrong" }]);
+    expect(e).toMatchObject({ status: "error", live: "", error: "Something went wrong" });
+  });
+  it("events after the end are ignored", () => {
+    const end = run([{ type: "done", answered: false, tookMs: 1 }]);
+    expect(applyChatEvent(end, { type: "token", text: "late" })).toBe(end);
+    expect(applyChatEvent(end, { type: "papers", results: papers, final: true })).toBe(end);
+  });
+  it("is pure: the reply it was given is not changed", () => {
+    const m = startAssistant("a1", "q", 1);
+    const copy = JSON.stringify(m);
+    applyChatEvent(m, { type: "token", text: "x" });
+    expect(JSON.stringify(m)).toBe(copy);
+  });
+});
+
+describe("stop, interrupt, storage", () => {
+  it("Stop keeps the papers and drops the half-written words; it does nothing to a finished reply", () => {
+    const m = stopAssistant(run([{ type: "papers", results: papers, final: true }, { type: "token", text: "half" }]));
+    expect(m).toMatchObject({ status: "stopped", live: "", reason: "stopped" });
+    expect(m.papers).toHaveLength(5);
+    const done = run([{ type: "done", answered: true, tookMs: 1 }]);
+    expect(stopAssistant(done)).toBe(done);
+  });
+  it("a reply found working in storage becomes interrupted; a finished one stays", () => {
+    expect(interruptAssistant(startAssistant("a", "q", 1)).status).toBe("interrupted");
+    const done = run([{ type: "done", answered: true, tookMs: 1 }]);
+    expect(interruptAssistant(done)).toBe(done);
+  });
+  it("trimForStorage cuts long abstracts at a word with an ellipsis and clears provisional text", () => {
+    const long = { ...papers[0]!, abstract: "word ".repeat(300) };
+    const t = trimForStorage({ ...run([{ type: "token", text: "x" }]), papers: [long, papers[1]!] });
+    expect(t.live).toBe("");
+    expect(t.papers[0]!.abstract!.length).toBeLessThanOrEqual(602);
+    expect(t.papers[0]!.abstract!.endsWith("…")).toBe(true);
+    expect(t.papers[1]!.abstract).toBe(papers[1]!.abstract);
+  });
+});
+
+describe("chatTitle", () => {
+  it("is the message when short, cut at a word with an ellipsis when long", () => {
+    expect(chatTitle("  glaucoma   screening ")).toBe("glaucoma screening");
+    const t = chatTitle("what is the best method to screen for glaucoma in rural primary health centres of India today");
+    expect(t.endsWith("…")).toBe(true);
+    expect(t.length).toBeLessThanOrEqual(61);
+    expect(t).not.toMatch(/\s…$/);
+  });
+});

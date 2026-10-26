@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
-import { cleanLegend, type Legend, type NoteColor } from "@scholar/shared";
+import { DEFAULT_LEGEND, cleanLegend, type Legend, type NoteColor } from "@scholar/shared";
+import { PARKED } from "./workspace";
 
 /** What the reader's four highlight colours mean to them. Kept on this device (it is a habit, not a document); a question about the highlights sends it so the answer can use the same words. */
 const KEY = "scholar.legend.v1";
@@ -13,7 +14,8 @@ function load(): Legend {
     return cleanLegend(null);
   }
 }
-const get = (): Legend => (cache ??= load());
+// colour names of the reader's own are set aside for now: every colour is just its name (see PARKED)
+const get = (): Legend => (PARKED.colourNames ? (cache ??= load()) : DEFAULT_LEGEND);
 /** The names as saved right now (after the store has tidied them). */
 export const currentLegend = get;
 

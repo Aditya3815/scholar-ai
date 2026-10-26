@@ -49,7 +49,7 @@ const authorLine = (authors: string[]) =>
   authors.length === 0 ? "Authors unavailable" : authors.length <= 4 ? authors.join(", ") : `${authors.slice(0, 3).join(", ")} et al.`;
 
 /** `extra` is shown with the badges: Idea Check uses it to say which searches found the paper. */
-export function ResultCard({ paper, index, onPreview, extra, below }: { paper: Paper; index: number; onPreview?: (p: Paper) => void; extra?: ReactNode; /** shown under the abstract (Idea Check: how the paper relates to the idea) */ below?: ReactNode }) {
+export function ResultCard({ paper, index, onPreview, extra, below, anchor }: { paper: Paper; index: number; onPreview?: (p: Paper) => void; extra?: ReactNode; /** shown under the abstract (Idea Check: how the paper relates to the idea) */ below?: ReactNode; /** In a chat: the number of the paper in its list (the answer's [n] marks point at it), its address on the page, and whether it is being pointed at now. */ anchor?: { id: string; number: number; flash: boolean } }) {
   const [open, setOpen] = useState(false);
   const doiHref = paper.doi ? `https://doi.org/${paper.doi}` : null;
   const crossChecked = paper.sources.length >= 2;
@@ -57,6 +57,9 @@ export function ResultCard({ paper, index, onPreview, extra, below }: { paper: P
   return (
     <m.li
       className="card result"
+      id={anchor?.id}
+      data-n={anchor?.number}
+      data-flash={anchor?.flash}
       data-retracted={paper.retracted}
       layout="position"
       initial={{ opacity: 0, y: 14 }}
@@ -81,6 +84,7 @@ export function ResultCard({ paper, index, onPreview, extra, below }: { paper: P
       )}
 
       <div className="result-meta">
+        {anchor && <span className="result-no" aria-label={`Paper ${anchor.number}`}>{anchor.number}</span>}
         {paper.year && <span>{paper.year}</span>}
         {paper.venue && <span className="result-venue">{paper.venue}</span>}
       </div>

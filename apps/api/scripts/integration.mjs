@@ -102,6 +102,7 @@ try {
   ok = await run("public cache integration", "scripts/cache-e2e.mjs") && ok;
   ok = await run("shared lane integration", "scripts/gate-e2e.mjs") && ok;
   ok = await run("idea check integration", "scripts/idea-e2e.mjs") && ok;
+  ok = await run("chat integration", "scripts/chat-e2e.mjs") && ok;
   ok = await run("feedback integration", "scripts/feedback-e2e.mjs") && ok;
   if (withBrowser) {
     ok = await run("browser: smoke + axe", "e2e/smoke.mjs", [`http://localhost:${PORT}`], web) && ok;
@@ -114,8 +115,10 @@ try {
     ok = await run("browser: admin and reports", "e2e/admin.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: legal pages", "e2e/legal.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: workspace (new look)", "e2e/workspace.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: chat (prompt box)", "e2e/chat.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: annotated PDF", "e2e/annotated.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: offline reading", "e2e/offline.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: parked features", "e2e/parked.mjs", [`http://localhost:${PORT}`], web) && ok;
     // Only when asked for (needs real PDFs, live Crossref/OpenAlex and a few minutes): REAL_PDFS=<folder> [REAL_VERIFY=1]
     if (process.env.REAL_PDFS) ok = await run("browser: real papers", "e2e/real-papers.mjs", [process.env.REAL_PDFS, `http://localhost:${PORT}`, ...(process.env.REAL_VERIFY ? ["--verify"] : [])], web) && ok;
   }

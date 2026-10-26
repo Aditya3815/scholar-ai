@@ -217,7 +217,7 @@ export function App() {
         {idle ? (
           <m.div key="home" exit={{ opacity: 0, y: -12, transition: { duration: 0.18 } }}>
             {WORKSPACE ? (
-              <HomePage query={query} onQuery={setQuery} onSearch={submit} onOpenTool={(tool) => navigate(tool === "papers" ? "papers" : tool)} onOpenPaper={(id) => navigate("papers", id)} inputRef={homeRef} />
+              <HomePage query={query} onQuery={setQuery} onOpenTool={(tool) => navigate(tool === "papers" ? "papers" : tool)} onOpenPaper={(id) => navigate("papers", id)} inputRef={homeRef} />
             ) : (
             <Hero value={query} onChange={setQuery} onSubmit={() => submit(query)} onPick={submit} onVerify={() => navigate("verify")} onPapers={() => navigate("papers")} onIdea={() => navigate("idea")} inputRef={inputRef} />
             )}

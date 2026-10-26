@@ -1,4 +1,4 @@
-import { NOTE_COLORS, type Answer, type DocNote, type Legend } from "@scholar/shared";
+import { NOTE_COLORS, isPlainLegend, type Answer, type DocNote, type Legend } from "@scholar/shared";
 import { SCHEMA, verifyAnswer, type Complete, type Retrieved, type StoredChunk } from "./qa";
 import { rank } from "./vector";
 
@@ -38,9 +38,10 @@ export function pickHighlights(question: string, notes: DocNote[]): { used: DocN
 }
 
 export function highlightsPrompt(question: string, used: DocNote[], legend: Legend): string {
-  const meanings = NOTE_COLORS.map((c) => `${c} = "${legend[c]}"`).join("; ");
+  // the meanings are told to the model only when the reader gave their colours names of their own
+  const meanings = isPlainLegend(legend) ? "" : `\n\nWhat the reader's colours mean: ${NOTE_COLORS.map((c) => `${c} = "${legend[c]}"`).join("; ")}.`;
   const lines = used.map((n, i) => `[${i + 1}] (page ${n.page}, ${n.color}) ${n.quote.replace(/\s+/g, " ")}${n.note.trim() ? `\n    Reader's note: ${n.note.replace(/\s+/g, " ").trim()}` : ""}`);
-  return `Question: ${question}\n\nWhat the reader's colours mean: ${meanings}.\n\nHighlights:\n${lines.join("\n---\n")}`;
+  return `Question: ${question}${meanings}\n\nHighlights:\n${lines.join("\n---\n")}`;
 }
 
 export async function answerAboutHighlights(args: {

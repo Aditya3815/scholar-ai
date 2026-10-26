@@ -8,6 +8,7 @@ import { easeOut, spring } from "../lib/motion";
 import { showNotice } from "../lib/notice";
 import { setRememberOn, useRememberOn } from "../lib/remember";
 import { clearOfflineData } from "../lib/offline";
+import { clearChats, useChatState } from "../lib/chat";
 import { OfflineSettings } from "./OfflineSettings";
 import { WORKSPACE } from "../lib/workspace";
 
@@ -18,6 +19,7 @@ import { WORKSPACE } from "../lib/workspace";
 export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: () => void; idPrefix?: string }) {
   const { user } = useAuth();
   const rememberOn = useRememberOn();
+  const chatCount = useChatState().index.length;
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,7 @@ export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: 
     }
     resetLibraryView();
     await clearOfflineData();
+    await clearChats();
     await refreshAuth();
     onDeleted?.();
     setConfirm("");
@@ -74,6 +77,18 @@ export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: 
             <span>Show “Remember this?” with one of my highlights</span>
           </label>
           <p className="settings-p">One highlight from your own papers, the same one all day. It is chosen on your account and shown only to you. This choice is kept on this device.</p>
+        </section>
+      )}
+
+      {WORKSPACE && (
+        <section className="settings-sec" aria-labelledby={`${idPrefix}-chats`}>
+          <h3 id={`${idPrefix}-chats`} className="settings-h">Chats</h3>
+          <p className="settings-p">
+            What you ask in the prompt box on Home and the answers are kept <strong>only in this browser</strong>, never on our servers. They are removed when you sign out, and they are not part of the copy of your data you can download, because we do not have them.
+          </p>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={chatCount === 0} onClick={() => void clearChats().then(() => showNotice("Your chats were deleted from this browser."))}>
+            <span>{chatCount === 0 ? "No chats kept" : `Delete ${chatCount === 1 ? "the chat" : `all ${chatCount} chats`} in this browser`}</span>
+          </button>
         </section>
       )}
 

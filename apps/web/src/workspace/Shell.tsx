@@ -1,10 +1,11 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
-import { Bookmark, FileStack, Home, Lightbulb, ListChecks, LogOut, Menu, Settings, X } from "lucide-react";
+import { Bookmark, FileStack, Home, Lightbulb, ListChecks, LogOut, Menu, MessageSquare, Plus, Settings, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { signOut, useAuth } from "../lib/auth";
 import { useLibrary } from "../lib/library";
 import { useDocs } from "../lib/documents";
+import { deleteChat, openChat, startNewChat, useChatState } from "../lib/chat";
 import { easeOut, spring } from "../lib/motion";
 import { Logo } from "../components/Logo";
 import { SignInDialog } from "../components/AccountMenu";
@@ -19,6 +20,7 @@ function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home
   const { user } = useAuth();
   const saved = useLibrary().length;
   const papers = useDocs().items.length;
+  const chats = useChatState();
   const go = (fn: () => void) => () => {
     fn();
     onClose?.();
@@ -72,6 +74,30 @@ function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home
       </a>
       <nav aria-label="Primary">
         <ul className="ws-nav">{main.map(link)}</ul>
+        <div className="ws-chats">
+          <button type="button" className="ws-newchat" onClick={go(() => { startNewChat(); onHome(); })}>
+            <Plus size={16} aria-hidden="true" />
+            <span>New chat</span>
+          </button>
+          {chats.index.length > 0 && (
+            <>
+              <p className="ws-nav-h" id={`ws-recent-h-${onClose ? "d" : "s"}`}>Recent</p>
+              <ul className="ws-nav ws-recent" aria-labelledby={`ws-recent-h-${onClose ? "d" : "s"}`}>
+                {chats.index.slice(0, 6).map((e) => (
+                  <li key={e.id}>
+                    <button type="button" className="ws-link ws-recent-open" aria-current={view === "home" && chats.active === e.id ? "true" : undefined} onClick={go(() => { void openChat(e.id); onHome(); })}>
+                      <MessageSquare size={15} aria-hidden="true" />
+                      <span className="ws-link-label">{e.title}</span>
+                    </button>
+                    <button type="button" className="ws-recent-x" aria-label={`Delete the chat ${e.title}`} title="Delete this chat" onClick={() => deleteChat(e.id)}>
+                      <X size={13} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
         <p className="ws-nav-h" id="ws-tools-h">Tools</p>
         <ul className="ws-nav" aria-labelledby="ws-tools-h">{tools.map(link)}</ul>
       </nav>

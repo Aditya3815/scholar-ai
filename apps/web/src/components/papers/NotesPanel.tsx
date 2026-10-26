@@ -5,8 +5,8 @@ import { MAX_NOTE_CHARS, NOTE_COLORS, type DocNote, type DocumentInfo, type Note
 import { easeOut, spring } from "../../lib/motion";
 import { useLegend } from "../../lib/legend";
 import { notesToMarkdown, type NotesApi } from "../../lib/notes";
-import { WORKSPACE } from "../../lib/workspace";
-import { AskHighlights, ColourFilter, LegendEditor } from "./HighlightsTools";
+import { PARKED, WORKSPACE } from "../../lib/workspace";
+import { ColourFilter, LegendEditor } from "./HighlightsTools";
 
 function NoteItem({ n, api, autoFocus, focusTick, onGo, onFocusDone }: { n: DocNote; api: NotesApi; autoFocus: boolean; focusTick: number; onGo: (n: DocNote) => void; onFocusDone?: (id: string) => void }) {
   const [text, setText] = useState(n.note);
@@ -105,11 +105,10 @@ export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone
       {WORKSPACE && api.notes.length > 0 && (
         <div className="hl-tools">
           <ColourFilter notes={api.notes} value={colour} onChange={setColour} />
-          <LegendEditor />
+          {PARKED.colourNames && <LegendEditor />}
         </div>
       )}
       <div className="notes-body">
-      {WORKSPACE && <AskHighlights docId={doc.id} count={api.notes.length} onGo={(c) => onGo({ id: "", page: c.page, quote: c.quote, note: "", color: "yellow", createdAt: 0, updatedAt: 0 })} />}
       {api.error && <p className="notes-error" role="alert">{api.error}</p>}
       {api.status !== "loading" && api.notes.length === 0 && (
         <m.div className="notes-empty" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }}>

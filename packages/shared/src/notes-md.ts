@@ -3,7 +3,10 @@ import { NOTE_COLORS, type DocNote, type NoteColor } from "./documents";
 /** What each highlight colour means to this reader: their own words, kept on their device and sent with a question about their highlights. */
 export type Legend = Record<NoteColor, string>;
 export const MAX_LEGEND_CHARS = 24;
-export const DEFAULT_LEGEND: Legend = { yellow: "Important", green: "Method", blue: "Question", pink: "Disagree" };
+/** Plain colour names (decision of 25 Oct: naming colours is set aside for now; the names stay possible in the code). */
+export const DEFAULT_LEGEND: Legend = { yellow: "Yellow", green: "Green", blue: "Blue", pink: "Pink" };
+/** True when no colour has been given a name of its own (every name is just its colour). */
+export const isPlainLegend = (l: Legend): boolean => NOTE_COLORS.every((c) => l[c].toLowerCase() === c);
 
 const cleanName = (v: unknown): string | null => {
   if (typeof v !== "string") return null;
@@ -32,7 +35,7 @@ export type MarkdownOptions = {
 
 /**
  * The highlights and notes of a paper as Markdown: the quote with its page, then the reader's own words. Grouped by colour, each
- * section is named with what the colour means to the reader ("Important", "Method"...).
+ * section is named with the colour ("Yellow") or, when the reader has named their colours, with what the colour means to them.
  */
 export function notesMarkdown(title: string, notes: DocNote[], opts: MarkdownOptions = {}): string {
   const legend = opts.legend ?? DEFAULT_LEGEND;
@@ -45,7 +48,7 @@ export function notesMarkdown(title: string, notes: DocNote[], opts: MarkdownOpt
     const sections = NOTE_COLORS.filter((c) => keep.has(c))
       .map((c) => ({ c, items: list.filter((n) => n.color === c) }))
       .filter((s) => s.items.length > 0)
-      .map((s) => `## ${heading(legend[s.c])} (${s.c}, ${s.items.length})\n\n${s.items.map(item).join("\n\n")}`);
+      .map((s) => `## ${heading(legend[s.c])} (${legend[s.c].toLowerCase() === s.c ? "" : `${s.c}, `}${s.items.length})\n\n${s.items.map(item).join("\n\n")}`);
     return `${head}${sections.join("\n\n")}\n`;
   }
   return `${head}${list.map(item).join("\n\n")}\n`;

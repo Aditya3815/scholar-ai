@@ -245,18 +245,18 @@ try {
   await page.goBack();
   await page.locator("#hm-h").waitFor();
 
-  // a search from the box (results mocked)
-  const done = { type: "done", results: [{ id: "doi:10.1000/t1", doi: "10.1000/t1", pmid: null, title: "Workspace test paper", authors: ["A. Author"], year: 2021, venue: "Test Journal", abstract: "An abstract.", citationCount: 3, oaUrl: null, retracted: false, retractionSources: [], sources: ["openalex"], score: 1, workType: "article" }], providers: { openalex: { ok: true, count: 1, ms: 5, cached: false } }, query: "workspace" };
-  await page.route("**/api/v1/search/stream*", (route) => route.fulfill({ status: 200, headers: { "content-type": "text/event-stream", "cache-control": "no-store" }, body: `event: done\ndata: ${JSON.stringify(done)}\n\n` }));
+  // a search from the box is a conversation: the question, the papers, a written answer (the full test of it is e2e/chat.mjs)
   await page.locator(".hm-pill", { hasText: "Search papers" }).click();
-  await page.locator(".hm-input").fill("workspace");
+  await page.locator(".hm-input").fill("glaucoma screening");
   await page.keyboard.press("Enter");
-  await page.locator(".result").first().waitFor({ timeout: 10000 });
-  ok(await page.locator(".ws-rail").isVisible(), "a search from the home box shows its results inside the same frame");
-  await page.waitForTimeout(1500);
-  await page.screenshot({ path: OUT + "12-results-in-shell.png" });
-  await axe("results in the shell", page);
-  await page.unroute("**/api/v1/search/stream*");
+  await page.locator(".chat-turn .result").first().waitFor({ timeout: 20000 });
+  ok(await page.locator(".ws-rail").isVisible() && await page.locator(".chat-bubble").count() === 1, "a search from the home box becomes a conversation, inside the same frame");
+  await page.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: OUT + "12-chat-in-shell.png" });
+  await axe("a conversation in the shell", page);
+  await page.locator(".ws-rail").getByRole("button", { name: "New chat" }).click();
+  await page.locator(".hm-title").waitFor();
 
   /* ============================ the rail and the pages ============================ */
   console.log("pages");
@@ -757,7 +757,7 @@ try {
   await page.locator(".ws-rail").getByRole("link", { name: /My Workspace/ }).click();
   await page.locator(".dc").first().waitFor();
 
-  console.log("highlights by colour, named colours, asking about them");
+  console.log("highlights by colour (plain names), asking about them in the Ask box");
   const gradedQuote = "Images were graded by two ophthalmologists and disagreements were resolved by a third";
   ok((await page.request.post(`${BASE}/api/v1/documents/${did}/notes`, { headers: { Origin: BASE }, data: { page: 2, quote: gradedQuote, color: "pink" } })).ok(), "(a second highlight, pink, on page 2)");
   await page.locator(".dc .dc-open").first().click();
@@ -765,38 +765,46 @@ try {
   await page.locator(".dw-sidetabs").getByRole("tab", { name: /Notes/ }).click();
   const filter = page.getByRole("group", { name: "Show highlights by colour" });
   await filter.waitFor();
-  ok(await filter.getByRole("button", { name: /^All 2/ }).isVisible() && await filter.getByRole("button", { name: /Disagree 1/ }).isVisible() && await filter.getByRole("button", { name: /Method 1/ }).isVisible(), "the highlights have a filter by colour, each chip with a name and a count");
-  ok(await filter.getByRole("button", { name: /Important 0/ }).isDisabled(), "a colour with no highlights is not offered");
-  await filter.getByRole("button", { name: /Disagree 1/ }).click();
+  ok(await filter.getByRole("button", { name: /^All 2/ }).isVisible() && await filter.getByRole("button", { name: /Pink 1/ }).isVisible() && await filter.getByRole("button", { name: /Green 1/ }).isVisible(), "the highlights have a filter by colour, each chip with the plain colour name and a count");
+  ok(await filter.getByRole("button", { name: /Yellow 0/ }).isDisabled(), "a colour with no highlights is not offered");
+  ok(await page.getByRole("button", { name: "Name the colours" }).count() === 0, "naming the colours is set aside: there is no such button");
+  await filter.getByRole("button", { name: /Pink 1/ }).click();
   await page.locator(".dw-side:not([hidden]) .note[data-color=green]").waitFor({ state: "detached" });
   ok(await page.locator(".dw-side:not([hidden]) .note").count() === 1 && await page.locator(".dw-side:not([hidden]) .note").first().getAttribute("data-color") === "pink", "choosing a colour shows only those highlights");
-  await filter.getByRole("button", { name: /^Disagree 1/ }).click();
+  await filter.getByRole("button", { name: /^Pink 1/ }).click();
   await page.getByRole("group", { name: "Order of the list" }).getByRole("button", { name: "By colour" }).click();
   ok(await page.locator(".hl-group-sec").count() === 2, "'By colour' groups the list, a section for each colour in use");
-  await page.getByRole("button", { name: "Name the colours" }).click();
-  await page.getByLabel("What green means").fill("How they did it");
-  await page.getByLabel("What green means").press("Enter");
-  await page.getByRole("button", { name: /How they did it 1/ }).waitFor();
-  ok(await page.locator(".hl-group-sec h3").filter({ hasText: "How they did it" }).count() === 1, "a colour can be given the reader's own name, and it shows in the filter and the sections");
-  await page.reload({ waitUntil: "networkidle" });
-  await page.locator(".dw-sidetabs").getByRole("tab", { name: /Notes/ }).click();
-  await page.getByRole("button", { name: /How they did it 1/ }).waitFor();
-  ok(true, "the names are remembered on this device");
-  await page.getByRole("group", { name: "Order of the list" }).getByRole("button", { name: "By colour" }).click();
   const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download", exact: true }).click()]);
   const mdText = readFileSync(await dl.path(), "utf8");
-  ok(/^# Notes on glaucoma screening/i.test(mdText) && /## How they did it \(green, 1\)/.test(mdText) && /## Disagree \(pink, 1\)/.test(mdText) && mdText.includes(gradedQuote + " (p. 2)"), "the Markdown download follows the grouping and the names");
+  ok(/^# Notes on glaucoma screening/i.test(mdText) && /## Green \(1\)/.test(mdText) && /## Pink \(1\)/.test(mdText) && mdText.includes(gradedQuote + " (p. 2)"), "the Markdown download follows the grouping, with the plain colour names");
   await page.screenshot({ path: OUT + "32-highlights.png" });
   await axe("highlights by colour", page);
-  await page.getByLabel("Your question about your highlights").fill("graded by two ophthalmologists");
-  await page.getByRole("button", { name: "Ask about my highlights" }).click();
-  await page.locator(".hl-answer").waitFor({ timeout: 20000 });
-  ok(/Every source is one of your highlights/.test(await page.locator(".hl-answer").innerText()), "asking about the highlights gives an answer whose sources are the reader's own highlights");
+  ok(await page.getByLabel("Your question about your highlights").count() === 0, "there is no second box for asking about highlights: it is the Ask box");
+
+  // the Ask box decides: a question about "my highlights" is answered from them, any other from the paper
+  await page.locator(".dw-sidetabs").getByRole("tab", { name: /^Ask/ }).click();
+  const askBox = page.locator("#ask-input");
+  await askBox.fill("What did I highlight about the ophthalmologists who graded the images?");
+  await askBox.press("Enter");
+  await page.locator('.ask-answer[data-source="highlights"]').waitFor({ timeout: 20000 });
+  ok(/From your highlights/.test(await page.locator('.ask-answer[data-source="highlights"]').innerText()) && /Every source is one of your highlights/.test(await page.locator('.ask-answer[data-source="highlights"]').innerText()), "a question about the reader's own highlights is answered from them, and says so");
   await page.screenshot({ path: OUT + "33-highlights-ask.png" });
-  await axe("answer about highlights", page);
-  await page.locator(".hl-answer .ask-source").first().click();
+  await page.waitForTimeout(700); // the question bubble has finished appearing (axe reads colours as they are drawn)
+  await axe("answer from highlights in the Ask box", page);
+  await page.locator('.ask-answer[data-source="highlights"] .ask-source').first().click();
   await page.waitForFunction(() => document.getElementById("pdfv-page")?.value === "2", null, { timeout: 8000 });
   ok(true, "a source in the answer goes to that page of the paper");
+  await askBox.fill("Who graded the images in this study?");
+  await askBox.press("Enter");
+  await page.locator(".ask-answer:not([data-source])").first().waitFor({ timeout: 30000 });
+  ok(await page.locator(".ask-answer").count() === 2 && await page.locator('.ask-answer[data-source="highlights"]').count() === 1, "any other question is answered from the paper, as before");
+  await page.getByRole("button", { name: "Ask the paper instead" }).click();
+  await page.waitForFunction(() => document.querySelectorAll(".ask-answer").length === 3, null, { timeout: 30000 });
+  ok(await page.locator('.ask-answer[data-source="highlights"]').count() === 1 && await page.locator(".ask-answer:not([data-source])").count() === 2, "'Ask the paper instead' asks the same question of the paper");
+  await askBox.fill("An unanswerable question about the methods");
+  await askBox.press("Enter");
+  await page.waitForFunction(() => document.querySelectorAll(".ask-answer").length === 4, null, { timeout: 30000 });
+  ok(await page.getByRole("button", { name: "Ask my highlights instead" }).count() >= 1, "when the paper does not cover a question, the reader may ask their highlights instead");
   await page.getByRole("button", { name: /My Workspace/ }).first().click();
   await page.locator(".dc").first().waitFor();
 
@@ -804,7 +812,7 @@ try {
   for (const d of mine) await page.request.delete(BASE + "/api/v1/documents/" + d.id, { headers: { Origin: BASE } });
 
   /* ============================ a phone, signed in: the drawer ============================ */
-  console.log("command palette, shortcuts, focus mode, two papers side by side");
+  console.log("command palette, shortcuts, focus mode");
   await page.reload({ waitUntil: "networkidle" });
   await page.locator('input[type="file"]').waitFor({ state: "attached" });
   await page.locator('input[type="file"]').setInputFiles({ name: "glaucoma_screening.pdf", mimeType: "application/pdf", buffer: makePdf(SAMPLE_PAPER, { title: "Glaucoma screening" }) });
@@ -860,8 +868,8 @@ try {
   await page.waitForFunction(() => document.querySelector(".dw")?.getAttribute("data-focus") === "true", null, { timeout: 4000 });
   ok(await page.locator(".dw-ask").evaluate((el) => getComputedStyle(el).display) === "none", "'Focus mode' puts the side panel away so the paper has the whole window");
   await page.screenshot({ path: OUT + "38-focus.png" });
-  await axe("focus mode", page);
   await page.locator(".palette").waitFor({ state: "detached", timeout: 8000 }); // the palette has finished closing (F is not a shortcut while a text box has the keys)
+  await axe("focus mode", page);
   await page.keyboard.press("f");
   await page.waitForFunction(() => document.querySelector(".dw")?.getAttribute("data-focus") === "false", null, { timeout: 4000 });
   ok(await page.locator(".dw-ask").isVisible(), "the letter F brings it back");
@@ -880,25 +888,13 @@ try {
   await page.getByRole("dialog").waitFor({ state: "detached" });
   ok(true, "Esc closes the list of shortcuts too");
 
-  // two papers side by side
-  await page.getByRole("button", { name: "Open another paper beside this one" }).click();
-  await page.getByText("Compare with").waitFor();
-  ok(await page.getByRole("button", { name: /glaucoma screening/i }).isVisible() && !(await page.getByRole("button", { name: /methods paper/i }).count()), "the picker offers the other papers, not this one");
-  await page.getByRole("button", { name: /glaucoma screening/i }).click();
-  await page.locator(".dw-second .pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
-  ok(await page.locator(".dw-second").isVisible() && await page.locator(".dw-viewer .pdfv").count() === 2, "a second paper opens beside the first, each with its own viewer");
-  ok(await page.getByRole("region", { name: /Second paper: glaucoma screening/i }).isVisible() && await page.locator("#pdfv2-page").count() === 1, "it is a region of its own, and its ids do not clash with the first");
-  const two = await page.evaluate(() => [...document.querySelectorAll(".dw-paper > .dw-viewer, .dw-paper > .dw-second")].map((e) => Math.round(e.getBoundingClientRect().width)));
-  ok(two.length === 2 && Math.abs(two[0] - two[1]) < 40, `they share the width (${two.join(" and ")} px)`);
-  ok(await noSideways(page), "no sideways scroll with two papers");
-  await page.screenshot({ path: OUT + "39-split.png" });
-  await axe("two papers side by side", page);
-  await page.getByRole("button", { name: "Close the second paper" }).first().click();
-  ok(await page.locator(".dw-second").count() === 0, "the second paper can be closed");
-  await page.setViewportSize({ width: 900, height: 800 });
-  await page.waitForTimeout(400);
-  ok(await page.locator(".dw-split-btn").evaluate((el) => getComputedStyle(el).display) === "none", "on a narrow window the second-paper button is not offered");
-  await page.setViewportSize({ width: 1360, height: 900 });
+  // two papers side by side is set aside (decision of 25 Oct): no button, no command
+  ok(await page.getByRole("button", { name: "Open another paper beside this one" }).count() === 0, "two papers side by side is set aside: no button for it in the reader");
+  await page.keyboard.press("Control+k");
+  await pal.fill("beside");
+  ok(await page.getByRole("option", { name: /beside this one/ }).count() === 0, "and no command for it in the palette");
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog").waitFor({ state: "detached" });
 
   // "search my papers" from the palette, with the list already open
   await page.getByRole("button", { name: /My Workspace/ }).first().click();

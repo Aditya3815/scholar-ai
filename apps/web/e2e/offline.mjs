@@ -27,8 +27,7 @@ try {
   });
   const cacheKeys = (name) => page.evaluate(async (n) => ((await caches.has(n)) ? (await (await caches.open(n)).keys()).map((r) => new URL(r.url).pathname) : []), name);
   const pending = () => page.evaluate(() => new Promise((resolve) => {
-    const req = indexedDB.open("scholar", 1);
-    req.onupgradeneeded = () => req.result.createObjectStore("pendingInk");
+    const req = indexedDB.open("scholar"); // the version the app made it at (the app creates the stores)
     req.onerror = () => resolve(-1);
     req.onsuccess = () => {
       const db = req.result;

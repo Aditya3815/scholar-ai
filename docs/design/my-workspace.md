@@ -71,7 +71,7 @@ My suggestion for the next three: **1, 2 and 3** (the drawing becomes something 
 | 6 tags, status, progress | done (collections are tags; no separate folders) |
 | 7 Remember this? | done in the app, opt-out; no e-mail |
 | 2 highlights page | done as part of the Notes tab of the reader (per paper: filter, group by colour, named colours, Markdown). A page across all papers is not built |
-| 3 ask about highlights | done (per paper) |
+| 3 ask about highlights | done, and since 25 Oct part of the Ask box of the paper: the question decides whether it is answered from the paper or from the highlights (see [chat-w2.md](chat-w2.md)). Naming colours and two papers side by side are set aside (`PARKED`) |
 | 1 annotated PDF | done; Hindi and other non-Western letters in notes show as "?" on the notes page (Helvetica); embedding a Devanagari font would fix it |
 | 8 more tools | done: line, arrow, rectangle, ellipse, text box, sticky note, lasso (select, move, delete). Not done: resize or rotate, ruler, snapping |
 | 10 split view, focus mode, shortcuts, palette | done |

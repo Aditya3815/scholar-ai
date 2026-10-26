@@ -36,6 +36,8 @@ describe("highlightsPrompt", () => {
     expect(p).toContain("[1] (page 2, green) Images were graded");
     expect(p).toContain("Reader's note: my method note");
     expect(p).toContain('green = "How they did it"');
+    // with plain colour names there is nothing to explain
+    expect(highlightsPrompt("q?", NOTES, DEFAULT_LEGEND)).not.toContain("colours mean");
     expect(p).toContain("[2] (page 3, pink) Limitations include");
   });
 });

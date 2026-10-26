@@ -3,7 +3,7 @@ import { ArrowLeft, BookMarked, Columns2, ExternalLink, FileWarning, Highlighter
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { analyzeScan, planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type OutlineItem, type PaperInfo, type ScanInfo } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
-import { ApiError, continueScan, fetchDocument, fileUrl, pauseScan, postProgress, reindexDoc, renameDoc, savePaperInfo, useDocs, useJobs } from "../../lib/documents";
+import { ApiError, continueScan, fetchDocument, fileUrl, pauseScan, postProgress, reindexDoc, renameDoc, savePaperInfo, loadDocs, useDocs, useJobs } from "../../lib/documents";
 import { registerCommands } from "../../lib/commands";
 import { useOnline } from "../../lib/offline";
 import { takeJump } from "../../lib/jump";
@@ -11,7 +11,7 @@ import { fetchScan, fetchScanText } from "../../lib/scan";
 import { analyzeOpenPdf } from "../../lib/paperinfo";
 import { useNotes } from "../../lib/notes";
 import { useInk } from "../../lib/ink";
-import { PAPERS_NAME, WORKSPACE } from "../../lib/workspace";
+import { PAPERS_NAME, PARKED, WORKSPACE } from "../../lib/workspace";
 import { easeOut, spring } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { PdfError, openPdf, type PDFDocumentProxy } from "../../lib/pdf";
@@ -128,7 +128,12 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   // a second paper beside this one (compare two); not kept: a fresh visit starts with one
   const [split, setSplit] = useState<string | null>(null);
   const online = useOnline();
-  const otherPapers = useDocs().items.filter((d) => d.id !== id && d.status === "ready");
+  const allDocs = useDocs();
+  const otherPapers = allDocs.items.filter((d) => d.id !== id && d.status === "ready");
+  // opened by its address, the list of papers has not been loaded yet: the palette and the second-paper picker need it
+  useEffect(() => {
+    if (user && allDocs.status === "idle") void loadDocs();
+  }, [user, allDocs.status]);
   const jobs = useJobs();
   const myJob = jobs.find((j) => j.docId === id && ["reading", "uploading", "indexing", "scanning"].includes(j.step));
   const reindexing = !!myJob;
@@ -350,8 +355,8 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
         { id: "r-ask", label: "Ask this paper a question", group: "This paper", keywords: "chat questions", run: () => { setSide("ask"); setTab("side"); if (focus) toggleFocus(); } },
         { id: "r-notes", label: "Show my highlights and notes", group: "This paper", keywords: "notes colours legend", run: () => { setSide("notes"); setTab("side"); if (focus) toggleFocus(); } },
         { id: "r-refs", label: "Show the references of this paper", group: "This paper", keywords: "bibliography", run: () => { setSide("refs"); setTab("side"); if (focus) toggleFocus(); } },
-        ...(split ? [{ id: "r-split-off", label: "Close the second paper", group: "This paper", keywords: "split beside compare", run: () => setSplit(null) }] : []),
-        ...(!split && hasOthers ? [{ id: "r-split", label: "Open another paper beside this one", group: "This paper", keywords: "split compare two side by side", run: () => document.getElementById("dw-split-btn")?.click() }] : []),
+        ...(PARKED.splitView && split ? [{ id: "r-split-off", label: "Close the second paper", group: "This paper", keywords: "split beside compare", run: () => setSplit(null) }] : []),
+        ...(PARKED.splitView && !split && hasOthers ? [{ id: "r-split", label: "Open another paper beside this one", group: "This paper", keywords: "split compare two side by side", run: () => document.getElementById("dw-split-btn")?.click() }] : []),
         { id: "r-back", label: `Back to ${PAPERS_NAME}`, group: "This paper", keywords: "close list", run: onBack },
       ],
       dynamic: (q) => {
@@ -430,7 +435,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             <button type="button" className="icon-btn icon-btn-sm dw-focus-btn" aria-pressed={focus} aria-keyshortcuts="F" aria-label="Focus mode" title={focus ? "Bring the side panel back (F)" : "Paper on the whole window (F)"} onClick={toggleFocus}>
               {focus ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
             </button>
-            {split ? (
+            {PARKED.splitView && (split ? (
               <button type="button" id="dw-split-btn" className="icon-btn icon-btn-sm dw-split-btn" aria-pressed="true" aria-label="Close the second paper" title="Close the second paper" onClick={() => setSplit(null)}>
                 <Columns2 size={16} aria-hidden="true" />
               </button>
@@ -464,7 +469,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
                   </div>
                 )}
               </Pop>
-            )}
+            ))}
             <ThemeSwitch scope="reader" />
           </div>
         )}
@@ -538,7 +543,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
               </m.div>
             )}
           </AnimatePresence>
-          {split && pdf.status === "ready" && <SecondPaper key={split} docId={split} onClose={() => setSplit(null)} />}
+          {PARKED.splitView && split && pdf.status === "ready" && <SecondPaper key={split} docId={split} onClose={() => setSplit(null)} />}
           {pdf.status === "ready" && <p className="sr-only" aria-live="polite">Page {page} of {pdf.pdf.numPages}</p>}
           <AnimatePresence>
             {resumedFrom && (
@@ -565,7 +570,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
           </div>
           {/* Both stay mounted so a question being answered, or references being checked, are never lost by switching tabs. */}
           <div className="dw-side" hidden={side !== "ask"}>
-            <AskPanel doc={doc} history={history} scan={doc.scanned ? scan : null} onCite={onCite} onGoToPage={onGoToPage} onReindex={() => void (doc.scanned ? continueScan(doc) : reindexDoc(doc))} />
+            <AskPanel doc={doc} history={history} notes={notes.notes} scan={doc.scanned ? scan : null} onCite={onCite} onGoToPage={onGoToPage} onReindex={() => void (doc.scanned ? continueScan(doc) : reindexDoc(doc))} />
             {reindexing && (
               <p className="ask-fine" role="status">
                 <Loader2 className="spin" size={13} aria-hidden="true" /> Indexing again…

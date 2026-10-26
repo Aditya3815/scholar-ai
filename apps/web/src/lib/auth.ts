@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { AuthProviderInfo, AuthUser } from "@scholar/shared";
+import { clearChats } from "./chat";
 import { clearOfflineData, pendingDrawings } from "./offline";
 
 export type AuthState = {
@@ -73,6 +74,8 @@ export async function signOut(): Promise<void> {
   await fetch("/api/v1/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
   // what was kept on this device for this person (papers for offline reading) goes with the session
   await clearOfflineData();
+  // and the conversations: a shared computer must not show the last person's questions
+  await clearChats();
   await refreshAuth();
 }
 

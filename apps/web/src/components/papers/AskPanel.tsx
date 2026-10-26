@@ -1,8 +1,9 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowUp, BadgeCheck, Check, Copy, CornerDownRight, Loader2, RefreshCw, SearchX, ShieldCheck, Sparkles, Square, TriangleAlert } from "lucide-react";
+import { ArrowUp, BadgeCheck, Check, Copy, CornerDownRight, Highlighter, Loader2, RefreshCw, SearchX, ShieldCheck, Sparkles, Square, TriangleAlert } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { MAX_QUESTION_CHARS, type Answer, type AskStage, type Citation, type DocumentInfo, type ScanInfo } from "@scholar/shared";
-import { ApiError, askDocumentStream } from "../../lib/documents";
+import { MAX_QUESTION_CHARS, classifyAskSource, type Answer, type AskSource, type AskStage, type Citation, type DocNote, type DocumentInfo, type ScanInfo } from "@scholar/shared";
+import { ApiError, askDocumentStream, askHighlights } from "../../lib/documents";
+import { useLegend } from "../../lib/legend";
 import { easeOut, spring, springPop } from "../../lib/motion";
 import { CountUp } from "../ResultCard";
 import { ReportButton } from "../ReportButton";
@@ -17,7 +18,11 @@ const SUGGESTIONS = [
 
 /** Where an answer is while it is being produced. `text` is provisional until the checked answer arrives. */
 type Live = { stage: AskStage; pages: number[]; text: string };
-type Turn = { key: string; question: string; answer?: Answer; error?: string; live?: Live };
+/**
+ * One question and its answer. `source` says what it was answered from: the paper (checked and saved with the paper) or the reader's own highlights and notes (checked
+ * against those, kept only for this visit). `hl` says how many highlights were read, `note` is an answer made here without a model (no highlights yet).
+ */
+type Turn = { key: string; question: string; answer?: Answer; error?: string; live?: Live; source?: AskSource; hl?: { used: number; total: number }; note?: string; reading?: boolean };
 
 const STEPS: { id: AskStage; label: string; say: string }[] = [
   { id: "retrieving", label: "Find", say: "Finding the right passages" },
@@ -59,7 +64,7 @@ const Word = memo(function Word({ w }: { w: string }) {
  * The answer as it is being written. It is provisional (the sources have not been checked yet), so it is dimmed and the
  * citation markers are hidden until the checked answer replaces it.
  */
-function StreamingText({ text, writing }: { text: string; writing: boolean }) {
+export function StreamingText({ text, writing }: { text: string; writing: boolean }) {
   const shown = text.replace(/\s*\[\d{1,2}\]/g, "").replace(/\s*\[\d{0,2}$/, "");
   const parts = shown.split(/(\s+)/);
   return (
@@ -116,6 +121,49 @@ function LiveAnswer({ live, onPage }: { live: Live; onPage: (page: number) => vo
 
       {live.text ? <StreamingText text={live.text} writing={live.stage === "writing"} /> : <span className="ask-wait" aria-hidden="true"><span className="sk sk-body" /><span className="sk sk-body sk-short" /></span>}
     </div>
+  );
+}
+
+/** An answer from the reader's own highlights: its sources are their highlights, each checked against the highlight it names. */
+function HighlightAnswerCard({ turn, onCite, onSwitch, busy }: { turn: Turn; onCite: (c: Citation) => void; onSwitch: () => void; busy: boolean }) {
+  const a = turn.answer;
+  if (!a) return null;
+  const tone = !a.found ? "muted" : a.verified ? "ok" : "warn";
+  return (
+    <m.div className="ask-answer" data-tone={tone} data-source="highlights" initial={{ opacity: 0.4 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+      <div className="ask-answer-head">
+        <span className="ask-status" data-tone={tone}>
+          {a.found && a.verified ? <ShieldCheck size={15} aria-hidden="true" /> : a.found ? <TriangleAlert size={15} aria-hidden="true" /> : <SearchX size={15} aria-hidden="true" />}
+          {!a.found ? "Not in your highlights" : a.verified ? "Every source is one of your highlights" : "Could not verify the source"}
+        </span>
+        <span className="ask-tools">{a.found && <CopyAnswer answer={a} />}</span>
+      </div>
+      <p className="ask-from">
+        <Highlighter size={13} aria-hidden="true" /> From your highlights{turn.hl && turn.hl.used < turn.hl.total ? `: the ${turn.hl.used} that best match, of ${turn.hl.total}` : ""}.{" "}
+        <button type="button" className="link-btn" disabled={busy} onClick={onSwitch}>Ask the paper instead</button>
+      </p>
+      <AnswerText text={a.answer} citations={a.citations} onCite={onCite} />
+      {a.found && !a.verified && (
+        <p className="ask-warn" role="note">
+          <TriangleAlert size={15} aria-hidden="true" />
+          <span>The quoted evidence was not found in your highlights. Check the paper yourself.</span>
+        </p>
+      )}
+      {a.citations.length > 0 && (
+        <ul className="ask-sources" aria-label="The highlights this answer used">
+          {a.citations.map((c) => (
+            <li key={c.n}>
+              <button type="button" className="ask-source" onClick={() => onCite(c)}>
+                <span className="ask-source-page">p. {c.page}</span>
+                <span className="ask-source-quote">“{c.quote}”</span>
+                <CornerDownRight className="ask-source-go" size={15} aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="ask-fine">Answers from your highlights are kept only for this visit, not saved with the paper.</p>
+    </m.div>
   );
 }
 
@@ -199,7 +247,7 @@ function AnswerCard({ answer, docId, scan, onCite }: { answer: Answer; docId: st
   );
 }
 
-export function AskPanel({ doc, history, scan = null, onCite, onGoToPage, onReindex }: { doc: DocumentInfo; history: Answer[]; scan?: ScanInfo | null; onCite: (c: Citation) => void; onGoToPage: (page: number) => void; onReindex: () => void }) {
+export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoToPage, onReindex }: { doc: DocumentInfo; history: Answer[]; /** The reader's highlights and notes on this paper: a question about them is answered from them. */ notes?: DocNote[]; scan?: ScanInfo | null; onCite: (c: Citation) => void; onGoToPage: (page: number) => void; onReindex: () => void }) {
   const [turns, setTurns] = useState<Turn[]>(() => history.map((a) => ({ key: a.id, question: a.question, answer: a })));
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -209,9 +257,13 @@ export function AskPanel({ doc, history, scan = null, onCite, onGoToPage, onRein
   const abort = useRef<AbortController | null>(null);
   const stick = useRef(true);
   const ready = doc.status === "ready";
+  const legend = useLegend();
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
 
   useEffect(() => {
-    setTurns(history.map((a) => ({ key: a.id, question: a.question, answer: a })));
+    // the saved answers come back from the server; answers from the highlights live only in this visit and are kept
+    setTurns((prev) => [...history.map((a) => ({ key: a.id, question: a.question, answer: a, source: "paper" as const })), ...prev.filter((t) => t.source === "highlights")]);
   }, [history]);
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -235,17 +287,50 @@ export function AskPanel({ doc, history, scan = null, onCite, onGoToPage, onRein
 
   const patchTurn = useCallback((key: string, change: (t: Turn) => Turn) => setTurns((all) => all.map((t) => (t.key === key ? change(t) : t))), []);
 
-  async function ask(question: string, retryKey?: string) {
+  /** Answer from the reader's highlights (not streamed: it is a short list, read at once). */
+  async function askFromHighlights(text: string, key: string, retry: boolean) {
+    const ctl = new AbortController();
+    abort.current = ctl;
+    stick.current = true;
+    setBusy(true);
+    setQ("");
+    const base: Turn = { key, question: text, source: "highlights", reading: true };
+    setTurns((all) => (retry ? all.map((x) => (x.key === key ? { ...base } : x)) : [...all, base]));
+    setAnnounce("Reading your highlights");
+    try {
+      if (notesRef.current.length === 0) {
+        patchTurn(key, (t) => ({ ...t, reading: false, note: "You have not highlighted anything in this paper yet. Select text in the paper to highlight it, then ask about your highlights." }));
+        setAnnounce("You have no highlights in this paper yet.");
+        return;
+      }
+      const r = await askHighlights(doc.id, text, legend, ctl.signal);
+      patchTurn(key, (t) => ({ ...t, reading: false, answer: r.answer, hl: { used: r.used, total: r.total } }));
+      setAnnounce(!r.answer.found ? "Your highlights do not cover this." : r.answer.verified ? "Answer ready. Every source is one of your highlights." : "Answer ready, but the source could not be verified.");
+    } catch (e) {
+      const stopped = e instanceof DOMException && e.name === "AbortError";
+      const message = stopped ? "Stopped. Ask again whenever you like." : e instanceof ApiError ? (e.status === 429 ? "You have used today's AI allowance. It comes back tomorrow." : e.message) : "The connection was lost. Please try again.";
+      patchTurn(key, (t) => ({ ...t, reading: false, error: message }));
+      setAnnounce(message);
+    } finally {
+      abort.current = null;
+      setBusy(false);
+      input.current?.focus();
+    }
+  }
+
+  /** `source` is what the reader chose with "Ask the paper instead"; without it the question decides (see classifyAskSource). */
+  async function ask(question: string, retryKey?: string, source?: AskSource) {
     const text = question.trim();
     if (text.length < 3 || busy || !ready) return;
     const key = retryKey ?? `t-${Date.now()}`;
+    if ((source ?? classifyAskSource(text)) === "highlights") return void askFromHighlights(text, key, !!retryKey);
     const start: Live = { stage: "retrieving", pages: [], text: "" };
     const ctl = new AbortController();
     abort.current = ctl;
     stick.current = true;
     setBusy(true);
     setQ("");
-    setTurns((t) => (retryKey ? t.map((x) => (x.key === key ? { ...x, error: undefined, live: start } : x)) : [...t, { key, question: text, live: start }]));
+    setTurns((t) => (retryKey ? t.map((x) => (x.key === key ? { ...x, error: undefined, live: start, source: "paper", hl: undefined, note: undefined } : x)) : [...t, { key, question: text, live: start, source: "paper" }]));
 
     // Words can arrive many times a second; paint them at most once per frame.
     let pendingText = "";
@@ -274,7 +359,7 @@ export function AskPanel({ doc, history, scan = null, onCite, onGoToPage, onRein
         ctl.signal,
       );
       if (raf) cancelAnimationFrame(raf);
-      patchTurn(key, (t) => ({ ...t, live: undefined, answer }));
+      patchTurn(key, (t) => ({ ...t, live: undefined, answer, source: "paper" }));
       setAnnounce(!answer.found ? "The paper does not cover this." : answer.verified ? "Answer ready. Every source was checked against the paper." : "Answer ready, but the source could not be verified.");
     } catch (e) {
       if (raf) cancelAnimationFrame(raf);
@@ -327,7 +412,7 @@ export function AskPanel({ doc, history, scan = null, onCite, onGoToPage, onRein
           <m.div className="ask-empty" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: easeOut }}>
             <p className="ask-empty-title">What would you like to know?</p>
             <ul className="ask-suggest">
-              {SUGGESTIONS.map((s, i) => (
+              {[...SUGGESTIONS, ...(notes.length > 0 ? ["Summarise what I highlighted"] : [])].map((s, i) => (
                 <m.li key={s} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: easeOut, delay: 0.1 + i * 0.06 }}>
                   <button type="button" className="chip-btn ask-chip" onClick={() => void ask(s)}>
                     {s}
@@ -345,13 +430,31 @@ export function AskPanel({ doc, history, scan = null, onCite, onGoToPage, onRein
                 {t.question}
               </m.li>
               <li className="ask-a">
-                {t.answer ? (
-                  <AnswerCard answer={t.answer} docId={doc.id} scan={scan} onCite={onCite} />
+                {t.answer && t.source === "highlights" ? (
+                  <HighlightAnswerCard turn={t} onCite={onCite} busy={busy} onSwitch={() => void ask(t.question, undefined, "paper")} />
+                ) : t.note ? (
+                  <div className="ask-answer" data-tone="muted" data-source="highlights" role="status">
+                    <p className="ask-from"><Highlighter size={13} aria-hidden="true" /> From your highlights.</p>
+                    <p className="reading ask-text">{t.note}</p>
+                    <button type="button" className="link-btn" disabled={busy} onClick={() => void ask(t.question, undefined, "paper")}>Ask the paper instead</button>
+                  </div>
+                ) : t.reading ? (
+                  <p className="ask-from" role="status" aria-busy="true"><Loader2 className="spin" size={14} aria-hidden="true" /> Reading your highlights…</p>
+                ) : t.answer ? (
+                  <>
+                    <AnswerCard answer={t.answer} docId={doc.id} scan={scan} onCite={onCite} />
+                    {notes.length > 0 && !t.answer.found && (
+                      <p className="ask-from">
+                        Not what you meant?{" "}
+                        <button type="button" className="link-btn" disabled={busy} onClick={() => void ask(t.question, undefined, "highlights")}>Ask my highlights instead</button>
+                      </p>
+                    )}
+                  </>
                 ) : t.error ? (
                   <div className="ask-error" role="alert">
                     <TriangleAlert size={16} aria-hidden="true" />
                     <span>{t.error}</span>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => void ask(t.question, t.key)} disabled={busy}>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => void ask(t.question, t.key, t.source)} disabled={busy}>
                       <RefreshCw size={14} aria-hidden="true" />
                       <span>Try again</span>
                     </button>
@@ -377,7 +480,7 @@ export function AskPanel({ doc, history, scan = null, onCite, onGoToPage, onRein
           else void ask(q);
         }}
       >
-        <label className="sr-only" htmlFor="ask-input">Ask a question about this paper</label>
+        <label className="sr-only" htmlFor="ask-input">Ask a question about this paper or your highlights</label>
         <textarea
           id="ask-input"
           ref={input}
@@ -385,7 +488,7 @@ export function AskPanel({ doc, history, scan = null, onCite, onGoToPage, onRein
           value={q}
           maxLength={MAX_QUESTION_CHARS}
           disabled={!ready}
-          placeholder={ready ? "Ask about the methods, results, limitations…" : "Waiting for the paper to be indexed"}
+          placeholder={ready ? (notes.length > 0 ? "Ask the paper, or your highlights…" : "Ask about the methods, results, limitations…") : "Waiting for the paper to be indexed"}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {

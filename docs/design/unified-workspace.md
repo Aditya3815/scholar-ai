@@ -311,7 +311,7 @@ Each row is something I assumed or a case that can happen, what the product does
 | Phase | What ships | Gate to leave |
 | --- | --- | --- |
 | 1 | **Shell and look**: the new frame (rail, Settings page, My papers cards without "Open and ask"), the **intro** and the **home** in the real app with the real logo; old URLs redirect; **no new behaviour** | all current unit, integration and browser suites pass; axe clean in three themes; phone check; the new screens match the POC |
-| 2 | **Prompt box with explicit modes**: streamed search answer with citations, partial-results line, Stop, chats kept in the browser | e2e on staging; the eval gates unchanged |
+| 2 | **(done 26 Oct, [chat-w2.md](chat-w2.md))** **Prompt box with explicit modes**: streamed search answer with citations, partial-results line, Stop, chats kept in the browser | e2e on staging; the eval gates unchanged |
 | 3 | **Router** (rules, then model) with English, Hindi and Hinglish; "I understood this as · Change" | router eval gate in CI (target set after the first measurement) |
 | 4 | **Ask any open-access paper**: spike R8 (server extraction), shared index, queue ingest, safe fetch, abstract-only fallback, optional light save | SSRF and edge-case tests (section 9, P-1 to P-16), Q&A eval on shared papers incl. a Hinglish slice |
 | 5 | **General answers** with the label; **Idea Check inside the workspace** | groundedness eval; Idea Check suites unchanged |

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LEGEND, MAX_LEGEND_CHARS, cleanLegend, notesMarkdown, type DocNote } from "@scholar/shared";
+import { DEFAULT_LEGEND, MAX_LEGEND_CHARS, cleanLegend, isPlainLegend, notesMarkdown, type DocNote } from "@scholar/shared";
 
 const n = (id: string, page: number, color: DocNote["color"], quote: string, note = ""): DocNote => ({ id, page, quote, note, color, createdAt: 1, updatedAt: 1 });
 const NOTES = [n("a", 1, "yellow", "The model reached a sensitivity of 91 percent"), n("b", 2, "green", "Images were graded by two\nophthalmologists", "check the grading"), n("c", 3, "yellow", "Limitations include a single country")];
@@ -46,5 +46,19 @@ describe("notesMarkdown", () => {
   it("a legend name cannot break a section heading either", () => {
     const md = notesMarkdown("T", NOTES, { groupBy: "colour", legend: { ...DEFAULT_LEGEND, yellow: "# x\n- y" } });
     expect(md).toContain("## x - y (yellow, 2)");
+  });
+});
+
+describe("plain colour names", () => {
+  it("are the default, and a section is headed with the colour and a count", () => {
+    expect(DEFAULT_LEGEND).toEqual({ yellow: "Yellow", green: "Green", blue: "Blue", pink: "Pink" });
+    const md = notesMarkdown("T", NOTES, { groupBy: "colour" });
+    expect(md).toContain("## Yellow (2)");
+    expect(md).toContain("## Green (1)");
+  });
+  it("isPlainLegend tells whether any colour has a name of its own", () => {
+    expect(isPlainLegend(DEFAULT_LEGEND)).toBe(true);
+    expect(isPlainLegend({ ...DEFAULT_LEGEND, green: "Method" })).toBe(false);
+    expect(isPlainLegend(cleanLegend({ yellow: "YELLOW" }))).toBe(true);
   });
 });
