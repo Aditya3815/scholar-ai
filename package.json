@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "workspaces": ["apps/*", "packages/*"],
   "engines": { "node": ">=22" },
+  "devDependencies": { "undici": "7.30.1" },
+  "overrides": { "undici": "$undici" },
   "scripts": {
     "dev:api": "npm run dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",
