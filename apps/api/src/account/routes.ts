@@ -29,6 +29,11 @@ accountRoutes.get("/export", async (c) => {
     .bind(user.id)
     .all<{ data: string; saved_at: string }>();
 
+  const alerts = await c.env.DB
+    .prepare("SELECT paper_id, title, kind, created_at, seen_at FROM library_alerts WHERE user_id = ?1 ORDER BY created_at")
+    .bind(user.id)
+    .all<{ paper_id: string; title: string; kind: string; created_at: string; seen_at: string | null }>();
+
   const docs = await c.env.DB
     .prepare("SELECT id, title, filename, size_bytes, pages, status, created_at, info, scanned, read_state, last_page, max_page, opened_at, (SELECT group_concat(label, char(31)) FROM (SELECT label FROM doc_tags WHERE doc_id = documents.id ORDER BY label COLLATE NOCASE)) AS tags FROM documents WHERE user_id = ?1 ORDER BY created_at DESC")
     .bind(user.id)
@@ -91,6 +96,7 @@ accountRoutes.get("/export", async (c) => {
     })),
     reports: reports.results.map((r) => ({ kind: r.kind, problem: r.problem, note: r.note, sent: JSON.parse(r.context), reportedAt: new Date(fromSqliteTime(r.created_at)).toISOString() })),
     library: lib.results.map((r) => ({ ...(JSON.parse(r.data) as Paper), savedAt: new Date(fromSqliteTime(r.saved_at)).toISOString() })),
+    retractionNotices: alerts.results.map((a) => ({ paperId: a.paper_id, title: a.title, kind: a.kind, noticedAt: new Date(fromSqliteTime(a.created_at)).toISOString(), dismissedAt: a.seen_at ? new Date(fromSqliteTime(a.seen_at)).toISOString() : null })),
   };
   c.header("Content-Type", "application/json; charset=utf-8");
   c.header("Content-Disposition", `attachment; filename="scholar-ai-export-${new Date().toISOString().slice(0, 10)}.json"`);

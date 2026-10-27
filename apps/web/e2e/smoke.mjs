@@ -17,18 +17,20 @@ const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push("console: " + m.text()); });
 
+let violations = 0;
 async function axe(label) {
   await page.evaluate(axeSource);
   const res = await page.evaluate(async () => {
     const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
     return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
   });
+  violations += res.length;
   console.log(`axe [${label}]: ${res.length ? "" : "no violations"}`);
   for (const v of res) console.log(`   ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
   return res;
 }
 const shot = (name) => page.screenshot({ path: OUT + name + ".png" });
-const setTheme = async (label) => { await page.getByRole("button", { name: `${label} theme` }).click(); await page.waitForTimeout(700); };
+const setTheme = async (label) => { await page.getByRole("button", { name: `${label} theme` }).click(); await page.waitForTimeout(1300); /* the intro demo is still rising and fading when a theme is switched: axe would read a colour half way */ };
 
 await page.goto(BASE, { waitUntil: "networkidle" });
 await page.waitForTimeout(2200); // hero animations settle
@@ -39,10 +41,9 @@ await setTheme("Dark"); await shot("02-home-dark"); await axe("home-dark");
 await setTheme("Read"); await shot("03-home-read"); await axe("home-read");
 await setTheme("Light");
 
-// Search flow
-await page.getByRole("searchbox", { name: "Search papers" }).fill("graph neural networks");
-await page.getByRole("button", { name: /^Search$/ }).click();
+// Search flow: since W6 the first screen is the intro page (signed out), which has no search box; the shareable address /?q=... runs the same search and shows the same result cards
 const t0 = Date.now();
+await page.goto(BASE + "/?q=" + encodeURIComponent("graph neural networks"), { waitUntil: "networkidle" });
 await page.waitForSelector(".result:not(.skeleton)", { timeout: 30000 });
 console.log(`first result card after ${Date.now() - t0} ms`);
 await page.waitForFunction(() => /papers in/.test(document.querySelector(".src-summary")?.textContent ?? ""), null, { timeout: 40000 });
@@ -61,24 +62,20 @@ await page.waitForTimeout(400);
 await shot("06-cite-bibtex");
 await page.keyboard.press("Escape");
 
-// Save + library drawer
+// Save + the Library page (the new look has a page, the old look a drawer)
 await page.locator(".result").first().getByRole("button", { name: /Save/ }).click();
-await page.getByRole("button", { name: /Library/ }).click();
+await page.locator(".ws-rail").getByRole("link", { name: /^Library/ }).click();
+await page.getByRole("heading", { level: 1, name: "Library" }).waitFor();
 await page.waitForTimeout(600);
 await shot("07-library");
-await axe("library-drawer");
-await page.keyboard.press("Escape");
+await axe("library-page");
+await page.goBack();
+await page.waitForSelector(".result:not(.skeleton)", { timeout: 40000 });
 await page.waitForTimeout(400);
 
 // Dark results
 await setTheme("Dark"); await shot("08-results-dark"); await axe("results-dark");
 await setTheme("Read"); await shot("09-results-read"); await axe("results-read");
-
-// Reading controls
-await page.getByRole("button", { name: "Reading settings" }).click();
-await page.waitForTimeout(500);
-await shot("10-reading-controls");
-await page.keyboard.press("Escape");
 
 // Retracted paper card (Wakefield 1998)
 await setTheme("Light");
@@ -108,4 +105,11 @@ console.log("mobile horizontal overflow:", overflow);
 
 console.log("\nconsole/page errors:", errors.length ? errors : "none");
 await browser.close();
+// A violation or a page error fails the suite. It used to only print them, so a crash was the one way to notice a problem (and a crash prints no "FAIL" line).
+const pageErrors = errors.filter((e) => e.includes("pageerror"));
+if (violations > 0 || pageErrors.length > 0) {
+  console.log(`\nFAILED: ${violations} accessibility violation(s), ${pageErrors.length} page error(s)`);
+  process.exit(1);
+}
+console.log("\nall smoke checks passed");
 

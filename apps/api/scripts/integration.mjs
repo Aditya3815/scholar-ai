@@ -97,6 +97,7 @@ try {
   await waitForHealth();
   ok = await run("auth integration", "scripts/auth-e2e.mjs") && ok;
   ok = await run("library integration", "scripts/library-e2e.mjs") && ok;
+  ok = await run("retraction re-check integration", "scripts/retraction-e2e.mjs") && ok;
   ok = await run("documents integration", "scripts/docs-e2e.mjs") && ok;
   ok = await run("scanned papers integration", "scripts/scan-e2e.mjs") && ok;
   ok = await run("public cache integration", "scripts/cache-e2e.mjs") && ok;

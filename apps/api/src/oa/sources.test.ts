@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import REAL_XML from "./fixtures/PMC1182327.xml?raw";
-import { fetchArxivMeta, fetchPaperSource, fetchPmcXml, lookupByDoi, lookupOpenAlex, type Lane } from "./sources";
+import { fetchArxivMeta, fetchPaperSource, fetchPmcXml, lookupByDoi, lookupOpenAlex, lookupOpenAlexAbstract, type Lane } from "./sources";
 
 const UA = "scholar-ai-test (mailto:test@example.com)";
 const PDF = new TextEncoder().encode("%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n");
@@ -134,6 +134,24 @@ describe("fetchPaperSource: the ladder", () => {
     const w = world({ [oalexUrl("10.5555/p")]: oalex({ pdf_url: "https://169.254.169.254/latest/meta-data/" }), "https://169.254.169.254/latest/meta-data/": pdf });
     expect(await fetchPaperSource({ doi: "10.5555/p" }, w.deps)).toMatchObject({ ok: false, reason: "blocked" });
     expect(w.calls.some((u) => u.includes("169.254"))).toBe(false);
+  });
+});
+
+describe("lookupOpenAlexAbstract", () => {
+  const url = (doi: string, extra = "") => `https://api.openalex.org/works/doi:${doi}?select=title%2Cabstract_inverted_index${extra}`;
+  const body = (o: unknown) => () => new Response(JSON.stringify(o), { status: 200, headers: { "content-type": "application/json" } });
+  it("puts the words back in order from OpenAlex's index of places, with the title, and sends the contact address and key", async () => {
+    const w = world({ [url("10.5555/a", "&mailto=me%40example.com&api_key=k1")]: body({ title: "Title A", abstract_inverted_index: { Water: [0], use: [1, 5], on: [2], farms: [3], and: [4], rain: [6] } }) });
+    expect(await lookupOpenAlexAbstract("10.5555/a", { ...w.deps, mailto: "me@example.com", openAlexKey: "k1" })).toEqual({ title: "Title A", abstract: "Water use on farms and use rain" });
+    expect(w.lanes).toEqual(["openalex"]);
+  });
+  it("gives no abstract when OpenAlex has none, and null when it is unknown, down or not JSON", async () => {
+    const w = world({ [url("10.5555/none")]: body({ title: "T", abstract_inverted_index: null }), [url("10.5555/down")]: status(500), [url("10.5555/junk")]: () => new Response("<html>", { status: 200 }) });
+    expect(await lookupOpenAlexAbstract("10.5555/none", w.deps)).toEqual({ title: "T", abstract: null });
+    expect(await lookupOpenAlexAbstract("10.5555/down", w.deps)).toBeNull();
+    expect(await lookupOpenAlexAbstract("10.5555/junk", w.deps)).toBeNull();
+    expect(await lookupOpenAlexAbstract("10.5555/unknown", w.deps)).toBeNull();
+    expect(await lookupOpenAlexAbstract("", w.deps)).toBeNull();
   });
 });
 

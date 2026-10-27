@@ -1310,3 +1310,16 @@
   color: var(--muted);
   font-size: 0.8125rem;
 }
+.drawer-item-retracted {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+.drawer-item-retracted svg {
+  flex: none;
+  margin-top: 0.15rem;
+  color: var(--danger);
+}

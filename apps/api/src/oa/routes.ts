@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { MAX_OA_ABSTRACT_CHARS, MAX_QUESTION_CHARS, OA_NEW_PAPERS_PER_DAY, OA_NEW_PAPERS_PER_DAY_ALL, OA_WAIT_MS, OA_WORKING, cleanArxivId, cleanDoi, cleanPmcid, oaKey, type OaAskEvent, type OaIngestEvent, type OaReason, type OaRef, type OaSource } from "@scholar/shared";
+import { MAX_OA_ABSTRACT_CHARS, OA_UNREADABLE_TEXT, MAX_QUESTION_CHARS, OA_NEW_PAPERS_PER_DAY, OA_NEW_PAPERS_PER_DAY_ALL, OA_WAIT_MS, OA_WORKING, cleanArxivId, cleanDoi, cleanPmcid, oaKey, type OaAskEvent, type OaIngestEvent, type OaReason, type OaRef, type OaSource } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { answerQuestionStream, type StoredChunk } from "../docs/qa";
 import { describeAskError, embedderFor, streamFor } from "../docs/routes";
@@ -9,7 +9,7 @@ import { installGates } from "../gate";
 import { remoteGate } from "../gate/api-gate";
 import { isPermissiveLicense } from "./jats";
 import { sourceDepsFor } from "./deps";
-import { fetchArxivMeta, lookupByDoi } from "./sources";
+import { fetchArxivMeta, lookupByDoi, lookupOpenAlexAbstract } from "./sources";
 import { claimAttempt, createPaper, failIfStale, getPaper, instanceId, keyHash, markFailed, readyChunks, refundDaily, setInstance, takeDaily, type OaRow } from "./store";
 import type { OaParams } from "./workflow";
 
@@ -206,6 +206,12 @@ async function answerFromAbstract(c: Ctx, s: Session, a: { key: string; ref: OaR
     abstract = rec?.abstract ?? "";
     title = title ?? rec?.title ?? null;
   }
+  if (!abstract && a.ref.doi) {
+    // Europe PMC knows the abstracts of biomedical papers only; OpenAlex knows most fields
+    const rec = await lookupOpenAlexAbstract(a.ref.doi, deps).catch(() => null);
+    abstract = rec?.abstract ?? "";
+    title = title ?? rec?.title ?? null;
+  }
   if (!abstract && a.ref.arxivId) {
     const meta = await fetchArxivMeta(a.ref.arxivId, deps).catch(() => null);
     abstract = meta?.abstract ?? "";
@@ -213,7 +219,7 @@ async function answerFromAbstract(c: Ctx, s: Session, a: { key: string; ref: OaR
   }
   abstract = abstract || a.clientAbstract;
   if (abstract.length < 40) {
-    return void (await s.send({ type: "error", code: "no_text", title: "There is nothing to read for this paper", detail: "It is not open access and no abstract could be found. Upload the PDF if you have it." }));
+    return void (await s.send({ type: "error", code: "no_text", title: "There is nothing to read for this paper", detail: `${OA_UNREADABLE_TEXT[a.reason]} No abstract could be found either, so there is nothing to answer from. If you have the PDF, add it to My Workspace and ask there.` }));
   }
   await s.send({ type: "paper", key: a.key, title, source: "abstract", license: null, permissive: false, reason: a.reason });
   const chunks: StoredChunk[] = [{ idx: 1000, page: 1, section: "Abstract", text: abstract.slice(0, MAX_OA_ABSTRACT_CHARS), embedding: null }];

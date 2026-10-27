@@ -85,6 +85,33 @@ try {
   await page.getByRole("button", { name: /^Remove .* from library/ }).first().click();
   ok(await until(async () => (await serverLibrary()).length === 1), "removing from the Library page reaches the server");
 
+  console.log("a retraction found after a paper was saved");
+  const gone = { id: "doi:10.5555/retracted.ui", doi: "10.5555/retracted.ui", pmid: null, title: "A paper that is retracted after it was saved", authors: ["R. Writer"], year: 2024, venue: "Journal of Tests", abstract: "An abstract.", citationCount: 1, oaUrl: null, retracted: false, retractionSources: [], sources: ["openalex"], score: 0.05 };
+  ok((await page.request.put(`${BASE}/api/v1/library/${encodeURIComponent(gone.id)}`, { data: gone, headers: { Origin: BASE } })).ok(), "(the test saves a paper, as a search result with no mark)");
+  ok((await page.request.get(`${BASE}/cdn-cgi/handler/scheduled`)).ok(), "(and runs the daily job)");
+  await page.reload({ waitUntil: "networkidle" });
+  const marker = rail().locator('a[href="/library"] .ws-alert');
+  await marker.waitFor({ timeout: 15000 });
+  ok(/1 retraction notice/.test(await rail().locator('a[href="/library"]').innerText()), "the rail's Library link carries a marker, with words for a screen reader");
+  await openLibrary();
+  const notice = page.getByRole("region", { name: /A paper you saved has been retracted/ });
+  await notice.waitFor({ timeout: 8000 });
+  ok(await notice.getByText("A paper that is retracted after it was saved").isVisible(), "the Library page says which paper, above the list");
+  ok(/Retracted\./.test(await page.locator(".ws-library .drawer-item", { hasText: "retracted after it was saved" }).innerText()), "the paper in the list is marked as retracted");
+  await axe("library with a retraction notice, light");
+  await setTheme("dark");
+  await axe("library with a retraction notice, dark");
+  await setTheme("light");
+  await shot("34-library-retraction");
+  await notice.getByRole("button", { name: "Got it" }).click();
+  await notice.waitFor({ state: "detached", timeout: 5000 });
+  ok(await marker.count() === 0, "'Got it' takes the notice and the marker away");
+  await page.reload({ waitUntil: "networkidle" });
+  await openLibrary();
+  ok(await page.getByRole("region", { name: /has been retracted/ }).count() === 0 && /Retracted\./.test(await page.locator(".ws-library .drawer-item", { hasText: "retracted after it was saved" }).innerText()), "after a reload the notice stays away, and the paper is still marked");
+  await page.getByRole("button", { name: /^Remove A paper that is retracted after it was saved from library/ }).click();
+  ok(await until(async () => (await serverLibrary()).length === 1), "(the test removes it again)");
+
   console.log("settings page");
   await openSettings();
   const set = page.locator("main");

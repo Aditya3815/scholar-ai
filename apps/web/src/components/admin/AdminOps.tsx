@@ -2,7 +2,7 @@ import { CircleAlert, CircleCheck, DatabaseBackup, FolderSearch, UserX } from "l
 import { useState } from "react";
 import type { IntegrityReport, JobState, JobStatus } from "@scholar/shared";
 
-const JOB_NAME: Record<string, string> = { maintenance: "Daily clean-up" };
+const JOB_NAME: Record<string, string> = { maintenance: "Daily clean-up", retraction_check: "Retraction re-check of saved papers" };
 const STATE_TEXT: Record<JobState, string> = {
   ok: "On time",
   failing: "The last run failed",

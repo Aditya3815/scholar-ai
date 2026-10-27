@@ -46,9 +46,28 @@ Eight papers: four from Europe PMC XML (Ioannidis, PRISMA, WGCNA, a deep-learnin
 
 What it taught, in the order it happened: the first run answered 7 of 10 because (a) the answer call allowed 700 tokens, which a reasoning model uses up before it finishes a Hindi or Hinglish answer ("Unterminated string in JSON": now 2,500, for papers of your own too), and (b) a model joins two stretches of a passage with "..." in its quote, which no longer matched as one run (a quote is now checked piece by piece, each piece of four words or more must be in the text; the prompt also asks for one continuous stretch). After that: 10 of 10. The eval is small; a number of 100% is a reason to grow it, not to relax.
 
+## Measured on the deployed Worker (27 Oct 2026, staging, real publishers)
+
+Hand-picked papers (the eval above) say little about what happens to a paper a person finds by chance. So three random samples of open-access articles with a DOI were taken from OpenAlex (seeds 27, 28, 29; the seven topics of spike R8; **112 articles**), each asked one plain question through `POST /papers/oa/ask` on the **deployed staging Worker** (the same code as production, Cloudflare's network and addresses), each by a throwaway staging account (`scripts/staging-session.mjs`, staging database only, erased after). The script is `scripts/oa-sample.mjs`.
+
+| Result | Papers | Share |
+| --- | --- | --- |
+| **Read in full** (46 from a free PDF, 15 from Europe PMC's XML) | 61 | **54%** (the 55% of R8, again, now on the real thing) |
+| Answered from the **abstract only**, with the reason said (a publisher refused the download: 9; a link that was not a PDF: 3) | 12 | 11% |
+| **"Nothing to read"**: not readable and no abstract found | 25 | 22% |
+| Stream cut on the way to my machine (see below) | 13 | 12% |
+| Still being read after two minutes (the answer was asked for again) | 1 | 1% |
+
+(One of the 61 read in full had its answer fail on the model side, `ai_failed`, and is counted among them.)
+
+- **"Nothing to read" was a gap, and is fixed.** The fallback looked for an abstract in Europe PMC only, which has them for biomedical papers; for a paper from any other field, or a bare DOI pasted into the box (no card to send its abstract), a paper that could not be read ended with "nothing to read". It now also asks OpenAlex for the abstract (`lookupOpenAlexAbstract`, unit-tested, endpoint-tested, a stand-in paper in the offline network). **The same 25 papers asked again on staging: 23 were answered from their abstract, with the reason shown; 2 have no abstract anywhere.** So 61 + 12 + 23 = **96 of 112 (86%)** now get an answer grounded in the paper's own words (full text or abstract), 2 get an honest "nothing to read", and the rest are the cuts below. The message for the two now names the real reason ("The publisher does not let a program download this paper. No abstract could be found either…") instead of saying the paper is not open access, which was wrong for a paper that is.
+- **The stream cuts are the path to my machine, not the Worker.** 13 of 112 answers were cut (ECONNRESET, 0.2 to 1.4 s after the last byte, so not an idle timeout; at 1 to 92 s into the answer). On the Worker side, tailing `scholar-staging` during the third sample: **252 events, every one `outcome: ok`, no exception, every ask status 200**; the ask that the client lost at 61 s was finished normally by the Worker at 121 s. The same machine also lost a log-tail connection ("did not respond to a keep-alive ping"), so this link is not reliable. I could not prove it is only my link: Cloudflare's edge ending a long response is not excluded. What the product does about it is what it should: the sheet says "The answer was cut off. Ask again: a paper that was being read keeps being read" (and "The connection was lost"), and asking again is fast because the reading went on. If a pilot user reports "cut off" often, the first thing to do is look at `wrangler tail scholar` during their session.
+- **Time.** A paper that is new to the index takes a median of **20 to 25 s** to the first answer (fetch, read, embed, answer), the slowest 121 s; a paper already in the index answers in 3 to 6 s. The sheet shows how far the reading has got and says that it keeps going if closed.
+- **Limits of this measurement:** a sample of articles OpenAlex says are open access, in seven topics, from one machine on one day; publishers change; the question was one generic sentence, so this says what can be *read*, not how good the answers are (the eval does that).
+
 ## Not done, on purpose
 
-- **Not tried on the deployed Worker with real publishers.** The first thing to look at after the deploy: the share of papers that become `ready` against the 55% of R8, and the reasons on the admin page ("Open-access papers in the shared index").
+- ~~Not tried on the deployed Worker with real publishers~~ (done 27 Oct: see above; 54% read in full, 86% answered from the paper's own text).
 - **The eval is small.** `scripts/oa-eval.mjs` (weekly, with a gate) asks 8 real papers 15 questions; it says little about two-column text, tables and equations, and nothing about papers in other languages. Grow it before this leaves the `?ws=1` flag.
 - **No refresh after 180 days** and no retraction check at ask time beyond the badge the card already carries.
 - **No "Save to My papers" pointer**, and no reader for the shared PDF (it is kept only to be read again; nothing serves it back). The licence is stored so that decision can be made later (CC0, CC BY and CC BY-SA only).

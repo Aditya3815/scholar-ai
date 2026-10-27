@@ -12,6 +12,7 @@
  *   oa.wrong    OpenAlex's title and the PDF it links to are two different papers
  *   oa.long     a PDF of 130 pages
  *   oa.closed   known to Europe PMC, not open access, no free copy anywhere
+ *   oa.alexabs  the publisher refuses the download (403) and Europe PMC does not know the paper, but OpenAlex holds its abstract
  * and the arXiv number 2401.00001 is a PDF about graph neural networks (with an arXiv API record). Anything else is not found.
  */
 
@@ -111,7 +112,7 @@ const EPMC: Record<string, { pmcid?: string; open: boolean; title: string }> = {
   "10.5555/oa.closed": { open: false, title: "A Paper Behind A Paywall" },
 };
 /** DOI -> what OpenAlex says. */
-const OPENALEX: Record<string, { title: string; pdf: string | null }> = {
+const OPENALEX: Record<string, { title: string; pdf: string | null; abstract?: string }> = {
   "10.5555/oa.pdf": { title: FEDERATED_TITLE, pdf: "https://repo.example.org/oa-pdf.pdf" },
   "10.5555/oa.landing": { title: FEDERATED_TITLE, pdf: "https://journal.example.org/landing" },
   "10.5555/oa.blocked": { title: "A Paper From A Big Publisher", pdf: "https://publisher.example.org/blocked.pdf" },
@@ -119,6 +120,8 @@ const OPENALEX: Record<string, { title: string; pdf: string | null }> = {
   "10.5555/oa.wrong": { title: "Quantum Error Correction Thresholds Revisited", pdf: "https://repo.example.org/other.pdf" },
   "10.5555/oa.long": { title: "A Very Long Report", pdf: "https://repo.example.org/long.pdf" },
   "10.5555/oa.closed": { title: "A Paper Behind A Paywall", pdf: null },
+  // the publisher refuses the download, but OpenAlex holds the abstract (a paper outside biomedicine: Europe PMC does not know it)
+  "10.5555/oa.alexabs": { title: "A Survey Of Farm Water Use", pdf: "https://publisher.example.org/blocked.pdf", abstract: "This survey measured how much water forty small farms used for irrigation across one season. Farms with drip lines used about a third less water than farms that flooded their fields." },
 };
 
 const flakyHits = new Map<string, number>();
@@ -144,7 +147,9 @@ export const stubFetch: typeof fetch = async (input) => {
   if (host === "api.openalex.org") {
     const doi = decodeURIComponent(/\/works\/doi:(.+)$/.exec(url.pathname)?.[1] ?? "").toLowerCase();
     const w = OPENALEX[doi];
-    return w ? json({ title: w.title, best_oa_location: w.pdf ? { pdf_url: w.pdf, license: "cc-by" } : null }) : new Response("not found", { status: 404 });
+    // an inverted index, as OpenAlex gives it: each word with the places it stands
+    const inverted = w?.abstract ? w.abstract.split(" ").reduce<Record<string, number[]>>((m, word, i) => ((m[word] ??= []).push(i), m), {}) : null;
+    return w ? json({ title: w.title, best_oa_location: w.pdf ? { pdf_url: w.pdf, license: "cc-by" } : null, abstract_inverted_index: inverted }) : new Response("not found", { status: 404 });
   }
   if (host === "arxiv.org" && url.pathname === "/pdf/2401.00001") return pdfResponse(gnnPdf());
   if (host === "export.arxiv.org") {

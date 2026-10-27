@@ -16,6 +16,8 @@ export async function findRetracted(
   dois: string[],
   env: RetractionEnv,
   signal: AbortSignal,
+  /** How long a call may wait for its turn in the shared Crossref lane: a search has little time, a background job can wait longer. */
+  gateWaitMs = SEARCH_GATE_WAIT_MS,
 ): Promise<string[]> {
   // DOI mein comma ho toh filter syntax toot jaata hai; aise rare DOIs skip (unknown rahenge).
   const usable = [...new Set(dois)].filter((d) => !d.includes(","));
@@ -28,7 +30,7 @@ export async function findRetracted(
     select: "DOI,update-to",
     mailto: env.CROSSREF_MAILTO,
   });
-  const res = await crossrefFetch(env.fetch ?? fetch, `https://api.crossref.org/works?${params}`, { signal, headers: crossrefHeaders(env) }, SEARCH_GATE_WAIT_MS);
+  const res = await crossrefFetch(env.fetch ?? fetch, `https://api.crossref.org/works?${params}`, { signal, headers: crossrefHeaders(env) }, gateWaitMs);
   if (!res.ok) throw new Error(`Crossref retraction HTTP ${res.status}`);
   const body = (await res.json()) as { message?: { items?: NoticeItem[] } };
 

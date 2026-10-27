@@ -165,6 +165,7 @@ try {
   await setTheme(page, "light");
   await page.screenshot({ path: OUT + "3-background.png" });
   await bgBox.getByRole("button", { name: "Edit the question and search again" }).click();
+  await page.waitForFunction(() => document.activeElement?.classList.contains("hm-input"), null, { timeout: 3000 }).catch(() => {}); // the focus is given a moment after the click
   ok((await page.locator(".hm-input").inputValue()) === "nothing at all" && await page.locator(".hm-input").evaluate((el) => el === document.activeElement), "'Edit the question and search again' puts the question back in the box, ready to change");
   await page.locator(".hm-input").fill("");
   await send("nothing gibberish", { tool: false });

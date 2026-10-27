@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
-import { Download, Library, Trash2, X } from "lucide-react";
+import { Download, Library, ShieldAlert, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../lib/auth";
 import { formatCitation } from "../lib/cite";
@@ -48,6 +48,12 @@ export function LibraryList({ items, onOpen }: { items: SavedPaper[]; onOpen: (p
                   <button type="button" className="drawer-item-title drawer-item-open" onClick={() => onOpen(p)}>
                     {p.title}
                   </button>
+                  {p.retracted && (
+                    <p className="drawer-item-retracted">
+                      <ShieldAlert size={14} aria-hidden="true" />
+                      <span><strong>Retracted.</strong> Do not cite it without reading the retraction notice.</span>
+                    </p>
+                  )}
                   <p className="drawer-item-meta">{[p.authors[0] ? `${p.authors[0]}${p.authors.length > 1 ? " et al." : ""}` : null, p.year, p.venue].filter(Boolean).join(" · ")}</p>
                 </div>
                 <button type="button" className="icon-btn" aria-label={`Remove ${p.title} from library`} onClick={() => removeSaved(p.id)}>

@@ -56,6 +56,12 @@ export type Paper = {
   doiStatus?: "verified" | "unchecked" | "dropped_unresolvable" | "dropped_conflict";
 };
 
+/**
+ * A notice about a paper in someone's library: it was retracted after they saved it (found by the daily re-check, apps/api/src/library/retraction.ts).
+ * Shown until they dismiss it or remove the paper.
+ */
+export type LibraryAlert = { paperId: string; title: string; kind: "retracted"; at: string };
+
 export type ProviderStatus = {
   ok: boolean;
   count: number;

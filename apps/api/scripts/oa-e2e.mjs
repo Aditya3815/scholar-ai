@@ -151,6 +151,9 @@ try {
   ok(last(unr.events).type === "answer" && (await paperRow("doi:10.5555/oa.blocked")).attempt === 1, "asking again about a paper that cannot be read does not start another reading");
   const nothing = await ask(A, { doi: "10.5555/oa.blocked" }, "What is it about?");
   ok(last(nothing.events).type === "error" && last(nothing.events).code === "no_text", "with no abstract to be had either, it says there is nothing to read");
+  const viaAlex = await ask(A, { doi: "10.5555/oa.alexabs" }, "How much less water did the farms with drip lines use?");
+  ok(last(viaAlex.events).type === "answer" && of(viaAlex.events, "paper")[0]?.source === "abstract" && of(viaAlex.events, "paper")[0]?.reason === "blocked" && /third/i.test(JSON.stringify(last(viaAlex.events).answer)), "a paper the publisher refuses, which Europe PMC does not know, is answered from the abstract OpenAlex holds (no abstract needed from the browser)");
+  ok(/does not let a program download/.test(last(nothing.events).detail) && !/not open access/.test(last(nothing.events).detail), "...and says why in the paper's own terms (the publisher refuses), not that it is not open access");
 
   console.log("limits and a lost reading");
   await sql(`INSERT INTO oa_daily (user_id, day, n) SELECT id, date('now'), 20 FROM users WHERE email = 'oa-c@example.com' ON CONFLICT (user_id, day) DO UPDATE SET n = 20`);

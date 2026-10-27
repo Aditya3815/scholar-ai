@@ -23,6 +23,8 @@ import type { SearchEnv } from "./search/types";
 import { apiSecurityHeaders, requestLog } from "./middleware";
 import { rateLimit, type LimitEnv } from "./ratelimit";
 import { runMaintenance } from "./maintenance";
+import { recheckRetractions } from "./library/retraction";
+import { stubCrossrefFetch } from "./library/retraction-stub";
 import { readJobs, runJob } from "./jobs";
 import type { S2Throttle } from "./s2-throttle";
 import { ApiGate, remoteGate } from "./gate/api-gate";
@@ -317,14 +319,24 @@ export { OaIngest } from "./oa/workflow";
 export default {
   fetch: app.fetch,
   async scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
-    ctx.waitUntil(
-      runJob(env.DB, "maintenance", () => runMaintenance(env.DB)).then(
-        (deleted) => console.log(JSON.stringify({ level: "info", msg: "maintenance", deleted })),
+    // the calls to Crossref take their turn in the shared lane, as they do in a request
+    installGates(env.API_GATE ? remoteGate(env.API_GATE) : null);
+    const cron = <T,>(name: "maintenance" | "retraction_check", job: () => Promise<T>) =>
+      runJob(env.DB, name, job).then(
+        (result) => console.log(JSON.stringify({ level: "info", msg: name, result })),
         (err) => {
-          console.error(JSON.stringify({ level: "error", msg: "maintenance_failed", error: String(err) }));
-          captureException(env, err, { route: "cron:maintenance", source: "cron", release: env.CF_VERSION_METADATA?.id, waitUntil: (p) => ctx.waitUntil(p) });
+          console.error(JSON.stringify({ level: "error", msg: `${name}_failed`, error: String(err) }));
+          captureException(env, err, { route: `cron:${name}`, source: "cron", release: env.CF_VERSION_METADATA?.id, waitUntil: (p) => ctx.waitUntil(p) });
         },
-      ),
+      );
+    // independent of each other: a failing re-check must not stop the clean-up, and the other way round
+    ctx.waitUntil(
+      Promise.all([
+        cron("maintenance", () => runMaintenance(env.DB)),
+        cron("retraction_check", () =>
+          recheckRetractions(env.DB, { CROSSREF_MAILTO: env.CROSSREF_MAILTO, ...(env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? { fetch: stubCrossrefFetch } : {}) }),
+        ),
+      ]),
     );
   },
 } satisfies ExportedHandler<Bindings>;

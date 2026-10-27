@@ -62,9 +62,12 @@ try {
 
   console.log("a run is recorded");
   {
+    // other suites fire the cron too (the retraction re-check does), so what counts is one more run than before
+    const runsBefore = (await jobsHealth()).body.jobs[0].runs;
     ok((await runCron()) === 200, "the cron fires");
     const { res, body } = await jobsHealth();
-    ok(res.status === 200 && body.jobs[0].runs === 1 && body.jobs[0].state === "ok", "one run recorded, still on time");
+    ok(res.status === 200 && body.jobs[0].runs === runsBefore + 1 && body.jobs[0].state === "ok", "one run recorded, still on time");
+    ok(body.jobs.length === 2 && body.jobs[1].name === "retraction_check" && body.jobs[1].state === "ok" && body.jobs[1].runs >= 1, "the saved-paper retraction re-check is listed as a second job, and ran too");
     ok(Date.now() - Date.parse(body.jobs[0].lastOkAt) < 120_000, "its last good run is now");
     const row = (await sql("SELECT last_result, last_error, failures, last_finished_at IS NOT NULL AS finished FROM job_runs WHERE name = 'maintenance'"))[0];
     ok(row.last_result === "ok" && row.last_error === null && row.failures === 0 && row.finished === 1, "the row says it finished well, with no error");

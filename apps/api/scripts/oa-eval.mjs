@@ -11,7 +11,9 @@
 //   controls   a question the paper does not answer gets "not in this paper", not an invention
 //   scripts    a Hinglish answer is in Roman letters, a Hindi answer mostly in Devanagari
 //   closed     a paper that cannot be read is answered from its abstract, with the reason, not refused
+//   APP=https://scholar-staging.shodhsetu.workers.dev SESSIONS=<file from scripts/staging-session.mjs> node scripts/oa-eval.mjs   (the same check against a deployed Worker)
 // With --gate it exits with 1 when a line is below its limit. Each paper uses its own throwaway account (the daily allowance is counted per account, and an account is found by its e-mail).
+import { readFileSync } from "node:fs";
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
 
@@ -65,10 +67,20 @@ const PAPERS = [
   },
 ];
 
-const idp = await startFakeIdp(9911);
+// Against a deployed Worker (staging) there is no fake identity provider: SESSIONS is a file of session cookies made by scripts/staging-session.mjs, one account per paper.
+const SESSIONS = process.env.SESSIONS ? JSON.parse(readFileSync(process.env.SESSIONS, "utf8")) : null;
+const idp = SESSIONS ? { close() {} } : await startFakeIdp(9911);
 const run = Date.now();
 let n = 0;
 async function client() {
+  if (SESSIONS) {
+    const cookie = SESSIONS[n++];
+    if (!cookie) throw new Error("SESSIONS has fewer accounts than there are papers");
+    const c = createClient(APP);
+    const [k, ...v] = cookie.split("=");
+    c.jar.set(k, v.join("="));
+    return c;
+  }
   idp.setUser({ sub: `oa-eval-${run}-${n}`, email: `oaeval${run}x${n++}@example.edu`, email_verified: true, name: "OA Eval" });
   const c = createClient(APP);
   await c.follow(`${APP}/api/v1/auth/google/start`);
@@ -83,14 +95,19 @@ async function ask(c, ref, question) {
   if (res.ok) {
     const dec = new TextDecoder();
     let buf = "";
-    for await (const part of res.body) {
-      buf += dec.decode(part, { stream: true });
-      let i;
-      while ((i = buf.indexOf("\n\n")) >= 0) {
-        const data = buf.slice(0, i).split("\n").find((l) => l.startsWith("data:"));
-        buf = buf.slice(i + 2);
-        if (data) events.push(JSON.parse(data.slice(5)));
+    try {
+      for await (const part of res.body) {
+        buf += dec.decode(part, { stream: true });
+        let i;
+        while ((i = buf.indexOf("\n\n")) >= 0) {
+          const data = buf.slice(0, i).split("\n").find((l) => l.startsWith("data:"));
+          buf = buf.slice(i + 2);
+          if (data) events.push(JSON.parse(data.slice(5)));
+        }
       }
+    } catch (e) {
+      // a stream cut by the network is a result of the check (the question was not answered), not a reason to stop it
+      events.push({ type: "error", code: "stream_cut", message: String(e?.cause?.code ?? e?.message ?? e) });
     }
   }
   return { status: res.status, events, ms: Date.now() - t0 };

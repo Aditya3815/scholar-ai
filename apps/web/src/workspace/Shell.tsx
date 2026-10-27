@@ -1,9 +1,9 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
-import { Activity, Bookmark, FileStack, Home, Lightbulb, ListChecks, LogOut, Menu, MessageSquare, Plus, Settings, X } from "lucide-react";
+import { Activity, Bookmark, FileStack, Home, Lightbulb, ListChecks, LogOut, Menu, MessageSquare, Plus, Settings, TriangleAlert, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { signOut, useAuth } from "../lib/auth";
-import { useLibrary } from "../lib/library";
+import { useLibrary, useLibraryAlerts } from "../lib/library";
 import { useDocs } from "../lib/documents";
 import { deleteChat, openChat, startNewChat, useChatState } from "../lib/chat";
 import { easeOut, spring } from "../lib/motion";
@@ -13,12 +13,13 @@ import { ThemeSwitch } from "../components/ThemeSwitch";
 import { PAPERS_NAME } from "../lib/workspace";
 import type { View } from "../components/TopNav";
 
-type Item = { id: View | "home"; label: string; href: string; Icon: typeof Home; count?: number };
+type Item = { id: View | "home"; label: string; href: string; Icon: typeof Home; count?: number; /** notices waiting (a saved paper was retracted) */ alerts?: number };
 
 /** The left rail of the new look: where you are, the tools that are not in the prompt box yet, and your account. */
 function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home"; onNavigate: (v: View) => void; onHome: () => void; onClose?: () => void }) {
   const { user } = useAuth();
   const saved = useLibrary().length;
+  const notices = useLibraryAlerts().length;
   const papers = useDocs().items.length;
   const chats = useChatState();
   const go = (fn: () => void) => () => {
@@ -28,14 +29,14 @@ function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home
   const main: Item[] = [
     { id: "home", label: "Home", href: "/", Icon: Home },
     { id: "papers", label: PAPERS_NAME, href: "/papers", Icon: FileStack, count: user ? papers : undefined },
-    { id: "library", label: "Library", href: "/library", Icon: Bookmark, count: saved },
+    { id: "library", label: "Library", href: "/library", Icon: Bookmark, count: saved, alerts: notices },
   ];
   const tools: Item[] = [
     { id: "verify", label: "Check references", href: "/verify", Icon: ListChecks },
     { id: "idea", label: "Idea Check", href: "/idea", Icon: Lightbulb },
   ];
 
-  const link = ({ id, label, href, Icon, count }: Item) => {
+  const link = ({ id, label, href, Icon, count, alerts }: Item) => {
     const active = view === id;
     return (
       <li key={id}>
@@ -53,6 +54,12 @@ function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home
           <Icon size={18} aria-hidden="true" />
           <span className="ws-link-label">{label}</span>
           {count !== undefined && count > 0 && <span className="ws-count" aria-label={`${count} saved`}>{count}</span>}
+          {alerts !== undefined && alerts > 0 && (
+            <span className="ws-alert" title={`${alerts} saved ${alerts === 1 ? "paper was" : "papers were"} retracted`}>
+              <TriangleAlert size={14} aria-hidden="true" />
+              <span className="sr-only">{alerts === 1 ? "1 retraction notice" : `${alerts} retraction notices`}</span>
+            </span>
+          )}
         </a>
       </li>
     );

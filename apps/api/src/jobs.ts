@@ -10,6 +10,8 @@ import { scrubMessage } from "./monitoring/sentry";
 export const JOB_SPECS = {
   // Daily at 03:17 UTC (wrangler.jsonc). The grace covers a late start and clock drift; a run that has not finished in an hour is stuck.
   maintenance: { everyHours: 24, graceHours: 6 },
+  // The same cron: saved papers are looked at again for retractions (library/retraction.ts), each at most once a week, a few hundred a run.
+  retraction_check: { everyHours: 24, graceHours: 6 },
 } as const;
 export type JobName = keyof typeof JOB_SPECS;
 

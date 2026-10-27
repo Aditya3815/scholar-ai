@@ -1,4 +1,5 @@
 import { arxivIdFromDoi, cleanArxivId, cleanDoi, cleanPmcid, type OaRef, type OaReason, type OaSource } from "@scholar/shared";
+import { invertedIndexToText } from "../search/normalize";
 import { normaliseLicense } from "./jats";
 import { fetchPdf, safeFetch, type FetchOptions } from "./safe-fetch";
 
@@ -112,6 +113,28 @@ export async function lookupOpenAlex(doi: string, deps: SourceDeps): Promise<Ope
     const loc = w.best_oa_location;
     const link = typeof loc?.pdf_url === "string" ? loc.pdf_url : typeof loc?.landing_page_url === "string" ? loc.landing_page_url : null;
     return { title: typeof w.title === "string" ? w.title : null, pdfUrl: link, license: normaliseLicense(typeof loc?.license === "string" ? loc.license : null) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The abstract OpenAlex holds for a DOI, as plain text, and the title. Used only when a paper cannot be read in full and Europe PMC (which has abstracts for biomedical papers only) has none,
+ * so a question about a paper from any field can still be answered from its abstract. Null if there is none or OpenAlex could not be asked.
+ */
+export async function lookupOpenAlexAbstract(doi: string, deps: SourceDeps): Promise<{ title: string | null; abstract: string | null } | null> {
+  const clean = cleanDoi(doi);
+  if (!clean) return null;
+  const gated = deps.gated ?? passThrough;
+  const path = clean.replace(/[%?#]/g, (c) => encodeURIComponent(c));
+  const q = new URLSearchParams({ select: "title,abstract_inverted_index" });
+  if (deps.mailto) q.set("mailto", deps.mailto);
+  if (deps.openAlexKey) q.set("api_key", deps.openAlexKey);
+  const r = await gated("openalex", () => safeFetch(`https://api.openalex.org/works/doi:${path}?${q}`, opts(deps, { accept: "application/json", maxBytes: 1_000_000 })));
+  if (!r.ok) return null;
+  try {
+    const w = JSON.parse(new TextDecoder().decode(r.bytes)) as { title?: unknown; abstract_inverted_index?: Record<string, number[]> | null };
+    return { title: typeof w.title === "string" ? w.title : null, abstract: invertedIndexToText(w.abstract_inverted_index) };
   } catch {
     return null;
   }
