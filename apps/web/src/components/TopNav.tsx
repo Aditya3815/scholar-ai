@@ -3,7 +3,7 @@ import { FileStack, Lightbulb, ListChecks, Search } from "lucide-react";
 import { spring } from "../lib/motion";
 
 /** The four tabs, plus pages reached from the footer or the account menu (no tab of their own). */
-export type View = "search" | "verify" | "papers" | "idea" | "admin" | "privacy" | "terms" | "how" | "library" | "settings";
+export type View = "search" | "verify" | "papers" | "idea" | "litscan" | "admin" | "privacy" | "terms" | "how" | "library" | "settings";
 
 const ITEMS: { id: View; label: string; href: string; Icon: typeof Search }[] = [
   { id: "search", label: "Search", href: "/", Icon: Search },

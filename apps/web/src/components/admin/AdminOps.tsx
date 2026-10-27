@@ -16,6 +16,7 @@ const FEATURE_NAME: Record<string, string> = {
   oa_ask: "Ask this paper (from its text)",
   oa_ask_abstract: "Ask this paper (from its abstract only)",
   doc_ask: "Questions about papers people uploaded",
+  litscan: "Literature scan (each sub-question of each scan)",
 };
 const OUTCOME_TEXT: Record<string, string> = {
   answered: "Answered, every claim checked",
@@ -24,6 +25,9 @@ const OUTCOME_TEXT: Record<string, string> = {
   not_answered: "The papers do not answer it (it said so)",
   not_grounded: "The model wrote an answer that our own check then refused",
   no_abstracts: "Papers found, none with an abstract to read",
+  nothing_found: "No papers were found for it",
+  no_relevant: "Papers were found, none of them about it",
+  too_slow: "The answer took too long and was stopped",
   quota: "The person's daily allowance was used",
   unavailable: "The AI service was unavailable",
   stopped: "Stopped by the person",

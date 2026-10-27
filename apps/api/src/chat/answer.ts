@@ -163,7 +163,7 @@ export function papersOnTheSubject(question: string, picked: readonly Picked[]):
 }
 
 /** Write the answer, telling `emit` the text as it comes, and return the checked answer. The caller handles the model's failures. */
-export async function answerFromResults(args: { question: string; /** The language of the question: the summary is written in it. */ language?: Lang; picked: readonly Picked[]; stream: StreamComplete; emit: (e: ChatEvent) => void | Promise<void>; /** Local debugging only: receives the model's raw JSON. */ onRaw?: (raw: unknown) => void }): Promise<ChatAnswer & { enough: boolean }> {
+export async function answerFromResults(args: { question: string; /** The language of the question: the summary is written in it. */ language?: Lang; picked: readonly Picked[]; stream: StreamComplete; emit: (e: ChatEvent) => void | Promise<void>; /** Local debugging only: receives the model's raw JSON. */ onRaw?: (raw: unknown) => void; /** What the usage ledger calls these calls (default: the prompt box's). */ label?: string }): Promise<ChatAnswer & { enough: boolean }> {
   const field = new AnswerFieldStreamer();
   // hooks are synchronous callbacks: events are queued in order and awaited at the end
   let chain: Promise<void> = Promise.resolve();
@@ -173,7 +173,7 @@ export async function answerFromResults(args: { question: string; /** The langua
   let writing = false;
   const callModel = (note?: string) =>
     args.stream(
-    { system: chatSystem(args.language), user: `${note ? `${note}\n\n` : ""}${buildChatPrompt(args.question, args.picked)}`, schema: CHAT_SCHEMA as unknown as Record<string, unknown>, maxTokens: 3500, label: "chat_search" },
+    { system: chatSystem(args.language), user: `${note ? `${note}\n\n` : ""}${buildChatPrompt(args.question, args.picked)}`, schema: CHAT_SCHEMA as unknown as Record<string, unknown>, maxTokens: 3500, label: args.label ?? "chat_search" },
     {
       onContent: (piece) => {
         const text = field.push(piece);

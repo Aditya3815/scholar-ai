@@ -66,6 +66,16 @@ accountRoutes.get("/export", async (c) => {
     .bind(user.id)
     .all<{ kind: string; problem: string; note: string | null; context: string; created_at: string }>();
 
+  // literature scans of the last day: the topic, the approved plan and what the checked report says
+  const scans = await c.env.DB
+    .prepare("SELECT id, topic, language, plan, state, created_at, expires_at FROM litscans WHERE user_id = ?1 AND expires_at > datetime('now') ORDER BY created_at")
+    .bind(user.id)
+    .all<{ id: string; topic: string; language: string; plan: string; state: string; created_at: string; expires_at: string }>();
+  const scanParts = await c.env.DB
+    .prepare("SELECT e.scan_id, e.data FROM litscan_events e JOIN litscans s ON s.id = e.scan_id WHERE s.user_id = ?1 AND e.type = 'part' ORDER BY e.seq")
+    .bind(user.id)
+    .all<{ scan_id: string; data: string }>();
+
   const body = {
     exportedAt: new Date().toISOString(),
     account: { id: user.id, name: user.name, email: user.email, orcid: user.orcid, role: user.role, signInMethods: user.providers, ...profile },
@@ -96,6 +106,7 @@ accountRoutes.get("/export", async (c) => {
     })),
     reports: reports.results.map((r) => ({ kind: r.kind, problem: r.problem, note: r.note, sent: JSON.parse(r.context), reportedAt: new Date(fromSqliteTime(r.created_at)).toISOString() })),
     library: lib.results.map((r) => ({ ...(JSON.parse(r.data) as Paper), savedAt: new Date(fromSqliteTime(r.saved_at)).toISOString() })),
+    literatureScans: scans.results.map((s) => ({ topic: s.topic, language: s.language, state: s.state, startedAt: new Date(fromSqliteTime(s.created_at)).toISOString(), keptUntil: new Date(fromSqliteTime(s.expires_at)).toISOString(), subQuestions: JSON.parse(s.plan) as unknown, results: scanParts.results.filter((p) => p.scan_id === s.id).map((p) => (JSON.parse(p.data) as { part: unknown }).part) })),
     retractionNotices: alerts.results.map((a) => ({ paperId: a.paper_id, title: a.title, kind: a.kind, noticedAt: new Date(fromSqliteTime(a.created_at)).toISOString(), dismissedAt: a.seen_at ? new Date(fromSqliteTime(a.seen_at)).toISOString() : null })),
   };
   c.header("Content-Type", "application/json; charset=utf-8");

@@ -18,10 +18,15 @@ const POINTS = {
     "Before anything is searched, you see exactly what will be sent to OpenAlex and Semantic Scholar, and can change it. Your idea and your file are not part of it.",
     "Nothing about a check is kept, unless you choose to send a report.",
   ],
+  scans: [
+    "Your topic is read by a private AI service (Cloudflare Workers AI) to propose sub-questions, and the abstracts it finds are read by the same service to write each answer. It is never used to train AI and never sent to any other AI service.",
+    "Before anything is searched, you see exactly what will be sent to the paper indexes (English search words), and can change it. Your topic is not part of it.",
+    "A scan runs on our servers, so you can close the page. Your topic and the report are kept for one day, then removed. You can delete a scan at once.",
+  ],
 } as const;
 
 /**
- * Shown once, before the first upload or idea check: what happens to what you give us, in three lines, with a link to the full text. Agreeing is
+ * Shown once, before the first upload, idea check or literature scan: what happens to what you give us, in three lines, with a link to the full text. Agreeing is
  * recorded against the account with the version of the text, and the server refuses uploads and idea checks until it has been recorded.
  */
 export function PrivacyCard({ kind }: { kind: keyof typeof POINTS }) {
@@ -44,7 +49,7 @@ export function PrivacyCard({ kind }: { kind: keyof typeof POINTS }) {
     <m.section className="card privacy-card" aria-labelledby="privacy-card-h" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: easeOut }}>
       <div className="privacy-card-head">
         <span className="principle-ico" aria-hidden="true"><ShieldCheck size={20} /></span>
-        <h2 id="privacy-card-h" className="privacy-card-title">Before you start: how your {kind === "papers" ? "papers are" : "ideas are"} handled</h2>
+        <h2 id="privacy-card-h" className="privacy-card-title">Before you start: how your {kind === "papers" ? "papers are" : kind === "ideas" ? "ideas are" : "topics are"} handled</h2>
       </div>
       <ul className="privacy-card-list">
         {POINTS[kind].map((p) => (

@@ -16,6 +16,9 @@ export const GATES = {
   openalex: { minIntervalMs: 250, maxConcurrent: 2, leaseMs: 20_000 },
   arxiv: { minIntervalMs: 3_200, maxConcurrent: 1, leaseMs: 40_000 },
   oahost: { minIntervalMs: 1_000, maxConcurrent: 2, leaseMs: 40_000 },
+  // The searches of a literature scan (src/litscan): five or six sub-questions searched at once made OpenAlex, PubMed and Crossref answer 429 to all of them (a live run, 27 Oct 2026: every source
+  // refused, so the search found "nothing"). Two at a time, a start every two seconds: a scan's search phase takes about 25 s instead of 10, and every source answers.
+  litscan: { minIntervalMs: 2_000, maxConcurrent: 2, leaseMs: 60_000 },
 } satisfies Record<string, GateConfig>;
 export type GateName = keyof typeof GATES;
 

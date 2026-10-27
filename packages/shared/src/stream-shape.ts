@@ -1,6 +1,7 @@
 import type { ChatEvent } from "./chat";
 import type { AskStreamEvent } from "./documents";
 import type { IdeaCompareEvent, IdeaInsightsEvent, IdeaSearchEvent } from "./idea";
+import type { LitscanEvent } from "./litscan";
 import type { OaAskEvent } from "./oa";
 
 /**
@@ -18,7 +19,7 @@ import type { OaAskEvent } from "./oa";
  * This file imports types only and uses no TypeScript that Node cannot strip, so the test scripts can load it as it is.
  */
 export type EventKind = "progress" | "text" | "result" | "meta" | "notice" | "end";
-export type StreamName = "chat" | "ask" | "idea";
+export type StreamName = "chat" | "ask" | "idea" | "litscan";
 
 type Spec = {
   kinds: Record<string, EventKind>;
@@ -60,10 +61,21 @@ const IDEA: Record<(IdeaSearchEvent | IdeaCompareEvent | IdeaInsightsEvent)["typ
   error: "end",
 };
 
+// A literature scan has no text event: its words arrive only as checked parts, never as they are written.
+const LITSCAN: Record<LitscanEvent["type"], EventKind> = {
+  started: "meta",
+  worker: "progress",
+  progress: "progress",
+  part: "result",
+  done: "end",
+  error: "end",
+};
+
 export const STREAMS: Record<StreamName, Spec> = {
   chat: { kinds: CHAT, end: ["done", "error"], replaced: { token: "answer", general_token: "general" }, progressFields: { step: ["type", "step"] } },
   ask: { kinds: ASK, end: ["answer", "error"], replaced: { delta: "answer" }, progressFields: { stage: ["type", "stage"], ingest: ["type", "status", "progress", "source", "started"] } },
   idea: { kinds: IDEA, end: ["done", "error"], replaced: {}, progressFields: { stage: ["type", "stage"] } },
+  litscan: { kinds: LITSCAN, end: ["done", "error"], replaced: {}, progressFields: { worker: ["type", "seq", "idx", "stage"], progress: ["type", "done", "total"] } },
 };
 
 type Ev = { type?: unknown; [k: string]: unknown };
@@ -74,6 +86,7 @@ export function streamShapeProblems(stream: StreamName, events: readonly Ev[]): 
   const out: string[] = [];
   let ends = 0;
   let lastIngest = -1;
+  let lastDone = -1;
   const finalSeen = new Set<string>();
   events.forEach((e, i) => {
     const type = typeof e.type === "string" ? e.type : "";
@@ -95,6 +108,15 @@ export function streamShapeProblems(stream: StreamName, events: readonly Ev[]): 
         else {
           if (p + 1e-9 < lastIngest) out.push(`${at}: progress went back (${p} after ${lastIngest})`);
           lastIngest = Math.max(lastIngest, p);
+        }
+      }
+      if (stream === "litscan" && type === "progress") {
+        const d = e.done;
+        const t = e.total;
+        if (typeof d !== "number" || !Number.isInteger(d) || d < 0 || typeof t !== "number" || !Number.isInteger(t) || d > t) out.push(`${at}: done and total must be whole numbers with done not above total`);
+        else {
+          if (d < lastDone) out.push(`${at}: done went back (${d} after ${lastDone})`);
+          lastDone = Math.max(lastDone, d);
         }
       }
     }

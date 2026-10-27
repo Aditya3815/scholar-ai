@@ -36,6 +36,7 @@ const IntroPage = lazy(loadIntro);
 // The paper pages are not split off: they must open offline once reading offline is on.
 const VerifyPage = lazy(() => import("./components/verify/VerifyPage").then((m) => ({ default: m.VerifyPage })));
 const IdeaPage = lazy(() => import("./components/idea/IdeaPage").then((m) => ({ default: m.IdeaPage })));
+const LitscanPage = lazy(() => import("./components/litscan/LitscanPage").then((m) => ({ default: m.LitscanPage })));
 const AdminPage = lazy(() => import("./components/admin/AdminPage").then((m) => ({ default: m.AdminPage })));
 const PrivacyPage = lazy(() => import("./components/legal/LegalPages").then((m) => ({ default: m.PrivacyPage })));
 const TermsPage = lazy(() => import("./components/legal/LegalPages").then((m) => ({ default: m.TermsPage })));
@@ -53,6 +54,7 @@ const routeFromPath = (): Route => {
   const p = location.pathname.replace(/\/+$/, "");
   if (p === "/verify") return { view: "verify", docId: null };
   if (p === "/idea") return { view: "idea", docId: null };
+  if (WORKSPACE && p === "/literature-scan") return { view: "litscan", docId: null };
   if (p === "/admin") return { view: "admin", docId: null };
   if (p === "/privacy") return { view: "privacy", docId: null };
   if (p === "/terms") return { view: "terms", docId: null };
@@ -64,7 +66,7 @@ const routeFromPath = (): Route => {
   if (m) return { view: "papers", docId: m[1] ?? null };
   return { view: "search", docId: null };
 };
-const TITLES: Record<View, string> = { search: "Scholar AI", verify: "Verify references · Scholar AI", papers: `${PAPERS_NAME} · Scholar AI`, idea: "Idea Check · Scholar AI", admin: "Admin · Scholar AI", privacy: "Privacy · Scholar AI", terms: "Terms · Scholar AI", how: "How we verify · Scholar AI", library: "Library · Scholar AI", settings: "Settings · Scholar AI" };
+const TITLES: Record<View, string> = { search: "Scholar AI", verify: "Verify references · Scholar AI", papers: `${PAPERS_NAME} · Scholar AI`, idea: "Idea Check · Scholar AI", litscan: "Literature scan · Scholar AI", admin: "Admin · Scholar AI", privacy: "Privacy · Scholar AI", terms: "Terms · Scholar AI", how: "How we verify · Scholar AI", library: "Library · Scholar AI", settings: "Settings · Scholar AI" };
 
 export function App() {
   const { state, run, reset } = useSearch();
@@ -95,7 +97,7 @@ export function App() {
   const navigate = useCallback(
     (next: View, docId: string | null = null) => {
       if (next === view && docId === route.docId) return;
-      const path = next === "verify" ? "/verify" : next === "idea" ? "/idea" : next === "library" ? "/library" : next === "settings" ? "/settings" : next === "admin" ? "/admin" : next === "privacy" ? "/privacy" : next === "terms" ? "/terms" : next === "how" ? "/how-we-verify" : next === "papers" ? (docId ? `/papers/${docId}` : "/papers") : state.status === "idle" ? "/" : `/?q=${encodeURIComponent(query)}`;
+      const path = next === "verify" ? "/verify" : next === "idea" ? "/idea" : next === "litscan" ? "/literature-scan" : next === "library" ? "/library" : next === "settings" ? "/settings" : next === "admin" ? "/admin" : next === "privacy" ? "/privacy" : next === "terms" ? "/terms" : next === "how" ? "/how-we-verify" : next === "papers" ? (docId ? `/papers/${docId}` : "/papers") : state.status === "idle" ? "/" : `/?q=${encodeURIComponent(query)}`;
       history.pushState(null, "", path);
       setRoute({ view: next, docId });
       window.scrollTo(0, 0);
@@ -212,6 +214,8 @@ export function App() {
         <AdminPage />
       ) : view === "idea" ? (
         <IdeaPage />
+      ) : view === "litscan" ? (
+        <LitscanPage />
       ) : view === "library" ? (
         <LibraryPage />
       ) : view === "settings" ? (

@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
-import { Activity, Bookmark, FileStack, Home, Lightbulb, ListChecks, LogOut, Menu, MessageSquare, Plus, Settings, TriangleAlert, X } from "lucide-react";
+import { Activity, BookOpenCheck, Bookmark, FileStack, Home, Lightbulb, ListChecks, LogOut, Menu, MessageSquare, Plus, Settings, TriangleAlert, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { signOut, useAuth } from "../lib/auth";
 import { useLibrary, useLibraryAlerts } from "../lib/library";
@@ -34,6 +34,7 @@ function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home
   const tools: Item[] = [
     { id: "verify", label: "Check references", href: "/verify", Icon: ListChecks },
     { id: "idea", label: "Idea Check", href: "/idea", Icon: Lightbulb },
+    { id: "litscan", label: "Literature scan", href: "/literature-scan", Icon: BookOpenCheck },
   ];
 
   const link = ({ id, label, href, Icon, count, alerts }: Item) => {

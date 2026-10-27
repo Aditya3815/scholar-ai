@@ -5,7 +5,7 @@ import type { AnswerOutcomeRow } from "@scholar/shared";
  * refused (`not_grounded`), how often the papers did not answer (`not_answered`), and so on. They decide whether a "check again" step is worth building (docs/design/research-patterns.md).
  * Counting must never get in the way of an answer: a failure is logged and swallowed.
  */
-export const OUTCOME_FEATURES = ["chat", "oa_ask", "oa_ask_abstract", "doc_ask"] as const;
+export const OUTCOME_FEATURES = ["chat", "oa_ask", "oa_ask_abstract", "doc_ask", "litscan"] as const;
 export type OutcomeFeature = (typeof OUTCOME_FEATURES)[number];
 
 const MAX_KEEP_DAYS = 90;

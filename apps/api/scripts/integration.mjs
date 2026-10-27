@@ -70,7 +70,7 @@ async function waitForHealth() {
 // Suites sign the same fake users in and out, so each one starts from an empty account table. Done through the Worker (a dev-only route), never by
 // writing to the database file from a second process while the Worker has it open: that made `wrangler dev` spin at 100% CPU and stop answering.
 const resetAccounts = async () => {
-  const tables = ["library_items", "sessions", "identities", "users", "oauth_states", "audit_log"];
+  const tables = ["litscan_events", "litscans", "litscan_daily", "library_items", "sessions", "identities", "users", "oauth_states", "audit_log"];
   // This process has been idle for the length of the previous suite, and the server has closed the connection it kept: a second try opens a new one.
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -105,6 +105,7 @@ try {
   ok = await run("idea check integration", "scripts/idea-e2e.mjs") && ok;
   ok = await run("chat integration", "scripts/chat-e2e.mjs") && ok;
   ok = await run("open-access papers integration", "scripts/oa-e2e.mjs") && ok;
+  ok = await run("literature scan integration", "scripts/litscan-e2e.mjs") && ok;
   ok = await run("feedback integration", "scripts/feedback-e2e.mjs") && ok;
   if (withBrowser) {
     ok = await run("browser: smoke + axe", "e2e/smoke.mjs", [`http://localhost:${PORT}`], web) && ok;
@@ -121,6 +122,7 @@ try {
     ok = await run("browser: first paint and layout shift (W6)", "e2e/perf.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: chat (prompt box)", "e2e/chat.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: ask any paper", "e2e/oa.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: literature scan", "e2e/litscan.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: idea check in the conversation", "e2e/idea-chat.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: annotated PDF", "e2e/annotated.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: offline reading", "e2e/offline.mjs", [`http://localhost:${PORT}`], web) && ok;

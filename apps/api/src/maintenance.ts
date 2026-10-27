@@ -1,3 +1,4 @@
+import { LITSCAN_PURGE_SQL } from "./litscan/store";
 import { OUTCOME_RETENTION_SQL } from "./outcomes";
 
 /**
@@ -22,6 +23,10 @@ const JOBS: { name: string; sql: string }[] = [
   { name: "oa_daily", sql: "DELETE FROM oa_daily WHERE day < date('now', '-35 days')" },
   // How answers went: a few weeks are enough to see a trend (src/outcomes.ts).
   { name: "answer_outcomes", sql: OUTCOME_RETENTION_SQL },
+  // A literature scan is kept for a day (its expires_at), then its events and the scan go; the daily counter for a few weeks.
+  { name: "litscan_events", sql: LITSCAN_PURGE_SQL[0] },
+  { name: "litscans", sql: LITSCAN_PURGE_SQL[1] },
+  { name: "litscan_daily", sql: LITSCAN_PURGE_SQL[2] },
   { name: "audit_log", sql: "DELETE FROM audit_log WHERE ts < datetime('now', '-365 days')" },
 ];
 

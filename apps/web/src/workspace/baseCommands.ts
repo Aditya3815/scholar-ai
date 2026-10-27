@@ -23,6 +23,7 @@ export function useBaseCommands({ navigate, goHome, openSheet }: { navigate: (v:
       go("Library", () => live.current.navigate("library"), "saved"),
       go("Check references", () => live.current.navigate("verify"), "verify bibliography"),
       go("Idea Check", () => live.current.navigate("idea"), "novelty prior art"),
+      go("Literature scan", () => live.current.navigate("litscan"), "survey review topic overview"),
       ...(user ? [go("Settings", () => live.current.navigate("settings"), "account data export delete")] : []),
       ...(["auto", "light", "dark", "read"] as const).map((t): Command => ({ id: `theme-${t}`, label: `${t[0]!.toUpperCase()}${t.slice(1)} theme`, group: "Theme", keywords: t === "dark" ? "night" : t === "read" ? "reading sepia" : t === "auto" ? "system" : "day", run: () => setThemePref(t) })),
       ...docs.map((d): Command => ({ id: `paper-${d.id}`, label: d.title, group: "Your papers", keywords: `${d.tags.join(" ")} open`, hint: d.readState === "done" ? "Done" : d.readState === "reading" ? "Reading" : undefined, run: () => live.current.navigate("papers", d.id) })),

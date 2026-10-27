@@ -50,6 +50,8 @@ if (cmd === "make") {
   // every table that names a person: delete their rows first (some have no foreign key), then the accounts
   // D1 does not allow the pragma functions, so the tables that have a column called user_id are found by reading their definitions
   const tables = d1("SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name <> 'users' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").filter((r) => /^\s*user_id\s/m.test(r.sql ?? "")).map((r) => r.name);
+  // a literature scan's events hang on the scan, not on the person: they go first (the scan row is referenced by them)
+  d1(`DELETE FROM litscan_events WHERE scan_id IN (SELECT id FROM litscans WHERE user_id IN (${list}))`);
   for (const t of tables) d1(`DELETE FROM ${t} WHERE user_id IN (${list})`);
   d1(`DELETE FROM users WHERE id IN (${list})`);
   console.log(`deleted ${users.length} account(s) and their rows in ${tables.length} table(s) on ${DB}`);

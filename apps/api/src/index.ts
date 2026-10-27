@@ -12,6 +12,8 @@ import { documentRoutes } from "./docs/routes";
 import { ideaRoutes } from "./idea/routes";
 import { chatRoutes } from "./chat/routes";
 import { oaRoutes } from "./oa/routes";
+import { litscanRoutes } from "./litscan/routes";
+import type { LitscanParams } from "./litscan/workflow";
 import type { OaParams } from "./oa/workflow";
 import { feedbackRoutes } from "./feedback/routes";
 import { adminRoutes } from "./admin/routes";
@@ -41,6 +43,8 @@ type Bindings = AuthEnv & LimitEnv & {
   JOBS: Queue;
   /** The reading of an open-access paper into the shared index (src/oa/workflow.ts). */
   OA_INGEST: Workflow<OaParams>;
+  /** A literature scan: one instance per scan (src/litscan/workflow.ts). */
+  LITSCAN: Workflow<LitscanParams>;
   FILES: R2Bucket;
   AI: Ai;
   GEMINI_API_KEY?: string;
@@ -98,6 +102,7 @@ app.route("/api/v1/documents", documentRoutes);
 app.route("/api/v1/idea", ideaRoutes);
 app.route("/api/v1/chat", chatRoutes);
 app.route("/api/v1/papers/oa", oaRoutes);
+app.route("/api/v1/litscan", litscanRoutes);
 app.route("/api/v1/feedback", feedbackRoutes);
 app.route("/api/v1/admin", adminRoutes);
 app.route("/api/v1/monitoring", monitoringRoutes);
@@ -315,6 +320,7 @@ app.onError((err, c) => {
 export { S2Throttle } from "./s2-throttle";
 export { ApiGate } from "./gate/api-gate";
 export { OaIngest } from "./oa/workflow";
+export { LitscanRun } from "./litscan/workflow";
 
 export default {
   fetch: app.fetch,

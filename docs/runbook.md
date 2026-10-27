@@ -213,6 +213,19 @@ Test it: Actions → **Watchdog** → Run workflow (green means all three checks
 
 Limits to know: GitHub pauses scheduled workflows in a repository with no activity for 60 days (push anything or run one by hand to wake it; the alerts cannot tell you that they themselves stopped); a private repository has 2,000 free Actions minutes a month, and an hourly watchdog of about one minute uses roughly 720 of them.
 
+## Literature scan (27 Oct 2026)
+
+Design and numbers: [design/litscan.md](design/litscan.md). A scan is a row in `litscans` with its events in `litscan_events` (migration 0020) and a Cloudflare Workflow (`LitscanRun`, binding `LITSCAN`, named `scholar-litscan` in production and `scholar-litscan-staging`; the first deploy that contains it creates it, nothing else to set up).
+
+- **Look at one:** `npx wrangler workflows instances list scholar-litscan`, `... describe scholar-litscan litscan-<scan id>` (the instance id is `litscan-` and the scan's id). A person's scan list is on the page; for yourself: `SELECT id, state, updated_at FROM litscans ORDER BY created_at DESC LIMIT 10`.
+- **A scan stuck on "running":** nothing to do. A running scan that has not moved for 12 minutes is ended as `failed` the next time anyone reads it; the person can start another (one at a time). The engine tries a failed step 3 times; a sub-question that still fails is a gap.
+- **Logs:** one line a finished scan (`litscan_done`: how many sub-questions, how many answered, the language, the time) and one line for a search that found nothing or that a source refused (`litscan_search`: which sources failed and with what words, e.g. `OpenAlex HTTP 429`). Many `HTTP 429` lines mean the sources are being asked too fast: the lane is `GATES.litscan` in `src/gate/index.ts`.
+- **Counts:** the admin page, "How answers went", feature "Literature scan" (answered, nothing found, no paper about it, no abstracts, the papers do not answer, an answer that could not be checked, too slow, allowance used, unavailable). A rising share of "unavailable" or "too slow" is the thing to look at first.
+- **What it keeps and for how long:** the topic, the approved plan and the checked report, 24 hours (the daily clean-up deletes past `expires_at`), the count of scans started today 35 days; all of it goes with an account and is in the data export (`literatureScans`).
+- **Limits** (shared constants in `packages/shared/src/litscan.ts`): topic 8 to 400 characters, 2 to 6 sub-questions, 4 scans a day, one at a time, 3,000 tokens a sub-question shown as the estimate and refused when the day's 60,000 cannot cover it, 75 s for the model per sub-question.
+- **A new event type in the scan stream:** add it to `LitscanEvent`, classify it in `stream-shape.ts` (`LITSCAN`), and run `scripts/litscan-e2e.mjs`, which checks every stream it reads.
+- **Staging check with the real model and sources:** `node apps/api/scripts/staging-session.mjs make 2 <file>`, then `APP=https://scholar-staging.shodhsetu.workers.dev SESSIONS=<file> node apps/api/scripts/litscan-live.mjs`, then `... staging-session.mjs cleanup`. It prints the plan, the time of every event, each section and the tokens by label (`litscan_plan`, `litscan_worker`).
+
 ## Staging
 
 A separate, empty copy of the service at https://scholar-staging.shodhsetu.workers.dev (Worker `scholar-staging`, database `scholar-db-staging`, bucket `scholar-files-staging`, queue `scholar-jobs-staging`),
