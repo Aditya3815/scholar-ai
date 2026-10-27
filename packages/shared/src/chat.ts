@@ -15,7 +15,17 @@ export const MIN_CHAT_CHARS = 2;
 export const MAX_CHAT_CHARS = 300;
 
 /** `route` is only there when the router's model had to look at the message. */
-export type ChatStep = "route" | "search" | "read" | "write" | "check";
+export type ChatStep = "route" | "search" | "read" | "write" | "check" | "general";
+
+/**
+ * Answers that are not from a paper (W5). Papers first: the answer is written from the papers found, every claim tied to a sentence. Only when the papers do not answer (or none
+ * was found) is a short answer from general knowledge given, and then **always under this label, never with a citation, never mixed with the checked answer**. `unsure` means the
+ * model would not say anything useful (the screen says nothing more than "the papers do not answer this"); `not_research` is a greeting or a message that is not a research question
+ * (the screen says what the box is for).
+ */
+export const GENERAL_LABEL = "General background, not from a paper in your results";
+export const GENERAL_KINDS = ["background", "unsure", "not_research"] as const;
+export type GeneralKind = (typeof GENERAL_KINDS)[number];
 
 /** A claim's evidence: the sentence (by its number in the abstract) of paper number `n` of the list. `sentence` is that sentence, word for word, taken from the abstract by the server. */
 export type ChatCitation = { n: number; paperId: string; sentenceNo: number; sentence: string };
@@ -42,6 +52,10 @@ export type ChatEvent =
   /** A piece of the answer as it is written. Provisional: only the `answer` event has been checked. */
   | { type: "token"; text: string }
   | { type: "answer"; answer: ChatAnswer }
+  /** A piece of the general background as it is written. Provisional: only the `general` event is final. */
+  | { type: "general_token"; text: string }
+  /** The general background, final: `text` is empty unless `kind` is "background" or "not_research". */
+  | { type: "general"; kind: GeneralKind; text: string }
   | { type: "done"; answered: boolean; reason?: ChatNoAnswer; tookMs: number }
   | { type: "error"; code: string; title: string; detail?: string };
 

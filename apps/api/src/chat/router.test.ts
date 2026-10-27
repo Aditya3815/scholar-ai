@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_AUTO_CHARS, cleanAutoMessage, detectLanguage, looksLikeReferenceList, offlineRoute, ruleRoute } from "@scholar/shared";
+import { MAX_AUTO_CHARS, SMALL_TALK_REPLY, cleanAutoMessage, detectLanguage, isSmallTalk, looksLikeReferenceList, offlineRoute, ruleRoute } from "@scholar/shared";
 import { AllProvidersFailedError } from "../llm";
 import { ROUTER_SYSTEM, parseRoute, routeMessage, routerPrompt } from "./router";
 import { stubRoute } from "./stub-route";
@@ -179,5 +179,19 @@ describe("the offline router stand-in", () => {
     expect(((await ask("my uploaded paper")).json as { mode: string }).mode).toBe("paper");
     expect(((await ask("kuch bhi")).json as { search_query: string }).search_query).toBe("translated: kuch bhi");
     await expect(ask("boom")).rejects.toThrow();
+  });
+});
+
+describe("isSmallTalk", () => {
+  it.each([
+    "hi", "Hello!", "hello there", "hey", "Hiii", "good morning", "Good Evening.", "namaste", "नमस्ते", "thanks", "Thanks a lot!", "thank you so much", "thank you", "shukriya", "dhanyavaad", "धन्यवाद",
+    "ok", "okay.", "cool", "bye", "goodbye", "how are you", "kaise ho", "who are you", "what can you do?", "what is this", "how does this work", "help", "test", "testing", "👍 thanks", "thanks 🙏",
+  ])("%s is small talk", (t) => expect(isSmallTalk(t)).toBe(true));
+  it.each([
+    "hello world dataset", "help desk ticket classification", "test time augmentation", "good practice guidelines for clinical trials", "thanks to graph neural networks", "what is a p-value",
+    "who are the authors of attention is all you need", "how does CRISPR work", "how do vaccines work", "what can you do about microplastics", "ok computer", "nice to meet you in the literature", "yes no maybe survey design", "", "   ", "?!", "a".repeat(60),
+  ])("%s is not", (t) => expect(isSmallTalk(t)).toBe(false));
+  it("the reply is plain, and the same in every language", () => {
+    expect(SMALL_TALK_REPLY).toMatch(/finds research papers and answers from them/);
   });
 });

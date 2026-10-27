@@ -456,3 +456,16 @@ kbd {
 @media (max-width: 640px) { .chat-bubble { max-width: 95%; } .hm[data-chat="true"] .hm-box { bottom: 0.4rem; } }
 /* the box stays at the bottom of the window while a conversation is on screen: what is focused or scrolled to must not end up behind it (WCAG 2.4.11) */
 html:has(.hm[data-chat="true"]) { scroll-padding-bottom: 9rem; }
+
+/* ---------- General background (W5): apart from the papers, always labelled ---------- */
+.chat-general { display: grid; gap: 0.5rem; padding: 0.8rem 1rem; border: 1px dashed var(--border-strong); border-radius: var(--radius); background: var(--surface-2); }
+.chat-general-label { display: flex; align-items: center; gap: 0.4rem; margin: 0; color: var(--text); font-size: 0.85rem; }
+.chat-general-label svg { flex: none; color: var(--muted); }
+.chat-general .chat-text { margin: 0; }
+.chat-general-note { margin: 0; color: var(--muted); font-size: 0.82rem; }
+
+/* ---------- Idea Check inside the conversation (W5) ---------- */
+.chat-idea { display: grid; gap: 0.8rem; padding: 1rem 1.1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.chat-idea-kicker { display: flex; align-items: center; gap: 0.4rem; margin: 0; color: var(--text); font-size: 0.875rem; }
+.chat-idea-kicker svg { color: var(--accent); }
+.chat-offer-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }

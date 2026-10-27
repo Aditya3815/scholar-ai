@@ -59,8 +59,8 @@ What the gate does not and cannot say: whether a checked sentence really support
 ## Not done in W2 (on purpose)
 
 - ~~The prompt box does not choose the tool~~ (done in W3: Auto, with Hinglish and Hindi and a translated query for the indexes; see [router-w3.md](router-w3.md)).
-- Check references, Idea Check and Ask a paper still open their own pages: Idea Check inside the workspace is **W5**; Ask any open-access paper is **W4**.
-- General answers (no paper) with the label: **W5**.
+- Check references and Ask a paper still open their own pages; Idea Check now opens inside the conversation (**W5**, see [chat-w5.md](chat-w5.md)); Ask any open-access paper is **W4**.
+- ~~General answers (no paper) with the label~~ (done in W5: [chat-w5.md](chat-w5.md)).
 - Follow-up messages ("only after 2020") are new searches: the server does not use the earlier messages yet.
 - The "Still working…" line after 15 s of silence and a retry on a dropped connection beyond "Search again": the stream has no heartbeat yet.
 

@@ -142,6 +142,7 @@ try {
   ok(await abs.getByRole("button", { name: /Open My Workspace/ }).isVisible(), "and offers to upload the PDF to My Workspace");
   ok(/Abstract/.test(await sheet(page).locator(".oa-source .ask-source-page").first().innerText()), "the quote names the abstract as its place");
   await page.screenshot({ path: OUT + "2-abstract-only.png" });
+  await page.waitForTimeout(600); // the answer fades in; axe must not sample it half way
   await axe("ask sheet, abstract only", page);
   await abs.getByRole("button", { name: /Open My Workspace/ }).click();
   await page.waitForFunction(() => location.pathname === "/papers", null, { timeout: 8000 });

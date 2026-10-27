@@ -241,16 +241,16 @@ try {
   await page.locator(".hm-pill", { hasText: "Idea Check" }).click();
   await page.locator(".hm-input").fill("I want to screen for glaucoma in rural clinics with a smartphone camera and a neural network.");
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => location.pathname === "/idea", null, { timeout: 8000 });
-  await page.waitForTimeout(800);
-  ok(/glaucoma/.test(await page.locator("textarea").first().inputValue()), "Idea Check opens with the idea already in it");
-  await page.goBack();
-  await page.locator("#hm-h").waitFor();
+  await page.locator(".chat-idea").waitFor({ timeout: 8000 });
+  ok(new URL(page.url()).pathname === "/" && /glaucoma/.test(await page.locator(".chat-idea textarea").first().inputValue()), "Idea Check opens inside the conversation, with the idea already in it (the page does not move)");
+  await page.locator(".ws-rail").getByRole("button", { name: "New chat" }).click();
+  await page.locator(".hm-title").waitFor();
 
   // a second press on the chosen tool gives the choice back to Auto
-  await page.locator(".hm-pill", { hasText: "Idea Check" }).click();
-  ok(/Idea Check/.test(await page.locator(".hm-mode").innerText()), "a pill chooses its tool");
-  await page.locator(".hm-pill", { hasText: "Idea Check" }).click();
+  ok(/Idea Check/.test(await page.locator(".hm-mode").innerText()), "the tool stays chosen after an Idea Check was started in the conversation");
+  await page.locator(".hm-pill", { hasText: "Check references" }).click();
+  ok(/Check references/.test(await page.locator(".hm-mode").innerText()), "a pill chooses its tool");
+  await page.locator(".hm-pill", { hasText: "Check references" }).click();
   ok(/Auto/.test(await page.locator(".hm-mode").innerText()), "pressing the chosen pill again gives the choice back to Auto");
 
   // a search from the box is a conversation: the question, the papers, a written answer (the full test of it is e2e/chat.mjs)

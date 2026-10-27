@@ -3,6 +3,7 @@
  * arXiv and a few publishers would for DOIs that start with 10.5555/oa., and the DOI says what happens:
  *   oa.xml      open access in PubMed Central: the full-text XML of a small article about glaucoma screening (CC BY)
  *   oa.slow     the same, but the XML takes 2.5 seconds (two people asking at once, progress)
+ *   oa.slow2    the same as oa.slow, for the browser suite: a paper must be new to the index to show its progress line, so the endpoint suite must not have read it first
  *   oa.flaky    the same, but the first download of the XML fails with a 500 (the step is tried again)
  *   oa.pdf      not in PubMed Central; OpenAlex gives a free PDF (CC BY) about federated learning
  *   oa.landing  OpenAlex gives a landing page whose citation_pdf_url leads to that PDF
@@ -105,6 +106,7 @@ const json = (o: unknown) => new Response(JSON.stringify(o), { status: 200, head
 const EPMC: Record<string, { pmcid?: string; open: boolean; title: string }> = {
   "10.5555/oa.xml": { pmcid: "PMC9000001", open: true, title: TITLE_XML },
   "10.5555/oa.slow": { pmcid: "PMC9000003", open: true, title: TITLE_XML },
+  "10.5555/oa.slow2": { pmcid: "PMC9000004", open: true, title: TITLE_XML },
   "10.5555/oa.flaky": { pmcid: "PMC9000002", open: true, title: TITLE_XML },
   "10.5555/oa.closed": { open: false, title: "A Paper Behind A Paywall" },
 };
@@ -131,13 +133,13 @@ export const stubFetch: typeof fetch = async (input) => {
   }
   if (host === "www.ebi.ac.uk" && url.pathname.endsWith("/fullTextXML")) {
     const id = /\/(PMC\d+)\/fullTextXML/.exec(url.pathname)?.[1] ?? "";
-    if (id === "PMC9000003") await sleep(2500);
+    if (id === "PMC9000003" || id === "PMC9000004") await sleep(2500);
     if (id === "PMC9000002") {
       const n = (flakyHits.get(id) ?? 0) + 1;
       flakyHits.set(id, n);
       if (n === 1) return new Response("oops", { status: 500 });
     }
-    return ["PMC9000001", "PMC9000002", "PMC9000003"].includes(id) ? new Response(jatsXml(), { status: 200, headers: { "content-type": "application/xml" } }) : new Response("not found", { status: 404 });
+    return ["PMC9000001", "PMC9000002", "PMC9000003", "PMC9000004"].includes(id) ? new Response(jatsXml(), { status: 200, headers: { "content-type": "application/xml" } }) : new Response("not found", { status: 404 });
   }
   if (host === "api.openalex.org") {
     const doi = decodeURIComponent(/\/works\/doi:(.+)$/.exec(url.pathname)?.[1] ?? "").toLowerCase();

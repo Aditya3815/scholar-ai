@@ -125,3 +125,30 @@ export function offlineRoute(text: string): Route {
   if (hasIdeaCue(t) || t.length > 300) return { mode: "idea", how: "rules", confidence: 0.7, language };
   return { mode: "search", how: "fallback", confidence: 0.5, language };
 }
+
+/* ---------------------------------------------------------------- small talk */
+
+/** What the box answers to a greeting, thanks or a question about itself: no search, no model, the same for everyone (also for a visitor who is not signed in). */
+export const SMALL_TALK_REPLY = "This box finds research papers and answers from them. Ask about a topic, paste your references, or describe an idea.";
+
+const SMALL_TALK = new RegExp(
+  "^(?:" +
+    [
+      "(?:hi+|hello+|hey+|hiya|yo|namaste|namaskar|salaam|sat sri akal|good (?:morning|afternoon|evening|night)|gm|gn)(?: (?:there|everyone|all|sir|madam|scholar|bhai|dost))?",
+      "(?:thanks?|thank you|thx|ty|shukriya|dhanyavaad?|dhanyawad|bahut shukriya)(?: (?:a lot|so much|very much|a ton|again|bhai|ji|you))*",
+      "(?:ok(?:ay)?|cool|nice|great|good|fine|alright|got it|understood|sure|yes|no|haan|nahi|theek hai|accha|achha)",
+      "(?:bye|goodbye|good bye|see you|see ya|take care|tata|alvida)(?: (?:now|later|soon))?",
+      "how are you(?: doing| today)?|how r u|kaise ho|kya haal hai|what'?s up|sup",
+      "who are you|what are you|what is this|what can you do|what do you do|how do you work|how does this work|help(?: me)?|test(?:ing)?|kaun ho tum|aap kaun ho",
+    ].join("|") +
+    ")$",
+  "i",
+);
+const SMALL_TALK_DEVANAGARI = /^(?:नमस्ते|नमस्कार|धन्यवाद|शुक्रिया|शुक्रिया जी|धन्यवाद जी|ठीक है|अलविदा|आप कौन हैं|तुम कौन हो|आप क्या कर सकते हैं)$/;
+
+/** A greeting, thanks, a goodbye, "ok", or a question about the box itself. Only the whole message counts: "hello world dataset" is a search. */
+export function isSmallTalk(text: string): boolean {
+  const t = text.trim().replace(/[\s]+/g, " ").replace(/[.!?,;:~…।\u{1F300}-\u{1FAFF}\u2600-\u27BF]+$/gu, "").replace(/^[.!?,;:~…।\s\u{1F300}-\u{1FAFF}☀-➿]+/u, "").trim();
+  if (t.length === 0 || t.length > 40) return false;
+  return SMALL_TALK.test(t) || SMALL_TALK_DEVANAGARI.test(t);
+}

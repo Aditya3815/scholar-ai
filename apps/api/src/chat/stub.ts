@@ -5,7 +5,7 @@ import { extractJson } from "../llm/gateway";
 /**
  * Offline stand-ins for the search and the model, used ONLY by tests and the local end-to-end run (QA_STUB=1 with ENABLE_DEV_ROUTES=1, never production secrets).
  * Words in the question steer them: "nothing" finds no papers, "partial" makes one source fail, "unanswerable" makes the model say the papers do not answer,
- * "hallucinate" makes it cite a sentence that does not exist, "slowly" makes the answer take a few seconds (to press Stop), "longabstract" gives the first paper a long abstract, "stalled" keeps the stream silent for a few seconds.
+ * "hallucinate" makes it cite a sentence that does not exist, "slowly" makes the answer take a few seconds (to press Stop), "longabstract" gives the first paper a long abstract, "stalled" keeps the stream silent for a few seconds. When the papers do not answer, the general background (chat_general) is steered by "gibberish", "greeting", "cites" and "marks".
  */
 const RECORDS = [
   { doi: "10.1000/glaucoma.1", title: "Deep learning for glaucoma screening from fundus photographs", year: 2021, venue: "Journal of Ophthalmic AI", abstract: "We trained a convolutional network on 12,000 fundus photographs to detect glaucoma. The model reached an AUC of 0.94 on a held-out set. Performance was lower for images with cataract." },
@@ -38,7 +38,7 @@ export function stubPapers(): Paper[] {
 /** "oapapers": four papers whose DOIs the offline network of src/oa/stub.ts knows (full text from XML, a slow one, a free PDF, one that cannot be read), for the "Ask this paper" tests. */
 const OA_RECORDS = [
   { doi: "10.5555/oa.xml", title: "Smartphone Retinal Imaging for Glaucoma Screening in Rural Clinics", abstract: "We evaluated a smartphone adapter for retinal imaging in rural primary clinics. Sensitivity for glaucoma was 91 percent and specificity was 87 percent." },
-  { doi: "10.5555/oa.slow", title: "A Slowly Read Paper on Glaucoma Screening", abstract: "This paper takes a few seconds to be read into the shared index, so that a progress line can be seen while it happens." },
+  { doi: "10.5555/oa.slow2", title: "A Slowly Read Paper on Glaucoma Screening", abstract: "This paper takes a few seconds to be read into the shared index, so that a progress line can be seen while it happens." },
   { doi: "10.5555/oa.pdf", title: "Federated Learning for Hospital Data: A Practical Guide", abstract: "We train a federated model across five hospitals without sharing patient records. The method keeps every record inside the hospital that holds it." },
   { doi: "10.5555/oa.retracted", title: "A Retracted Paper About Glaucoma Risk", abstract: "This abstract is long enough to be read, but the paper it belongs to has been retracted by the journal because of problems with its data.", retracted: true },
   { doi: "10.5555/oa.blocked", title: "A Paper From A Big Publisher", abstract: "This paper describes a screening programme in rural clinics. The programme reached eight thousand people in two years and found glaucoma in four percent of them." },
@@ -67,7 +67,15 @@ export const stubChatStream: StreamComplete = async (req, hooks) => {
   const q = /^Question: (.*)$/m.exec(req.user)?.[1] ?? "";
   const first = /^\[(\d+)\] /m.exec(req.user)?.[1];
   let json: unknown;
-  if (/unanswerable/i.test(q) || !first) json = { coverage: "none", answer: "", evidence: [] };
+  if (req.label === "chat_general") {
+    // the background: "gibberish" is a subject it does not recognise, "greeting" is not a research question, "cites" tries to name a paper (the server must throw that away),
+    // "marks" writes source marks (the server must remove them), anything else is background
+    if (/gibberish/i.test(q)) json = { kind: "unsure", answer: "" };
+    else if (/greeting/i.test(q)) json = { kind: "not_research", answer: "This box finds research papers and answers from them." };
+    else if (/cites/i.test(q)) json = { kind: "background", answer: "Smith et al. showed in 2019 that this is generally the case, and it is widely accepted by now." };
+    else if (/marks/i.test(q)) json = { kind: "background", answer: "It is generally understood that this works well in practice [1]. Most experts would agree [2][3]." };
+    else json = { kind: "background", answer: "In general terms this is a well studied question, and the usual answer depends on the setting, the people involved and how the outcome is measured." };
+  } else if (/unanswerable/i.test(q) || !first) json = { coverage: "none", answer: "", evidence: [] };
   else if (/hallucinate/i.test(q)) json = { coverage: "full", answer: `A made-up claim [${first}].`, evidence: [{ n: Number(first), s: 99 }] };
   else json = { coverage: "full", answer: `The first paper reports its main result [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
   const text = JSON.stringify(json, null, 2);

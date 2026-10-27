@@ -1,7 +1,7 @@
 import { m } from "motion/react";
 import { ArrowUp, Bookmark, Check, ChevronDown, FileStack, Lightbulb, ListChecks, Plus, Search, Sparkles, Square } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
-import { MAX_CHAT_CHARS, type RouteMode } from "@scholar/shared";
+import { MAX_CHAT_CHARS, MIN_IDEA_CHARS, type RouteMode } from "@scholar/shared";
 import { useAuth } from "../lib/auth";
 import { coverUrl, loadDocs, useDocs } from "../lib/documents";
 import { useLibrary } from "../lib/library";
@@ -10,7 +10,7 @@ import { PAPERS_NAME, putHandoff } from "../lib/workspace";
 import { Pop } from "../components/Pop";
 import { ContinueReading, RememberThis } from "./HomeExtras";
 import { ChatView } from "./ChatView";
-import { resumeChat, retryReply, sendMessage, startNewChat, stopReply, useChatState } from "../lib/chat";
+import { resumeChat, retryReply, reviveIdea, sendMessage, startIdeaCheck, startNewChat, stopReply, useChatState } from "../lib/chat";
 
 /**
  * Auto, and the four tools. With Auto (the default) the router reads the message and chooses (W3); a tool chosen by hand is never overridden.
@@ -122,6 +122,13 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
       else if (r === "invalid") setProblem("Write at least two letters or numbers.");
       return;
     }
+    if (tool === "idea") {
+      // Idea Check works inside the conversation: the idea goes in as a message, and the workspace opens under it (the search waits for approval there)
+      const r = startIdeaCheck(text, { echo: true });
+      if (r === "sent") onQuery("");
+      else if (r === "invalid") setProblem(`Write a few sentences about your idea (at least ${MIN_IDEA_CHARS} characters).`);
+      return;
+    }
     putHandoff(tool, text);
     onOpenTool(tool);
   };
@@ -129,6 +136,15 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
   const changeMode = (to: RouteMode, replyId: string, text: string) => {
     if (to === "search") return void retryReply(replyId, "search");
     if (to === "paper") return onOpenTool("papers");
+    if (to === "idea") {
+      if (startIdeaCheck(text) === "invalid") setProblem(`Write a few sentences about your idea (at least ${MIN_IDEA_CHARS} characters).`);
+      return;
+    }
+    putHandoff(to, text);
+    onOpenTool(to);
+  };
+  /** The same text on the tool's own page (the offer card's second button). */
+  const openPage = (to: "idea", text: string) => {
     putHandoff(to, text);
     onOpenTool(to);
   };
@@ -173,7 +189,7 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
         </>
       )}
 
-      {conversing && <ChatView messages={messages} signedIn={!!user} onRetry={(rid, as) => void retryReply(rid, as)} onChange={changeMode} />}
+      {conversing && <ChatView messages={messages} signedIn={!!user} onRetry={(rid, as) => void retryReply(rid, as)} liveIdeas={chat.liveIdeas} onOpenPage={openPage} onIdeaAgain={reviveIdea} onChange={changeMode} onRefine={(t) => { onQuery(t); window.setTimeout(() => inputRef.current?.focus(), 0); }} />}
 
       <m.form className="hm-box" layout="position" transition={{ type: "spring", stiffness: 260, damping: 30 }} onSubmit={(e) => { e.preventDefault(); if (busy) stopReply(); else send(); }} {...(conversing ? {} : rise(3))}>
         <label className="sr-only" htmlFor={`${id}-in`}>Your question or text</label>

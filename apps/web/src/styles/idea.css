@@ -727,3 +727,9 @@
   font-size: 0.8125rem;
   font-weight: 600;
 }
+
+/* Idea Check inside the conversation on Home (W5): the whole width of the answer column, no page margins */
+.idea-embedded {
+  max-width: none;
+  margin: 0;
+}

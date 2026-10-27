@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import {
-  applyChatEvent, chatTitle, cleanAutoMessage, cleanChatMessage, interruptAssistant, MAX_CHAT_CHARS, startAssistant, stopAssistant, trimForStorage,
-  type AssistantMsg, type ChatEvent, type ChatMsg,
+  applyChatEvent, chatTitle, cleanAutoMessage, cleanChatMessage, interruptAssistant, MAX_CHAT_CHARS, MAX_IDEA_CHARS, MIN_IDEA_CHARS, startAssistant, stopAssistant, trimForStorage,
+  type AssistantMsg, type ChatEvent, type ChatMsg, type IdeaMsg,
 } from "@scholar/shared";
 import { idbClear, idbDelete, idbGet, idbSet } from "./idb";
 import { showNotice } from "./notice";
@@ -13,7 +13,8 @@ import { readSse } from "./sse";
  * Each tab has its own current conversation (sessionStorage); a conversation found part way through an answer (the page was closed or reloaded) is marked "interrupted".
  */
 type Entry = { id: string; title: string; updatedAt: number };
-type State = { index: Entry[]; active: string | null; chats: ReadonlyMap<string, ChatMsg[]>; running: ReadonlySet<string>; kept: boolean };
+/** `liveIdeas`: the Idea Checks of the conversations open in this tab that are running here (their plan and papers are in the page, not kept); one that is not in the set was kept from an earlier visit and shows "run it again". */
+type State = { index: Entry[]; active: string | null; chats: ReadonlyMap<string, ChatMsg[]>; running: ReadonlySet<string>; liveIdeas: ReadonlySet<string>; kept: boolean };
 
 const INDEX_KEY = "scholar.chats.v1";
 const ACTIVE_KEY = "scholar.chat.active";
@@ -35,7 +36,7 @@ const readActive = (): string | null => {
   }
 };
 
-let state: State = { index: typeof localStorage === "undefined" ? [] : readIndex(), active: typeof sessionStorage === "undefined" ? null : readActive(), chats: new Map(), running: new Set(), kept: true };
+let state: State = { index: typeof localStorage === "undefined" ? [] : readIndex(), active: typeof sessionStorage === "undefined" ? null : readActive(), chats: new Map(), running: new Set(), liveIdeas: new Set(), kept: true };
 const listeners = new Set<() => void>();
 const set = (next: Partial<State>) => {
   state = { ...state, ...next };
@@ -151,6 +152,32 @@ export function resumeChat() {
   if (state.active && state.index.some((e) => e.id === state.active)) void openChat(state.active);
   else if (state.active) setActive(null);
 }
+
+/**
+ * An Idea Check in the conversation: the idea's text is added (with the person's own message first when it came from the box), and the workspace opens under it. The click that
+ * asked for it is the person's consent to read the idea; the search itself waits for their approval inside the workspace. Only the text is kept with the conversation.
+ */
+export function startIdeaCheck(raw: string, opts: { echo?: boolean } = {}): "sent" | "busy" | "invalid" {
+  const text = raw.replace(/\r\n?/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (text.length < MIN_IDEA_CHARS || text.length > MAX_IDEA_CHARS) return "invalid";
+  let id = state.active;
+  if (id && state.index.some((e) => e.id === id) && !state.chats.has(id)) return "busy"; // still being opened
+  if (!id || !state.index.some((e) => e.id === id)) {
+    id = newId();
+    setActive(id);
+  }
+  const now = Date.now();
+  const idea: IdeaMsg = { id: newId(), role: "idea", text, at: now + 1 };
+  const user: ChatMsg[] = opts.echo ? [{ id: newId(), role: "user", text, at: now }] : [];
+  setChat(id, [...(state.chats.get(id) ?? []), ...user, idea]);
+  set({ liveIdeas: new Set(state.liveIdeas).add(idea.id) });
+  touch(id, state.index.find((e) => e.id === id)?.title ?? chatTitle(text));
+  persist(id, true);
+  return "sent";
+}
+
+/** "Run it again" on an Idea Check kept from an earlier visit: its workspace opens afresh under the same text. */
+export const reviveIdea = (messageId: string) => set({ liveIdeas: new Set(state.liveIdeas).add(messageId) });
 
 const runs = new Map<string, { ctl: AbortController; assistantId: string }>();
 
@@ -286,7 +313,7 @@ export function deleteChat(id: string) {
 export async function clearChats(): Promise<void> {
   for (const r of runs.values()) r.ctl.abort();
   for (const t of timers.values()) window.clearTimeout(t);
-  set({ index: [], chats: new Map(), kept: true });
+  set({ index: [], chats: new Map(), liveIdeas: new Set(), kept: true });
   try {
     localStorage.removeItem(INDEX_KEY);
   } catch {

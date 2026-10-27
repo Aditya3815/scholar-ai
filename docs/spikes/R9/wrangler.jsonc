@@ -2,5 +2,5 @@
   "name": "r9-spike",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
-  "workflows": [{ "name": "r9-ingest", "binding": "INGEST", "class_name": "Ingest" }]
+  "workflows": [{ "name": "r9-ingest", "binding": "INGEST", "class_name": "Ingest" }, { "name": "r10-scan", "binding": "SCAN", "class_name": "Scan" }]
 }

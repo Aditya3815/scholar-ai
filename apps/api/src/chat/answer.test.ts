@@ -210,6 +210,8 @@ describe("normaliseMarks", () => {
     ["as several Indian studies [1 S4‑S5]. A review [3 S1, 5 S2].", "as several Indian studies [1]. A review [3][5]."],
     ["Worked [12S6] and [7: S2; 9: S3].", "Worked [12] and [7][9]."],
     ["A range [1-3] and a year [2020] stay.", "A range [1-3] and a year [2020] stay."],
+    ["in settings [2],​ S11‑13. Next [4] ; S3‑S5 end.", "in settings [2]. Next [4] end."],
+    ["A protein [2] S1 subunit is meant here, and [3] stays.", "A protein [2] subunit is meant here, and [3] stays."],
     ["Two  spaces   go.", "Two spaces go."],
   ])("%s", (input, want) => expect(normaliseMarks(input)).toBe(want));
   it("a round bracket with a real remark in it is left alone", () => {

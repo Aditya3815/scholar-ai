@@ -1,7 +1,7 @@
 import { AnimatePresence, m } from "motion/react";
 import { Lightbulb, LockKeyhole, ShieldCheck, Telescope } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { COMPARE_PAPERS, PRIVACY_VERSION, buildIdeaReport, relatedIds, type IdeaPlan } from "@scholar/shared";
+import { COMPARE_PAPERS, MIN_IDEA_CHARS, PRIVACY_VERSION, buildIdeaReport, relatedIds, type IdeaPlan } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/documents";
 import { compareIdea, downloadText, insightsIdea, isData, planIdea, reportFileName, searchIdea } from "../../lib/idea";
@@ -56,10 +56,23 @@ function Steps({ step }: { step: Step }) {
 /** What to tell the researcher: the service's own words when it gave some, a fallback otherwise, nothing when they cancelled. */
 const errorText = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : e instanceof Error && e.name !== "AbortError" ? fallback : "");
 
-export function IdeaPage() {
+export type IdeaWorkspaceProps = {
+  /** The text the idea starts with (a handoff from Home, or the message the person wrote there). */
+  initialText?: string;
+  /** Read the idea and propose the search plan at once (the person has already asked for it: pressing "Check this idea" is the click). The search itself still waits for approval. */
+  autoPlan?: boolean;
+  /** Inside the conversation on Home: no headline, no explanation of how it works. */
+  embedded?: boolean;
+};
+
+/**
+ * Idea Check as one piece that can stand on its own page or sit inside the conversation: your idea, the search plan **you approve before anything is searched**, then the closest
+ * papers, a comparison with each part of the idea, and a second reading. Nothing is stored (leaving it, or switching conversation, drops it).
+ */
+export function IdeaWorkspace({ initialText = "", autoPlan = false, embedded = false }: IdeaWorkspaceProps) {
   const { status, user } = useAuth();
   const [step, setStep] = useState<Step>("input");
-  const [text, setText] = useState(() => takeHandoff("idea"));
+  const [text, setText] = useState(initialText);
   const [question, setQuestion] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [truncated, setTruncated] = useState(false);
@@ -96,6 +109,14 @@ export function IdeaPage() {
       setPlanning(false);
     }
   }, [text, question]);
+
+  // asked for in the conversation: the plan is proposed as soon as the person is signed in and has read the privacy note; searching still waits for their approval
+  const planned = useRef(false);
+  useEffect(() => {
+    if (!autoPlan || planned.current || status === "loading" || !user || user.privacyAck !== PRIVACY_VERSION || text.trim().length < MIN_IDEA_CHARS) return;
+    planned.current = true;
+    void prepare();
+  }, [autoPlan, status, user, text, prepare]);
 
   const search = useCallback(async () => {
     abort.current?.abort();
@@ -200,7 +221,8 @@ export function IdeaPage() {
   };
 
   return (
-    <div className="idea" ref={topRef}>
+    <div className={embedded ? "idea idea-embedded" : "idea"} ref={topRef}>
+      {!embedded && (
       <section className="vhead" aria-labelledby="idea-h">
         <div className="orbs" aria-hidden="true">
           <span className="orb orb-1" />
@@ -221,6 +243,7 @@ export function IdeaPage() {
           Describe an idea or open a file. We find the closest papers in the literature, with real, checked citations, so you can see what already exists before you start.
         </m.p>
       </section>
+      )}
 
       {status === "loading" ? (
         <div className="empty" aria-busy="true"><span className="pulse-dot" /></div>
@@ -255,7 +278,7 @@ export function IdeaPage() {
                   onClear={clearAll}
                   inputRef={inputRef}
                 />
-                <ul className="principles vhow" aria-label="How Idea Check works">
+                {!embedded && <ul className="principles vhow" aria-label="How Idea Check works">
                   {HOW.map(({ Icon, title, body }, i) => (
                     <m.li key={title} className="card principle" {...rise(4 + i)}>
                       <span className="principle-ico" aria-hidden="true"><Icon size={20} /></span>
@@ -263,7 +286,7 @@ export function IdeaPage() {
                       <p>{body}</p>
                     </m.li>
                   ))}
-                </ul>
+                </ul>}
               </m.div>
             )}
 
@@ -283,4 +306,10 @@ export function IdeaPage() {
       )}
     </div>
   );
+}
+
+/** The Idea Check page: the same workspace, with its headline, and the text Home handed over (if any). */
+export function IdeaPage() {
+  const [initial] = useState(() => takeHandoff("idea"));
+  return <IdeaWorkspace initialText={initial} />;
 }

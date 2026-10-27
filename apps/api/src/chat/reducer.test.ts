@@ -115,3 +115,54 @@ describe("slimForInterim", () => {
     expect(slim.every((p, i) => p.id === list[i]!.id && p.title === list[i]!.title && p.doi === list[i]!.doi)).toBe(true);
   });
 });
+
+describe("general background (W5)", () => {
+  it("is built apart from the answer: its words are provisional, the final event replaces them, the checked answer is not touched", () => {
+    const m = run([
+      { type: "step", step: "search" },
+      { type: "papers", results: [], final: true },
+      { type: "answer", answer: { text: "", citations: [], grounded: false } },
+      { type: "step", step: "general" },
+      { type: "general_token", text: "In general terms " },
+      { type: "general_token", text: "this is well studied [1]." },
+    ]);
+    expect(m.generalLive).toBe("In general terms this is well studied [1].");
+    expect(m.general).toBeNull();
+    expect(m.answer).toEqual({ text: "", citations: [], grounded: false });
+    expect(m.step).toBe("general");
+    const done = applyChatEvent(applyChatEvent(m, { type: "general", kind: "background", text: "In general terms this is well studied." }), { type: "done", answered: false, reason: "not_answered", tookMs: 5 });
+    expect(done).toMatchObject({ generalLive: "", general: { kind: "background", text: "In general terms this is well studied." }, status: "done", reason: "not_answered" });
+    expect(done.stepsDone).toContain("general");
+    expect(done.answer?.grounded).toBe(false);
+  });
+
+  it("'unsure' empties what was shown", () => {
+    const m = run([{ type: "general_token", text: "words" }, { type: "general", kind: "unsure", text: "" }]);
+    expect(m.generalLive).toBe("");
+    expect(m.general).toEqual({ kind: "unsure", text: "" });
+  });
+
+  it("'general' is a step only when it happened: a reply with no background does not list it", () => {
+    const end = run([{ type: "step", step: "search" }, { type: "step", step: "read" }, { type: "step", step: "check" }, { type: "done", answered: true, tookMs: 1 }]);
+    expect(end.stepsDone).toEqual(["search", "read", "write", "check"]);
+    const withBg = run([{ type: "step", step: "search" }, { type: "step", step: "general" }, { type: "done", answered: false, tookMs: 1 }]);
+    expect(withBg.stepsDone).toContain("general");
+  });
+
+  it("Stop, an error and storage drop the words that were being written", () => {
+    const working = run([{ type: "general_token", text: "half" }]);
+    expect(stopAssistant(working).generalLive).toBe("");
+    expect(interruptAssistant(working).generalLive).toBe("");
+    expect(applyChatEvent(working, { type: "error", code: "x", title: "Something went wrong" }).generalLive).toBe("");
+    expect(trimForStorage(working).generalLive).toBe("");
+  });
+
+  it("a reply kept before this existed (no general fields) is read without trouble", () => {
+    const old = { ...startAssistant("o", "q", 1) } as Partial<ReturnType<typeof startAssistant>>;
+    delete old.general;
+    delete old.generalLive;
+    const done = applyChatEvent(old as ReturnType<typeof startAssistant>, { type: "done", answered: true, tookMs: 1 });
+    expect(done.status).toBe("done");
+    expect(applyChatEvent(old as ReturnType<typeof startAssistant>, { type: "general_token", text: "x" }).generalLive).toBe("x");
+  });
+});

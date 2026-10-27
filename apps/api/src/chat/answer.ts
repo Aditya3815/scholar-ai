@@ -1,5 +1,6 @@
 import { sentenceAt, splitSentences, words, type ChatAnswer, type ChatCitation, type ChatEvent, type Lang, type Paper } from "@scholar/shared";
 import { AnswerFieldStreamer } from "../docs/stream-json";
+import { isMalformedReply } from "./malformed";
 import type { StreamComplete } from "../docs/qa";
 
 /**
@@ -95,7 +96,8 @@ export function normaliseMarks(raw: string): string {
       return [...new Set(papers)].map((d) => `[${d}]`).join("");
     })
     // a sentence label left after a mark, with or without a comma: [7], S7-S9
-    .replace(/(\])\s*[,;]?\s*S\d{1,3}(?:\s*[-‐-―]\s*S?\d{1,3})?/g, "$1")
+    // (any run of spaces, invisible characters and punctuation may stand between the mark and the label: one was seen in a live run that this rule missed)
+    .replace(/(\])[^\p{L}\p{N}[\]]{0,6}S\d{1,3}(?:\s*[-‐-―]\s*S?\d{1,3})?/gu, "$1")
     // a bracket that is only about evidence and could not be read as marks is bookkeeping, not part of the answer
     .replace(/\s*\((?:evidence|sources?)\b[^()]{0,60}\)/gi, "")
     // the paper and its sentence in one pair of round brackets: (1 S2-S4)
@@ -169,8 +171,8 @@ export async function answerFromResults(args: { question: string; /** The langua
     chain = chain.then(() => args.emit(e));
   };
   let writing = false;
-  const ask = async (note?: string) =>
-    (await args.stream(
+  const callModel = (note?: string) =>
+    args.stream(
     { system: chatSystem(args.language), user: `${note ? `${note}\n\n` : ""}${buildChatPrompt(args.question, args.picked)}`, schema: CHAT_SCHEMA as unknown as Record<string, unknown>, maxTokens: 3500, label: "chat_search" },
     {
       onContent: (piece) => {
@@ -183,7 +185,16 @@ export async function answerFromResults(args: { question: string; /** The langua
         send({ type: "token", text });
       },
     },
-  )).json;
+  );
+  // a malformed reply (not JSON at all) is asked for again once, but only if none of its words reached the screen
+  const ask = async (note?: string) => {
+    try {
+      return (await callModel(note)).json;
+    } catch (e) {
+      if (writing || !isMalformedReply(e)) throw e;
+      return (await callModel(note)).json;
+    }
+  };
   let json = await ask();
   args.onRaw?.(json);
   let checked = verifyChatAnswer(json, args.picked);

@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { NOTHING_NOTICE, PARTIAL_NOTICE, cleanAutoMessage, cleanChatMessage, detectLanguage, ruleRoute, slimForInterim, type ChatEvent, type ChatNoAnswer, type Route, type SearchResponse, type SearchSnapshot } from "@scholar/shared";
+import { NOTHING_NOTICE, PARTIAL_NOTICE, SMALL_TALK_REPLY, cleanAutoMessage, cleanChatMessage, detectLanguage, isSmallTalk, ruleRoute, slimForInterim, type ChatEvent, type ChatNoAnswer, type Route, type SearchResponse, type SearchSnapshot } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { cacheStore } from "../cache";
 import type { Complete, StreamComplete } from "../docs/qa";
@@ -9,6 +9,7 @@ import { sseStream } from "../sse";
 import type { SearchEnv } from "../search/types";
 import type { S2Throttle } from "../s2-throttle";
 import { answerFromResults, pickEvidencePapers } from "./answer";
+import { answerGeneral } from "./general";
 import { routeMessage } from "./router";
 import { stubChatStream, stubSearchFor } from "./stub";
 import { stubRoute } from "./stub-route";
@@ -91,19 +92,47 @@ chatRoutes.post("/", async (c) => {
   return sseStream<ChatEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (s) => {
     const send = s.send;
     const done = (answered: boolean, reason?: ChatNoAnswer) => send({ type: "done", answered, ...(reason ? { reason } : {}), tookMs: Date.now() - started });
+    /**
+     * Background from general knowledge, when the papers did not answer (general.ts): a separate call, its own step, its own event, shown under a label on every screen.
+     * If the allowance is used or the service is down it is simply not given: the plain line about the papers is already there.
+     */
+    const background = async (subject: string, language: Route["language"]) => {
+      if (s.gone) return;
+      try {
+        await send({ type: "step", step: "general" });
+        const g = await answerGeneral({
+          question: text.replace(/\s+/g, " ").slice(0, 600),
+          language,
+          stream: streamFor(c.env, subject, abort.signal),
+          emit: send,
+          onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !stubbed(c.env) ? (raw) => console.log(JSON.stringify({ msg: "chat_general_debug", raw })) : undefined,
+        });
+        if (!s.gone) await send({ type: "general", kind: g.kind, text: g.text });
+      } catch (e) {
+        if (s.gone) return;
+        if (!(e instanceof QuotaError || e instanceof NoRouteError || e instanceof AllProvidersFailedError)) throw e;
+        await send({ type: "general", kind: "unsure", text: "" }); // clears any words that were already shown
+      }
+    };
 
     try {
       let route: Route;
-      if (auto) {
+      // a greeting, thanks or "what can you do" is answered by the box itself: no router, no search, no model, the same for a visitor who is not signed in
+      const talk = isSmallTalk(text);
+      if (auto && !talk) {
         // the rules settle most messages without a model; only when they cannot, a step says so while the model looks
         if (user && !ruleRoute(text)) await send({ type: "step", step: "route" });
         route = await routeMessage(text, user ? routeCompleteFor(c.env, user.id) : null);
         if (s.gone) return;
       } else {
-        route = { mode: "search", how: "chosen", confidence: 1, language: detectLanguage(text) };
+        route = { mode: "search", how: auto ? "rules" : "chosen", confidence: 1, language: detectLanguage(text) };
       }
       const shown = text.replace(/\s+/g, " ").slice(0, 300);
       await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}) });
+      if (talk) {
+        await send({ type: "general", kind: "not_research", text: SMALL_TALK_REPLY });
+        return void (await done(false));
+      }
       // another tool: nothing runs here; the browser offers to open it
       if (route.mode !== "search") return void (await done(false, "routed"));
       // what the indexes are asked: the model's English words, or the message as written (at most 300 characters)
@@ -126,12 +155,16 @@ chatRoutes.post("/", async (c) => {
       if (!complete(found)) await send({ type: "notice", kind: "partial", text: PARTIAL_NOTICE });
       if (found.results.length === 0) {
         await send({ type: "notice", kind: "nothing", text: NOTHING_NOTICE });
+        if (user) await background(user.id, route.language);
         return void (await done(false));
       }
       if (found.results.some((p) => p.retracted)) await send({ type: "notice", kind: "retracted", text: "At least one paper in this list has been retracted. It is marked, and it was not used for the answer." });
       if (!user) return void (await done(false, "sign_in"));
       const picked = pickEvidencePapers(found.results);
-      if (picked.length === 0) return void (await done(false, "no_abstracts"));
+      if (picked.length === 0) {
+        await background(user.id, route.language);
+        return void (await done(false, "no_abstracts"));
+      }
 
       await send({ type: "step", step: "read" });
       let answer;
@@ -150,6 +183,8 @@ chatRoutes.post("/", async (c) => {
       if (s.gone) return;
       await send({ type: "step", step: "check" });
       await send({ type: "answer", answer: { text: answer.text, citations: answer.citations, grounded: answer.grounded } });
+      // papers first: only when they do not answer, and the model itself says so (not when an answer was written and could not be checked), a labelled background follows
+      if (!answer.grounded && !answer.enough) await background(user.id, route.language);
       await done(answer.grounded, answer.grounded ? undefined : answer.enough ? "not_grounded" : "not_answered");
     } catch (e) {
       console.error(JSON.stringify({ level: "error", msg: "chat_stream_failed", error: e instanceof Error ? e.name : "unknown" }));

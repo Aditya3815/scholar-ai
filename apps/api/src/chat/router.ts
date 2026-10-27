@@ -1,6 +1,7 @@
 import { MIN_ROUTE_CONFIDENCE, ROUTE_MODES, cleanChatMessage, detectLanguage, offlineRoute, ruleRoute, type Lang, type Route, type RouteMode } from "@scholar/shared";
 import type { Complete } from "../docs/qa";
 import { AllProvidersFailedError } from "../llm";
+import { isMalformedReply } from "./malformed";
 
 /**
  * The router of Home's prompt box in Auto mode: rules first (`ruleRoute`, free and always the same), then a small model that can only answer with one of four tool names and,
@@ -72,7 +73,7 @@ export async function routeMessage(text: string, complete: Complete | null): Pro
       const { json } = await complete({ system: ROUTER_SYSTEM, user: routerPrompt(text), schema: ROUTER_SCHEMA as unknown as Record<string, unknown>, maxTokens: 3500, label: "chat_route" });
       return parseRoute(json, language);
     } catch (e) {
-      const malformed = e instanceof AllProvidersFailedError && e.attempts.length > 0 && e.attempts.every((a) => /JSON/i.test(a.error ?? ""));
+      const malformed = isMalformedReply(e);
       // what failed, never what was written
       console.error(JSON.stringify({ level: "warn", msg: "route_failed", attempt, error: e instanceof Error ? e.name : "unknown", ...(e instanceof AllProvidersFailedError ? { attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) } : {}) }));
       if (!malformed) break;

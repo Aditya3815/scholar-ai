@@ -148,13 +148,44 @@ try {
   await send("nothing at all", { tool: false });
   await page.locator(".chat-note[data-kind=nothing]").waitFor({ timeout: 20000 });
   ok(/Nothing was found/.test(await page.locator(".chat-note[data-kind=nothing]").innerText()) && await page.locator(".chat-turn").last().locator(".result").count() === 0, "no papers: a plain line, and no invented paper");
+  console.log("general background: apart from the papers, always labelled");
+  const bgBox = page.locator(".chat-turn").last().locator(".chat-general");
+  const justDone = () => page.locator('.chat-list > li:last-child .chat-turn[data-status="done"]');
+  await bgBox.waitFor({ timeout: 20000 });
+  await justDone().waitFor({ timeout: 30000 });
+  ok(/General background, not from a paper in your results/.test(await bgBox.innerText()) && await bgBox.getByLabel("General background, not from a paper in your results").count() >= 0, "when nothing was found, a short background follows under the label 'General background, not from a paper in your results'");
+  ok(await bgBox.locator(".cite-chip").count() === 0 && !/\[\d/.test(await bgBox.innerText()) && /No paper is cited here/.test(await bgBox.innerText()), "it has no citation or source mark, and says that no paper is cited");
+  ok(await page.locator(".chat-turn").last().locator(".chat-answer").count() === 0 && await page.locator(".chat-turn").last().locator(".result").count() === 0, "and it is not inside a checked answer, and there are no invented papers");
+  await page.waitForTimeout(700);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await axe("a background under its label, light", page);
+  await setTheme(page, "dark");
+  await page.waitForTimeout(500);
+  await axe("a background under its label, dark", page);
+  await setTheme(page, "light");
+  await page.screenshot({ path: OUT + "3-background.png" });
+  await bgBox.getByRole("button", { name: "Edit the question and search again" }).click();
+  ok((await page.locator(".hm-input").inputValue()) === "nothing at all" && await page.locator(".hm-input").evaluate((el) => el === document.activeElement), "'Edit the question and search again' puts the question back in the box, ready to change");
+  await page.locator(".hm-input").fill("");
+  await send("nothing gibberish", { tool: false });
+  await justDone().waitFor({ timeout: 30000 });
+  ok(await page.locator(".chat-turn").last().locator(".chat-general").count() === 0 && /Nothing was found/.test(await page.locator(".chat-turn").last().innerText()), "a subject the model does not recognise gets no background: only the plain line that nothing was found");
+  await send("nothing greeting", { tool: false });
+  await justDone().waitFor({ timeout: 30000 });
+  ok(/finds research papers and answers from them/.test(await page.locator(".chat-turn").last().locator(".chat-why").innerText()) && await page.locator(".chat-turn").last().locator(".chat-general").count() === 0, "a message that is not a research question gets one plain sentence about what the box is for, not a background");
+  await send("nothing cites", { tool: false });
+  await justDone().waitFor({ timeout: 30000 });
+  ok(await page.locator(".chat-turn").last().locator(".chat-general").count() === 0 && !/Smith et al/.test(await page.locator(".chat-turn").last().innerText()), "a background that names a paper is never left on screen, though its words were arriving");
+
   await send("an unanswerable glaucoma question", { tool: false });
-  await page.locator(".chat-why").last().waitFor({ timeout: 30000 });
-  ok(/do not seem to answer this directly/.test(await page.locator(".chat-why").last().innerText()), "when the papers do not answer, it says so and shows no sentence of the model's");
+  await justDone().waitFor({ timeout: 30000 });
+  ok(/do not seem to answer this directly/.test(await page.locator(".chat-list > li:last-child .chat-why").first().innerText()), "when the papers do not answer, it says so and shows no sentence of the model's");
+  ok(await page.locator(".chat-list > li:last-child .chat-general .chat-text").count() === 1 && await page.locator(".chat-list > li:last-child .result").count() === 5, "...the background follows under its label, and the five papers are still listed");
   await send("hallucinate glaucoma", { tool: false });
   await page.locator('.chat-list > li:last-child .chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
   ok(/could not be checked/.test(await page.locator(".chat-list > li:last-child .chat-why").innerText()), "an answer that could not be checked says so");
   ok(await page.locator(".chat-list > li:last-child .chat-answer").count() === 0, "an answer whose evidence is not a real sentence is not shown");
+  ok(await page.locator(".chat-list > li:last-child .chat-general").count() === 0, "and no background is written to cover for it (the model had an answer; that is a failure, not a gap in the papers)");
 
   console.log("a silent wait says so");
   await page.evaluate(() => sessionStorage.setItem("scholar.quiet.ms", "1500")); // production waits 15 s
@@ -216,14 +247,12 @@ try {
 
   console.log("Change");
   await page.locator(".ws-rail").getByRole("button", { name: "New chat" }).click();
-  await send("Mere thesis ke references check karo");
+  await send("Mere thesis ke references check karo aur batao ki kya yeh idea pehle se kisi ne kiya hai");
   await page.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
   await page.locator(".chat-change").click();
   await page.getByRole("menuitem", { name: /Idea Check/ }).click();
-  await page.waitForFunction(() => location.pathname === "/idea", null, { timeout: 10000 });
-  ok(/Mere thesis/.test(await page.locator("textarea").first().inputValue()), "'Change' hands the same text to Idea Check");
-  await page.goBack();
-  await page.locator("#hm-h").waitFor();
+  await page.locator(".chat-idea").waitFor({ timeout: 10000 });
+  ok(new URL(page.url()).pathname === "/" && /Mere thesis/.test(await page.locator(".chat-idea textarea").first().inputValue()), "'Change' to Idea Check opens it under the same text, inside the conversation");
 
   console.log("Auto: the tool is chosen from what is written (W3)");
   await page.locator(".ws-rail").getByRole("button", { name: "New chat" }).click();
@@ -258,7 +287,7 @@ try {
 
   await sendAuto("my idea about using bees to detect cancer, is it novel");
   await page.waitForFunction(() => document.querySelectorAll(".chat-offer").length === 2, null, { timeout: 20000 });
-  ok(new URL(page.url()).pathname === "/" && /starts only when you open it and approve the search/.test(await page.locator(".chat-offer").last().innerText()), "an idea is offered to Idea Check, which starts only by a click and an approval: the page did not move");
+  ok(new URL(page.url()).pathname === "/" && /searches only after you have seen and approved the search plan/.test(await page.locator(".chat-offer").last().innerText()), "an idea is offered to Idea Check, which starts only by a click and an approval: the page did not move");
   await page.locator(".chat-offer").last().scrollIntoViewIfNeeded();
   await page.waitForTimeout(700);
   await axe("an offer to open Idea Check, light", page);

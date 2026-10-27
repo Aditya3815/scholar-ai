@@ -41,6 +41,12 @@ export default {
         return Response.json({ joined: key, status: inst ? await inst.status() : null, error: String((e as Error).message ?? e) }, { status: 200 });
       }
     }
+    if (url.pathname === "/scan/start") {
+      const inst = await (env as unknown as { SCAN: any }).SCAN.create({ id: key, params: { key, workers: Number(url.searchParams.get("n") ?? 4), failWorker: url.searchParams.has("fail") ? Number(url.searchParams.get("fail")) : undefined, slowMs: Number(url.searchParams.get("slow") ?? 0) } });
+      return Response.json({ started: inst.id });
+    }
+    if (url.pathname === "/scan/events") return Response.json(scanEvents(key, Number(url.searchParams.get("after") ?? 0)));
+    if (url.pathname === "/scan/status") return Response.json(await (await (env as unknown as { SCAN: any }).SCAN.get(key)).status());
     if (url.pathname === "/status") {
       const inst = await env.INGEST.get(key);
       return Response.json(await inst.status());
@@ -48,3 +54,47 @@ export default {
     return new Response("/start?key=x[&fail][&slow=ms]  /status?key=x");
   },
 };
+
+/**
+ * Spike R10: a literature-scan shaped Workflow: plan -> N workers IN PARALLEL (one fails for good, one is slow) -> merge -> finish. Every worker writes its own progress event
+ * (an append-only list with a sequence number, as a database table would) so that a late reader can replay from any point. Which step ran when is recorded, to see whether the
+ * workers really overlapped.
+ */
+const events: { seq: number; at: number; key: string; type: string; data: unknown }[] = [];
+const emit = (key: string, type: string, data: unknown) => events.push({ seq: events.filter((e) => e.key === key).length + 1, at: Date.now(), key, type, data });
+
+export class Scan extends WorkflowEntrypoint<{ SCAN: any }, { key: string; workers: number; failWorker?: number; slowMs?: number }> {
+  async run(event: WorkflowEvent<{ key: string; workers: number; failWorker?: number; slowMs?: number }>, step: WorkflowStep) {
+    const { key, workers, failWorker, slowMs } = event.payload;
+    const plan = await step.do("plan", async () => {
+      const topics = Array.from({ length: workers }, (_, i) => `subtopic-${i + 1}`);
+      emit(key, "progress", { phase: "plan", done: 1, total: 1 });
+      return { topics };
+    });
+    emit(key, "status", { state: "working", phase: "workers" });
+    // fan-out: every worker is a named step, retried on its own; a worker that fails for good must not stop the others (allSettled)
+    const settled = await Promise.allSettled(
+      plan.topics.map((topic, i) =>
+        step.do(`worker-${i + 1}`, { retries: { limit: 2, delay: "200 milliseconds" }, timeout: "30 seconds" }, async () => {
+          const started = Date.now();
+          emit(key, "progress", { phase: "worker", worker: i + 1, state: "started" });
+          if (slowMs && i === 0) await new Promise((r) => setTimeout(r, slowMs));
+          else await new Promise((r) => setTimeout(r, 400));
+          if (failWorker === i + 1) throw new Error(`worker ${i + 1} cannot read its papers`);
+          emit(key, "progress", { phase: "worker", worker: i + 1, state: "done" });
+          return { topic, claims: 3, ms: Date.now() - started };
+        }),
+      ),
+    );
+    const ok = settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+    const gaps = settled.flatMap((r, i) => (r.status === "rejected" ? [{ worker: i + 1, why: String((r.reason as Error)?.message ?? r.reason) }] : []));
+    const merged = await step.do("merge", async () => {
+      emit(key, "progress", { phase: "merge", done: ok.length, total: workers });
+      return { sections: ok.map((o) => o.topic), gaps };
+    });
+    emit(key, "status", { state: "completed" });
+    return { key, merged, startedAt: events.filter((e) => e.key === key).map((e) => e.at)[0] };
+  }
+}
+
+export const scanEvents = (key: string, after = 0) => events.filter((e) => e.key === key && e.seq > after);

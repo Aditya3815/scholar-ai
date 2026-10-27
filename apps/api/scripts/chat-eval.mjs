@@ -34,6 +34,15 @@ const CONTROLS = ["qwertyuiop asdfghjkl zxcvbnm", "blorptide xylonase quizzlefru
 // informational only for now: the indexes are searched with the words as written, so a Hindi or Hinglish question finds little (the router, W3, translates it)
 const LANGUAGES = ["मधुमेह में व्यायाम का प्रभाव", "diabetes me exercise ka kya asar hota hai"];
 
+// Background from general knowledge (W5): messages the papers cannot answer. What is measured is not whether the background is right (nobody can say that by a script) but its rules:
+// it carries no source mark and names no paper, it is never written under an answer made from papers, and nonsense and greetings never get an invented background.
+const OFF_TOPIC = ["what is the capital of France", "how do I cook rice so that it is not sticky", "bhai mausam kaisa rehta hai aajkal delhi me"];
+const GREETINGS = ["hello there", "thanks a lot", "good morning"];
+// questions of general knowledge that a search of papers answers badly: where a background is written it must follow the rules above
+const BACKGROUND = ["what does a p-value mean in simple words", "explain the difference between sensitivity and specificity", "what is the boiling point of water at sea level", "standard deviation kya hota hai"];
+const groups = process.argv.find((a) => a.startsWith("--groups="))?.slice(9)?.split(",");
+const want = (g) => !groups || groups.includes(g);
+
 const idp = await startFakeIdp(9911);
 const results = [];
 let n = 0;
@@ -78,13 +87,27 @@ async function ask(message, group) {
     row.marks = answer.citations.length;
     row.words = answer.text.split(/\s+/).length;
   }
+  // the general background (W5): what the server finally said about it, and whether it broke a rule (checked here apart from the server's own check)
+  const general = events.find((e) => e.type === "general");
+  row.general = general ? { kind: general.kind, text: general.text } : null;
+  row.steps = events.filter((e) => e.type === "step").map((e) => e.step).join();
+  if (general?.text) {
+    const t = general.text;
+    if (/\[\s*\d/.test(t)) row.problems.push("the background has a source mark");
+    if (/\b10\.\d{4,9}\//.test(t) || /https?:\/\/|www\./i.test(t) || /\bet al\b/i.test(t)) row.problems.push("the background names a source (a DOI, an address or et al.)");
+    if (t.length > 1500) row.problems.push("the background is too long");
+  }
+  if (general && answer?.grounded) row.problems.push("a background was written under an answer made from papers");
   results.push(row);
   console.log(`${row.answered ? "answered" : "no answer"} (${row.reason}) ${String(row.ms).padStart(6)} ms  ${row.papers}/${row.withAbstract} papers  ${row.marks ?? 0} marks  ${group}: ${message}${row.problems.length ? `\n      PROBLEMS: ${row.problems.join("; ")}` : ""}`);
 }
 
-for (const q of ON_TOPIC) await ask(q, "topic");
-for (const q of CONTROLS) await ask(q, "control");
-for (const q of LANGUAGES) await ask(q, "language");
+if (want("topic")) for (const q of ON_TOPIC) await ask(q, "topic");
+if (want("control")) for (const q of CONTROLS) await ask(q, "control");
+if (want("language")) for (const q of LANGUAGES) await ask(q, "language");
+if (want("offtopic")) for (const q of OFF_TOPIC) await ask(q, "offtopic");
+if (want("greeting")) for (const q of GREETINGS) await ask(q, "greeting");
+if (want("background")) for (const q of BACKGROUND) await ask(q, "background");
 idp.close();
 
 const topic = results.filter((r) => r.group === "topic");
@@ -97,8 +120,13 @@ const lines = [
   ["answered", `${answered} of ${answerable} questions that found at least two abstracts`, answerable === 0 || answered / answerable >= 0.75],
   ["real, not retracted, clean marks", `${problems.length} problems in ${results.filter((r) => r.answered).length} answers`, problems.length === 0],
   ["controls", `${controls.filter((r) => r.answered).length} of ${controls.length} nonsense questions got an answer (must be 0)`, controls.every((r) => !r.answered)],
+  ["no invented background", `${controls.filter((r) => r.general?.kind === "background").length} of ${controls.length} nonsense questions and ${results.filter((r) => r.group === "greeting" && r.general?.kind === "background").length} of ${results.filter((r) => r.group === "greeting").length} greetings got a background (must be 0)`, controls.every((r) => r.general?.kind !== "background") && results.filter((r) => r.group === "greeting").every((r) => r.general?.kind !== "background")],
+  ["background rules", `${results.flatMap((r) => r.problems).filter((p) => /background/.test(p)).length} breaches in ${results.filter((r) => r.general?.text).length} backgrounds (a source mark, a named source, too long, or written under a paper answer)`, !results.flatMap((r) => r.problems).some((p) => /background/.test(p))],
 ];
 console.log("\n--- chat eval");
 for (const [name, what, pass] of lines) console.log(`${pass ? "PASS" : "FAIL"}  ${name}: ${what}`);
+const off = results.filter((r) => r.group === "offtopic");
+console.log(`info  general-knowledge questions: ${results.filter((r) => r.group === "background").map((r) => (r.general?.kind ?? (r.answered ? "answered from papers" : r.reason)) + (r.general?.text ? ` (${r.general.text.length} characters)` : "")).join(", ")}`);
+console.log(`info  off-topic questions: ${off.map((r) => r.general?.kind ?? (r.answered ? "answered from papers" : r.reason)).join(", ")}; greetings: ${results.filter((r) => r.group === "greeting").map((r) => r.general?.kind ?? "none").join(", ")}`);
 console.log(`info  median reply ${ms[Math.floor(ms.length / 2)] ?? 0} ms; languages (not gated): ${results.filter((r) => r.group === "language").map((r) => `${r.answered ? "answered" : r.reason}`).join(", ")}`);
 if (gate && lines.some(([, , pass]) => !pass)) process.exit(1);

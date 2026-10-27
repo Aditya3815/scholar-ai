@@ -1,7 +1,7 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowRight, ChevronDown, FileStack, Lightbulb, ListChecks, RefreshCw, Search, ShieldCheck, TriangleAlert } from "lucide-react";
+import { ArrowRight, ChevronDown, FileStack, Info, Lightbulb, ListChecks, RefreshCw, Search, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { MAX_CHAT_CHARS, ROUTE_NAMES, type AssistantMsg, type ChatMsg, type ChatNoAnswer, type RouteMode } from "@scholar/shared";
+import { GENERAL_LABEL, MAX_CHAT_CHARS, ROUTE_NAMES, type AssistantMsg, type ChatMsg, type IdeaMsg, type ChatNoAnswer, type RouteMode } from "@scholar/shared";
 import { SignInDialog } from "../components/AccountMenu";
 import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
@@ -9,6 +9,7 @@ import { StreamingText } from "../components/papers/AskPanel";
 import { openPreview } from "../lib/preview";
 import { easeOut, spring } from "../lib/motion";
 import { PAPERS_NAME } from "../lib/workspace";
+import { IdeaWorkspace } from "../components/idea/IdeaPage";
 
 /** What is said when a reply has papers but no written answer. Plain words, and never a sentence the model could not back. */
 const WHY: Record<ChatNoAnswer, string> = {
@@ -33,7 +34,7 @@ const TOOL_ROWS: { id: RouteMode; name: string; hint: string; Icon: typeof Searc
 /** What is said when Auto took the message for another tool: it is offered, never started (Idea Check least of all). */
 const OFFER: Record<Exclude<RouteMode, "search">, { text: string; open: string }> = {
   verify: { text: "This looks like a list of references to check.", open: "Open Check references" },
-  idea: { text: "This looks like an idea to test against the literature. Idea Check starts only when you open it and approve the search.", open: "Open Idea Check" },
+  idea: { text: "This looks like an idea to test against the literature. Idea Check starts only when you ask for it, and searches only after you have seen and approved the search plan.", open: "Open the Idea Check page" },
   paper: { text: "This looks like a question about one of your own papers.", open: `Open ${PAPERS_NAME}` },
 };
 
@@ -65,11 +66,13 @@ const STEPS = [
   { id: "read", label: "Reading the papers" },
   { id: "write", label: "Writing" },
   { id: "check", label: "Checking the sources" },
+  { id: "general", label: "Writing background" },
 ] as const;
 
 function Progress({ m: msg, signedIn }: { m: AssistantMsg; signedIn: boolean }) {
   // a person who is not signed in gets no written answer, so only the search is shown for them; "Understanding" is there only when Auto is choosing the tool
-  const steps = STEPS.filter((s) => (s.id === "route" ? msg.auto : signedIn || s.id === "search"));
+  // while the background is written, only what led to it is listed: the search, and (when it happened) the reading
+  const steps = STEPS.filter((s) => (s.id === "route" ? msg.auto : s.id === "general" ? msg.step === "general" : msg.step === "general" ? s.id === "search" : signedIn || s.id === "search"));
   return (
     <ol className="chat-steps" aria-label="Progress">
       {steps.map((s) => {
@@ -105,6 +108,29 @@ function AnswerText({ text, onCite, label }: { text: string; onCite: (n: number)
 }
 
 type ChangeTool = (to: RouteMode, replyId: string, text: string) => void;
+
+/**
+ * Background from general knowledge (W5), when the papers did not answer: always under its label, apart from the checked answer, with no source marks and no citations.
+ * While it is being written it is dimmed like any unchecked text. A subject the model would not speak about shows nothing here.
+ */
+function Background({ msg, question, onRefine }: { msg: AssistantMsg; question: string; onRefine: (text: string) => void }) {
+  const g = msg.general;
+  const live = msg.generalLive ?? "";
+  if (g?.kind === "not_research" && g.text) return <p className="chat-why" role="note">{g.text}</p>;
+  if (g?.kind !== "background" && !(msg.status === "working" && live)) return null;
+  return (
+    <section className="chat-general" aria-label={GENERAL_LABEL}>
+      <p className="chat-general-label"><Info size={15} aria-hidden="true" /> <b>{GENERAL_LABEL}</b></p>
+      {g?.kind === "background" ? <p className="reading chat-text">{g.text}</p> : <StreamingText text={live} writing />}
+      {g?.kind === "background" && (
+        <p className="chat-general-note">
+          No paper is cited here, so check it before you rely on it.{" "}
+          <button type="button" className="link-btn" onClick={() => onRefine(question)}>Edit the question and search again</button>
+        </p>
+      )}
+    </section>
+  );
+}
 
 /**
  * "I understood this as … · Change": which tool the message was taken for, and, when Auto searched with English words that are not the reader's own, those words
@@ -161,7 +187,7 @@ function Understood({ msg, text, working, onChange, onExact }: { msg: AssistantM
   );
 }
 
-function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange }: { msg: AssistantMsg; text: string; signedIn: boolean; flash: { msgId: string; n: number } | null; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search") => void; onChange: ChangeTool }) {
+function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, onRefine, onOpenPage }: { msg: AssistantMsg; text: string; signedIn: boolean; flash: { msgId: string; n: number } | null; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void }) {
   const working = msg.status === "working";
   const byN = (n: number) => msg.papers[n - 1];
   const answer = msg.answer?.grounded ? msg.answer : null;
@@ -178,10 +204,17 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange }
       {routed && msg.mode !== "search" && (
         <div className="chat-offer" role="group" aria-label="Open the tool">
           <p>{OFFER[msg.mode].text}</p>
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => onChange(msg.mode, msg.id, text)}>
-            <span>{OFFER[msg.mode].open}</span>
-            <ArrowRight size={15} aria-hidden="true" />
-          </button>
+          <span className="chat-offer-actions">
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => onChange(msg.mode, msg.id, text)}>
+              <span>{msg.mode === "idea" ? "Check it here" : OFFER[msg.mode].open}</span>
+              <ArrowRight size={15} aria-hidden="true" />
+            </button>
+            {msg.mode === "idea" && (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => onOpenPage("idea", text)}>
+                <span>{OFFER.idea.open}</span>
+              </button>
+            )}
+          </span>
         </div>
       )}
 
@@ -225,6 +258,7 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange }
           )}
         </p>
       )}
+      <Background msg={msg} question={text} onRefine={onRefine} />
       {msg.status === "stopped" && <p className="chat-why" role="note">Stopped. The papers found so far are below.</p>}
       {(msg.status === "error" || msg.status === "interrupted") && (
         <div className="ask-error" role="alert">
@@ -247,7 +281,7 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange }
         </p>
       ))}
 
-      {working && msg.papers.length === 0 && msg.step !== "route" ? (
+      {working && msg.papers.length === 0 && !msg.papersFinal && msg.step !== "route" ? (
         <ul className="chat-papers" aria-hidden="true">
           <SkeletonCard />
           <SkeletonCard />
@@ -272,7 +306,32 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange }
 const SHOWN = 400;
 
 /** The conversation: what was asked, and under each question the reply (steps while it works, the answer, the papers). */
-export function ChatView({ messages, signedIn, onRetry, onChange }: { messages: ChatMsg[]; signedIn: boolean; onRetry: (id: string, as?: "search") => void; onChange: ChangeTool }) {
+/**
+ * An Idea Check in the conversation. While it runs here it is the Idea Check workspace itself: it reads the idea and proposes a search plan, which the person edits and approves
+ * before anything is searched, then shows the closest papers and the comparison. After a reload only the idea's text is left (nothing about an idea is stored).
+ */
+function IdeaTurn({ msg, live, onAgain }: { msg: IdeaMsg; live: boolean; onAgain: (id: string) => void }) {
+  return (
+    <section className="chat-idea" aria-label="Idea Check">
+      <p className="chat-idea-kicker"><Lightbulb size={15} aria-hidden="true" /> <b>Idea Check</b></p>
+      {live ? (
+        <IdeaWorkspace initialText={msg.text} autoPlan embedded />
+      ) : (
+        <p className="chat-why" role="note">
+          <span className="chat-why-row">
+            <span>This Idea Check was run in an earlier visit. Its search plan and papers are not kept: nothing about an idea is stored.</span>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAgain(msg.id)}>
+              <RefreshCw size={14} aria-hidden="true" />
+              <span>Run it again</span>
+            </button>
+          </span>
+        </p>
+      )}
+    </section>
+  );
+}
+
+export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onRefine, onOpenPage, onIdeaAgain }: { messages: ChatMsg[]; signedIn: boolean; liveIdeas: ReadonlySet<string>; onRetry: (id: string, as?: "search") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onIdeaAgain: (id: string) => void }) {
   const [flash, setFlash] = useState<{ msgId: string; n: number } | null>(null);
   const list = useRef<HTMLOListElement>(null);
 
@@ -280,8 +339,11 @@ export function ChatView({ messages, signedIn, onRetry, onChange }: { messages: 
   const count = messages.length;
   useLayoutEffect(() => {
     if (count === 0) return;
-    const users = list.current?.querySelectorAll<HTMLElement>(".chat-u");
-    users?.[users.length - 1]?.scrollIntoView({ block: "start", behavior: "auto" });
+    // a question goes to the top of the window; an Idea Check that was just opened (from the offer under an earlier question) does too
+    const last = messages[messages.length - 1];
+    const selector = last?.role === "idea" && messages[messages.length - 2]?.role !== "user" ? ".chat-idea-li" : ".chat-u";
+    const targets = list.current?.querySelectorAll<HTMLElement>(selector);
+    targets?.[targets.length - 1]?.scrollIntoView({ block: "start", behavior: "auto" });
   }, [count]);
 
   const cite = useCallback((msgId: string, n: number) => {
@@ -298,15 +360,17 @@ export function ChatView({ messages, signedIn, onRetry, onChange }: { messages: 
         {messages.map((msg, at) => {
           const before = messages[at - 1];
           return (
-            <li key={msg.id} className={msg.role === "user" ? "chat-u" : "chat-a"}>
-              {msg.role === "user" ? (
+            <li key={msg.id} className={msg.role === "user" ? "chat-u" : msg.role === "idea" ? "chat-a chat-idea-li" : "chat-a"}>
+              {msg.role === "idea" ? (
+                <IdeaTurn msg={msg} live={liveIdeas.has(msg.id)} onAgain={onIdeaAgain} />
+              ) : msg.role === "user" ? (
                 <m.p className="chat-bubble" initial={{ opacity: 0, y: 10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={spring}>
                   <Search size={13} aria-hidden="true" /> {msg.text.length > SHOWN ? `${msg.text.slice(0, SHOWN)}…` : msg.text}
                   {msg.text.length > SHOWN && <small className="chat-long"> {msg.text.length.toLocaleString("en-US")} characters, the start is shown</small>}
                 </m.p>
               ) : (
                 <m.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }}>
-                  <AssistantTurn msg={msg} text={before?.role === "user" ? before.text : msg.query} signedIn={signedIn} flash={flash} onCite={cite} onRetry={onRetry} onChange={onChange} />
+                  <AssistantTurn msg={msg} text={before?.role === "user" ? before.text : msg.query} signedIn={signedIn} flash={flash} onCite={cite} onRetry={onRetry} onChange={onChange} onRefine={onRefine} onOpenPage={onOpenPage} />
                 </m.div>
               )}
             </li>
