@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FEEDBACK_PROBLEMS, type AdminFeedback, type AdminOverview } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { easeOut, stagger } from "../../lib/motion";
-import { DataChecks, EraseAccount, Jobs } from "./AdminOps";
+import { DataChecks, EraseAccount, AnswerOutcomes, Jobs } from "./AdminOps";
 
 const rise = (i: number) => ({ initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.45, ease: easeOut, delay: 0.05 + stagger(i, 0.06) } });
 const n = (v: number) => v.toLocaleString("en-IN");
@@ -219,6 +219,8 @@ export function AdminPage() {
           Scanned pages, last 7 days: {n(data.scans.pages)} {data.scans.pages === 1 ? "page" : "pages"} read, {n(data.scans.neurons)} neurons, about {usd(data.scans.costCents)}.
         </p>
       </section>
+
+      <AnswerOutcomes rows={data.answers} />
 
       <Jobs jobs={data.jobs} />
 

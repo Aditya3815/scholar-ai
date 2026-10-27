@@ -40,6 +40,9 @@ export type FeedbackRequest =
 
 export type AdminDay = { day: string; calls: number; failed: number; tokens: number; costCents: number };
 export type AdminFeedback = { id: string; kind: FeedbackKind; problem: string; note: string | null; context: unknown; createdAt: string; user: string };
+/** How many answers of a kind had a given outcome in the last seven days (src/outcomes.ts). Counts only. */
+export type AnswerOutcomeRow = { feature: string; outcome: string; n: number };
+
 export type AdminOverview = {
   users: { total: number; newThisWeek: number };
   documents: { total: number; ready: number; failed: number };
@@ -55,7 +58,9 @@ export type AdminOverview = {
   /** The public cache over the last seven days: for each source (search results of one provider, DOI checks, retraction checks, each kind of reference lookup) how often an answer was already kept. */
   cache: { source: string; hits: number; misses: number }[];
   feedback: AdminFeedback[];
-  /** Scheduled jobs (the daily clean-up) and whether they ran on time. */
+  /** How answers went in the last seven days, by feature and outcome. Counts only: no text, no person, no paper. */
+  answers: AnswerOutcomeRow[];
+  /** Scheduled jobs (the daily clean-up and the retraction re-check) and whether they ran on time. */
   jobs: JobStatus[];
 };
 

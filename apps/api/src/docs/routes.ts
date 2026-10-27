@@ -51,6 +51,7 @@ import { readJpeg } from "../ocr/jpeg";
 import { DailyLimitError, ReadFailedError, finishIfDone, readScanPage, registerScan, scanInfo, scanTexts } from "../ocr/process";
 import { workersAiReader, type PageReader } from "../ocr/read";
 import { stubReader } from "../ocr/stub";
+import { askOutcome, countOutcome } from "../outcomes";
 
 type Bindings = {
   DB: D1Database;
@@ -565,6 +566,7 @@ documentRoutes.post("/:id/ask", async (c) => {
         const answer = await answerQuestionStream({ question, chunks, embed, stream, meta: { id: randomId(), createdAt: Date.now() }, emit: send, topK: devTopK(c.env) });
         if (sse.gone) return; // the reader left: nothing to save or send
         await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
+        await countOutcome(c.env.DB, "doc_ask", askOutcome(answer));
         await send({ type: "answer", answer });
       } catch (e) {
         const d = describeAskError(e);
@@ -587,6 +589,7 @@ documentRoutes.post("/:id/ask", async (c) => {
     throw e;
   }
   await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
+  await countOutcome(c.env.DB, "doc_ask", askOutcome(answer));
   return c.json({ answer });
 });
 

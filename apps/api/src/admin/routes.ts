@@ -4,6 +4,7 @@ import { NEURON_CENTS } from "../llm/pricing";
 import { currentUser, sameOrigin } from "../auth/http";
 import { reapplyDeletions } from "../account/erase";
 import { readJobs } from "../jobs";
+import { readOutcomes } from "../outcomes";
 import { compareInventory, listDocuments, listFiles } from "./integrity";
 import { eraseAccount } from "../account/erase";
 import { findAccount, parseAccountRef } from "./accounts";
@@ -31,7 +32,7 @@ adminRoutes.get("/overview", async (c) => {
   const db = c.env.DB;
   const one = async <T>(sql: string) => (await db.prepare(sql).first<T>()) as T;
 
-  const [users, docs, questions, days, models, features, scans, oa, oaSources, oaReasons, cache, feedback, jobs] = await Promise.all([
+  const [users, docs, questions, days, models, features, scans, oa, oaSources, oaReasons, cache, feedback, jobs, answers] = await Promise.all([
     one<{ total: number; week: number }>("SELECT COUNT(*) AS total, COALESCE(SUM(created_at >= datetime('now', '-7 days')), 0) AS week FROM users WHERE deleted_at IS NULL"),
     one<{ total: number; ready: number; failed: number }>("SELECT COUNT(*) AS total, COALESCE(SUM(status = 'ready'), 0) AS ready, COALESCE(SUM(status = 'failed'), 0) AS failed FROM documents"),
     one<{ n: number }>("SELECT COUNT(*) AS n FROM doc_qa"),
@@ -47,6 +48,7 @@ adminRoutes.get("/overview", async (c) => {
     db.prepare("SELECT id, user_id, kind, problem, note, context, created_at FROM feedback ORDER BY created_at DESC, rowid DESC LIMIT 50").all<{ id: string; user_id: string; kind: FeedbackKind; problem: string; note: string | null; context: string; created_at: string }>(),
     // An unreadable heartbeat must not take the whole page down.
     readJobs(db).catch(() => []),
+    readOutcomes(db).catch(() => []),
   ]);
 
   const body: AdminOverview = {
@@ -60,6 +62,7 @@ adminRoutes.get("/overview", async (c) => {
     cache: cache.results,
     scans: { pages: scans.pages, neurons: Math.round(scans.neurons), costCents: Math.round(scans.neurons * NEURON_CENTS * 10000) / 10000 },
     feedback: feedback.results.map((f) => ({ id: f.id, kind: f.kind, problem: f.problem, note: f.note, context: JSON.parse(f.context), createdAt: f.created_at.replace(" ", "T") + "Z", user: f.user_id.slice(0, 8) })),
+    answers,
     jobs,
   };
   return c.json(body);

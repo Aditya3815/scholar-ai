@@ -13,6 +13,7 @@ import { answerGeneral } from "./general";
 import { routeMessage } from "./router";
 import { stubChatStream, stubSearchFor } from "./stub";
 import { stubRoute } from "./stub-route";
+import { countOutcome } from "../outcomes";
 
 type Bindings = {
   DB: D1Database;
@@ -91,7 +92,12 @@ chatRoutes.post("/", async (c) => {
   const abort = new AbortController();
   return sseStream<ChatEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (s) => {
     const send = s.send;
-    const done = (answered: boolean, reason?: ChatNoAnswer) => send({ type: "done", answered, ...(reason ? { reason } : {}), tookMs: Date.now() - started });
+    // how this question went is counted once, as it ends (counts only, src/outcomes.ts): what the papers did, or what stopped it
+    let outcome: string | null = null;
+    const done = async (answered: boolean, reason?: ChatNoAnswer) => {
+      await countOutcome(c.env.DB, "chat", outcome ?? (answered ? "answered" : (reason ?? "other")));
+      return send({ type: "done", answered, ...(reason ? { reason } : {}), tookMs: Date.now() - started });
+    };
     /**
      * Background from general knowledge, when the papers did not answer (general.ts): a separate call, its own step, its own event, shown under a label on every screen.
      * If the allowance is used or the service is down it is simply not given: the plain line about the papers is already there.
@@ -130,6 +136,7 @@ chatRoutes.post("/", async (c) => {
       const shown = text.replace(/\s+/g, " ").slice(0, 300);
       await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}) });
       if (talk) {
+        outcome = "small_talk";
         await send({ type: "general", kind: "not_research", text: SMALL_TALK_REPLY });
         return void (await done(false));
       }

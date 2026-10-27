@@ -2,6 +2,7 @@
 // `npm run integration -w apps/api` starts everything.
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
+import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 let failures = 0;
@@ -28,6 +29,7 @@ async function chat(client, message, { mode = "search", origin = APP, stopAfter,
   const events = [];
   const dec = new TextDecoder();
   let buf = "";
+  let stopped = false;
   try {
     for await (const part of res.body) {
       buf += dec.decode(part, { stream: true });
@@ -42,7 +44,9 @@ async function chat(client, message, { mode = "search", origin = APP, stopAfter,
     }
   } catch (e) {
     if (e?.name !== "AbortError") throw e;
+    stopped = true;
   }
+  if (!stopped) checkStream("chat", events, message.slice(0, 30)); // a stream the test stopped half way has no end, by design
   return { res, events };
 }
 const types = (events) => events.map((e) => e.type);
@@ -203,6 +207,13 @@ try {
   const me = await A.me();
   const rows = await (await A.api("/api/v1/dev/sql", { method: "POST", body: { sql: ["SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE '%chat%'"] } })).json();
   ok((rows.results?.[0] ?? []).length === 0 && !!me, "there is no chat table: the chat is kept in the browser only");
+
+  console.log("how answers went is counted, as counts");
+  const counted = await (await A.api("/api/v1/dev/sql", { method: "POST", body: { sql: ["SELECT outcome, SUM(n) AS n FROM answer_outcomes WHERE feature = 'chat' GROUP BY outcome", "SELECT name FROM pragma_table_info('answer_outcomes')"] } })).json();
+  const byOutcome = Object.fromEntries((counted.results?.[0] ?? []).map((r) => [r.outcome, r.n]));
+  ok(byOutcome.answered >= 1 && byOutcome.not_answered >= 1 && byOutcome.not_grounded >= 1 && byOutcome.small_talk >= 1 && byOutcome.sign_in >= 1 && byOutcome.routed >= 1, `the prompt box counts answered, not answered, refused by the check, small talk, signed-out and offered-another-tool (${JSON.stringify(byOutcome)})`);
+  ok((counted.results?.[1] ?? []).map((r) => r.name).join() === "day,feature,outcome,n", "and the table holds a day, a feature, an outcome and a count: no text, no person");
+  reportStreams(ok);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
   failures++;

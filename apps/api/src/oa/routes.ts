@@ -12,6 +12,7 @@ import { sourceDepsFor } from "./deps";
 import { fetchArxivMeta, lookupByDoi, lookupOpenAlexAbstract } from "./sources";
 import { claimAttempt, createPaper, failIfStale, getPaper, instanceId, keyHash, markFailed, readyChunks, refundDaily, setInstance, takeDaily, type OaRow } from "./store";
 import type { OaParams } from "./workflow";
+import { askOutcome, countOutcome } from "../outcomes";
 
 type Bindings = {
   DB: D1Database;
@@ -146,12 +147,14 @@ oaRoutes.post("/ask", async (c) => {
 
       // wait for it, telling how far it has got
       let last = "";
+      let peak = 0; // the progress of a reading never goes back, whatever the row says next (a reading that fails keeps the point it had reached)
       const deadline = Date.now() + OA_WAIT_MS;
       while (isWorking(row) && !s.gone) {
         const state = `${row!.status}:${row!.done_chunks}`;
         if (state !== last) {
           last = state;
-          await send({ type: "ingest", status: row!.status, progress: progressOf(row!), ...(row!.source ? { source: row!.source } : {}), started: startedByMe });
+          peak = Math.max(peak, progressOf(row!));
+          await send({ type: "ingest", status: row!.status, progress: peak, ...(row!.source ? { source: row!.source } : {}), started: startedByMe });
         }
         if (Date.now() > deadline) return void (await err("still_reading", "This paper is still being read", "It keeps going without you. Ask again in a minute."));
         await sleep(c.env.ENABLE_DEV_ROUTES === "1" ? 150 : 800);
@@ -161,7 +164,7 @@ oaRoutes.post("/ask", async (c) => {
       if (s.gone || !row) return;
 
       if (row.status !== "ready") {
-        await send({ type: "ingest", status: row.status, progress: 0 });
+        await send({ type: "ingest", status: row.status, progress: peak });
         return void (await answerFromAbstract(c, s, { key, ref, reason: (row.reason ?? "internal") as OaReason, title: row.title, clientAbstract, question, embed, subject: user.id, abort }));
       }
       await send({ type: "ingest", status: "ready", progress: 1, ...(row.source ? { source: row.source } : {}) });
@@ -179,7 +182,7 @@ oaRoutes.post("/ask", async (c) => {
 
 type Session = Parameters<Parameters<typeof sseStream<OaAskEvent>>[2]>[0];
 type Ctx = Context<Env>;
-type AskArgs = { chunks: StoredChunk[]; question: string; embed: NonNullable<ReturnType<typeof embedderFor>>; subject: string; abort: AbortController };
+type AskArgs = { /** what the answer is made from: the paper's text, or only its abstract (counted apart) */ basis?: "abstract"; chunks: StoredChunk[]; question: string; embed: NonNullable<ReturnType<typeof embedderFor>>; subject: string; abort: AbortController };
 
 /** The question over the passages: the same code as for a paper of your own, so the same checks. */
 async function ask(c: Ctx, s: Session, a: AskArgs): Promise<void> {
@@ -190,6 +193,7 @@ async function ask(c: Ctx, s: Session, a: AskArgs): Promise<void> {
   const onRaw = c.env.ENABLE_DEV_ROUTES === "1" && c.env.QA_STUB !== "1" ? (raw: unknown, ex: { idx: number; section?: string; text: string }[]) => console.log(JSON.stringify({ msg: "oa_debug", raw, excerpts: ex.map((e) => ({ idx: e.idx, section: e.section, text: e.text })) })) : undefined;
   const answer = await answerQuestionStream({ question: a.question, chunks: a.chunks, embed: a.embed, stream, meta: { id: crypto.randomUUID().replace(/-/g, "").slice(0, 20), createdAt: Date.now() }, emit: s.send, topK, onRaw });
   if (s.gone) return;
+  await countOutcome(c.env.DB, a.basis === "abstract" ? "oa_ask_abstract" : "oa_ask", askOutcome(answer));
   await s.send({ type: "answer", answer });
 }
 
@@ -223,6 +227,6 @@ async function answerFromAbstract(c: Ctx, s: Session, a: { key: string; ref: OaR
   }
   await s.send({ type: "paper", key: a.key, title, source: "abstract", license: null, permissive: false, reason: a.reason });
   const chunks: StoredChunk[] = [{ idx: 1000, page: 1, section: "Abstract", text: abstract.slice(0, MAX_OA_ABSTRACT_CHARS), embedding: null }];
-  await ask(c, s, { chunks, question: a.question, embed: a.embed, subject: a.subject, abort: a.abort });
+  await ask(c, s, { basis: "abstract", chunks, question: a.question, embed: a.embed, subject: a.subject, abort: a.abort });
 }
 

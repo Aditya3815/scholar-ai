@@ -1,3 +1,5 @@
+import { OUTCOME_RETENTION_SQL } from "./outcomes";
+
 /**
  * Daily housekeeping (cron). Everything deleted here is either already unusable (expired) or past its retention window.
  * Counts are returned and logged so a cron that silently stops doing anything is visible.
@@ -18,6 +20,8 @@ const JOBS: { name: string; sql: string }[] = [
   { name: "idempotency_keys", sql: "DELETE FROM idempotency_keys WHERE created_at < datetime('now', '-1 day')" },
   // How many new papers a person brought into the shared index on a day: only today matters; a few weeks stay for a look at use.
   { name: "oa_daily", sql: "DELETE FROM oa_daily WHERE day < date('now', '-35 days')" },
+  // How answers went: a few weeks are enough to see a trend (src/outcomes.ts).
+  { name: "answer_outcomes", sql: OUTCOME_RETENTION_SQL },
   { name: "audit_log", sql: "DELETE FROM audit_log WHERE ts < datetime('now', '-365 days')" },
 ];
 

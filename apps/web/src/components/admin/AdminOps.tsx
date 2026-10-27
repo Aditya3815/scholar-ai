@@ -1,6 +1,6 @@
 import { CircleAlert, CircleCheck, DatabaseBackup, FolderSearch, UserX } from "lucide-react";
 import { useState } from "react";
-import type { IntegrityReport, JobState, JobStatus } from "@scholar/shared";
+import type { AnswerOutcomeRow, IntegrityReport, JobState, JobStatus } from "@scholar/shared";
 
 const JOB_NAME: Record<string, string> = { maintenance: "Daily clean-up", retraction_check: "Retraction re-check of saved papers" };
 const STATE_TEXT: Record<JobState, string> = {
@@ -10,6 +10,79 @@ const STATE_TEXT: Record<JobState, string> = {
   overdue: "Did not run in time",
 };
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "never");
+
+const FEATURE_NAME: Record<string, string> = {
+  chat: "Questions in the prompt box",
+  oa_ask: "Ask this paper (from its text)",
+  oa_ask_abstract: "Ask this paper (from its abstract only)",
+  doc_ask: "Questions about papers people uploaded",
+};
+const OUTCOME_TEXT: Record<string, string> = {
+  answered: "Answered, every claim checked",
+  not_in_paper: "The paper does not contain it (it said so)",
+  unverified: "Found, but a quote did not check out (shown with a warning)",
+  not_answered: "The papers do not answer it (it said so)",
+  not_grounded: "The model wrote an answer that our own check then refused",
+  no_abstracts: "Papers found, none with an abstract to read",
+  quota: "The person's daily allowance was used",
+  unavailable: "The AI service was unavailable",
+  stopped: "Stopped by the person",
+  routed: "Offered another tool",
+  small_talk: "A greeting or thanks, answered by the page",
+  sign_in: "A signed-out visitor: papers, no written answer",
+  too_long: "Too long to search for",
+  other: "Something else",
+};
+/** Outcomes where the model was asked and the papers could have answered: the ones the share of "refused by our check" is taken over. */
+const ATTEMPTED = ["answered", "not_grounded", "not_answered"];
+
+/**
+ * How answers went in the last seven days, as counts (no text, no person, no paper). The line to watch is how often the model wrote an answer that our own check refused: if it is
+ * small, a second try is not worth building; if it is large, it is (docs/design/research-patterns.md, section 3).
+ */
+export function AnswerOutcomes({ rows }: { rows: AnswerOutcomeRow[] }) {
+  const features = [...new Set(rows.map((r) => r.feature))];
+  const chat = rows.filter((r) => r.feature === "chat");
+  const attempted = chat.filter((r) => ATTEMPTED.includes(r.outcome)).reduce((sum, r) => sum + r.n, 0);
+  const refused = chat.find((r) => r.outcome === "not_grounded")?.n ?? 0;
+  return (
+    <section className="card admin-sec" aria-labelledby="answers-h">
+      <h2 id="answers-h" className="admin-h2">How answers went, last 7 days</h2>
+      {rows.length === 0 ? (
+        <p className="admin-lead">Nothing counted yet. Each answered question adds one to a count here: no text, no person.</p>
+      ) : (
+        <>
+          <p className="admin-lead">
+            {attempted > 0
+              ? `In the prompt box, the model wrote an answer that our own check then refused in ${refused.toLocaleString("en-IN")} of ${attempted.toLocaleString("en-IN")} questions that the papers could have answered (${Math.round((refused / attempted) * 100)}%).`
+              : "No question in the prompt box was answered by the papers in this period."}
+          </p>
+          {features.map((f) => {
+            const own = rows.filter((r) => r.feature === f);
+            const total = own.reduce((sum, r) => sum + r.n, 0);
+            return (
+              <table className="admin-table" key={f}>
+                <caption>{FEATURE_NAME[f] ?? f}</caption>
+                <thead>
+                  <tr><th scope="col">What happened</th><th scope="col" className="num">Times</th><th scope="col" className="num">Share</th></tr>
+                </thead>
+                <tbody>
+                  {own.map((r) => (
+                    <tr key={r.outcome}>
+                      <td>{OUTCOME_TEXT[r.outcome] ?? r.outcome}</td>
+                      <td className="num">{r.n.toLocaleString("en-IN")}</td>
+                      <td className="num">{Math.round((r.n / total) * 100)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            );
+          })}
+        </>
+      )}
+    </section>
+  );
+}
 
 /** The scheduled jobs and whether each ran on time. The same states are what /api/v1/health/jobs reports to an uptime check. */
 export function Jobs({ jobs }: { jobs: JobStatus[] }) {

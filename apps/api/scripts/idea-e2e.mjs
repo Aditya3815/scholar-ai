@@ -2,6 +2,7 @@
 // literature services. `npm run integration -w apps/api` starts everything.
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
+import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 let failures = 0;
@@ -28,6 +29,7 @@ async function events(res) {
       if (data) out.push(JSON.parse(data.slice(5)));
     }
   }
+  checkStream("idea", out, "idea");
   return out;
 }
 
@@ -100,6 +102,7 @@ try {
   console.log("nothing is kept");
   const lib = await (await A.api("/api/v1/library")).json();
   ok(!JSON.stringify(lib).includes("cooperative"), "the idea is not written into the library");
+  reportStreams(ok);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
   failures++;

@@ -82,6 +82,11 @@ try {
   await page.waitForTimeout(1000);
   ok(/Admin/.test(await page.title()), "the page has its own title");
   ok((await page.locator(".admin-stat").count()) === 3, "it shows people, papers and questions");
+  const answers = page.getByRole("region", { name: "How answers went, last 7 days" });
+  await answers.waitFor({ timeout: 8000 });
+  const answersText = await answers.innerText();
+  ok(/Nothing counted yet|questions that the papers could have answered|No question in the prompt box was answered/.test(answersText), "it says how answers went in the last seven days, in words");
+  ok(!/@|http/.test(answersText), "...with counts only: no text, no person");
   ok(/\b1\b/.test(await page.locator(".admin-stat").first().innerText()), "the people count is right");
   const reports = page.locator(".admin-report");
   ok((await reports.count()) === 1, "the report that was just sent is listed");

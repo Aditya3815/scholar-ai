@@ -102,6 +102,14 @@ A question uses one gateway call (about 3 to 4k tokens); the per-user daily toke
 - **Size budget for a first visit** (`apps/web/scripts/budget.mjs`, run in CI after the build as `npm run budget -w apps/web`): scripts 250 KB gzip, style sheet 26 KB, preloaded fonts 185 KB, the intro chunk 15 KB, the PDF reader chunk 66 KB, and none of the heavy chunks in the first load. Going over fails the build; raising a limit is a decision written down in design/w6.md. `e2e/perf.mjs` (part of the browser integration run) measures first paint and layout shift on a slow link with a slow processor.
 - A promise the intro page may only make once the product keeps it is a switch in `FEATURES` (`lib/workspace.ts`), for example `hinglish` (turned on in phase W3).
 
+## Streams: the event rule, and how answers went (27 Oct 2026)
+
+Design: [design/research-patterns.md](design/research-patterns.md), sections 1 and 3.
+
+- **The rule for every stream the server sends: progress and text are different event types.** A *progress* event (`step`, `stage`, `ingest`) says that work is moving and never carries the words of an answer; a *text* event (`token`, `general_token`, `delta`) carries nothing but `text`, is provisional and is replaced by the result event that follows; a stream has exactly one *end* event and it is last (`done`/`error` for chat and Idea Check, `answer`/`error` for a question about a paper); the reading progress of a paper (`ingest.progress`) is a number from 0 to 1 that never goes back. The table of every event type and its kind is `packages/shared/src/stream-shape.ts` and is typed against the event unions: **a new event type does not compile until it is classified**. `streamShapeProblems` checks a recorded stream; the endpoint tests (chat, Idea Check, questions about a paper, Ask this paper) run it on every stream they read and report it on their last line.
+- **A new stream or a new event:** add the type to the union, classify it in `stream-shape.ts`, and write the test for any rule it needs. Keep-alive stays an SSE comment line (`sse.ts`), never an event.
+- **How answers went** (`answer_outcomes`, migration 0019, counts only: a day, a feature, an outcome, a number; no text, no person, no paper; kept 90 days): the admin page shows the last seven days under "How answers went". The line to watch is how often the model wrote an answer that our own check then refused (`not_grounded`) among the questions the papers could have answered. It decides whether a "check again" step is built: under about 5% it is not worth it.
+
 ## Open-access papers (W4, the shared index)
 
 Design: [design/oa-w4.md](design/oa-w4.md). A paper is read once into `oa_papers` / `oa_chunks` by a Cloudflare Workflow (`OaIngest`, binding `OA_INGEST`, named `scholar-oa-ingest` in production and `scholar-oa-ingest-staging`). The first deploy that contains it creates the Workflow; nothing else to set up.

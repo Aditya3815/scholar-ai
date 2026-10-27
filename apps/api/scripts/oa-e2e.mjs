@@ -2,6 +2,7 @@
 // the model and embeddings (QA_STUB=1). `npm run integration -w apps/api` starts everything. The DOI says what the stand-in network does: see src/oa/stub.ts.
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
+import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 let failures = 0;
@@ -39,6 +40,7 @@ async function ask(client, ref, question, { origin = APP, abstract, raw } = {}) 
       if (data) events.push(JSON.parse(data.slice(5)));
     }
   }
+  checkStream("ask", events, JSON.stringify(ref).slice(0, 40));
   return { res, events, text };
 }
 const sql = async (...statements) => (await (await fetch(`${APP}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: statements }) })).json()).results ?? [];
@@ -177,6 +179,11 @@ try {
   const tables = (await sql("SELECT name FROM sqlite_master WHERE type = 'table' AND substr(name, 1, 3) = 'oa_'"))[0].map((r) => r.name).sort();
   ok(tables.join() === "oa_chunks,oa_daily,oa_papers", `only the shared tables exist (${tables.join(", ")})`);
   ok((await sql("SELECT COUNT(*) AS n FROM oa_chunks WHERE text LIKE '%adults were enrolled in the study%'"))[0][0].n === 0, "the question was not stored anywhere");
+
+  console.log("how answers went is counted, as counts");
+  const byOutcome = Object.fromEntries((await sql("SELECT feature || ':' || outcome AS k, SUM(n) AS n FROM answer_outcomes GROUP BY feature, outcome"))[0].map((r) => [r.k, r.n]));
+  ok(byOutcome["oa_ask:answered"] >= 1 && byOutcome["oa_ask_abstract:answered"] >= 1, `a question about a paper counts as answered from its text and, apart, from its abstract only (${JSON.stringify(byOutcome)})`);
+  reportStreams(ok);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
   failures++;

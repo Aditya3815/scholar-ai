@@ -58,6 +58,7 @@ try {
     ok((await fetch(`${APP}/api/v1/health`)).status === 200, "the ordinary health check is separate and unaffected");
     const o = await overview(admin);
     ok(Array.isArray(o.jobs) && o.jobs[0].state === "ok", "the admin overview lists the job as well");
+    ok(Array.isArray(o.answers) && o.answers.length > 0 && o.answers.every((r) => typeof r.feature === "string" && typeof r.outcome === "string" && r.n > 0 && Object.keys(r).sort().join() === "feature,n,outcome"), "the admin overview carries how answers went in the last seven days, as counts only");
   }
 
   console.log("a run is recorded");

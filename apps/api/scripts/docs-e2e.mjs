@@ -3,6 +3,7 @@
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
 import { SAMPLE_PAPER, makePdf } from "./lib/make-pdf.mjs";
+import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 let failures = 0;
@@ -176,6 +177,7 @@ try {
         if (stopAfter && events.filter((e) => e.type === "delta").length >= stopAfter) return events;
       }
     }
+    checkStream("ask", events, "paper question");
     return events;
   }
   const t0 = Date.now();
@@ -376,6 +378,10 @@ try {
   ok(!(await inStorage(scanned.id)), "deleting the account removes every uploaded PDF from storage");
   const A2 = await login("doc-a", "a@example.com", "Alice");
   ok((await (await A2.api("/api/v1/documents")).json()).items.length === 0, "a new account with the same sign-in has no papers left");
+
+  const counted = await (await A.api("/api/v1/dev/sql", { method: "POST", body: { sql: ["SELECT outcome, SUM(n) AS n FROM answer_outcomes WHERE feature = 'doc_ask' GROUP BY outcome"] } })).json();
+  ok((counted.results?.[0] ?? []).some((r) => r.outcome === "answered" && r.n >= 1), "a question about a paper of your own is counted as answered");
+  reportStreams(ok);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
   failures++;
