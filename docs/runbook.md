@@ -93,10 +93,12 @@ A question uses one gateway call (about 3 to 4k tokens); the per-user daily toke
 - **Weekly Q&A quality** (`.github/workflows/qa-eval.yml`, Tuesdays): downloads the five public gold-set papers, asks the 35 questions with the real models and fails below the gate
   (`qa-eval.mjs --gate`). It needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. First run: trigger it by hand (Actions, "Q&A quality", Run workflow).
 
-## The new look (workspace redesign, switched on with `?ws=1`)
+## The new look (the default since W6, 27 Oct 2026)
 
-- It is **off by default**; the switch lives in the browser (`localStorage` key `scholar.ws`), nothing on the server. Open any page with `?ws=1` to turn it on and `?ws=0` to turn it off. To make it the default for everyone (after approval), change `WORKSPACE` in `apps/web/src/lib/workspace.ts` to `true` and deploy; to take it away again, set it back.
-- What is behind it: the intro page for signed-out visitors (`/`), the home screen (`/` signed in, `/home` for people who skipped signing in), the rail, `/library`, `/settings`, and My papers without the "Open and ask" button. Design and measurements: [design/scroll-site.md](design/scroll-site.md), plan: [design/unified-workspace.md](design/unified-workspace.md).
+- It is **on by default**. The old pages are still in the code for one release as a way back: open any page with `?ws=0` to use them (remembered in this browser, `localStorage` key `scholar.ws` = `0`), `?ws=1` to return. Nothing on the server. A value `1` stored before W6 means the new look, as before.
+- **To take it away for everyone** (a problem that cannot wait): in `apps/web/src/lib/workspace.ts` make `read()` return `false` when nothing is stored (`!== "0"` becomes `=== "1"`) and deploy; or revert the W6 commit. Nothing else depends on it. Once the new look has been stable the flag and the old pages are removed (design/w6.md, "What comes next").
+- What it is: the intro page for signed-out visitors (`/`), the home screen (`/` signed in, `/home` for people who skipped signing in), the rail (with Admin for admins), `/library`, `/settings` (with "Link ORCID/Google"), My Workspace. Design and measurements: [design/scroll-site.md](design/scroll-site.md), plan: [design/unified-workspace.md](design/unified-workspace.md), the switch-over: [design/w6.md](design/w6.md).
+- **Size budget for a first visit** (`apps/web/scripts/budget.mjs`, run in CI after the build as `npm run budget -w apps/web`): scripts 250 KB gzip, style sheet 26 KB, preloaded fonts 185 KB, the intro chunk 15 KB, the PDF reader chunk 66 KB, and none of the heavy chunks in the first load. Going over fails the build; raising a limit is a decision written down in design/w6.md. `e2e/perf.mjs` (part of the browser integration run) measures first paint and layout shift on a slow link with a slow processor.
 - A promise the intro page may only make once the product keeps it is a switch in `FEATURES` (`lib/workspace.ts`), for example `hinglish` (turned on in phase W3).
 
 ## Open-access papers (W4, the shared index)

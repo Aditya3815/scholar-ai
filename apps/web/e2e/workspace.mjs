@@ -943,21 +943,35 @@ try {
   await page.locator("#in-h1").waitFor({ timeout: 10000 });
   ok(true, "signing out returns to the intro page");
 
-  /* ============================ the old look is untouched without the flag ============================ */
-  console.log("without the flag");
+  /* ============================ the new look is the default (W6); ?ws=0 is the way back ============================ */
+  console.log("the default and the way back");
   const octx = await newCtx();
   const op = await octx.newPage();
   watch(op);
   await op.goto(BASE + "/", { waitUntil: "networkidle" });
-  await op.waitForTimeout(1500);
-  ok(await op.locator(".topbar").count() === 1 && await op.locator(".in-head, .ws-rail").count() === 0, "without ?ws=1 the product looks and works as before");
-  await op.goto(BASE + "/?ws=1", { waitUntil: "networkidle" });
-  await op.locator("#in-h1").waitFor();
-  ok(!new URL(op.url()).search.includes("ws="), "?ws=1 turns the new look on and disappears from the address");
+  await op.locator("#in-h1").waitFor({ timeout: 10000 });
+  ok(await op.locator(".topbar").count() === 0, "with nothing set, a new visitor gets the new look");
   await op.goto(BASE + "/?ws=0", { waitUntil: "networkidle" });
-  await op.waitForTimeout(1000);
-  ok(await op.locator(".topbar").count() === 1, "?ws=0 turns it off again");
+  await op.locator(".topbar").waitFor({ timeout: 10000 });
+  ok(await op.locator(".in-head, .ws-rail").count() === 0 && !new URL(op.url()).search.includes("ws="), "?ws=0 shows the old pages and disappears from the address");
+  await op.reload({ waitUntil: "networkidle" });
+  await op.locator(".topbar").waitFor({ timeout: 10000 });
+  ok(true, "and the old pages are remembered in this browser");
+  await op.goto(BASE + "/?ws=1", { waitUntil: "networkidle" });
+  await op.locator("#in-h1").waitFor({ timeout: 10000 });
+  ok(!new URL(op.url()).search.includes("ws="), "?ws=1 returns to the new look and disappears from the address");
+  await op.reload({ waitUntil: "networkidle" });
+  await op.locator("#in-h1").waitFor({ timeout: 10000 });
+  ok(await op.locator(".topbar").count() === 0, "and the new look is what a reload shows");
   await octx.close();
+
+  const sctx = await newCtx();
+  await sctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "1"); } catch {} });
+  const sp = await sctx.newPage();
+  await sp.goto(BASE + "/", { waitUntil: "networkidle" });
+  await sp.locator("#in-h1").waitFor({ timeout: 10000 });
+  ok(true, "someone who turned the new look on before W6 (the old stored value) still gets it");
+  await sctx.close();
 
   ok(errors.length === 0, `no console or page errors${errors.length ? ": " + errors.slice(0, 4).join(" | ") : ""}`);
 } catch (e) {

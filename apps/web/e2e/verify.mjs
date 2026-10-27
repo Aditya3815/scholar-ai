@@ -74,21 +74,22 @@ const setTheme = async (label) => { await page.getByRole("button", { name: `${la
 try {
   /* ---------- navigation ---------- */
   console.log("navigation");
-  await page.goto(BASE, { waitUntil: "networkidle" });
-  ok((await page.getByRole("link", { name: "Search", exact: true }).getAttribute("aria-current")) === "page", "Search is the current page on /");
-  await page.getByRole("link", { name: /Verify your references/ }).click();
+  const rail = page.locator(".ws-rail");
+  await page.goto(BASE + "/home", { waitUntil: "networkidle" });
+  await rail.getByRole("link", { name: "Check references", exact: true }).click();
   await page.getByRole("heading", { level: 1, name: /Is every reference/ }).waitFor();
-  ok(new URL(page.url()).pathname === "/verify", "the home page links to /verify without a reload");
-  await page.getByRole("link", { name: "Search", exact: true }).click();
-  await page.getByRole("heading", { level: 1, name: /Find papers you can/ }).waitFor();
-  await page.getByRole("link", { name: "Verify references", exact: true }).click();
-  await page.getByRole("heading", { level: 1, name: /Is every reference/ }).waitFor();
-  ok(new URL(page.url()).pathname === "/verify", "top navigation goes to /verify");
+  ok(new URL(page.url()).pathname === "/verify", "the rail goes to /verify without a reload");
+  ok((await rail.getByRole("link", { name: "Check references", exact: true }).getAttribute("aria-current")) === "page", "and marks it as the current page");
   ok((await page.title()).startsWith("Verify references"), "document title follows the page");
+  await rail.getByRole("link", { name: "Home", exact: true }).click();
+  await page.locator(".hm-box").waitFor();
   await page.goBack();
-  await page.getByRole("heading", { level: 1, name: /Find papers you can/ }).waitFor();
-  ok(true, "browser Back returns to search");
+  await page.getByRole("heading", { level: 1, name: /Is every reference/ }).waitFor();
+  ok(true, "browser Back returns to the references page");
   await page.goForward();
+  await page.locator(".hm-box").waitFor();
+  ok(true, "and Forward goes on to Home");
+  await page.goBack();
   await page.getByRole("heading", { level: 1, name: /Is every reference/ }).waitFor();
   await page.goto(BASE + "/verify", { waitUntil: "networkidle" });
   ok(await page.getByRole("heading", { level: 1, name: /Is every reference/ }).isVisible(), "/verify opens directly (deep link)");
@@ -213,8 +214,8 @@ try {
     await p.waitForTimeout(900);
     const overflow = await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
     ok(!overflow, `${w}px: no horizontal overflow`);
-    const nav = await p.getByRole("link", { name: "Verify references", exact: true }).boundingBox();
-    ok(!!nav && nav.x >= 0 && nav.x + nav.width <= w, `${w}px: navigation fully visible`);
+    const nav = await p.locator(".ws-menu-btn:visible, .ws-rail:visible").first().boundingBox();
+    ok(!!nav && nav.x >= 0 && nav.x + nav.width <= w, `${w}px: the menu (or the rail) is fully visible`);
     await p.evaluate(() => window.scrollTo(0, 0));
     await shot(`47-verify-${w}`, p);
     if (w === 375) {

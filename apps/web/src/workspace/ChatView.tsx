@@ -1,6 +1,6 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowRight, ChevronDown, FileStack, Info, Lightbulb, ListChecks, RefreshCw, Search, ShieldCheck, TriangleAlert } from "lucide-react";
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GENERAL_LABEL, MAX_CHAT_CHARS, ROUTE_NAMES, type AssistantMsg, type ChatMsg, type IdeaMsg, type ChatNoAnswer, type RouteMode } from "@scholar/shared";
 import { SignInDialog } from "../components/AccountMenu";
 import { Pop } from "../components/Pop";
@@ -9,7 +9,8 @@ import { StreamingText } from "../components/papers/AskPanel";
 import { openPreview } from "../lib/preview";
 import { easeOut, spring } from "../lib/motion";
 import { PAPERS_NAME } from "../lib/workspace";
-import { IdeaWorkspace } from "../components/idea/IdeaPage";
+// the Idea Check workspace is a chunk of its own, fetched when an idea is checked here (the first load has a size budget)
+const IdeaWorkspace = lazy(() => import("../components/idea/IdeaPage").then((m) => ({ default: m.IdeaWorkspace })));
 
 /** What is said when a reply has papers but no written answer. Plain words, and never a sentence the model could not back. */
 const WHY: Record<ChatNoAnswer, string> = {
@@ -315,7 +316,9 @@ function IdeaTurn({ msg, live, onAgain }: { msg: IdeaMsg; live: boolean; onAgain
     <section className="chat-idea" aria-label="Idea Check">
       <p className="chat-idea-kicker"><Lightbulb size={15} aria-hidden="true" /> <b>Idea Check</b></p>
       {live ? (
-        <IdeaWorkspace initialText={msg.text} autoPlan embedded />
+        <Suspense fallback={<p className="chat-why" role="status">Opening Idea Check…</p>}>
+          <IdeaWorkspace initialText={msg.text} autoPlan embedded />
+        </Suspense>
       ) : (
         <p className="chat-why" role="note">
           <span className="chat-why-row">

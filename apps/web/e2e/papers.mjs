@@ -88,7 +88,7 @@ try {
   await page.keyboard.press("Escape");
   await sheet.waitFor({ state: "detached" });
   ok(true, "Escape closes the preview");
-  await page.getByRole("button", { name: /^Library, 1 saved/ }).click();
+  await page.locator(".ws-rail").getByRole("link", { name: /^Library/ }).click();
   await page.waitForTimeout(500);
   await page.locator(".drawer-item-open", { hasText: "Preview test paper number 2" }).click();
   await page.getByRole("dialog").locator(".pv-title").waitFor();
@@ -109,7 +109,7 @@ try {
   /* ---------- sign in and upload ---------- */
   console.log("upload");
   await page.getByRole("button", { name: "Continue with Google" }).click();
-  await page.getByRole("button", { name: /^Account:/ }).waitFor({ timeout: 15000 });
+  await page.locator("button[aria-label^=\"Account:\"], .ws-who").first().waitFor({ timeout: 15000 });
   ok(new URL(page.url()).pathname === "/papers", "sign-in returns to the papers page");
   await page.getByRole("button", { name: /Upload PDF papers/ }).waitFor();
   const note = page.getByRole("region", { name: /how your papers are handled/ });
@@ -155,7 +155,7 @@ try {
 
   /* ---------- reader + questions ---------- */
   console.log("reader and questions");
-  await card.getByRole("button", { name: "Open and ask" }).click();
+  await card.locator(".dc-open").click();
   await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
   ok(/^\/papers\/[a-f0-9]+$/.test(new URL(page.url()).pathname), "the paper has its own address");
   ok((await page.locator(".pdfp").count()) === 3, "all 3 pages are laid out");
@@ -296,7 +296,7 @@ try {
 
   await page.getByRole("tab", { name: /^Notes/ }).first().click();
   const dl = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download" }).click();
+  await page.getByRole("button", { name: "Download", exact: true }).click();
   const file = await dl;
   ok(/notes\.md$/.test(file.suggestedFilename()), `the notes download as Markdown (${file.suggestedFilename()})`);
 
@@ -546,13 +546,13 @@ try {
     return { input: reference, status: verified ? "verified" : "not_found", reason: verified ? "Matches a real record." : "No matching paper was found in Crossref.", confidence: 1, retracted: reference.includes("Ccc") || undefined, match: verified ? { doi: "10.1000/x", title: "A matched title", authors: ["A. Writer"], year: 2001, venue: "Journal" } : null, checks: verified ? { title: 1, author: true, year: true } : null };
   };
   await page.route("**/api/v1/references/verify", (route) => route.fulfill({ json: verdict(route.request().postDataJSON().reference) }));
-  await page.getByRole("button", { name: "My papers", exact: true }).first().click();
+  await page.getByRole("button", { name: /^My (papers|Workspace)$/ }).first().click();
   await page.locator(".dc").first().waitFor();
   const before = await page.locator(".dc").count();
   await page.locator('input[type="file"]').setInputFiles({ name: "structured_paper.pdf", mimeType: "application/pdf", buffer: structured });
   await page.locator(".dc", { hasText: "Glaucoma Screening in Rural Clinics" }).waitFor({ timeout: 40000 });
   ok((await page.locator(".dc").count()) === before + 1, "the new paper takes the title found in its PDF, not its file name");
-  await page.locator(".dc", { hasText: "Glaucoma Screening in Rural Clinics" }).getByRole("button", { name: "Open and ask" }).click();
+  await page.locator(".dc", { hasText: "Glaucoma Screening in Rural Clinics" }).locator(".dc-open").click();
   await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
   ok(await page.getByRole("heading", { level: 1, name: /Glaucoma Screening in Rural Clinics/ }).isVisible(), "the workspace shows that title");
   ok((await page.locator(".dw-sidetab .dw-tab-n").innerText()).trim() === "3", "the References tab shows how many were found (3)");
@@ -651,7 +651,7 @@ try {
   await mp.close();
 
   console.log("delete");
-  await page.getByRole("button", { name: "My papers", exact: true }).first().click();
+  await page.getByRole("button", { name: /^My (papers|Workspace)$/ }).first().click();
   await page.locator(".dc").first().waitFor();
   await page.getByRole("button", { name: /^Delete Glaucoma screening/ }).click();
   const confirm = page.getByRole("dialog");

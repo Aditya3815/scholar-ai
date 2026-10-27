@@ -51,13 +51,13 @@ try {
   await page.goto(BASE + "/idea", { waitUntil: "networkidle" });
   await page.getByRole("heading", { level: 2, name: "Sign in to check an idea" }).waitFor();
   ok(/Idea Check/.test(await page.title()), "the page has its own title");
-  ok((await page.getByRole("link", { name: "Idea Check" }).getAttribute("aria-current")) === "page", "the navigation marks Idea Check as the current page");
+  ok((await page.locator(".ws-rail").getByRole("link", { name: "Idea Check", exact: true }).getAttribute("aria-current")) === "page", "the navigation marks Idea Check as the current page");
   await page.waitForTimeout(1500);
   await axe("idea, signed out");
 
   /* ---------- sign in ---------- */
   await page.getByRole("button", { name: "Continue with Google" }).click();
-  await page.getByRole("button", { name: /^Account:/ }).waitFor({ timeout: 15000 });
+  await page.locator("button[aria-label^=\"Account:\"], .ws-who").first().waitFor({ timeout: 15000 });
   ok(new URL(page.url()).pathname === "/idea", "sign-in returns to Idea Check");
   await textbox().waitFor();
   await page.waitForTimeout(1200);
@@ -65,12 +65,12 @@ try {
   await axe("idea, input");
   await setTheme("Dark"); await shot("71-idea-input-dark"); await axe("idea, input, dark"); await setTheme("Light");
 
-  /* ---------- the home page leads here ---------- */
-  console.log("start cards");
+  /* ---------- the rail leads here ---------- */
+  console.log("the way in");
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
-  await page.getByRole("link", { name: /Check an idea/ }).click();
+  await page.locator(".ws-rail").getByRole("link", { name: "Idea Check", exact: true }).click();
   await textbox().waitFor();
-  ok(new URL(page.url()).pathname === "/idea", "the home page has a card that opens Idea Check");
+  ok(new URL(page.url()).pathname === "/idea", "the rail opens Idea Check");
 
   /* ---------- the button waits for enough text ---------- */
   console.log("input");

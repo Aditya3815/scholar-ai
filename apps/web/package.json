@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "contrast": "node scripts/contrast.mjs",
+    "budget": "node scripts/budget.mjs",
     "e2e": "node e2e/smoke.mjs",
     "e2e:auth": "node e2e/auth.mjs",
     "e2e:library": "node e2e/library.mjs",

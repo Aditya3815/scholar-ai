@@ -13,12 +13,8 @@ import { SearchBox } from "./components/SearchBox";
 import { SourceStatus } from "./components/SourceStatus";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { TopNav, type View } from "./components/TopNav";
-import { VerifyPage } from "./components/verify/VerifyPage";
 import { DocWorkspace } from "./components/papers/DocWorkspace";
 import { PapersPage } from "./components/papers/PapersPage";
-import { IdeaPage } from "./components/idea/IdeaPage";
-import { AdminPage } from "./components/admin/AdminPage";
-import { HowWeVerifyPage, PrivacyPage, TermsPage } from "./components/legal/LegalPages";
 import { Footer } from "./components/Footer";
 import { takeAuthError, useAuth } from "./lib/auth";
 import { easeOut } from "./lib/motion";
@@ -36,6 +32,14 @@ import { LibraryPage, SettingsPage } from "./workspace/Pages";
 // the intro page is its own chunk: people who are signed in never download it
 const loadIntro = () => import("./workspace/intro/IntroPage");
 const IntroPage = lazy(loadIntro);
+// Pages that are not the first screen are chunks of their own, fetched when someone goes there (the first load has a size budget: apps/web/scripts/budget.mjs).
+// The paper pages are not split off: they must open offline once reading offline is on.
+const VerifyPage = lazy(() => import("./components/verify/VerifyPage").then((m) => ({ default: m.VerifyPage })));
+const IdeaPage = lazy(() => import("./components/idea/IdeaPage").then((m) => ({ default: m.IdeaPage })));
+const AdminPage = lazy(() => import("./components/admin/AdminPage").then((m) => ({ default: m.AdminPage })));
+const PrivacyPage = lazy(() => import("./components/legal/LegalPages").then((m) => ({ default: m.PrivacyPage })));
+const TermsPage = lazy(() => import("./components/legal/LegalPages").then((m) => ({ default: m.TermsPage })));
+const HowWeVerifyPage = lazy(() => import("./components/legal/LegalPages").then((m) => ({ default: m.HowWeVerifyPage })));
 // Someone who has never signed in on this browser is probably about to see the intro page: ask for its chunk now, in parallel with the "who am I" request, not after it.
 if (WORKSPACE && typeof localStorage !== "undefined" && !(() => { try { return localStorage.getItem("scholar.signedin") === "1"; } catch { return false; } })()) void loadIntro();
 
@@ -91,7 +95,7 @@ export function App() {
   const navigate = useCallback(
     (next: View, docId: string | null = null) => {
       if (next === view && docId === route.docId) return;
-      const path = next === "verify" ? "/verify" : next === "idea" ? "/idea" : next === "library" ? "/library" : next === "settings" ? "/settings" : next === "papers" ? (docId ? `/papers/${docId}` : "/papers") : state.status === "idle" ? "/" : `/?q=${encodeURIComponent(query)}`;
+      const path = next === "verify" ? "/verify" : next === "idea" ? "/idea" : next === "library" ? "/library" : next === "settings" ? "/settings" : next === "admin" ? "/admin" : next === "privacy" ? "/privacy" : next === "terms" ? "/terms" : next === "how" ? "/how-we-verify" : next === "papers" ? (docId ? `/papers/${docId}` : "/papers") : state.status === "idle" ? "/" : `/?q=${encodeURIComponent(query)}`;
       history.pushState(null, "", path);
       setRoute({ view: next, docId });
       window.scrollTo(0, 0);
@@ -195,6 +199,7 @@ export function App() {
   );
   const mainEl = (
     <main id="main" className="main" data-view={view === "papers" && route.docId ? "paper" : view}>
+      <Suspense fallback={<p className="ws-page-lead" role="status" style={{ minHeight: "60vh" }}>Loading…</p>}>
       {view === "verify" ? (
         <VerifyPage />
       ) : view === "privacy" ? (
@@ -286,6 +291,7 @@ export function App() {
         )}
       </AnimatePresence>
       )}
+      </Suspense>
     </main>
   );
 

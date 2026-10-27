@@ -116,6 +116,8 @@ try {
     ok = await run("browser: admin and reports", "e2e/admin.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: legal pages", "e2e/legal.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: workspace (new look)", "e2e/workspace.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: the default look (W6)", "e2e/default.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: first paint and layout shift (W6)", "e2e/perf.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: chat (prompt box)", "e2e/chat.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: ask any paper", "e2e/oa.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: idea check in the conversation", "e2e/idea-chat.mjs", [`http://localhost:${PORT}`], web) && ok;

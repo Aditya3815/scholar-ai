@@ -22,6 +22,7 @@ idp.setUser({ sub: "ui-1", email: "asha.rao@example.edu", email_verified: true, 
 
 const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+await ctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "0"); } catch {} }); // these suites test the old pages, kept one release behind ?ws=0 (docs/design/w6.md)
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
@@ -115,6 +116,7 @@ try {
   // Mobile layouts: header must fit, and nothing overflows horizontally
   for (const width of [390, 360]) {
     const mctx = await browser.newContext({ viewport: { width, height: 800 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await mctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "0"); } catch {} }); // these suites test the old pages, kept one release behind ?ws=0 (docs/design/w6.md)
     const mp = await mctx.newPage();
     await mp.goto(BASE, { waitUntil: "networkidle" });
     await mp.waitForTimeout(1800);

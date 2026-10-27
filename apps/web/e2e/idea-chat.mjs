@@ -173,6 +173,7 @@ try {
   await ap.locator(".hm-input").fill(IDEA);
   await ap.keyboard.press("Enter");
   await ap.locator(".chat-idea").waitFor({ timeout: 10000 });
+  await ap.locator(".chat-idea").getByRole("heading", { level: 2, name: "Sign in to check an idea" }).waitFor({ timeout: 10000 }); // the workspace is a chunk fetched on arrival
   ok(await ap.locator(".chat-idea").getByRole("heading", { level: 2, name: "Sign in to check an idea" }).isVisible() && await ap.locator(".chat-idea textarea").count() === 0, "a visitor is asked to sign in inside the turn; nothing is read");
   await ap.waitForTimeout(700);
   await axe("idea in the conversation, signed out", ap);

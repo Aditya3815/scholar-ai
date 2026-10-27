@@ -46,16 +46,14 @@ try {
   ok(true, "a signed-out visitor sees 'Page not found', not an admin page");
 
   await page.goto(BASE + "/verify", { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.locator(".ws-rail").getByRole("button", { name: "Sign in" }).click();
   await page.getByRole("button", { name: "Continue with Google" }).click();
-  await page.getByRole("button", { name: /^Account:/ }).waitFor({ timeout: 15000 });
+  await page.locator(".ws-who").waitFor({ timeout: 15000 });
 
   await page.goto(BASE + "/admin", { waitUntil: "networkidle" });
   await page.getByText("Page not found").waitFor();
   ok(true, "so does an ordinary signed-in user");
-  await page.getByRole("button", { name: /^Account:/ }).click();
-  ok((await page.getByRole("link", { name: "Admin" }).count()) === 0, "...and the account menu has no Admin entry for them");
-  await page.keyboard.press("Escape");
+  ok((await page.locator(".ws-rail").getByRole("link", { name: "Admin", exact: true }).count()) === 0, "...and the rail has no Admin entry for them");
 
   console.log("report a reference verdict");
   await page.goto(BASE + "/verify", { waitUntil: "networkidle" });
@@ -168,9 +166,7 @@ try {
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("heading", { level: 1, name: "How it is going" }).waitFor();
 
-  await page.getByRole("button", { name: /^Account:/ }).click();
-  ok((await page.getByRole("link", { name: "Admin" }).count()) === 1, "an admin has the Admin entry in the account menu");
-  await page.keyboard.press("Escape");
+  ok((await page.locator(".ws-rail").getByRole("link", { name: "Admin", exact: true }).count()) === 1, "an admin has the Admin entry in the rail");
 
   await page.getByRole("button", { name: /^Remove this reference report/ }).click();
   await page.locator(".admin-report").waitFor({ state: "detached", timeout: 8000 });

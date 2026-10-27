@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
-import { Bookmark, FileStack, Home, Lightbulb, ListChecks, LogOut, Menu, MessageSquare, Plus, Settings, X } from "lucide-react";
+import { Activity, Bookmark, FileStack, Home, Lightbulb, ListChecks, LogOut, Menu, MessageSquare, Plus, Settings, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { signOut, useAuth } from "../lib/auth";
 import { useLibrary } from "../lib/library";
@@ -125,6 +125,7 @@ function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home
         <ul className="ws-nav">
           {user &&
             link({ id: "settings", label: "Settings", href: "/settings", Icon: Settings })}
+          {user?.role === "admin" && link({ id: "admin", label: "Admin", href: "/admin", Icon: Activity })}
         </ul>
         <ThemeSwitch scope={onClose ? "drawer" : "rail"} />
       </div>

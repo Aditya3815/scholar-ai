@@ -34,6 +34,8 @@ jobs:
       # reference gets verified, a retracted paper is missed, or a DOI we return does not resolve.
       - run: npm run eval
       - run: npm run build
+      # What a first visit downloads has a size budget (apps/web/scripts/budget.mjs, docs/design/w6.md): over it fails the build.
+      - run: npm run budget -w apps/web
       # Real Worker + local D1 + fake identity provider: sign-in (PKCE, replay, CSRF), library sync, export and account deletion.
       - run: npm run integration -w apps/api
 

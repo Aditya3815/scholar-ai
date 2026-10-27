@@ -1,8 +1,8 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
-import { AlertTriangle, Download, X } from "lucide-react";
+import { AlertTriangle, Download, Link2, X } from "lucide-react";
 import { useState } from "react";
-import { refreshAuth, useAuth } from "../lib/auth";
+import { linkProvider, refreshAuth, useAuth } from "../lib/auth";
 import { resetLibraryView } from "../lib/library";
 import { easeOut, spring } from "../lib/motion";
 import { showNotice } from "../lib/notice";
@@ -17,7 +17,7 @@ import { WORKSPACE } from "../lib/workspace";
  * Shown in the dialog from the account menu and, in the new look, on the Settings page.
  */
 export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: () => void; idPrefix?: string }) {
-  const { user } = useAuth();
+  const { user, providers } = useAuth();
   const rememberOn = useRememberOn();
   const chatCount = useChatState().index.length;
   const [confirm, setConfirm] = useState("");
@@ -25,6 +25,7 @@ export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: 
   const [error, setError] = useState<string | null>(null);
 
   if (!user) return null;
+  const unlinked = providers.filter((p) => !user.providers.includes(p.id));
 
   const deleteAccount = async () => {
     setBusy(true);
@@ -67,6 +68,17 @@ export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: 
           <dt>Signed in with</dt>
           <dd>{user.providers.map((p) => (p === "google" ? "Google" : "ORCID")).join(", ")}</dd>
         </dl>
+        {WORKSPACE && unlinked.length > 0 && (
+          <div className="settings-link">
+            <p className="settings-p">Link another way to sign in, so the same account opens with either.</p>
+            {unlinked.map((p) => (
+              <button key={p.id} type="button" className="btn btn-ghost btn-sm" onClick={() => linkProvider(p.id)}>
+                <Link2 size={15} aria-hidden="true" />
+                <span>Link {p.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </section>
 
       {WORKSPACE && (

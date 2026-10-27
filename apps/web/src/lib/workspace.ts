@@ -1,7 +1,8 @@
 /**
- * The new look (docs/design/unified-workspace.md, phase W1) is behind a switch until it is approved, so the product everyone uses today does not change under them.
- *   open any page with ?ws=1  to turn the new look on (remembered in this browser)
- *   open any page with ?ws=0  to turn it off again
+ * The new look (docs/design/unified-workspace.md, phases W1 to W6) is the product since W6. The switch that kept the old pages until then stays for one release as a way back,
+ * and is removed together with the old pages once the new look has been stable (docs/design/w6.md):
+ *   open any page with ?ws=0  to use the old pages (remembered in this browser)
+ *   open any page with ?ws=1  to return to the new look
  * The switch is read once when the page loads; there is nothing on the server.
  */
 const KEY = "scholar.ws";
@@ -10,7 +11,7 @@ function read(): boolean {
   try {
     const param = new URLSearchParams(location.search).get("ws");
     if (param === "1" || param === "0") {
-      if (param === "1") localStorage.setItem(KEY, "1");
+      if (param === "0") localStorage.setItem(KEY, "0");
       else localStorage.removeItem(KEY);
       const p = new URLSearchParams(location.search);
       p.delete("ws");
@@ -18,10 +19,10 @@ function read(): boolean {
       history.replaceState(null, "", location.pathname + (qs ? `?${qs}` : "") + location.hash);
       return param === "1";
     }
-    return localStorage.getItem(KEY) === "1";
+    return localStorage.getItem(KEY) !== "0";
   } catch {
-    // storage blocked: the switch cannot be remembered, so only the page that carries ?ws=1 shows the new look
-    return new URLSearchParams(location.search).get("ws") === "1";
+    // storage blocked: the way back cannot be remembered, so only the page that carries ?ws=0 shows the old pages
+    return new URLSearchParams(location.search).get("ws") !== "0";
   }
 }
 

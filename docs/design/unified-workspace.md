@@ -318,8 +318,8 @@ Each row is something I assumed or a case that can happen, what the product does
 | 2 | **(done 26 Oct, [chat-w2.md](chat-w2.md))** **Prompt box with explicit modes**: streamed search answer with citations, partial-results line, Stop, chats kept in the browser | e2e on staging; the eval gates unchanged |
 | 3 | **(done 26 Oct, [router-w3.md](router-w3.md))** **Router** (rules, then model) with English, Hindi and Hinglish; "I understood this as · Change"; Auto in the mode menu | router eval gate in CI (overall 90%, Hinglish and Hindi 85%; measured 100% on its 203 messages) |
 | 4 | **(built 26 Oct behind `?ws=1`, [oa-w4.md](oa-w4.md); spikes [R8](../spikes/R8-server-extraction.md) and [R9](../spikes/R9-workflows.md); the quality eval on real papers is still to do)** **Ask any open-access paper**: spike R8 (server extraction), shared index, queue ingest, safe fetch, abstract-only fallback, optional light save | SSRF and edge-case tests (section 9, P-1 to P-16), Q&A eval on shared papers incl. a Hinglish slice |
-| 5 | **General answers** with the label; **Idea Check inside the workspace** | groundedness eval; Idea Check suites unchanged |
-| 6 | Polish, bundle and first-paint budget, docs, remove the flag | pilot-ready checklist stays yours |
+| 5 | **(done 27 Oct, [chat-w5.md](chat-w5.md))** **General answers** with the label; **Idea Check inside the workspace** | groundedness eval; Idea Check suites unchanged |
+| 6 | **(done 27 Oct as W6a, [w6.md](w6.md); the flag and the old pages go in W6b)** Polish, bundle and first-paint budget, docs, new look the default | pilot-ready checklist stays yours |
 
 Each phase is shippable alone and updates `docs/roadmap.md`. The `WORKSPACE` flag keeps the old pages until Phase 6 is stable.
 

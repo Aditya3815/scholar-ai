@@ -57,7 +57,7 @@ try {
   /* ---------- sign in ---------- */
   await page.goto(BASE + "/papers", { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Continue with Google" }).click();
-  await page.getByRole("button", { name: /^Account:/ }).waitFor({ timeout: 15000 });
+  await page.locator("button[aria-label^=\"Account:\"], .ws-who").first().waitFor({ timeout: 15000 });
   const note = page.getByRole("region", { name: /how your papers are handled/ });
   await note.waitFor();
   await note.getByRole("button", { name: "I understand, continue" }).click();
@@ -83,7 +83,7 @@ try {
   const c1 = card("scanned report");
   await c1.waitFor();
   ok(/Scan/.test(await c1.locator(".dc-meta").innerText()), "the paper in the list is marked as a scan");
-  ok((await c1.getByRole("button", { name: "Open and ask" }).count()) === 1, "it is ready: 'Open and ask'");
+  ok((await c1.locator(".dc-open").count()) === 1 && (await c1.getByRole("button", { name: "Open and ask" }).count()) === 0, "it is ready: the cover opens it (there is no Open and ask button)");
   const list = await api("/documents");
   const d1 = list.items.find((d) => d.title === "scanned report");
   ok(d1.scanned === true && d1.status === "ready" && d1.scanPending === 0 && d1.chunkCount >= 3, `the server has it as a ready scan (${d1.chunkCount} passages)`);
@@ -94,7 +94,7 @@ try {
 
   /* ---------- the workspace and its banner ---------- */
   console.log("the banner");
-  await c1.getByRole("button", { name: "Open and ask" }).click();
+  await c1.locator(".dc-open").click();
   await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
   const banner = page.locator(".scan");
   await banner.waitFor();
@@ -161,13 +161,13 @@ try {
   const c2 = card("thesis chapter");
   await c2.waitFor();
   ok(/still to be read/.test(await c2.innerText()) && (await c2.getByRole("button", { name: "Continue reading" }).count()) === 1, "the paper in the list says so and offers 'Continue reading'");
-  ok((await c2.getByRole("button", { name: "Open", exact: true }).count()) === 1, "it can still be opened");
+  ok((await c2.locator(".dc-open").count()) === 1, "it can still be opened");
   await shot("85-scan-paused");
   await axe("paused job and card");
   const midDoc = (await api("/documents")).items.find((d) => d.title === "thesis chapter");
   ok(midDoc.status === "indexing" && midDoc.scanPending >= 1 && midDoc.scanPending <= left1 && midDoc.scanPending >= left1 - 3, `the server agrees: not ready, ${midDoc.scanPending} pages left (the job said ${left1}; up to 3 pages were already on their way)`);
   // opening a paper whose reading is part way: the banner offers to go on, and questions wait
-  await c2.getByRole("button", { name: "Open", exact: true }).click();
+  await c2.locator(".dc-open").click();
   await page.locator(".scan").waitFor();
   ok((await page.locator(".scan").getByRole("button", { name: "Continue reading" }).count()) === 1, "the paper's banner has 'Continue reading'");
   ok(/still to be read/.test(await page.locator('section[aria-label="Ask this paper"] .ask-sub').innerText()) && (await page.locator("#ask-input").isDisabled()), "questions are switched off until every page is read");
@@ -198,7 +198,7 @@ try {
   ok(long.status === "indexing" && long.scanPending === 30 - (PER_DAY - before), `${PER_DAY - before} pages of it were read, ${long.scanPending} are left`);
   await shot("86-scan-limit");
   await axe("daily limit reached");
-  await page.locator(".dc", { hasText: "long thesis" }).getByRole("button", { name: "Open", exact: true }).click();
+  await page.locator(".dc", { hasText: "long thesis" }).locator(".dc-open").click();
   await page.locator(".scan").waitFor();
   const cont = page.locator(".scan").getByRole("button", { name: /Continue tomorrow/ });
   ok((await cont.count()) === 1 && (await cont.isDisabled()), "in the paper, the button says 'Continue tomorrow' and is off");
@@ -225,7 +225,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(BASE + "/papers", { waitUntil: "networkidle" });
   ok(await noSideways(), "the papers page does not scroll sideways at 390 px");
-  await card("scanned report").getByRole("button", { name: "Open and ask" }).click();
+  await card("scanned report").locator(".dc-open").click();
   await page.locator(".scan").waitFor();
   await page.waitForTimeout(700);
   ok(await noSideways(), "the banner does not make the paper scroll sideways at 390 px");
