@@ -226,7 +226,7 @@ export function OaAskSheet({ onOpenPapers }: { onOpenPapers: () => void }) {
                 </header>
                 <div className="pv-scroll oa-scroll">
                   <h2 className="oa-title">{paper.title}</h2>
-                  {paper.retracted && (
+                  {(paper.retracted || list.some((t) => t.paper?.retracted)) && (
                     <p className="retract" role="alert">
                       <ShieldAlert size={18} aria-hidden="true" />
                       <span>

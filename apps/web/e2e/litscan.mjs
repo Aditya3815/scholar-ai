@@ -123,6 +123,7 @@ try {
   const sections = page.locator(".ls-section");
   ok(await sections.nth(0).locator(".cite-chip").count() >= 1 && await sections.nth(0).locator(".ask-status").isVisible(), "an answered sub-question has its text with source marks, and says that each claim is checked");
   ok(/No written answer/.test(await sections.nth(1).innerText()) && /No papers were found/.test(await sections.nth(1).innerText()), "a sub-question with no papers is a plain gap with its reason");
+  ok((await sections.nth(1).locator('a[href^="/?q="]').getAttribute("href")) === "/?q=nothing%20words%20here", "...with a link that opens a search for its own words, so the person can look at the papers themselves");
   ok(/do not seem to answer this directly/.test(await sections.nth(2).innerText()), "a question the papers do not answer says so");
   ok(await sections.nth(3).locator(".cite-chip").count() >= 1, "the sub-question that was added by hand was answered too");
   const sources = page.locator(".ls-sources li");
@@ -191,6 +192,105 @@ try {
   ok(!page.url().includes("scan="), "the address goes back to the plain page");
   await page.getByRole("heading", { name: "Your scans of the last day" }).waitFor();
   ok(await page.locator(".ls-recent-item").count() === 1, "the deleted scan is gone from the list; the first one is still there");
+
+  console.log("telling the person when it is done");
+  // the browser's notification is stood in for: a permission that is granted when asked, a record of what was shown, and a page that can be put "in the background"
+  await page.evaluate(() => {
+    window.__notes = [];
+    let perm = "default";
+    window.Notification = class {
+      static get permission() { return perm; }
+      static async requestPermission() { perm = "granted"; return perm; }
+      constructor(title, opts) { window.__notes.push({ title, body: opts?.body ?? "" }); this.close = () => {}; }
+    };
+    Object.defineProperty(document, "hidden", { get: () => !!window.__hidden, configurable: true });
+  });
+  await page.getByLabel("What do you want to know about?").fill("snail notification test topic");
+  await page.getByRole("button", { name: "Plan the scan" }).click();
+  await page.locator(".ls-item").first().waitFor({ timeout: 20000 });
+  await page.getByRole("button", { name: "Start the scan" }).click();
+  await page.locator(".ls-progress").waitFor({ timeout: 20000 });
+  const bell = page.getByRole("button", { name: "Notify me when it finishes" });
+  ok(await bell.isVisible() && await bell.getAttribute("aria-pressed") === "false" && /not your topic/.test(await page.locator(".ls-scan").innerText()), "a running scan offers a notice when it finishes, and says that it carries no topic");
+  await axe("running with the notice button, light", page);
+  await bell.click();
+  await page.getByRole("button", { name: "We will notify you when it finishes" }).waitFor();
+  ok(await page.getByRole("button", { name: "We will notify you when it finishes" }).getAttribute("aria-pressed") === "true", "pressing it asks the browser's permission and turns the notice on");
+  await page.evaluate(() => { window.__hidden = true; });
+  await page.locator(".eyebrow", { hasText: "Finished" }).waitFor({ timeout: 60000 });
+  await sleep(300);
+  const notes = await page.evaluate(() => window.__notes);
+  if (!(notes.length === 1)) console.log("        notes:", JSON.stringify(notes));
+  ok(notes.length === 1 && notes[0].title === "Your literature scan has finished" && /^\d of 4 sub-questions answered\. Open Scholar AI to read it\.$/.test(notes[0].body), "when the scan ends and the page is in the background, one notice is shown, with counts");
+  ok(!/snail|notification/i.test(notes[0].body + notes[0].title), "the notice does not carry the topic");
+  await page.evaluate(() => { window.__hidden = false; });
+  // a page that is opened again has the stand-in installed again (a fresh record), already in the background and with the notice already allowed
+  await page.addInitScript(() => {
+    window.__notes = [];
+    window.__hidden = true;
+    window.Notification = class {
+      static get permission() { return "granted"; }
+      static async requestPermission() { return "granted"; }
+      constructor(title, opts) { window.__notes.push({ title, body: opts?.body ?? "" }); this.close = () => {}; }
+    };
+    Object.defineProperty(document, "hidden", { get: () => !!window.__hidden, configurable: true });
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".eyebrow", { hasText: "Finished" }).waitFor({ timeout: 20000 });
+  await sleep(900);
+  ok((await page.evaluate(() => window.__notes.length)) === 0, "opening a scan that had already finished shows no notice");
+  await page.evaluate(() => { window.__hidden = false; });
+  await page.evaluate(() => { window.__hidden = false; });
+
+  console.log("sharing a read-only link");
+  await ctx.grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(BASE).origin });
+  await page.getByRole("button", { name: "Share a link" }).click();
+  const sd = page.getByRole("dialog", { name: "Share this scan with a link?" });
+  await sd.waitFor();
+  ok(/Anyone who has the link can read this scan until/.test(await sd.innerText()) && /does not show your name or e-mail/.test(await sd.innerText()), "before anything is made, the dialog says who can read it, until when, and that it carries no name");
+  await sleep(800);
+  await axe("share dialog, ask", page);
+  await sd.getByRole("button", { name: "Create the link" }).click();
+  await page.getByRole("dialog", { name: "This scan is shared" }).waitFor();
+  const link = await page.getByLabel("The link").inputValue();
+  ok(/\/literature-scan\/shared\/[A-Za-z0-9_-]{43}$/.test(link), "pressing Create makes a link with a long random token");
+  await page.getByRole("button", { name: "Copy" }).click();
+  await page.getByRole("button", { name: "Copied" }).waitFor({ timeout: 5000 }).catch(() => {});
+  ok(await page.getByRole("button", { name: "Copied" }).isVisible() && (await page.evaluate(() => navigator.clipboard.readText())) === link, "Copy puts it on the clipboard and says so");
+  await sleep(600);
+  await axe("share dialog, link", page);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Sharing is on" }).waitFor();
+  ok(true, "the button now says that sharing is on");
+
+  const visitor = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const vp = await visitor.newPage();
+  watch(vp);
+  await vp.goto(link, { waitUntil: "networkidle" });
+  await vp.getByRole("heading", { name: "Shared literature scan", level: 1 }).waitFor({ timeout: 20000 });
+  ok(/snail notification test topic/.test(await vp.locator(".ls-topic").first().innerText()), "someone who is not signed in can read it");
+  ok(await vp.locator(".ls-section").count() === 4 && await vp.locator(".ls-sources li").count() >= 1, "with its sections and its one list of sources");
+  ok(await vp.locator('meta[name="robots"]').getAttribute("content") === "noindex, nofollow", "the page tells search engines not to index it");
+  ok(await vp.getByRole("button", { name: /Delete|Stop the scan|Share a link|Notify/ }).count() === 0, "it has no way to change anything");
+  ok(!/@|Tara|example\.edu/.test(await vp.locator("main").innerText()), "nothing about who made it");
+  const [vdl] = await Promise.all([vp.waitForEvent("download"), vp.getByRole("button", { name: "Download as Markdown" }).click()]);
+  ok(/^literature-scan-snail-notification-test-topic-\d{4}-\d{2}-\d{2}\.md$/.test(vdl.suggestedFilename()), "the reader can download it as a file");
+  await axe("shared page, light", vp);
+  await vp.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+  await sleep(1300);
+  await axe("shared page, dark", vp);
+  await vp.screenshot({ path: OUT + "shared.png", fullPage: true });
+
+  await page.getByRole("button", { name: "Sharing is on" }).click();
+  const sd2 = page.getByRole("dialog", { name: "This scan is shared" });
+  await sd2.getByRole("button", { name: "Stop sharing" }).click();
+  await page.getByRole("dialog", { name: "Share this scan with a link?" }).waitFor();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Share a link" }).waitFor();
+  await vp.reload({ waitUntil: "networkidle" });
+  await vp.getByRole("heading", { name: "This link does not work" }).waitFor({ timeout: 20000 });
+  ok(true, "after Stop sharing the same link says that it does not work");
+  await visitor.close();
 
   console.log("on a phone");
   const phone = await browser.newContext({ viewport: { width: 375, height: 760 }, deviceScaleFactor: 2, hasTouch: true });

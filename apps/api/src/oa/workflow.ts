@@ -4,6 +4,8 @@ import { workersAiEmbedder, hashEmbedder, type Embedder } from "../docs/embed";
 import { remoteGate, type ApiGate } from "../gate/api-gate";
 import { installGates, withGate } from "../gate";
 import { EMBED_BATCH, IngestError, recordFailure, stepEmbed, stepFetch, stepFinish, stepRead, type IngestDeps } from "./ingest";
+import { keepOld } from "./store";
+import { OA_REFRESH_DAYS } from "@scholar/shared";
 import { sourceDepsFor } from "./deps";
 
 /**
@@ -22,7 +24,8 @@ export type OaEnv = {
   CROSSREF_MAILTO: string;
   OPENALEX_API_KEY?: string;
 };
-export type OaParams = { key: string; attempt: number };
+/** `refresh`: the paper is ready already and is being fetched again because it was read long ago (it keeps answering meanwhile; a failure to fetch leaves it as it is). */
+export type OaParams = { key: string; attempt: number; refresh?: boolean };
 
 const embedderFor = (env: OaEnv): Embedder => (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? hashEmbedder : workersAiEmbedder(env.AI!));
 
@@ -41,12 +44,16 @@ export class OaIngest extends WorkflowEntrypoint<OaEnv, OaParams> {
     const env = this.env;
     installGates(env.API_GATE ? remoteGate(env.API_GATE) : null);
     const deps: IngestDeps = { db: env.DB, files: env.FILES, embed: embedderFor(env), source: sourceDepsFor(env, withGate) };
-    const { key } = event.payload;
+    const { key, refresh = false } = event.payload;
     // the local end-to-end run waits a second between tries instead of the real delays (a test cannot wait twenty seconds)
     const fast = env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
     const wait = (real: string) => (fast ? "1 second" : real) as `${number} ${"second" | "seconds"}`;
+    // a refresh that cannot fetch the new file leaves the copy that works (it is looked at again in thirty days); once the new file is being read, a failure is a failure like any other
+    let fetching = true;
     try {
-      await step.do("fetch", { retries: { limit: 3, delay: wait("20 seconds"), backoff: "exponential" }, timeout: "2 minutes" }, () => guard(() => stepFetch(deps, key)));
+      const fetched = await step.do("fetch", { retries: { limit: 3, delay: wait("20 seconds"), backoff: "exponential" }, timeout: "2 minutes" }, () => guard(() => stepFetch(deps, key, { refresh })));
+      if (refresh && fetched.unchanged) return { key, chunks: 0 };
+      fetching = false;
       const read = await step.do("read", { retries: { limit: 1, delay: wait("5 seconds") }, timeout: "3 minutes" }, () => guard(() => stepRead(deps, key)));
       for (let i = 0; i < Math.ceil(read.total / EMBED_BATCH); i++) {
         await step.do(`embed-${i}`, { retries: { limit: 4, delay: wait("10 seconds"), backoff: "exponential" }, timeout: "2 minutes" }, () => guard(() => stepEmbed(deps, key)));
@@ -54,6 +61,10 @@ export class OaIngest extends WorkflowEntrypoint<OaEnv, OaParams> {
       await step.do("finish", { retries: { limit: 2, delay: wait("5 seconds") }, timeout: "1 minute" }, () => guard(() => stepFinish(deps, key)));
       return { key, chunks: read.total };
     } catch (e) {
+      if (refresh && fetching) {
+        await step.do("keep-old", async () => ({ kept: await keepOld(env.DB, key, Date.now(), OA_REFRESH_DAYS).then(() => true) }));
+        return { key, chunks: 0 };
+      }
       await step.do("record-failure", async () => ({ reason: await recordFailure(deps, key, e) }));
       throw e;
     }

@@ -137,7 +137,7 @@ export async function runningScan(db: D1Database, userId: string): Promise<strin
 export async function deleteScan(db: D1Database, id: string, userId: string): Promise<boolean> {
   const mine = await db.prepare("SELECT id FROM litscans WHERE id = ?1 AND user_id = ?2").bind(id, userId).first<{ id: string }>();
   if (!mine) return false;
-  await db.batch([db.prepare("DELETE FROM litscan_events WHERE scan_id = ?1").bind(id), db.prepare("DELETE FROM litscans WHERE id = ?1 AND user_id = ?2").bind(id, userId)]);
+  await db.batch([db.prepare("DELETE FROM litscan_shares WHERE scan_id = ?1").bind(id), db.prepare("DELETE FROM litscan_events WHERE scan_id = ?1").bind(id), db.prepare("DELETE FROM litscans WHERE id = ?1 AND user_id = ?2").bind(id, userId)]);
   return true;
 }
 
@@ -150,6 +150,7 @@ export const refundScan = (db: D1Database, userId: string, day: string) => db.pr
 
 /** The daily clean-up (maintenance.ts): events first, then the scans that are past their time. */
 export const LITSCAN_PURGE_SQL = [
+  "DELETE FROM litscan_shares WHERE scan_id IN (SELECT id FROM litscans WHERE expires_at < datetime('now'))",
   "DELETE FROM litscan_events WHERE scan_id IN (SELECT id FROM litscans WHERE expires_at < datetime('now'))",
   "DELETE FROM litscans WHERE expires_at < datetime('now')",
   "DELETE FROM litscan_daily WHERE day < date('now', '-35 days')",

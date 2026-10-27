@@ -61,6 +61,33 @@ const PAPERS = [
     name: "GPT-3, 75 pages (arXiv PDF)", ref: { arxivId: "2005.14165" }, kind: "full",
     qs: [{ q: "How many parameters does the largest GPT-3 model have?", lang: "en", expect: /175/ }],
   },
+  // added 28 Oct 2026: more kinds of text (two-column conference papers with tables, a short reporting guideline, a paper too long to read) and one more question in Hinglish
+  {
+    name: "ResNet, deep residual learning (arXiv PDF, two columns, tables)", ref: { arxivId: "1512.03385" }, kind: "full",
+    qs: [
+      { q: "How many layers does the deepest network have that the authors evaluated on ImageNet?", lang: "en", expect: /152/ },
+      { q: "Which medical image dataset was the network trained on?", lang: "en", control: true },
+    ],
+  },
+  {
+    name: "Adam optimiser (arXiv PDF)", ref: { arxivId: "1412.6980" }, kind: "full",
+    qs: [{ q: "What default values do the authors suggest for the hyper-parameters beta1 and beta2?", lang: "en", expect: /0\.9[\s\S]{0,60}0\.999|0\.999/ }],
+  },
+  {
+    name: "LoRA (arXiv PDF)", ref: { arxivId: "2106.09685" }, kind: "full",
+    qs: [
+      { q: "By how much does LoRA reduce the number of trainable parameters compared with fine-tuning GPT-3 175B?", lang: "en", expect: /10,?000/ },
+      { q: "LoRA GPU memory requirement ko kitna kam karta hai?", lang: "hinglish", expect: /3|three|teen/i },
+    ],
+  },
+  {
+    name: "CONSORT 2010 statement (PMC XML, short guideline)", ref: { doi: "10.1136/bmj.c332" }, kind: "full",
+    qs: [{ q: "How many items does the CONSORT 2010 checklist have?", lang: "en", expect: /25|twenty-five/i }],
+  },
+  {
+    name: "Gemini 1.5 technical report, over 120 pages (arXiv: too long, abstract only)", ref: { arxivId: "2403.05530" }, kind: "closed",
+    qs: [{ q: "What context length does the model support?", lang: "en", expect: /million|tokens?|context/i }],
+  },
   {
     name: "LeCun et al., Deep learning, Nature (not open access: abstract only)", ref: { doi: "10.1038/nature14539" }, kind: "closed",
     qs: [{ q: "What does deep learning allow computational models to do?", lang: "en", expect: /levels? of abstraction|representations?/i }],

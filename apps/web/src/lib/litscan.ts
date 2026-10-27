@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { emptyView, reduceView, type LitscanEvent, type LitscanListItem, type LitscanPlan, type LitscanSnapshot, type LitscanStartRequest, type LitscanView, type LitscanLanguage } from "@scholar/shared";
+import { emptyView, reduceView, type LitscanEvent, type LitscanListItem, type LitscanPlan, type LitscanPublic, type LitscanSnapshot, type LitscanStartRequest, type LitscanView, type LitscanLanguage } from "@scholar/shared";
 import { ApiError } from "./documents";
 import { readSse } from "./sse";
 
@@ -43,6 +43,25 @@ export async function getScan(id: string, signal?: AbortSignal): Promise<Litscan
   const res = await fetch(`${BASE}/${id}`, { credentials: "same-origin", signal });
   if (!res.ok) await fail(res);
   return ((await res.json()) as { scan: LitscanSnapshot }).scan;
+}
+
+/** A shared scan, by its link (no sign-in). */
+export async function getSharedScan(token: string, signal?: AbortSignal): Promise<LitscanPublic> {
+  const res = await fetch(`${BASE}/shared/${token}`, { credentials: "omit", signal });
+  if (!res.ok) await fail(res);
+  return ((await res.json()) as { scan: LitscanPublic }).scan;
+}
+
+/** Turns on the read-only link of a finished scan (asking again gives the same link). Resolves with its token. */
+export async function shareScan(id: string): Promise<string> {
+  const res = await fetch(`${BASE}/${id}/share`, json("POST"));
+  if (!res.ok) await fail(res);
+  return ((await res.json()) as { token: string }).token;
+}
+
+export async function unshareScan(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/${id}/share`, json("DELETE"));
+  if (!res.ok) await fail(res);
 }
 
 export async function cancelScan(id: string): Promise<void> {

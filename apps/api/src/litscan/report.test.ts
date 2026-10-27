@@ -70,6 +70,11 @@ describe("putting the parts together", () => {
     expect(report.sources).toHaveLength(1);
   });
 
+  it("carries each sub-question's search words, so a gap can point at them", () => {
+    const report = assembleReport(items, { 1: { idx: 1, status: "gap", found: 0, reason: "nothing_found" } });
+    expect(report.sections.map((s) => s.searchQuery)).toEqual(["air pollution asthma", "traffic pollution exposure", "intervention asthma children"]);
+  });
+
   it("shows a sub-question that could not be answered as a gap with its reason, in its place", () => {
     const report = assembleReport(items, {
       0: { idx: 0, status: "gap", found: 0, reason: "nothing_found" },

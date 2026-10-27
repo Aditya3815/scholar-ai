@@ -1,4 +1,5 @@
-import { BookOpenCheck, Download, Loader2, LockKeyhole, Plus, Printer, ShieldCheck, Square, Trash2, X } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { BookOpenCheck, Bell, Check, Copy, Download, Link2, Loader2, LockKeyhole, Plus, Printer, ShieldCheck, Square, Trash2, X } from "lucide-react";
 import { Fragment, useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   LITSCAN_GAP_TEXT,
@@ -20,14 +21,16 @@ import {
   type LitscanLanguage,
   type LitscanListItem,
   type LitscanPlan,
+  type LitscanPublic,
   type Report,
   type ReportSection,
 } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/documents";
 import { downloadText } from "../../lib/idea";
-import { ScanRunningError, cancelScan, deleteScan, listScans, planScan, startScan, useScan } from "../../lib/litscan";
+import { ScanRunningError, cancelScan, deleteScan, getSharedScan, listScans, planScan, shareScan, startScan, unshareScan, useScan } from "../../lib/litscan";
 import { showNotice } from "../../lib/notice";
+import { askNotifyPermission, notifySupport, notifyWanted, setNotifyWanted, showScanNotice } from "../../lib/notify";
 import { ProviderButtons } from "../ProviderButtons";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { PrivacyCard } from "../legal/PrivacyCard";
@@ -185,7 +188,10 @@ function Section({ s, stage, report, onCite }: { s: ReportSection; stage: "searc
           </details>
         </>
       ) : s.status === "gap" ? (
-        <p className="ls-gap" role="note"><b>No written answer.</b> {LITSCAN_GAP_TEXT[s.reason]}</p>
+        <p className="ls-gap" role="note">
+          <b>No written answer.</b> {LITSCAN_GAP_TEXT[s.reason]}{" "}
+          <a href={`/?q=${encodeURIComponent(s.searchQuery)}`} target="_blank" rel="noopener">Look at the papers for these search words yourself<span className="sr-only"> (opens in a new tab)</span></a>
+        </p>
       ) : stage ? (
         <p className="ls-wait"><span className="pulse-dot" aria-hidden="true" /> {STAGE_TEXT[stage]}</p>
       ) : (
@@ -195,12 +201,150 @@ function Section({ s, stage, report, onCite }: { s: ReportSection; stage: "searc
   );
 }
 
+/** The sections of a report and its one list of sources (the owner's page and a shared link show the same). A mark takes the reader to its source. */
+function ReportBody({ report, stages, idPrefix }: { report: Report; stages: Record<number, "searching" | "reading">; idPrefix: string }) {
+  const srcRefs = useRef(new Map<number, HTMLLIElement>());
+  const cite = useCallback((g: number) => {
+    const el = srcRefs.current.get(g);
+    el?.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    el?.focus();
+  }, []);
+  return (
+    <>
+      {report.sections.map((s) => (
+        <Section key={s.idx} s={s} stage={stages[s.idx]} report={report} onCite={cite} />
+      ))}
+      {report.sources.length > 0 && (
+        <section className="card ls-card" aria-labelledby={`${idPrefix}-src`}>
+          <h3 id={`${idPrefix}-src`} className="ls-section-h">Sources</h3>
+          <p className="ls-hint">Real records from the paper indexes. Only abstracts were read, not the full papers. A sentence without a source number is wording, not a finding.</p>
+          <ol className="ls-sources">
+            {report.sources.map((r) => (
+              <li key={r.g} id={`ls-src-${r.g}`} tabIndex={-1} ref={(el) => { if (el) srcRefs.current.set(r.g, el); else srcRefs.current.delete(r.g); }}>
+                <span className="chat-ev-n" aria-hidden="true">{r.g}</span>
+                <span>
+                  <span className="chat-ev-t">{r.title}{r.year ? ` (${r.year})` : ""}</span>
+                  <span className="ls-src-m">{r.authors.length ? `${r.authors.slice(0, 3).join(", ")}${r.authors.length > 3 ? " et al." : ""}` : ""}{r.venue ? ` · ${r.venue}` : ""}</span>
+                  {(r.doi || r.url) && <a href={r.doi ? `https://doi.org/${r.doi}` : r.url!} target="_blank" rel="noopener noreferrer">{r.doi ? `doi:${r.doi}` : "Open the paper"}</a>}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+    </>
+  );
+}
+
+/**
+ * Sharing a scan: a read-only link. "Share a link" first says what the link will show and who can read it; the link is made only after "Create the link", and "Stop sharing" kills it at once.
+ * The link never outlives the scan (a day).
+ */
+function ShareDialog({ id, token, expiresAt, open, onOpenChange, onToken }: { id: string; token: string | null; expiresAt: string; open: boolean; onOpenChange: (o: boolean) => void; onToken: (t: string | null) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const url = token ? `${location.origin}/literature-scan/shared/${token}` : "";
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await fn();
+    } catch (e) {
+      showNotice(errorText(e, "That did not work. Please try again.") || "That did not work.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      showNotice("Your browser would not copy it. Select the link and copy it by hand.");
+    }
+  };
+  return (
+    <Dialog.Root open={open} onOpenChange={(o) => { if (!busy) onOpenChange(o); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="overlay" />
+        <div className="modal-wrap">
+          <Dialog.Content className="modal" aria-describedby="ls-share-d">
+            <Dialog.Close className="icon-btn modal-close" aria-label="Close" disabled={busy}><X size={18} aria-hidden="true" /></Dialog.Close>
+            <Dialog.Title className="modal-title">{token ? "This scan is shared" : "Share this scan with a link?"}</Dialog.Title>
+            <Dialog.Description id="ls-share-d" className="modal-sub">
+              Anyone who has the link can read this scan until {when(expiresAt)}, when it is removed: your topic, the sub-questions and the report with its sources. It does not show your name or e-mail. They cannot change anything, and you can stop sharing at any time.
+            </Dialog.Description>
+            {token ? (
+              <div className="ls-share">
+                <label className="ls-label" htmlFor="ls-share-url">The link</label>
+                <div className="ls-share-row">
+                  <input id="ls-share-url" className="ls-input" readOnly value={url} onFocus={(e) => e.currentTarget.select()} />
+                  <button type="button" className="btn btn-primary" onClick={() => void copy()}>
+                    {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
+                    <span>{copied ? "Copied" : "Copy"}</span>
+                  </button>
+                </div>
+                <p className="ls-hint" role="status">{copied ? "The link is copied." : "Whoever you give it to can pass it on: treat it like the scan itself."}</p>
+                <div className="confirm-actions">
+                  <button type="button" className="btn btn-ghost" onClick={() => onOpenChange(false)} disabled={busy}>Close</button>
+                  <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void run(async () => { await unshareScan(id); onToken(null); })}>Stop sharing</button>
+                </div>
+              </div>
+            ) : (
+              <div className="confirm-actions">
+                <button type="button" className="btn btn-ghost" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</button>
+                <button type="button" className="btn btn-primary" disabled={busy} aria-busy={busy} onClick={() => void run(async () => onToken(await shareScan(id)))}>
+                  {busy ? <Loader2 className="spin" size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}
+                  <span>Create the link</span>
+                </button>
+              </div>
+            )}
+          </Dialog.Content>
+        </div>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 function ScanView({ id, onLeave }: { id: string; onLeave: () => void }) {
   const { scan, view, problem, reload } = useScan(id);
   const [confirm, setConfirm] = useState(false);
   const [stopping, setStopping] = useState(false);
   const headRef = useRef<HTMLHeadingElement>(null);
-  const srcRefs = useRef(new Map<number, HTMLLIElement>());
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  // "tell me when it is done": the browser's own notification, only for a scan seen running on this page and only when the page is in the background (lib/notify.ts)
+  const [support, setSupport] = useState(notifySupport);
+  const [notify, setNotify] = useState(() => notifyWanted() && notifySupport() === "granted");
+  const armed = useRef(false);
+  useEffect(() => {
+    if (!scan) return;
+    if (view.state === "running") {
+      armed.current = true;
+      return;
+    }
+    if (!armed.current) return;
+    armed.current = false;
+    if (!notify) return;
+    const answered = Object.values(view.parts).filter((p) => p.status === "answered").length;
+    showScanNotice({
+      id: scan.id,
+      title: view.state === "completed" ? "Your literature scan has finished" : view.state === "failed" ? "Your literature scan did not finish" : "Your literature scan was stopped",
+      body: `${answered} of ${view.total || scan.total} sub-questions answered. Open Scholar AI to read it.`,
+    });
+  }, [view.state, scan]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toggleNotify = async () => {
+    if (notify) {
+      setNotify(false);
+      setNotifyWanted(false);
+      return;
+    }
+    const ok = await askNotifyPermission();
+    setSupport(notifySupport());
+    setNotify(ok);
+    setNotifyWanted(ok);
+    if (!ok) showNotice("Notifications are not allowed for this site in your browser, so we cannot tell you when it finishes.");
+  };
 
   useEffect(() => {
     if (scan) headRef.current?.focus({ preventScroll: true });
@@ -209,11 +353,9 @@ function ScanView({ id, onLeave }: { id: string; onLeave: () => void }) {
   const items = scan?.items ?? [];
   const report = assembleReport(items, view.parts);
   const running = view.state === "running";
-  const cite = useCallback((g: number) => {
-    const el = srcRefs.current.get(g);
-    el?.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-    el?.focus();
-  }, []);
+  useEffect(() => {
+    setShareToken(scan?.share ?? null);
+  }, [scan?.share]);
 
   if (problem === "missing") {
     return (
@@ -256,6 +398,15 @@ function ScanView({ id, onLeave }: { id: string; onLeave: () => void }) {
             </div>
             <p className="ls-count">{done} of {total} sub-questions finished</p>
             <p className="ls-hint">You can close this page: the scan keeps running, and it will be in your recent scans when you come back.</p>
+            {support !== "unsupported" && support !== "denied" && (
+              <>
+                <button type="button" className="btn btn-ghost btn-sm" aria-pressed={notify} onClick={() => void toggleNotify()}>
+                  <Bell size={14} aria-hidden="true" />
+                  <span>{notify ? "We will notify you when it finishes" : "Notify me when it finishes"}</span>
+                </button>
+                <p className="ls-hint">The notice comes from your browser and works while this tab stays open, in the background too. It shows only how many were answered, not your topic.</p>
+              </>
+            )}
             {problem === "offline" && <p className="ls-why" role="note">Reconnecting… the scan itself is not affected.</p>}
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => void stop()} disabled={stopping} aria-busy={stopping}>
               <Square size={14} aria-hidden="true" />
@@ -273,28 +424,7 @@ function ScanView({ id, onLeave }: { id: string; onLeave: () => void }) {
         <p className="sr-only" role="status">{running ? `${done} of ${total} sub-questions finished.` : `Scan ${STATE_NAME[view.state].toLowerCase()}: ${report.answered} of ${total} answered.`}</p>
       </div>
 
-      {report.sections.map((s) => (
-        <Section key={s.idx} s={s} stage={view.stages[s.idx]} report={report} onCite={cite} />
-      ))}
-
-      {report.sources.length > 0 && (
-        <section className="card ls-card" aria-labelledby={`${id}-src`}>
-          <h3 id={`${id}-src`} className="ls-section-h">Sources</h3>
-          <p className="ls-hint">Real records from the paper indexes. Only abstracts were read, not the full papers. A sentence without a source number is wording, not a finding.</p>
-          <ol className="ls-sources">
-            {report.sources.map((r) => (
-              <li key={r.g} id={`ls-src-${r.g}`} tabIndex={-1} ref={(el) => { if (el) srcRefs.current.set(r.g, el); else srcRefs.current.delete(r.g); }}>
-                <span className="chat-ev-n" aria-hidden="true">{r.g}</span>
-                <span>
-                  <span className="chat-ev-t">{r.title}{r.year ? ` (${r.year})` : ""}</span>
-                  <span className="ls-src-m">{r.authors.length ? `${r.authors.slice(0, 3).join(", ")}${r.authors.length > 3 ? " et al." : ""}` : ""}{r.venue ? ` · ${r.venue}` : ""}</span>
-                  {(r.doi || r.url) && <a href={r.doi ? `https://doi.org/${r.doi}` : r.url!} target="_blank" rel="noopener noreferrer">{r.doi ? `doi:${r.doi}` : "Open the paper"}</a>}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
+      <ReportBody report={report} stages={view.stages} idPrefix={id} />
 
       <div className="ls-bar ls-actions">
         {!running && report.answered > 0 && (
@@ -307,6 +437,10 @@ function ScanView({ id, onLeave }: { id: string; onLeave: () => void }) {
               <Printer size={16} aria-hidden="true" />
               <span>Print</span>
             </button>
+            <button type="button" className="btn btn-ghost" onClick={() => setShareOpen(true)}>
+              <Link2 size={16} aria-hidden="true" />
+              <span>{shareToken ? "Sharing is on" : "Share a link"}</span>
+            </button>
           </>
         )}
         <button type="button" className="btn btn-ghost" onClick={onLeave}>{running ? "Back to my scans" : "New scan"}</button>
@@ -315,6 +449,7 @@ function ScanView({ id, onLeave }: { id: string; onLeave: () => void }) {
           <span>Delete this scan</span>
         </button>
       </div>
+      <ShareDialog id={id} token={shareToken} expiresAt={scan.expiresAt} open={shareOpen} onOpenChange={setShareOpen} onToken={setShareToken} />
       <ConfirmDialog
         open={confirm}
         onOpenChange={setConfirm}
@@ -362,7 +497,77 @@ const HOW = [
  * box), on our servers, so the page can be closed and reopened; the answers are put together as one report with one list of sources, kept for a day. Nothing is written by a model after
  * the checks, and a sub-question that could not be answered is said to be a gap.
  */
+const sharedTokenFromPath = (): string | null => /^\/literature-scan\/shared\/([A-Za-z0-9_-]{43})\/?$/.exec(location.pathname)?.[1] ?? null;
+
+/** A scan someone shared by a link: read-only, no sign-in, not indexed, nothing about its owner. */
+function SharedPage({ token }: { token: string }) {
+  const [state, setState] = useState<{ s: "loading" } | { s: "gone" } | { s: "ok"; scan: LitscanPublic }>({ s: "loading" });
+  useEffect(() => {
+    const ctl = new AbortController();
+    getSharedScan(token, ctl.signal).then(
+      (scan) => setState({ s: "ok", scan }),
+      () => !ctl.signal.aborted && setState({ s: "gone" }),
+    );
+    return () => ctl.abort();
+  }, [token]);
+  // the page itself says it is not to be indexed (the headers of the static host say so as well)
+  useEffect(() => {
+    const m = document.createElement("meta");
+    m.name = "robots";
+    m.content = "noindex, nofollow";
+    document.head.appendChild(m);
+    return () => m.remove();
+  }, []);
+  const scan = state.s === "ok" ? state.scan : null;
+  const report = scan ? assembleReport(scan.items, Object.fromEntries(scan.parts.map((p) => [p.idx, p]))) : null;
+  return (
+    <section className="ws-page ls-page" aria-labelledby="ls-h">
+      <h1 id="ls-h" className="ws-page-h"><BookOpenCheck size={22} aria-hidden="true" /> Shared literature scan</h1>
+      {state.s === "loading" ? (
+        <div className="empty" role="status" aria-busy="true"><span className="pulse-dot" /> <span className="sr-only">Loading the scan</span></div>
+      ) : !scan || !report ? (
+        <div className="card ls-card" role="alert">
+          <h2 className="ls-topic">This link does not work</h2>
+          <p>It was turned off, or the scan was removed: scans are kept for a day.</p>
+          <a className="btn btn-primary" href="/literature-scan">Make your own literature scan</a>
+        </div>
+      ) : (
+        <div className="ls-scan">
+          <p className="ws-page-lead">Someone shared this scan with you to read. It is a map of what the abstracts of the papers found say, not a systematic review. Each claim points at a sentence of an abstract. They can stop sharing at any time, and it is removed after a day.</p>
+          <div className="card ls-card">
+            <p className="eyebrow">Literature scan · {STATE_NAME[scan.state]}</p>
+            <h2 className="ls-topic">{scan.topic}</h2>
+            <p className="ls-meta">Answers in {LITSCAN_LANGUAGE_NAMES[scan.language]} · removed {when(scan.expiresAt)}</p>
+            <p className="ls-count">{report.answered} of {scan.total} sub-questions answered{report.gaps ? `, ${report.gaps} without a written answer` : ""}.</p>
+          </div>
+          <ReportBody report={report} stages={{}} idPrefix="shared" />
+          <div className="ls-bar ls-actions">
+            {report.answered > 0 && (
+              <>
+                <button type="button" className="btn btn-primary" onClick={() => downloadText(litscanFileName(scan.topic), buildLitscanMarkdown({ appName: "Scholar AI", generatedAt: new Date().toISOString(), topic: scan.topic, language: scan.language, report }))}>
+                  <Download size={16} aria-hidden="true" />
+                  <span>Download as Markdown</span>
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => window.print()}>
+                  <Printer size={16} aria-hidden="true" />
+                  <span>Print</span>
+                </button>
+              </>
+            )}
+            <a className="btn btn-ghost" href="/literature-scan">Make your own scan</a>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function LitscanPage() {
+  const token = sharedTokenFromPath();
+  return token ? <SharedPage token={token} /> : <ScanApp />;
+}
+
+function ScanApp() {
   const { status, user } = useAuth();
   const [scanId, setScanIdState] = useState<string | null>(idFromUrl);
   const [topic, setTopic] = useState("");

@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import {
   LITSCAN_LANGUAGES,
+  LITSCAN_MAX_SHARES,
   LITSCAN_PER_DAY,
   PRIVACY_VERSION,
   cleanLitscanTopic,
@@ -9,6 +10,7 @@ import {
   type LitscanEvent,
   type LitscanLanguage,
   type LitscanListItem,
+  type LitscanPublic,
   type LitscanPlan,
   type LitscanSnapshot,
 } from "@scholar/shared";
@@ -20,6 +22,8 @@ import { sseStream } from "../sse";
 import type { LitscanEnv, LitscanParams } from "./workflow";
 import { planModel } from "./model";
 import { ScanPlanError, planScan, sanitizeApproved } from "./plan";
+import { createShare, publicScan, revokeShare, shareOf } from "./share";
+import { fromSqliteTime } from "../library/validate";
 import { createScan, deleteScan, endScan, eventsAfter, failIfStale, getScan, listScans, partsOf, refundScan, runningScan, snapshotOf, takeScan } from "./store";
 
 type Bindings = LitscanEnv & { LITSCAN: Workflow<LitscanParams> };
@@ -137,6 +141,17 @@ litscanRoutes.get("/", async (c) => {
   return c.json<{ scans: LitscanListItem[] }>({ scans: await listScans(c.env.DB, got.user.id) });
 });
 
+/**
+ * What anyone with a shared link may read. No sign-in: the token is the credential, like any shared link. A wrong, expired or turned-off link is one plain 404 (the three look the same). Not indexed by
+ * search engines (the page that shows it says so too: apps/web/public/_headers).
+ */
+litscanRoutes.get("/shared/:token", async (c) => {
+  c.header("X-Robots-Tag", "noindex, nofollow");
+  const scan = await publicScan(c.env.DB, c.req.param("token"));
+  if (!scan) return deny(c, 404, "not_found", "This link does not work", "It was turned off, or the scan was removed after a day.");
+  return c.json<{ scan: LitscanPublic }>({ scan });
+});
+
 litscanRoutes.get("/:id", async (c) => {
   const got = await requireUser(c);
   if (got.error) return got.error;
@@ -145,7 +160,7 @@ litscanRoutes.get("/:id", async (c) => {
   let row = await getScan(c.env.DB, id, got.user.id);
   if (!row) return deny(c, 404, "not_found", "That scan does not exist", "Scans are kept for a day.");
   if (row.state === "running" && (await failIfStale(c.env.DB, id))) row = (await getScan(c.env.DB, id, got.user.id)) ?? row;
-  return c.json<{ scan: LitscanSnapshot }>({ scan: await snapshotOf(c.env.DB, row) });
+  return c.json<{ scan: LitscanSnapshot }>({ scan: { ...(await snapshotOf(c.env.DB, row)), share: await shareOf(c.env.DB, id) } });
 });
 
 /**
@@ -216,6 +231,33 @@ litscanRoutes.post("/:id/cancel", async (c) => {
   }
   const now = await getScan(c.env.DB, id, got.user.id);
   return c.json({ state: now?.state ?? "canceled" });
+});
+
+/** Turns on a read-only link for a scan that has ended (asking again gives the same link). The person sees what it shows before they press: topic, sub-questions, report. */
+litscanRoutes.post("/:id/share", async (c) => {
+  const got = await requireUser(c);
+  if (got.error) return got.error;
+  const id = c.req.param("id");
+  if (!ID.test(id)) return deny(c, 404, "not_found", "That scan does not exist");
+  const row = await getScan(c.env.DB, id, got.user.id);
+  if (!row) return deny(c, 404, "not_found", "That scan does not exist");
+  const r = await createShare(c.env.DB, row, got.user.id);
+  if (!r.ok) {
+    return r.reason === "running"
+      ? deny(c, 409, "scan_running", "A scan can be shared when it has finished")
+      : deny(c, 429, "share_limit", `You have ${LITSCAN_MAX_SHARES} scans shared already`, "Stop sharing one of them first.");
+  }
+  return c.json({ token: r.token, expiresAt: new Date(fromSqliteTime(row.expires_at)).toISOString() }, 201);
+});
+
+litscanRoutes.delete("/:id/share", async (c) => {
+  const got = await requireUser(c);
+  if (got.error) return got.error;
+  const id = c.req.param("id");
+  if (!ID.test(id)) return deny(c, 404, "not_found", "That scan does not exist");
+  if (!(await getScan(c.env.DB, id, got.user.id))) return deny(c, 404, "not_found", "That scan does not exist");
+  await revokeShare(c.env.DB, id, got.user.id);
+  return c.json({ ok: true });
 });
 
 litscanRoutes.delete("/:id", async (c) => {

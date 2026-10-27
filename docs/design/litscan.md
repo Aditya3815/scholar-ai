@@ -91,11 +91,18 @@ Also: the estimate went from 2,200 to 3,000 a sub-question (the Hinglish scan us
 
 **Still true:** one or two of five sub-questions end without a written answer, as R11 said (now with honest reasons); one answer once took longer than 75 s; the model's Hinglish is good but long. A scan costs about 8,000 to 15,000 tokens, 14 to 25% of a day.
 
+## Added 28 Oct 2026: a read-only link, a notice when it finishes, a way out of a gap
+
+- **Share a link** (migration 0021, `litscan_shares`; `src/litscan/share.ts`). For a scan that has ended, the owner presses "Share a link"; the dialog says first who can read it, until when (the scan's own day) and that it shows the topic, the sub-questions and the report but not a name or an e-mail; "Create the link" makes it. The token is 32 random bytes (43 characters), the whole credential, like any shared link; one link a scan, at most 5 at a time a person; "Stop sharing" kills it at once and turning it on again makes a new one. **Anyone with the link reads `/literature-scan/shared/<token>` without signing in**: the topic, the plan, the sections and the sources (`LitscanPublic`: no id, no allowance, nothing about the person), with no way to change anything; the page says it is not to be indexed (a `robots` meta, `X-Robots-Tag` on the API reply and, for the page, `public/_headers`: `noindex`, `no-store`, `Referrer-Policy: no-referrer`). A wrong, turned-off or expired link is one plain 404. The link goes when the scan is deleted, expires with it, is removed by the daily clean-up and with the account. The privacy text lists it (the Literature scan row and bullet) without a new version number: it is something a person does on purpose, with the consequence shown before they press, as with offline reading.
+- **A notice when it finishes** (`lib/notify.ts`). A running scan offers "Notify me when it finishes": the browser's own notification, asked for with a click. It is shown only for a scan that was seen running on this page and only when the page is in the background, once, and carries counts only (**not the topic**). It works while the tab stays open; closing the tab ends it (the scan is in the list of the last day's scans). The choice is kept in this browser. **E-mail is not done**: it needs a mail service and a verified sender, and a person's address held for it; a browser notice needs none of that.
+- **A gap points at the papers.** A sub-question without a written answer has "Look at the papers for these search words yourself": the prompt box's search page for the sub-question's own search words, in a new tab.
+- Tests: 9 more unit tests (share on a real SQLite), 11 more endpoint checks, 15 more browser checks (the dialog, the link, the clipboard, a signed-out visitor reading it with axe in light and dark, turning it off, the notice).
+
 ## Not done, and why
 
 - **Full papers are not read** (the Ask-this-paper path takes 20 to 25 s a new paper; a different, much slower worker). Abstracts only, said on the page.
-- **No e-mail or notification when it finishes** (the page shows the list of the last day's scans).
-- **No sharing link** (a scan is private to its owner).
+- **No e-mail when it finishes** (a browser notice exists; e-mail needs a mail service, a sender and a stored address).
+- **A shared link is read-only and shows the topic**: it cannot be limited to certain people (anyone who has it can read it).
 - **More than 6 sub-questions** (the Crossref lane at higher fan-out was not measured, R11).
 - **The part registry (P2)** is still not needed: the scan has its own components and uses the chat's styles for marks and evidence.
 - **Verify-and-repair (P3)** waits for `answer_outcomes` data. The scan makes it more interesting (a repaired sub-question is one fewer gap) and the counters now include the scan's own `not_grounded`.

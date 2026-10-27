@@ -24,9 +24,7 @@ const JOBS: { name: string; sql: string }[] = [
   // How answers went: a few weeks are enough to see a trend (src/outcomes.ts).
   { name: "answer_outcomes", sql: OUTCOME_RETENTION_SQL },
   // A literature scan is kept for a day (its expires_at), then its events and the scan go; the daily counter for a few weeks.
-  { name: "litscan_events", sql: LITSCAN_PURGE_SQL[0] },
-  { name: "litscans", sql: LITSCAN_PURGE_SQL[1] },
-  { name: "litscan_daily", sql: LITSCAN_PURGE_SQL[2] },
+  ...LITSCAN_PURGE_SQL.map((sql, i) => ({ name: ["litscan_shares", "litscan_events", "litscans", "litscan_daily"][i]!, sql })),
   { name: "audit_log", sql: "DELETE FROM audit_log WHERE ts < datetime('now', '-365 days')" },
 ];
 

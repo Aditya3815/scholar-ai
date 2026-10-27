@@ -24,7 +24,7 @@ export const SYSTEM = [
   "If the excerpts do not contain the answer, set found to false and say briefly that the paper does not seem to cover it. Do not guess and do not use outside knowledge.",
   "If found is true, write a concise answer (at most about 150 words) and cite excerpts inline as [1], [2] (their numbers).",
   "For every claim give evidence: the excerpt number and a quote copied EXACTLY, character for character, from that excerpt (at most 200 characters, one continuous stretch of the excerpt: never join two pieces with \"...\").",
-  "Answer in the language of the question.",
+  "Answer in the language of the question. A question in Hinglish (Hindi written in Roman letters) is answered in Hinglish, in Roman letters, never in Devanagari, keeping technical terms in English.",
 ].join(" ");
 
 export const SCHEMA = {

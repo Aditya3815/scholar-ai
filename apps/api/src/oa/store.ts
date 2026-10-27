@@ -28,6 +28,8 @@ export type OaRow = {
   updated_at: string;
   ready_at: string | null;
   retry_after: string | null;
+  content_hash: string | null;
+  refresh_at: string | null;
 };
 
 const sqlTime = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace("T", " ");
@@ -68,8 +70,8 @@ export const setInstance = (db: D1Database, key: string, instance: string) => db
 
 export const setStatus = (db: D1Database, key: string, status: OaStatus) => db.prepare("UPDATE oa_papers SET status = ?2, updated_at = datetime('now') WHERE key = ?1").bind(key, status).run();
 
-export async function setFetched(db: D1Database, key: string, f: { source: OaSource; license: string | null; title: string | null; r2Key: string }) {
-  await db.prepare("UPDATE oa_papers SET source = ?2, license = COALESCE(?3, license), title = COALESCE(?4, title), r2_key = ?5, updated_at = datetime('now') WHERE key = ?1").bind(key, f.source, f.license, f.title, f.r2Key).run();
+export async function setFetched(db: D1Database, key: string, f: { source: OaSource; license: string | null; title: string | null; r2Key: string; contentHash?: string | null }) {
+  await db.prepare("UPDATE oa_papers SET source = ?2, license = COALESCE(?3, license), title = COALESCE(?4, title), r2_key = ?5, content_hash = COALESCE(?6, content_hash), updated_at = datetime('now') WHERE key = ?1").bind(key, f.source, f.license, f.title, f.r2Key, f.contentHash ?? null).run();
 }
 
 /** What was learned about a paper that could not be read (its title), so the screen can name it. */
@@ -129,7 +131,7 @@ export async function saveEmbeddings(db: D1Database, key: string, items: readonl
 export async function markReady(db: D1Database, key: string): Promise<boolean> {
   const r = await db
     .prepare(
-      `UPDATE oa_papers SET status = 'ready', reason = NULL, ready_at = datetime('now'), updated_at = datetime('now'), done_chunks = chunk_count
+      `UPDATE oa_papers SET status = 'ready', reason = NULL, ready_at = datetime('now'), refresh_at = NULL, updated_at = datetime('now'), done_chunks = chunk_count
        WHERE key = ?1 AND chunk_count > 0 AND chunk_count = (SELECT COUNT(*) FROM oa_chunks WHERE paper_key = ?1 AND embedding IS NOT NULL)`,
     )
     .bind(key)
@@ -142,6 +144,28 @@ export async function readyChunks(db: D1Database, key: string): Promise<(StoredC
   const rows = (await db.prepare("SELECT idx, page, section, text, embedding FROM oa_chunks WHERE paper_key = ?1 ORDER BY idx").bind(key).all<{ idx: number; page: number; section: string | null; text: string; embedding: string | null }>()).results ?? [];
   return rows.map((r) => ({ idx: r.idx, page: r.page, text: r.text, embedding: r.embedding ? decodeVec(r.embedding) : null, ...(r.section ? { section: r.section } : {}) }));
 }
+
+/**
+ * Claims the right to refresh a ready paper that was read more than `days` ago: one statement, so two askers cannot both win, and none again for an hour (a refresh that is lost is tried again then).
+ * The paper stays `ready` and keeps answering while it is fetched again. Returns the number of the try, or null.
+ */
+export async function claimRefresh(db: D1Database, key: string, now: number, days: number): Promise<number | null> {
+  const r = await db
+    .prepare(
+      `UPDATE oa_papers SET attempt = attempt + 1, refresh_at = ?2, updated_at = ?2
+       WHERE key = ?1 AND status = 'ready' AND ready_at IS NOT NULL AND ready_at <= ?3 AND (refresh_at IS NULL OR refresh_at <= ?4) RETURNING attempt`,
+    )
+    .bind(key, sqlTime(now), sqlTime(now - days * 86_400_000), sqlTime(now - 3_600_000))
+    .first<{ attempt: number }>();
+  return r?.attempt ?? null;
+}
+
+/** The file is the same as before: the paper is as fresh as a new reading, and is looked at again after the full time. */
+export const markRefreshed = (db: D1Database, key: string, now: number) => db.prepare("UPDATE oa_papers SET ready_at = ?2, refresh_at = NULL, updated_at = ?2 WHERE key = ?1").bind(key, sqlTime(now)).run();
+
+/** The new file could not be fetched: keep the copy that works, and look again in thirty days (not at every question). */
+export const keepOld = (db: D1Database, key: string, now: number, days: number) =>
+  db.prepare("UPDATE oa_papers SET ready_at = ?2, refresh_at = NULL, updated_at = ?3 WHERE key = ?1 AND status = 'ready'").bind(key, sqlTime(now - (days - 30) * 86_400_000), sqlTime(now)).run();
 
 /** Counts one new paper against a person's day. False when they have used the day's allowance. */
 export async function takeDaily(db: D1Database, userId: string, day: string, max: number): Promise<boolean> {

@@ -33,6 +33,7 @@ export async function eraseAccount(env: Env, userId: string, opts: { tombstone?:
   await db.batch([
     db.prepare("DELETE FROM ocr_usage WHERE user_id = ?1").bind(userId),
     // a literature scan's events before the scan, and both before the account (litscan/store.ts)
+    db.prepare("DELETE FROM litscan_shares WHERE user_id = ?1").bind(userId),
     db.prepare("DELETE FROM litscan_events WHERE scan_id IN (SELECT id FROM litscans WHERE user_id = ?1)").bind(userId),
     db.prepare("DELETE FROM litscans WHERE user_id = ?1").bind(userId),
     db.prepare("DELETE FROM litscan_daily WHERE user_id = ?1").bind(userId),

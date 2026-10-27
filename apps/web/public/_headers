@@ -9,6 +9,12 @@
   Strict-Transport-Security: max-age=63072000; includeSubDomains
   Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://lh3.googleusercontent.com; font-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
+# A scan shared by a link: not indexed, not cached, and the address (the link is the key) is never sent on to a site the page links to.
+/literature-scan/shared/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+
 # Vite fingerprints everything under /assets, so it can be cached forever.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { MAX_OA_ABSTRACT_CHARS, OA_UNREADABLE_TEXT, MAX_QUESTION_CHARS, OA_NEW_PAPERS_PER_DAY, OA_NEW_PAPERS_PER_DAY_ALL, OA_WAIT_MS, OA_WORKING, cleanArxivId, cleanDoi, cleanPmcid, oaKey, type OaAskEvent, type OaIngestEvent, type OaReason, type OaRef, type OaSource } from "@scholar/shared";
+import { MAX_OA_ABSTRACT_CHARS, OA_REFRESH_DAYS, OA_UNREADABLE_TEXT, MAX_QUESTION_CHARS, OA_NEW_PAPERS_PER_DAY, OA_NEW_PAPERS_PER_DAY_ALL, OA_WAIT_MS, OA_WORKING, cleanArxivId, cleanDoi, cleanPmcid, oaKey, type OaAskEvent, type OaIngestEvent, type OaReason, type OaRef, type OaSource } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { answerQuestionStream, type StoredChunk } from "../docs/qa";
 import { describeAskError, embedderFor, streamFor } from "../docs/routes";
@@ -10,12 +10,17 @@ import { remoteGate } from "../gate/api-gate";
 import { isPermissiveLicense } from "./jats";
 import { sourceDepsFor } from "./deps";
 import { fetchArxivMeta, lookupByDoi, lookupOpenAlexAbstract } from "./sources";
-import { claimAttempt, createPaper, failIfStale, getPaper, instanceId, keyHash, markFailed, readyChunks, refundDaily, setInstance, takeDaily, type OaRow } from "./store";
+import { claimAttempt, claimRefresh, createPaper, failIfStale, getPaper, instanceId, keepOld, keyHash, markFailed, readyChunks, refundDaily, setInstance, takeDaily, type OaRow } from "./store";
+import { cacheStore } from "../cache";
+import { stubCrossrefFetch } from "../library/retraction-stub";
+import { retractedDois } from "../search/retraction";
 import type { OaParams } from "./workflow";
 import { askOutcome, countOutcome } from "../outcomes";
 
 type Bindings = {
   DB: D1Database;
+  /** The public cache (Workers KV), where the retraction lookups are kept for a day. */
+  CACHE?: KVNamespace;
   FILES: R2Bucket;
   AI?: Ai;
   API_GATE?: DurableObjectNamespace<ApiGate>;
@@ -46,6 +51,39 @@ function readRef(body: unknown): OaRef | null {
   const arxivId = cleanArxivId(o.arxivId);
   const pmcid = cleanPmcid(o.pmcid);
   return doi || arxivId ? { ...(doi ? { doi } : {}), ...(arxivId ? { arxivId } : {}), ...(pmcid ? { pmcid } : {}) } : null;
+}
+
+/**
+ * Is the paper retracted? Looked up when it is asked (Crossref's retraction data through the public cache, which keeps an answer for a day), not only when a card was made: a paper can be
+ * retracted after it was found, and a bare DOI pasted into the box has no card. A lookup that fails says nothing and never stops an answer.
+ */
+async function retractedNow(env: Bindings, ref: OaRef): Promise<boolean> {
+  if (!ref.doi) return false;
+  const doi = ref.doi.toLowerCase();
+  try {
+    const stub = env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+    const r = await retractedDois(cacheStore(env as never), [doi], { CROSSREF_MAILTO: env.CROSSREF_MAILTO, ...(stub ? { fetch: stubCrossrefFetch } : {}) }, AbortSignal.timeout(4000));
+    return r.retracted.has(doi);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A paper that was read more than OA_REFRESH_DAYS ago is fetched again, in the background: the person who asked is answered from the copy that is there (it stays ready), and the new
+ * file is compared with the old one (src/oa/ingest.ts). One refresh at a time, and none again for an hour.
+ */
+async function refreshIfOld(env: Bindings, key: string): Promise<void> {
+  const attempt = await claimRefresh(env.DB, key, Date.now(), OA_REFRESH_DAYS).catch(() => null);
+  if (attempt === null) return;
+  try {
+    await env.OA_INGEST.create({ id: instanceId(await keyHash(key), attempt), params: { key, attempt, refresh: true } });
+  } catch (e) {
+    if (!/already_exists|already exists/i.test(e instanceof Error ? e.message : String(e))) {
+      console.error(JSON.stringify({ level: "error", msg: "oa_refresh_start_failed", error: e instanceof Error ? e.name : "unknown" }));
+      await keepOld(env.DB, key, Date.now(), OA_REFRESH_DAYS).catch(() => {});
+    }
+  }
 }
 
 /** How far along a reading is, 0 to 1, for the progress line. */
@@ -168,8 +206,11 @@ oaRoutes.post("/ask", async (c) => {
         return void (await answerFromAbstract(c, s, { key, ref, reason: (row.reason ?? "internal") as OaReason, title: row.title, clientAbstract, question, embed, subject: user.id, abort }));
       }
       await send({ type: "ingest", status: "ready", progress: 1, ...(row.source ? { source: row.source } : {}) });
-      await send({ type: "paper", key, title: row.title, source: (row.source ?? "pdf") as OaSource, license: row.license, permissive: isPermissiveLicense(row.license) });
+      const retracted = await retractedNow(c.env, ref);
+      await send({ type: "paper", key, title: row.title, source: (row.source ?? "pdf") as OaSource, license: row.license, permissive: isPermissiveLicense(row.license), ...(retracted ? { retracted: true } : {}) });
+      // the chunks are read first, then (if the copy is old) the refresh is started: the answer is made from the copy as it is now
       const chunks = await readyChunks(db, key);
+      await refreshIfOld(c.env, key);
       await ask(c, s, { chunks, question, embed, subject: user.id, abort });
     } catch (e) {
       if (s.gone) return;
@@ -225,7 +266,8 @@ async function answerFromAbstract(c: Ctx, s: Session, a: { key: string; ref: OaR
   if (abstract.length < 40) {
     return void (await s.send({ type: "error", code: "no_text", title: "There is nothing to read for this paper", detail: `${OA_UNREADABLE_TEXT[a.reason]} No abstract could be found either, so there is nothing to answer from. If you have the PDF, add it to My Workspace and ask there.` }));
   }
-  await s.send({ type: "paper", key: a.key, title, source: "abstract", license: null, permissive: false, reason: a.reason });
+  const retracted = await retractedNow(c.env, a.ref);
+  await s.send({ type: "paper", key: a.key, title, source: "abstract", license: null, permissive: false, reason: a.reason, ...(retracted ? { retracted: true } : {}) });
   const chunks: StoredChunk[] = [{ idx: 1000, page: 1, section: "Abstract", text: abstract.slice(0, MAX_OA_ABSTRACT_CHARS), embedding: null }];
   await ask(c, s, { basis: "abstract", chunks, question: a.question, embed: a.embed, subject: a.subject, abort: a.abort });
 }

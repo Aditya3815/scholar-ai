@@ -54,7 +54,7 @@ const routeFromPath = (): Route => {
   const p = location.pathname.replace(/\/+$/, "");
   if (p === "/verify") return { view: "verify", docId: null };
   if (p === "/idea") return { view: "idea", docId: null };
-  if (WORKSPACE && p === "/literature-scan") return { view: "litscan", docId: null };
+  if (WORKSPACE && (p === "/literature-scan" || /^\/literature-scan\/shared\/[A-Za-z0-9_-]{43}$/.test(p))) return { view: "litscan", docId: null };
   if (p === "/admin") return { view: "admin", docId: null };
   if (p === "/privacy") return { view: "privacy", docId: null };
   if (p === "/terms") return { view: "terms", docId: null };

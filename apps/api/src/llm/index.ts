@@ -17,6 +17,8 @@ export type LlmEnv = {
    */
   ENABLE_DEV_ROUTES?: string;
   LLM_QA_MODEL?: string;
+  /** The same for the private `classify` task (the router of Auto mode: docs/design/p7-latency.md). */
+  LLM_CLASSIFY_MODEL?: string;
   LLM_REASONING?: string;
 };
 
@@ -28,7 +30,11 @@ export function gatewayFromEnv(env: LlmEnv) {
   if (env.AI) providers.workersai = workersAiProvider(env.AI, { reasoning: effort });
   if (env.GEMINI_API_KEY) providers.gemini = geminiProvider(env.GEMINI_API_KEY);
   const model = dev ? env.LLM_QA_MODEL?.trim() : undefined;
-  const config = model && /^@cf\/[\w.\-/]+$/.test(model) ? { ...DEFAULT_CONFIG, routes: { ...DEFAULT_CONFIG.routes, qa: { ...DEFAULT_CONFIG.routes.qa, private: [{ provider: "workersai", model }] } } } : DEFAULT_CONFIG;
+  const classify = dev ? env.LLM_CLASSIFY_MODEL?.trim() : undefined;
+  const MODEL = /^@cf\/[\w.\-/]+$/;
+  let config = DEFAULT_CONFIG;
+  if (model && MODEL.test(model)) config = { ...config, routes: { ...config.routes, qa: { ...config.routes.qa, private: [{ provider: "workersai", model }] } } };
+  if (classify && MODEL.test(classify)) config = { ...config, routes: { ...config.routes, classify: { ...config.routes.classify, private: [{ provider: "workersai", model: classify }] } } };
   return createGateway({
     providers,
     ledger: d1Ledger(env.DB),

@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scholar AI, scroll story v2 (mock)</title>
+<meta name="description" content="A mock of the scroll-driven intro, v2. Sample data only. Open it, scroll it, use the Playground (bottom left).">
+<meta name="robots" content="noindex">
+<!-- Static (stacked, finished) layout is decided before first paint, so there is no jump: reduced motion, phones, or the Playground's switch. Without JavaScript the page is simply the stacked layout. -->
+<script>
+(function () {
+  var d = document.documentElement, mq = matchMedia("(prefers-reduced-motion: reduce)"), saved = {};
+  try { saved = JSON.parse(localStorage.getItem("scroll-v2") || "{}"); } catch (e) {}
+  if (saved.theme) d.setAttribute("data-theme", saved.theme);
+  else if (matchMedia("(prefers-color-scheme: dark)").matches) d.setAttribute("data-theme", "dark");
+  var animated = !mq.matches && innerWidth >= 768 && saved.motion !== "static";
+  d.classList.add(animated ? "js-anim" : "js-static");
+})();
+</script>
+<style>
+/* ------------------------------------------------------------------ the app's own fonts (apps/web/package.json: @fontsource), loaded from node_modules when this file is opened from the repository */
+@font-face { font-family: "Inter Variable"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("../../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2"); }
+@font-face { font-family: "Source Serif 4 Variable"; font-style: normal; font-weight: 200 900; font-display: swap; src: url("../../../node_modules/@fontsource-variable/source-serif-4/files/source-serif-4-latin-opsz-normal.woff2") format("woff2"); }
+@font-face { font-family: "Source Serif 4 Variable"; font-style: italic; font-weight: 200 900; font-display: swap; src: url("../../../node_modules/@fontsource-variable/source-serif-4/files/source-serif-4-latin-opsz-italic.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono Variable"; font-style: normal; font-weight: 100 800; font-display: swap; src: url("../../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2") format("woff2"); }
+
+/* ------------------------------------------------------------------ tokens: exactly apps/web/src/styles/tokens.css (light, dark, read) */
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --surface-2: #f3f1eb; --text: #16181d; --muted: #565a63; --border: #e5e1d8; --border-strong: #cfc9bb;
+  --accent: #3548c8; --accent-fg: #ffffff; --accent-soft: #e8ebfa; --ok: #0f7a4a; --warn: #8f5200; --danger: #b3261e; --danger-fg: #ffffff; --danger-soft: #fbeceb; --ok-soft: #e6f4ec;
+  --shadow-1: 0 1px 2px rgb(22 24 29 / .06), 0 1px 1px rgb(22 24 29 / .04); --shadow-2: 0 8px 24px -8px rgb(22 24 29 / .18), 0 2px 6px rgb(22 24 29 / .06);
+  --radius-s: 8px; --radius: 14px; --radius-l: 22px;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  --font-ui: "Inter Variable", Inter, system-ui, sans-serif; --font-serif: "Source Serif 4 Variable", "Source Serif 4", Georgia, serif; --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  /* motion system of this mock (docs/design/scroll-design-system.md) */
+  --head: 64px;              /* sticky header; a pinned stage starts under it */
+  --len: 1;                  /* Playground: scales every stage's scroll length */
+  --tint: var(--accent);     /* the stage colour that follows the active tool */
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #0f1115; --surface: #171a20; --surface-2: #1f232b; --text: #ecece8; --muted: #a3a6ae; --border: #2a2f39; --border-strong: #3a4150;
+  --accent: #93a6ff; --accent-fg: #0b1030; --accent-soft: #1d2447; --ok: #5fd39b; --warn: #f0b95c; --danger: #ff8a80; --danger-fg: #3a0b08; --danger-soft: #3a1f1d; --ok-soft: #14301f;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / .4); --shadow-2: 0 10px 28px -8px rgb(0 0 0 / .6), 0 2px 6px rgb(0 0 0 / .4); color-scheme: dark;
+}
+:root[data-theme="read"] {
+  --bg: #f4ecd8; --surface: #faf4e4; --surface-2: #ede3cb; --text: #3b3226; --muted: #6b5d49; --border: #d9cdb0; --border-strong: #c2b48f;
+  --accent: #7a4b16; --accent-fg: #ffffff; --accent-soft: #ebddbe; --ok: #2f6b3c; --warn: #7a4b00; --danger: #9e2a20; --danger-fg: #ffffff; --danger-soft: #f3dcd0; --ok-soft: #e3ead0;
+  --shadow-1: 0 1px 2px rgb(59 50 38 / .08); --shadow-2: 0 8px 22px -8px rgb(59 50 38 / .22), 0 2px 6px rgb(59 50 38 / .08); color-scheme: light;
+}
+
+/* ------------------------------------------------------------------ base */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-padding-top: calc(var(--head) + 12px); }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 1rem; line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: clip; }
+h1, h2, h3, p, ul, ol, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.sr-only { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.skip { position: absolute; left: 12px; top: -48px; z-index: 100; background: var(--surface); border: 1px solid var(--border-strong); padding: .5rem .8rem; border-radius: 8px; }
+.skip:focus { top: 10px; }
+.wrap { width: min(1160px, 100% - 48px); margin-inline: auto; }
+.eyebrow { font-size: .78rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.serif { font-family: var(--font-serif); font-optical-sizing: auto; }
+.h1, .h2 { font-family: var(--font-serif); font-weight: 600; letter-spacing: -.02em; line-height: 1.08; text-wrap: balance; }
+.h1 { font-size: clamp(2.6rem, 6.4vw, 5.2rem); }
+.h2 { font-size: clamp(1.9rem, 4vw, 3.1rem); }
+.h1 em, .h2 em { font-style: italic; color: var(--accent); }
+.lead { font-size: clamp(1.05rem, 1.6vw, 1.25rem); color: var(--muted); max-width: 52ch; }
+.btn { display: inline-flex; align-items: center; gap: .5rem; min-height: 44px; padding: .6rem 1.1rem; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); text-decoration: none; font-weight: 600; transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s; }
+.btn:hover { border-color: var(--accent); box-shadow: var(--shadow-1); transform: translateY(-1px); }
+.btn-primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.btn-primary:hover { box-shadow: var(--shadow-2); }
+.tag { flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: .35rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: .15rem .55rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+.chip { display: inline-grid; place-items: center; min-width: 1.5em; height: 1.5em; padding: 0 .35em; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font: 700 .78em/1 var(--font-ui); vertical-align: .12em; }
+.mono { font-family: var(--font-mono); font-size: .82em; }
+
+/* ------------------------------------------------------------------ header, page progress, spine, background graph */
+.head { position: sticky; top: 0; z-index: 60; height: var(--head); display: flex; align-items: center; background: color-mix(in srgb, var(--bg) 84%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid transparent; transition: border-color .25s; }
+.head.is-scrolled { border-bottom-color: var(--border); }
+.head .wrap { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.logo { display: inline-flex; align-items: center; gap: .55rem; text-decoration: none; color: var(--text); font-family: var(--font-serif); font-weight: 650; font-size: 1.25rem; }
+.logo b { color: var(--accent); font-weight: 650; }
+.nav { display: flex; gap: .3rem; }
+.nav a { color: var(--muted); text-decoration: none; padding: .4rem .7rem; border-radius: 999px; font-size: .92rem; font-weight: 500; }
+.nav a:hover, .nav a[aria-current="true"] { color: var(--text); background: var(--surface-2); }
+.pbar { position: absolute; left: 0; bottom: -1px; height: 2px; width: 100%; background: var(--accent); transform-origin: 0 50%; transform: scaleX(var(--page, 0)); }
+.bg-graph { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .9; }
+main, footer { position: relative; z-index: 1; }
+.spine { position: fixed; right: 18px; top: 50%; transform: translateY(-50%); z-index: 50; display: none; flex-direction: column; gap: 14px; }
+.js-anim .spine { display: flex; }
+.spine a { position: relative; display: block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border-strong); background: var(--bg); transition: background .25s, border-color .25s, transform .25s var(--ease); }
+.spine a[aria-current="true"] { background: var(--accent); border-color: var(--accent); transform: scale(1.25); }
+.spine a::before { content: ""; position: absolute; inset: -9px; }
+.spine a span { position: absolute; right: 22px; top: 50%; transform: translateY(-50%); white-space: nowrap; font-size: .8rem; font-weight: 600; background: var(--surface); border: 1px solid var(--border); padding: .15rem .55rem; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.spine a:hover span, .spine a:focus-visible span { opacity: 1; }
+@media (max-width: 1180px) { .js-anim .spine { display: none; } }
+
+/* ------------------------------------------------------------------ stages: a tall container whose child is pinned; the page scrolls natively, the stage reads its own progress p (0..1) and writes a few CSS variables */
+.stage { position: relative; }
+.sticky { position: relative; }
+.js-anim .stage { height: calc(var(--vh) * var(--len) * 1vh); }
+.js-anim .sticky { position: sticky; top: var(--head); height: calc(100vh - var(--head)); overflow: clip; display: grid; align-items: center; }
+.js-anim .stage { --enter: clamp(0, calc(var(--e, 1)), 1); }
+.js-anim .sticky > .inner { opacity: var(--env, 1); transform: translateY(calc((1 - var(--env, 1)) * 18px)); }
+.dbg { display: none; position: absolute; right: 10px; top: 10px; z-index: 30; font: 600 11px/1.3 var(--font-mono); background: var(--text); color: var(--bg); padding: 4px 8px; border-radius: 6px; }
+.show-dbg .js-anim .dbg { display: block; }
+section { scroll-margin-top: var(--head); }
+.sec { padding: clamp(64px, 10vw, 120px) 0; position: relative; }
+
+/* ------------------------------------------------------------------ ACT 1: hero and "follow the citation" */
+.s-follow { --vh: 480; z-index: 1; }
+.f-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.25fr); gap: clamp(24px, 4vw, 64px); align-items: center; }
+.f-copy { position: relative; }
+.f-hero > * + * { margin-top: 1.25rem; }
+.f-cta { display: flex; flex-wrap: wrap; gap: .75rem; }
+.f-note { font-size: .88rem; color: var(--muted); }
+.caps { position: relative; margin-top: 1.5rem; }
+.js-anim .caps { height: 9.5rem; }
+.cap { display: grid; gap: .35rem; padding-left: 1rem; border-left: 3px solid var(--accent); }
+.cap + .cap { margin-top: 1.1rem; }
+.cap .eyebrow { color: var(--accent); }
+.cap h3 { font-family: var(--font-serif); font-size: 1.5rem; line-height: 1.2; letter-spacing: -.01em; }
+.cap p { color: var(--muted); font-size: .98rem; }
+.js-anim .cap { position: absolute; inset: 0 0 auto 0; opacity: var(--c, 0); transform: translateY(calc((1 - var(--c, 0)) * 14px)); pointer-events: none; }
+.js-anim .cap + .cap { margin-top: 0; }
+.js-anim .f-hero { opacity: var(--hero, 1); transform: translateY(calc((1 - var(--hero, 1)) * -22px)); }
+.js-anim .f-hero { position: absolute; inset: 0 auto auto 0; width: 100%; }
+.js-anim .f-copy { min-height: 26rem; }
+.js-anim .caps { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); margin: 0; }
+.dots { display: flex; gap: .4rem; margin-top: 1.1rem; }
+.dots i { height: 4px; width: 28px; border-radius: 4px; background: var(--border-strong); position: relative; overflow: hidden; }
+.dots i::after { content: ""; position: absolute; inset: 0; background: var(--accent); transform-origin: 0 50%; transform: scaleX(var(--d, 1)); }
+.js-anim .dots { position: absolute; left: 0; bottom: 0; margin: 0; opacity: calc(1 - var(--hero, 1)); }
+
+.f-grid > *, .t-grid > *, .sc-grid > *, .hing > * { min-width: 0; }
+.win { width: 100%; position: relative; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface); box-shadow: var(--shadow-2); overflow: hidden; max-width: 680px; margin-inline: auto; }
+.js-anim .win { transform: perspective(1400px) rotateX(calc((1 - var(--win, 1)) * 16deg)) scale(calc(.93 + var(--win, 1) * .07)); opacity: calc(.35 + var(--win, 1) * .65); transform-origin: 50% 100%; }
+.win-bar { display: flex; align-items: center; gap: .4rem; padding: .7rem .9rem; border-bottom: 1px solid var(--border); background: var(--surface-2); font-size: .8rem; color: var(--muted); }
+.win-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong); }
+.win-bar span { margin-left: .4rem; font-weight: 600; }
+.win-body { padding: 1.1rem 1.2rem 1.3rem; display: grid; gap: .95rem; position: relative; }
+.w-q { font-weight: 600; }
+.w-q .typed { display: inline-block; clip-path: inset(0 calc((1 - var(--q, 1)) * 100%) 0 0); }
+.w-a { font-family: var(--font-serif); font-size: 1.08rem; line-height: 1.55; }
+.w-a .rv { opacity: var(--a, 1); }
+.w-a .chip { opacity: calc(.25 + var(--chip, 1) * .75); transform: scale(calc(.6 + var(--chip, 1) * .4)); }
+.paper { border: 1px solid var(--border); border-radius: var(--radius); padding: .95rem 1rem 1rem; background: var(--bg); display: grid; gap: .55rem; position: relative; }
+.js-anim .paper { opacity: var(--card, 1); transform: translateY(calc((1 - var(--card, 1)) * 26px)); }
+.paper h4 { margin: 0; font-family: var(--font-serif); font-size: 1.05rem; line-height: 1.3; }
+.paper .meta { font-size: .8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .3rem .9rem; align-items: center; }
+.abs { font-size: .9rem; color: var(--muted); }
+.abs mark { color: var(--text); background: linear-gradient(var(--accent-soft), var(--accent-soft)) 0 100% / calc(var(--hl, 1) * 100%) 100% no-repeat; padding: .08em .12em; border-radius: 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.badges { display: flex; flex-wrap: wrap; gap: .45rem; }
+.bdg { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; font-weight: 700; padding: .22rem .6rem; border-radius: 999px; background: var(--ok-soft); color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent); }
+.bdg svg { width: 14px; height: 14px; }
+.js-anim .bdg { opacity: var(--b, 1); transform: translateY(calc((1 - var(--b, 1)) * 8px)) scale(calc(.92 + var(--b, 1) * .08)); }
+.doiw { position: relative; display: inline-block; padding: .1rem .5rem; margin-left: -.5rem; }
+.doi-ring { position: absolute; pointer-events: none; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.doi-ring rect { fill: none; stroke: var(--ok); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--doi, 1)); }
+.retr { display: flex; align-items: center; gap: .6rem; border-radius: var(--radius); padding: .6rem .8rem; background: var(--danger-soft); color: var(--danger); font-size: .86rem; font-weight: 600; border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); }
+.js-anim .retr { opacity: var(--ret, 1); transform: translateX(calc((1 - var(--ret, 1)) * 40px)); }
+.actor { position: absolute; left: 0; top: 0; z-index: 5; pointer-events: none; display: none; }
+.js-anim .actor { display: block; transform: translate(var(--fx, 0px), var(--fy, 0px)) scale(var(--fs, 1)); opacity: var(--fo, 0); }
+.trail { position: absolute; inset: 0; z-index: 4; pointer-events: none; width: 100%; height: 100%; overflow: visible; display: none; }
+.js-anim .trail { display: block; }
+.trail path { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 1 1; stroke-dashoffset: calc(1 - var(--fly, 1)); opacity: calc(var(--fo, 0) * .6); }
+
+/* ------------------------------------------------------------------ ACT 2: the tools, titles that grow, a stage colour that follows */
+.s-tools { --vh: 400; z-index: 2; }
+.js-anim .s-tools { margin-top: -60vh; }
+.js-anim .s-tools .sticky { box-shadow: 0 -24px 48px -28px rgb(0 0 0 / .28); border-radius: var(--radius-l) var(--radius-l) 0 0; }
+.s-tools .sticky { background: color-mix(in srgb, var(--tint) 7%, var(--bg)); transition: background .6s var(--ease); }
+.t-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: clamp(24px, 5vw, 72px); align-items: center; }
+.t-list > .eyebrow { margin-bottom: 1rem; display: block; }
+.tool { border-top: 1px solid var(--border); }
+.tool:last-child { border-bottom: 1px solid var(--border); }
+.tool > button { display: flex; width: 100%; align-items: baseline; gap: 1rem; text-align: left; background: none; border: 0; padding: .85rem 0; font-family: var(--font-serif); font-weight: 600; letter-spacing: -.015em; font-size: 1.6rem; color: var(--muted); transition: font-size .45s var(--ease), color .3s; }
+.tool > button .n { font: 700 .8rem var(--font-ui); letter-spacing: .08em; color: var(--muted); min-width: 1.6rem; }
+.tool.is-active > button { font-size: clamp(2rem, 3.6vw, 2.9rem); color: var(--text); }
+.tool.is-active > button .n { color: var(--tint); }
+.tool .more { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .5s var(--ease); }
+.tool.is-active .more { grid-template-rows: 1fr; }
+.tool .more > div { overflow: hidden; }
+.tool .more p { color: var(--muted); max-width: 46ch; padding: 0 0 1rem 2.6rem; }
+.t-assets { position: relative; min-height: 26rem; }
+.asset { position: absolute; inset: 0; display: grid; align-content: center; gap: .7rem; opacity: 0; transform: translateY(14px) scale(.98); transition: opacity .45s var(--ease), transform .45s var(--ease); pointer-events: none; }
+.asset.is-active { opacity: 1; transform: none; pointer-events: auto; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .9rem 1rem; box-shadow: var(--shadow-1); }
+.row { display: flex; align-items: center; gap: .7rem; }
+.row + .row { margin-top: .55rem; }
+.ref { display: flex; align-items: center; gap: .7rem; padding: .7rem .9rem; font-size: .9rem; }
+.ref .st { margin-left: auto; font-size: .78rem; font-weight: 700; padding: .2rem .6rem; border-radius: 999px; white-space: nowrap; background: var(--surface-2); color: var(--muted); }
+.ref .st.ok { background: var(--ok-soft); color: var(--ok); }
+.ref .st.bad { background: var(--danger-soft); color: var(--danger); }
+.ref .st.wait::before { content: ""; display: inline-block; width: .55em; height: .55em; margin-right: .4em; border-radius: 50%; background: var(--tint); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
+.fac { display: grid; grid-template-columns: 5.5rem 1fr auto; align-items: center; gap: .8rem; font-size: .88rem; }
+.fac .bar { height: 10px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.fac .bar i { display: block; height: 100%; border-radius: inherit; background: var(--tint); width: calc(var(--lv) * var(--lp, 1) * 100%); }
+.note { font-size: .86rem; color: var(--muted); display: flex; gap: .5rem; align-items: flex-start; }
+.pdf { display: grid; gap: .5rem; font-family: var(--font-serif); font-size: .95rem; line-height: 1.6; color: var(--muted); }
+.pdf mark { background: linear-gradient(var(--accent-soft), var(--accent-soft)) 0 100% / calc(var(--lp, 1) * 100%) 100% no-repeat; color: var(--text); padding: .05em .1em; }
+.bubble { max-width: 88%; padding: .6rem .85rem; border-radius: 16px; font-size: .92rem; }
+.bubble.me { margin-left: auto; background: var(--accent); color: var(--accent-fg); border-bottom-right-radius: 4px; }
+.bubble.ai { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.js-static .t-assets { display: none; }
+.js-static .tool .more { grid-template-rows: 1fr; }
+.js-static .tool > button { font-size: 1.7rem; color: var(--text); cursor: default; }
+.js-static .t-grid { grid-template-columns: 1fr; }
+
+/* ------------------------------------------------------------------ ACT 3: two answers, one divider */
+.s-split { --vh: 330; }
+.sp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; position: relative; align-items: stretch; width: min(1100px, 100% - 48px); margin-inline: auto; }
+.sp-head { text-align: center; margin-bottom: clamp(20px, 4vh, 44px); }
+.sp-head .h2 { opacity: var(--t1, 1); transform: translateY(calc((1 - var(--t1, 1)) * 14px)); }
+.sp-card { position: relative; padding: clamp(18px, 2.4vw, 30px); border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-1); display: grid; gap: .8rem; align-content: start; }
+.sp-card.l { border-radius: var(--radius-l) 0 0 var(--radius-l); }
+.sp-card.r { border-radius: 0 var(--radius-l) var(--radius-l) 0; border-left: 0; }
+.js-anim .sp-card.l { transform: translateX(calc((1 - var(--m, 1)) * -70vw)) translateX(calc(var(--mx, 0) * -6px)); opacity: var(--m, 1); }
+.js-anim .sp-card.r { transform: translateX(calc((1 - var(--m, 1)) * 70vw)) translateX(calc(var(--mx, 0) * 6px)); opacity: var(--m, 1); }
+.sp-card h3 { font-family: var(--font-serif); font-size: 1.35rem; line-height: 1.2; }
+.sp-card.l h3 { color: var(--muted); }
+.sp-card p { font-family: var(--font-serif); font-size: 1.04rem; line-height: 1.6; }
+.fake { background: linear-gradient(var(--danger-soft), var(--danger-soft)) 0 100% / calc(var(--bad, 1) * 100%) 100% no-repeat; border-bottom: 2px dotted var(--danger); padding: 0 .1em; }
+.verdict { display: flex; align-items: center; gap: .55rem; font: 700 .82rem var(--font-ui); padding: .35rem .7rem; border-radius: 999px; width: fit-content; }
+.verdict.bad { background: var(--danger-soft); color: var(--danger); }
+.verdict.good { background: var(--ok-soft); color: var(--ok); }
+.js-anim .verdict.bad { opacity: var(--bad, 1); transform: translateY(calc((1 - var(--bad, 1)) * 10px)); }
+.js-anim .verdict.good { opacity: var(--good, 1); transform: translateY(calc((1 - var(--good, 1)) * 10px)); }
+.sp-div { position: absolute; left: 50%; top: -14px; bottom: -14px; width: 2px; background: var(--accent); transform-origin: 50% 0; transform: translateX(-1px) scaleY(var(--dv, 1)); border-radius: 2px; z-index: 3; }
+.sp-foot { text-align: center; margin-top: clamp(18px, 3.5vh, 36px); font-family: var(--font-serif); font-size: clamp(1.15rem, 2vw, 1.55rem); }
+.sp-foot em { color: var(--accent); }
+.js-anim .sp-foot { opacity: var(--t2, 1); transform: translateY(calc((1 - var(--t2, 1)) * 12px)); }
+.js-static .sp-grid { grid-template-columns: 1fr; gap: 1rem; }
+.js-static .sp-card.l, .js-static .sp-card.r { border-radius: var(--radius-l); border-left: 1px solid var(--border); }
+.js-static .sp-div { display: none; }
+
+/* ------------------------------------------------------------------ ACT 4: the literature scan, 52 seconds in one scroll */
+.s-scan { --vh: 380; }
+.sc-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: clamp(20px, 4vw, 56px); align-items: center; }
+.sc-top { display: flex; justify-content: space-between; align-items: end; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.clock { font: 700 1.5rem/1 var(--font-mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+.lanes { display: grid; gap: .6rem; }
+.lane { display: grid; gap: .3rem; padding: .7rem .85rem; }
+.lane .q { font-size: .9rem; font-weight: 600; display: flex; gap: .6rem; align-items: baseline; }
+.lane .q .n { color: var(--accent); font-size: .75rem; }
+.lane .tr { height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.lane .tr i { display: block; height: 100%; width: calc(var(--l, 1) * 100%); background: var(--accent); border-radius: inherit; }
+.lane.gap .tr i { background: var(--warn); }
+.lane .s { font-size: .78rem; color: var(--muted); display: flex; justify-content: space-between; gap: .5rem; }
+.lane .s b { font-weight: 700; color: var(--text); }
+.report { padding: 1.1rem 1.2rem; display: grid; gap: .8rem; }
+.report h3 { font-family: var(--font-serif); font-size: 1.15rem; }
+.sec-r { border-left: 3px solid var(--accent); padding-left: .8rem; font-size: .9rem; color: var(--muted); }
+.sec-r.gapped { border-left-color: var(--warn); }
+.sec-r b { display: block; color: var(--text); font-family: var(--font-serif); font-size: .98rem; }
+.sec-r { position: relative; }
+.js-anim .sec-r.wait { border-left-color: var(--border); }
+.js-anim .sec-r.wait > * { visibility: hidden; }
+.js-anim .sec-r.wait::after { content: ""; position: absolute; left: .8rem; top: .25rem; width: 62%; height: .65rem; border-radius: 6px; background: var(--surface-2); box-shadow: 0 1.35rem 0 -.1rem var(--surface-2); }
+.js-anim .sec-r:not(.wait) { opacity: var(--r, 1); transform: translateY(calc((1 - var(--r, 1)) * 10px)); }
+.srcs { font-size: .8rem; color: var(--muted); border-top: 1px solid var(--border); padding-top: .6rem; }
+.srcs li { display: flex; gap: .5rem; }
+.srcs li + li { margin-top: .25rem; }
+.js-anim .srcs { opacity: var(--rs, 1); }
+.pill-row { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .9rem; }
+.js-anim .pill-row { opacity: var(--pr, 1); }
+.js-static .clock { display: none; }
+
+/* ------------------------------------------------------------------ the quieter sections: reveal on entering, once */
+.rise { opacity: 0; transform: translateY(18px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
+.rise.in, .js-static .rise, html:not(.js-anim) .rise { opacity: 1; transform: none; }
+.rules { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: 2rem; }
+.rules .card { display: grid; gap: .5rem; padding: 1.2rem; }
+.rules h3 { font-family: var(--font-serif); font-size: 1.2rem; line-height: 1.25; }
+.rules p { color: var(--muted); font-size: .95rem; }
+.ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.limits { margin-top: 1.5rem; padding: 1rem 1.2rem; border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); font-size: .95rem; }
+.hing { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: clamp(24px, 5vw, 64px); align-items: center; }
+.chat { display: grid; gap: .6rem; }
+.chat .bubble { opacity: 0; transform: translateY(12px); transition: opacity .5s var(--ease), transform .5s var(--ease); transition-delay: calc(var(--i) * .35s); }
+.chat.in .bubble, .js-static .chat .bubble, html:not(.js-anim) .chat .bubble { opacity: 1; transform: none; }
+.faq { margin-top: 2rem; display: grid; gap: .6rem; max-width: 52rem; }
+.faq details { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 0 1.1rem; }
+.faq summary { cursor: pointer; padding: 1rem 0; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 1rem; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; font-size: 1.3rem; line-height: 1; color: var(--accent); transition: transform .3s var(--ease); }
+.faq details[open] summary::after { transform: rotate(45deg); }
+.faq details { interpolate-size: allow-keywords; }
+.faq details::details-content { block-size: 0; overflow: clip; transition: block-size .4s var(--ease), content-visibility .4s allow-discrete; }
+.faq details[open]::details-content { block-size: auto; }
+.faq details p { color: var(--muted); padding-bottom: 1rem; max-width: 62ch; }
+.cta { text-align: center; padding: clamp(72px, 12vw, 140px) 0 clamp(40px, 6vw, 72px); }
+.cta .f-cta { justify-content: center; margin-top: 1.6rem; }
+.marq { overflow: hidden; border-block: 1px solid var(--border); padding: 1rem 0; background: var(--surface); mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
+.marq .track { display: flex; width: max-content; gap: 2.5rem; animation: marq 38s linear infinite; }
+.marq:hover .track, .marq:focus-within .track { animation-play-state: paused; }
+.marq span { font-family: var(--font-serif); font-size: 1.25rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.marq span::after { content: "·"; margin-left: 2.5rem; color: var(--border-strong); }
+@keyframes marq { to { transform: translateX(-50%); } }
+.js-static .marq .track { animation: none; flex-wrap: wrap; width: auto; justify-content: center; padding-inline: 1rem; gap: 1rem 2rem; }
+.js-static .marq .dup { display: none; }
+.marq-cap { text-align: center; font-size: .85rem; color: var(--muted); margin-top: .8rem; }
+footer { border-top: 1px solid var(--border); padding: 2rem 0 5rem; color: var(--muted); font-size: .9rem; }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; }
+
+/* ------------------------------------------------------------------ Playground (this mock only) */
+.pg-btn { position: fixed; left: 14px; bottom: 14px; z-index: 90; background: var(--text); color: var(--bg); border: 0; border-radius: 999px; padding: .6rem 1rem; font-weight: 700; box-shadow: var(--shadow-2); }
+.pg { position: fixed; left: 14px; bottom: 66px; z-index: 90; width: min(320px, calc(100vw - 28px)); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-2); padding: 1rem; display: none; gap: .85rem; font-size: .88rem; }
+.pg.open { display: grid; }
+.pg h2 { font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.pg fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: .4rem; }
+.pg legend { font-weight: 700; margin-bottom: .3rem; }
+.seg { display: flex; border: 1px solid var(--border-strong); border-radius: 999px; overflow: hidden; }
+.seg label { flex: 1; text-align: center; padding: .35rem .4rem; cursor: pointer; font-weight: 600; font-size: .8rem; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:has(input:checked) { background: var(--accent); color: var(--accent-fg); }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.pg input[type="range"] { width: 100%; accent-color: var(--accent); }
+.pg .jump { display: flex; flex-wrap: wrap; gap: .35rem; }
+.pg .jump button { background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: .25rem .65rem; font-size: .78rem; font-weight: 600; }
+.pg label.chk { display: flex; gap: .5rem; align-items: center; font-weight: 500; }
+
+/* ------------------------------------------------------------------ the stacked layout (phones, reduced motion, the Playground's switch, no JavaScript) */
+@media (max-width: 899px) {
+  .f-grid, .t-grid, .sc-grid, .hing { grid-template-columns: 1fr; }
+  .rules { grid-template-columns: 1fr; }
+  .nav { display: none; }
+}
+html:not(.js-anim) .f-copy, html:not(.js-anim) .caps { min-height: 0; }
+html:not(.js-anim) .cap { padding-block: .2rem; }
+.js-static .caps { margin-top: 1.5rem; display: grid; gap: 1rem; }
+.js-static .f-copy { display: grid; gap: 1.5rem; }
+.js-static .doi-ring, .js-static .trail, .js-static .actor { display: none; }
+.js-static .dots { display: none; }
+.js-static .asset { position: static; opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+  .marq .track { animation: none; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+
+<header class="head" id="head">
+  <div class="wrap">
+    <a class="logo" href="#top" aria-label="Scholar AI, back to the top">
+      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="var(--accent)"/><path d="M16 9.5c-2.2-1.4-5-1.8-8-1.3v13.3c3-.5 5.8-.1 8 1.3V9.5Z" fill="var(--accent-fg)" opacity=".92"/><path d="M16 9.5c2.2-1.4 5-1.8 8-1.3v13.3c-3-.5-5.8-.1-8 1.3V9.5Z" fill="var(--accent-fg)" opacity=".62"/></svg>
+      <span>Scholar <b>AI</b></span>
+    </a>
+    <nav class="nav" aria-label="On this page">
+      <a href="#follow">Follow a citation</a><a href="#tools">What it does</a><a href="#split">Two answers</a><a href="#scan">Literature scan</a><a href="#faq">Questions</a>
+    </nav>
+    <a class="btn btn-primary" href="#cta">Sign in</a>
+  </div>
+  <div class="pbar" aria-hidden="true"></div>
+</header>
+
+<canvas class="bg-graph" id="graph" aria-hidden="true"></canvas>
+<nav class="spine" aria-label="Acts of the page" id="spine">
+  <a href="#follow"><span>Follow a citation</span><i class="sr-only">Follow a citation</i></a>
+  <a href="#tools"><span>What it does</span><i class="sr-only">What it does</i></a>
+  <a href="#split"><span>Two answers</span><i class="sr-only">Two answers</i></a>
+  <a href="#scan"><span>Literature scan</span><i class="sr-only">Literature scan</i></a>
+  <a href="#faq"><span>Questions</span><i class="sr-only">Questions</i></a>
+</nav>
+
+<main id="main">
+<div id="top"></div>
+
+<!-- ============================================================ ACT 1: hero, then follow the citation -->
+<section id="follow" class="stage s-follow" data-stage="follow" data-use=".8" aria-labelledby="h1">
+  <div class="sticky">
+    <div class="dbg" aria-hidden="true"></div>
+    <div class="inner wrap f-grid">
+      <div class="f-copy">
+        <div class="f-hero">
+          <p class="eyebrow">Scholar AI</p>
+          <h1 class="h1" id="h1">Research you can <em>trust</em>.</h1>
+          <p class="lead">Real papers, checked quotes, and a plain answer when the papers do not say. Nothing is cited unless it was found.</p>
+          <div class="f-cta"><a class="btn btn-primary" href="#cta">Start with one question</a><a class="btn" href="#tools">See what it does</a></div>
+          <p class="f-note">Scroll: follow one citation from an answer to the sentence it rests on.</p>
+        </div>
+        <div class="caps">
+          <div class="cap" data-i="0"><span class="eyebrow">1 · A claim with its source</span><h3>The answer carries a number.</h3><p>Every claim points at a numbered paper. The number is a promise, and the next steps check it.</p></div>
+          <div class="cap" data-i="1"><span class="eyebrow">2 · Follow it to the sentence</span><h3>It lands on one sentence.</h3><p>Not a paper, not a page: the sentence of the abstract that says it, word for word, found by the program and not written by the model.</p></div>
+          <div class="cap" data-i="2"><span class="eyebrow">3 · Is the record real?</span><h3>The DOI has to resolve.</h3><p>The record is looked up at the registry and its title has to agree. A DOI that does not resolve is removed, never shown.</p></div>
+          <div class="cap" data-i="3"><span class="eyebrow">4 · Is it still standing?</span><h3>Retractions are called out first.</h3><p>A paper that was withdrawn is marked at the top and is never used as evidence.</p></div>
+          <div class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        </div>
+      </div>
+      <div class="win" aria-hidden="true" id="win">
+        <div class="win-bar"><i></i><i></i><i></i><span>Scholar AI</span><span class="tag" style="margin-left:auto">Sample data</span></div>
+        <div class="win-body" id="winBody">
+          <p class="w-q"><span class="typed">How effective is BCG against adult tuberculosis?</span></p>
+          <p class="w-a"><span class="rv">BCG protected adults in some trials, but the effect varied by region and age.</span> <span class="chip" id="chipHome">1</span></p>
+          <div class="paper" id="paper">
+            <div class="meta"><span class="tag">Sample record</span><span>Journal of Examples · 2019</span></div>
+            <h4>Effect of BCG revaccination on tuberculosis in adults: a trial</h4>
+            <p class="abs">Participants were followed for three years. <mark id="target">Protection was seen in some regions but varied by age and baseline infection.</mark> No serious adverse events were reported.</p>
+            <div class="meta"><span class="doiw"><span class="mono" id="doi">doi:10.1000/sample.1234</span><svg class="doi-ring" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><rect x="1" y="1" width="98" height="28" rx="14" pathLength="1"/></svg></span></div>
+            <div class="badges">
+              <span class="bdg"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>DOI resolves</span>
+              <span class="bdg"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Title agrees</span>
+              <span class="bdg"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Not retracted</span>
+            </div>
+          </div>
+          <div class="retr"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 3l8 14H2L10 3zM10 8v4M10 14.5v.01"/></svg>Another paper in the list was retracted in 2024. It is marked, and was not used.</div>
+          <svg class="trail" id="trail" aria-hidden="true"><path id="trailPath" pathLength="1" d="M0 0"/></svg>
+          <span class="chip actor" id="actor" style="font-size:1rem">1</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="sr-only">A sample, in four steps. One: an answer says BCG protected adults in some trials and carries the number 1. Two: the number leads to one sentence of the paper's abstract, shown word for word. Three: the paper's DOI resolves at the registry and its title agrees. Four: a retracted paper in the same list is marked and is not used.</p>
+</section>
+
+<!-- ============================================================ ACT 2: the tools -->
+<section id="tools" class="stage s-tools" data-stage="tools" aria-labelledby="tools-h">
+  <div class="sticky">
+    <div class="dbg" aria-hidden="true"></div>
+    <div class="inner wrap t-grid">
+      <div class="t-list">
+        <h2 class="sr-only" id="tools-h">What Scholar AI does</h2>
+        <span class="eyebrow">What it does</span>
+        <ul>
+          <li class="tool is-active" data-i="0"><button type="button" aria-expanded="true" aria-controls="m0"><span class="n">01</span>Find real papers</button><div class="more" id="m0"><div><p>Search six scholarly indexes at once. Every result is a real record with its DOI checked, and retractions are marked.</p></div></div></li>
+          <li class="tool" data-i="1"><button type="button" aria-expanded="false" aria-controls="m1"><span class="n">02</span>Check references</button><div class="more" id="m1"><div><p>Paste a bibliography, even a messy one. Each entry is looked up and compared on title, authors and year.</p></div></div></li>
+          <li class="tool" data-i="2"><button type="button" aria-expanded="false" aria-controls="m2"><span class="n">03</span>Check an idea</button><div class="more" id="m2"><div><p>See the closest papers, part by part, and the gaps. It never says whether an idea is new.</p></div></div></li>
+          <li class="tool" data-i="3"><button type="button" aria-expanded="false" aria-controls="m3"><span class="n">04</span>Ask a paper</button><div class="more" id="m3"><div><p>Ask your own PDF, or any open-access paper. The answer quotes the text, and the quote is checked against it.</p></div></div></li>
+        </ul>
+      </div>
+      <div class="t-assets" aria-hidden="true">
+        <div class="asset is-active" data-i="0">
+          <div class="card"><div class="row"><b>Smartphone retinal imaging in rural clinics</b></div><div class="meta" style="font-size:.8rem;color:var(--muted)">2022 · <span class="mono">doi:10.1000/sample.22</span></div><div class="badges" style="margin-top:.5rem"><span class="bdg">DOI resolves</span><span class="bdg">Open access</span></div></div>
+          <div class="card"><div class="row"><b>Deep learning for glaucoma screening</b></div><div class="meta" style="font-size:.8rem;color:var(--muted)">2021 · <span class="mono">doi:10.1000/sample.21</span></div><div class="badges" style="margin-top:.5rem"><span class="bdg">DOI resolves</span></div></div>
+          <div class="card" style="border-color:color-mix(in srgb,var(--danger) 40%,var(--border))"><div class="retr" style="margin:0">Retracted 2024 · marked, never used as evidence</div></div>
+          <p class="note"><span class="tag">Sample data</span> The same list you see when you search.</p>
+        </div>
+        <div class="asset" data-i="1">
+          <div class="card ref" data-at="0.15"><span>Rao et al., 2021, Deep learning for glaucoma screening</span><span class="st" data-ok="1">Found</span></div>
+          <div class="card ref" data-at="0.35"><span>Iyer, 2020, Smartphone fundus imaging</span><span class="st" data-ok="1">Found</span></div>
+          <div class="card ref" data-at="0.55"><span>Smith &amp; Lee, 2019, A study that was never published</span><span class="st" data-ok="0">No such record</span></div>
+          <div class="card ref" data-at="0.75"><span>Desai, 2018, Population screening costs in India</span><span class="st" data-ok="1">Found</span></div>
+          <p class="note"><span class="tag">Sample data</span> A reference that does not exist is said so, plainly.</p>
+        </div>
+        <div class="asset" data-i="2">
+          <div class="card" style="display:grid;gap:.7rem">
+            <div class="fac" style="--lv:.82"><span>Purpose</span><div class="bar"><i></i></div><b>12 papers</b></div>
+            <div class="fac" style="--lv:.55"><span>Method</span><div class="bar"><i></i></div><b>6 papers</b></div>
+            <div class="fac" style="--lv:.2"><span>Testing</span><div class="bar"><i></i></div><b>2 papers</b></div>
+            <div class="fac" style="--lv:.38"><span>Field</span><div class="bar"><i></i></div><b>4 papers</b></div>
+          </div>
+          <p class="note"><span class="tag">Sample data</span> A map of what exists and where it is thin. Never a verdict on novelty.</p>
+        </div>
+        <div class="asset" data-i="3">
+          <div class="card pdf"><span class="tag" style="width:fit-content">Page 4 · sample</span><span>The trial enrolled adults in three regions and followed them for three years. <mark>Protection was seen in some regions but varied by age and baseline infection.</mark> Adverse events were rare.</span></div>
+          <div class="bubble me">What did the trial find about protection?</div>
+          <div class="bubble ai">It varied by region and by age. <span class="chip">1</span> <span style="color:var(--muted);font-size:.82rem">Quote checked against page 4</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ ACT 3: two answers -->
+<section id="split" class="stage s-split" data-stage="split" aria-labelledby="split-h">
+  <div class="sticky">
+    <div class="dbg" aria-hidden="true"></div>
+    <div class="inner">
+      <div class="wrap sp-head"><p class="eyebrow">The difference</p><h2 class="h2" id="split-h">Same question. <em>Two answers.</em></h2></div>
+      <div class="sp-grid" id="spGrid">
+        <div class="sp-card l">
+          <span class="tag" style="width:fit-content">An answer you cannot check</span>
+          <h3>A general chatbot</h3>
+          <p>BCG reduces adult tuberculosis by about 51% (Rodrigues et al., <span class="fake">doi:10.1056/nejm.2019.884</span>).</p>
+          <span class="verdict bad"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>That DOI does not exist</span>
+        </div>
+        <div class="sp-card r">
+          <span class="tag" style="width:fit-content;background:var(--accent-soft);color:var(--accent);border-color:transparent">An answer you can</span>
+          <h3>Scholar AI</h3>
+          <p>Protection varied by region and age <span class="chip">1</span>. “Protection was seen in some regions but varied by age and baseline infection.”</p>
+          <span class="verdict good"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Sentence found in the abstract</span>
+        </div>
+        <div class="sp-div" aria-hidden="true"></div>
+      </div>
+      <p class="sp-foot wrap">We never write a citation. We <em>find</em> it.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ ACT 4: the literature scan -->
+<section id="scan" class="stage s-scan" data-stage="scan" aria-labelledby="scan-h">
+  <div class="sticky">
+    <div class="dbg" aria-hidden="true"></div>
+    <div class="inner wrap">
+      <div class="sc-top">
+        <div><p class="eyebrow">New · Literature scan</p><h2 class="h2" id="scan-h" style="font-size:clamp(1.7rem,3.4vw,2.6rem)">A topic, <em>five questions</em>, one report.</h2></div>
+        <div class="clock" aria-hidden="true" id="clock">00:52</div>
+      </div>
+      <div class="sc-grid">
+        <div class="lanes" aria-hidden="true" id="lanes">
+          <div class="card lane" data-s=".04" data-e=".52"><div class="q"><span class="n">1</span>How strong is the link between air pollution and asthma?</div><div class="tr"><i></i></div><div class="s"><span class="st">Answered, checked</span><b>✓</b></div></div>
+          <div class="card lane" data-s=".06" data-e=".70"><div class="q"><span class="n">2</span>Which pollutants matter most?</div><div class="tr"><i></i></div><div class="s"><span class="st">Answered, checked</span><b>✓</b></div></div>
+          <div class="card lane gap" data-s=".05" data-e=".42"><div class="q"><span class="n">3</span>How is exposure measured?</div><div class="tr"><i></i></div><div class="s"><span class="st">No paper is about it</span><b>gap</b></div></div>
+          <div class="card lane" data-s=".08" data-e=".86"><div class="q"><span class="n">4</span>Which interventions help children?</div><div class="tr"><i></i></div><div class="s"><span class="st">Answered, checked</span><b>✓</b></div></div>
+          <div class="card lane" data-s=".07" data-e=".62"><div class="q"><span class="n">5</span>What is still uncertain?</div><div class="tr"><i></i></div><div class="s"><span class="st">Answered, checked</span><b>✓</b></div></div>
+        </div>
+        <div class="card report" aria-hidden="true" id="report">
+          <h3>Report <span class="tag">Sample data</span></h3>
+          <div class="sec-r" data-r="0"><b>1 · The link is positive, but no paper gives an effect size</b>Marked [1]. The sentence behind it is one click away.</div>
+          <div class="sec-r" data-r="1"><b>2 · Ozone is linked to hospital admission</b>Marked [2]. Other pollutants were not studied in the papers found.</div>
+          <div class="sec-r gapped" data-r="2"><b>3 · No written answer</b>Papers were found, but none of them is about this sub-question.</div>
+          <div class="sec-r" data-r="3"><b>4 · School air filtration lowered symptoms in two trials</b>Marked [3].</div>
+          <div class="sec-r" data-r="4"><b>5 · Mechanisms and long-term effects are open</b>Marked [3][4].</div>
+          <ol class="srcs"><li><span class="chip">1</span>Remote sensing and asthma risk, review (2024)</li><li><span class="chip">2</span>Ozone and hospital admission, case-control (2022)</li><li><span class="chip">3</span>Early-life exposure and asthma (2009)</li><li><span class="chip">4</span>Household air pollution and lung function (2022)</li></ol>
+        </div>
+      </div>
+      <p class="pill-row" aria-hidden="true"><span class="tag">≈ 52 s in real time</span><span class="tag">≈ 8,000 to 15,000 tokens of your day</span><span class="tag">Nothing is written after the checks</span></p>
+    </div>
+  </div>
+  <p class="sr-only">A sample scan: five sub-questions are searched and answered at the same time in about fifty seconds. Three are answered with checked sources, one has no written answer because no paper found is about it, and the report keeps one numbered list of sources.</p>
+</section>
+
+<!-- ============================================================ the quieter sections -->
+<section class="sec" id="trust" aria-labelledby="trust-h">
+  <div class="wrap">
+    <p class="eyebrow rise">Built to be checked</p>
+    <h2 class="h2 rise" id="trust-h">Check <em>the checker</em>.</h2>
+    <div class="rules">
+      <div class="card rise"><span class="ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10l4 4 8-9"/></svg></span><h3>Every paper is a real record</h3><p>Looked up at Crossref and OpenAlex. A DOI that does not resolve is removed, never shown.</p></div>
+      <div class="card rise"><span class="ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h12M4 10h12M4 15h7"/></svg></span><h3>Every quote is checked</h3><p>The sentence under a claim is cut from the abstract by the program, so it cannot be misquoted.</p></div>
+      <div class="card rise"><span class="ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3l8 14H2L10 3zM10 8v4"/></svg></span><h3>Retractions are never missed</h3><p>Marked at the top, and saved papers are looked at again every week.</p></div>
+    </div>
+    <p class="limits rise"><b>What it cannot do.</b> Abstracts only, unless a paper is open access and can be read in full. A scanned page is read by two models and marked when they disagree. It does not tell you whether your idea is new.</p>
+  </div>
+</section>
+
+<section class="sec" id="hinglish" aria-labelledby="hing-h" style="padding-top:0">
+  <div class="wrap hing">
+    <div><h2 class="h2 rise" id="hing-h">Ask the way <em>you think</em>.</h2><p class="lead rise" style="margin-top:1rem">English, Hindi or Hinglish. The papers are searched in English; the answer comes back in your language, with the same checks.</p></div>
+    <div class="chat" id="chat" aria-label="Example exchange">
+      <div class="bubble me" style="--i:0">diabetes me exercise ka kya asar hota hai?</div>
+      <div class="bubble ai" style="--i:1">Regular exercise improves blood sugar control <span class="chip">1</span><span class="chip">2</span>. Neeche dono papers ka wahi sentence hai jis par yeh jawab tika hai.</div>
+      <div class="bubble me" style="--i:2">Aur retracted paper?</div>
+      <div class="bubble ai" style="--i:3">Retracted papers upar mark hote hain, aur evidence ke roop me kabhi use nahi hote.</div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="faq" aria-labelledby="faq-h" style="padding-top:0">
+  <div class="wrap">
+    <h2 class="h2 rise" id="faq-h">Questions, <em>answered plainly</em>.</h2>
+    <div class="faq rise">
+      <details><summary>Does it ever write a citation itself?</summary><p>No. A model names a paper and a sentence number; the program turns that pair into the abstract's own sentence. A mark that does not point at a checked sentence is removed.</p></details>
+      <details><summary>Will it tell me whether my idea is new?</summary><p>No. It shows the closest papers and the gaps. Not finding a paper means it is not in these databases, not that it does not exist.</p></details>
+      <details><summary>What does a literature scan keep, and for how long?</summary><p>The topic you wrote, the plan you approved and the checked report, for 24 hours. Only the English search words you approved are sent to public indexes. You can delete a scan at any time.</p></details>
+      <details><summary>How much of my day does a scan use?</summary><p>About 8,000 to 15,000 AI tokens of the 60,000 you have a day, and the page tells you before it starts.</p></details>
+      <details><summary>Which sources does it search?</summary><p>OpenAlex, Semantic Scholar, Crossref, PubMed, arXiv and CORE, plus Europe PMC for full text of open-access papers.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="cta" id="cta" aria-labelledby="cta-h">
+  <div class="wrap rise">
+    <h2 class="h2" id="cta-h">Start with <em>one question</em>.</h2>
+    <p class="lead" style="margin-inline:auto;margin-top:1rem">Sign in with Google or ORCID. Your papers and ideas stay yours.</p>
+    <div class="f-cta"><a class="btn btn-primary" href="#top">Continue with Google</a><a class="btn" href="#top">Continue with ORCID</a></div>
+  </div>
+</section>
+<div class="marq" aria-label="Sources searched">
+  <div class="track"><span>OpenAlex</span><span>Crossref</span><span>PubMed</span><span>arXiv</span><span>CORE</span><span>Semantic Scholar</span><span>Europe PMC</span><span>Retraction Watch</span>
+    <span class="dup" aria-hidden="true">OpenAlex</span><span class="dup" aria-hidden="true">Crossref</span><span class="dup" aria-hidden="true">PubMed</span><span class="dup" aria-hidden="true">arXiv</span><span class="dup" aria-hidden="true">CORE</span><span class="dup" aria-hidden="true">Semantic Scholar</span><span class="dup" aria-hidden="true">Europe PMC</span><span class="dup" aria-hidden="true">Retraction Watch</span></div>
+</div>
+<p class="marq-cap">Real sources. The examples on this page are sample data.</p>
+</main>
+
+<footer><div class="wrap"><span>Scholar AI · a mock of the scroll story v2</span><span><a href="#top">Back to the top</a></span></div></footer>
+
+<!-- ============================================================ Playground -->
+<button class="pg-btn" id="pgBtn" type="button" aria-expanded="false" aria-controls="pg">Playground</button>
+<aside class="pg" id="pg" aria-label="Playground">
+  <h2>Play with it</h2>
+  <fieldset><legend>Theme</legend><div class="seg" role="radiogroup" aria-label="Theme">
+    <label><input type="radio" name="theme" value="light" checked>Light</label><label><input type="radio" name="theme" value="dark">Dark</label><label><input type="radio" name="theme" value="read">Read</label></div></fieldset>
+  <fieldset><legend>Motion</legend><div class="seg" role="radiogroup" aria-label="Motion">
+    <label><input type="radio" name="motion" value="full" checked>Full</label><label><input type="radio" name="motion" value="static">Stacked (reduced)</label></div></fieldset>
+  <fieldset><legend>Scroll length <span id="lenOut">100%</span></legend><input id="len" type="range" min="60" max="150" value="100" aria-label="Scroll length of every stage, in percent"></fieldset>
+  <label class="chk"><input type="checkbox" id="gtoggle" checked> Citation graph in the background</label>
+  <label class="chk"><input type="checkbox" id="dbg"> Show each stage's progress</label>
+  <div class="jump" role="group" aria-label="Jump to"><button type="button" data-go="follow">Follow</button><button type="button" data-go="tools">Tools</button><button type="button" data-go="split">Two answers</button><button type="button" data-go="scan">Scan</button><button type="button" data-go="faq">FAQ</button></div>
+</aside>
+
+<script>
+(function () {
+  "use strict";
+  var root = document.documentElement;
+  var $ = function (s, c) { return (c || document).querySelector(s); };
+  var $$ = function (s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); };
+  var clamp = function (x, a, b) { return Math.min(b === undefined ? 1 : b, Math.max(a === undefined ? 0 : a, x)); };
+  var seg = function (p, a, b) { return clamp((p - a) / (b - a)); };
+  var out = function (t) { return 1 - Math.pow(1 - t, 3); };
+  var inOut = function (t) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
+  var lerp = function (a, b, t) { return a + (b - a) * t; };
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem("scroll-v2") || "{}"); } catch (e) {}
+  var save = function () { try { localStorage.setItem("scroll-v2", JSON.stringify(saved)); } catch (e) {} };
+  var HEAD = 64;
+  var animated = function () { return root.classList.contains("js-anim"); };
+
+  /* ---------- quiet reveals: once, when they enter (IntersectionObserver, no scroll listener) */
+  var io = "IntersectionObserver" in window ? new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }); }, { rootMargin: "0px 0px -12% 0px" }) : null;
+  $$(".rise, .chat").forEach(function (el) { if (io) io.observe(el); else el.classList.add("in"); });
+
+  /* ---------- stages: progress of a tall container whose child is pinned; one requestAnimationFrame per scroll; CSS variables written, never React-style state */
+  var stages = $$("[data-stage]").map(function (el) { return { el: el, name: el.getAttribute("data-stage"), dbg: $(".dbg", el), p: -1, use: parseFloat(el.getAttribute("data-use") || "1") }; });
+  function progressOf(el) {
+    var r = el.getBoundingClientRect(), span = r.height - (innerHeight - HEAD);
+    return span <= 0 ? 0 : clamp((HEAD - r.top) / span);
+  }
+  function set(el, k, v) { el.style.setProperty(k, (Math.round(v * 1000) / 1000).toString()); }
+  /* a stage fades in at its start and out at its end, so neighbours cross through the page colour instead of cutting */
+  function envelope(p, a, b) { return Math.min(seg(p, 0, a), 1 - seg(p, 1 - b, 1)); }
+
+  /* ----- act 1 geometry: where the chip starts and lands, measured once per layout */
+  var geo = null;
+  function measureFollow() {
+    var body = $("#winBody"); if (!body) return;
+    var b = body.getBoundingClientRect(), c = $("#chipHome").getBoundingClientRect(), t = $("#target").getBoundingClientRect();
+    var chipW = $("#actor").offsetWidth, chipH = $("#actor").offsetHeight;
+    geo = { sx: c.left - b.left + c.width / 2 - chipW / 2, sy: c.top - b.top + c.height / 2 - chipH / 2, ex: t.left - b.left - chipW - 8, ey: t.top - b.top + t.height / 2 - chipH / 2 + 2, w: b.width, h: b.height };
+    var d = "M " + (geo.sx + chipW / 2) + " " + (geo.sy + chipH / 2) + " Q " + (geo.sx + 90) + " " + (geo.sy + (geo.ey - geo.sy) * .1) + " " + (geo.ex + chipW / 2) + " " + (geo.ey + chipH / 2);
+    $("#trailPath").setAttribute("d", d);
+    geo.cp = { x: geo.sx + 90, y: geo.sy + (geo.ey - geo.sy) * .1 };
+  }
+  function bez(a, c, b, t) { var u = 1 - t; return u * u * a + 2 * u * t * c + t * t * b; }
+
+  var updaters = {
+    follow: function (el, p) {
+            set(el, "--win", out(seg(p, 0, .12)));
+      set(el, "--hero", 1 - seg(p, .08, .17));
+      var steps = [seg(p, .14, .3), seg(p, .3, .52), seg(p, .52, .73), seg(p, .73, .92)];
+      var caps = $$(".cap", el);
+      var active = p < .14 ? -1 : p < .3 ? 0 : p < .52 ? 1 : p < .73 ? 2 : 3;
+      caps.forEach(function (c, i) {
+        var a = [.14, .3, .52, .73][i], b = [.3, .52, .73, 1][i];
+        var v = Math.min(seg(p, a, a + .05), 1 - seg(p, b - .04, b)); if (i === 3) v = seg(p, a, a + .05);
+        c.style.setProperty("--c", (Math.round(clamp(v) * 100) / 100).toString());
+      });
+      $$(".dots i", el).forEach(function (d, i) { set(d, "--d", steps[i]); });
+      set(el, "--q", out(seg(p, .1, .24)));
+      set(el, "--a", out(seg(p, .16, .3)));
+      set(el, "--chip", out(seg(p, .24, .31)));
+      var fly = inOut(seg(p, .32, .5));
+      set(el, "--fly", fly);
+      if (geo) {
+        var x = bez(geo.sx, geo.cp.x, geo.ex, fly), y = bez(geo.sy, geo.cp.y, geo.ey, fly);
+        el.style.setProperty("--fx", x.toFixed(1) + "px"); el.style.setProperty("--fy", y.toFixed(1) + "px");
+        set(el, "--fs", 1 + Math.sin(fly * Math.PI) * .35);
+      }
+      set(el, "--fo", p > .3 && p < .56 ? Math.min(seg(p, .3, .33), 1 - seg(p, .52, .56)) : 0);
+      set(el, "--card", out(seg(p, .3, .42)));
+      set(el, "--hl", out(seg(p, .46, .56)));
+      set(el, "--doi", out(seg(p, .54, .64)));
+      var bs = $$(".bdg", el);
+      bs.forEach(function (b, i) { b.style.setProperty("--b", (Math.round(out(seg(p, .6 + i * .035, .66 + i * .035)) * 100) / 100).toString()); });
+      set(el, "--ret", out(seg(p, .76, .86)));
+    },
+    tools: function (el, p) {
+      var n = 4, i = Math.min(n - 1, Math.floor(p * n)), lp = clamp(p * n - i);
+      var tints = ["var(--accent)", "var(--ok)", "var(--warn)", "color-mix(in srgb, var(--accent) 55%, var(--ok))"];
+      el.style.setProperty("--tint", tints[i]);
+      el.style.setProperty("--lp", lp.toFixed(3));
+      if (el._i !== i) { el._i = i; activateTool(el, i); }
+      /* the active asset reads its own local progress */
+      var a = $(".asset.is-active", el);
+      if (a && i === 1) $$(".ref", a).forEach(function (r) {
+        var at = parseFloat(r.getAttribute("data-at")), st = $(".st", r), done = lp > at;
+        st.className = "st " + (done ? (st.getAttribute("data-ok") === "1" ? "ok" : "bad") : "wait");
+        st.textContent = done ? (st.getAttribute("data-ok") === "1" ? "Found" : "No such record") : "Checking";
+      });
+    },
+    split: function (el, p) {
+      set(el, "--t1", out(seg(p, 0, .12)));
+      set(el, "--m", out(seg(p, .1, .38)));
+      set(el, "--bad", out(seg(p, .42, .58)));
+      set(el, "--good", out(seg(p, .52, .68)));
+      set(el, "--dv", out(seg(p, .36, .56)));
+      set(el, "--t2", out(seg(p, .72, .86)));
+    },
+    scan: function (el, p) {
+      var run = clamp(p / .9);
+      $("#clock").textContent = "00:" + ("0" + Math.round(run * 52)).slice(-2);
+      $$(".lane", el).forEach(function (l) {
+        var s = parseFloat(l.getAttribute("data-s")), e = parseFloat(l.getAttribute("data-e")), t = seg(run, s, e);
+        l.style.setProperty("--l", t.toFixed(3));
+        var st = $(".st", l), b = $("b", l), gap = l.classList.contains("gap");
+        st.textContent = t >= 1 ? (gap ? "No paper is about it" : "Answered, checked") : t > .45 ? "Reading the abstracts…" : "Searching…";
+        b.textContent = t >= 1 ? (gap ? "gap" : "✓") : "";
+      });
+      var sec = $$(".sec-r", el), at = [.52, .7, .42, .86, .62];
+      sec.forEach(function (s, i) { var v = out(seg(run, at[i] - .02, at[i] + .05)); s.style.setProperty("--r", v.toFixed(3)); s.classList.toggle("wait", v < .02); });
+      set(el, "--rs", out(seg(run, .64, .9)));
+      set(el, "--pr", out(seg(p, .88, .97)));
+    }
+  };
+
+  function activateTool(el, i) {
+    $$(".tool", el).forEach(function (t, k) { t.classList.toggle("is-active", k === i); $("button", t).setAttribute("aria-expanded", k === i ? "true" : "false"); });
+    $$(".asset", el).forEach(function (a, k) { a.classList.toggle("is-active", k === i); });
+    var lp = $(".asset.is-active", el); if (lp) lp.style.setProperty("--lp", el.style.getPropertyValue("--lp") || "0");
+  }
+  /* the titles are buttons: they scroll the walk to their tool (and a keyboard can use them) */
+  $$("#tools .tool button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var i = parseInt(b.parentNode.getAttribute("data-i"), 10), st = $("#tools");
+      if (!animated()) return;
+      var r = st.getBoundingClientRect(), span = r.height - (innerHeight - HEAD), target = scrollY + r.top - HEAD + span * ((i + .5) / 4);
+      scrollTo({ top: target, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    });
+  });
+  /* the active asset needs its own --lp on the element itself (fac bars, highlights) */
+  function pushLocal(el) { var a = $(".asset.is-active", el); if (a) a.style.setProperty("--lp", el.style.getPropertyValue("--lp") || "0"); }
+
+  /* ---------- page progress, header, spine, background graph */
+  var head = $("#head"), spine = $$("#spine a"), navLinks = $$(".nav a");
+  var graph = { c: $("#graph"), ctx: null, nodes: [], edges: [], dpr: 1, on: saved.graph !== false };
+  function seeded(n) { var s = 7; return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
+  function buildGraph() {
+    var c = graph.c, w = innerWidth, h = innerHeight; graph.dpr = Math.min(2, devicePixelRatio || 1);
+    c.width = Math.round(w * graph.dpr); c.height = Math.round(h * graph.dpr); c.style.width = w + "px"; c.style.height = h + "px";
+    graph.ctx = c.getContext("2d"); graph.ctx.setTransform(graph.dpr, 0, 0, graph.dpr, 0, 0);
+    var rnd = seeded(), N = w < 700 ? 18 : 40; graph.nodes = []; graph.edges = [];
+    for (var i = 0; i < N; i++) graph.nodes.push({ x: rnd() * w, y: rnd() * h, r: 2 + rnd() * 3 });
+    for (var a = 0; a < N; a++) for (var b = a + 1; b < N; b++) { var dx = graph.nodes[a].x - graph.nodes[b].x, dy = graph.nodes[a].y - graph.nodes[b].y, d = Math.sqrt(dx * dx + dy * dy); if (d < Math.max(w, h) * .2) graph.edges.push({ a: a, b: b, d: d }); }
+    graph.edges.sort(function () { return rnd() - .5; });
+  }
+  function drawGraph(page) {
+    if (!graph.ctx) return;
+    var ctx = graph.ctx, w = innerWidth, h = innerHeight; ctx.clearRect(0, 0, w, h);
+    if (!graph.on) return;
+    var cs = getComputedStyle(root), col = cs.getPropertyValue("--accent").trim() || "#3548c8";
+    var shown = root.classList.contains("js-anim") ? Math.floor(graph.edges.length * (.15 + page * .85)) : graph.edges.length;
+    ctx.lineWidth = 1; ctx.strokeStyle = col; ctx.fillStyle = col;
+    ctx.globalAlpha = .1; for (var i = 0; i < shown; i++) { var e = graph.edges[i], A = graph.nodes[e.a], B = graph.nodes[e.b]; ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke(); }
+    ctx.globalAlpha = .16; graph.nodes.forEach(function (n) { ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 6.283); ctx.fill(); });
+  }
+
+  var ticking = false, lastPage = 0;
+  function frame() {
+    ticking = false;
+    var max = document.documentElement.scrollHeight - innerHeight, page = max > 0 ? clamp(scrollY / max) : 0; lastPage = page;
+    root.style.setProperty("--page", page.toFixed(4));
+    head.classList.toggle("is-scrolled", scrollY > 8);
+    if (animated()) {
+      stages.forEach(function (s) {
+        var r = s.el.getBoundingClientRect();
+        if (r.bottom < -200 || r.top > innerHeight + 200) return;
+        var p = clamp(progressOf(s.el) / s.use);
+        if (Math.abs(p - s.p) < .0004) return;
+        s.p = p; updaters[s.name](s.el, p);
+        if (s.name === "tools") pushLocal(s.el);
+        if (s.dbg) s.dbg.textContent = s.name + " p=" + p.toFixed(3);
+      });
+    }
+    var mid = innerHeight * .4, cur = -1;
+    stages.concat($$("#faq").map(function (el) { return { el: el }; })).forEach(function (s, i, arr) { var r = s.el.getBoundingClientRect(); if (r.top < mid && r.bottom > mid) cur = i; });
+    var ids = ["follow", "tools", "split", "scan", "faq"];
+    spine.forEach(function (a, i) { a.setAttribute("aria-current", ids[i] === (cur >= 0 ? (cur < 4 ? ids[cur] : "faq") : "") ? "true" : "false"); });
+    navLinks.forEach(function (a, i) { a.setAttribute("aria-current", spine[i] && spine[i].getAttribute("aria-current") === "true" ? "true" : "false"); });
+    drawGraph(page);
+  }
+  function request() { if (!ticking) { ticking = true; requestAnimationFrame(frame); } }
+  addEventListener("scroll", request, { passive: true });
+  addEventListener("resize", function () { buildGraph(); measureFollow(); stages.forEach(function (s) { s.p = -1; }); request(); }, { passive: true });
+
+  /* ---------- the stacked layout can be switched on and off live (Playground, or the system's reduced-motion setting) */
+  function applyMode() {
+    var mq = matchMedia("(prefers-reduced-motion: reduce)").matches, want = !mq && innerWidth >= 768 && saved.motion !== "static";
+    root.classList.toggle("js-anim", want); root.classList.toggle("js-static", !want);
+    if (!want) { $$("[data-stage]").forEach(function (el) { el.removeAttribute("style"); $$("[style*='--']", el).forEach(function (n) { if (!n.hasAttribute("data-keep")) n.style.cssText = n.style.cssText.replace(/--[\w-]+:[^;]+;?/g, ""); }); }); }
+    measureFollow(); stages.forEach(function (s) { s.p = -1; }); request();
+  }
+  matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", applyMode);
+
+  /* ---------- Playground */
+  var pg = $("#pg"), pgBtn = $("#pgBtn");
+  pgBtn.addEventListener("click", function () { var o = pg.classList.toggle("open"); pgBtn.setAttribute("aria-expanded", o ? "true" : "false"); });
+  addEventListener("keydown", function (e) { if (e.key === "Escape" && pg.classList.contains("open")) { pg.classList.remove("open"); pgBtn.setAttribute("aria-expanded", "false"); pgBtn.focus(); } });
+  $$('input[name="theme"]').forEach(function (r) { if (root.getAttribute("data-theme") === r.value) r.checked = true; r.addEventListener("change", function () { root.setAttribute("data-theme", r.value); saved.theme = r.value; save(); request(); }); });
+  $$('input[name="motion"]').forEach(function (r) { if ((saved.motion || "full") === r.value) r.checked = true; r.addEventListener("change", function () { saved.motion = r.value; save(); applyMode(); }); });
+  var len = $("#len"); len.value = Math.round((saved.len || 1) * 100); $("#lenOut").textContent = len.value + "%"; root.style.setProperty("--len", (len.value / 100).toString());
+  len.addEventListener("input", function () { $("#lenOut").textContent = len.value + "%"; root.style.setProperty("--len", (len.value / 100).toString()); saved.len = len.value / 100; save(); measureFollow(); stages.forEach(function (s) { s.p = -1; }); request(); });
+  var g = $("#gtoggle"); g.checked = graph.on; g.addEventListener("change", function () { graph.on = g.checked; saved.graph = g.checked; save(); request(); });
+  $("#dbg").addEventListener("change", function (e) { document.body.classList.toggle("show-dbg", e.target.checked); });
+  $$(".jump button").forEach(function (b) { b.addEventListener("click", function () { var t = $("#" + b.getAttribute("data-go")); scrollTo({ top: scrollY + t.getBoundingClientRect().top - HEAD + 2, behavior: "auto" }); }); });
+  $$(".spine a, .nav a").forEach(function (a) { a.addEventListener("click", function () { setTimeout(request, 30); }); });
+
+  buildGraph(); applyMode();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { measureFollow(); stages.forEach(function (s) { s.p = -1; }); request(); });
+  request();
+})();
+</script>
+<noscript><style>.rise,.chat .bubble{opacity:1!important;transform:none!important}</style></noscript>
+</body>
+</html>

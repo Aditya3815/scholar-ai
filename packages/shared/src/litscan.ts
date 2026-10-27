@@ -23,6 +23,8 @@ export const LITSCAN_KEEP_HOURS = 24;
 export const LITSCAN_PER_DAY = 4;
 /** A running scan that has not moved for this long is called failed (the Workflow would have finished or failed long before). */
 export const LITSCAN_STALE_MINUTES = 12;
+/** How many scans one person may have shared by a link at a time. */
+export const LITSCAN_MAX_SHARES = 5;
 /**
  * What the approval screen says a scan will use, per sub-question. Measured on the deployed service: about 1,500 to 2,200 tokens an answer in English (R11, and 2,300 in a live scan), **3,200 in Hinglish**
  * (a live scan, 27 Oct 2026: its answers are longer). The larger figure is used so the screen under-promises.
@@ -142,9 +144,9 @@ export function viewFromEvents(events: readonly LitscanEvent[], total = 0): Lits
 
 export type ReportSource = { g: number; paperId: string; title: string; year: number | null; doi: string | null; authors: string[]; venue: string | null; url: string | null };
 export type ReportSection =
-  | { idx: number; question: string; status: "answered"; text: string; evidence: { g: number; sentence: string }[] }
-  | { idx: number; question: string; status: "gap"; reason: LitscanGap }
-  | { idx: number; question: string; status: "pending" };
+  | { idx: number; question: string; searchQuery: string; status: "answered"; text: string; evidence: { g: number; sentence: string }[] }
+  | { idx: number; question: string; searchQuery: string; status: "gap"; reason: LitscanGap }
+  | { idx: number; question: string; searchQuery: string; status: "pending" };
 export type Report = { sections: ReportSection[]; sources: ReportSource[]; answered: number; gaps: number; pending: number };
 
 /**
@@ -156,8 +158,8 @@ export function assembleReport(items: readonly LitscanItem[], parts: Readonly<Re
   const byPaper = new Map<string, number>();
   const sections: ReportSection[] = items.map((item, idx) => {
     const part = parts[idx];
-    if (!part) return { idx, question: item.question, status: "pending" };
-    if (part.status === "gap") return { idx, question: item.question, status: "gap", reason: part.reason };
+    if (!part) return { idx, question: item.question, searchQuery: item.searchQuery, status: "pending" };
+    if (part.status === "gap") return { idx, question: item.question, searchQuery: item.searchQuery, status: "gap", reason: part.reason };
     const map = new Map<number, number>();
     for (const s of part.sources) {
       let g = byPaper.get(s.paperId);
@@ -172,7 +174,7 @@ export function assembleReport(items: readonly LitscanItem[], parts: Readonly<Re
       .replace(/\[(\d{1,2})\]/g, (m, d: string) => (map.has(Number(d)) ? `[${map.get(Number(d))}]` : m))
       .replace(/(\[\d{1,3}\])(?:\s*\1)+/g, "$1");
     const evidence = part.citations.flatMap((c) => (map.has(c.n) ? [{ g: map.get(c.n)!, sentence: c.sentence }] : [])).sort((a, b) => a.g - b.g);
-    return { idx, question: item.question, status: "answered", text, evidence };
+    return { idx, question: item.question, searchQuery: item.searchQuery, status: "answered", text, evidence };
   });
   return {
     sections,
@@ -198,6 +200,20 @@ export type LitscanSnapshot = {
   createdAt: string;
   expiresAt: string;
   estimate: number;
+  /** The token of this scan's read-only link, when the owner has turned sharing on. */
+  share?: string | null;
+};
+
+/** What anyone with a shared link reads: the scan without the person, its id or its allowance. */
+export type LitscanPublic = {
+  topic: string;
+  language: LitscanLanguage;
+  items: LitscanItem[];
+  state: LitscanState;
+  total: number;
+  parts: LitscanPart[];
+  createdAt: string;
+  expiresAt: string;
 };
 
 /** The scans of the last day, newest first, for the list on the page. */

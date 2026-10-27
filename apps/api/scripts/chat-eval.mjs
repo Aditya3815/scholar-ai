@@ -10,11 +10,18 @@
 //   clean marks   every [n] in the text is one of the checked citations, and no sentence label (S3), round-bracket number or 【】 token is left in the words
 //   controls      for nonsense questions that find nothing useful, no answer is written
 // With --gate it exits with 1 when a line below its limit. Each question uses its own throwaway account so the daily allowance does not stop a run.
+import { writeFileSync } from "node:fs";
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 const gate = process.argv.includes("--gate");
+// --dump=<file>: what each answer said and the sentences it rests on, to be read by a person (P7: comparing models by what they write, not only by the checks)
+const tag = process.argv.find((a) => a.startsWith("--tag="))?.slice(6);
+// "--dump=auto" writes $DUMP_DIR/chat-<tag>.json (so several runs of different models do not overwrite each other)
+const dumpArg = process.argv.find((a) => a.startsWith("--dump="))?.slice(7);
+const dump = dumpArg === "auto" ? `${process.env.DUMP_DIR ?? "."}/chat-${tag ?? "run"}.json` : dumpArg;
+const dumped = [];
 
 const ON_TOPIC = [
   "glaucoma screening with smartphone fundus photographs in rural India",
@@ -55,6 +62,8 @@ async function ask(message, group) {
   const t0 = Date.now();
   const res = await A.send(`${APP}/api/v1/chat`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify({ mode: "search", message }) });
   const events = [];
+  let tPapers = null;
+  let tWord = null;
   if (res.ok) {
     const dec = new TextDecoder();
     let buf = "";
@@ -64,14 +73,20 @@ async function ask(message, group) {
       while ((i = buf.indexOf("\n\n")) >= 0) {
         const data = buf.slice(0, i).split("\n").find((l) => l.startsWith("data:"));
         buf = buf.slice(i + 2);
-        if (data) events.push(JSON.parse(data.slice(5)));
+        if (data) {
+          const e = JSON.parse(data.slice(5));
+          events.push(e);
+          // when the papers were all there, and when the first word of the answer reached the reader (P7, docs/design/p7-latency.md)
+          if (e.type === "papers" && e.final) tPapers ??= Date.now() - t0;
+          if (e.type === "token" || e.type === "answer") tWord ??= Date.now() - t0;
+        }
       }
     }
   }
   const papers = events.filter((e) => e.type === "papers").at(-1)?.results ?? [];
   const answer = events.find((e) => e.type === "answer")?.answer;
   const done = events.find((e) => e.type === "done");
-  const row = { group, message, ms: Date.now() - t0, papers: papers.length, withAbstract: papers.filter((p) => p.abstract).length, reason: done?.reason ?? (answer?.grounded ? "answered" : "?"), answered: !!answer?.grounded, problems: [] };
+  const row = { group, message, tPapers, tWord, ms: Date.now() - t0, papers: papers.length, withAbstract: papers.filter((p) => p.abstract).length, reason: done?.reason ?? (answer?.grounded ? "answered" : "?"), answered: !!answer?.grounded, problems: [] };
   if (answer?.grounded) {
     const flat = (s) => s.replace(/\s+/g, " ").trim().toLowerCase();
     for (const c of answer.citations) {
@@ -98,6 +113,7 @@ async function ask(message, group) {
     if (t.length > 1500) row.problems.push("the background is too long");
   }
   if (general && answer?.grounded) row.problems.push("a background was written under an answer made from papers");
+  if (dump && answer?.grounded) dumped.push({ message, text: answer.text, citations: answer.citations.map((c) => ({ n: c.n, title: papers[c.n - 1]?.title, sentence: c.sentence })) });
   results.push(row);
   console.log(`${row.answered ? "answered" : "no answer"} (${row.reason}) ${String(row.ms).padStart(6)} ms  ${row.papers}/${row.withAbstract} papers  ${row.marks ?? 0} marks  ${group}: ${message}${row.problems.length ? `\n      PROBLEMS: ${row.problems.join("; ")}` : ""}`);
 }
@@ -109,6 +125,7 @@ if (want("offtopic")) for (const q of OFF_TOPIC) await ask(q, "offtopic");
 if (want("greeting")) for (const q of GREETINGS) await ask(q, "greeting");
 if (want("background")) for (const q of BACKGROUND) await ask(q, "background");
 idp.close();
+if (dump) writeFileSync(dump, JSON.stringify(dumped, null, 1));
 
 const topic = results.filter((r) => r.group === "topic");
 const controls = results.filter((r) => r.group === "control");
@@ -128,5 +145,7 @@ for (const [name, what, pass] of lines) console.log(`${pass ? "PASS" : "FAIL"}  
 const off = results.filter((r) => r.group === "offtopic");
 console.log(`info  general-knowledge questions: ${results.filter((r) => r.group === "background").map((r) => (r.general?.kind ?? (r.answered ? "answered from papers" : r.reason)) + (r.general?.text ? ` (${r.general.text.length} characters)` : "")).join(", ")}`);
 console.log(`info  off-topic questions: ${off.map((r) => r.general?.kind ?? (r.answered ? "answered from papers" : r.reason)).join(", ")}; greetings: ${results.filter((r) => r.group === "greeting").map((r) => r.general?.kind ?? "none").join(", ")}`);
+const med = (xs) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : null);
+console.log(`info  topic questions, median: papers ${med(topic.map((r) => r.tPapers).filter((x) => x != null))} ms, first word ${med(topic.filter((r) => r.answered).map((r) => r.tWord).filter((x) => x != null))} ms, whole reply ${med(topic.map((r) => r.ms))} ms; words after the papers: ${med(topic.filter((r) => r.answered && r.tWord != null && r.tPapers != null).map((r) => r.tWord - r.tPapers))} ms`);
 console.log(`info  median reply ${ms[Math.floor(ms.length / 2)] ?? 0} ms; languages (not gated): ${results.filter((r) => r.group === "language").map((r) => `${r.answered ? "answered" : r.reason}`).join(", ")}`);
 if (gate && lines.some(([, , pass]) => !pass)) process.exit(1);

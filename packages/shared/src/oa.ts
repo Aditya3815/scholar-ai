@@ -39,7 +39,7 @@ export const MAX_OA_BYTES = 25 * 1024 * 1024;
 export const MAX_OA_PAGES = 120;
 export const MAX_OA_REDIRECTS = 3;
 export const OA_FETCH_TIMEOUT_MS = 25_000;
-/** An indexed paper is looked at again after this long (files change, papers are retracted). */
+/** An indexed paper is fetched again after this long, when someone asks it and without making them wait (the file may have a new version): src/oa/store.ts, claimRefresh. */
 export const OA_REFRESH_DAYS = 180;
 /** A paper that could not be fetched is not tried again for this long, whoever asks. */
 export const OA_RETRY_AFTER_MINUTES = 60;
@@ -121,6 +121,8 @@ export type OaPaperEvent = {
   /** The PDF itself may be shown to others under this licence (CC0, CC BY, CC BY-SA). The text is used for answers whatever the licence. */
   permissive: boolean;
   reason?: OaReason;
+  /** The paper has been retracted (looked up when it was asked, not only when the card was made): the sheet says so above the answer. Absent when it has not. */
+  retracted?: boolean;
 };
 
 /** The stream of POST /papers/oa/ask: the ingest, the paper, then the events of a question about a paper of your own (stage, sources, delta, answer; error ends it). */

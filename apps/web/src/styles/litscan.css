@@ -73,6 +73,11 @@
 .ls-recent-t { font-weight: 600; overflow-wrap: anywhere; }
 .ls-recent-m { color: var(--muted); font-size: 0.82rem; }
 
+/* the share dialog */
+.ls-share { display: grid; gap: .5rem; margin-top: .8rem; }
+.ls-share-row { display: flex; gap: .5rem; align-items: stretch; }
+.ls-share-row .ls-input { font-family: var(--font-mono); font-size: .82rem; min-width: 0; }
+
 @media (max-width: 40rem) {
   .ls-card, .ls-section { padding: 0.9rem 0.95rem; }
   .ls-select { max-width: none; }

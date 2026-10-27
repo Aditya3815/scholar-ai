@@ -175,6 +175,40 @@ try {
   const srow = await paperRow("doi:10.5555/oa.stale");
   ok(last(stale.events).type === "answer" && srow.attempt === 2 && srow.status !== "fetching", "a reading that stopped moving for a quarter of an hour (its Workflow was lost) is given up and tried again, not waited for");
 
+  console.log("a retraction is looked up when the paper is asked");
+  // no open copy of this one exists, so it is answered from the abstract the browser sent: the notice must be there on that path as well
+  const rt = await ask(A, { doi: "10.5555/oa.retracted" }, QUESTION, { abstract: ABS });
+  ok(of(rt.events, "paper")[0]?.retracted === true, "a paper that has been retracted says so in the event that names it, whatever its card said (here: no card was sent)");
+  const okp = await ask(A, { doi: "10.5555/oa.xml" }, QUESTION);
+  ok(of(okp.events, "paper")[0] && !("retracted" in of(okp.events, "paper")[0]) && last(okp.events).type === "answer", "a paper that has not is not marked, and is answered as before");
+
+  console.log("a paper that was read long ago is fetched again, without making the asker wait");
+  const KEY = "doi:10.5555/oa.xml";
+  const waitFor = async (what, check, ms = 30000) => { const t0 = Date.now(); for (;;) { const r = await paperRow(KEY); if (check(r)) return r; if (Date.now() - t0 > ms) throw new Error("timed out waiting for " + what + ": " + JSON.stringify(r)); await new Promise((x) => setTimeout(x, 250)); } };
+  const before = await paperRow(KEY);
+  ok(typeof before.content_hash === "string" && before.content_hash.length === 64, "a paper that is read keeps the SHA-256 of the file it was read from");
+  await sql("UPDATE oa_papers SET ready_at = datetime('now', '-200 days') WHERE key = '" + KEY + "'");
+  const t1 = Date.now();
+  const old = await ask(A, { doi: "10.5555/oa.xml" }, QUESTION);
+  ok(last(old.events).type === "answer" && of(old.events, "ingest").every((e) => e.status === "ready") && Date.now() - t1 < 8000, "an old paper is answered at once from the copy that is there (no reading is shown)");
+  const same = await waitFor("an unchanged refresh", (r) => r.attempt === before.attempt + 1 && r.refresh_at === null);
+  ok(same.status === "ready" && same.content_hash === before.content_hash && same.chunk_count === before.chunk_count && Date.parse(same.ready_at.replace(" ", "T") + "Z") > Date.now() - 3600_000, "the same file: only the date changes, the paper stays ready and its passages are untouched");
+  ok((await ask(A, { doi: "10.5555/oa.xml" }, QUESTION)).events.length > 0 && (await paperRow(KEY)).attempt === same.attempt, "a paper that was just refreshed is not fetched again at the next question");
+
+  await sql("UPDATE oa_papers SET content_hash = 'not-the-same', ready_at = datetime('now', '-200 days') WHERE key = '" + KEY + "'");
+  const chg = await ask(A, { doi: "10.5555/oa.xml" }, QUESTION);
+  ok(last(chg.events).type === "answer", "a paper whose file has changed is answered too");
+  const changed = await waitFor("a changed file to be read again", (r) => r.attempt === same.attempt + 1 && r.status === "ready" && r.content_hash !== "not-the-same" && r.refresh_at === null);
+  ok(changed.chunk_count === before.chunk_count && changed.content_hash === before.content_hash, "a changed file is read again like a new paper, and the paper is ready again with the new hash");
+
+  await sql("UPDATE oa_papers SET doi = '10.5555/oa.blocked', ready_at = datetime('now', '-200 days') WHERE key = '" + KEY + "'");
+  const blocked = await ask(A, { doi: "10.5555/oa.xml" }, QUESTION);
+  ok(last(blocked.events).type === "answer", "a paper whose new file cannot be fetched is answered from the copy that is there");
+  const kept = await waitFor("a refresh that cannot fetch", (r) => r.attempt === changed.attempt + 1 && r.refresh_at === null);
+  const ageDays = (Date.now() - Date.parse(kept.ready_at.replace(" ", "T") + "Z")) / 86_400_000;
+  ok(kept.status === "ready" && kept.reason === null && ageDays > 148 && ageDays < 152, "...and the old copy stays ready (not failed), to be looked at again in thirty days, not at every question");
+  await sql("UPDATE oa_papers SET doi = '10.5555/oa.xml' WHERE key = '" + KEY + "'");
+
   console.log("nothing personal, nothing kept of the question");
   const tables = (await sql("SELECT name FROM sqlite_master WHERE type = 'table' AND substr(name, 1, 3) = 'oa_'"))[0].map((r) => r.name).sort();
   ok(tables.join() === "oa_chunks,oa_daily,oa_papers", `only the shared tables exist (${tables.join(", ")})`);

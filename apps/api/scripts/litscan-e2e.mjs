@@ -212,10 +212,31 @@ try {
   ok(stale.state === "failed", "a running scan that has not moved for twelve minutes is called failed when it is read, so nobody waits for it");
   ok((await events(A, dead, { label: "failed" })).events.at(-1).state === "failed", "...and its stream ends with that");
 
+  console.log("a read-only link");
+  const share = (c, sid, method = "POST", origin = APP) => c.api(`/api/v1/litscan/${sid}/share`, { method, origin });
+  const shared = (tok) => anon.send(`${APP}/api/v1/litscan/shared/${tok}`);
+  ok((await share(anon, id)).status === 401 && (await share(B, id)).status === 404 && (await share(A, id, "POST", null)).status === 403, "a link can be made only by the scan's owner, signed in, from our own pages");
+  ok((await share(B, id2)).status === 409 || (await share(B, id2)).status === 201, "(a scan that was stopped can be shared like any that has ended)");
+  const mk = await share(A, id);
+  const tok = (await mk.json()).token;
+  ok(mk.status === 201 && /^[A-Za-z0-9_-]{43}$/.test(tok), "a finished scan can be shared: a long random token");
+  ok((await (await share(A, id)).json()).token === tok && (await get(A, id)).scan.share === tok, "asking again gives the same link, and the owner's page knows it");
+  const pubRes = await shared(tok);
+  const pub = (await pubRes.json()).scan;
+  ok(pubRes.status === 200 && pub.topic === "air pollution and childhood asthma" && pub.parts.length === 5 && pub.items.length === 5 && pub.state === "completed", "anyone with the link can read the scan without signing in");
+  ok(!/"id"|estimate|user|ls-a@example.com/.test(JSON.stringify(pub)) && Object.keys(pub).sort().join() === "createdAt,expiresAt,items,language,parts,state,topic,total", "what they read has no id, no allowance and nothing about the person");
+  ok(/noindex/.test(pubRes.headers.get("x-robots-tag") ?? "") && /no-store/.test(pubRes.headers.get("cache-control") ?? ""), "it is not indexed and not cached");
+  ok((await shared("a".repeat(43))).status === 404 && (await shared("short")).status === 404, "a wrong link is a plain 404");
+  ok((await share(B, id, "DELETE")).status === 404, "only the owner can turn it off");
+  ok((await share(A, id, "DELETE")).status === 200 && (await shared(tok)).status === 404 && (await get(A, id)).scan.share === null, "turning it off kills the link at once");
+  const tok2 = (await (await share(A, id)).json()).token;
+  ok(tok2 !== tok && (await shared(tok)).status === 404 && (await shared(tok2)).status === 200, "turning it on again makes a new link; the old one stays dead");
+
   console.log("removing, the export, deleting the account");
   const del = await A.api(`/api/v1/litscan/${id}`, { method: "DELETE" });
   ok(del.status === 200 && (await A.api(`/api/v1/litscan/${id}`)).status === 404, "a person can delete a scan");
   ok((await sql(`SELECT COUNT(*) AS n FROM litscan_events WHERE scan_id = '${id}'`))[0][0].n === 0, "its events go with it");
+  ok((await shared(tok2)).status === 404, "...and so does its shared link");
   const keep = await (await start(A, { topic: "a topic kept for the export", language: "hinglish", items: PLAIN })).json();
   await waitEnded(A, keep.id);
   const exp = await (await A.api("/api/v1/account/export")).json();
@@ -226,6 +247,7 @@ try {
   ok(left.scans === 0 && left.daily === 0, "deleting the account removes its scans and its counters");
   const orphan = (await sql("SELECT COUNT(*) AS n FROM litscan_events WHERE scan_id NOT IN (SELECT id FROM litscans)"))[0][0].n;
   ok(orphan === 0, "no events are left without a scan");
+  ok((await sql("SELECT COUNT(*) AS n FROM litscan_shares WHERE scan_id NOT IN (SELECT id FROM litscans)"))[0][0].n === 0, "no link is left without a scan");
 
   reportStreams(ok);
 } catch (e) {

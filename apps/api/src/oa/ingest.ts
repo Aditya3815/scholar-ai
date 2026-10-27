@@ -5,7 +5,7 @@ import { looksLikePaper } from "./identity";
 import { parseJats } from "./jats";
 import { PdfReadError, extractPdfPages } from "./pdf-text";
 import { fetchPaperSource, type SourceDeps } from "./sources";
-import { fileKey, getPaper, keyHash, markFailed, markReady, pendingEmbeddings, replaceChunks, saveEmbeddings, setFetched, setStatus, setTitle } from "./store";
+import { fileKey, getPaper, keyHash, markFailed, markReady, markRefreshed, pendingEmbeddings, replaceChunks, saveEmbeddings, setFetched, setStatus, setTitle } from "./store";
 
 /**
  * The steps of reading one open-access paper into the shared index, as plain functions over their dependencies. The Workflow (workflow.ts) gives each of them a name, a retry
@@ -47,19 +47,35 @@ const row = async (d: IngestDeps, key: string) => {
   return r;
 };
 
-export async function stepFetch(d: IngestDeps, key: string): Promise<{ format: "xml" | "pdf" }> {
+/** SHA-256 of a file, as hex: what tells a refresh whether the paper has changed. */
+export async function contentHashOf(data: string | Uint8Array): Promise<string> {
+  const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+  const buf = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * `refresh`: the paper is ready and keeps answering while its file is fetched again, so its status is not touched. If the file is the same as the one that was read (same hash) nothing is
+ * written but the date; if it differs, the file is kept and the next steps read it like a new paper (the status changes then).
+ */
+export async function stepFetch(d: IngestDeps, key: string, opts: { refresh?: boolean } = {}): Promise<{ format: "xml" | "pdf"; unchanged?: boolean }> {
   const paper = await row(d, key);
-  await setStatus(d.db, key, "fetching");
+  if (!opts.refresh) await setStatus(d.db, key, "fetching");
   const found = await fetchPaperSource({ ...(paper.doi ? { doi: paper.doi } : {}), ...(paper.arxiv_id ? { arxivId: paper.arxiv_id } : {}), ...(paper.pmcid ? { pmcid: paper.pmcid } : {}) }, d.source);
   if (!found.ok) {
     if (found.title) await setTitle(d.db, key, found.title);
     throw new IngestError(found.reason);
   }
+  const contentHash = await contentHashOf(found.format === "xml" ? found.xml : found.pdf);
+  if (opts.refresh && paper.content_hash && paper.content_hash === contentHash) {
+    await markRefreshed(d.db, key, (d.now ?? Date.now)());
+    return { format: found.format, unchanged: true };
+  }
   const hash = await keyHash(key);
   const r2Key = fileKey(hash, found.format === "xml" ? "source.xml" : "source.pdf");
   await d.files.put(r2Key, found.format === "xml" ? found.xml : found.pdf, { httpMetadata: { contentType: found.format === "xml" ? "application/xml" : "application/pdf" } });
-  await setFetched(d.db, key, { source: found.source, license: found.license, title: found.title, r2Key });
-  return { format: found.format };
+  await setFetched(d.db, key, { source: found.source, license: found.license, title: found.title, r2Key, contentHash });
+  return { format: found.format, unchanged: false };
 }
 
 export async function stepRead(d: IngestDeps, key: string): Promise<{ total: number; pages: number | null }> {

@@ -81,7 +81,7 @@ function Progress({ m: msg, signedIn }: { m: AssistantMsg; signedIn: boolean }) 
         return (
           <li key={s.id} data-state={state}>
             <span className="ask-step-dot" aria-hidden="true">{state === "now" ? <span className="pulse-dot" /> : state === "done" ? "✓" : null}</span>
-            <span>{s.label}</span>
+            <span>{s.label}{s.id === "read" && state === "now" ? <span className="chat-step-hint"> · about 10 to 20 seconds (it reads every abstract before it writes)</span> : null}</span>
           </li>
         );
       })}

@@ -12,9 +12,10 @@ import { fileURLToPath } from "node:url";
 
 const api = fileURLToPath(new URL("..", import.meta.url));
 const web = fileURLToPath(new URL("../../web", import.meta.url));
-const PORT = 8788;
-const STATE = ".wrangler/integration-state";
-const CONFIG = "wrangler.integration.jsonc";
+// The port, the state folder and the generated config can be changed (INTEGRATION_PORT, INTEGRATION_STATE, INTEGRATION_CONFIG) so a second run can live beside another Worker that holds 8788.
+const PORT = Number(process.env.INTEGRATION_PORT ?? 8788);
+const STATE = process.env.INTEGRATION_STATE ?? ".wrangler/integration-state";
+const CONFIG = process.env.INTEGRATION_CONFIG ?? "wrangler.integration.jsonc";
 const withBrowser = process.argv.includes("--browser");
 // --only=<substring of a suite label> runs just the matching suites, e.g. --only="browser: auth" (several: --only="operations,browser: idea")
 const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7);
@@ -70,7 +71,7 @@ async function waitForHealth() {
 // Suites sign the same fake users in and out, so each one starts from an empty account table. Done through the Worker (a dev-only route), never by
 // writing to the database file from a second process while the Worker has it open: that made `wrangler dev` spin at 100% CPU and stop answering.
 const resetAccounts = async () => {
-  const tables = ["litscan_events", "litscans", "litscan_daily", "library_items", "sessions", "identities", "users", "oauth_states", "audit_log"];
+  const tables = ["litscan_shares", "litscan_events", "litscans", "litscan_daily", "library_items", "sessions", "identities", "users", "oauth_states", "audit_log"];
   // This process has been idle for the length of the previous suite, and the server has closed the connection it kept: a second try opens a new one.
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
