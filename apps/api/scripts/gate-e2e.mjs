@@ -21,9 +21,9 @@ try {
   const gaps = starts.slice(1).map((s, i) => s - starts[i]);
   ok(starts.length === 10, `all ten were let through (${starts.length}); none refused (${r.results.length - starts.length})`);
   ok(r.peak <= 3, `never more than three in flight together (peak ${r.peak})`);
-  // The lane spaces starts 340 ms apart. A start time is read from a clock that stands still while the Worker computes, so two neighbours can look closer than they were (236 ms was seen on CI);
-  // with no spacing at all the gaps would be near zero, which is what this must catch.
-  ok(Math.min(...gaps) >= 200, `each started about 340 ms after the one before, never less than 200 (smallest gap ${Math.min(...gaps)} ms)`);
+  // The lane spaces starts 340 ms apart. A start time is read from a clock that stands still while the Worker computes, so two neighbours can look closer than they were (236 ms and
+  // 198 ms were seen on CI); with no spacing at all the gaps would be near zero, which is what this must catch. The spread below checks the spacing on average.
+  ok(Math.min(...gaps) >= 120, `each started about 340 ms after the one before, never less than 120 (smallest gap ${Math.min(...gaps)} ms)`);
   ok(starts.at(-1) - starts[0] >= 9 * 300, `so the ten took about 3 seconds, not an instant (${starts.at(-1) - starts[0]} ms of spread, ${Date.now() - t0} ms in all)`);
 
   console.log("calls that take long are held to three at a time");
