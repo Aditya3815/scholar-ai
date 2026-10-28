@@ -64,7 +64,7 @@
 @media (max-width: 920px) {
   .ws-shell { grid-template-columns: minmax(0, 1fr); }
   .ws-rail { display: none; }
-  .ws-top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 0.7rem; min-height: 3.4rem; padding: 0.4rem 0.9rem; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: saturate(1.4) blur(12px); -webkit-backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--border); }
+  .ws-top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 0.7rem; min-height: 3.4rem; padding: 0.4rem 0.9rem; background: color-mix(in srgb, var(--bg) 82%, transparent); -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--border); }
   .ws-top-title { font-weight: 600; color: var(--muted); font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 

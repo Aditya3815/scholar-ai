@@ -91,8 +91,17 @@ try {
   ok(await page.locator(".fm-title-cta").getByRole("button", { name: "Continue with Google" }).isVisible() && await page.locator(".fm-title-cta").getByRole("link", { name: /Try it without signing in/ }).isVisible(), "the title offers Continue with Google and trying it without signing in");
   ok(await page.locator(".fm-s-title .fm-frame").evaluate((el) => Math.round(el.getBoundingClientRect().top)) === 0, "a scene's frame is pinned while its stretch is scrolled");
 
+  // scene 3: the send is played like a shot (the press, the ring, the box lit, a beam and a status while the sources are asked), then the papers
+  await toScene(page, "question", 0.29);
+  ok(await cssVar(page, ".fm-s-question", "--press") > 0.5, "the send button is pressed once the question is typed");
+  await toScene(page, "question", 0.38);
+  ok(/Searching four sources/.test(await page.locator(".fm-qstatus").innerText()) && await cssVar(page, ".fm-s-question", "--glow") > 0.3 && await cssVar(page, ".fm-s-question", "--beamv") === 1, "then the box lights up, a beam runs along it and a line says the sources are being searched");
+  await page.screenshot({ path: OUT + "02b-intro-send.png" });
+  await toScene(page, "question", 0.5);
+  ok(/Checking every DOI/.test(await page.locator(".fm-qstatus").innerText()), "...then that every DOI and retraction is checked");
   // scene 3: the retracted paper is stamped
   await toScene(page, "question", 0.95);
+  ok(await page.locator(".fm-qstatus").innerText() === "", "the status line is gone once the papers are there");
   ok(await page.locator(".fm-paper.is-bad .fm-stamp").isVisible() && await page.locator(".fm-paper").count() === 12, "twelve papers arrive, the retracted one stamped");
 
   // scene 4: an iris opens from the mark onto the sentence
@@ -117,6 +126,11 @@ try {
   // scene 8: the page turns to the quote
   await toScene(page, "workspace", 0.97);
   ok(await cssVar(page, ".fm-s-workspace", "--fl") > 0.99 && /Page 4/.test(await page.locator(".fm-page").innerText()), "My Workspace: the answer names its page and the page has turned to it");
+  const marks = await page.evaluate(() => [".fm-hl", ".fm-q-hl"].map((s) => { const el = document.querySelector(s); return { lines: el.getClientRects().length, size: getComputedStyle(el).backgroundSize }; }));
+  ok(marks.every((m) => m.lines >= 2 && /^100% 100%$/.test(m.size)), `the highlighter marks every line of its sentence to the end, yellow and blue (${JSON.stringify(marks)})`);
+  const pg = await page.evaluate(() => [...document.querySelectorAll(".fm-face")].map((f) => { const body = f.querySelector(".fm-face-body").getBoundingClientRect(); const n = f.querySelector(".fm-pg").getBoundingClientRect(); return n.top >= body.bottom - 1; }));
+  ok(pg.every(Boolean), "the page number has its own row at the foot of the page, never over the text");
+  ok(/blur\(26px\)/.test(await page.locator(".in-head").evaluate((el) => getComputedStyle(el).backdropFilter)), "the header is frosted glass: what passes under it is blurred");
   await page.screenshot({ path: OUT + "05-intro-workspace.png" });
 
   // the strip of scenes jumps to a scene and marks it

@@ -27,8 +27,8 @@
   padding: 0.9rem 1.1rem;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
-  backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 .pv-kicker {
   display: flex;

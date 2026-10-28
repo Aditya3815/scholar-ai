@@ -147,11 +147,23 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
         setVar(el, "--tc", out(seg(p, 0.66, 0.82)));
       },
       question(el, p) {
-        setVar(el, "--box", out(seg(p, 0, 0.12)));
-        setVar(el, "--type", seg(p, 0.1, 0.3));
-        all<HTMLElement>(el, ".fm-paper").forEach((c, i) => setVar(c, "--pt", inOut(seg(p, 0.32 + i * 0.026, 0.52 + i * 0.026))));
-        setVar(el, "--st", out(seg(p, 0.72, 0.8)));
-        setVar(el, "--cnt", out(seg(p, 0.78, 0.9)));
+        setVar(el, "--box", out(seg(p, 0, 0.1)));
+        setVar(el, "--type", seg(p, 0.1, 0.25));
+        // the send: the button is pressed, a ring leaves it, the box lights up and a beam runs along its foot while the sources are asked
+        setVar(el, "--press", Math.sin(seg(p, 0.26, 0.31) * Math.PI));
+        setVar(el, "--rip", seg(p, 0.27, 0.37));
+        setVar(el, "--glow", Math.sin(seg(p, 0.27, 0.52) * Math.PI));
+        const beam = seg(p, 0.3, 0.5);
+        setVar(el, "--beam", (beam * 2) % 1);
+        setVar(el, "--beamv", beam > 0 && beam < 1 ? 1 : 0);
+        const status = el.querySelector<HTMLElement>(".fm-qstatus");
+        if (status) {
+          const text = p < 0.3 || p > 0.74 ? "" : p < 0.46 ? "Searching four sources…" : "Checking every DOI and retraction…";
+          if (status.textContent !== text) status.textContent = text;
+        }
+        all<HTMLElement>(el, ".fm-paper").forEach((c, i) => setVar(c, "--pt", inOut(seg(p, 0.42 + i * 0.022, 0.6 + i * 0.022))));
+        setVar(el, "--st", out(seg(p, 0.76, 0.83)));
+        setVar(el, "--cnt", out(seg(p, 0.8, 0.9)));
       },
       answer(el, p) {
         const g = geo.current;
@@ -319,7 +331,9 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
           <div className="fm-qbox" aria-hidden="true">
             <span className="fm-typed"><span>Does yoga lower blood pressure?</span></span>
             <span className="fm-send"><ArrowRight size={18} style={{ transform: "rotate(-90deg)" }} /></span>
+            <span className="fm-beam" />
           </div>
+          <p className="fm-qstatus" aria-hidden="true" />
           <ol className="fm-papers" aria-hidden="true">
             {PAPERS.map(([year, title, bad], i) => {
               const ang = (i * 137.5 * Math.PI) / 180;
@@ -359,7 +373,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
 
       {/* 5 */}
       <Scene id="proof" i={4} label="fm-p-h">
-        <div className="fm-stack fm-w-1060">
+        <div className="fm-stack fm-w">
           <Chapter>Chapter III · The proof</Chapter>
           <h2 id="fm-p-h" className="fm-big fm-big-s">The paper is real. <em>We checked.</em></h2>
           <div className="fm-proof">
@@ -403,7 +417,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
 
       {/* 7 */}
       <Scene id="india" i={6} label="fm-i-h">
-        <div className="fm-stack fm-w-1100">
+        <div className="fm-stack fm-w">
           <Chapter>Chapter V · Close to home</Chapter>
           <div className="fm-india">
             <span className="fm-deva" aria-hidden="true" data-w="शोध" />
@@ -425,7 +439,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
 
       {/* 8 */}
       <Scene id="workspace" i={7} label="fm-w-h">
-        <div className="fm-stack fm-w-1120">
+        <div className="fm-stack fm-w">
           <Chapter>Chapter VI · Your own papers</Chapter>
           <div className="fm-ws">
             <div className="fm-ws-left" aria-hidden="true">
@@ -433,21 +447,21 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
               <div className="fm-book">
                 <div className="fm-leaf">
                   <div className="fm-face is-front">
-                    <h4>Sample size of a pilot study for a two-arm trial</h4>
+                    <div className="fm-face-body"><h4>Sample size of a pilot study for a two-arm trial</h4>
                     <p>Pilot studies are often used to estimate the variance needed to plan a main trial.</p>
                     <p><span className="fm-hl">Small pilots give unstable estimates, and a main study planned from them is often under-powered.</span></p>
                     <p>We compare rules for the pilot's size by the chance that the main study ends up with less power than planned.</p>
                     <p>Numerical examples use a power of <span className="fm-circ">80%<svg className="fm-ink" viewBox="0 0 100 40" preserveAspectRatio="none"><path pathLength={1} d="M8 24 C 6 8, 70 2, 94 14 C 102 26, 64 38, 30 36 C 12 34, 4 28, 14 16" /></svg><span className="fm-note">why 80%?</span></span> and a standardised effect of 0.4.</p>
                     <p>The rules are compared over pilot sizes from 10 to 70 per group, and for effects between 0.2 and 0.8.</p>
-                    <span className="fm-pg">p. 1 / 15</span>
+                    </div><span className="fm-pg">p. 1 / 15</span>
                   </div>
                   <div className="fm-face is-back">
-                    <h4>4. Results</h4>
+                    <div className="fm-face-body"><h4>4. Results</h4>
                     <p>Table 2 gives the pilot sizes that keep the risk of an under-powered main study at 30%, 20% and 10%.</p>
                     <p><span className="fm-q-hl">The main study requires NL = 158 subjects per group.</span></p>
                     <p>With a pilot of 12 per group, the chance of an under-powered main study is close to one in three.</p>
                     <p>Larger pilots lower that risk quickly at first and slowly after about 35 per group.</p>
-                    <span className="fm-pg">p. 4 / 15</span>
+                    </div><span className="fm-pg">p. 4 / 15</span>
                   </div>
                 </div>
               </div>

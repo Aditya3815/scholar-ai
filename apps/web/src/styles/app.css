@@ -5,8 +5,8 @@
   z-index: 40;
   border-bottom: 1px solid transparent;
   background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: saturate(1.4) blur(12px);
   -webkit-backdrop-filter: saturate(1.4) blur(12px);
+  backdrop-filter: saturate(1.4) blur(12px);
   transition: border-color var(--dur) var(--ease);
 }
 .topbar-solid {

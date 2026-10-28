@@ -61,6 +61,17 @@ for (const file of [...scripts, ...styles, ...fonts]) {
 for (const file of scripts) {
   if (/\/(pdf|es|annotated-pdf|PdfViewer|IntroPage)-/.test(file)) { console.log(` FAIL  the first load has started to include ${file}`); failed = true; }
 }
+// The CSS minifier (Lightning CSS, Vite 8) drops a standard property that is written before its -webkit- twin: Chrome and Edge then get no blur at all (seen 28 Oct 2026). Every
+// -webkit- property in the built style sheets must have its standard twin.
+for (const file of newest(pick(/\.css$/))) {
+  const css = readFileSync(file, "utf8");
+  // rule by rule: a declaration block that has the -webkit- one must also have the standard one
+  const blocks = css.split("}").map((b) => b.slice(b.lastIndexOf("{") + 1));
+  for (const p of ["backdrop-filter", "box-decoration-break", "mask-image"]) {
+    const lost = blocks.filter((b) => b.includes(`-webkit-${p}:`) && !new RegExp(`(?<![-\\w])${p}:`).test(b)).length;
+    if (lost) { console.log(` FAIL  ${file.replace(/.*[\\/]/, "")}: ${lost} rule(s) with -webkit-${p} and no standard ${p} (write the -webkit- one first)`); failed = true; }
+  }
+}
 for (const [what, limit] of Object.entries(LIMITS)) {
   const size = measured[what];
   const over = size > limit;
