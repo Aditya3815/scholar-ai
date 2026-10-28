@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { NOTHING_NOTICE, PARTIAL_NOTICE, SMALL_TALK_REPLY, cleanAutoMessage, cleanChatMessage, detectLanguage, isSmallTalk, ruleRoute, slimForInterim, type ChatEvent, type ChatNoAnswer, type Route, type SearchResponse, type SearchSnapshot } from "@scholar/shared";
+import { NOTHING_NOTICE, PARTIAL_NOTICE, SMALL_TALK_REPLY, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, ruleRoute, slimForInterim, type ChatEvent, type ChatNoAnswer, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { cacheStore } from "../cache";
 import type { Complete, StreamComplete } from "../docs/qa";
@@ -81,8 +81,11 @@ const complete = (r: SearchResponse) => Object.values(r.providers).every((p) => 
  */
 chatRoutes.post("/", async (c) => {
   if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const body = (await c.req.json().catch(() => null)) as { mode?: unknown; message?: unknown } | null;
+  const body = (await c.req.json().catch(() => null)) as { mode?: unknown; message?: unknown; scope?: unknown } | null;
   if (!body || (body.mode !== "search" && body.mode !== "auto")) return deny(c, 400, "invalid_mode", "That mode is not available");
+  // where a search looks: the regular sources, or only Indian ones when the reader turned that on (an unknown value is refused, not quietly widened)
+  if (body.scope !== undefined && !isSearchScope(body.scope)) return deny(c, 400, "invalid_scope", "That search scope is not available");
+  const scope: SearchScope = isSearchScope(body.scope) ? body.scope : "all";
   const auto = body.mode === "auto";
   const text = auto ? cleanAutoMessage(body.message) : cleanChatMessage(body.message);
   if (!text) return deny(c, 400, "invalid_message", auto ? "Write something, at most 20,000 characters" : "Write 2 to 300 characters");
@@ -134,7 +137,7 @@ chatRoutes.post("/", async (c) => {
         route = { mode: "search", how: auto ? "rules" : "chosen", confidence: 1, language: detectLanguage(text) };
       }
       const shown = text.replace(/\s+/g, " ").slice(0, 300);
-      await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}) });
+      await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}), ...(scope !== "all" && route.mode === "search" ? { scope } : {}) });
       if (talk) {
         outcome = "small_talk";
         await send({ type: "general", kind: "not_research", text: SMALL_TALK_REPLY });
@@ -152,10 +155,10 @@ chatRoutes.post("/", async (c) => {
       let found: SearchResponse;
       if (stubbed(c.env)) {
         if (/\bstalled\b/i.test(query)) await new Promise((r) => setTimeout(r, 3500)); // a silent wait, to see the keep-alive line and the "still working" hint
-        found = stubSearchFor(query);
+        found = stubSearchFor(query, scope);
         if (found.results.length > 0) await interim(found);
       } else {
-        found = await runSearch(searchEnv(c.env), query, 20, { onSnapshot: interim });
+        found = await runSearch(searchEnv(c.env), query, 20, { onSnapshot: interim }, scope);
       }
       if (s.gone) return;
       await send({ type: "papers", results: found.results, final: true });

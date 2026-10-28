@@ -88,6 +88,14 @@
 .hm-bar { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.6rem 0.6rem; }
 .hm-mode { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 2.25rem; padding: 0.3rem 0.8rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-weight: 600; font-size: 0.86rem; color: var(--text); }
 .hm-mode:hover { border-color: var(--accent); }
+/* the "Indian sources" switch: quiet when off, the accent when on */
+.hm-scope { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.25rem; padding: 0.3rem 0.75rem; border: 1px dashed var(--border-strong); border-radius: 999px; background: none; font-weight: 600; font-size: 0.82rem; color: var(--muted); transition: border-color 0.2s, background 0.2s, color 0.2s; }
+.hm-scope:hover { border-color: var(--accent); color: var(--text); }
+.hm-scope[aria-pressed="true"] { border-style: solid; border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+@media (max-width: 400px) {
+  /* on a narrow phone the switch keeps its icon and its name for screen readers */
+  .hm-scope span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 .hm-send { margin-left: auto; display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 0; border-radius: 50%; background: var(--accent); color: var(--accent-fg); }
 .hm-send:disabled { opacity: 0.4; cursor: default; }
 .hm-menu { display: grid; gap: 2px; min-width: min(20rem, 80vw); }

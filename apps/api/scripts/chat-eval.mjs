@@ -97,7 +97,8 @@ async function ask(message, group) {
     }
     const cited = new Set(answer.citations.map((c) => c.n));
     for (const m of answer.text.matchAll(/\[(\d{1,2})\]/g)) if (!cited.has(Number(m[1]))) row.problems.push(`mark [${m[1]}] is not a checked citation`);
-    const left = /.{0,30}(?:\bS\d{1,3}\b|【|】|\(\s*\d{1,2}\s*\)).{0,15}/.exec(answer.text);
+    // a sentence label, a model's own token, or a sentence number in round brackets: (3), and pairs or lists like (6:1) or (2,5) (seen in Hindi answers)
+    const left = /.{0,30}(?:\bS\d{1,3}\b|【|】|\(\s*\d{1,2}(?:\s*[-:,;]\s*\d{1,3})*\s*\)).{0,15}/.exec(answer.text);
     if (left) row.problems.push(`a label or token is left in the words: …${left[0]}…`);
     row.marks = answer.citations.length;
     row.words = answer.text.split(/\s+/).length;

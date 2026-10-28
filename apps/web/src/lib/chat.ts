@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import {
   applyChatEvent, chatTitle, cleanAutoMessage, cleanChatMessage, interruptAssistant, MAX_CHAT_CHARS, MAX_IDEA_CHARS, MIN_IDEA_CHARS, startAssistant, stopAssistant, trimForStorage,
-  type AssistantMsg, type ChatEvent, type ChatMsg, type IdeaMsg,
+  type AssistantMsg, type ChatEvent, type ChatMsg, type IdeaMsg, type SearchScope,
 } from "@scholar/shared";
 import { idbClear, idbDelete, idbGet, idbSet } from "./idb";
 import { showNotice } from "./notice";
@@ -185,8 +185,11 @@ export type SendResult = "sent" | "busy" | "invalid";
 /** "search": the words are searched as written (the reader chose it). "auto": the router chooses the tool. */
 export type SendMode = "search" | "auto";
 
-/** Send a message in the current conversation (starting one if there is none). A second message while one is being answered is not sent: it waits for the answer or for Stop. */
-export function sendMessage(raw: string, mode: SendMode = "search"): SendResult {
+/**
+ * Send a message in the current conversation (starting one if there is none). A second message while one is being answered is not sent: it waits for the answer or for Stop.
+ * `scope` "india" searches only Indian sources (the reader's switch under the box); it applies when the message is a search.
+ */
+export function sendMessage(raw: string, mode: SendMode = "search", scope: SearchScope = "all"): SendResult {
   const text = mode === "auto" ? cleanAutoMessage(raw) : cleanChatMessage(raw);
   if (!text) return "invalid";
   let id = state.active;
@@ -198,11 +201,11 @@ export function sendMessage(raw: string, mode: SendMode = "search"): SendResult 
   }
   const now = Date.now();
   const user: ChatMsg = { id: newId(), role: "user", text, at: now };
-  const reply = startAssistant(newId(), text.replace(/\s+/g, " ").slice(0, 300), now, mode === "auto");
+  const reply = startAssistant(newId(), text.replace(/\s+/g, " ").slice(0, 300), now, mode === "auto", scope);
   setChat(id, [...(state.chats.get(id) ?? []), user, reply]);
   touch(id, state.index.find((e) => e.id === id)?.title ?? chatTitle(text));
   persist(id, true);
-  void run(id, reply.id, text, mode);
+  void run(id, reply.id, text, mode, scope);
   return "sent";
 }
 
@@ -230,10 +233,12 @@ export function retryReply(assistantId: string, as?: "search"): SendResult {
     showNotice(`A search is at most ${MAX_CHAT_CHARS} characters. For a longer text, use Check references or Idea Check.`);
     return "invalid";
   }
-  const reply = startAssistant(assistantId, text.replace(/\s+/g, " ").slice(0, 300), Date.now(), mode === "auto");
+  // it looks in the same place as before (the Indian sources stay on for a reply that was searched there)
+  const scope = old.scope ?? "all";
+  const reply = startAssistant(assistantId, text.replace(/\s+/g, " ").slice(0, 300), Date.now(), mode === "auto", scope);
   setChat(id, msgs.map((m, i) => (i === at ? reply : m)));
   persist(id, true);
-  void run(id, assistantId, text, mode);
+  void run(id, assistantId, text, mode, scope);
   return "sent";
 }
 
@@ -243,7 +248,7 @@ export function stopReply() {
   r?.ctl.abort();
 }
 
-async function run(chatId: string, assistantId: string, text: string, mode: SendMode) {
+async function run(chatId: string, assistantId: string, text: string, mode: SendMode, scope: SearchScope) {
   const ctl = new AbortController();
   runs.set(chatId, { ctl, assistantId });
   set({ running: new Set(runs.keys()) });
@@ -264,7 +269,7 @@ async function run(chatId: string, assistantId: string, text: string, mode: Send
     }
   };
   try {
-    const res = await fetch("/api/v1/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify({ mode, message: text }), signal: ctl.signal });
+    const res = await fetch("/api/v1/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify({ mode, message: text, ...(scope !== "all" ? { scope } : {}) }), signal: ctl.signal });
     if (!res.ok) {
       const j = (await res.json().catch(() => null)) as { title?: string; detail?: string } | null;
       throw new Error(res.status === 429 ? "Too many searches just now. Please wait a minute and try again." : (j?.title ?? "That could not be sent. Please try again."));

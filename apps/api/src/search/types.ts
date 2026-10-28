@@ -27,6 +27,8 @@ export type ProviderPaper = {
   retracted: boolean;
   /** What kind of work the index says it is (OpenAlex: article, preprint, dataset, book-chapter, ...). Only some sources know. */
   workType?: string | null;
+  /** The record's own page, for a record with no DOI or PMID to link to (a thesis on Shodhganga). Always http(s). */
+  url?: string | null;
 };
 
 export type Provider = {

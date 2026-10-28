@@ -99,6 +99,23 @@ try {
   const ha = await chat(A, "hallucinate glaucoma");
   ok(ha.events.at(-1).reason === "not_grounded" && ha.events.find((e) => e.type === "answer").answer.citations.length === 0, "an answer whose evidence is not a real sentence is not shown");
 
+  console.log("Indian sources: only when the reader turns them on");
+  const body = (o) => ({ raw: JSON.stringify({ mode: "search", message: "glaucoma screening", ...o }) });
+  ok((await chat(A, "glaucoma screening", body({ scope: "everywhere" }))).res.status === 400 && (await chat(A, "glaucoma screening", body({ scope: 1 }))).res.status === 400, "an unknown scope is refused, not quietly widened");
+  const ind = await chat(A, "glaucoma screening", body({ scope: "india" }));
+  const indPapers = ind.events.filter((e) => e.type === "papers").at(-1)?.results ?? [];
+  ok(ind.events[0].type === "understood" && ind.events[0].scope === "india", "what was understood says the search looked only at Indian sources");
+  ok(indPapers.length === 3 && indPapers.every((p) => p.sources.every((s) => ["doaj", "shodhganga", "openalex-india"].includes(s))), "the papers come from the Indian sources only");
+  const thesis = indPapers.find((p) => p.workType === "dissertation");
+  ok(!!thesis && thesis.doi === null && thesis.url === "https://shodhganga.inflibnet.ac.in/handle/10603/00001", "a thesis is listed with the page of its record on Shodhganga");
+  const indAns = ind.events.find((e) => e.type === "answer")?.answer;
+  ok(indAns?.grounded === true && indAns.citations.length > 0 && indAns.citations.every((c) => c.paperId !== thesis?.id), "the answer is made from the papers that have an abstract, never from a thesis without one");
+  ok((await chat(A, "glaucoma screening")).events[0].scope === undefined, "a search without the switch is the regular one (no scope in what was understood)");
+  const routedAway = await chat(A, "I have an idea: smartphone fundus photographs graded by a small model in village camps, checked against an eye doctor, to find glaucoma early", { raw: JSON.stringify({ mode: "auto", message: "I have an idea: smartphone fundus photographs graded by a small model in village camps, checked against an eye doctor, to find glaucoma early", scope: "india" }) });
+  ok(routedAway.events[0].type === "understood" && routedAway.events[0].mode !== "search" ? routedAway.events[0].scope === undefined : true, "when Auto chooses another tool, no scope is claimed for it");
+  const searchStatus = async (qs) => (await A.send(`${APP}/api/v1/search?${qs}`)).status;
+  ok((await searchStatus("q=glaucoma&scope=mars")) === 400, "the search endpoint refuses an unknown scope too");
+
   console.log("general background: only when the papers do not answer, and always apart from them");
   const bg = (r) => r.events.find((e) => e.type === "general");
   const steps = (r) => r.events.filter((e) => e.type === "step").map((e) => e.step).join();

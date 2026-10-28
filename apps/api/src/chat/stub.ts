@@ -1,4 +1,4 @@
-import type { Paper, SearchResponse } from "@scholar/shared";
+import type { Paper, SearchResponse, SearchScope } from "@scholar/shared";
 import type { StreamComplete } from "../docs/qa";
 import { extractJson } from "../llm/gateway";
 
@@ -45,7 +45,25 @@ const OA_RECORDS = [
 ];
 const stubOaPapers = (): Paper[] => stubPapers().slice(0, OA_RECORDS.length).map((p, i) => ({ ...p, id: `doi:${OA_RECORDS[i]!.doi}`, doi: OA_RECORDS[i]!.doi, title: OA_RECORDS[i]!.title, abstract: OA_RECORDS[i]!.abstract, retracted: "retracted" in OA_RECORDS[i]! && OA_RECORDS[i]!.retracted === true, retractionSources: [], oaUrl: null }));
 
-export function stubSearchFor(q: string): SearchResponse {
+/**
+ * The "Indian sources" search: an article from a journal published in India (DOAJ), a thesis on Shodhganga (no DOI, no abstract: it is listed with the page of its
+ * record and cannot be cited by the answer), and a paper by authors at an Indian institution.
+ */
+export function stubIndiaPapers(): Paper[] {
+  const base = { pmid: null, citationCount: null, retracted: false, retractionSources: [] as string[], oaUrl: null };
+  return [
+    { ...base, id: "doi:10.4103/stub.india.1", doi: "10.4103/stub.india.1", title: "Glaucoma screening camps in rural Maharashtra", authors: ["P. Deshmukh", "R. Kulkarni"], year: 2021, venue: "Indian Journal of Ophthalmology", abstract: "Screening camps examined 4,200 adults in twelve villages. Glaucoma was found in 3.1 percent of them, and most had not known about it. Follow-up visits were kept by two thirds of those referred.", oaUrl: "https://example.org/ijo/stub-1", sources: ["doaj"], score: 0.9, workType: "article", doiStatus: "verified" },
+    { ...base, id: "t:stub-shodhganga-thesis", doi: null, title: "A study of glaucoma awareness among adults in Karnataka", authors: ["S. Hegde"], year: 2016, venue: "Shodhganga", abstract: null, sources: ["shodhganga"], score: 0.8, workType: "dissertation", url: "https://shodhganga.inflibnet.ac.in/handle/10603/00001" },
+    { ...base, id: "doi:10.1000/india.inst.1", doi: "10.1000/india.inst.1", title: "Cost of glaucoma care in a tertiary hospital in Chennai", authors: ["K. Raman"], year: 2022, venue: "Journal of Glaucoma", abstract: "Direct costs of glaucoma care were collected for 310 patients over a year. Medicines were the largest part of the cost. Patients from rural areas spent more on travel than on treatment.", citationCount: 4, sources: ["openalex-india"], score: 0.7, workType: "article", doiStatus: "verified" },
+  ];
+}
+
+export function stubSearchFor(q: string, scope: SearchScope = "all"): SearchResponse {
+  if (scope === "india") {
+    const results = /\bnothing\b/i.test(q) ? [] : stubIndiaPapers();
+    const st = (n: number) => ({ ok: true, count: n, ms: 5, cached: false });
+    return { query: q, results, providers: { "openalex-india": st(results.length ? 1 : 0), doaj: st(results.length ? 1 : 0), shodhganga: st(results.length ? 1 : 0) }, doiCheck: st(0), retractionCheck: st(0), tookMs: 12, scope } as SearchResponse;
+  }
   const none = /\bnothing\b/i.test(q);
   const results = none ? [] : /\boapapers\b/i.test(q) ? stubOaPapers() : stubPapers();
   // "longabstract": the first paper has an abstract far longer than a folded card shows (to see the interim lists carry only its start)

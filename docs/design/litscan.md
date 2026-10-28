@@ -101,7 +101,7 @@ Also: the estimate went from 2,200 to 3,000 a sub-question (the Hinglish scan us
 ## Not done, and why
 
 - **Full papers are not read** (the Ask-this-paper path takes 20 to 25 s a new paper; a different, much slower worker). Abstracts only, said on the page.
-- **No e-mail when it finishes** (a browser notice exists; e-mail needs a mail service, a sender and a stored address).
+- **No e-mail when it finishes**: your decision (28 Oct 2026), the browser notice is enough. (E-mail would need a mail service, a sender and a stored address.)
 - **A shared link is read-only and shows the topic**: it cannot be limited to certain people (anyone who has it can read it).
 - **More than 6 sub-questions** (the Crossref lane at higher fan-out was not measured, R11).
 - **The part registry (P2)** is still not needed: the scan has its own components and uses the chat's styles for marks and evidence.

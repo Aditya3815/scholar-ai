@@ -1,4 +1,4 @@
-import type { Paper } from "./index";
+import type { Paper, SearchScope } from "./index";
 import type { ChatAnswer, ChatEvent, ChatMode, ChatNoAnswer, ChatStep, GeneralKind } from "./chat";
 import type { Lang, RouteHow } from "./route";
 
@@ -18,6 +18,8 @@ export type AssistantMsg = {
   how: RouteHow;
   confidence: number;
   searchQuery?: string;
+  /** Where the search looked when it was not the regular sources ("india": only Indian sources, which the reader turned on). Kept so "Search again" looks in the same place. */
+  scope?: SearchScope;
   /** False while Auto is still reading the message (no `understood` event yet); absent in chats kept before Auto existed, which count as understood. */
   understood?: boolean;
   status: AssistantStatus;
@@ -50,8 +52,9 @@ const STEP_ORDER: ChatStep[] = ["route", "search", "read", "write", "check", "ge
 const happened = (m: AssistantMsg, s: ChatStep, now: ChatStep | null) => s !== "route" && s !== "general" ? true : m.step === s || m.stepsDone.includes(s) || now === s;
 
 /** A reply that has just been asked for. `auto` is whether the router will choose the tool (the reader left the choice to it); then the first step is understanding the message. */
-export const startAssistant = (id: string, query: string, at: number, auto = false): AssistantMsg => ({
+export const startAssistant = (id: string, query: string, at: number, auto = false, scope?: SearchScope): AssistantMsg => ({
   id, role: "assistant", mode: "search", query, language: "en", auto, understood: !auto, how: auto ? "rules" : "chosen", confidence: 1, status: "working", step: auto ? "route" : "search", stepsDone: [], papers: [], papersFinal: false, notices: [], live: "", answer: null, generalLive: "", general: null, at,
+  ...(scope && scope !== "all" ? { scope } : {}),
 });
 
 /** One event applied to a reply. Pure: the same events always give the same reply. Events that arrive after the reply has ended are ignored. */

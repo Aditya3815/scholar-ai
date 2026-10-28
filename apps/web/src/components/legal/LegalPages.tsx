@@ -48,7 +48,7 @@ export function HowWeVerifyPage() {
     <Layout title="How we verify" intro="What “verified” means in this service, how it is checked, and where it can be wrong. Every number here comes from our own tests and will move; the tests run on every change and every week.">
       <h2>The one rule</h2>
       <p>
-        <strong>No citation is ever written by AI.</strong> Every paper you see is a record we fetched from OpenAlex, Semantic Scholar, Crossref, PubMed, arXiv or CORE. An AI model may read your text and help find papers, but it never
+        <strong>No citation is ever written by AI.</strong> Every paper you see is a record we fetched from OpenAlex, Semantic Scholar, Crossref, PubMed, arXiv, CORE or DOAJ. An AI model may read your text and help find papers, but it never
         produces a reference.
       </p>
 
@@ -155,7 +155,7 @@ export function PrivacyPage() {
         <li>They are <strong>private to your account</strong>. Other users cannot see them. We do not read them as part of running the service; the people who run it can reach the database in order to fix a fault, but the admin page shows numbers only.</li>
         <li>To answer a question or plan a search, the relevant text is sent to an AI model run by <strong>Cloudflare (Workers AI)</strong>. When you ask about your highlights, those highlights and the notes you wrote on them are sent in the same way. For a scanned paper, a picture of each page is sent to the same service to be read; the picture is not stored by us, and the text that was read is kept like any other text of your paper. We use only AI services whose terms say they do not keep or train on what we send. <strong>Your papers, questions and ideas are never sent to any other AI service</strong>, and are never used to train any AI.</li>
         <li>Idea Check sends the search you approved, and only that, to OpenAlex, Semantic Scholar, PubMed, arXiv and CORE. They can see those words and our service&apos;s address, not you or your file. Look at the search before you send it; remove anything you would rather not share.</li>
-        <li>A search you make in the prompt box on Home is sent, as the words you wrote, to OpenAlex, Semantic Scholar, Crossref and PubMed. They can see those words and our service&apos;s address, not you. If you are signed in, the same words and the abstracts of the papers found are also sent to the AI service above, to write a short answer; each claim of it is tied to a sentence of an abstract and checked by us. If the papers found do not answer your question, your question alone is also sent to the same AI service for a short background from general knowledge, which is shown under a label that says it is not from a paper and never cites one. A greeting or a thanks is answered by the page itself and sent nowhere. What you ask and the answers are kept only in your browser.</li>
+        <li>A search you make in the prompt box on Home is sent, as the words you wrote, to OpenAlex, Semantic Scholar, Crossref and PubMed; with <strong>Indian sources</strong> turned on, to OpenAlex and DOAJ (the Directory of Open Access Journals) instead. They can see those words and our service&apos;s address, not you. If you are signed in, the same words and the abstracts of the papers found are also sent to the AI service above, to write a short answer; each claim of it is tied to a sentence of an abstract and checked by us. If the papers found do not answer your question, your question alone is also sent to the same AI service for a short background from general knowledge, which is shown under a label that says it is not from a paper and never cites one. A greeting or a thanks is answered by the page itself and sent nowhere. What you ask and the answers are kept only in your browser.</li>
         <li>When you ask for an Idea Check in the conversation, it is the same Idea Check as on its own page: the idea is read by the AI service above, you see and approve the search plan before anything is searched, and only that plan goes to the public sources. Nothing about the idea is stored by us.</li>
         <li>With <strong>Auto</strong> chosen in that box and you signed in, the beginning of what you write (up to about 1,500 characters: a question, a list of references, a description of an idea) is also sent to that AI service, only to decide which tool it belongs to and, when it is not written in English, to put the topic into English search words. Those English words, and not your own, are then what the search sources see. If you are not signed in, nothing is sent to an AI service: simple rules decide, and a message in another language is searched as you wrote it. When you choose a tool yourself, Auto does not read what you write. We do not keep the message; the AI log holds only a count of tokens.</li>
         <li>When you press <strong>Ask this paper</strong> on a search result, your question and the passages of that paper are sent to the AI service above, under the same rules (never kept, never used for training). Our server downloads the paper from Europe PMC, arXiv, or the free copy that OpenAlex lists; they can see our service&apos;s address and the paper&apos;s identifier, not you. The answer is shown to you and not stored by us.</li>
@@ -168,7 +168,7 @@ export function PrivacyPage() {
       <ul>
         <li><strong>Cloudflare</strong>: runs the service, stores the database and files, and runs the AI that reads your text. Data may be processed in data centres outside India.</li>
         <li><strong>Google</strong> and <strong>ORCID</strong>: only when you choose to sign in with them.</li>
-        <li><strong>OpenAlex, Semantic Scholar, Crossref, PubMed, arXiv, CORE, doi.org</strong>: public databases we ask about papers. See above for what they receive.</li>
+        <li><strong>OpenAlex, Semantic Scholar, Crossref, PubMed, arXiv, CORE, DOAJ, doi.org</strong>: public databases we ask about papers. See above for what they receive.</li>
         <li><strong>Sentry</strong>: receives the error reports described in the table.</li>
         <li>We do not sell personal data and do not share it for advertising.</li>
       </ul>
@@ -227,7 +227,7 @@ export function TermsPage() {
       </ul>
 
       <h2>Third-party services and open data</h2>
-      <p>Paper information comes from OpenAlex, Semantic Scholar, Crossref, PubMed, arXiv and CORE, and retraction data from Retraction Watch through Crossref. Their data belongs to them and is used under their terms. They can change or stop at any time, and then parts of the service can be slow or unavailable.</p>
+      <p>Paper information comes from OpenAlex, Semantic Scholar, Crossref, PubMed, arXiv, CORE and DOAJ (theses on Shodhganga are listed as OpenAlex lists them; we do not fetch anything from Shodhganga), and retraction data from Retraction Watch through Crossref. Their data belongs to them and is used under their terms. They can change or stop at any time, and then parts of the service can be slow or unavailable.</p>
 
       <h2>The service itself</h2>
       <ul>

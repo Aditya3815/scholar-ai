@@ -48,6 +48,8 @@ export type Paper = {
   score: number;
   /** What kind of work the index says it is (article, preprint, dataset, ...), when one of the sources knows. */
   workType?: string | null;
+  /** The record's own page, when it has no DOI or PMID to link to (a thesis on Shodhganga). Always http(s). */
+  url?: string | null;
   /**
    * Result of the DOI check run on every search result: "verified" (registered with Crossref and the title agrees, or resolves
    * at doi.org), "unchecked" (could not be checked, kept), or "dropped_*" (the DOI did not exist or belonged to a different
@@ -77,7 +79,21 @@ export const PROVIDER_LABELS = {
   crossref: "Crossref",
   pubmed: "PubMed",
   arxiv: "arXiv",
+  doaj: "DOAJ (journals published in India)",
+  shodhganga: "Shodhganga theses (listed by OpenAlex)",
+  "openalex-india": "OpenAlex (authors at Indian institutions)",
 } as const;
+
+/**
+ * Where a search looks. "all": the regular sources. "india": only Indian sources, the reader's choice (spike R12, docs/design/india-sources.md): journals
+ * published in India (DOAJ), theses on Shodhganga (as OpenAlex lists them) and papers with an author at an Indian institution (OpenAlex).
+ */
+export const SEARCH_SCOPES = ["all", "india"] as const;
+export type SearchScope = (typeof SEARCH_SCOPES)[number];
+export const isSearchScope = (v: unknown): v is SearchScope => typeof v === "string" && (SEARCH_SCOPES as readonly string[]).includes(v);
+/** The words the screen uses for the Indian scope, in one place. */
+export const INDIA_SCOPE_LABEL = "Indian sources";
+export const INDIA_SCOPE_HELP = "Only journals published in India (DOAJ), theses on Shodhganga, and papers by authors at Indian institutions.";
 
 /** SSE `snapshot` event payload: har provider ke baad merged results (retraction flags `done` mein aate hain). */
 export type SearchSnapshot = {
@@ -96,6 +112,8 @@ export type SearchResponse = {
   retractionCheck: ProviderStatus;
   tookMs: number;
   alsoSearched?: string[];
+  /** Present when the search was not the regular one (only "india" today). */
+  scope?: SearchScope;
 };
 export * from "./references";
 export * from "./documents";

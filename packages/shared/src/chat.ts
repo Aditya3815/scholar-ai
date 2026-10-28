@@ -1,4 +1,4 @@
-import type { Paper } from "./index";
+import type { Paper, SearchScope } from "./index";
 import type { Lang, RouteHow, RouteMode as ChatMode } from "./route";
 
 /**
@@ -42,9 +42,10 @@ export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_gr
 export type ChatEvent =
   /**
    * What the message was taken to be. `query` is the message as written (a long one is cut); `searchQuery` is what the search indexes are asked when that is not the words as
-   * written (a translation). `auto` is true when the router chose, `how` says by what, `confidence` how sure it was.
+   * written (a translation). `auto` is true when the router chose, `how` says by what, `confidence` how sure it was. `scope` is there when the reader chose where to
+   * look ("india": only Indian sources).
    */
-  | { type: "understood"; mode: ChatMode; query: string; language: Lang; auto: boolean; how: RouteHow; confidence: number; searchQuery?: string }
+  | { type: "understood"; mode: ChatMode; query: string; language: Lang; auto: boolean; how: RouteHow; confidence: number; searchQuery?: string; scope?: SearchScope }
   | { type: "step"; step: ChatStep }
   /** The papers so far (a snapshot, in rank order); `final` once every source has answered and the checks are done. */
   | { type: "papers"; results: Paper[]; final: boolean }

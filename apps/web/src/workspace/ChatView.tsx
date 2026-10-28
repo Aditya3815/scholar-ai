@@ -1,7 +1,7 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowRight, ChevronDown, FileStack, Info, Lightbulb, ListChecks, RefreshCw, Search, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { GENERAL_LABEL, MAX_CHAT_CHARS, ROUTE_NAMES, type AssistantMsg, type ChatMsg, type IdeaMsg, type ChatNoAnswer, type RouteMode } from "@scholar/shared";
+import { GENERAL_LABEL, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, ROUTE_NAMES, type AssistantMsg, type ChatMsg, type IdeaMsg, type ChatNoAnswer, type RouteMode } from "@scholar/shared";
 import { SignInDialog } from "../components/AccountMenu";
 import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
@@ -182,6 +182,11 @@ function Understood({ msg, text, working, onChange, onExact }: { msg: AssistantM
               <button type="button" className="link-btn" onClick={onExact}>Use my exact words</button>
             </>
           )}
+        </p>
+      )}
+      {msg.mode === "search" && msg.scope === "india" && (
+        <p className="chat-und chat-searched">
+          Searched only <b>{INDIA_SCOPE_LABEL}</b>: journals published in India, theses on Shodhganga, and papers by authors at Indian institutions.
         </p>
       )}
     </>

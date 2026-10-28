@@ -19,6 +19,8 @@ export const GATES = {
   // The searches of a literature scan (src/litscan): five or six sub-questions searched at once made OpenAlex, PubMed and Crossref answer 429 to all of them (a live run, 27 Oct 2026: every source
   // refused, so the search found "nothing"). Two at a time, a start every two seconds: a scan's search phase takes about 25 s instead of 10, and every source answers.
   litscan: { minIntervalMs: 2_000, maxConcurrent: 2, leaseMs: 60_000 },
+  // DOAJ (the "Indian sources" search, src/search/india.ts): two requests a second on every route, bursts of five queued (its API page, 28 Oct 2026). A start every 600 ms leaves room.
+  doaj: { minIntervalMs: 600, maxConcurrent: 2, leaseMs: 20_000 },
 } satisfies Record<string, GateConfig>;
 export type GateName = keyof typeof GATES;
 

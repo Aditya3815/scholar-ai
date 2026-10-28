@@ -46,8 +46,19 @@ describe("parsePaper (untrusted input)", () => {
     ["year out of range", { year: 99999 }],
     ["negative citations", { citationCount: -1 }],
     ["oversized abstract", { abstract: "x".repeat(10_001) }],
+    ["javascript: record page", { url: "javascript:alert(1)" }],
+    ["record page that is not a string", { url: 5 }],
+    ["work type with markup", { workType: "<b>thesis</b>" }],
   ])("rejects %s", (_name, patch) => {
     expect(parsePaper({ ...base, ...patch })).toBeNull();
+  });
+
+  it("keeps a thesis's own page and its kind, so a saved thesis still opens and still says it is a thesis", () => {
+    const p = parsePaper({ ...base, id: "t:a thesis|2016", doi: null, pmid: null, url: "https://shodhganga.inflibnet.ac.in/handle/10603/1", workType: "dissertation" });
+    expect(p).toMatchObject({ url: "https://shodhganga.inflibnet.ac.in/handle/10603/1", workType: "dissertation" });
+    const plain = parsePaper(base);
+    expect(plain).not.toHaveProperty("url");
+    expect(plain).not.toHaveProperty("workType");
   });
 
   it("rejects non-objects", () => {

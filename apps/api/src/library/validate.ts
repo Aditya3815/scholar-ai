@@ -38,16 +38,14 @@ export function parsePaper(x: unknown): Paper | null {
   if (typeof x.retracted !== "boolean") return null;
   if (pmid && !/^\d{1,20}$/.test(pmid)) return null;
 
-  let oaUrl: string | null = null;
-  if (oaRaw) {
-    try {
-      const u = new URL(oaRaw);
-      if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-      oaUrl = u.toString();
-    } catch {
-      return null;
-    }
-  }
+  const oaUrl = oaRaw ? webUrl(oaRaw) : null;
+  if (oaRaw && !oaUrl) return null;
+  // the page of a record with no DOI (a thesis on Shodhganga), and what kind of work it is: kept so a saved thesis still opens and still says "Thesis"
+  const urlRaw = optText(x.url, 1000);
+  const url = urlRaw ? webUrl(urlRaw) : null;
+  if (urlRaw === undefined || (urlRaw && !url)) return null;
+  const workType = optText(x.workType, 40);
+  if (workType === undefined || (workType && !/^[a-z][a-z-]*$/.test(workType))) return null;
 
   return {
     id,
@@ -64,7 +62,19 @@ export function parsePaper(x: unknown): Paper | null {
     retractionSources,
     sources,
     score: typeof x.score === "number" && Number.isFinite(x.score) ? x.score : 0,
+    ...(url ? { url } : {}),
+    ...(workType ? { workType } : {}),
   };
+}
+
+/** An http(s) address, normalised, or null: a stored value can never become a `javascript:` link. */
+function webUrl(raw: string): string | null {
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 /** SQLite "YYYY-MM-DD HH:MM:SS" (UTC) from an epoch-ms timestamp; falls back to now for nonsense values. */

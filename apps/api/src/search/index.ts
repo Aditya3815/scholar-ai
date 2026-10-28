@@ -1,4 +1,4 @@
-import type { Paper, ProviderStatus, SearchResponse, SearchSnapshot } from "@scholar/shared";
+import type { Paper, ProviderStatus, SearchResponse, SearchScope, SearchSnapshot } from "@scholar/shared";
 import { cacheKey, cached } from "./cache";
 import { applyDoiChecks, checkDois } from "./doi-check";
 import { crossref } from "./crossref";
@@ -6,11 +6,19 @@ import { mergeAndRank } from "./merge";
 import { openalex } from "./openalex";
 import { pubmed } from "./pubmed";
 import { retractedDois } from "./retraction";
+import { doajIndia, openalexIndia, shodhganga } from "./india";
 import { FEW_RESULTS, interleave, queryVariants } from "./query";
 import { s2 } from "./s2";
 import type { Provider, ProviderPaper, SearchEnv } from "./types";
 
-const PROVIDERS: Provider[] = [openalex, s2, crossref, pubmed];
+/**
+ * The sources of each scope, in the order their answers are merged. The regular search is unchanged by the Indian one: the search eval replays recorded answers of
+ * these four. In the Indian scope the OpenAlex list comes first, so a paper it shares with DOAJ takes its fields (citations, retraction flag) from OpenAlex.
+ */
+const SCOPES: Record<SearchScope, Provider[]> = {
+  all: [openalex, s2, crossref, pubmed],
+  india: [openalexIndia, doajIndia, shodhganga],
+};
 const PROVIDER_TIMEOUT_MS = 6000;
 const SEARCH_TTL_S = 24 * 3600;
 const PER_PROVIDER = 20;
@@ -26,8 +34,8 @@ export type SearchHooks = {
  * supplies its base fields; ties keep insertion order). Always merge in the fixed PROVIDERS order so the same responses give the
  * same results, in production and in the eval.
  */
-function inProviderOrder(lists: Record<string, ProviderPaper[]>): Record<string, ProviderPaper[]> {
-  return Object.fromEntries(PROVIDERS.filter((p) => lists[p.name]).map((p) => [p.name, lists[p.name]!]));
+function inProviderOrder(providers: Provider[], lists: Record<string, ProviderPaper[]>): Record<string, ProviderPaper[]> {
+  return Object.fromEntries(providers.filter((p) => lists[p.name]).map((p) => [p.name, lists[p.name]!]));
 }
 
 export async function runProvider(p: Provider, q: string, env: SearchEnv) {
@@ -82,13 +90,16 @@ export async function applyRetractions(env: SearchEnv, results: Paper[]): Promis
   }
 }
 
-/** Multi-source search: parallel fetch, partial failure tolerated, dedup + RRF, retraction flag. */
+/** Multi-source search: parallel fetch, partial failure tolerated, dedup + RRF, retraction flag. `scope` picks the sources (SCOPES). */
 export async function runSearch(
   env: SearchEnv,
   q: string,
   limit: number,
   hooks: SearchHooks = {},
+  scope: SearchScope = "all",
 ): Promise<SearchResponse> {
+  const PROVIDERS = SCOPES[scope];
+  const ordered = (lists: Record<string, ProviderPaper[]>) => inProviderOrder(PROVIDERS, lists);
   const started = Date.now();
   const lists: Record<string, ProviderPaper[]> = {};
   const providers: Record<string, ProviderStatus> = {};
@@ -109,12 +120,12 @@ export async function runSearch(
           error: err instanceof Error ? err.message : String(err),
         };
       }
-      await hooks.onSnapshot?.({ results: mergeAndRank(inProviderOrder(lists), limit), providers: { ...providers }, alsoSearched });
+      await hooks.onSnapshot?.({ results: mergeAndRank(ordered(lists), limit), providers: { ...providers }, alsoSearched });
     }),
   );
 
   // Few papers found, and the search has a name written as one word ("SwinYolo"): search again with it written as the words it is, and add what that finds.
-  if (Object.keys(lists).length > 0 && mergeAndRank(inProviderOrder(lists), 100).length < FEW_RESULTS) {
+  if (Object.keys(lists).length > 0 && mergeAndRank(ordered(lists), 100).length < FEW_RESULTS) {
     const variants = queryVariants(q);
     if (variants.length > 0) {
       alsoSearched = variants;
@@ -125,12 +136,12 @@ export async function runSearch(
           providers[p.name] = { ...providers[p.name]!, count: lists[p.name]!.length };
         }),
       );
-      await hooks.onSnapshot?.({ results: mergeAndRank(inProviderOrder(lists), limit), providers: { ...providers }, alsoSearched });
+      await hooks.onSnapshot?.({ results: mergeAndRank(ordered(lists), limit), providers: { ...providers }, alsoSearched });
     }
   }
 
-  const results = mergeAndRank(inProviderOrder(lists), limit);
+  const results = mergeAndRank(ordered(lists), limit);
   const doiCheck = await applyDoiIntegrity(env, results);
   const retractionCheck = await applyRetractions(env, results); // after the DOI check, so removed DOIs are not looked up
-  return { query: q, results, providers, doiCheck, retractionCheck, tookMs: Date.now() - started, ...(alsoSearched.length ? { alsoSearched } : {}) };
+  return { query: q, results, providers, doiCheck, retractionCheck, tookMs: Date.now() - started, ...(alsoSearched.length ? { alsoSearched } : {}), ...(scope !== "all" ? { scope } : {}) };
 }

@@ -1,6 +1,6 @@
 import { animate, m, useReducedMotion } from "motion/react";
 import { PROVIDER_LABELS, type Paper } from "@scholar/shared";
-import { BadgeCheck, Bookmark, BookmarkCheck, Eye, ExternalLink, FileText, LockOpen, MessageSquareText, ShieldAlert, TriangleAlert } from "lucide-react";
+import { BadgeCheck, Bookmark, BookmarkCheck, Eye, ExternalLink, FileText, GraduationCap, LockOpen, MessageSquareText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { easeOut, springPop, stagger } from "../lib/motion";
 import { toggleSaved, useLibrary } from "../lib/library";
@@ -47,6 +47,16 @@ export function SaveButton({ paper }: { paper: Paper }) {
   );
 }
 
+/** The host of a web address (http or https only), or null for anything else. */
+function webHost(url: string | null | undefined): string | null {
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
+
 const authorLine = (authors: string[]) =>
   authors.length === 0 ? "Authors unavailable" : authors.length <= 4 ? authors.join(", ") : `${authors.slice(0, 3).join(", ")} et al.`;
 
@@ -54,6 +64,11 @@ const authorLine = (authors: string[]) =>
 export function ResultCard({ paper, index, onPreview, extra, below, anchor }: { paper: Paper; index: number; onPreview?: (p: Paper) => void; extra?: ReactNode; /** shown under the abstract (Idea Check: how the paper relates to the idea) */ below?: ReactNode; /** In a chat: the number of the paper in its list (the answer's [n] marks point at it), its address on the page, and whether it is being pointed at now. */ anchor?: { id: string; number: number; flash: boolean } }) {
   const [open, setOpen] = useState(false);
   const doiHref = paper.doi ? `https://doi.org/${paper.doi}` : null;
+  // a record with no DOI may still have its own page (a thesis on Shodhganga); the server only passes http(s) addresses, and the browser checks again
+  const host = doiHref ? null : webHost(paper.url);
+  const page = host ? paper.url! : null;
+  const pageName = host && /(^|\.)shodhganga\.inflibnet\.ac\.in$/i.test(host) ? "Shodhganga" : "Record";
+  const thesis = paper.workType === "dissertation";
   const crossChecked = paper.sources.length >= 2;
 
   return (
@@ -92,8 +107,8 @@ export function ResultCard({ paper, index, onPreview, extra, below, anchor }: { 
       </div>
 
       <h3 className="result-title">
-        {doiHref ? (
-          <a href={doiHref} target="_blank" rel="noreferrer noopener">
+        {doiHref || page ? (
+          <a href={doiHref ?? page!} target="_blank" rel="noreferrer noopener">
             {paper.title}
           </a>
         ) : (
@@ -103,6 +118,11 @@ export function ResultCard({ paper, index, onPreview, extra, below, anchor }: { 
       <p className="result-authors">{authorLine(paper.authors)}</p>
 
       <div className="badges">
+        {thesis && (
+          <span className="badge badge-info" title="A doctoral or master's thesis. Theses on Shodhganga are listed without an abstract, so the short answer is not made from them.">
+            <GraduationCap size={14} aria-hidden="true" /> Thesis
+          </span>
+        )}
         <span className={`badge ${crossChecked ? "badge-ok" : ""}`} title={`From: ${paper.sources.map((s) => PROVIDER_LABELS[s as keyof typeof PROVIDER_LABELS] ?? s).join(", ")}`}>
           <BadgeCheck size={14} aria-hidden="true" />
           {crossChecked ? `Cross-checked · ${paper.sources.length} sources` : "1 source"}
@@ -162,6 +182,12 @@ export function ResultCard({ paper, index, onPreview, extra, below, anchor }: { 
           <a className="btn btn-ghost btn-sm" href={doiHref} target="_blank" rel="noreferrer noopener">
             <ExternalLink size={15} aria-hidden="true" />
             <span>DOI</span>
+          </a>
+        )}
+        {page && (
+          <a className="btn btn-ghost btn-sm" href={page} target="_blank" rel="noreferrer noopener" aria-label={`Open on ${pageName === "Record" ? "the record's page" : pageName}: ${paper.title}`}>
+            <ExternalLink size={15} aria-hidden="true" />
+            <span>{pageName}</span>
           </a>
         )}
         {paper.oaUrl && (

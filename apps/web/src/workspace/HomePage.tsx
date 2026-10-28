@@ -1,7 +1,7 @@
 import { m } from "motion/react";
-import { ArrowUp, Bookmark, Check, ChevronDown, FileStack, Lightbulb, ListChecks, Plus, Search, Sparkles, Square } from "lucide-react";
+import { ArrowUp, Bookmark, Check, ChevronDown, FileStack, Landmark, Lightbulb, ListChecks, Plus, Search, Sparkles, Square } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
-import { MAX_CHAT_CHARS, MIN_IDEA_CHARS, type RouteMode } from "@scholar/shared";
+import { INDIA_SCOPE_HELP, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MIN_IDEA_CHARS, type RouteMode, type SearchScope } from "@scholar/shared";
 import { useAuth } from "../lib/auth";
 import { coverUrl, loadDocs, useDocs } from "../lib/documents";
 import { useLibrary } from "../lib/library";
@@ -25,6 +25,24 @@ const TOOLS: { id: Tool; name: string; short: string; help: string; placeholder:
   { id: "paper", name: "Ask a paper", short: "Papers", help: "Answers from your own papers, with the page and the exact quote.", placeholder: "Open My Workspace to ask one of your papers…", Icon: FileStack },
 ];
 const STARTERS = ["graph neural networks", "NEP 2020 higher education India", "CRISPR off-target effects", "plagiarism detection techniques"];
+
+/** The "Indian sources" switch is remembered on this device (a convenience: without storage it simply starts off). */
+const SCOPE_KEY = "scholar.scope";
+const readScope = (): SearchScope => {
+  try {
+    return localStorage.getItem(SCOPE_KEY) === "india" ? "india" : "all";
+  } catch {
+    return "all";
+  }
+};
+const keepScope = (s: SearchScope) => {
+  try {
+    if (s === "india") localStorage.setItem(SCOPE_KEY, s);
+    else localStorage.removeItem(SCOPE_KEY);
+  } catch {
+    /* nothing to keep it in */
+  }
+};
 
 const greeting = (name: string | null) => {
   const h = new Date().getHours();
@@ -86,6 +104,16 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
   const docs = useDocs();
   const saved = useLibrary().length;
   const [tool, setTool] = useState<Tool>("auto");
+  // only searches use it: Auto (when it searches) and Search papers
+  const [scope, setScope] = useState<SearchScope>(readScope);
+  const scoped = tool === "auto" || tool === "search";
+  const india = scoped && scope === "india";
+  const toggleScope = () => {
+    const next: SearchScope = scope === "india" ? "all" : "india";
+    setScope(next);
+    keepScope(next);
+    inputRef.current?.focus();
+  };
   const id = useId();
   const current = TOOLS.find((t) => t.id === tool)!;
   // the conversation of this tab: the box glides to the bottom once there is one
@@ -117,7 +145,7 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
     if (tool === "auto" || tool === "search") {
       if (busy) return;
       if (tool === "search" && text.length > MAX_CHAT_CHARS) return setProblem(`A search is at most ${MAX_CHAT_CHARS} characters (this is ${text.length}). For a longer text, choose Auto, Check references or Idea Check.`);
-      const r = sendMessage(text, tool);
+      const r = sendMessage(text, tool, india ? "india" : "all");
       if (r === "sent") onQuery("");
       else if (r === "invalid") setProblem("Write at least two letters or numbers.");
       return;
@@ -209,13 +237,19 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
         />
         <div className="hm-bar">
           <ModeMenu tool={tool} onChange={setTool} />
+          {scoped && (
+            <button type="button" className="hm-scope" aria-pressed={scope === "india"} onClick={toggleScope} title={INDIA_SCOPE_HELP}>
+              <Landmark size={15} aria-hidden="true" />
+              <span>{INDIA_SCOPE_LABEL}</span>
+            </button>
+          )}
           <m.button type="submit" className="hm-send" data-busy={busy} aria-label={busy ? "Stop answering" : tool === "paper" ? `Open ${PAPERS_NAME}` : `${current.name}: send`} disabled={!busy && tool !== "paper" && !ready} whileTap={{ scale: 0.92 }} transition={springPop}>
             {busy ? <Square size={15} fill="currentColor" aria-hidden="true" /> : <ArrowUp size={18} aria-hidden="true" />}
           </m.button>
         </div>
       </m.form>
       {problem && <p className="hm-problem" role="alert">{problem}</p>}
-      <p className="hm-fine" id={`${id}-help`}>{current.help} AI can misread a paper; every paper listed is a real record.</p>
+      <p className="hm-fine" id={`${id}-help`}>{india ? `${INDIA_SCOPE_LABEL} is on: ${INDIA_SCOPE_HELP.charAt(0).toLowerCase()}${INDIA_SCOPE_HELP.slice(1)}` : current.help} AI can misread a paper; every paper listed is a real record.</p>
 
       {!conversing && (
         <>
@@ -273,7 +307,7 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
       <m.div className="hm-starters" role="group" aria-label="Example searches" {...rise(6)}>
         <span className="hm-try">Try</span>
         {STARTERS.map((s) => (
-          <button key={s} type="button" className="chip-btn" onClick={() => sendMessage(s)}>{s}</button>
+          <button key={s} type="button" className="chip-btn" onClick={() => sendMessage(s, "search", scope)}>{s}</button>
         ))}
       </m.div>
         </>

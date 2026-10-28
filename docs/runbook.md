@@ -233,6 +233,13 @@ Design and numbers: [design/litscan.md](design/litscan.md). A scan is a row in `
 - **Retractions at ask time:** the `paper` event of `POST /papers/oa/ask` carries `retracted: true` from Crossref's data through the public cache (a day). A failed lookup is silent by design.
 - **Running two Workers locally** (an experiment beside a test run): `INTEGRATION_PORT`, `INTEGRATION_STATE` and `INTEGRATION_CONFIG` change the runner's port, state folder and generated config; the fake identity provider of the suites is on 9911, so only one suite or evaluation can run at a time. A model comparison belongs in its own `git worktree` (its own folder, its own `wrangler dev`), so it does not watch the folder you are editing.
 
+## Indian sources (28 Oct 2026)
+
+- The switch under the prompt box sends `scope: "india"` with `POST /api/v1/chat`; `GET /api/v1/search?q=…&scope=india` does the same for a plain search (an unknown scope is a 400). Sources: `doaj`, `shodhganga`, `openalex-india` (src/search/india.ts), cached a day like the others.
+- **DOAJ** allows 2 requests a second for everyone: the lane `doaj` (a start every 600 ms, 2 at once) keeps us under it; a 429 closes the lane for its `Retry-After`. If DOAJ is down the other two still answer and the reply says the list may be incomplete.
+- **Staging has no OpenAlex or Semantic Scholar key**, so OpenAlex answers it HTTP 429 once the shared key-less allowance of the day is used (the regular search too). To test the Indian sources end to end use a local Worker with `.dev.vars` (`npx wrangler dev`, real model, see [india-sources.md](design/india-sources.md)) or production.
+- What the switch adds is measured with `node scripts/india-live.mjs` (real services, needs `OPENALEX_API_KEY`).
+
 ## Staging
 
 A separate, empty copy of the service at https://scholar-staging.shodhsetu.workers.dev (Worker `scholar-staging`, database `scholar-db-staging`, bucket `scholar-files-staging`, queue `scholar-jobs-staging`),

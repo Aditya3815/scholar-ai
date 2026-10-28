@@ -213,7 +213,16 @@ describe("normaliseMarks", () => {
     ["in settings [2],​ S11‑13. Next [4] ; S3‑S5 end.", "in settings [2]. Next [4] end."],
     ["A protein [2] S1 subunit is meant here, and [3] stays.", "A protein [2] subunit is meant here, and [3] stays."],
     ["Two  spaces   go.", "Two spaces go."],
+    // live runs, 28 Oct 2026: a list of labels after a mark, and a label in a Hinglish sentence
+    ["Overall safe [4]. [5], S12, S13 show TDS above limits.", "Overall safe [4]. [5] show TDS above limits."],
+    ["Worked [2] S3 and S4, then [3] S1; S2 & S5.", "Worked [2], then [3]."],
+    ["Kerala mein paper [1] ke S5 ke mutabiq scheme ne kaam kiya.", "Kerala mein paper [1] ke mutabiq scheme ne kaam kiya."],
+    ["As reported by [3] in S2-S4, rates fell.", "As reported by [3], rates fell."],
+    ["व्यायाम की कमी से जोखिम बढ़ता है [6] (6:1)। योग सहायक है [1] (2,5) और [2] (3; 4)।", "व्यायाम की कमी से जोखिम बढ़ता है [6]। योग सहायक है [1] और [2]।"],
   ])("%s", (input, want) => expect(normaliseMarks(input)).toBe(want));
+  it("a word after a mark that only looks like a label is left: [2] in Sweden, [2] of Sri Lanka", () => {
+    expect(normaliseMarks("Trials [2] in Sweden and [4] of S1000 patients stay.")).toBe("Trials [2] in Sweden and [4] of S1000 patients stay.");
+  });
   it("a round bracket with a real remark in it is left alone", () => {
     expect(normaliseMarks("Rates fell (by 12 points, p < 0.01) in S1 patients [3].")).toBe("Rates fell (by 12 points, p < 0.01) in S1 patients [3].");
   });
