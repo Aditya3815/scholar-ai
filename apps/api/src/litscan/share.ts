@@ -60,5 +60,6 @@ export async function publicScan(db: D1Database, token: string): Promise<Litscan
     parts: Object.values(view.parts).sort((a, b) => a.idx - b.idx),
     createdAt: new Date(fromSqliteTime(row.created_at)).toISOString(),
     expiresAt: new Date(fromSqliteTime(row.expires_at)).toISOString(),
+    ...(row.scope === "india" ? { scope: row.scope } : {}),
   };
 }

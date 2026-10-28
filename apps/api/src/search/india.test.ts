@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { memoryStore } from "../cache/store";
 import { resetGates } from "../gate";
 import { runSearch } from "./index";
-import { SHODHGANGA_SOURCE, doajQuery, recordPage, toDoajPapers, toIndiaPapers, webUrl } from "./india";
+import { SHODHGANGA_SOURCE, doajQuery, recordPage, toDoajPapers, toIndiaPapers, webUrl, withoutIndia } from "./india";
 import type { SearchEnv } from "./types";
 
 describe("the words sent to DOAJ", () => {
@@ -18,6 +18,15 @@ describe("the words sent to DOAJ", () => {
   it("is empty when nothing is left, and keeps at most eight words", () => {
     expect(doajQuery("the of and")).toBe("");
     expect(doajQuery("a1x b2x c3x d4x e5x f6x g7x h8x i9x j0x").split(" AND ")).toHaveLength(8);
+  });
+});
+
+describe("the words for an Indian source", () => {
+  it("leave out India, which the source already is, unless nothing else is left", () => {
+    expect(withoutIndia("adolescent girls India anaemia prevalence")).toBe("adolescent girls anaemia prevalence");
+    expect(withoutIndia("Indian monsoon rainfall")).toBe("monsoon rainfall");
+    expect(withoutIndia("India")).toBe("India");
+    expect(withoutIndia("Indiana farm subsidies")).toBe("Indiana farm subsidies");
   });
 });
 

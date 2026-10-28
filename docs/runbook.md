@@ -239,6 +239,7 @@ Design and numbers: [design/litscan.md](design/litscan.md). A scan is a row in `
 - **DOAJ** allows 2 requests a second for everyone: the lane `doaj` (a start every 600 ms, 2 at once) keeps us under it; a 429 closes the lane for its `Retry-After`. If DOAJ is down the other two still answer and the reply says the list may be incomplete.
 - **Staging has no OpenAlex or Semantic Scholar key**, so OpenAlex answers it HTTP 429 once the shared key-less allowance of the day is used (the regular search too). To test the Indian sources end to end use a local Worker with `.dev.vars` (`npx wrangler dev`, real model, see [india-sources.md](design/india-sources.md)) or production.
 - What the switch adds is measured with `node scripts/india-live.mjs` (real services, needs `OPENALEX_API_KEY`).
+- **Literature scans can use it too** (migration 0023, `litscans.scope`, `'all'` or `'india'`; the Workflow reads it in its `load` step). See which: `SELECT id, scope, state FROM litscans WHERE user_id = '…'`. The review the page shows (themes, evidence table, study designs, APA, CSV/BibTeX/RIS) is built in the browser from the stored parts: nothing new is stored for it ([litscan-review.md](design/litscan-review.md)).
 
 ## Staging
 

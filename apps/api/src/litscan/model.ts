@@ -4,7 +4,7 @@ import { gatewayFromEnv, type LlmEnv } from "../llm";
 import { cacheStore } from "../cache";
 import type { SearchEnv } from "../search/types";
 import type { S2Throttle } from "../s2-throttle";
-import type { SearchResponse } from "@scholar/shared";
+import type { SearchResponse, SearchScope } from "@scholar/shared";
 import { runSearch } from "../search";
 import { withGate } from "../gate";
 
@@ -54,13 +54,13 @@ export const searchEnvOf = (env: ScanEnv): SearchEnv => ({
   s2Gate: (maxWaitMs) => env.S2_THROTTLE.getByName("global").reserve(maxWaitMs),
 });
 
-/** The search of one sub-question: what the prompt box does for a message, without the progressive lists. */
-export function searchFor(env: ScanEnv): (query: string) => Promise<SearchResponse> {
-  if (stubbed(env)) return async (q) => stubScanSearch(q);
+/** The search of one sub-question: what the prompt box does for a message, without the progressive lists, in the scan's scope (the regular sources, or only Indian ones). */
+export function searchFor(env: ScanEnv, scope: SearchScope = "all"): (query: string) => Promise<SearchResponse> {
+  if (stubbed(env)) return async (q) => stubScanSearch(q, scope);
   const se = searchEnvOf(env);
   return async (query) => {
     // the lane keeps a scan's searches from asking the sources all at once (see GATES.litscan); waiting there is not an error, a lane that stays busy for two minutes is
-    const r = await withGate("litscan", 120_000, () => runSearch(se, query, 20));
+    const r = await withGate("litscan", 120_000, () => runSearch(se, query, 20, {}, scope));
     // a search that found nothing, or that some source did not answer, leaves one line (the sources' states and error words; no person, no text of the topic)
     const bad = Object.entries(r.providers).filter(([, p]) => !p.ok);
     if (r.results.length === 0 || bad.length > 0) {

@@ -127,6 +127,17 @@ export function normaliseMarks(raw: string): string {
     .trim();
 }
 
+/**
+ * The punctuation the marks leave: marks written as a list ("[4]; [1]") become one run ("[4][1]"), and a separator left in front of other punctuation when a mark that pointed at
+ * nothing checked was taken out ("[1]; , as is") goes. Seen in a live run, 28 Oct 2026.
+ */
+export function tidyMarkPunctuation(text: string): string {
+  return text
+    .replace(/(\[\d{1,3}\])\s*[;,]\s*(?=\[\d{1,3}\])/g, "$1")
+    .replace(/(\])\s*[;,]\s*(?=[,.;:])/g, "$1")
+    .replace(/\s{2,}/g, " ");
+}
+
 /** The model's JSON as a checked answer. Never throws: anything that does not fit is "not grounded". */
 export function verifyChatAnswer(raw: unknown, picked: readonly Picked[]): ChatAnswer & { enough: boolean } {
   const o = (raw && typeof raw === "object" ? raw : {}) as { coverage?: unknown; enough?: unknown; answer?: unknown; evidence?: unknown };
@@ -149,7 +160,7 @@ export function verifyChatAnswer(raw: unknown, picked: readonly Picked[]): ChatA
   if (citations.length === 0 || !text) return { text: "", citations: [], grounded: false, enough };
   const ok = new Set(citations.map((c) => c.n));
   // a marker that points at nothing that was checked is taken out rather than left looking sure
-  text = text.replace(/\[(\d{1,2})\]/g, (m, d: string) => (ok.has(Number(d)) ? m : "")).replace(/\s{2,}/g, " ").replace(/\s+([.,;:])/g, "$1").trim();
+  text = tidyMarkPunctuation(text.replace(/\[(\d{1,2})\]/g, (m, d: string) => (ok.has(Number(d)) ? m : "")).replace(/\s{2,}/g, " ").replace(/\s+([.,;:])/g, "$1").trim());
   // the model sometimes cites in the evidence list and forgets the markers: add them, so every claim shows where it came from
   if (!/\[\d{1,2}\]/.test(text)) text = `${text} ${citations.map((c) => `[${c.n}]`).join("")}`.trim();
   return { text, citations, grounded: true, enough };

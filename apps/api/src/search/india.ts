@@ -152,8 +152,17 @@ export function toIndiaPapers(works: OAWork[], opts: { thesis?: boolean } = {}):
   return out;
 }
 
+/**
+ * The words for an Indian source: "India" and "Indian" go when other words are left, because the source is Indian already and asking for the word as well finds only the records that
+ * repeat it (a live run, 28 Oct 2026: "adolescent girls India anaemia measurement" found nothing in the Indian scope).
+ */
+export function withoutIndia(q: string): string {
+  const rest = q.replace(/\b(?:india|indian|indians|bharat)\b/gi, " ").replace(/\s+/g, " ").trim();
+  return rest.split(" ").filter((w) => w.length > 1).length >= 1 ? rest : q;
+}
+
 async function openalexFiltered(filter: string, q: string, limit: number, key: string | undefined, signal: AbortSignal, opts: { thesis?: boolean } = {}): Promise<ProviderPaper[]> {
-  const clean = sanitizeQuery(q);
+  const clean = sanitizeQuery(withoutIndia(q));
   if (!clean) return [];
   const params = new URLSearchParams({ filter: `${filter},title_and_abstract.search:${clean}`, "per-page": String(limit), select: SELECT });
   if (key) params.set("api_key", key);

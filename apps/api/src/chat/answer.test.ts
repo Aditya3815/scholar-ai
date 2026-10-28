@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_CHAT_CHARS, cleanChatMessage, type ChatEvent, type Paper } from "@scholar/shared";
-import { CHAT_SYSTEM, MAX_EVIDENCE_PAPERS, answerFromResults, buildChatPrompt, normaliseMarks, papersOnTheSubject, pickEvidencePapers, verifyChatAnswer } from "./answer";
+import { CHAT_SYSTEM, MAX_EVIDENCE_PAPERS, answerFromResults, buildChatPrompt, normaliseMarks, papersOnTheSubject, pickEvidencePapers, tidyMarkPunctuation, verifyChatAnswer } from "./answer";
 import { stubChatStream, stubPapers, stubSearchFor } from "./stub";
 
 const paper = (i: number, over: Partial<Paper> = {}): Paper => ({
@@ -181,6 +181,15 @@ describe("papersOnTheSubject and the one retry", () => {
     expect(calls).toBe(2);
     expect(a.grounded).toBe(false);
   });
+});
+
+describe("tidyMarkPunctuation", () => {
+  it.each([
+    ["linked to risk [4]; [1]. Poor diets [4]; [1]; too.", "linked to risk [4][1]. Poor diets [4][1]; too."],
+    ["associated with anaemia [4]; [1]; , as is the stage.", "associated with anaemia [4][1], as is the stage."],
+    ["Two lists [1], [2] and [3] stay apart where words are between.", "Two lists [1][2] and [3] stay apart where words are between."],
+    ["Ordinary; punctuation, stays.", "Ordinary; punctuation, stays."],
+  ])("%s", (input, want) => expect(tidyMarkPunctuation(input)).toBe(want));
 });
 
 describe("normaliseMarks", () => {

@@ -1,5 +1,7 @@
 # Literature scan: a topic, split into sub-questions, each answered from abstracts, kept as one report (built 27 Oct 2026)
 
+> **28 Oct 2026: what the person sees is now a literature review** (themes as cards to glance at, Indian sources as a choice, a board while it runs, and a review in four tabs: findings by theme, an evidence table with study designs, gaps, APA references; CSV, BibTeX and RIS downloads): [litscan-review.md](litscan-review.md). The engine below is unchanged.
+
 The first feature that spends many AI tokens in one go. It follows [research-patterns.md](research-patterns.md) (section 4), the cost spike [R11](../spikes/R11-scan-cost.md) and the Workflow spike [R10](../spikes/R10-fan-out.md). The decisions below were the user's on 27 Oct 2026; where I chose a number the reason is given.
 
 ## What the person does

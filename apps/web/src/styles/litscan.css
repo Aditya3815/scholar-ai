@@ -1,5 +1,5 @@
 /* Literature scan: its own stylesheet, fetched with its page (the first load has a size budget: apps/web/scripts/budget.mjs). Tokens only, so every theme works. */
-.ls-page { max-width: 48rem; }
+.ls-page { max-width: 62rem; }
 .ls-page .card { margin: 0; }
 .ls-scan, .ls-plan { display: grid; gap: 1rem; }
 .ls-card { display: grid; gap: 0.6rem; padding: 1.1rem 1.25rem; }
@@ -73,6 +73,99 @@
 .ls-recent-t { font-weight: 600; overflow-wrap: anywhere; }
 .ls-recent-m { color: var(--muted); font-size: 0.82rem; }
 
+/* the plan: the themes as cards (name, question, the words that are sent) */
+.ls-themes-head { display: grid; gap: 0.25rem; margin-top: 0.4rem; }
+.ls-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+.ls-theme { display: grid; align-content: start; gap: 0.45rem; padding: 0.9rem 1rem; transition: border-color var(--dur-fast) var(--ease); }
+.ls-theme[data-editing="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.ls-theme-head { display: flex; align-items: center; gap: 0.5rem; }
+.ls-theme-t { flex: 1; margin: 0; font-size: 1rem; line-height: 1.3; font-weight: 650; overflow-wrap: anywhere; }
+.ls-theme-q { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.ls-words { margin: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: baseline; font-size: 0.82rem; }
+.ls-words-k { color: var(--muted); }
+.ls-words-v { font-family: var(--font-mono); padding: 0.1rem 0.45rem; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border); overflow-wrap: anywhere; }
+.ls-theme-edit { display: grid; gap: 0.3rem; }
+.ls-theme-edit .btn { justify-self: start; margin-top: 0.3rem; }
+.ls-opt-row { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: flex-end; }
+.ls-opt-row .ls-label { margin-bottom: 0.3rem; }
+.ls-scope { min-height: 2.6rem; }
+
+/* while it runs: one tile a theme */
+.ls-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); gap: 0.6rem; margin: 0.3rem 0 0; padding: 0; list-style: none; }
+.ls-tile { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.6rem; align-items: center; padding: 0.7rem 0.8rem; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface-2); }
+.ls-tile-t { font-weight: 650; font-size: 0.92rem; line-height: 1.3; }
+.ls-tile-s { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.4rem; color: var(--muted); font-size: 0.82rem; }
+.ls-tile[data-state="done"] { border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); }
+.ls-tile[data-state="done"] .ls-tile-s { color: var(--ok); }
+.ls-tile[data-state="gap"] .ls-tile-s { color: var(--warn); }
+.ls-tile[data-state="busy"] { border-color: var(--accent); }
+
+/* the review */
+.ls-review { display: grid; gap: 1rem; }
+.ls-glance { display: grid; grid-template-columns: repeat(3, minmax(0, 0.7fr)) minmax(0, 1.6fr); gap: 0.6rem; }
+.ls-stat { margin: 0; display: grid; align-content: start; gap: 0.15rem; padding: 0.8rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.ls-stat > b { font-family: var(--font-serif); font-size: 1.7rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.ls-stat > b > span { font-size: 1rem; color: var(--muted); }
+.ls-stat > span { color: var(--muted); font-size: 0.82rem; }
+.ls-designs ul { margin: 0.2rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.15rem; font-size: 0.85rem; }
+.ls-designs b { display: inline-block; min-width: 1.4rem; font-variant-numeric: tabular-nums; }
+.ls-designs-h { color: var(--muted); font-size: 0.82rem; }
+.ls-scope-badge { grid-column: 1 / -1; justify-self: start; margin: 0; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.7rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 0.85rem; }
+.ls-tablist { display: flex; gap: 0.25rem; overflow-x: auto; border-bottom: 1px solid var(--border); scrollbar-width: none; }
+.ls-tab { flex: none; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.65rem 0.9rem; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font-weight: 600; font-size: 0.95rem; margin-bottom: -1px; }
+.ls-tab:hover { color: var(--text); }
+.ls-tab[data-state="active"] { color: var(--text); border-bottom-color: var(--accent); }
+.ls-tab-n { min-width: 1.4rem; padding: 0 0.35rem; border-radius: 999px; background: var(--surface-2); font-size: 0.75rem; text-align: center; color: var(--muted); }
+.ls-panel { display: grid; gap: 0.9rem; padding-top: 0.9rem; }
+.ls-panel[hidden] { display: none; }
+.ls-panel:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 6px; }
+.ls-print-h { display: none; }
+.ls-section-m { margin: 0; display: flex; align-items: center; gap: 0.35rem; color: var(--ok); font-size: 0.82rem; font-weight: 600; }
+.ls-empty { margin: 0; display: flex; align-items: center; gap: 0.5rem; color: var(--muted); }
+.ls-peek { position: relative; display: grid; gap: 0.35rem; padding: 0.75rem 2.4rem 0.75rem 0.85rem; border: 1px solid var(--accent); border-radius: var(--radius-s); background: var(--accent-soft); font-size: 0.88rem; }
+.ls-peek[hidden] { display: none; }
+.ls-peek-x { position: absolute; right: 0.4rem; top: 0.4rem; }
+.ls-peek p { margin: 0; }
+.ls-peek-ref { display: flex; gap: 0.5rem; align-items: baseline; }
+.ls-peek-q { font-style: italic; }
+.ls-peek-m { color: var(--muted); font-size: 0.82rem; }
+
+/* the evidence table: a table on a wide screen, one card a paper on a phone */
+.ls-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; }
+.ls-filters label { font-weight: 600; font-size: 0.85rem; }
+.ls-filters .ls-select { width: auto; max-width: 16rem; padding: 0.4rem 0.6rem; font-size: 0.88rem; }
+.ls-table-wrap { display: grid; gap: 0.6rem; }
+.ls-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.88rem; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.ls-table th { text-align: left; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); background: var(--surface-2); padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--border); }
+.ls-table td { vertical-align: top; padding: 0.7rem; border-bottom: 1px solid var(--border); }
+.ls-table tr:last-child td { border-bottom: 0; }
+.ls-table td:nth-child(1) { width: 2.5rem; }
+.ls-table td:nth-child(2) { width: 30%; }
+.ls-table td:nth-child(3) { width: 14%; }
+.ls-study { display: block; font-weight: 650; }
+.ls-study-t { display: block; overflow-wrap: anywhere; }
+.ls-study-v { display: block; color: var(--muted); font-size: 0.8rem; }
+.ls-finding { margin: 0 0 0.35rem; font-style: italic; }
+.ls-finding:last-child { margin-bottom: 0; }
+@media (max-width: 46rem) {
+  .ls-glance { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ls-designs { grid-column: 1 / -1; }
+  .ls-table, .ls-table tbody, .ls-table tr, .ls-table td { display: block; width: auto !important; }
+  .ls-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .ls-table { border: 0; background: none; }
+  .ls-table tr { margin-bottom: 0.7rem; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface); }
+  .ls-table td { border-bottom: 1px solid var(--border); }
+  .ls-table td::before { content: attr(data-label); display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.15rem; }
+}
+
+.ls-gaps { display: grid; gap: 0.6rem; margin: 0; padding: 0; list-style: none; }
+.ls-gapcard { display: grid; gap: 0.35rem; padding: 0.9rem 1rem; border-left: 3px solid var(--warn); }
+.ls-gap-m { margin: 0; color: var(--muted); font-size: 0.85rem; }
+.ls-gap-m a { display: inline-flex; align-items: center; gap: 0.25rem; }
+.ls-refs { display: grid; gap: 0.6rem; }
+.ls-ref { overflow-wrap: anywhere; font-size: 0.9rem; }
+.ls-export { min-width: min(19rem, 80vw); }
+
 /* the share dialog */
 .ls-share { display: grid; gap: .5rem; margin-top: .8rem; }
 .ls-share-row { display: flex; gap: .5rem; align-items: stretch; }
@@ -90,4 +183,9 @@
   .ls-page .card { break-inside: avoid; box-shadow: none; border: 1px solid #999; background: #fff; color: #000; }
   .ls-page details.chat-evidence { display: block; }
   .ls-page details.chat-evidence > ul { display: grid; }
+  /* every tab of the review is printed, each under its own heading */
+  .ls-page .ls-panel[hidden] { display: grid !important; }
+  .ls-page .ls-tablist, .ls-page .ls-filters, .ls-page .ls-peek, .ls-page .ls-board { display: none !important; }
+  .ls-page .ls-print-h { display: block; margin: 1rem 0 0.3rem; font-size: 1.15rem; }
+  .ls-page .ls-table { font-size: 9pt; }
 }

@@ -1,6 +1,6 @@
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, QuotaError } from "../llm";
-import type { SearchResponse } from "@scholar/shared";
+import type { SearchResponse, SearchScope } from "@scholar/shared";
 import { stubChatStream, stubSearchFor } from "../chat/stub";
 
 /**
@@ -20,10 +20,10 @@ export const stubPlanScan: Complete = async ({ user }) => {
     model: "stub",
     json: {
       items: [
-        { question: `How strong is the evidence about ${short}?`, searchQuery: `${lead} evidence` },
-        { question: `Which factors matter most for ${short}?`, searchQuery: `${lead} risk factors` },
-        { question: `How is ${short} measured in studies?`, searchQuery: `${lead} measurement methods` },
-        { question: `What interventions have been tried for ${short}?`, searchQuery: `${lead} interventions` },
+        { title: "Strength of the evidence", question: `How strong is the evidence about ${short}?`, searchQuery: `${lead} evidence` },
+        { title: "Factors that matter", question: `Which factors matter most for ${short}?`, searchQuery: `${lead} risk factors` },
+        { title: "How it is measured", question: `How is ${short} measured in studies?`, searchQuery: `${lead} measurement methods` },
+        { title: "Interventions tried", question: `What interventions have been tried for ${short}?`, searchQuery: `${lead} interventions` },
       ],
     },
   };
@@ -33,8 +33,8 @@ export const stubPlanScan: Complete = async ({ user }) => {
  * The prompt box's stand-in search, with the sub-question's own words added to every paper (so that the relevance check of relevance.ts finds them about the subject), unless the words say
  * "irrelevant": then the papers are the plain stand-in ones, which are about glaucoma and nothing else.
  */
-export const stubScanSearch = (q: string): SearchResponse => {
-  const r = stubSearchFor(q);
+export const stubScanSearch = (q: string, scope: SearchScope = "all"): SearchResponse => {
+  const r = stubSearchFor(q, scope);
   if (/\birrelevant\b/i.test(q)) return r;
   return { ...r, results: r.results.map((p) => (p.retracted ? p : { ...p, title: `${p.title} (${q})`, abstract: p.abstract ? `${p.abstract} This study concerns ${q}.` : p.abstract })) };
 };

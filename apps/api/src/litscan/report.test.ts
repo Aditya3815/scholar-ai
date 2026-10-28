@@ -1,13 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  LITSCAN_GAP_TEXT,
   LITSCAN_MAX_TOPIC,
   assembleReport,
-  buildLitscanMarkdown,
   cleanLitscanTopic,
   emptyView,
   estimateScanTokens,
-  litscanFileName,
   reduceView,
   streamShapeProblems,
   viewFromEvents,
@@ -86,6 +83,11 @@ describe("putting the parts together", () => {
     expect(report.sections[2]).toMatchObject({ reason: "not_grounded" });
   });
 
+  it("names each section by its theme, and an older scan without theme names by its question", () => {
+    const titled = assembleReport([{ ...items[0]!, title: "Strength of the link" }, items[1]!], {});
+    expect(titled.sections.map((s) => s.title)).toEqual(["Strength of the link", "How is exposure measured?"]);
+  });
+
   it("adds nothing of its own: a section's words are its checked answer, only renumbered", () => {
     const text = "Plain claim with no marks at all.";
     const report = assembleReport(items, { 0: answered(0, text, [src(1, "a")]) });
@@ -148,28 +150,5 @@ describe("the stream follows the event rule", () => {
     expect(streamShapeProblems("litscan", [{ type: "progress", done: 2, total: 3 }, { type: "progress", done: 1, total: 3 }, good[7]!]).join(" ")).toMatch(/went back/);
     expect(streamShapeProblems("litscan", good.slice(0, 5)).join(" ")).toMatch(/no end event/);
     expect(streamShapeProblems("litscan", [{ type: "progress", done: 4, total: 3 }, good[7]!]).join(" ")).toMatch(/not above total/);
-  });
-});
-
-describe("the report as a file", () => {
-  const report = assembleReport(items, {
-    0: answered(0, "Pollution is linked to asthma [1].", [src(1, "a", "Air pollution and asthma")], { 1: "Children near roads had more attacks." }),
-    1: { idx: 1, status: "gap", found: 0, reason: "nothing_found" },
-  });
-  const md = buildLitscanMarkdown({ appName: "Scholar AI", generatedAt: "2026-10-27T10:00:00Z", topic: "air pollution and asthma", language: "hinglish", report });
-
-  it("says what it is, what was not answered, and where each statement comes from", () => {
-    expect(md).toContain("# Literature scan: air pollution and asthma");
-    expect(md).toContain("Hinglish (Hindi in Roman letters)");
-    expect(md).toContain("1 of 3 sub-questions answered, 1 without an answer");
-    expect(md).toContain("Only abstracts were read");
-    expect(md).toContain("- [1] “Children near roads had more attacks.”");
-    expect(md).toContain(`*Not answered.* ${LITSCAN_GAP_TEXT.nothing_found}`);
-    expect(md).toContain("*Not finished.*");
-    expect(md).toContain("1. A. Rao. Air pollution and asthma (2020). J. https://doi.org/10.1/a");
-  });
-  it("names the file with letters and digits only", () => {
-    expect(litscanFileName("Air pollution & asthma, in children!", new Date("2026-10-27T10:00:00Z"))).toBe("literature-scan-air-pollution-asthma-in-children-2026-10-27.md");
-    expect(litscanFileName("!!!", new Date("2026-10-27T10:00:00Z"))).toBe("literature-scan-2026-10-27.md");
   });
 });

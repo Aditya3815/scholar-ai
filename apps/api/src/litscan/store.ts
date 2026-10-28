@@ -1,4 +1,4 @@
-import { LITSCAN_KEEP_HOURS, LITSCAN_STALE_MINUTES, viewFromEvents, type LitscanEvent, type LitscanItem, type LitscanLanguage, type LitscanListItem, type LitscanPart, type LitscanSnapshot, type LitscanState } from "@scholar/shared";
+import { LITSCAN_KEEP_HOURS, LITSCAN_STALE_MINUTES, viewFromEvents, type LitscanEvent, type LitscanItem, type LitscanLanguage, type LitscanListItem, type LitscanPart, type LitscanSnapshot, type LitscanState, type SearchScope } from "@scholar/shared";
 import { fromSqliteTime } from "../library/validate";
 
 /**
@@ -13,6 +13,8 @@ export type ScanRow = {
   plan: string;
   state: LitscanState;
   est_tokens: number;
+  /** Where it searches (migration 0023). */
+  scope: SearchScope;
   created_at: string;
   updated_at: string;
   expires_at: string;
@@ -23,10 +25,10 @@ export type StoredEvent = Exclude<LitscanEvent, { type: "progress" } | { type: "
 
 export const itemsOf = (row: Pick<ScanRow, "plan">): LitscanItem[] => JSON.parse(row.plan) as LitscanItem[];
 
-export async function createScan(db: D1Database, s: { id: string; userId: string; topic: string; language: LitscanLanguage; items: LitscanItem[]; estimate: number }): Promise<void> {
+export async function createScan(db: D1Database, s: { id: string; userId: string; topic: string; language: LitscanLanguage; items: LitscanItem[]; estimate: number; scope?: SearchScope }): Promise<void> {
   await db
-    .prepare("INSERT INTO litscans (id, user_id, topic, language, plan, est_tokens, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now', ?7))")
-    .bind(s.id, s.userId, s.topic, s.language, JSON.stringify(s.items), s.estimate, `+${LITSCAN_KEEP_HOURS} hours`)
+    .prepare("INSERT INTO litscans (id, user_id, topic, language, plan, est_tokens, expires_at, scope) VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now', ?7), ?8)")
+    .bind(s.id, s.userId, s.topic, s.language, JSON.stringify(s.items), s.estimate, `+${LITSCAN_KEEP_HOURS} hours`, s.scope ?? "all")
     .run();
   await appendEvent(db, s.id, "started", { type: "started", total: s.items.length });
 }
@@ -114,6 +116,7 @@ export async function snapshotOf(db: D1Database, row: ScanRow): Promise<LitscanS
     createdAt: new Date(fromSqliteTime(row.created_at)).toISOString(),
     expiresAt: new Date(fromSqliteTime(row.expires_at)).toISOString(),
     estimate: row.est_tokens,
+    ...(row.scope === "india" ? { scope: row.scope } : {}),
   };
 }
 

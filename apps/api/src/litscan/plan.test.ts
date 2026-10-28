@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { LITSCAN_MAX_ITEMS } from "@scholar/shared";
 import { ScanPlanError, buildScanPlanPrompt, planScan, planSystem, sanitizeApproved, sanitizeItems, tidySearchWords } from "./plan";
 
-const item = (question: string, searchQuery: string) => ({ question, searchQuery });
+const item = (question: string, searchQuery: string, title?: string) => ({ question, searchQuery, ...(title !== undefined ? { title } : {}) });
 
 describe("the plan the model proposes", () => {
   it("keeps two to six sub-questions, each with its question and its English search words", () => {
     const out = sanitizeItems({ items: [item("How strong is the link?", "air pollution asthma"), item("How is it measured?", "exposure assessment methods")] });
-    expect(out).toEqual([item("How strong is the link?", "air pollution asthma"), item("How is it measured?", "exposure assessment methods")]);
+    expect(out).toEqual([item("How strong is the link?", "air pollution asthma", "Air pollution asthma"), item("How is it measured?", "exposure assessment methods", "Exposure assessment methods")]);
   });
 
   it("drops repeats (however they are cased), one-word searches, and entries that are not objects", () => {
@@ -28,9 +28,17 @@ describe("the plan the model proposes", () => {
 
   it("uses the search words as the question when the model gave none, and bounds the lengths", () => {
     const out = sanitizeItems({ items: [item("", "tuberculosis vaccine trials"), item("x".repeat(500), "yy ".repeat(200))] });
-    expect(out[0]).toEqual(item("tuberculosis vaccine trials", "tuberculosis vaccine trials"));
+    expect(out[0]).toEqual(item("tuberculosis vaccine trials", "tuberculosis vaccine trials", "Tuberculosis vaccine trials"));
     expect(out[1]!.question.length).toBeLessThanOrEqual(200);
     expect(out[1]!.searchQuery.length).toBeLessThanOrEqual(160);
+  });
+
+  it("keeps each theme's name as a heading: the model's, without a question mark, bounded and scrubbed; the search words when there is none", () => {
+    const out = sanitizeItems({ items: [item("Q?", "air pollution asthma", "Strength of the link?"), item("R?", "exposure methods", "x".repeat(90)), item("S?", "other words", "Mail a.b@example.com now")] });
+    expect(out[0]!.title).toBe("Strength of the link");
+    expect(out[1]!.title!.length).toBeLessThanOrEqual(60);
+    expect(out[2]!.title).not.toMatch(/@/);
+    expect(sanitizeApproved([item("Q?", "first words", "  "), item("R?", "second words", "Named")])!.map((x) => x.title)).toEqual(["First words", "Named"]);
   });
 
   it("fails plainly when fewer than two usable sub-questions are left", () => {
@@ -56,7 +64,7 @@ describe("the search words the model proposes", () => {
 describe("the plan the person approved", () => {
   it("is cleaned again (the browser's text is not trusted) and may use a single search word", () => {
     const out = sanitizeApproved([item("What about TB?", "tuberculosis"), item("And BCG? x@y.org", "BCG vaccine")]);
-    expect(out).toEqual([item("What about TB?", "tuberculosis"), item("And BCG?", "BCG vaccine")]);
+    expect(out).toEqual([item("What about TB?", "tuberculosis", "Tuberculosis"), item("And BCG?", "BCG vaccine", "BCG vaccine")]);
   });
   it("is refused when it is not a list of at least two usable entries", () => {
     expect(sanitizeApproved("x")).toBeNull();
@@ -85,6 +93,7 @@ describe("asking the model", () => {
     expect(seen!.system).toMatch(/untrusted/);
     expect(seen!.system).toMatch(/Hinglish/);
     expect(seen!.system).toMatch(/PRIVACY/);
+    expect(seen!.system).toContain("title (its name as a review heading");
     expect(planSystem("en")).toMatch(/English/);
   });
 });

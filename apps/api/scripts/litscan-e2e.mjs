@@ -83,12 +83,14 @@ try {
   ok((await bad({ topic: "air pollution and asthma", language: "en", items: "nope" })) === 400 && (await bad({ language: "en", items: PLAIN })) === 400, "a plan that is not a list, or without a topic, is refused");
   ok((await bad({ topic: "air pollution and asthma", language: "en", items: [item("Same?", "same words"), item("Same again?", "same words")] })) === 400, "two sub-questions with the same search words count as one");
   ok((await A.api("/api/v1/litscan", { method: "POST", body: undefined })).status === 400, "garbage is refused");
+  ok((await bad({ topic: "air pollution and asthma", language: "en", items: PLAIN, scope: "mars" })) === 400 && (await bad({ topic: "air pollution and asthma", language: "en", items: PLAIN, scope: 1 })) === 400, "an unknown search scope is refused, not quietly widened");
   ok((await sql("SELECT COUNT(*) AS n FROM litscans"))[0][0].n === 0, "none of that started a scan");
   ok((await A.api("/api/v1/litscan/not-an-id")).status === 404 && (await A.api("/api/v1/litscan/00000000-0000-4000-8000-000000000000")).status === 404, "a scan that does not exist is not found");
 
   console.log("the plan");
   const p = await (await plan(A, { topic: "air pollution and childhood asthma" })).json();
   ok(p.plan?.items?.length >= 2 && p.plan.items.every((i) => i.question && i.searchQuery), "the topic becomes sub-questions, each with its question and its search words");
+  ok(p.plan.items.every((i) => typeof i.title === "string" && i.title.length >= 2 && !/\?$/.test(i.title)), "...and each is a theme with a short name, like a heading of a review");
   ok(p.plan.language === "en" && p.plan.topic === "air pollution and childhood asthma", "an English topic is answered in English by default");
   ok(p.plan.allowance.limit === 60000 && p.plan.allowance.used === 0 && p.plan.allowance.estimate === p.plan.items.length * 3000, "it says what the scan is expected to use, of what the person has today");
   ok((await (await plan(A, { topic: "kya air pollution se bachchon me asthma hota hai", language: "auto" })).json()).plan.language === "hinglish", "a Hinglish topic is answered in Hinglish when the language is left on automatic");
@@ -127,6 +129,7 @@ try {
   ok(snap.state === "completed" && snap.total === 5 && snap.done === 5 && snap.parts.length === 5 && snap.language === "hinglish" && snap.topic === "air pollution and childhood asthma", "the scan can be read again with everything in it");
   ok(JSON.stringify(snap.parts) === JSON.stringify(Object.values(parts)), "it is the same parts the stream delivered");
   ok(snap.items.length === 5 && snap.estimate === 5 * 3000 && Date.parse(snap.expiresAt) - Date.parse(snap.createdAt) === 24 * 3600_000, "it keeps the approved plan, what it was expected to use, and one day");
+  ok(snap.items[0].title === "Air pollution asthma" && snap.scope === undefined, "a theme sent without a name is named from its search words, and a regular scan claims no scope");
   const third = s1.events.filter((e) => e.seq).at(2).seq;
   const again = await events(A, id, { after: third, label: "reconnect" });
   ok(again.events[0].type === "progress" && again.events[0].done === of(s1.events, "part").filter((e) => e.seq <= third).length, "a reader that comes back after an event gets the progress so far first");
@@ -146,6 +149,19 @@ try {
   ok((await B.api(`/api/v1/litscan/${id}/cancel`, { method: "POST" })).status === 404 && (await B.api(`/api/v1/litscan/${id}`, { method: "DELETE" })).status === 404, "...or stop or delete it");
   ok((await (await B.api("/api/v1/litscan")).json()).scans.length === 0, "...or see it in their list");
   ok((await A.api(`/api/v1/litscan/${id}/cancel`, { method: "POST", origin: null })).status === 403, "stopping a scan from another origin is refused");
+
+  console.log("Indian sources, when the person chooses them");
+  const ind = await start(A, { topic: "glaucoma screening in Indian villages", language: "en", scope: "india", items: [{ ...item("How common is it?", "glaucoma screening camps"), title: "How common it is" }, { ...item("What does it cost?", "glaucoma care cost"), title: "Cost of care" }] });
+  const indId = (await ind.json()).id;
+  ok(ind.status === 201, "a scan of Indian sources only starts");
+  const indEv = await events(A, indId, { label: "indian sources" });
+  const indSnap = (await get(A, indId)).scan;
+  ok(indSnap.scope === "india" && (await sql(`SELECT scope FROM litscans WHERE id = '${indId}'`))[0][0].scope === "india", "it is kept as a scan of Indian sources");
+  ok(indSnap.items.map((i) => i.title).join("|") === "How common it is|Cost of care", "the themes keep the names the person approved");
+  const indParts = of(indEv.events, "part").map((e) => e.part);
+  const indSources = indParts.flatMap((pt) => (pt.status === "answered" ? pt.sources : []));
+  ok(indParts.some((pt) => pt.status === "answered") && indSources.length > 0 && indSources.every((s) => ["10.4103/stub.india.1", "10.1000/india.inst.1"].includes(s.doi)), "its answers cite the Indian sources' papers (a journal published in India, an Indian institution)");
+  ok(indSources.every((s) => !/shodhganga/i.test(String(s.url))), "...and never a thesis, which has no abstract to answer from");
 
   console.log("one at a time, and cancel");
   const slow = [item("snail one?", "snail words one"), item("snail two?", "snail words two"), item("quick one?", "quick words")];

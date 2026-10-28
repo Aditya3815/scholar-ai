@@ -7,6 +7,7 @@ import {
   cleanLitscanTopic,
   detectLanguage,
   estimateScanTokens,
+  isSearchScope,
   type LitscanEvent,
   type LitscanLanguage,
   type LitscanListItem,
@@ -103,10 +104,13 @@ litscanRoutes.post("/", async (c) => {
   const ack = needsAck(c, user);
   if (ack) return ack;
   if (Number(c.req.header("content-length") ?? 0) > 20_000) return deny(c, 413, "too_large", "That is too much text");
-  const body = (await c.req.json().catch(() => null)) as { topic?: unknown; language?: unknown; items?: unknown } | null;
+  const body = (await c.req.json().catch(() => null)) as { topic?: unknown; language?: unknown; items?: unknown; scope?: unknown } | null;
   const topic = cleanLitscanTopic(body?.topic);
   const items = sanitizeApproved(body?.items);
-  if (!topic || !items) return deny(c, 400, "invalid_plan", "The plan needs a topic and two to six sub-questions", "Each sub-question needs its question and some search words.");
+  if (!topic || !items) return deny(c, 400, "invalid_plan", "The plan needs a topic and two to six themes", "Each theme needs its question and some search words.");
+  // where to search: the regular sources, or only Indian ones (an unknown value is refused, not quietly widened)
+  if (body?.scope !== undefined && !isSearchScope(body.scope)) return deny(c, 400, "invalid_scope", "That search scope is not available");
+  const scope = isSearchScope(body?.scope) ? body.scope : "all";
   const language = resolveLanguage(body?.language, topic);
 
   const running = await runningScan(c.env.DB, user.id);
@@ -122,7 +126,7 @@ litscanRoutes.post("/", async (c) => {
 
   const id = crypto.randomUUID();
   try {
-    await createScan(c.env.DB, { id, userId: user.id, topic, language, items, estimate });
+    await createScan(c.env.DB, { id, userId: user.id, topic, language, items, estimate, scope });
     await c.env.LITSCAN.create({ id: `litscan-${id}`, params: { id } });
   } catch (e) {
     console.error(JSON.stringify({ level: "error", msg: "litscan_start_failed", error: e instanceof Error ? e.name : "unknown" }));
