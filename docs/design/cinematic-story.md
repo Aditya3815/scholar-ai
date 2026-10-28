@@ -42,6 +42,18 @@ Each scene is a tall section with a sticky full-screen frame; one passive scroll
 
 Theme (dark, light, read), Film or Stacked, Grain, Letterbox, a progress read-out per scene, scene length (60 to 150%), and jump buttons. Kept in this browser. Use it to decide: the length of the film, whether grain and letterbox stay, and dark-only or all three themes.
 
-## If you approve: how it becomes the app (not started)
+## Built into the app (28 Oct 2026, after your approval)
+
+The intro page for signed-out visitors (`/`) is now the film: `apps/web/src/workspace/intro/` (`Film.tsx` the nine scenes, `engine.ts` the scroll engine, `IntroPage.tsx` the page), `apps/web/src/styles/intro.css`. What differs from the mock, and why:
+
+- **The engine is the mock's, in TypeScript** (one passive scroll listener, one frame, CSS variables written on the elements; no React render per frame), not Motion's scroll timelines: it is smaller and the variables' defaults already give the stacked layout. Motion stays for the header's progress line.
+- **The app's own header, sign-in and theme switch.** The title scene carries the way in (Continue with Google or ORCID, Try it without signing in), and so does the end. A button reached with the keyboard is always fully shown, wherever the scroll has left it.
+- **Theme:** a visitor who has not chosen a theme sees the film dark, from the first paint (`public/theme-init.js`); Light or Read, when chosen, is kept; leaving the intro gives "Auto" back.
+- **Two quiet sections before the end** that the film itself does not show: Idea Check and Literature scan ("Two more tools, same rules") and privacy ("Your work stays yours"). The header links go to "What it does", "Your papers" and "Privacy".
+- **Fixes found by the app's own suites:** the cold open's words are either lit or an outline, never half way (a half-lit word failed contrast in the read theme at the top of the page), and the title no longer animates its letter-spacing (that was a layout shift at every scroll: the intro's layout shift went from 0.094 to 0.001).
+- **Measured** (`e2e/perf.mjs`, 4× CPU, 1.6 Mbit/s): first paint 3.6 to 3.9 s, layout shift 0.001 (desktop) and 0.000 (phone). The intro chunk is 13.5 KB of script and 5.7 KB of style (gzip); the style budget was raised from 5 to 6 KB for it.
+- **Tests:** `e2e/workspace.mjs` "intro: the film" (heading, dark default, nine scenes, scroll both ways, the way in, pinning, stamp, iris, dust and verdict, real counts, page turn, the strip, axe at the end of every scene in three themes, the quiet sections, theme choice kept, phone and reduced motion stacked); `smoke`, `default`, `offline` and `perf` suites pass with it.
+
+## How it was planned (kept for the record)
 
 As in [scroll-design-system.md §8](scroll-design-system.md): the scenes as components in `apps/web/src/workspace/intro/`, Motion's `useScroll` and `useTransform` through refs (no React state per frame), the stacked layout as the intro's existing static path, the dust canvas and the grain as lazy pieces, the budgets of `budget.mjs` and `perf.mjs` kept (first paint on the slow profile, CLS), and the copy reviewed by you. The sample data stays labelled.

@@ -1,5 +1,6 @@
 import { AnimatePresence, LazyMotion, MotionConfig, m } from "motion/react";
 import { SearchX, WifiOff } from "lucide-react";
+import { getThemePref } from "./lib/prefs";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AccountMenu } from "./components/AccountMenu";
 import { Hero } from "./components/Hero";
@@ -302,6 +303,11 @@ export function App() {
   // the new look: people who are not signed in see the intro page at "/"; everyone else gets the rail and the home screen
   const onIntro = WORKSPACE && view === "search" && idle && !route.home && !user;
   const booting = onIntro && authStatus === "loading";
+  // the first paint may have set the film's dark theme for a visitor at "/" (public/theme-init.js); when the intro is not what is shown after all, "Auto" is given back
+  useEffect(() => {
+    if (onIntro || booting) return;
+    if (getThemePref() === "auto" && document.documentElement.getAttribute("data-theme") === "dark") document.documentElement.removeAttribute("data-theme");
+  }, [onIntro, booting]);
 
   if (WORKSPACE && onIntro) {
     return (

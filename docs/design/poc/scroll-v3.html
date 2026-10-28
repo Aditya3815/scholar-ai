@@ -135,7 +135,7 @@ main { position: relative; z-index: 1; }
 /* SCENE 2, title: the name comes from very close and settles; a mark draws itself */
 .s-title { --vh: 230; }
 .title-wrap { display: grid; justify-items: center; gap: 1.6rem; text-align: center; }
-.title-name { font-family: var(--font-serif); font-weight: 650; font-size: clamp(3.6rem, 12vw, 11rem); line-height: .9; letter-spacing: calc(var(--trk, -.03) * 1em); transform: scale(var(--ts, 1)); filter: blur(calc(var(--tb, 0) * 1px)); white-space: nowrap; }
+.title-name { font-family: var(--font-serif); font-weight: 650; font-size: clamp(3.6rem, 12vw, 11rem); line-height: .9; letter-spacing: -.03em; transform: scale(var(--ts, 1)); filter: blur(calc(var(--tb, 0) * 1px)); white-space: nowrap; }
 .title-name b { color: var(--accent); font-weight: 650; }
 .title-mark path { stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--mk, 1)); }
 .title-line { font-family: var(--font-serif); font-style: italic; font-size: clamp(1.3rem, 2.6vw, 2.1rem); color: var(--muted); opacity: var(--tl, 1); transform: translateY(calc((1 - var(--tl, 1)) * 14px)); }
@@ -635,14 +635,14 @@ main { position: relative; z-index: 1; }
 
   U.open = function (el, p) {
     // linear: one word for an equal stretch of scroll, as if read aloud
-    set(el, "--k", 0.5 + seg(p, 0.04, 0.7) * (WORDS + 0.5));
+    // a word is lit or an outline, never half way (a half-lit word failed contrast in the read theme); the first two are lit when the page opens
+    set(el, "--k", Math.floor(2 + seg(p, 0.04, 0.7) * (WORDS - 1)));
     set(el, "--after", out(seg(p, 0.7, 0.86)));
   };
 
   U.title = function (el, p) {
     var t = out(seg(p, 0, 0.62));
     set(el, "--ts", 3.2 - 2.2 * t);
-    set(el, "--trk", 0.18 - 0.21 * t);
     set(el, "--tb", (1 - t) * 6);
     set(el, "--mk", out(seg(p, 0.35, 0.7)));
     set(el, "--tl", out(seg(p, 0.6, 0.8)));

@@ -45,13 +45,14 @@ async function axe(label, p) {
 }
 const noSideways = (p) => p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 const setTheme = (p, t) => p.evaluate((t) => { document.documentElement.setAttribute("data-theme", t); }, t);
-const tourBox = (p) => p.evaluate(() => { const t = document.getElementById("tour"); const r = t.getBoundingClientRect(); return { top: r.top + scrollY, h: t.offsetHeight, vh: innerHeight }; });
-const scrollTo = async (p, y) => { await p.evaluate((y) => window.scrollTo({ top: y, behavior: "instant" }), y); await p.waitForTimeout(650); };
-const visibleChapter = (p) => p.evaluate(() => [...document.querySelectorAll(".in-chap")].filter((e) => Number(getComputedStyle(e).opacity) > 0.9).map((e) => e.querySelector(".in-kicker").textContent));
+/** Scroll so that scene `id` is at progress p (0..1) of its pinned stretch. */
+const toScene = async (p, id, f) => { await p.evaluate(([id, f]) => { const s = document.getElementById("film-" + id); const r = s.getBoundingClientRect(); window.scrollTo({ top: scrollY + r.top + (s.offsetHeight - innerHeight) * f, behavior: "instant" }); }, [id, f]); await p.waitForTimeout(450); };
+const cssVar = (p, sel, name) => p.evaluate(([sel, name]) => parseFloat(getComputedStyle(document.querySelector(sel)).getPropertyValue(name)), [sel, name]);
+const SCENES = ["open", "title", "question", "answer", "proof", "fake", "india", "workspace", "end"];
 
 try {
-  /* ============================ the intro page, signed out, desktop ============================ */
-  console.log("intro");
+  /* ============================ the intro film, signed out, desktop ============================ */
+  console.log("intro: the film");
   const html0 = await (await fetch(BASE + "/")).text();
   const preloads = [...html0.matchAll(/<link rel="preload" as="font" type="font\/woff2" href="([^"]+)"/g)].map((m) => m[1]);
   ok(preloads.length === 2 && preloads.some((u) => /inter-latin/.test(u)) && preloads.some((u) => /source-serif-4-latin/.test(u)), "the two fonts of the first screen are preloaded (no jump when they arrive)");
@@ -63,88 +64,98 @@ try {
   globalThis.__page = page; // for the screenshot taken if something unexpected happens
   watch(page);
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
-  await page.locator("#in-h1").waitFor({ timeout: 15000 });
+  await page.locator("#in-h1").waitFor({ state: "attached", timeout: 15000 });
   await page.keyboard.press("Tab");
-  ok(await page.evaluate(() => document.activeElement?.classList.contains("skip-link")), "the first Tab stop is the skip link");
+  ok(await page.evaluate(() => document.activeElement?.classList.contains("skip-link") && /Skip the film/.test(document.activeElement.textContent)), "the first Tab stop is 'Skip the film'");
   await page.evaluate(() => document.activeElement?.blur?.());
-  await page.waitForTimeout(3000);
-  ok(/Research you can trust\./.test(await page.locator("#in-h1").innerText()), "the intro page opens for a signed-out visitor, headline with its spaces");
-  ok(await page.locator(`.in-head .logo path[d="${LOGO_PATH}"]`).count() === 1, "the logo is the product's own open-book mark");
-  ok(/Scholar\s*AI/.test(await page.locator(".in-head .logo-word").innerText()), "and its wordmark");
-  await page.locator(".in-hero .in-paper-bad").waitFor({ timeout: 9000 });
-  ok(true, "the hero window has typed and answered by itself");
-  ok(!/openalex|crossref|pubmed|semantic scholar|arxiv|\bcore\b/i.test(await page.locator(".in-herowin").innerText()), "the demo window names no source");
-  ok(await page.getByRole("button", { name: "Continue with Google" }).first().isVisible(), "the hero offers Continue with Google");
-  ok(await page.getByRole("link", { name: /Try it without signing in/ }).first().isVisible(), "and trying it without signing in");
-  const chip = await page.locator(".in-herowin .in-chip").first().evaluate((el) => { const r = el.getBoundingClientRect(); const visible = [...el.children].find((c) => c.dataset.show === "true"); const k = visible.getBoundingClientRect(); const icon = visible.querySelector("svg").getBoundingClientRect(); return { pill: r.width, content: k.width, gapLeft: icon.left - r.left, gapRight: r.right - k.right }; });
-  ok(chip.gapLeft < 14 && Math.abs(chip.pill - chip.content - 2 * 11.2) < 3, `the mode chip fits its words: the icon is ${Math.round(chip.gapLeft)} px from the left edge and the pill is no wider than its content (pill ${Math.round(chip.pill)} px, content ${Math.round(chip.content)} px)`);
-  await page.screenshot({ path: OUT + "01-intro-hero.png" });
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(500);
-  await axe("intro hero, light", page);
+  ok(/An AI can write a perfect reference to a paper that was never written\./.test(await page.locator("#in-h1").textContent()), "the page's heading is the film's first sentence, whole, for screen readers");
+  ok(await page.evaluate(() => document.documentElement.getAttribute("data-theme")) === "dark", "a visitor who has not chosen a theme sees the film dark, from the first paint");
+  ok(await page.locator(`.in-head .logo path[d="${LOGO_PATH}"]`).count() === 1 && /Scholar\s*AI/.test(await page.locator(".in-head .logo-word").innerText()), "the header keeps the product's own logo and wordmark");
+  ok(await page.locator(".fm").getAttribute("data-mode") === "anim" && await page.locator(".fm [data-scene]").count() === 9, "on a desktop the film plays: nine scenes");
   ok(await noSideways(page), "no sideways scroll on the intro (desktop)");
   ok(await page.locator(".in-progress").count() === 1, "a thin progress line runs under the header");
+  await page.screenshot({ path: OUT + "01-intro-open.png" });
 
-  const t = await tourBox(page);
-  ok(t.h > t.vh * 3, `the tour is a tall pinned section (${Math.round(t.h)} px, window ${t.vh} px)`);
-  const dist = t.h - t.vh;
-  const stops = [[0.0, "Find papers"], [0.37, "Check your references"], [0.62, "Check an idea"], [0.95, "Ask a paper"]];
-  let lastTyped = "";
-  for (const [f, name] of stops) {
-    await scrollTo(page, t.top + dist * f);
-    const vis = await visibleChapter(page);
-    ok(vis.length === 1 && vis[0] === name, `scrolled to ${Math.round(f * 100)}% of the tour: the chapter on screen is "${name}" (${vis.join(", ")})`);
-    const pinned = await page.evaluate(() => { const s = document.querySelector(".in-stage").getBoundingClientRect(); return Math.round(s.top); });
-    ok(Math.abs(pinned - 62) < 12, `the stage stays pinned under the header (top ${pinned}px)`);
-    await page.screenshot({ path: OUT + `02-tour-${Math.round(f * 100)}.png` });
-    if (f === 0.37) await axe("intro tour, references chapter, light", page);
-    if (f === 0.95) {
-      const sweep = await page.evaluate(() => getComputedStyle(document.querySelector(".in-wins .in-quote mark") ?? document.body).backgroundSize);
-      ok(/100%/.test(sweep), `the quote in the last chapter is fully highlighted (${sweep})`);
-    }
-    if (f === 0.0) lastTyped = await page.locator(".in-wins .in-typed").first().innerText();
-  }
-  await scrollTo(page, t.top + dist * 0.12);
-  const typedMid = await page.locator(".in-wins .in-typed").first().innerText();
-  ok(typedMid.length > lastTyped.length, `scrolling really scrubs the scene: the typed question grows (${lastTyped.length} to ${typedMid.length} characters)`);
-  await scrollTo(page, t.top + dist * 0.12 - 300);
-  const typedBack = await page.locator(".in-wins .in-typed").first().innerText();
-  ok(typedBack.length < typedMid.length, "and scrolling back up winds it back (it follows the scroll, it is not a timer)");
+  // scene 1: the words light up with the scroll, and go dark again when scrolled back
+  await toScene(page, "open", 0.15);
+  const k1 = await cssVar(page, ".fm-s-open", "--k");
+  await toScene(page, "open", 0.5);
+  const k2 = await cssVar(page, ".fm-s-open", "--k");
+  await toScene(page, "open", 0.2);
+  const k3 = await cssVar(page, ".fm-s-open", "--k");
+  ok(k1 < k2 && k3 < k2, `the words follow the scroll both ways, not a timer (lit ${k1.toFixed(1)}, then ${k2.toFixed(1)}, back to ${k3.toFixed(1)})`);
 
-  // the rail jumps to a chapter; its buttons are real buttons with names
-  const railBtns = page.locator(".in-rail button");
-  ok(await railBtns.count() === 4, "the chapter rail has four buttons");
-  await railBtns.nth(2).click();
-  await page.waitForFunction(() => document.querySelector('.in-rail button[aria-current="step"]')?.textContent?.includes("Check an idea"), null, { timeout: 8000 });
-  ok(true, "pressing a chapter in the rail scrolls to it and marks it current");
-  ok(await page.locator(".in-tour .sr-only h3").count() === 4, "screen readers get the four chapters once, as plain headings");
-  ok(await page.locator('.in-chaps[aria-hidden="true"]').count() === 1 && await page.locator('.in-wins[aria-hidden="true"]').count() === 1, "the animated copy is hidden from them");
+  // scene 2: the name, the line, and the way in
+  await toScene(page, "title", 0.95);
+  await page.screenshot({ path: OUT + "02-intro-title.png" });
+  ok(await page.locator(".fm-title-cta").getByRole("button", { name: "Continue with Google" }).isVisible() && await page.locator(".fm-title-cta").getByRole("link", { name: /Try it without signing in/ }).isVisible(), "the title offers Continue with Google and trying it without signing in");
+  ok(await page.locator(".fm-s-title .fm-frame").evaluate((el) => Math.round(el.getBoundingClientRect().top)) === 0, "a scene's frame is pinned while its stretch is scrolled");
 
-  for (const id of ["trust", "privacy"]) {
-    await page.evaluate((id) => document.getElementById(id).scrollIntoView({ behavior: "instant", block: "start" }), id);
-    await page.waitForTimeout(1600);
-    await page.screenshot({ path: OUT + `03-${id}.png` });
-  }
-  await axe("intro, trust and privacy sections, light", page);
-  await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" }));
-  await page.waitForTimeout(1200);
-  await page.screenshot({ path: OUT + "04-end.png" });
-  await axe("intro, end of page, light", page);
+  // scene 3: the retracted paper is stamped
+  await toScene(page, "question", 0.95);
+  ok(await page.locator(".fm-paper.is-bad .fm-stamp").isVisible() && await page.locator(".fm-paper").count() === 12, "twelve papers arrive, the retracted one stamped");
 
-  for (const theme of ["dark", "read"]) {
+  // scene 4: an iris opens from the mark onto the sentence
+  await toScene(page, "answer", 0.45);
+  const r = await cssVar(page, ".fm-iris", "--r");
+  ok(r > 20 && r < 3000, `half way, the iris is opening from the citation mark (radius ${Math.round(r)} px)`);
+  await page.screenshot({ path: OUT + "03-intro-iris.png" });
+  await toScene(page, "answer", 0.97);
+  ok(/100%/.test(await page.locator(".fm-abs mark").evaluate((el) => getComputedStyle(el).backgroundSize)), "at the end the quoted sentence is fully highlighted");
+
+  // scene 6: the invented reference comes apart and is said not to exist
+  await toScene(page, "fake", 0.6);
+  ok(await page.locator(".fm-ref.is-gone").count() === 1, "the invented reference turns to dust");
+  await page.screenshot({ path: OUT + "04-intro-dust.png" });
+  await toScene(page, "fake", 0.97);
+  ok(/No such record/.test(await page.locator(".fm-verdict").innerText()) && /Check references/.test(await page.locator(".fm-verdict").innerText()), "...and the verdict says so, and names the tool that checks a bibliography");
+
+  // scene 7: the real counts roll up to their numbers
+  await toScene(page, "india", 0.97);
+  ok((await page.locator("[data-count]").allInnerTexts()).join("|") === "1,17,635|3,09,564", "the Indian counts end at the real numbers, in Indian notation");
+
+  // scene 8: the page turns to the quote
+  await toScene(page, "workspace", 0.97);
+  ok(await cssVar(page, ".fm-s-workspace", "--fl") > 0.99 && /Page 4/.test(await page.locator(".fm-page").innerText()), "My Workspace: the answer names its page and the page has turned to it");
+  await page.screenshot({ path: OUT + "05-intro-workspace.png" });
+
+  // the strip of scenes jumps to a scene and marks it
+  const strip = page.locator(".fm-strip button");
+  ok(await strip.count() === 9, "the strip has a button for each of the nine scenes");
+  await strip.nth(5).click();
+  await page.waitForFunction(() => document.querySelector('.fm-strip button[aria-current="true"]')?.getAttribute("aria-label")?.includes("The fake"), null, { timeout: 8000 });
+  ok(true, "pressing a scene in the strip goes to it and marks it current");
+
+  // axe at the end of every scene, in the three themes
+  for (const theme of ["dark", "light", "read"]) {
     await setTheme(page, theme);
-    await page.waitForTimeout(500);
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: OUT + `05-intro-${theme}.png` });
-    await axe(`intro hero, ${theme}`, page);
-    await scrollTo(page, t.top + dist * 0.62);
-    await axe(`intro tour, idea chapter, ${theme}`, page);
-    await page.evaluate(() => document.getElementById("trust").scrollIntoView({ behavior: "instant", block: "start" }));
-    await page.waitForTimeout(1500);
-    await axe(`intro trust section, ${theme}`, page);
+    await page.waitForTimeout(400);
+    let clean = true;
+    for (const id of SCENES) {
+      await toScene(page, id, 0.97);
+      await page.evaluate(axeSource);
+      const v = await page.evaluate(async () => (await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } })).violations.map((x) => `${x.id} ${x.nodes[0]?.target?.join(" ")}`));
+      if (v.length) { clean = false; console.log(`        ${theme} ${id}: ${v.join(" | ")}`); }
+    }
+    ok(clean, `axe [the end of every scene, ${theme}]`);
   }
-  await setTheme(page, "light");
+  for (const id of ["more", "privacy"]) {
+    await page.evaluate((id) => document.getElementById(id).scrollIntoView({ behavior: "instant", block: "start" }), id);
+    await page.waitForTimeout(400);
+    await axe(`intro, ${id} section, read`, page);
+  }
+  await setTheme(page, "dark");
+  await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" }));
+  await page.waitForTimeout(600);
+  ok(/DOAJ/.test(await page.locator(".fm-credits").innerText()) && /Europe PMC/.test(await page.locator(".fm-credits").innerText()), "the end credits are the real sources");
+  await page.screenshot({ path: OUT + "06-intro-end.png" });
+
+  // a theme the visitor chooses is kept; Auto gives the film its dark again
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.locator(".in-head").getByRole("button", { name: "Light theme" }).click();
+  ok(await page.evaluate(() => document.documentElement.getAttribute("data-theme")) === "light", "choosing Light shows the film in light");
+  await page.locator(".in-head").getByRole("button", { name: "Auto theme" }).click();
+  ok(await page.evaluate(() => document.documentElement.getAttribute("data-theme")) === "dark", "and Auto gives it back its dark");
 
   /* ============================ phone: the stacked layout ============================ */
   console.log("intro on a phone");
@@ -153,21 +164,19 @@ try {
   const mp = await mctx.newPage();
   watch(mp);
   await mp.goto(BASE + "/", { waitUntil: "networkidle" });
-  await mp.locator("#in-h1").waitFor();
-  await mp.waitForTimeout(2500);
-  await mp.screenshot({ path: OUT + "06-intro-phone.png" });
-  ok(await mp.locator(".in-tour").count() === 0 && await mp.locator(".in-tour-s").count() === 1, "on a phone the tour is stacked, not pinned");
-  ok(await mp.locator(".in-chap-s").count() === 4, "all four chapters are there one after another");
-  ok(await mp.locator(".in-chap-s .in-paper-bad").count() === 1 && await mp.locator(".in-chap-s .in-quote mark").count() === 1, "each scene shows its finished state");
+  await mp.locator("#in-h1").waitFor({ state: "attached" });
+  await mp.waitForTimeout(800);
+  ok(await mp.locator(".fm").getAttribute("data-mode") === "static" && await mp.locator(".fm-strip").count() === 0, "on a phone the film is stacked: every scene in turn, nothing pinned");
+  ok(await mp.locator("#film-question").evaluate((el) => el.offsetHeight < innerHeight * 2.5), "a scene is as tall as its content, not a long scroll");
+  ok(await mp.locator(".fm-paper.is-bad .fm-stamp").isVisible() && await mp.locator(".fm-dust").isHidden() && (await mp.locator("[data-count]").allInnerTexts()).join("|") === "1,17,635|3,09,564", "each scene shows its finished state");
   ok(await noSideways(mp), "no sideways scroll at 390 px");
-  await axe("intro, phone", mp);
-  await mp.evaluate(() => document.getElementById("tour").scrollIntoView({ behavior: "instant" }));
-  await mp.waitForTimeout(1500);
-  await mp.screenshot({ path: OUT + "07-intro-phone-tour.png" });
-  await axe("intro tour, phone", mp);
-  await mp.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" }));
-  await mp.waitForTimeout(1200);
-  await axe("intro end, phone", mp);
+  await mp.screenshot({ path: OUT + "07-intro-phone.png" });
+  await axe("intro, phone, top", mp);
+  for (const id of ["film-answer", "film-workspace", "privacy"]) {
+    await mp.evaluate((id) => document.getElementById(id).scrollIntoView({ behavior: "instant" }), id);
+    await mp.waitForTimeout(300);
+    await axe(`intro, phone, ${id}`, mp);
+  }
   await mctx.close();
 
   /* ============================ reduced motion ============================ */
@@ -177,11 +186,10 @@ try {
   const rp = await rctx.newPage();
   watch(rp);
   await rp.goto(BASE + "/", { waitUntil: "networkidle" });
-  await rp.locator("#in-h1").waitFor();
-  await rp.waitForTimeout(800);
-  ok(await rp.locator(".in-tour").count() === 0 && await rp.locator(".in-tour-s").count() === 1, "with reduced motion the tour is the stacked, static article");
-  ok(await rp.locator(".in-hero .in-paper-bad").count() === 1, "the hero window shows its finished state at once");
-  ok(await rp.locator(".in-mw").count() === 0, "the manifesto is plain text, nothing fades with scroll");
+  await rp.locator("#in-h1").waitFor({ state: "attached" });
+  await rp.waitForTimeout(600);
+  ok(await rp.locator(".fm").getAttribute("data-mode") === "static", "with reduced motion the film is the stacked page, nothing moves with the scroll");
+  ok(await rp.locator(".fm-title-cta").getByRole("link", { name: /Try it without signing in/ }).isVisible(), "the way in is there at once");
   await axe("intro, reduced motion", rp);
   await rctx.close();
 

@@ -16,7 +16,8 @@ export const LIMITS = {
   "first load: style sheet (gzip)": 26 * KB,
   "first load: preloaded fonts": 185 * KB,
   "the intro page chunk, script (gzip)": 15 * KB,
-  "the intro page chunk, style (gzip)": 5 * KB,
+  // 6 KB since the intro became the film of nine scenes (28 Oct 2026, docs/design/cinematic-story.md): 5.7 KB measured; the rise is about 4 ms on the slow profile
+  "the intro page chunk, style (gzip)": 6 * KB,
   "the PDF reader chunk, script and style (gzip)": 66 * KB,
 };
 

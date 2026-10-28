@@ -36,6 +36,9 @@ export function setThemePref(next: ThemePref) {
   listeners.forEach((l) => l());
 }
 
+/** The theme preference now (outside React, for code that must read it at one moment). */
+export const getThemePref = (): ThemePref => themePref;
+
 export function useThemePref(): ThemePref {
   return useSyncExternalStore(
     (l) => {
