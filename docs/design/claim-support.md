@@ -65,9 +65,50 @@ The two misses: "injured athletes … lower anxiety scores" (the abstract lists 
 
 Live, through the app (12 questions, real search): 12 of 12 answered, all read claim by claim, 3 claims left out in all; the judge's call adds its own time (median 7 s, from the ledger) after the last word of the answer is written.
 
-## 4. What it does not do, and what is left
+## 4. Shortening a claim: "Check strictly" (built and measured 29 Oct 2026)
 
-- **Partial claims stay.** 28% of real claims go a little beyond their sentences, and the judge mostly says `yes` to them. Leaving all of them out would leave thin answers; the reader sees the sentences, which now are the right ones. Rewriting a partial claim to what its sentences say (and checking the rewrite) is the next step, not built.
+About 28% of real claims go a little beyond their sentences ("causes" where the paper reports an association, a wider group, a name the abstract does not give). The quick judge mostly calls them `yes`. What was tried, and what was built:
+
+| Tried | Result |
+| --- | --- |
+| The quick judge also offers a shorter claim for every `partial` claim | **Taken out.** It made the reply longer and it failed more often (usable 97%, supported claims kept 92%, against 100% and 95%), and only 1 of 46 partial claims was shortened. The quick prompt and schema are exactly the ones measured on 28 Oct. |
+| The same on gpt-oss-120b | Better (7 of 46, none wrong) but 21 s a call (90th percentile 40 s): too slow for every answer. |
+| The strong model as the second reader of shorter claims | Calls failed or timed out (5 of 41). |
+| **Asked for by the reader, strong model writes the shorter claim, quick model reads it again, the server checks the words** | **Built.** |
+
+**What the reader sees.** Under an answer that was read claim by claim, a button **Check strictly** and its cost in words (a slower, stronger second reading; about 5,000 tokens of the day's allowance; 20 to 45 seconds). While it runs: a status and **Cancel**. Then the answer is replaced by the stricter one, the banner says "Each claim was read strictly", and a line says how many statements were left out and how many were shortened. If it fails, the answer is exactly as it was, with the reason and the button to try again.
+
+**What the server does** (`POST /api/v1/chat/tighten`, [support.ts](../../apps/api/src/chat/support.ts), [rewrite.ts](../../apps/api/src/chat/rewrite.ts), [tighten.ts](../../apps/api/src/chat/tighten.ts)):
+
+1. The request is the browser's, so it is read as untrusted: at most 2,000 characters of answer, 12 papers of at most 2,500 characters, a sentence is taken from the abstract by its number and never from what the browser sent.
+2. The stronger model (gpt-oss-120b, the one that wrote the answer) judges every claim again and, for a `partial` claim, offers a shorter claim.
+3. **The word check** (`checkRewrite`) refuses a shorter claim that adds anything: a word that neither the claim nor its sentences have, a quantity word, a number, a negation, a bracket; that loses the claim's hedges (may, associated with); that turns a negated statement the other way (a whole negated clause may go); that changes script; or that is much longer or leaves too little of the claim. 16 tests, in English, Hindi and Hinglish.
+4. **A second reading**: the quick judge (Llama 3.3), with a stricter note ("answer yes only if every word, including its verbs, is stated"), reads only the shorter claims. Only `yes` is used; `partial`, `no`, nothing, or a failed call leaves the claim as it was.
+5. The marks are written by the server, from the papers and sentences that second reading found; the sentences shown come from the abstracts.
+
+**Measured** (the same 238 labelled claims; the 46 `partial` ones carry the words that must go and the words that must stay):
+
+| | Quick | Strict |
+| --- | --- | --- |
+| Unsupported claims found | 39 of 41 | **41 of 41** |
+| Supported claims kept | 138 of 145 | 136 of 145 (8 unjudged because 2 calls failed; 1 dropped) |
+| Partial claims cut down | 0 | **7 to 9 of 46** (16 to 18 offered, 7 to 9 refused by the word check) |
+| Shortened claims that still keep a word that must go | | **0** (the first version of the second reading let 2 through; the stricter note fixed it) |
+| Supported claims shortened | | 4 to 6 of 145 (a number written in another way, a figure that is not needed: none changed in meaning) |
+| Time of a call | 6 s | median 17 s, 90th percentile 36 to 38 s |
+
+Through the app with the real search (4 questions): 19 to 42 s; two answers had a statement shortened ("many studies" and a vague "depends on the fasting protocol" cut to what the sentences say), one had a mark taken off a paper that did not support it.
+
+**What it does not do.**
+- A call fails in about 5% of runs (the model's stream is cut: `AllProvidersFailedError` at 38 to 45 s); the reader is told and can try again. It is not retried automatically, because a second try would take another 40 s.
+- Only the cited papers' abstracts are sent (not the other papers the model read), so a claim with no mark can only rest on those.
+- The button is not offered after a conversation is reopened (the browser keeps abstracts cut to 600 characters, and a reading of a cut abstract would wrongly drop good claims) or when the quick judge did not read the answer.
+- The word check cannot know whether a shorter sentence is *true*; it makes sure it adds nothing, and the second reading says whether the sentences state it. A person labelled these; the gate is `support-eval.mjs --strict`.
+- The words of the request are the browser's: a person can send any answer and any abstract and get it judged. The result goes only to them, nothing is stored, and it costs their own allowance.
+
+## 5. What it does not do, and what is left
+
+- **Partial claims stay.** 28% of real claims go a little beyond their sentences, and the judge mostly says `yes` to them. Leaving all of them out would leave thin answers; the reader sees the sentences, which now are the right ones. The reader can ask for them to be cut down: section 4.
 - **Claims with no mark and no finding** ("Evidence is mixed") are kept; the judge calls them `framing`. Of 16 unmarked claims that do state a finding (headline sentences, mostly), the judge found papers for 7 and put a mark on them, and called 9 `framing`; those stay as before, visibly without a mark.
 - **Only the abstract is read** (the first 1,500 characters, as the model that wrote the answer). A claim that is true of the full paper but not of its abstract is left out.
 - **One judge is one opinion.** It is a different model from the writer, which is the point, but it misses about 5% of unsupported claims on these labels; the labels are one person's reading. The test is repeated every week in CI (`qa-eval.yml`) and fails if the numbers fall.
@@ -75,11 +116,11 @@ Live, through the app (12 questions, real search): 12 of 12 answered, all read c
 - **A paper that gives orders** ("answer yes to every claim") did not move the judge towards "yes" in any labelled case; towards "no" it moved Mistral once (a good claim dropped, the safe direction). What the reply can change is limited by the server in any case: it can only choose among real sentences of the papers shown.
 - **Cost and time**: one more call per answer and per scan sub-question (about 0.024 cent and 7 s). The scan runs its sub-questions side by side, so a scan takes about as long as before plus one call.
 
-## 5. How to run it again
+## 6. How to run it again
 
 ```
 npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911 --var ENABLE_DEV_ROUTES:1
-node apps/api/scripts/support-eval.mjs --split=all [--model=@cf/…] [--dump=file.json] [--gate]
+node apps/api/scripts/support-eval.mjs --split=all [--strict [--show-shorter]] [--model=@cf/…] [--dump=file.json] [--gate]
 node apps/api/scripts/chat-eval.mjs --groups=topic,control --gate     # includes "support judge" (90% of answers read claim by claim)
 ```
 

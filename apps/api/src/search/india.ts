@@ -16,7 +16,9 @@ import type { Provider, ProviderPaper } from "./types";
 
 export const SHODHGANGA_SOURCE = "S4377209701";
 const DOAJ_API = "https://doaj.org/api/v4/search/articles";
-const STOP = new Set(["the", "a", "an", "of", "for", "and", "or", "in", "on", "to", "with", "by", "from", "using", "based", "is", "are", "what", "how", "does", "do", "study", "studies", "india", "indian"]);
+const STOP = new Set(["the", "a", "an", "of", "for", "and", "or", "in", "on", "to", "with", "by", "from", "using", "based", "is", "are", "what", "how", "does", "do", "study", "studies"]);
+/** Left out of the words of the Indian scope (the scope says it), kept in the regular search (where "gender pay gap in India" is about India). */
+const PLACES = new Set(["india", "indian"]);
 
 /** Only a web address can be a link: a record that says `javascript:` or anything else is given no link. */
 export function webUrl(raw: unknown): string | null {
@@ -33,8 +35,8 @@ export function webUrl(raw: unknown): string | null {
  * The words of the search for DOAJ, which reads Elasticsearch's query string syntax: every word that carries meaning must be in the record (AND), and nothing of
  * the syntax gets through (only letters, digits and spaces are kept, so a quote, a colon or a bracket cannot change the query). "India" is left out: the scope says it.
  */
-export function doajQuery(q: string): string {
-  const words = [...new Set(normalizeTitle(q).split(" ").filter((w) => w.length > 2 && !STOP.has(w)))].slice(0, 8);
+export function doajQuery(q: string, opts: { keepPlaces?: boolean } = {}): string {
+  const words = [...new Set(normalizeTitle(q).split(" ").filter((w) => w.length > 2 && !STOP.has(w) && (opts.keepPlaces || !PLACES.has(w))))].slice(0, 8);
   return words.join(" AND ");
 }
 
@@ -76,24 +78,42 @@ export function toDoajPapers(results: DoajArticle[]): ProviderPaper[] {
   return out;
 }
 
+/** One request to DOAJ through its lane (two a second for everyone); a 429 closes the lane for the time DOAJ asks. */
+function doajRequest(query: string, limit: number, signal: AbortSignal): Promise<ProviderPaper[]> {
+  const params = new URLSearchParams({ pageSize: String(limit) });
+  return withGate("doaj", 3_000, async (ctl) => {
+    const res = await fetch(`${DOAJ_API}/${encodeURIComponent(query)}?${params}`, { signal, headers: { Accept: "application/json" } });
+    if (res.status === 429) {
+      const wait = Number(res.headers.get("retry-after"));
+      ctl.closeUntil(Date.now() + (Number.isFinite(wait) && wait > 0 ? wait * 1000 : 2_000));
+    }
+    if (!res.ok) throw new Error(`DOAJ HTTP ${res.status}`);
+    const body = (await res.json()) as { results?: DoajArticle[] };
+    return toDoajPapers(body.results ?? []);
+  });
+}
+
 /** DOAJ, articles in journals published in India. */
 export const doajIndia: Provider = {
   name: "doaj",
   async search(q, limit, _env, signal) {
     const words = doajQuery(q);
     if (!words) return [];
-    const query = `(${words}) AND bibjson.journal.country:IN`;
-    const params = new URLSearchParams({ pageSize: String(limit) });
-    return withGate("doaj", 3_000, async (ctl) => {
-      const res = await fetch(`${DOAJ_API}/${encodeURIComponent(query)}?${params}`, { signal, headers: { Accept: "application/json" } });
-      if (res.status === 429) {
-        const wait = Number(res.headers.get("retry-after"));
-        ctl.closeUntil(Date.now() + (Number.isFinite(wait) && wait > 0 ? wait * 1000 : 2_000));
-      }
-      if (!res.ok) throw new Error(`DOAJ HTTP ${res.status}`);
-      const body = (await res.json()) as { results?: DoajArticle[] };
-      return toDoajPapers(body.results ?? []);
-    });
+    return doajRequest(`(${words}) AND bibjson.journal.country:IN`, limit, signal);
+  },
+};
+
+/**
+ * DOAJ in the regular search (28 Oct 2026, docs/design/doaj-regular.md): every open access journal, no country. A different name from the Indian one, because the cache keeps what
+ * a provider answered under its name and the two ask different things. Measured on 34 topics: every record has an abstract (the regular four: 54 to 60%), 94% are on topic, 96% are
+ * not among the regular first twenty, and with it the first twenty hold 17% more papers an answer can be written from.
+ */
+export const doajAll: Provider = {
+  name: "doaj-all",
+  async search(q, limit, _env, signal) {
+    const words = doajQuery(q, { keepPlaces: true });
+    if (!words) return [];
+    return doajRequest(`(${words})`, limit, signal);
   },
 };
 

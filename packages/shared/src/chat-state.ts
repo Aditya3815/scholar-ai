@@ -1,5 +1,5 @@
 import type { Paper, SearchScope } from "./index";
-import type { ChatAnswer, ChatEvent, ChatMode, ChatNoAnswer, ChatStep, GeneralKind } from "./chat";
+import { MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatStep, type GeneralKind, type TightenRequest, type TightenResponse } from "./chat";
 import type { Lang, RouteHow } from "./route";
 
 /* The conversation as the browser keeps it: a reply is built event by event while it streams, and kept as it is when it is done. All of it is pure, so it is tested without a browser. */
@@ -32,6 +32,8 @@ export type AssistantMsg = {
   /** The answer as it is being written: provisional, shown while `answer` is null, and never kept. */
   live: string;
   answer: ChatAnswer | null;
+  /** The strict check the reader asked for on this answer: running, done (what it changed), or failed. Never kept while running. */
+  strict?: { status: "working" | "done" | "failed"; note?: string };
   /** Background from general knowledge, written only when the papers did not answer: its words so far (provisional), and the final text with what kind it is. Absent in chats kept before W5. */
   generalLive?: string;
   general?: { kind: GeneralKind; text: string } | null;
@@ -95,6 +97,7 @@ export const interruptAssistant = (m: AssistantMsg): AssistantMsg => (m.status =
 /** A reply as it is kept: abstracts cut to 600 characters (the list shows a few lines of them), nothing provisional. */
 export const trimForStorage = (m: AssistantMsg): AssistantMsg => ({
   ...m,
+  strict: m.strict?.status === "done" ? m.strict : undefined,
   live: "",
   generalLive: "",
   papers: m.papers.map((p) => (p.abstract && p.abstract.length > 600 ? { ...p, abstract: `${p.abstract.slice(0, 600).replace(/\s+\S*$/, "")}…` } : p)),
@@ -106,4 +109,57 @@ export function chatTitle(firstMessage: string): string {
   if (t.length <= 60) return t;
   const cut = t.lastIndexOf(" ", 60);
   return `${t.slice(0, cut > 30 ? cut : 60)}…`;
+}
+
+/* ---------------------------------------------------------------- "Check strictly" */
+
+/** A paper's abstract as the search found it: a reply that was kept and reopened has its abstracts cut at 600 characters with "…" (`trimForStorage`), and those are not what the answer was made from. */
+const looksCut = (abstract: string): boolean => abstract.length <= 601 && abstract.endsWith("…");
+
+/**
+ * Can this reply be checked strictly? Only an answer that was made from papers and read claim by claim, not yet checked strictly, whose cited papers still have the abstracts the answer
+ * was made from (in this visit: after a reload they are cut, and a stronger reading of a cut abstract would wrongly drop good claims). Pure.
+ */
+export function canTighten(m: AssistantMsg): boolean {
+  const a = m.answer;
+  if (m.status !== "done" || !a || !a.grounded || a.strict || a.checked !== true || m.strict?.status === "working") return false;
+  if (a.text.length > MAX_TIGHTEN_TEXT) return false;
+  const cited = [...new Set(a.citations.map((c) => c.n))];
+  if (cited.length === 0 || cited.length > MAX_TIGHTEN_PAPERS) return false;
+  return cited.every((n) => {
+    const p = m.papers[n - 1];
+    return !!p && p.abstract != null && p.abstract.trim() !== "" && !looksCut(p.abstract) && a.citations.filter((c) => c.n === n).every((c) => c.paperId === p.id);
+  });
+}
+
+/** What the browser sends to `POST /api/v1/chat/tighten`, or null when `canTighten` is false. */
+export function tightenRequestFor(m: AssistantMsg): TightenRequest | null {
+  if (!canTighten(m)) return null;
+  const a = m.answer!;
+  const cited = [...new Set(a.citations.map((c) => c.n))].sort((x, y) => x - y);
+  return {
+    text: a.text,
+    papers: cited.map((n) => ({ n, title: m.papers[n - 1]!.title, year: m.papers[n - 1]!.year, abstract: m.papers[n - 1]!.abstract!.slice(0, 1500) })),
+    citations: a.citations.map((c) => ({ n: c.n, sentenceNo: c.sentenceNo })),
+  };
+}
+
+export const startTighten = (m: AssistantMsg): AssistantMsg => ({ ...m, strict: { status: "working" } });
+export const failTighten = (m: AssistantMsg, note: string): AssistantMsg => ({ ...m, strict: { status: "failed", note } });
+
+/**
+ * The strict check's answer taken into the reply. The papers of the new answer are the ones of the old (the server only keeps or removes claims), so a citation that points at a paper
+ * this reply does not have is refused and the reply is left as it was. `paperId`s are the page's own, not the request's placeholders.
+ */
+export function applyTighten(m: AssistantMsg, res: TightenResponse): AssistantMsg {
+  const a = res?.answer;
+  if (!a || typeof a.text !== "string" || !Array.isArray(a.citations)) return failTighten(m, "The check sent back something that could not be read.");
+  const citations = [];
+  for (const c of a.citations) {
+    const p = m.papers[c.n - 1];
+    if (!p || !Number.isInteger(c.n) || typeof c.sentence !== "string") return failTighten(m, "The check sent back something that could not be read.");
+    citations.push({ n: c.n, paperId: p.id, sentenceNo: c.sentenceNo, sentence: c.sentence });
+  }
+  const answer: ChatAnswer = { ...a, citations, strict: true };
+  return { ...m, answer, strict: { status: "done", note: res.changed ? undefined : "unchanged" } };
 }

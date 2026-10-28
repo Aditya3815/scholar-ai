@@ -1,11 +1,12 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowRight, ChevronDown, FileStack, Info, Lightbulb, ListChecks, RefreshCw, Search, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { GENERAL_LABEL, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, ROUTE_NAMES, type AssistantMsg, type ChatMsg, type IdeaMsg, type ChatNoAnswer, type RouteMode } from "@scholar/shared";
+import { GENERAL_LABEL, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, ROUTE_NAMES, canTighten, type AssistantMsg, type ChatMsg, type IdeaMsg, type ChatNoAnswer, type RouteMode } from "@scholar/shared";
 import { SignInDialog } from "../components/AccountMenu";
 import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
 import { StreamingText } from "../components/papers/AskPanel";
+import { cancelTighten, tightenReply } from "../lib/chat";
 import { openPreview } from "../lib/preview";
 import { easeOut, spring } from "../lib/motion";
 import { PAPERS_NAME } from "../lib/workspace";
@@ -193,6 +194,36 @@ function Understood({ msg, text, working, onChange, onExact }: { msg: AssistantM
   );
 }
 
+/**
+ * "Check strictly": a slower, stronger second reading of the answer, asked for by the reader (docs/design/claim-support.md). Shown only for an answer that was read claim by claim and
+ * whose papers still have the abstracts it was made from; while it runs the reader can cancel, and the answer stays as it was until the new one comes back whole.
+ */
+function Strict({ msg, signedIn }: { msg: AssistantMsg; signedIn: boolean }) {
+  const s = msg.strict;
+  if (s?.status === "working") {
+    return (
+      <p className="chat-strict" role="status">
+        <span className="pulse-dot" aria-hidden="true" /> Reading every claim again with a stronger check. This takes 20 to 45 seconds.{" "}
+        <button type="button" className="link-btn" onClick={() => cancelTighten(msg.id)}>Cancel</button>
+      </p>
+    );
+  }
+  if (msg.answer?.strict) {
+    return s?.note === "unchanged" ? <p className="chat-strict" role="status">The stronger check found nothing to change.</p> : null;
+  }
+  if (!signedIn || !canTighten(msg)) return null;
+  return (
+    <div className="chat-strict">
+      {s?.status === "failed" && <p className="chat-strict-err" role="alert"><TriangleAlert size={14} aria-hidden="true" /> {s.note ?? "The strict check could not be done."}</p>}
+      <button type="button" className="btn btn-ghost btn-sm" onClick={() => void tightenReply(msg.id)} aria-describedby={`${msg.id}-strict-h`}>
+        <ShieldCheck size={14} aria-hidden="true" />
+        <span>Check strictly</span>
+      </button>
+      <span className="chat-strict-h" id={`${msg.id}-strict-h`}>A slower, stronger second reading. It can leave out or shorten statements that say more than their sentences. About 5,000 tokens of today&apos;s allowance.</span>
+    </div>
+  );
+}
+
 function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, onRefine, onOpenPage }: { msg: AssistantMsg; text: string; signedIn: boolean; flash: { msgId: string; n: number } | null; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void }) {
   const working = msg.status === "working";
   const byN = (n: number) => msg.papers[n - 1];
@@ -230,9 +261,10 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, 
       {answer ? (
         <m.div className="chat-answer" initial={{ opacity: 0.4 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
           <span className="ask-status" data-tone={answer.checked === false ? "warn" : "ok"}>
-            <ShieldCheck size={15} aria-hidden="true" /> {answer.checked ? "Each claim was read against the sentences it cites" : answer.checked === false ? "Every mark points at a sentence of an abstract. The claims were not read against them this time" : "Every mark points at a sentence of an abstract"}
+            <ShieldCheck size={15} aria-hidden="true" /> {answer.strict ? "Each claim was read strictly against the sentences it cites" : answer.checked ? "Each claim was read against the sentences it cites" : answer.checked === false ? "Every mark points at a sentence of an abstract. The claims were not read against them this time" : "Every mark points at a sentence of an abstract"}
           </span>
           {!!answer.leftOut && <p className="chat-left-out" role="note">{answer.leftOut === 1 ? "One statement was left out: the sentences it cited do not support it." : `${answer.leftOut} statements were left out: the sentences they cited do not support them.`}</p>}
+          {!!answer.rewritten && <p className="chat-left-out" role="note">{answer.rewritten === 1 ? "One statement was shortened to what its sentences say." : `${answer.rewritten} statements were shortened to what their sentences say.`}</p>}
           <AnswerText text={answer.text} onCite={(n) => onCite(msg.id, n)} label={(n) => `Source ${n}: ${titleOf(n)}. Show the paper`} />
           <details className="chat-evidence">
             <summary>The sentences behind it</summary>
@@ -250,6 +282,7 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, 
               ))}
             </ul>
           </details>
+          <Strict msg={msg} signedIn={signedIn} />
         </m.div>
       ) : working && msg.live ? (
         <StreamingText text={msg.live} writing={msg.step === "write"} />

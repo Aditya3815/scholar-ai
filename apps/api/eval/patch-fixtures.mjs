@@ -34,6 +34,8 @@ for (const arg of [...rest, ...fromFile]) {
   if (u.host === "api.openalex.org" && vars.OPENALEX_API_KEY) u.searchParams.set("api_key", vars.OPENALEX_API_KEY);
   if (u.host === "api.crossref.org") u.searchParams.set("mailto", vars.CROSSREF_MAILTO);
   const isCore = u.host === "api.core.ac.uk";
+  // DOAJ answers two requests a second for everyone
+  if (u.host === "doaj.org" && added + skipped > 0) await new Promise((r) => setTimeout(r, 800));
   if (isCore && !vars.CORE_API_KEY) { console.error(`not recorded (no CORE_API_KEY): ${key}`); process.exitCode = 1; continue; }
   // CORE allows ten requests a minute: one every seven seconds, and a 429 is waited out (its reset time is in the response) rather than recorded
   if (isCore && added + skipped > 0) await new Promise((r) => setTimeout(r, 7000));

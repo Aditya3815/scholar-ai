@@ -16,7 +16,7 @@ export function rateLimit(): MiddlewareHandler<{ Bindings: LimitEnv }> {
       ? c.env.SEARCH_LIMITER
       : path.startsWith("/api/v1/references")
         ? c.env.VERIFY_LIMITER
-        : /^\/api\/v1\/documents\/[^/]+\/ask$/.test(path) || path === "/api/v1/papers/oa/ask" || path === "/api/v1/idea/plan" || path === "/api/v1/idea/compare"
+        : /^\/api\/v1\/documents\/[^/]+\/ask$/.test(path) || path === "/api/v1/papers/oa/ask" || path === "/api/v1/chat/tighten" || path === "/api/v1/idea/plan" || path === "/api/v1/idea/compare"
           ? c.env.ASK_LIMITER
           : path === "/api/v1/idea/search"
             ? c.env.SEARCH_LIMITER

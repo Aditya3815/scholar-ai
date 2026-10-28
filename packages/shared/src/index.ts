@@ -79,10 +79,16 @@ export const PROVIDER_LABELS = {
   crossref: "Crossref",
   pubmed: "PubMed",
   arxiv: "arXiv",
+  "doaj-all": "DOAJ (open access journals)",
   doaj: "DOAJ (journals published in India)",
   shodhganga: "Shodhganga theses (listed by OpenAlex)",
   "openalex-india": "OpenAlex (authors at Indian institutions)",
 } as const;
+
+/** The sources of the regular search, in the order their answers are merged (apps/api/src/search/index.ts, SCOPES.all). */
+export const REGULAR_SOURCES = ["openalex", "s2", "crossref", "pubmed", "doaj-all"] as const satisfies readonly (keyof typeof PROVIDER_LABELS)[];
+/** Sources whose failure alone does not make a search "incomplete": a supplement that answers from a lane two requests a second for everyone. */
+export const OPTIONAL_SOURCES: readonly string[] = ["doaj-all"];
 
 /**
  * Where a search looks. "all": the regular sources. "india": only Indian sources, the reader's choice (spike R12, docs/design/india-sources.md): journals

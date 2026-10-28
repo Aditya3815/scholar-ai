@@ -290,7 +290,7 @@ afterAll(() => {
   for (const [k, v] of rows) log(`${k.padEnd(62)} ${v}`);
   if (layer.missing.length) {
     log(`\n--- ${layer.missing.length} requests had no recording (replay) ---`);
-    const byHost: Record<string, number> = {}; for (const k of layer.missing) { const h = new URL(k.slice(k.indexOf(" ") + 1)).host + " " + (k.includes("filter=doi") ? "doi-batch" : k.includes("filter=updates") ? "retraction" : k.includes("query.") ? "search" : "other"); byHost[h] = (byHost[h] ?? 0) + 1; } log("  by kind: " + JSON.stringify(byHost)); for (const k of [...new Set(layer.missing)].slice(0, 60)) log("  " + k); // in full: they can be fed to eval/patch-fixtures.mjs
+    const byHost: Record<string, number> = {}; for (const k of layer.missing) { const h = new URL(k.slice(k.indexOf(" ") + 1)).host + " " + (k.includes("filter=doi") ? "doi-batch" : k.includes("filter=updates") ? "retraction" : k.includes("query.") ? "search" : "other"); byHost[h] = (byHost[h] ?? 0) + 1; } log("  by kind: " + JSON.stringify(byHost)); for (const k of [...new Set(layer.missing)]) log("  " + k); // all of them, to be fed to eval/patch-fixtures.mjs (--from-file); a new source needs a few rounds, each round of recordings shows the requests that depend on it
   }
   for (const [section, lines] of Object.entries(DETAIL)) {
     if (!lines.length) continue;

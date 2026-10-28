@@ -12,7 +12,7 @@ A switch under the prompt box, **Indian sources** (off by default, remembered on
 | **Shodhganga theses** | about 117,600 theses, **as OpenAlex lists them** | OpenAlex `locations.source.id:S4377209701` + `title_and_abstract.search` | Shodhganga itself refuses programs (bot wall, `Disallow: /`): nothing is fetched from it. A thesis is listed with a link to its page; almost none has an abstract (about 1,000), a DOI or a PDF |
 | **Indian institutions** | papers with an author at an institution in India | OpenAlex `authorships.institutions.country_code:IN` + `title_and_abstract.search` | |
 
-The regular search is **unchanged** (same four sources): its quality gate replays recorded answers of those four, and a new source can make the first page worse. The Indian sources are a choice, not a silent addition.
+The regular search did not change when this was built (four sources). DOAJ was added to it later the same day, after the search eval was re-recorded: [doaj-regular.md](doaj-regular.md). The Indian sources are a choice, not a silent addition.
 
 ## What the reader sees
 
@@ -45,7 +45,7 @@ The search words go to OpenAlex and DOAJ instead of the four regular sources whe
 
 ## Not done, on purpose
 
-- **DOAJ in the regular search**: it would need the search eval re-recorded with DOAJ answers and a check that the first page does not get worse. Worth doing if the switch is used a lot.
+- **DOAJ in the regular search**: done the same day, measured and re-recorded: [doaj-regular.md](doaj-regular.md). The Indian scope itself is unchanged.
 - **Harvesting Shodhganga** or reading its PDFs: needs INFLIBNET's permission (yours to ask for, if you want it).
 - **Literature scan with Indian sources**: the scan uses the regular search. Easy to add as a choice on the scan page later.
 - **Hindi or other Indian-language queries to DOAJ**: DOAJ is searched with the English words (Auto translates a Hindi or Hinglish message first, as for the regular search).

@@ -32,6 +32,22 @@ describe("rateLimit", () => {
     expect(api.calls).toEqual(["203.0.113.7"]);
   });
 
+  it("puts the strict check of an answer on the AI bucket, and the chat itself on the search bucket", async () => {
+    const ask = limiter(true);
+    const api = limiter(true);
+    const search = limiter(true);
+    const app = new Hono<{ Bindings: LimitEnv }>();
+    app.use("/api/*", rateLimit());
+    app.post("/api/v1/chat/tighten", (c) => c.json({ ok: true }));
+    app.post("/api/v1/chat", (c) => c.json({ ok: true }));
+    const env = { SEARCH_LIMITER: search, ASK_LIMITER: ask, API_LIMITER: api };
+    await app.request("/api/v1/chat/tighten", { method: "POST", headers: { "cf-connecting-ip": "198.51.100.9" } }, env);
+    await app.request("/api/v1/chat", { method: "POST", headers: { "cf-connecting-ip": "198.51.100.9" } }, env);
+    expect(ask.calls).toEqual(["198.51.100.9"]);
+    expect(search.calls).toEqual(["198.51.100.9"]);
+    expect(api.calls).toEqual([]);
+  });
+
   it("gives reference verification its own bucket", async () => {
     const verify = limiter(true);
     const api = limiter(true);

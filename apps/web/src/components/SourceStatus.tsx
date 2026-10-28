@@ -1,5 +1,5 @@
 import { m } from "motion/react";
-import { PROVIDER_LABELS, type ProviderStatus } from "@scholar/shared";
+import { PROVIDER_LABELS, REGULAR_SOURCES, type ProviderStatus } from "@scholar/shared";
 import { AlertTriangle, BadgeCheck, ShieldCheck, Zap } from "lucide-react";
 import type { SearchState } from "../lib/search";
 import { easeOut } from "../lib/motion";
@@ -43,7 +43,7 @@ function Chip({ label, status, pending }: { label: string; status?: ProviderStat
 }
 
 export function SourceStatus({ state }: { state: SearchState }) {
-  const ids = Object.keys(PROVIDER_LABELS) as (keyof typeof PROVIDER_LABELS)[];
+  const ids = REGULAR_SOURCES; // the sources this page asks (not arXiv or the Indian ones, which it never does)
   const loading = state.status === "loading";
   const finished = ids.filter((id) => state.providers[id]).length;
 

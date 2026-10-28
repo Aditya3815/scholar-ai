@@ -9,6 +9,8 @@ describe("the words sent to DOAJ", () => {
   it("keeps the words that carry meaning, joined so that each must be in the record", () => {
     expect(doajQuery("Groundwater quality assessment")).toBe("groundwater AND quality AND assessment");
     expect(doajQuery("anaemia in adolescent girls of India")).toBe("anaemia AND adolescent AND girls");
+    expect(doajQuery("anaemia in adolescent girls of India", { keepPlaces: true })).toBe("anaemia AND adolescent AND girls AND india");
+    expect(doajQuery("Indian languages", { keepPlaces: true })).toBe("indian AND languages");
   });
   it("lets nothing of the query syntax through: quotes, colons, brackets, wildcards and operators become plain words or go", () => {
     const q = doajQuery('title:"x" OR (bibjson.journal.country:US) AND glau* -cancer \\ NOT');
@@ -147,11 +149,45 @@ describe("runSearch with the Indian scope", () => {
     expect(out.results.length).toBe(2);
   });
 
-  it("the regular search does not change: no Indian source is asked and no scope is reported", async () => {
+  it("the regular search asks DOAJ too, without the country, and no Indian source: no scope is reported", async () => {
     const asked = network();
     const out = await runSearch(env(), "glaucoma screening", 20);
-    expect(asked.some((a) => a.startsWith("doaj") || a.includes("country_code") || a.includes(SHODHGANGA_SOURCE))).toBe(false);
+    expect(asked.some((a) => a.includes("country_code") || a.includes(SHODHGANGA_SOURCE))).toBe(false);
+    expect(asked.filter((a) => a.startsWith("doaj"))).toEqual(["doaj /api/v4/search/articles/(glaucoma AND screening)"]);
     expect(out.scope).toBeUndefined();
-    expect(Object.keys(out.providers).sort()).toEqual(["crossref", "openalex", "pubmed", "s2"]);
+    expect(Object.keys(out.providers).sort()).toEqual(["crossref", "doaj-all", "openalex", "pubmed", "s2"]);
+  });
+
+  it("keeps the word India in the regular search (the Indian scope leaves it out, the scope says it)", async () => {
+    const asked = network();
+    await runSearch(env(), "gender pay gap in India", 20);
+    expect(asked.filter((a) => a.startsWith("doaj"))).toEqual(["doaj /api/v4/search/articles/(gender AND pay AND gap AND india)"]);
+  });
+
+  it("a paper that DOAJ and another index both have is one paper, with both named, and the others' fields come first", async () => {
+    network();
+    const out = await runSearch(env(), "glaucoma screening", 20);
+    const article = out.results.find((p) => p.doi === "10.4103/ijo.1");
+    expect(article).toBeTruthy();
+    expect(out.results.filter((p) => p.doi === "10.4103/ijo.1")).toHaveLength(1);
+    expect(article!.sources).toContain("doaj-all");
+    expect(article!.sources[0]).not.toBe("doaj-all");
+  });
+
+  it("DOAJ failing does not take the other sources' papers away, and its failure is reported", async () => {
+    network({ doajStatus: 503 });
+    const out = await runSearch(env(), "glaucoma screening", 20);
+    expect(out.providers["doaj-all"]).toMatchObject({ ok: false, error: "DOAJ HTTP 503" });
+    expect(out.results.length).toBeGreaterThan(0);
+  });
+
+  it("the regular search and the Indian one do not share what DOAJ answered (two names in the cache)", async () => {
+    network();
+    const store = memoryStore();
+    const e = { ...env(), store };
+    const asked = network();
+    await runSearch(e, "glaucoma screening", 20);
+    await runSearch(e, "glaucoma screening", 20, {}, "india");
+    expect(asked.filter((a) => a.startsWith("doaj"))).toEqual(["doaj /api/v4/search/articles/(glaucoma AND screening)", "doaj /api/v4/search/articles/(glaucoma AND screening) AND bibjson.journal.country:IN"]);
   });
 });

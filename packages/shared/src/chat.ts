@@ -42,6 +42,10 @@ export type ChatAnswer = {
   checked?: boolean;
   /** How many claims were taken out because the sentences they cite do not support them. */
   leftOut?: number;
+  /** How many claims were cut down to what their sentences say (the shorter claim adds nothing and a second reading calls it fully supported). */
+  rewritten?: number;
+  /** True when the answer was read again by the strict check (a slower, stronger model; asked for by the reader). */
+  strict?: boolean;
 };
 
 /** Why a message has papers but no written answer. */
@@ -93,3 +97,15 @@ export function slimForInterim(papers: readonly Paper[]): Paper[] {
     return { ...p, abstract: `${(at > INTERIM_ABSTRACT_CHARS * 0.6 ? cut.slice(0, at) : cut).replace(/[\s,;:.]+$/, "")}…` };
   });
 }
+
+/**
+ * "Check strictly" (docs/design/claim-support.md): the reader asks for a slower, stronger second reading of a finished answer. The browser sends the answer's words and the papers it was
+ * made from (their abstracts, as the search found them) and which sentence of each was shown; the server judges the claims again with the stronger model, cuts down the statements that
+ * say more than their sentences, and sends back the answer. It takes the words of the abstracts from the request, so the answer it returns is only as true as those; it is shown to the
+ * person who asked, and kept nowhere else.
+ */
+export const MAX_TIGHTEN_TEXT = 2000;
+export const MAX_TIGHTEN_PAPERS = 12;
+export const MAX_TIGHTEN_ABSTRACT = 2500;
+export type TightenRequest = { text: string; papers: { n: number; title: string; year: number | null; abstract: string }[]; citations: { n: number; sentenceNo: number }[] };
+export type TightenResponse = { answer: ChatAnswer; changed: boolean };

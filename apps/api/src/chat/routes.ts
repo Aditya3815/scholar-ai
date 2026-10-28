@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { NOTHING_NOTICE, PARTIAL_NOTICE, SMALL_TALK_REPLY, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, ruleRoute, slimForInterim, type ChatCitation, type ChatEvent, type ChatNoAnswer, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
+import { NOTHING_NOTICE, PARTIAL_NOTICE, SMALL_TALK_REPLY, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, ruleRoute, slimForInterim, type ChatAnswer, type ChatCitation, type ChatEvent, type TightenResponse, type ChatNoAnswer, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { cacheStore } from "../cache";
 import type { Complete, StreamComplete } from "../docs/qa";
@@ -8,11 +8,13 @@ import { runSearch } from "../search";
 import { sseStream } from "../sse";
 import type { SearchEnv } from "../search/types";
 import type { S2Throttle } from "../s2-throttle";
+import { searchComplete } from "./complete";
 import { answerFromResults, pickEvidencePapers, type Picked } from "./answer";
-import { judgeAnswer } from "./support";
+import { judgeAnswer, type JudgeReport } from "./support";
+import { readTighten } from "./tighten";
 import { answerGeneral } from "./general";
 import { routeMessage } from "./router";
-import { stubChatStream, stubJudgeStream, stubSearchFor } from "./stub";
+import { stubChatStream, stubJudgeStream, stubSearchFor, stubStrictStream } from "./stub";
 import { stubRoute } from "./stub-route";
 import { countOutcome } from "../outcomes";
 
@@ -48,8 +50,8 @@ const deny = (c: Context<Env>, status: 400 | 403, type: string, title: string, d
 const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
 
 /** How the judge did on one answer, for the logs: counts and times only, never a word of the question, the answer or an abstract. */
-const logJudged = (r: { ms: number; model?: string; counts: Record<string, number>; leftOut: number; error?: string }) =>
-  console.log(JSON.stringify({ level: r.error ? "warn" : "info", msg: "chat_judge", ms: r.ms, model: r.model, ...r.counts, leftOut: r.leftOut, ...(r.error ? { error: r.error } : {}) }));
+const logJudged = (r: JudgeReport) =>
+  console.log(JSON.stringify({ level: r.error ? "warn" : "info", msg: "chat_judge", ms: r.ms, model: r.model, ...r.counts, leftOut: r.leftOut, rewritten: r.rewritten ?? 0, offered: r.rewrites?.length ?? 0, ...(r.checkMs === undefined ? {} : { checkMs: r.checkMs }), ...(r.error ? { error: r.error } : {}) }));
 
 const searchEnv = (env: Bindings): SearchEnv => ({
   store: cacheStore(env),
@@ -75,11 +77,11 @@ function streamFor(env: Bindings, subject: string, abort: AbortSignal): StreamCo
  * The support judge's model (chat/support.ts): the answer to the person's own question, so PRIVATE. Shorter timeout than the answer's: a judge that takes longer is not waited for
  * (the answer is then shown as written and says it was not checked).
  */
-function judgeStreamFor(env: Bindings, subject: string, abort: AbortSignal): StreamComplete {
+function judgeStreamFor(env: Bindings, subject: string, abort: AbortSignal, timeoutMs = 20_000): StreamComplete {
   if (stubbed(env)) return stubJudgeStream(env);
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
-    const r = await gateway.stream({ task: "verify", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 20_000, label: req.label }, hooks, abort);
+    const r = await gateway.stream({ task: "verify", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs, label: req.label }, hooks, abort);
     return { json: r.json, model: r.model };
   };
 }
@@ -94,8 +96,6 @@ function routeCompleteFor(env: Bindings, subject: string): Complete {
   };
 }
 
-/** Did every place that was asked answer? (A place that was not asked, because it is not in this search, is not counted.) */
-const complete = (r: SearchResponse) => Object.values(r.providers).every((p) => p.ok);
 
 /**
  * One message, one stream. `mode: "search"` is the reader's own choice (the words are searched as written); `mode: "auto"` lets the router choose the tool (router.ts). For a
@@ -186,7 +186,7 @@ chatRoutes.post("/", async (c) => {
       }
       if (s.gone) return;
       await send({ type: "papers", results: found.results, final: true });
-      if (!complete(found)) await send({ type: "notice", kind: "partial", text: PARTIAL_NOTICE });
+      if (!searchComplete(found)) await send({ type: "notice", kind: "partial", text: PARTIAL_NOTICE });
       if (found.results.length === 0) {
         await send({ type: "notice", kind: "nothing", text: NOTHING_NOTICE });
         if (user) await background(user.id, route.language);
@@ -217,7 +217,7 @@ chatRoutes.post("/", async (c) => {
       if (s.gone) return;
       // the judge's reading already said "check" (answerFromResults); an answer that was not judged says it now
       if (answer.checked === undefined) await send({ type: "step", step: "check" });
-      await send({ type: "answer", answer: { text: answer.text, citations: answer.citations, grounded: answer.grounded, ...(answer.checked === undefined ? {} : { checked: answer.checked, leftOut: answer.leftOut ?? 0 }) } });
+      await send({ type: "answer", answer: { text: answer.text, citations: answer.citations, grounded: answer.grounded, ...(answer.checked === undefined ? {} : { checked: answer.checked, leftOut: answer.leftOut ?? 0, rewritten: answer.rewritten ?? 0 }) } });
       // papers first: only when they do not answer, and the model itself says so (not when an answer was written and could not be checked), a labelled background follows
       if (!answer.grounded && !answer.enough) await background(user.id, route.language);
       await done(answer.grounded, answer.grounded ? undefined : answer.enough ? "not_grounded" : "not_answered");
@@ -252,7 +252,7 @@ chatRoutes.post("/judge", async (c) => {
   if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
   const user = await currentUser(c);
   if (!user) return deny(c, 403, "forbidden", "Sign in first");
-  const body = (await c.req.json().catch(() => null)) as { text?: unknown; papers?: unknown; model?: unknown; reasoning?: unknown } | null;
+  const body = (await c.req.json().catch(() => null)) as { text?: unknown; papers?: unknown; model?: unknown; reasoning?: unknown; timeoutMs?: unknown; strict?: unknown; recheck?: unknown } | null;
   const text = typeof body?.text === "string" ? body.text.slice(0, 3000) : "";
   const list = Array.isArray(body?.papers) ? (body!.papers as { n?: unknown; title?: unknown; year?: unknown; abstract?: unknown }[]) : [];
   if (!text || list.length === 0 || list.length > 12) return deny(c, 400, "invalid_message", "text and 1 to 12 papers are needed");
@@ -265,6 +265,60 @@ chatRoutes.post("/judge", async (c) => {
   const citations: ChatCitation[] = cited.map((p) => ({ n: p.n, paperId: p.paper.id, sentenceNo: 1, sentence: "" }));
   const env = { ...c.env, LLM_VERIFY_MODEL: typeof body?.model === "string" ? body.model : undefined, LLM_REASONING: typeof body?.reasoning === "string" ? body.reasoning : undefined };
   let detail: unknown = null;
-  const result = await judgeAnswer({ answer: { text, citations }, picked, judge: judgeStreamFor(env as Bindings, user.id, c.req.raw.signal), onResult: (r) => (detail = r) });
+  // `strict`: what "Check strictly" does (the stronger model judges, the quick one reads the shorter claims again), so that it can be measured
+  const strict = body?.strict === true;
+  const quick = judgeStreamFor(env as Bindings, user.id, c.req.raw.signal, typeof body?.timeoutMs === "number" ? Math.min(120_000, Math.max(5_000, body.timeoutMs)) : 20_000);
+  const result = await judgeAnswer({ answer: { text, citations }, picked, judge: strict ? strictStreamFor(env as Bindings, user.id, c.req.raw.signal, () => {}) : quick, recheck: strict ? (body?.recheck === "strong" ? strictStreamFor(env as Bindings, user.id, c.req.raw.signal, () => {}) : judgeStreamFor(env as Bindings, user.id, c.req.raw.signal)) : undefined, strict, onResult: (r) => (detail = r) });
   return c.json({ result, detail });
+});
+
+/** The strict check's model: the stronger one that wrote the answer (it thinks before it answers: 20 to 45 s), always PRIVATE. */
+function strictStreamFor(env: Bindings, subject: string, abort: AbortSignal, onQuota: () => void): StreamComplete {
+  const gateway = stubbed(env) ? null : gatewayFromEnv(env);
+  return async (req, hooks) => {
+    try {
+      if (!gateway) return await stubStrictStream(req, hooks);
+      const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: 4500, timeoutMs: 75_000, label: req.label }, hooks, abort);
+      return { json: r.json, model: r.model };
+    } catch (e) {
+      if (e instanceof QuotaError) onQuota();
+      throw e;
+    }
+  };
+}
+
+/**
+ * "Check strictly": the reader asks for a slower, stronger second reading of an answer already on the screen (docs/design/claim-support.md). The stronger model judges every claim again,
+ * statements that say more than their sentences are cut down to what the sentences say (each only if it adds nothing and a second, quick reading calls it fully supported), and the
+ * answer comes back. It is asked for, never automatic: it takes 20 to 45 seconds and about 5,000 tokens of the day's allowance.
+ */
+chatRoutes.post("/tighten", async (c) => {
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 403, "sign_in", "Sign in to check an answer strictly");
+  // the switch that turns the support judge off (CHAT_JUDGE=off) turns the strict check off too: a page that was opened before it still shows the button
+  if (c.env.CHAT_JUDGE === "off") return c.json({ type: "unavailable", title: "The strict check is switched off", detail: "Try again later." }, 503);
+  const read = readTighten(await c.req.json().catch(() => null));
+  if (!read.ok) return deny(c, 400, "invalid_request", "That answer cannot be checked", read.detail);
+  const { text, picked, citations } = read.input;
+  let quota = false;
+  let report: JudgeReport | undefined;
+  const judged = await judgeAnswer({
+    answer: { text, citations },
+    picked,
+    judge: strictStreamFor(c.env, user.id, c.req.raw.signal, () => (quota = true)),
+    recheck: judgeStreamFor(c.env, user.id, c.req.raw.signal),
+    strict: true,
+    label: "chat_strict",
+    onResult: (r) => (report = r),
+  });
+  if (report) logJudged({ ...report, verdicts: undefined, rewrites: report.rewrites?.map((x) => ({ c: x.c, text: "", ...(x.accepted === undefined ? {} : { accepted: x.accepted }) })) });
+  if (!judged) {
+    return quota
+      ? c.json({ type: "quota", title: "Today's AI allowance is used up", detail: "The strict check uses about 5,000 tokens. It resets at 00:00 UTC." }, 429)
+      : c.json({ type: "unavailable", title: "The strict check could not be done", detail: "Try again in a moment." }, 503);
+  }
+  const answer: ChatAnswer = { text: judged.text, citations: judged.citations, grounded: judged.grounded, checked: judged.checked, leftOut: judged.leftOut, rewritten: judged.rewritten, strict: true };
+  const changed = judged.leftOut > 0 || judged.rewritten > 0 || judged.text !== text;
+  return c.json({ answer, changed } satisfies TightenResponse);
 });

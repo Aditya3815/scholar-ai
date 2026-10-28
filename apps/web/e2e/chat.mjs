@@ -22,7 +22,7 @@ const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "mse
 const errors = [];
 const watch = (p) => {
   p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409)/.test(m.text())) errors.push("console: " + m.text()); });
+  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409|429|503)/.test(m.text())) errors.push("console: " + m.text()); });
 };
 const newCtx = (opts = {}) => browser.newContext({ viewport: { width: 1360, height: 900 }, ...opts });
 const flag = (ctx) => ctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "1"); } catch {} });
@@ -201,6 +201,62 @@ try {
   await page.locator(`${lastLi} .chat-turn[data-status="done"]`).waitFor({ timeout: 30000 });
   await page.locator(`${lastLi} .chat-evidence summary`).click();
   ok(/Performance was lower for images with cataract/.test(await page.locator(`${lastLi} .chat-evidence`).innerText()), "the sentences behind the answer are the ones the judge found");
+
+  console.log("\"Check strictly\": the reader asks for a stronger second reading");
+  await send("tighten glaucoma", { tool: false });
+  await page.locator(`${lastLi} .chat-turn[data-status="done"]`).waitFor({ timeout: 30000 });
+  const strictBtn = page.locator(`${lastLi} .chat-strict`).getByRole("button", { name: "Check strictly" });
+  ok(await strictBtn.isVisible() && /also claims a cure/.test(await page.locator(`${lastLi} .chat-answer`).innerText()), "an answer that was read claim by claim offers 'Check strictly', and says what it costs");
+  ok(/About 5,000 tokens/.test(await page.locator(`${lastLi} .chat-strict-h`).innerText()) && !!(await strictBtn.getAttribute("aria-describedby")), "the cost is said in words, and tied to the button for a screen reader");
+  await axe("an answer with Check strictly", page);
+  await strictBtn.click();
+  await page.locator(`${lastLi} .chat-answer`).waitFor();
+  await page.waitForFunction((sel) => /read strictly/.test(document.querySelector(sel)?.textContent ?? ""), `${lastLi} .chat-answer`, { timeout: 15000 });
+  const strictAns = await page.locator(`${lastLi} .chat-answer`).innerText();
+  ok(/The first paper reports its main result/.test(strictAns) && !/cure/.test(strictAns), "the statement that said more than its sentence is cut down to what the sentence says");
+  ok(/One statement was shortened to what its sentences say/.test(await page.locator(`${lastLi} .chat-left-out`).innerText()), "the reader is told one statement was shortened");
+  ok(await page.locator(`${lastLi} .chat-strict`).count() === 0 && await page.locator(`${lastLi} .chat-answer`).getByRole("button", { name: /^Source 1/ }).isVisible(), "the button is gone once it was used, and the mark still opens its paper");
+  await page.locator(`${lastLi} .chat-evidence summary`).click();
+  ok(/AUC of 0\.94/.test(await page.locator(`${lastLi} .chat-evidence`).innerText()), "the sentence behind it is still the abstract's own");
+  await axe("an answer checked strictly", page);
+
+  await send("tightenfail glaucoma", { tool: false });
+  await page.locator(`${lastLi} .chat-turn[data-status="done"]`).waitFor({ timeout: 30000 });
+  const failBtn = page.locator(`${lastLi} .chat-strict`).getByRole("button", { name: "Check strictly" });
+  const answerOnly = (sel) => page.locator(sel).evaluate((el) => { const c = el.cloneNode(true); c.querySelectorAll(".chat-strict").forEach((n) => n.remove()); return c.textContent; });
+  const beforeFail = await answerOnly(`${lastLi} .chat-answer`);
+  await failBtn.click();
+  await page.locator(`${lastLi} .chat-strict-err`).waitFor({ timeout: 15000 });
+  ok(/could not be done/.test(await page.locator(`${lastLi} .chat-strict-err`).innerText()) && await page.locator(`${lastLi} .chat-strict-err`).getAttribute("role") === "alert", "when the stronger check fails the reader is told, in an alert");
+  ok((await answerOnly(`${lastLi} .chat-answer`)) === beforeFail && await failBtn.isVisible(), "...the answer is exactly as it was, and the button is there to try again");
+  await axe("a strict check that failed", page);
+
+  await send("tightenquota glaucoma", { tool: false });
+  await page.locator(`${lastLi} .chat-turn[data-status="done"]`).waitFor({ timeout: 30000 });
+  await page.locator(`${lastLi} .chat-strict`).getByRole("button", { name: "Check strictly" }).click();
+  await page.locator(`${lastLi} .chat-strict-err`).waitFor({ timeout: 15000 });
+  ok(/allowance/i.test(await page.locator(`${lastLi} .chat-strict-err`).innerText()), "when the day's allowance is used up the reader is told so");
+
+  await send("tightenslow glaucoma", { tool: false });
+  await page.locator(`${lastLi} .chat-turn[data-status="done"]`).waitFor({ timeout: 30000 });
+  const slowBefore = await answerOnly(`${lastLi} .chat-answer`);
+  await page.locator(`${lastLi} .chat-strict`).getByRole("button", { name: "Check strictly" }).click();
+  const working = page.locator(`${lastLi} .chat-strict[role=status]`);
+  await working.waitFor({ timeout: 5000 });
+  ok(/20 to 45 seconds/.test(await working.innerText()), "while it runs the reader is told how long it takes, in a polite status");
+  await working.getByRole("button", { name: "Cancel" }).click();
+  await page.locator(`${lastLi} .chat-strict`).getByRole("button", { name: "Check strictly" }).waitFor({ timeout: 5000 });
+  await page.waitForTimeout(4500); // the server's answer, after the cancel, must change nothing
+  ok((await answerOnly(`${lastLi} .chat-answer`)) === slowBefore && await page.locator(`${lastLi} .chat-strict-err`).count() === 0, "Cancel leaves the answer exactly as it was, without an error, and the late answer does not change it");
+
+  await send("tighten glaucoma again", { tool: false });
+  await page.locator(`${lastLi} .chat-turn[data-status="done"]`).waitFor({ timeout: 30000 });
+  await page.locator(`${lastLi} .chat-strict`).getByRole("button", { name: "Check strictly" }).click();
+  await page.waitForFunction((sel) => /read strictly/.test(document.querySelector(sel)?.textContent ?? ""), `${lastLi} .chat-answer`, { timeout: 15000 });
+  await page.waitForFunction(async () => { const dbs = await indexedDB.databases(); return dbs.length > 0; });
+  await page.waitForTimeout(1200);
+  await page.reload({ waitUntil: "networkidle" });
+  ok(/read strictly/.test(await page.locator(`${lastLi} .chat-answer`).innerText()) && /shortened/.test(await page.locator(`${lastLi} .chat-left-out`).innerText()) && await page.locator(`${lastLi} .chat-strict`).count() === 0, "after a reload the answer that was checked strictly is kept, with what was done to it");
 
   console.log("a silent wait says so");
   await page.evaluate(() => sessionStorage.setItem("scholar.quiet.ms", "1500")); // production waits 15 s

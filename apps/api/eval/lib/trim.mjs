@@ -21,6 +21,19 @@ export function trimBody(url, text) {
       }));
       return scrubEmails(JSON.stringify({ totalHits: j.totalHits, results: j.results }));
     }
+    if (url.includes("doaj.org")) {
+      // what search/india.ts reads (toDoajPapers), without the abstracts (not needed to measure recall)
+      j.results = (j.results ?? []).map((a) => ({
+        bibjson: {
+          title: a?.bibjson?.title ?? null, abstract: null, year: a?.bibjson?.year ?? null,
+          author: (a?.bibjson?.author ?? []).slice(0, 10).map((x) => ({ name: x?.name ?? null })),
+          identifier: (a?.bibjson?.identifier ?? []).filter((i) => i?.type?.toLowerCase() === "doi").map((i) => ({ id: i.id, type: i.type })),
+          journal: { title: a?.bibjson?.journal?.title ?? null, country: a?.bibjson?.journal?.country ?? null },
+          link: (a?.bibjson?.link ?? []).filter((l) => l?.type === "fulltext").slice(0, 1).map((l) => ({ type: l.type, url: l.url })),
+        },
+      }));
+      return scrubEmails(JSON.stringify({ total: j.total, results: j.results }));
+    }
     if (url.includes("api.openalex.org")) {
       for (const r of j.results ?? []) {
         r.abstract_inverted_index = null;

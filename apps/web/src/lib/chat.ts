@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import {
-  applyChatEvent, chatTitle, cleanAutoMessage, cleanChatMessage, interruptAssistant, MAX_CHAT_CHARS, MAX_IDEA_CHARS, MIN_IDEA_CHARS, startAssistant, stopAssistant, trimForStorage,
-  type AssistantMsg, type ChatEvent, type ChatMsg, type IdeaMsg, type SearchScope,
+  applyChatEvent, applyTighten, chatTitle, cleanAutoMessage, cleanChatMessage, failTighten, interruptAssistant, MAX_CHAT_CHARS, MAX_IDEA_CHARS, MIN_IDEA_CHARS, startAssistant, startTighten, stopAssistant, tightenRequestFor, trimForStorage,
+  type AssistantMsg, type ChatEvent, type ChatMsg, type IdeaMsg, type SearchScope, type TightenResponse,
 } from "@scholar/shared";
 import { idbClear, idbDelete, idbGet, idbSet } from "./idb";
 import { showNotice } from "./notice";
@@ -302,8 +302,51 @@ async function run(chatId: string, assistantId: string, text: string, mode: Send
   }
 }
 
+/** The strict checks that are running (by reply), so that Cancel, deleting the chat and signing out can stop them. */
+const tightening = new Map<string, AbortController>();
+
+/**
+ * "Check strictly" on a reply (docs/design/claim-support.md): the answer and the abstracts it was made from go to the server, a stronger model reads every claim again, and the answer
+ * that comes back takes the place of the old one. Nothing is changed unless the answer comes back whole; a failure leaves the reply as it was and says so.
+ */
+export async function tightenReply(assistantId: string): Promise<void> {
+  const chatId = [...state.chats].find(([, msgs]) => msgs.some((m) => m.id === assistantId))?.[0];
+  const msg = chatId ? state.chats.get(chatId)?.find((m): m is AssistantMsg => m.id === assistantId && m.role === "assistant") : undefined;
+  if (!chatId || !msg || tightening.has(assistantId)) return;
+  const body = tightenRequestFor(msg);
+  if (!body) return;
+  const patch = (fn: (m: AssistantMsg) => AssistantMsg) => {
+    const msgs = state.chats.get(chatId);
+    if (msgs) setChat(chatId, msgs.map((m) => (m.id === assistantId && m.role === "assistant" ? fn(m) : m)));
+  };
+  const ctl = new AbortController();
+  tightening.set(assistantId, ctl);
+  patch(startTighten);
+  try {
+    const res = await fetch("/api/v1/chat/tighten", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal });
+    if (!res.ok) {
+      const j = (await res.json().catch(() => null)) as { title?: string; detail?: string } | null;
+      throw new Error(res.status === 429 ? `${j?.title ?? "Too many requests."}${j?.detail ? ` ${j.detail}` : ""}` : res.status === 403 ? "Sign in again to check an answer strictly." : (j?.title ?? "The strict check could not be done.") + (j?.detail && res.status !== 400 ? ` ${j.detail}` : ""));
+    }
+    const out = (await res.json().catch(() => null)) as TightenResponse | null;
+    patch((m) => applyTighten(m, out as TightenResponse));
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") patch((m) => ({ ...m, strict: undefined }));
+    else patch((m) => failTighten(m, e instanceof TypeError ? "The connection was lost. Check your internet and try again." : e instanceof Error ? e.message : "The strict check could not be done."));
+  } finally {
+    tightening.delete(assistantId);
+    persist(chatId, true);
+  }
+}
+
+/** Cancel a strict check that is running: the reply stays as it was. */
+export function cancelTighten(assistantId: string) {
+  tightening.get(assistantId)?.abort();
+}
+
 export function deleteChat(id: string) {
   runs.get(id)?.ctl.abort();
+  for (const m of state.chats.get(id) ?? []) tightening.get(m.id)?.abort();
   window.clearTimeout(timers.get(id));
   const index = state.index.filter((e) => e.id !== id);
   const chats = new Map(state.chats);
@@ -317,6 +360,7 @@ export function deleteChat(id: string) {
 /** Every conversation goes: at sign-out (a shared computer must not show the last person's questions) and from Settings. */
 export async function clearChats(): Promise<void> {
   for (const r of runs.values()) r.ctl.abort();
+  for (const t of tightening.values()) t.abort();
   for (const t of timers.values()) window.clearTimeout(t);
   set({ index: [], chats: new Map(), liveIdeas: new Set(), kept: true });
   try {

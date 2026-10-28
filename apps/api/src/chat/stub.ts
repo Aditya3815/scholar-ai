@@ -1,6 +1,7 @@
 import type { Paper, SearchResponse, SearchScope } from "@scholar/shared";
 import type { StreamComplete } from "../docs/qa";
 import { extractJson } from "../llm/gateway";
+import { QuotaError } from "../llm";
 
 /**
  * Offline stand-ins for the search and the model, used ONLY by tests and the local end-to-end run (QA_STUB=1 with ENABLE_DEV_ROUTES=1, never production secrets).
@@ -95,6 +96,9 @@ export const stubChatStream: StreamComplete = async (req, hooks) => {
     else json = { kind: "background", answer: "In general terms this is a well studied question, and the usual answer depends on the setting, the people involved and how the outcome is measured." };
   } else if (/unanswerable/i.test(q) || !first) json = { coverage: "none", answer: "", evidence: [] };
   else if (/hallucinate/i.test(q)) json = { coverage: "full", answer: `A made-up claim [${first}].`, evidence: [{ n: Number(first), s: 99 }] };
+  else if (/tighten(fail|quota)/i.test(q)) json = { coverage: "full", answer: `The first paper reports its main result (${/tighten\w+/i.exec(q)![0].toLowerCase()}) [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
+  else if (/tightenslow/i.test(q)) json = { coverage: "full", answer: `The first paper reports its main result (tightenslow) and also claims a cure [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
+  else if (/tighten/i.test(q)) json = { coverage: "full", answer: `The first paper reports its main result and also claims a cure [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
   else if (/judgedrop/i.test(q)) json = { coverage: "full", answer: `The first paper reports its main result [${first}]. The paper also claims an invented cure [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
   else if (/judge(fail|bad|slow|move)/i.test(q)) json = { coverage: "full", answer: `The first paper reports its main result (${/judge\w+/i.exec(q)![0].toLowerCase()}) [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
   else json = { coverage: "full", answer: `The first paper reports its main result [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
@@ -124,6 +128,24 @@ export const stubJudgeStream = (_env?: unknown): StreamComplete => async (req) =
     if (!n) return { c: Number(l[1]), v: "framing", refs: [] };
     if (/invented/.test(l[3]!)) return { c: Number(l[1]), v: "no", refs: [] };
     return { c: Number(l[1]), v: "yes", refs: [{ n, s: [move ? 3 : 2] }] };
+  });
+  return { json: { claims }, model: "stub" };
+};
+
+/**
+ * The strict check's model, offline: like the quick judge, but a claim that says "claims a cure" is called `partial` and offered without it; "tightenfail" makes the call fail,
+ * "tightenquota" makes it fail as the daily allowance does, "tightenslow" makes it take four seconds (to press Cancel).
+ */
+export const stubStrictStream: StreamComplete = async (req) => {
+  const lines = [...req.user.matchAll(/^c(\d+) cites ([^:]*): (.*)$/gm)];
+  if (lines.some((l) => /tightenquota/.test(l[3]!))) throw new QuotaError("daily AI quota reached (stub)");
+  if (lines.some((l) => /tightenfail/.test(l[3]!))) throw new Error("the stub strict check failed");
+  if (lines.some((l) => /tightenslow/.test(l[3]!))) await sleep(4000);
+  const claims = lines.map((l) => {
+    const n = Number(/\[(\d+)\]/.exec(l[2]!)?.[1]);
+    if (!n) return { c: Number(l[1]), v: "framing", refs: [], safe: "" };
+    if (/claims a cure/.test(l[3]!)) return { c: Number(l[1]), v: "partial", refs: [{ n, s: [2] }], safe: l[3]!.replace(/ and also claims a cure/, "") };
+    return { c: Number(l[1]), v: "yes", refs: [{ n, s: [2] }], safe: "" };
   });
   return { json: { claims }, model: "stub" };
 };

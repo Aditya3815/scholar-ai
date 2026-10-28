@@ -1,7 +1,7 @@
 import { splitSentences, words, type ChatAnswer, type ChatCitation, type ChatEvent, type Lang, type Paper } from "@scholar/shared";
 import { AnswerFieldStreamer } from "../docs/stream-json";
 import { isMalformedReply } from "./malformed";
-import { judgeAnswer } from "./support";
+import { judgeAnswer, type JudgeReport } from "./support";
 import { abstractOf, dedupeMarkRuns, MAX_SENTENCES_PER_PAPER, shownSentence, tidyMarkPunctuation } from "./evidence";
 import type { StreamComplete } from "../docs/qa";
 
@@ -169,7 +169,7 @@ export function papersOnTheSubject(question: string, picked: readonly Picked[]):
 }
 
 /** Write the answer, telling `emit` the text as it comes, and return the checked answer. The caller handles the model's failures. */
-export async function answerFromResults(args: { question: string; /** The support judge's model (chat/support.ts). Without it the answer is as written and is not judged. */ judge?: StreamComplete; /** Counts only, never words: how the judge did on this answer. */ onJudged?: (r: { ms: number; model?: string; counts: Record<string, number>; leftOut: number; error?: string }) => void; /** The language of the question: the summary is written in it. */ language?: Lang; picked: readonly Picked[]; stream: StreamComplete; emit: (e: ChatEvent) => void | Promise<void>; /** Local debugging only: receives the model's raw JSON. */ onRaw?: (raw: unknown) => void; /** What the usage ledger calls these calls (default: the prompt box's). */ label?: string }): Promise<ChatAnswer & { enough: boolean }> {
+export async function answerFromResults(args: { question: string; /** The support judge's model (chat/support.ts). Without it the answer is as written and is not judged. */ judge?: StreamComplete; /** Counts only, never words: how the judge did on this answer. */ onJudged?: (r: JudgeReport) => void; /** The language of the question: the summary is written in it. */ language?: Lang; picked: readonly Picked[]; stream: StreamComplete; emit: (e: ChatEvent) => void | Promise<void>; /** Local debugging only: receives the model's raw JSON. */ onRaw?: (raw: unknown) => void; /** What the usage ledger calls these calls (default: the prompt box's). */ label?: string }): Promise<ChatAnswer & { enough: boolean }> {
   const marks = { addMissingMarks: !args.judge };
   const field = new AnswerFieldStreamer();
   // hooks are synchronous callbacks: events are queued in order and awaited at the end
@@ -219,5 +219,5 @@ export async function answerFromResults(args: { question: string; /** The suppor
   const judged = await judgeAnswer({ answer: checked, picked: args.picked, judge: args.judge, label: args.label ? `${args.label}_judge` : undefined, onResult: args.onJudged });
   // the judge could not be used: the answer stands as written, with the marks the old check gives it, and says it was not checked
   if (!judged) return { ...verifyChatAnswer(json, args.picked), checked: false };
-  return { text: judged.text, citations: judged.citations, grounded: judged.grounded, enough: checked.enough, checked: judged.checked, leftOut: judged.leftOut };
+  return { text: judged.text, citations: judged.citations, grounded: judged.grounded, enough: checked.enough, checked: judged.checked, leftOut: judged.leftOut, rewritten: judged.rewritten };
 }

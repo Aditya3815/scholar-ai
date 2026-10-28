@@ -6,17 +6,17 @@ import { mergeAndRank } from "./merge";
 import { openalex } from "./openalex";
 import { pubmed } from "./pubmed";
 import { retractedDois } from "./retraction";
-import { doajIndia, openalexIndia, shodhganga } from "./india";
+import { doajAll, doajIndia, openalexIndia, shodhganga } from "./india";
 import { FEW_RESULTS, interleave, queryVariants } from "./query";
 import { s2 } from "./s2";
 import type { Provider, ProviderPaper, SearchEnv } from "./types";
 
 /**
- * The sources of each scope, in the order their answers are merged. The regular search is unchanged by the Indian one: the search eval replays recorded answers of
- * these four. In the Indian scope the OpenAlex list comes first, so a paper it shares with DOAJ takes its fields (citations, retraction flag) from OpenAlex.
+ * The sources of each scope, in the order their answers are merged. The regular search is not changed by the Indian one: the search eval replays recorded answers of
+ * these five (DOAJ since 28 Oct 2026; it comes last, so a paper the others describe keeps their fields). In the Indian scope the OpenAlex list comes first, so a paper it shares with DOAJ takes its fields (citations, retraction flag) from OpenAlex.
  */
 const SCOPES: Record<SearchScope, Provider[]> = {
-  all: [openalex, s2, crossref, pubmed],
+  all: [openalex, s2, crossref, pubmed, doajAll],
   india: [openalexIndia, doajIndia, shodhganga],
 };
 const PROVIDER_TIMEOUT_MS = 6000;
