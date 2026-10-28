@@ -148,3 +148,5 @@ export * from "./route";
 export * from "./oa";
 export * from "./litscan";
 export * from "./litscan-review";
+export * from "./docx";
+export * from "./litscan-docx";

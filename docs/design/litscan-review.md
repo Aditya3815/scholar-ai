@@ -19,7 +19,7 @@ What you asked: "Literature scan ko hum aise sawal wise nahi denge, kuch alag ta
 | **Gaps** | Each theme without an answer, why, the words searched, and a link to search them yourself |
 | **References** | The numbered list in **APA 7** (as far as the index's record goes: no volume or pages are invented; the page says to check them), "Copy all" |
 
-**5. Downloads:** the whole review as Markdown (glance, findings, evidence table, gaps, references), the evidence table as **CSV** for Excel or Google Sheets (UTF-8 with a byte-order mark so Hindi opens; a cell that a spreadsheet would run as a formula is made text), the references as **BibTeX** and **RIS** (Zotero, Mendeley, EndNote), and Print (all four tabs, each under its heading).
+**5. Downloads:** the whole review as Markdown (glance, findings, evidence table, gaps, references) and **as a Word file** ([docx-export.md](docx-export.md), 29 Oct 2026), the evidence table as **CSV** for Excel or Google Sheets (UTF-8 with a byte-order mark so Hindi opens; a cell that a spreadsheet would run as a formula is made text), the references as **BibTeX** and **RIS** (Zotero, Mendeley, EndNote), and Print (all four tabs, each under its heading).
 
 ## The study design, honestly
 
@@ -34,6 +34,6 @@ The design is read **from the paper's own words**, its title first, then the sen
 
 ## Not done
 
-- A Word (.docx) file: the Markdown and Print (save as PDF) cover it for now; a real .docx needs a library of its own in the page.
+- ~~A Word (.docx) file~~: done 29 Oct 2026 with no new library ([docx-export.md](docx-export.md)).
 - More than six themes, and reading full papers: each costs the allowance in proportion; to be decided with real use.
 - A "consensus" figure ("8 of 10 papers say yes"): it would be a model's judgement after the checks, which the scan does not make.

@@ -6,6 +6,7 @@
 import { chromium } from "playwright-core";
 import { createRequire } from "node:module";
 import { mkdirSync, readFileSync } from "node:fs";
+import { strFromU8, unzipSync } from "fflate";
 import { fileURLToPath } from "node:url";
 import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 
@@ -55,7 +56,8 @@ const tab = (p, name) => p.getByRole("tab", { name: new RegExp(`^${name}`) });
 async function grab(p, label) {
   await p.getByRole("button", { name: "Download", exact: true }).click();
   const [dl] = await Promise.all([p.waitForEvent("download"), p.getByRole("menuitem", { name: new RegExp(`^${label}`) }).click()]);
-  return { name: dl.suggestedFilename(), text: readFileSync(await dl.path(), "utf8") };
+  const path = await dl.path();
+  return { name: dl.suggestedFilename(), text: readFileSync(path, "utf8"), bytes: readFileSync(path) };
 }
 
 try {
@@ -208,6 +210,15 @@ try {
   const md = await grab(page, "Review \\(Markdown\\)");
   ok(/^literature-review-air-pollution-and-childhood-asthma-\d{4}-\d{2}-\d{2}\.md$/.test(md.name), "the review file is named from the topic and the date");
   ok(md.text.startsWith("# Literature review: air pollution and childhood asthma") && /## At a glance/.test(md.text) && /## Findings by theme/.test(md.text) && /## Evidence table/.test(md.text) && /## Gaps/.test(md.text) && /## References/.test(md.text) && /Only abstracts were read/.test(md.text), "it holds the whole review: glance, findings, table, gaps, references, and what it is not");
+  const word = await grab(page, "Review \\(Word\\)");
+  ok(/^literature-review-air-pollution-and-childhood-asthma-\d{4}-\d{2}-\d{2}\.docx$/.test(word.name), "the Word file is named from the topic and the date");
+  const zip = unzipSync(new Uint8Array(word.bytes));
+  const docXml = strFromU8(zip["word/document.xml"]);
+  const wText = [...docXml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((m) => m[1]).join(" ");
+  ok(word.bytes.subarray(0, 2).toString() === "PK" && ["[Content_Types].xml", "word/document.xml", "word/styles.xml", "word/_rels/document.xml.rels", "docProps/core.xml"].every((k) => k in zip), "the Word file is a zip with the parts Word needs");
+  ok(/Literature review: air pollution and childhood asthma/.test(wText) && /At a glance/.test(wText) && /Findings by theme/.test(wText) && /Evidence table/.test(wText) && /References/.test(wText) && /Only abstracts were read/.test(wText), "it holds the whole review: the glance, the findings, the evidence table and the references");
+  ok((docXml.match(/<w:tbl>/g) ?? []).length === 1 && (docXml.match(/<w:tr>/g) ?? []).length === nRows + 1 && /<w:tblHeader\/>/.test(docXml), "the evidence table is a real Word table, a row for each paper under a header that repeats");
+  ok((docXml.match(/<w:bookmarkStart /g) ?? []).length === nRows && /w:anchor="bref1"/.test(docXml) && /doi\.org/.test(strFromU8(zip["word/_rels/document.xml.rels"])), "each mark jumps to its reference, and the DOIs are links");
   const csv = await grab(page, "Evidence table \\(CSV\\)");
   ok(csv.name.endsWith(".csv") && csv.text.replace(/^\uFEFF/, "").startsWith('"No.","Authors","Year","Title"') && csv.text.split("\r\n").filter(Boolean).length === nRows + 1, "the evidence table as a CSV for Excel: a header and one row a paper");
   const bib = await grab(page, "References \\(BibTeX\\)");

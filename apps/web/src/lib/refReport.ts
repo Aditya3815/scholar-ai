@@ -36,14 +36,3 @@ export function attentionText(items: VerifyItem[]): string {
     .map(({ it, n }) => `${n}. ${it.input}\n   ${it.verdict?.retracted ? "RETRACTED. " : ""}${STATUS[it.verdict?.status ?? "unverifiable"].label}: ${it.verdict?.reason ?? ""}`)
     .join("\n\n");
 }
-
-export function downloadText(filename: string, text: string, type = "text/csv;charset=utf-8") {
-  const url = URL.createObjectURL(new Blob([text], { type }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}

@@ -254,7 +254,7 @@ export function buildReviewMarkdown(args: { appName: string; generatedAt: string
 }
 
 /** "literature-review-air-pollution-and-asthma-2026-10-28.csv": letters and digits only, so every system accepts it. */
-export function reviewFileName(topic: string, ext: "md" | "csv" | "bib" | "ris", now = new Date()): string {
+export function reviewFileName(topic: string, ext: "md" | "csv" | "bib" | "ris" | "docx", now = new Date()): string {
   const slug = topic.normalize("NFKD").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase().slice(0, 40).replace(/-+$/, "");
   return `literature-review-${slug ? `${slug}-` : ""}${now.toISOString().slice(0, 10)}.${ext}`;
 }

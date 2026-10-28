@@ -85,14 +85,3 @@ export function reportFileName(title: string, now = new Date()): string {
   return `idea-check-${slug ? `${slug}-` : ""}${now.toISOString().slice(0, 10)}.md`;
 }
 
-/** Hands text to the browser as a file to save. Nothing is sent anywhere. */
-export function downloadText(filename: string, text: string, type = "text/markdown;charset=utf-8"): void {
-  const url = URL.createObjectURL(new Blob([text], { type }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}

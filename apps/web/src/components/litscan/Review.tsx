@@ -20,7 +20,7 @@ import {
   type ReportSection,
   type SearchScope,
 } from "@scholar/shared";
-import { downloadText } from "../../lib/idea";
+import { downloadText, downloadBlob } from "../../lib/download";
 import { showNotice } from "../../lib/notice";
 import { Pop } from "../Pop";
 
@@ -245,11 +245,24 @@ function References({ report }: { report: Report }) {
   );
 }
 
-/** Downloads: the whole review (Markdown), the evidence table (CSV for Excel or Sheets), the references (BibTeX, RIS), and print. */
+/** Downloads: the whole review (Markdown and Word), the evidence table (CSV for Excel or Sheets), the references (BibTeX, RIS), and print. */
 export function ExportMenu({ topic, language, report, scope }: { topic: string; language: LitscanLanguage; report: Report; scope?: SearchScope }) {
   const rows = () => buildEvidenceTable(report);
   const items: { label: string; hint: string; Icon: typeof FileText; run: () => void }[] = [
-    { label: "Review (Markdown)", hint: "Text with headings, tables and references, for any editor", Icon: FileText, run: () => downloadText(reviewFileName(topic, "md"), buildReviewMarkdown({ appName: "Scholar AI", generatedAt: new Date().toISOString(), topic, language, report, indian: scope === "india" })) },
+    { label: "Review (Markdown)", hint: "Text with headings, tables and references, for any editor", Icon: FileText, run: () => downloadText(reviewFileName(topic, "md"), buildReviewMarkdown({ appName: "Scholar AI", generatedAt: new Date().toISOString(), topic, language, report, indian: scope === "india" }), "text/markdown;charset=utf-8") },
+    {
+      label: "Review (Word)",
+      hint: "Opens in Word and Google Docs, with its table, links and references",
+      Icon: FileText,
+      run: () => void (async () => {
+        try {
+          const { reviewDocxBlob } = await import("../../lib/docx");
+          downloadBlob(reviewFileName(topic, "docx"), await reviewDocxBlob({ appName: "Scholar AI", generatedAt: new Date().toISOString(), topic, language, report, indian: scope === "india" }));
+        } catch {
+          showNotice("The Word file could not be made. Download the Markdown review instead.");
+        }
+      })(),
+    },
     { label: "Evidence table (CSV)", hint: "For Excel or Google Sheets", Icon: FileSpreadsheet, run: () => downloadText(reviewFileName(topic, "csv"), evidenceCsv(rows()), "text/csv;charset=utf-8") },
     { label: "References (BibTeX)", hint: "For LaTeX, Zotero, JabRef", Icon: FileText, run: () => downloadText(reviewFileName(topic, "bib"), toBibtex(report.sources), "application/x-bibtex;charset=utf-8") },
     { label: "References (RIS)", hint: "For Zotero, Mendeley, EndNote", Icon: FileText, run: () => downloadText(reviewFileName(topic, "ris"), toRis(report.sources), "application/x-research-info-systems;charset=utf-8") },

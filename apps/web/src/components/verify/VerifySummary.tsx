@@ -1,7 +1,8 @@
 import { m } from "motion/react";
 import { Download, RefreshCw, ShieldAlert, Square } from "lucide-react";
 import { easeOut, spring, springPop } from "../../lib/motion";
-import { attentionText, downloadText, reportCsv } from "../../lib/refReport";
+import { attentionText, reportCsv } from "../../lib/refReport";
+import { downloadText } from "../../lib/download";
 import { BUCKETS, tally, type Bucket } from "../../lib/refStatus";
 import type { VerifyState } from "../../lib/verify";
 import { CopyButton } from "../CiteMenu";
@@ -93,7 +94,7 @@ export function VerifySummary({
 
       {settled > 0 && (
         <div className="actions vsum-actions">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => downloadText("reference-check.csv", reportCsv(state.items))}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => downloadText("reference-check.csv", reportCsv(state.items), "text/csv;charset=utf-8")}>
             <Download size={15} aria-hidden="true" />
             <span>Download report (CSV)</span>
           </button>

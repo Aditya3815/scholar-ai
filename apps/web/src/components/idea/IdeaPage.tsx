@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { COMPARE_PAPERS, MIN_IDEA_CHARS, PRIVACY_VERSION, buildIdeaReport, relatedIds, type IdeaPlan } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/documents";
-import { compareIdea, downloadText, insightsIdea, isData, planIdea, reportFileName, searchIdea } from "../../lib/idea";
+import { compareIdea, insightsIdea, isData, planIdea, reportFileName, searchIdea } from "../../lib/idea";
+import { downloadText } from "../../lib/download";
 import { easeOut, stagger } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { takeHandoff } from "../../lib/workspace";
@@ -208,7 +209,7 @@ export function IdeaWorkspace({ initialText = "", autoPlan = false, embedded = f
       }),
     [plan, question, run, compare.comparison, insights.insights],
   );
-  const downloadReport = () => downloadText(reportFileName(plan?.title ?? ""), reportText());
+  const downloadReport = () => downloadText(reportFileName(plan?.title ?? ""), reportText(), "text/markdown;charset=utf-8");
 
   const clearAll = () => {
     setText("");
