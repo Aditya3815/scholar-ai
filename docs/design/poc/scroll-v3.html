@@ -238,7 +238,43 @@ main { position: relative; z-index: 1; }
 .bubble.it { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 6px; }
 .bubble.it small { display: block; margin-top: .45rem; color: var(--muted); font-size: .8rem; }
 
-/* SCENE 8, the end: the light comes up, the call, the credits (the sources, real) */
+/* SCENE 8, your own papers (My Workspace): a PDF arrives, is marked with the highlighter and the pen, is asked a question; the answer names its page, the page turns, the quote lights up */
+.s-ws { --vh: 400; }
+.ws { width: min(1120px, 100%); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 72px); align-items: center; }
+.ws-left { display: grid; gap: 14px; justify-items: center; }
+.ws-file { display: inline-flex; align-items: center; gap: .55rem; padding: .5rem .85rem; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); font: 600 .86rem/1 var(--font-ui); box-shadow: var(--shadow-1); opacity: var(--fd, 1); transform: translateY(calc((1 - var(--fd, 1)) * -60px)) rotate(calc((1 - var(--fd, 1)) * -8deg)); }
+.ws-file b { color: var(--ok); font-weight: 700; }
+.book { position: relative; width: min(420px, 100%, calc((100vh - 17vh - 190px) / 1.28)); aspect-ratio: 1 / 1.28; perspective: 1600px; opacity: var(--po, 1); transform: scale(calc(.86 + var(--po, 1) * .14)); }
+.leaf { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateY(calc(var(--fl, 1) * -180deg)); transform-origin: 0% 50%; }
+.js-anim .leaf { transform-origin: 50% 50%; }
+.face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; background: #fbfaf6; color: #23252b; border-radius: 6px; box-shadow: 0 30px 60px -20px rgb(0 0 0 / .6), 0 2px 8px rgb(0 0 0 / .25); padding: 9% 10%; font-family: var(--font-serif); overflow: hidden; }
+.face.back { transform: rotateY(180deg); }
+.js-static .face.front { display: none; }
+.js-static .leaf { transform: none; }
+.js-static .face.back { transform: none; position: relative; }
+.js-static .book { aspect-ratio: auto; }
+.face .pg-no { position: absolute; right: 8%; bottom: 4.5%; font: 500 .72rem/1 var(--font-mono); color: #6b6f78; }
+.face h4 { margin: 0 0 .7rem; font-size: clamp(.95rem, 1.35vw, 1.15rem); line-height: 1.25; color: #16181d; }
+.face p { margin: 0 0 .55rem; font-size: clamp(.72rem, .98vw, .86rem); line-height: 1.55; color: #3d4048; position: relative; }
+.face .hl { position: relative; z-index: 0; }
+.face .hl::before { content: ""; position: absolute; z-index: -1; left: -2px; top: .1em; bottom: .05em; width: calc(var(--hw, 1) * 100% + 4px); background: #ffe27a; border-radius: 3px; }
+.face .q::before { content: ""; position: absolute; z-index: -1; left: -2px; top: .1em; bottom: .05em; width: calc(var(--qw, 1) * 100% + 4px); background: #cfd6ff; border-radius: 3px; }
+.face .q { position: relative; z-index: 0; color: #16181d; font-weight: 600; }
+/* the pen: a ring drawn round a word, and a note in the margin, both tied to the word so they sit right at every size */
+.circ { position: relative; white-space: nowrap; }
+.circ .ink { position: absolute; left: -22%; top: -45%; width: 144%; height: 190%; pointer-events: none; overflow: visible; }
+.ink path { fill: none; stroke: #c0392b; stroke-width: 2.2; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--ink, 1)); }
+.circ .note { position: absolute; left: 120%; top: -1.9em; font: italic 600 clamp(.85rem, 1.1vw, 1rem)/1 var(--font-serif); color: #c0392b; white-space: nowrap; opacity: clamp(0, calc(var(--ink, 1) * 3 - 2), 1); transform: rotate(-6deg); }
+.ws-right { display: grid; gap: 1rem; }
+.ws-ask { justify-self: end; max-width: 30ch; padding: .85rem 1.05rem; border-radius: 18px; border-bottom-right-radius: 6px; background: var(--accent); color: var(--accent-fg); line-height: 1.5; opacity: var(--wq, 1); transform: translateY(calc((1 - var(--wq, 1)) * 16px)); }
+.ws-ans { padding: 1rem 1.15rem; border-radius: 18px; border-bottom-left-radius: 6px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-2); opacity: var(--wa, 1); transform: translateY(calc((1 - var(--wa, 1)) * 16px)); }
+.ws-ans p { font-family: var(--font-serif); font-size: clamp(1.15rem, 1.8vw, 1.45rem); line-height: 1.35; }
+.ws-ans blockquote { margin-top: .7rem; padding-left: .8rem; border-left: 3px solid var(--accent); color: var(--muted); font-family: var(--font-serif); font-style: italic; }
+.ws-page { display: inline-flex; align-items: center; gap: .35rem; margin-top: .7rem; padding: .3rem .65rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font: 700 .8rem/1 var(--font-ui); box-shadow: 0 0 0 calc(var(--pp, 0) * 6px) color-mix(in srgb, var(--accent) 25%, transparent); }
+.ws-feats { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .4rem; }
+.ws-feats li { padding: .4rem .75rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: .86rem; font-weight: 600; opacity: var(--wf, 1); transform: translateY(calc((1 - var(--wf, 1)) * 10px)); }
+
+/* SCENE 9, the end: the light comes up, the call, the credits (the sources, real) */
 .s-end { --vh: 240; }
 .end { display: grid; justify-items: center; text-align: center; gap: 1.6rem; width: min(900px, 100%); position: relative; }
 .dawn { position: absolute; left: 50%; bottom: -60vh; width: 160vmax; height: 120vmax; translate: -50% 0; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 34%, transparent), transparent 70%); transform: translateY(calc((1 - var(--dw, 1)) * 40vh)); opacity: calc(.35 + var(--dw, 1) * .65); pointer-events: none; }
@@ -259,7 +295,7 @@ main { position: relative; z-index: 1; }
 .js-static .frame { min-height: 0; }
 @media (max-width: 900px) {
   .papers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .proof, .india { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .proof, .india, .ws { grid-template-columns: minmax(0, 1fr); justify-items: center; }
   .ref .ln { white-space: normal; }
 }
 @media (max-width: 520px) {
@@ -448,6 +484,57 @@ main { position: relative; z-index: 1; }
   </section>
 
   <!-- 8 -->
+  <section class="scene s-ws" id="workspace" data-scene="workspace" data-title="VI · Your own papers" data-bars="1" aria-labelledby="w-h">
+    <div class="frame">
+      <span class="dbg"></span>
+      <div class="stack" style="width: min(1120px, 100%)">
+        <p class="chapter">Chapter VI · Your own papers</p>
+        <div class="ws">
+          <div class="ws-left" aria-hidden="true">
+            <span class="ws-file"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> pilot-study.pdf <b>· in My Workspace</b></span>
+            <div class="book">
+              <div class="leaf">
+                <div class="face front">
+                  <h4>Sample size of a pilot study for a two-arm trial</h4>
+                  <p>Pilot studies are often used to estimate the variance needed to plan a main trial.</p>
+                  <p><span class="hl">Small pilots give unstable estimates, and a main study planned from them is often under-powered.</span></p>
+                  <p>We compare rules for the pilot's size by the chance that the main study ends up with less power than planned.</p>
+                  <p>Numerical examples use a power of <span class="circ">80%<svg class="ink" viewBox="0 0 100 40" preserveAspectRatio="none"><path pathLength="1" d="M8 24 C 6 8, 70 2, 94 14 C 102 26, 64 38, 30 36 C 12 34, 4 28, 14 16"/></svg><span class="note">why 80%?</span></span> and a standardised effect of 0.4.</p>
+                  <p>The rules are compared over pilot sizes from 10 to 70 per group, and for effects between 0.2 and 0.8.</p>
+                  <p>Section 2 sets out the model; section 3 the rules compared; section 4 the results.</p>
+                  <span class="pg-no">p. 1 / 15</span>
+                </div>
+                <div class="face back">
+                  <h4>4. Results</h4>
+                  <p>Table 2 gives the pilot sizes that keep the risk of an under-powered main study at 30%, 20% and 10%.</p>
+                  <p><span class="q">The main study requires NL = 158 subjects per group.</span></p>
+                  <p>With a pilot of 12 per group, the chance of an under-powered main study is close to one in three.</p>
+                  <p>Larger pilots lower that risk quickly at first and slowly after about 35 per group.</p>
+                  <p>The same pattern holds for the smaller and the larger effects examined.</p>
+                  <span class="pg-no">p. 4 / 15</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ws-right">
+            <h2 id="w-h" class="big" style="font-size: clamp(2rem, 4.2vw, 3.4rem)">Your PDFs. Marked, <em>and asked.</em></h2>
+            <p class="ws-ask">How many people does the main study need?</p>
+            <div class="ws-ans">
+              <p>158 in each group.</p>
+              <blockquote>“The main study requires NL = 158 subjects per group.”</blockquote>
+              <span class="ws-page">Page 4 · the exact quote</span>
+            </div>
+            <ul class="ws-feats" aria-label="What My Workspace does">
+              <li>Pen and highlighter</li><li>Annotated PDF download</li><li>Scanned papers too</li><li>Offline reading</li><li>Private to your account, never used to train AI</li>
+            </ul>
+            <span class="sample" style="justify-self: start">Sample paper</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 -->
   <section class="scene s-end" id="end" data-scene="end" data-title="The end" data-bars="0" aria-labelledby="e-h">
     <div class="frame">
       <span class="dbg"></span>
@@ -680,6 +767,21 @@ main { position: relative; z-index: 1; }
     nums.forEach(function (n) { n.textContent = fmt.format(Math.round(Number(n.dataset.count) * c)); });
     var b = [].slice.call(el.querySelectorAll(".bubble"));
     b.forEach(function (x, i) { set(x, "--bv", out(seg(p, 0.5 + i * 0.16, 0.62 + i * 0.16))); });
+  };
+
+  U.workspace = function (el, p) {
+    set(el, "--fd", out(seg(p, 0, 0.1)));
+    set(el, "--po", out(seg(p, 0.06, 0.18)));
+    set(el, "--hw", out(seg(p, 0.18, 0.32)));
+    set(el, "--ink", inOut(seg(p, 0.28, 0.42)));
+    set(el, "--wq", out(seg(p, 0.42, 0.52)));
+    set(el, "--wa", out(seg(p, 0.52, 0.62)));
+    var pp = seg(p, 0.6, 0.7);
+    set(el, "--pp", Math.sin(pp * Math.PI));
+    set(el, "--fl", inOut(seg(p, 0.64, 0.78)));
+    set(el, "--qw", out(seg(p, 0.78, 0.88)));
+    var f = [].slice.call(el.querySelectorAll(".ws-feats li"));
+    f.forEach(function (x, i) { set(x, "--wf", out(seg(p, 0.82 + i * 0.025, 0.9 + i * 0.025))); });
   };
 
   U.end = function (el, p) {
