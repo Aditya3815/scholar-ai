@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scholar AI, cinematic story (mock)</title>
+<meta name="description" content="A mock of the scroll-driven intro, v3: a cinematic story in eight scenes. Sample data only. Open it, scroll it, use the Playground (bottom left).">
+<meta name="robots" content="noindex">
+<!-- The stacked (finished) layout is decided before first paint, so nothing jumps: reduced motion, phones, the Playground's switch. Without JavaScript the page is simply the stacked layout. -->
+<script>
+(function () {
+  var d = document.documentElement, saved = {};
+  try { saved = JSON.parse(localStorage.getItem("scroll-v3") || "{}"); } catch (e) {}
+  d.setAttribute("data-theme", saved.theme || "dark");
+  var animated = !matchMedia("(prefers-reduced-motion: reduce)").matches && innerWidth >= 768 && saved.motion !== "static";
+  d.classList.add(animated ? "js-anim" : "js-static");
+  if (saved.grain === false) d.classList.add("no-grain");
+  if (saved.bars === false) d.classList.add("no-bars");
+})();
+</script>
+<style>
+/* ------------------------------------------------------------------ the app's own fonts (apps/web/package.json: @fontsource), loaded from node_modules when this file is opened from the repository */
+@font-face { font-family: "Inter Variable"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("../../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2"); }
+@font-face { font-family: "Source Serif 4 Variable"; font-style: normal; font-weight: 200 900; font-display: swap; src: url("../../../node_modules/@fontsource-variable/source-serif-4/files/source-serif-4-latin-opsz-normal.woff2") format("woff2"); }
+@font-face { font-family: "Source Serif 4 Variable"; font-style: italic; font-weight: 200 900; font-display: swap; src: url("../../../node_modules/@fontsource-variable/source-serif-4/files/source-serif-4-latin-opsz-italic.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono Variable"; font-style: normal; font-weight: 100 800; font-display: swap; src: url("../../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2") format("woff2"); }
+@font-face { font-family: "Noto Sans Devanagari"; font-style: normal; font-weight: 600; font-display: swap; src: url("../../../node_modules/@fontsource/noto-sans-devanagari/files/noto-sans-devanagari-devanagari-600-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+25CC, U+A830-A839, U+A8E0-A8FF; }
+
+/* ------------------------------------------------------------------ tokens: exactly apps/web/src/styles/tokens.css (light, dark, read), plus the few this film needs */
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --surface-2: #f3f1eb; --text: #16181d; --muted: #565a63; --border: #e5e1d8; --border-strong: #cfc9bb;
+  --accent: #3548c8; --accent-fg: #ffffff; --accent-soft: #e8ebfa; --ok: #0f7a4a; --warn: #8f5200; --danger: #b3261e; --danger-fg: #ffffff; --danger-soft: #fbeceb; --ok-soft: #e6f4ec;
+  --shadow-1: 0 1px 2px rgb(22 24 29 / .06), 0 1px 1px rgb(22 24 29 / .04); --shadow-2: 0 8px 24px -8px rgb(22 24 29 / .18), 0 2px 6px rgb(22 24 29 / .06);
+  --radius-s: 8px; --radius: 14px; --radius-l: 22px;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  --font-ui: "Inter Variable", Inter, system-ui, sans-serif; --font-serif: "Source Serif 4 Variable", "Source Serif 4", Georgia, serif; --font-mono: "JetBrains Mono Variable", ui-monospace, monospace; --font-deva: "Noto Sans Devanagari", "Nirmala UI", sans-serif;
+  /* the film */
+  --bar: #000;              /* letterbox bars */
+  --glow: rgb(53 72 200 / .16);
+  --len: 1;                 /* Playground: scales every scene's scroll length */
+  --lb: 0;                  /* letterbox, 0..1, set by the scene on screen */
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #08090c; --surface: #12151a; --surface-2: #1a1e25; --text: #ecece8; --muted: #a3a6ae; --border: #262b34; --border-strong: #3a4150;
+  --accent: #93a6ff; --accent-fg: #0b1030; --accent-soft: #1d2447; --ok: #5fd39b; --warn: #f0b95c; --danger: #ff8a80; --danger-fg: #3a0b08; --danger-soft: #3a1f1d; --ok-soft: #14301f;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / .4); --shadow-2: 0 18px 50px -12px rgb(0 0 0 / .8), 0 2px 6px rgb(0 0 0 / .4);
+  --glow: rgb(147 166 255 / .14); color-scheme: dark;
+}
+:root[data-theme="read"] {
+  --bg: #f4ecd8; --surface: #faf4e4; --surface-2: #ede3cb; --text: #3b3226; --muted: #6b5d49; --border: #d9cdb0; --border-strong: #c2b48f;
+  --accent: #7a4b16; --accent-fg: #ffffff; --accent-soft: #ebddbe; --ok: #2f6b3c; --warn: #7a4b00; --danger: #9e2a20; --danger-fg: #ffffff; --danger-soft: #f3dcd0; --ok-soft: #e3ead0;
+  --shadow-1: 0 1px 2px rgb(59 50 38 / .08); --shadow-2: 0 8px 22px -8px rgb(59 50 38 / .22), 0 2px 6px rgb(59 50 38 / .08);
+  --bar: #2a2219; --glow: rgb(122 75 22 / .12); color-scheme: light;
+}
+
+/* ------------------------------------------------------------------ base */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 1rem; line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: clip; }
+h1, h2, h3, p, ul, ol, figure, blockquote { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.sr-only { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.skip { position: absolute; left: 12px; top: -60px; z-index: 200; background: var(--surface); border: 1px solid var(--border-strong); padding: .5rem .8rem; border-radius: 8px; }
+.skip:focus { top: 12px; }
+.serif { font-family: var(--font-serif); font-optical-sizing: auto; }
+.mono { font-family: var(--font-mono); }
+.chapter { display: inline-flex; align-items: center; gap: .8rem; font: 600 .78rem/1 var(--font-mono); letter-spacing: .28em; text-transform: uppercase; color: var(--muted); }
+.chapter::before { content: ""; width: 34px; height: 1px; background: currentColor; }
+.big { font-family: var(--font-serif); font-weight: 600; letter-spacing: -.025em; line-height: 1.02; text-wrap: balance; font-size: clamp(2.4rem, 6.2vw, 5.6rem); }
+.big em { font-style: italic; color: var(--accent); }
+.sub { font-size: clamp(1.05rem, 1.5vw, 1.3rem); color: var(--muted); max-width: 46ch; }
+.sample { display: inline-flex; gap: .4rem; align-items: center; font: 700 .68rem/1 var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--border-strong); border-radius: 999px; padding: .32rem .6rem; }
+.btn { display: inline-flex; align-items: center; gap: .5rem; min-height: 46px; padding: .7rem 1.25rem; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); text-decoration: none; font-weight: 600; transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s; }
+.btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+.btn-primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.chip { display: inline-grid; place-items: center; min-width: 1.45em; height: 1.45em; padding: 0 .35em; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font: 700 .62em/1 var(--font-ui); vertical-align: .18em; }
+
+/* ------------------------------------------------------------------ chrome: header, letterbox, grain, vignette, timecode, scene strip */
+.head { position: fixed; inset: 0 0 auto; z-index: 90; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0 clamp(16px, 3vw, 36px); pointer-events: none; }
+.head > * { pointer-events: auto; }
+.js-static .head { position: absolute; }
+.logo { display: inline-flex; align-items: center; gap: .55rem; text-decoration: none; color: var(--text); font-family: var(--font-serif); font-weight: 650; font-size: 1.2rem; }
+.logo svg { color: var(--accent); }
+.head nav { display: flex; gap: .4rem; }
+.head nav a { color: var(--text); text-decoration: none; font-size: .9rem; font-weight: 600; padding: .45rem .85rem; border-radius: 999px; background: color-mix(in srgb, var(--bg) 70%, transparent); border: 1px solid var(--border); backdrop-filter: blur(8px); }
+.head nav a:hover { border-color: var(--accent); }
+.bars::before, .bars::after { content: ""; position: fixed; left: 0; right: 0; z-index: 80; height: calc(var(--lb) * 8.5vh); background: var(--bar); pointer-events: none; }
+.bars::before { top: 0; }
+.bars::after { bottom: 0; }
+.no-bars .bars, .js-static .bars { display: none; }
+.grain { position: fixed; inset: -50%; z-index: 85; pointer-events: none; opacity: .07; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+:root[data-theme="light"] .grain, :root[data-theme="read"] .grain { mix-blend-mode: multiply; opacity: .05; }
+.no-grain .grain { display: none; }
+.vignette { position: fixed; inset: 0; z-index: 84; pointer-events: none; background: radial-gradient(120% 90% at 50% 45%, transparent 55%, rgb(0 0 0 / .35)); }
+:root:not([data-theme="dark"]) .vignette { background: radial-gradient(120% 90% at 50% 45%, transparent 60%, rgb(0 0 0 / .08)); }
+.js-static .vignette { display: none; }
+.tc { position: fixed; right: clamp(16px, 3vw, 36px); bottom: calc(var(--lb) * 8.5vh - 30px + 12px); z-index: 86; font: 500 .72rem/1 var(--font-mono); letter-spacing: .12em; color: #c9cbd1; opacity: var(--lb); pointer-events: none; }
+.strip { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 87; display: flex; gap: 6px; align-items: center; padding: 6px 8px; border-radius: 999px; background: color-mix(in srgb, var(--bg) 75%, transparent); border: 1px solid var(--border); backdrop-filter: blur(8px); }
+.js-static .strip, .js-static .tc { display: none; }
+.strip button { position: relative; width: 26px; height: 26px; border: 0; background: none; padding: 0; display: grid; place-items: center; border-radius: 999px; }
+.strip button i { display: block; width: 14px; height: 3px; border-radius: 3px; background: var(--border-strong); overflow: hidden; position: relative; transition: width .3s var(--ease); }
+.strip button i::after { content: ""; position: absolute; inset: 0; background: var(--accent); transform-origin: 0 50%; transform: scaleX(var(--sp, 0)); }
+.strip button[aria-current="true"] i { width: 30px; }
+.strip button span { position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%); white-space: nowrap; font: 600 .75rem/1 var(--font-ui); background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: .35rem .6rem; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.strip button:hover span, .strip button:focus-visible span { opacity: 1; }
+.strip button[aria-current="true"] { width: 42px; }
+
+/* ------------------------------------------------------------------ scenes: a tall container whose child is pinned for the whole screen; the page scrolls natively, the scene reads its own progress p (0..1) and writes a few CSS variables */
+main { position: relative; z-index: 1; }
+.scene { position: relative; }
+.js-anim .scene { height: calc(var(--vh) * var(--len) * 1vh); }
+.frame { position: relative; display: grid; place-items: center; padding: clamp(84px, 12vh, 140px) clamp(20px, 5vw, 64px); overflow: clip; }
+.js-anim .frame { position: sticky; top: 0; height: 100vh; overflow: clip; padding-block: calc(8.5vh + 40px); }
+.js-static .scene { border-top: 1px solid var(--border); }
+.js-static .scene:first-child { border-top: 0; }
+.stack > * + * { margin-top: 1.4rem; }
+.center { text-align: center; display: grid; justify-items: center; }
+.dbg { display: none; position: absolute; right: 12px; top: 72px; z-index: 30; font: 600 11px/1.3 var(--font-mono); background: var(--text); color: var(--bg); padding: 4px 8px; border-radius: 6px; }
+.show-dbg.js-anim .dbg { display: block; }
+
+/* glow that drifts behind a scene */
+.halo { position: absolute; inset: auto; width: 70vmax; height: 70vmax; border-radius: 50%; background: radial-gradient(circle, var(--glow), transparent 62%); pointer-events: none; transform: translate(var(--hx, 0), var(--hy, 0)); }
+
+/* SCENE 1, cold open: the words light up as you scroll (unlit words are only an outline: decorative, aria-hidden, the sentence is read out whole) */
+.s-open { --vh: 260; }
+.open-lines { font-family: var(--font-serif); font-weight: 600; font-size: clamp(2.1rem, 5.4vw, 4.6rem); line-height: 1.12; letter-spacing: -.02em; max-width: 17ch; text-wrap: balance; }
+.open-lines .w { --on: clamp(0, calc(var(--k, 999) - var(--i)), 1); color: color-mix(in srgb, var(--text) calc(var(--on) * 100%), transparent); -webkit-text-stroke: calc((1 - var(--on)) * 1px) var(--border-strong); transition: none; }
+.open-lines .w.hot { --tx: var(--danger); color: color-mix(in srgb, var(--danger) calc(var(--on) * 100%), transparent); font-style: italic; }
+.open-after { opacity: var(--after, 1); transform: translateY(calc((1 - var(--after, 1)) * 16px)); }
+
+/* SCENE 2, title: the name comes from very close and settles; a mark draws itself */
+.s-title { --vh: 230; }
+.title-wrap { display: grid; justify-items: center; gap: 1.6rem; text-align: center; }
+.title-name { font-family: var(--font-serif); font-weight: 650; font-size: clamp(3.6rem, 12vw, 11rem); line-height: .9; letter-spacing: calc(var(--trk, -.03) * 1em); transform: scale(var(--ts, 1)); filter: blur(calc(var(--tb, 0) * 1px)); white-space: nowrap; }
+.title-name b { color: var(--accent); font-weight: 650; }
+.title-mark path { stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--mk, 1)); }
+.title-line { font-family: var(--font-serif); font-style: italic; font-size: clamp(1.3rem, 2.6vw, 2.1rem); color: var(--muted); opacity: var(--tl, 1); transform: translateY(calc((1 - var(--tl, 1)) * 14px)); }
+
+/* SCENE 3, the question: the box, then twelve papers arrive from far away, one of them retracted */
+.s-question { --vh: 380; }
+.q-wrap { width: min(1080px, 100%); display: grid; gap: clamp(18px, 3vh, 34px); justify-items: center; }
+.q-box { width: min(720px, 100%); display: flex; align-items: center; gap: .8rem; padding: .95rem 1rem .95rem 1.3rem; border-radius: 22px; background: var(--surface); border: 1px solid var(--border-strong); box-shadow: var(--shadow-2); font-size: clamp(1.05rem, 1.6vw, 1.3rem); transform: translateY(calc((1 - var(--box, 1)) * 30px)) scale(calc(.96 + var(--box, 1) * .04)); opacity: var(--box, 1); }
+.q-typed { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; }
+.q-typed span { display: inline-block; clip-path: inset(0 calc((1 - var(--type, 1)) * 100%) 0 0); }
+.q-send { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-fg); }
+.q-count { font: 600 .9rem/1 var(--font-mono); color: var(--muted); opacity: var(--cnt, 1); }
+.q-count b { color: var(--text); }
+.papers { width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(10px, 1.4vw, 16px); perspective: 1400px; }
+.paper { position: relative; padding: .8rem .9rem; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-1); min-width: 0;
+  --t: var(--pt, 1);
+  opacity: clamp(0, calc(var(--t) * 3), 1);
+  transform: translate3d(calc((1 - var(--t)) * var(--dx, 0px)), calc((1 - var(--t)) * var(--dy, 0px)), calc((1 - var(--t)) * -1600px)) rotateX(calc((1 - var(--t)) * 28deg)); }
+.paper .pm { display: flex; justify-content: space-between; gap: .5rem; font: 600 .7rem/1.2 var(--font-mono); color: var(--muted); }
+.paper .pt { margin-top: .35rem; font-family: var(--font-serif); font-weight: 600; font-size: .92rem; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.paper .ok { color: var(--ok); }
+.paper.bad { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+.paper.bad .pt { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) calc(var(--st, 1) * 100%), transparent); text-decoration-thickness: 2px; }
+.stamp { position: absolute; right: -10px; bottom: -12px; padding: .28rem .55rem; border: 2px solid var(--danger); color: var(--danger); background: var(--surface); border-radius: 6px; font: 800 .72rem/1 var(--font-ui); letter-spacing: .14em; box-shadow: var(--shadow-2); opacity: var(--st, 1); transform: rotate(-7deg) scale(calc(1 + (1 - var(--st, 1)) * 1.4)); }
+
+/* SCENE 4, the answer: an iris opens from the citation chip onto the sentence it rests on */
+.s-answer { --vh: 440; }
+.a-layer { width: min(980px, 100%); transform: scale(calc(1 + var(--push, 0) * .14)); filter: blur(calc(var(--push, 0) * 3px)); transform-origin: var(--ox, 70%) var(--oy, 60%); }
+.a-text { font-family: var(--font-serif); font-weight: 600; font-size: clamp(1.9rem, 4.2vw, 3.6rem); line-height: 1.16; letter-spacing: -.02em; text-wrap: balance; opacity: var(--at, 1); transform: translateY(calc((1 - var(--at, 1)) * 24px)); }
+.a-text .chip { font-size: .5em; position: relative; }
+.a-text .chip::after { content: ""; position: absolute; inset: -6px; border-radius: 999px; border: 2px solid var(--accent); opacity: var(--ring, 0); transform: scale(calc(1 + var(--ring, 0) * .25)); }
+.a-note { margin-top: 1.4rem; color: var(--muted); font-size: 1.05rem; opacity: var(--at, 1); }
+.iris { position: absolute; inset: 0; display: grid; place-items: center; padding: calc(8.5vh + 40px) clamp(20px, 5vw, 64px);
+  background: radial-gradient(circle at var(--cx, 50%) var(--cy, 50%), color-mix(in srgb, var(--accent) 20%, var(--surface-2)), var(--surface-2) 55%);
+  clip-path: circle(var(--r, 150vmax) at var(--cx, 50%) var(--cy, 50%)); }
+/* the edge of the iris: a ring of light that travels with it while it opens */
+.iris-ring { position: absolute; left: var(--cx, 50%); top: var(--cy, 50%); width: calc(var(--r, 0px) * 2); height: calc(var(--r, 0px) * 2); translate: -50% -50%; border-radius: 50%; border: 2px solid var(--accent); box-shadow: 0 0 40px 6px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 0 40px 6px color-mix(in srgb, var(--accent) 30%, transparent); opacity: var(--ro, 0); pointer-events: none; }
+.js-static .iris-ring { display: none; }
+.js-static .iris { position: relative; clip-path: none; margin-top: 2rem; border-radius: var(--radius-l); padding: clamp(20px, 4vw, 40px); }
+.abs { width: min(860px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-l); box-shadow: var(--shadow-2); padding: clamp(20px, 3.5vw, 40px); transform: scale(calc(.92 + var(--ab, 1) * .08)); opacity: var(--ab, 1); }
+.abs .meta { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; font: 600 .78rem/1.2 var(--font-mono); color: var(--muted); }
+.abs h3 { margin-top: .7rem; font-family: var(--font-serif); font-size: clamp(1.3rem, 2.2vw, 1.75rem); line-height: 1.2; }
+.abs p { margin-top: .9rem; font-family: var(--font-serif); font-size: clamp(1.02rem, 1.35vw, 1.18rem); line-height: 1.65; color: var(--muted); }
+.abs mark { color: var(--text); background: linear-gradient(var(--accent-soft), var(--accent-soft)) no-repeat 0 0 / calc(var(--hl, 1) * 100%) 100%; padding: .05em 0; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.abs .cap { margin-top: 1.2rem; display: flex; gap: .6rem; align-items: center; color: var(--accent); font-weight: 700; font-size: .95rem; opacity: var(--cap, 1); }
+
+/* SCENE 5, the proof: a ring closes on the DOI, three services answer */
+.s-proof { --vh: 300; }
+.proof { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: clamp(28px, 6vw, 90px); align-items: center; width: min(1060px, 100%); }
+.ring { position: relative; width: clamp(220px, 26vw, 340px); aspect-ratio: 1; display: grid; place-items: center; text-align: center; }
+.ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.ring .track { stroke: var(--border); }
+.ring .arc { stroke: var(--ok); stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--rg, 1)); stroke-linecap: round; }
+.ring .doi { font: 600 clamp(.82rem, 1.1vw, .98rem)/1.3 var(--font-mono); max-width: 14ch; overflow-wrap: anywhere; }
+.ring .tick { display: block; margin: .5rem auto 0; color: var(--ok); font: 700 .8rem/1 var(--font-ui); letter-spacing: .12em; text-transform: uppercase; opacity: var(--rg-done, 1); }
+.checks { display: grid; gap: clamp(10px, 2vh, 18px); }
+.check { display: grid; grid-template-columns: auto 1fr auto; gap: 1rem; align-items: baseline; padding-bottom: clamp(10px, 2vh, 18px); border-bottom: 1px solid var(--border); opacity: var(--c, 1); transform: translateX(calc((1 - var(--c, 1)) * 40px)); }
+.check .n { font: 500 .8rem/1 var(--font-mono); color: var(--muted); }
+.check .what { font-family: var(--font-serif); font-size: clamp(1.25rem, 2.3vw, 2rem); font-weight: 600; letter-spacing: -.01em; }
+.check .what small { display: block; font-family: var(--font-ui); font-size: .92rem; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+.check .res { font-weight: 700; color: var(--ok); white-space: nowrap; }
+
+/* SCENE 6, the fake: an invented reference is checked, and comes apart */
+.s-fake { --vh: 380; }
+.fake { width: min(980px, 100%); display: grid; gap: clamp(18px, 3.4vh, 34px); }
+.ref { position: relative; font-family: var(--font-serif); font-size: clamp(1.25rem, 2.4vw, 2.05rem); line-height: 1.38; padding: clamp(18px, 3vw, 30px) clamp(20px, 3.4vw, 36px); border: 1px solid var(--border-strong); border-radius: var(--radius-l); background: var(--surface); box-shadow: var(--shadow-2); }
+.ref .ln { display: block; white-space: nowrap; }
+.ref .scan { position: absolute; top: 0; bottom: 0; width: 2px; left: calc(var(--sx, 1) * 100%); background: var(--accent); box-shadow: 0 0 22px 4px var(--accent); opacity: calc(var(--sv, 0)); }
+.ref.gone .ln { visibility: hidden; }
+.ref.gone { border-color: color-mix(in srgb, var(--danger) 60%, var(--border)); border-style: dashed; background: color-mix(in srgb, var(--danger) 5%, var(--surface)); }
+/* the dust has room to fly beyond the card */
+.dust { position: absolute; left: -14%; top: -45%; width: 128%; height: 190%; pointer-events: none; z-index: 2; }
+.js-static .dust { display: none; }
+.void { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; font: 600 clamp(1rem, 1.6vw, 1.25rem)/1.4 var(--font-ui); color: var(--danger); opacity: var(--vd, 0); }
+.void small { display: block; font-weight: 400; font-size: .85em; color: var(--muted); }
+.js-static .void { display: none; }
+.fake .sample { justify-self: start; }
+.js-static .ref .ln { white-space: normal; text-decoration: line-through; text-decoration-color: var(--danger); text-decoration-thickness: 2px; }
+.lookups { display: flex; flex-wrap: wrap; gap: .6rem; }
+.lookup { display: inline-flex; gap: .5rem; align-items: center; padding: .55rem .85rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-weight: 600; font-size: .95rem; opacity: var(--lk, 1); transform: translateY(calc((1 - var(--lk, 1)) * 12px)); }
+.lookup b { color: var(--danger); }
+.verdict { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem 1.2rem; opacity: var(--vd, 1); transform: translateY(calc((1 - var(--vd, 1)) * 18px)); }
+.verdict .big { color: var(--danger); font-size: clamp(2.2rem, 5vw, 4.4rem); }
+
+/* SCENE 7, close to home: Indian sources and a question in Hinglish */
+.s-india { --vh: 320; }
+.india { width: min(1100px, 100%); display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: clamp(28px, 5vw, 72px); align-items: center; position: relative; }
+/* the watermark is drawn by CSS (a pseudo-element): it is decoration, not text, so it is neither read out nor held to text contrast */
+.deva { position: absolute; left: 50%; top: 50%; translate: -50% -50%; font: 600 clamp(9rem, 26vw, 22rem)/1 var(--font-deva); color: var(--text); opacity: calc(.05 * var(--dv, 1)); pointer-events: none; white-space: nowrap; transform: scale(calc(1.15 - var(--dv, 1) * .15)); }
+.deva::before { content: attr(data-w); }
+.nums { display: grid; gap: clamp(14px, 3vh, 26px); }
+.num { opacity: var(--nv, 1); transform: translateY(calc((1 - var(--nv, 1)) * 20px)); }
+.num strong { display: block; font: 600 clamp(2.6rem, 6vw, 5.2rem)/1 var(--font-serif); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.num span { color: var(--muted); }
+.switch { display: inline-flex; align-items: center; gap: .55rem; padding: .5rem .9rem; border-radius: 999px; border: 1px dashed var(--border-strong); color: var(--muted); font-weight: 600; font-size: .92rem; }
+.switch.on { border-style: solid; border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.convo { display: grid; gap: .9rem; }
+.bubble { max-width: 34ch; padding: .85rem 1.05rem; border-radius: 18px; line-height: 1.5; opacity: var(--bv, 1); transform: translateY(calc((1 - var(--bv, 1)) * 16px)); }
+.bubble.me { justify-self: end; background: var(--accent); color: var(--accent-fg); border-bottom-right-radius: 6px; }
+.bubble.it { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 6px; }
+.bubble.it small { display: block; margin-top: .45rem; color: var(--muted); font-size: .8rem; }
+
+/* SCENE 8, the end: the light comes up, the call, the credits (the sources, real) */
+.s-end { --vh: 240; }
+.end { display: grid; justify-items: center; text-align: center; gap: 1.6rem; width: min(900px, 100%); position: relative; }
+.dawn { position: absolute; left: 50%; bottom: -60vh; width: 160vmax; height: 120vmax; translate: -50% 0; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 34%, transparent), transparent 70%); transform: translateY(calc((1 - var(--dw, 1)) * 40vh)); opacity: calc(.35 + var(--dw, 1) * .65); pointer-events: none; }
+.end .big { opacity: var(--ev, 1); transform: translateY(calc((1 - var(--ev, 1)) * 26px)); }
+.end-box { text-decoration: none; width: min(640px, 100%); display: flex; align-items: center; gap: .8rem; padding: .9rem 1rem .9rem 1.3rem; border-radius: 22px; background: var(--surface); border: 1px solid var(--accent); box-shadow: 0 0 0 6px var(--accent-soft), var(--shadow-2); text-align: left; color: var(--muted); opacity: var(--ev, 1); }
+.end-box .caret { width: 2px; height: 1.3em; background: var(--accent); animation: blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .end-box .caret { animation: none; } }
+.credits { margin-top: 1rem; height: 9.5rem; overflow: hidden; mask-image: linear-gradient(transparent, #000 25%, #000 75%, transparent); width: min(520px, 100%); }
+.credits ul { transform: translateY(calc((1 - var(--cr, 1)) * 7rem - var(--cr, 1) * 7rem)); display: grid; gap: .35rem; }
+.js-static .credits { height: auto; mask-image: none; }
+.js-static .credits ul { transform: none; }
+.credits li { font-size: .95rem; color: var(--muted); }
+.credits li b { color: var(--text); font-weight: 600; }
+.foot { padding: 2.2rem clamp(20px, 5vw, 64px) 5rem; text-align: center; color: var(--muted); font-size: .88rem; border-top: 1px solid var(--border); position: relative; z-index: 1; background: var(--bg); }
+
+/* ------------------------------------------------------------------ the stacked layout (phones, reduced motion, no JavaScript): every scene at its finished state, in reading order */
+.js-static .frame { min-height: 0; }
+@media (max-width: 900px) {
+  .papers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .proof, .india { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .ref .ln { white-space: normal; }
+}
+@media (max-width: 520px) {
+  .papers .paper:nth-child(n + 7) { display: none; }
+  .title-name { font-size: 3.4rem; }
+}
+
+/* ------------------------------------------------------------------ Playground (mock only) */
+.pg-open { position: fixed; left: 16px; bottom: 14px; z-index: 95; }
+.pg { position: fixed; left: 16px; bottom: 70px; z-index: 96; width: min(330px, calc(100vw - 32px)); max-height: calc(100vh - 100px); overflow: auto; background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-2); padding: 1rem; display: grid; gap: .85rem; font-size: .9rem; }
+.pg[hidden] { display: none; }
+.pg h2 { font-size: 1rem; }
+.pg fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: .4rem; }
+.pg legend { font-weight: 700; font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: .2rem; }
+.pg .row { display: flex; flex-wrap: wrap; gap: .35rem; }
+.pg .row button, .pg .jump button { border: 1px solid var(--border-strong); background: var(--surface-2); border-radius: 999px; padding: .35rem .7rem; min-height: 32px; font-weight: 600; font-size: .82rem; }
+.pg .row button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.pg .jump { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
+.pg .jump button { text-align: left; display: flex; justify-content: space-between; gap: .4rem; }
+.pg .jump button span { font-family: var(--font-mono); color: var(--muted); }
+.pg input[type="range"] { width: 100%; accent-color: var(--accent); }
+.pg p { color: var(--muted); font-size: .8rem; }
+</style>
+</head>
+<body>
+<a class="skip" href="#end">Skip the film</a>
+<div class="bars" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+<p class="tc" aria-hidden="true" id="tc">SC 1/8 · 00:00:00:00</p>
+
+<header class="head">
+  <a class="logo" href="#open" aria-label="Scholar AI, back to the start">
+    <svg width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M4 7.5c4-1.6 8-1.4 12 1.2v17c-4-2.6-8-2.8-12-1.2v-17Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M28 7.5c-4-1.6-8-1.4-12 1.2v17c4-2.6 8-2.8 12-1.2v-17Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
+    Scholar <span style="color: var(--accent)">AI</span>
+  </a>
+  <nav aria-label="Page"><a href="#end">Open the app</a></nav>
+</header>
+
+<nav class="strip" aria-label="Scenes" id="strip"></nav>
+
+<main id="main">
+
+  <!-- 1 -->
+  <section class="scene s-open" id="open" data-scene="open" data-title="Cold open" data-bars="0" aria-labelledby="open-h">
+    <div class="frame">
+      <span class="dbg"></span>
+      <div class="center stack">
+        <p class="chapter">A film about citations</p>
+        <h1 id="open-h" class="sr-only">An AI can write a perfect reference to a paper that was never written.</h1>
+        <p class="open-lines" aria-hidden="true"></p>
+        <p class="sub open-after">Scholar AI shows you only papers that exist, and the sentence every claim stands on.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="scene s-title" id="title" data-scene="title" data-title="Title" data-bars="1" aria-labelledby="title-h">
+    <div class="frame">
+      <span class="dbg"></span>
+      <div class="halo" aria-hidden="true" style="left: 50%; top: 50%; translate: -50% -50%;"></div>
+      <div class="title-wrap">
+        <svg class="title-mark" width="64" height="64" viewBox="0 0 32 32" fill="none" aria-hidden="true" style="color: var(--accent)"><path pathLength="1" d="M4 7.5c4-1.6 8-1.4 12 1.2v17c-4-2.6-8-2.8-12-1.2v-17Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path pathLength="1" d="M28 7.5c-4-1.6-8-1.4-12 1.2v17c4-2.6 8-2.8 12-1.2v-17Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        <h2 id="title-h" class="title-name">Scholar <b>AI</b></h2>
+        <p class="title-line">Research, with the receipts.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="scene s-question" id="question" data-scene="question" data-title="I · The question" data-bars="1" aria-labelledby="q-h">
+    <div class="frame">
+      <span class="dbg"></span>
+      <div class="q-wrap">
+        <p class="chapter">Chapter I · The question</p>
+        <h2 id="q-h" class="sr-only">A question goes in, real papers come back</h2>
+        <div class="q-box" aria-hidden="true">
+          <span class="q-typed"><span>Does yoga lower blood pressure?</span></span>
+          <span class="q-send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span>
+        </div>
+        <ol class="papers" aria-hidden="true"></ol>
+        <p class="q-count" aria-hidden="true"><b>20</b> papers · <b>4</b> sources · every DOI checked · <b style="color: var(--danger)">1</b> retracted, marked and never used</p>
+        <p class="sr-only">Sample data: the question "Does yoga lower blood pressure?" finds twenty papers from four sources. Each DOI is checked. One paper is retracted: it is marked and never used for the answer.</p>
+        <span class="sample">Sample data</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="scene s-answer" id="answer" data-scene="answer" data-title="II · The answer" data-bars="1" aria-labelledby="a-h">
+    <div class="frame">
+      <span class="dbg"></span>
+      <div class="a-layer stack">
+        <p class="chapter">Chapter II · The answer</p>
+        <h2 id="a-h" class="sr-only">Every claim points at a sentence you can read</h2>
+        <p class="a-text">In the trials found, yoga lowered systolic blood pressure by about 5&nbsp;mmHg <span class="chip" id="zchip" aria-label="source 3">3</span></p>
+        <p class="a-note">Press the mark. It opens the sentence the claim stands on.</p>
+      </div>
+      <div class="iris" id="iris">
+        <article class="abs" aria-label="Paper 3, sample">
+          <div class="meta"><span class="chip" style="font-size: .9rem">3</span> 2019 · Journal of Sample Studies · <span class="sample">Sample data</span></div>
+          <h3>Yoga as an adjunct treatment for hypertension: a meta-analysis of randomised trials</h3>
+          <p>Forty-nine trials with 3,517 participants were included. <mark>Yoga reduced systolic blood pressure by 5.0 mmHg compared with usual care.</mark> Effects were larger when breathing and meditation were part of the practice. The quality of the evidence was moderate.</p>
+          <p class="cap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> The sentence, word for word. Not a paraphrase.</p>
+        </article>
+      </div>
+      <span class="iris-ring" id="irisRing" aria-hidden="true"></span>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="scene s-proof" id="proof" data-scene="proof" data-title="III · The proof" data-bars="1" aria-labelledby="p-h">
+    <div class="frame">
+      <span class="dbg"></span>
+      <div class="stack" style="width: min(1060px, 100%)">
+        <p class="chapter">Chapter III · The proof</p>
+        <h2 id="p-h" class="big" style="font-size: clamp(2rem, 4.4vw, 3.6rem)">The paper is real. <em>We checked.</em></h2>
+        <div class="proof">
+          <div class="ring" aria-hidden="true">
+            <svg viewBox="0 0 200 200"><circle class="track" cx="100" cy="100" r="92" fill="none" stroke-width="3"/><circle class="arc" pathLength="1" cx="100" cy="100" r="92" fill="none" stroke-width="5"/></svg>
+            <div><span class="doi">10.5555/sample .2019.003</span><span class="tick">Resolves</span></div>
+          </div>
+          <ol class="checks">
+            <li class="check" style="--ci: 0"><span class="n">01</span><span class="what">Crossref<small>the DOI is registered, and its title matches the paper</small></span><span class="res">Found</span></li>
+            <li class="check" style="--ci: 1"><span class="n">02</span><span class="what">doi.org<small>the address opens the publisher's page</small></span><span class="res">Resolves</span></li>
+            <li class="check" style="--ci: 2"><span class="n">03</span><span class="what">Retraction Watch<small>through Crossref: no retraction notice</small></span><span class="res">Clear</span></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="scene s-fake" id="fake" data-scene="fake" data-title="IV · The fake" data-bars="1" aria-labelledby="f-h">
+    <div class="frame">
+      <span class="dbg"></span>
+      <div class="fake">
+        <p class="chapter">Chapter IV · The fake</p>
+        <h2 id="f-h" class="sr-only">A reference that does not exist is said so</h2>
+        <figure class="ref" id="ref">
+          <span class="ln">Sharma, R. &amp; Gupta, P. (2021). Yogic breathing and</span>
+          <span class="ln">hypertension in older adults. <i>Journal of Advanced</i></span>
+          <span class="ln"><i>Clinical Medicine</i>, 14(3), 211–219.</span>
+          <span class="scan" aria-hidden="true"></span>
+          <span class="void" aria-hidden="true"><span>Nothing to cite here.<small>A reference no index knows is never shown as real.</small></span></span>
+          <canvas class="dust" id="dust" aria-hidden="true"></canvas>
+          <figcaption class="sr-only">An invented reference, used as a sample.</figcaption>
+        </figure>
+        <ul class="lookups">
+          <li class="lookup" style="--li: 0">Crossref: <b>no match</b></li>
+          <li class="lookup" style="--li: 1">OpenAlex: <b>no match</b></li>
+          <li class="lookup" style="--li: 2">Semantic Scholar: <b>no match</b></li>
+        </ul>
+        <div class="verdict">
+          <p class="big">No such record.</p>
+          <p class="sub">An AI wrote it, perfectly formatted. Scholar AI says so, plainly, and never invents one.</p>
+        </div>
+        <span class="sample">Sample: an invented reference</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="scene s-india" id="india" data-scene="india" data-title="V · Close to home" data-bars="1" aria-labelledby="i-h">
+    <div class="frame">
+      <span class="dbg"></span>
+      <div class="stack" style="width: min(1100px, 100%)">
+        <p class="chapter">Chapter V · Close to home</p>
+        <div class="india">
+          <span class="deva" aria-hidden="true" data-w="शोध"></span>
+          <div class="stack">
+            <h2 id="i-h" class="big" style="font-size: clamp(2rem, 4.4vw, 3.6rem)">Indian research, <em>on purpose.</em></h2>
+            <div class="nums">
+              <p class="num"><strong data-count="117635">1,17,635</strong><span>theses on Shodhganga, listed through OpenAlex</span></p>
+              <p class="num"><strong data-count="309564">3,09,564</strong><span>articles in open access journals published in India (DOAJ)</span></p>
+            </div>
+            <span class="switch on" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22h18M6 18V11M10 18V11M14 18V11M18 18V11M12 2 20 7H4l8-5Z"/></svg> Indian sources</span>
+          </div>
+          <div class="convo">
+            <p class="bubble me" lang="hi-Latn">MGNREGA ka rural employment par kya asar hua?</p>
+            <p class="bubble it" lang="hi-Latn">MGNREGA ne rural employment ko kaafi badhaya, lekin asar state ke hisaab se alag hai <span class="chip">1</span><span class="chip">3</span><small>I searched for: MGNREGA impact on rural employment · Sample answer</small></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section class="scene s-end" id="end" data-scene="end" data-title="The end" data-bars="0" aria-labelledby="e-h">
+    <div class="frame">
+      <span class="dbg"></span>
+      <div class="dawn" aria-hidden="true"></div>
+      <div class="end">
+        <p class="chapter">Your turn</p>
+        <h2 id="e-h" class="big">Ask your <em>first</em> question.</h2>
+        <a class="end-box" href="#" aria-label="Open Scholar AI and ask a question"><span class="caret" aria-hidden="true"></span><span>Ask about a topic, or paste a DOI…</span></a>
+        <a class="btn btn-primary" href="#">Open Scholar AI</a>
+        <div class="credits">
+          <ul aria-label="Where the papers come from">
+            <li><b>OpenAlex</b> · papers and theses</li>
+            <li><b>Semantic Scholar</b> · papers</li>
+            <li><b>Crossref</b> · DOIs and retractions</li>
+            <li><b>PubMed</b> · medicine</li>
+            <li><b>arXiv</b> · preprints</li>
+            <li><b>DOAJ</b> · journals published in India</li>
+            <li><b>Europe PMC</b> · open full texts</li>
+            <li><b>Retraction Watch</b> · through Crossref</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<footer class="foot">A mock of the intro, v3 (cinematic). Sample data only; the numbers in chapter V are real counts from OpenAlex and DOAJ, 27–28 Oct 2026.</footer>
+
+<button class="btn pg-open" id="pgOpen" aria-expanded="false" aria-controls="pg">Playground</button>
+<section class="pg" id="pg" hidden aria-labelledby="pg-h">
+  <h2 id="pg-h">Playground</h2>
+  <fieldset><legend>Theme</legend><div class="row" data-k="theme"><button data-v="dark">Dark</button><button data-v="light">Light</button><button data-v="read">Read</button></div></fieldset>
+  <fieldset><legend>Motion</legend><div class="row" data-k="motion"><button data-v="full">Film</button><button data-v="static">Stacked</button></div></fieldset>
+  <fieldset><legend>Film look</legend><div class="row"><button data-toggle="grain">Grain</button><button data-toggle="bars">Letterbox</button><button data-toggle="dbg">Progress</button></div></fieldset>
+  <fieldset><legend>Scene length <span id="lenOut">100%</span></legend><input type="range" id="len" min="60" max="150" step="5" value="100" aria-label="Scene length"></fieldset>
+  <fieldset><legend>Jump to</legend><div class="jump" id="jump"></div></fieldset>
+  <p>Choices are kept in this browser. Escape closes this panel.</p>
+</section>
+
+<script>
+(function () {
+  "use strict";
+  var d = document.documentElement;
+  var animated = d.classList.contains("js-anim");
+  var clamp = function (x) { return x < 0 ? 0 : x > 1 ? 1 : x; };
+  var seg = function (p, a, b) { return clamp((p - a) / (b - a)); };
+  var out = function (t) { return 1 - Math.pow(1 - t, 3); };
+  var inOut = function (t) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
+  var set = function (el, k, v) { el.style.setProperty(k, typeof v === "number" ? v.toFixed(4) : v); };
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem("scroll-v3") || "{}"); } catch (e) {}
+  var save = function () { try { localStorage.setItem("scroll-v3", JSON.stringify(saved)); } catch (e) {} };
+
+  /* ---------------------------------------------------------------- content built from data (the same in both layouts) */
+  var OPEN = [["An", "AI", "can", "write", "a", "perfect", "reference"], ["to", "a", "paper"], ["that", "was", "*never", "*written."]];
+  var lines = document.querySelector(".open-lines"), wi = 0;
+  OPEN.forEach(function (line, li) {
+    line.forEach(function (w) {
+      var s = document.createElement("span");
+      s.className = "w" + (w[0] === "*" ? " hot" : "");
+      s.style.setProperty("--i", String(wi++));
+      s.textContent = w.replace("*", "");
+      lines.appendChild(s);
+      lines.appendChild(document.createTextNode(" "));
+    });
+    if (li < OPEN.length - 1) lines.appendChild(document.createElement("br"));
+  });
+  var WORDS = wi;
+
+  var PAPERS = [
+    ["2019", "Yoga as an adjunct treatment for hypertension: a meta-analysis", 0],
+    ["2021", "Breathing exercises and blood pressure in older adults", 0],
+    ["2018", "Effect of yoga on ambulatory blood pressure: a randomised trial", 0],
+    ["2017", "A retracted study of yoga and hypertension", 1],
+    ["2022", "Mind-body practice for stage 1 hypertension in primary care", 0],
+    ["2020", "Isometric and aerobic exercise compared for resting blood pressure", 0],
+    ["2016", "Pranayama and autonomic function: a controlled study", 0],
+    ["2023", "Yoga in community health programmes in India: a cluster trial", 0],
+    ["2015", "Lifestyle change for blood pressure: a systematic review", 0],
+    ["2021", "Tai chi and blood pressure: a meta-analysis", 0],
+    ["2019", "Adherence to home yoga practice in hypertensive patients", 0],
+    ["2024", "Meditation and arterial stiffness: a randomised trial", 0]
+  ];
+  var papersEl = document.querySelector(".papers");
+  PAPERS.forEach(function (p, i) {
+    var li = document.createElement("li");
+    li.className = "paper" + (p[2] ? " bad" : "");
+    var ang = (i * 137.5) * Math.PI / 180;
+    li.style.setProperty("--dx", Math.round(Math.cos(ang) * 520) + "px");
+    li.style.setProperty("--dy", Math.round(Math.sin(ang) * 300 - 120) + "px");
+    li.innerHTML = '<div class="pm"><span>' + p[0] + '</span><span class="' + (p[2] ? "" : "ok") + '">' + (p[2] ? "DOI ✓" : "DOI ✓") + '</span></div><div class="pt"></div>' + (p[2] ? '<span class="stamp">RETRACTED</span>' : "");
+    li.querySelector(".pt").textContent = p[1];
+    papersEl.appendChild(li);
+  });
+
+  /* ---------------------------------------------------------------- scenes: each one turns its progress p into a few CSS variables */
+  var scenes = [].slice.call(document.querySelectorAll(".scene"));
+  var U = {};
+
+  U.open = function (el, p) {
+    // linear: one word for an equal stretch of scroll, as if read aloud
+    set(el, "--k", 0.5 + seg(p, 0.04, 0.7) * (WORDS + 0.5));
+    set(el, "--after", out(seg(p, 0.7, 0.86)));
+  };
+
+  U.title = function (el, p) {
+    var t = out(seg(p, 0, 0.62));
+    set(el, "--ts", 3.2 - 2.2 * t);
+    set(el, "--trk", 0.18 - 0.21 * t);
+    set(el, "--tb", (1 - t) * 6);
+    set(el, "--mk", out(seg(p, 0.35, 0.7)));
+    set(el, "--tl", out(seg(p, 0.6, 0.8)));
+    set(el, "--hx", (p - 0.5) * 80 + "px");
+    set(el, "--hy", (0.5 - p) * 60 + "px");
+  };
+
+  var paperEls = [].slice.call(papersEl.children);
+  U.question = function (el, p) {
+    set(el, "--box", out(seg(p, 0, 0.12)));
+    set(el, "--type", seg(p, 0.1, 0.3));
+    paperEls.forEach(function (c, i) {
+      var a = 0.32 + i * 0.026;
+      set(c, "--pt", inOut(seg(p, a, a + 0.2)));
+    });
+    set(el, "--st", out(seg(p, 0.72, 0.8)));
+    set(el, "--cnt", out(seg(p, 0.78, 0.9)));
+  };
+
+  var chip = document.getElementById("zchip"), iris = document.getElementById("iris"), irisRing = document.getElementById("irisRing"), aLayer = document.querySelector(".a-layer");
+  var irisGeo = { cx: 0, cy: 0, r0: 10, r1: 2000 };
+  function measureIris() {
+    var f = iris.parentElement.getBoundingClientRect(), c = chip.getBoundingClientRect(), l = aLayer.getBoundingClientRect();
+    irisGeo.cx = c.left + c.width / 2 - f.left;
+    irisGeo.cy = c.top + c.height / 2 - f.top;
+    // the camera pushes in towards the chip: the origin is the chip's centre in the answer's own box (measured unscaled)
+    aLayer.style.setProperty("--ox", (c.left + c.width / 2 - l.left) / (Number(getComputedStyle(aLayer).getPropertyValue("--push")) * 0.14 + 1) + "px");
+    aLayer.style.setProperty("--oy", (c.top + c.height / 2 - l.top) / (Number(getComputedStyle(aLayer).getPropertyValue("--push")) * 0.14 + 1) + "px");
+    irisGeo.r0 = Math.max(c.width, c.height) / 2;
+    irisGeo.r1 = Math.hypot(Math.max(irisGeo.cx, f.width - irisGeo.cx), Math.max(irisGeo.cy, f.height - irisGeo.cy)) + 4;
+  }
+  U.answer = function (el, p) {
+    set(el, "--at", out(seg(p, 0, 0.14)));
+    var ring = seg(p, 0.18, 0.3);
+    set(el, "--ring", Math.sin(ring * Math.PI));
+    var open = seg(p, 0.3, 0.56);
+    var r = open <= 0 ? 0 : irisGeo.r0 + (irisGeo.r1 - irisGeo.r0) * Math.pow(inOut(open), 1.6);
+    [iris, irisRing].forEach(function (x) {
+      set(x, "--r", r.toFixed(1) + "px");
+      set(x, "--cx", irisGeo.cx.toFixed(1) + "px");
+      set(x, "--cy", irisGeo.cy.toFixed(1) + "px");
+    });
+    // the ring of light is there only while the iris moves; the camera pushes into the answer as it opens
+    set(irisRing, "--ro", open > 0 && open < 1 ? Math.min(1, open * 6, (1 - open) * 3) : 0);
+    set(el, "--push", inOut(open));
+    set(el, "--ab", out(seg(p, 0.42, 0.62)));
+    set(el, "--hl", out(seg(p, 0.62, 0.8)));
+    set(el, "--cap", out(seg(p, 0.8, 0.9)));
+  };
+
+  var checks = [].slice.call(document.querySelectorAll(".check"));
+  U.proof = function (el, p) {
+    var rg = inOut(seg(p, 0.08, 0.5));
+    set(el, "--rg", rg);
+    set(el, "--rg-done", out(seg(p, 0.48, 0.56)));
+    checks.forEach(function (c, i) { set(c, "--c", out(seg(p, 0.2 + i * 0.16, 0.36 + i * 0.16))); });
+  };
+
+  /* the fake reference: drawn into a canvas as dots, which drift apart; the dots are positions of the real text, sampled once per size */
+  var ref = document.getElementById("ref"), dust = document.getElementById("dust"), dctx = dust.getContext("2d");
+  var dots = [], dotsW = 0, dotsH = 0, dpr = 1, lookups = [].slice.call(document.querySelectorAll(".lookup"));
+  function sampleDots() {
+    var r = dust.getBoundingClientRect();
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    dotsW = Math.round(r.width); dotsH = Math.round(r.height);
+    dust.width = dotsW * dpr; dust.height = dotsH * dpr;
+    var off = document.createElement("canvas"); off.width = dotsW; off.height = dotsH;
+    var o = off.getContext("2d");
+    o.fillStyle = "#000"; o.textBaseline = "alphabetic";
+    [].slice.call(ref.querySelectorAll(".ln")).forEach(function (ln) {
+      var walker = document.createTreeWalker(ln, NodeFilter.SHOW_TEXT), node;
+      while ((node = walker.nextNode())) {
+        var range = document.createRange(); range.selectNodeContents(node);
+        var rr = range.getClientRects()[0]; if (!rr) continue;
+        var cs = getComputedStyle(node.parentElement);
+        o.font = cs.fontStyle + " " + cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily;
+        o.fillText(node.textContent, rr.left - r.left, rr.top - r.top + rr.height * 0.78);
+      }
+    });
+    var data = o.getImageData(0, 0, dotsW, dotsH).data, step = dotsW > 700 ? 3 : 2;
+    dots = [];
+    for (var y = 0; y < dotsH; y += step) for (var x = 0; x < dotsW; x += step) {
+      if (data[(y * dotsW + x) * 4 + 3] > 120) {
+        // each dot leaves in its own direction, drifting right and up like ash, the left of the line first
+        var a = Math.random() * Math.PI * 2, s = 30 + Math.random() * 200;
+        dots.push({ x: x, y: y, vx: Math.cos(a) * s + 140, vy: Math.sin(a) * s * 0.7 - 70 - Math.random() * 90, d: (x / dotsW) * 0.45 + Math.random() * 0.12 });
+      }
+    }
+  }
+  var dustColour = "#ff8a80", textColour = "#fff";
+  function drawDust(t) {
+    dctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    dctx.clearRect(0, 0, dotsW, dotsH);
+    if (t <= 0 || t >= 1) return;
+    dctx.fillStyle = dustColour;
+    for (var i = 0; i < dots.length; i++) {
+      var q = dots[i], k = clamp((t - q.d) / (0.55)); if (k <= 0) { dctx.globalAlpha = 1; dctx.fillStyle = textColour; dctx.fillRect(q.x, q.y, 1.8, 1.8); continue; }
+      var e = out(k);
+      dctx.fillStyle = k < 0.15 ? textColour : dustColour;
+      dctx.globalAlpha = 1 - k;
+      dctx.fillRect(q.x + q.vx * e, q.y + q.vy * e, 2, 2);
+    }
+    dctx.globalAlpha = 1;
+  }
+  U.fake = function (el, p) {
+    var scan = seg(p, 0.12, 0.36);
+    set(el, "--sx", scan);
+    set(el, "--sv", scan > 0 && scan < 1 ? 1 : 0);
+    lookups.forEach(function (l, i) { set(l, "--lk", out(seg(p, 0.2 + i * 0.07, 0.3 + i * 0.07))); });
+    var t = seg(p, 0.44, 0.78);
+    ref.classList.toggle("gone", t > 0);
+    drawDust(t);
+    set(el, "--vd", out(seg(p, 0.72, 0.86)));
+  };
+
+  var nums = [].slice.call(document.querySelectorAll(".num strong"));
+  var fmt = new Intl.NumberFormat("en-IN");
+  U.india = function (el, p) {
+    set(el, "--dv", out(seg(p, 0, 0.3)));
+    set(el, "--nv", out(seg(p, 0.08, 0.2)));
+    var c = out(seg(p, 0.1, 0.5));
+    nums.forEach(function (n) { n.textContent = fmt.format(Math.round(Number(n.dataset.count) * c)); });
+    var b = [].slice.call(el.querySelectorAll(".bubble"));
+    b.forEach(function (x, i) { set(x, "--bv", out(seg(p, 0.5 + i * 0.16, 0.62 + i * 0.16))); });
+  };
+
+  U.end = function (el, p) {
+    set(el, "--dw", out(seg(p, 0, 0.6)));
+    set(el, "--ev", out(seg(p, 0.1, 0.35)));
+    set(el, "--cr", seg(p, 0.3, 1));
+  };
+
+  /* ---------------------------------------------------------------- scene strip, timecode, letterbox */
+  var strip = document.getElementById("strip"), jump = document.getElementById("jump"), stripBtns = [], jumpOut = [];
+  scenes.forEach(function (s, i) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.innerHTML = "<i></i><span></span>";
+    b.querySelector("span").textContent = s.dataset.title;
+    b.setAttribute("aria-label", "Scene " + (i + 1) + ": " + s.dataset.title);
+    b.addEventListener("click", function () { goTo(s, 0.5); });
+    strip.appendChild(b); stripBtns.push(b);
+    var j = document.createElement("button");
+    j.type = "button";
+    j.innerHTML = "<b></b><span>0%</span>";
+    j.querySelector("b").textContent = (i + 1) + " " + s.dataset.title.replace(/^[IV]+ · /, "");
+    j.addEventListener("click", function () { goTo(s, 0.5); });
+    jump.appendChild(j); jumpOut.push(j.querySelector("span"));
+  });
+  function goTo(s, p) {
+    var top = s.getBoundingClientRect().top + scrollY;
+    var span = Math.max(0, s.offsetHeight - innerHeight);
+    window.scrollTo({ top: top + (animated ? span * p : 0), behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
+  var tc = document.getElementById("tc");
+  var two = function (n) { return (n < 10 ? "0" : "") + n; };
+
+  /* ---------------------------------------------------------------- the loop: one scroll listener, one frame */
+  var last = new Map(), queued = false;
+  function frame() {
+    queued = false;
+    var vh = innerHeight, active = -1, activeP = 0;
+    scenes.forEach(function (s, i) {
+      var r = s.getBoundingClientRect();
+      var span = r.height - vh;
+      var p = span > 0 ? clamp(-r.top / span) : (r.top <= 0 ? 1 : 0);
+      if (r.top <= vh * 0.5 && r.bottom >= vh * 0.5) { active = i; activeP = p; }
+      if (r.bottom < -vh || r.top > vh * 2) return;
+      if (Math.abs((last.get(s) ?? -1) - p) < 0.0004) return;
+      last.set(s, p);
+      U[s.dataset.scene](s, p);
+      var dbg = s.querySelector(".dbg"); if (dbg) dbg.textContent = s.dataset.scene + " " + p.toFixed(3);
+      stripBtns[i].style.setProperty("--sp", p.toFixed(3));
+      jumpOut[i].textContent = Math.round(p * 100) + "%";
+    });
+    var s = scenes[active];
+    var lb = s && s.dataset.bars === "1" ? Math.min(seg(activeP, 0, 0.06), 1 - seg(activeP, 0.94, 1)) : 0;
+    d.style.setProperty("--lb", out(lb).toFixed(3));
+    stripBtns.forEach(function (b, i) { if (i === active) b.setAttribute("aria-current", "true"); else b.removeAttribute("aria-current"); });
+    var total = clamp(scrollY / Math.max(1, d.scrollHeight - vh)) * 214;
+    var f = Math.floor((total % 1) * 24);
+    tc.textContent = "SC " + (active + 1) + "/" + scenes.length + " · 00:" + two(Math.floor(total / 60)) + ":" + two(Math.floor(total % 60)) + ":" + two(f);
+  }
+  function request() { if (!queued) { queued = true; requestAnimationFrame(frame); } }
+
+  function measure() {
+    if (!animated) return;
+    measureIris();
+    textColour = getComputedStyle(d).getPropertyValue("--text").trim() || "#fff";
+    dustColour = getComputedStyle(d).getPropertyValue("--danger").trim() || "#ff8a80";
+    sampleDots();
+    last.clear();
+    request();
+  }
+
+  if (animated) {
+    addEventListener("scroll", request, { passive: true });
+    addEventListener("resize", function () { measure(); });
+    (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(measure);
+    measure();
+  } else {
+    // stacked: every number at its real value, every variable at its finished state (the CSS defaults)
+    nums.forEach(function (n) { n.textContent = fmt.format(Number(n.dataset.count)); });
+  }
+
+  /* ---------------------------------------------------------------- Playground */
+  var pg = document.getElementById("pg"), pgOpen = document.getElementById("pgOpen");
+  function showPg(open) { pg.hidden = !open; pgOpen.setAttribute("aria-expanded", String(open)); if (open) pg.querySelector("button").focus(); else pgOpen.focus(); }
+  pgOpen.addEventListener("click", function () { showPg(pg.hidden); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !pg.hidden) showPg(false); });
+  function mark() {
+    pg.querySelectorAll(".row[data-k] button").forEach(function (b) {
+      var k = b.parentElement.dataset.k;
+      var cur = k === "theme" ? d.getAttribute("data-theme") : (animated ? "full" : "static");
+      b.setAttribute("aria-pressed", String(b.dataset.v === cur));
+    });
+    pg.querySelectorAll("[data-toggle]").forEach(function (b) {
+      var k = b.dataset.toggle;
+      var on = k === "dbg" ? d.classList.contains("show-dbg") : !d.classList.contains("no-" + k);
+      b.setAttribute("aria-pressed", String(on));
+    });
+  }
+  pg.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    var row = b.parentElement.dataset.k;
+    if (row === "theme") { d.setAttribute("data-theme", b.dataset.v); saved.theme = b.dataset.v; save(); measure(); }
+    if (row === "motion") { saved.motion = b.dataset.v; save(); location.reload(); return; }
+    if (b.dataset.toggle === "dbg") d.classList.toggle("show-dbg");
+    else if (b.dataset.toggle) { var off = d.classList.toggle("no-" + b.dataset.toggle); saved[b.dataset.toggle] = !off; save(); }
+    mark();
+  });
+  var len = document.getElementById("len"), lenOut = document.getElementById("lenOut");
+  if (saved.len) { len.value = saved.len; }
+  function applyLen() { d.style.setProperty("--len", String(Number(len.value) / 100)); lenOut.textContent = len.value + "%"; }
+  len.addEventListener("input", function () { applyLen(); saved.len = Number(len.value); save(); measure(); });
+  applyLen(); mark();
+})();
+</script>
+</body>
+</html>
