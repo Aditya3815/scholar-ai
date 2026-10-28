@@ -36,7 +36,7 @@ const config = (routes: GatewayConfig["routes"]): GatewayConfig => ({
   maxPromptChars: 10_000,
 });
 
-const allTasks = ["classify", "summarize_public", "qa", "review"] as const;
+const allTasks = ["classify", "summarize_public", "qa", "review", "verify"] as const;
 const sameRoute = (chain: { provider: string; model: string }[]) =>
   Object.fromEntries(allTasks.map((t) => [t, { public: chain, private: chain }])) as GatewayConfig["routes"];
 

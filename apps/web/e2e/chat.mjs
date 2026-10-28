@@ -91,7 +91,7 @@ try {
   ok((await page.locator(".chat-turn .result-no").allInnerTexts()).join() === "1,2,3,4,5", "numbered 1 to 5, as the marks in the answer are");
   const answer = page.locator(".chat-answer");
   ok(/The first paper reports its main result/.test(await answer.innerText()) && await answer.getByRole("button", { name: /^Source 1/ }).isVisible(), "a short answer is written, its claim marked with a button for paper 1");
-  ok(/Every claim points at a sentence of an abstract/.test(await answer.innerText()), "and it says what that means");
+  ok(/Each claim was read against the sentences it cites/.test(await answer.innerText()) && await answer.locator(".ask-status[data-tone=ok]").count() === 1 && await answer.locator(".chat-left-out").count() === 0, "and it says what that means: each claim was read against the sentences it cites, and nothing was left out");
   ok(await page.locator(".result[data-retracted=true] .retract").first().isVisible() && await page.locator(".chat-note[data-kind=retracted]").isVisible(), "the retracted paper has its banner, and a line says it was not used for the answer");
   ok(await page.locator(".chat-turn .sr-only[role=status]").innerText().then((t) => /Answer ready, 5 papers/.test(t)), "a polite message tells a screen reader that the answer is ready (not the words one by one)");
   ok(!/openalex|s2|semantic|crossref|pubmed/i.test(await turns().first().locator(".chat-note, .chat-why, .chat-und, .chat-steps").allInnerTexts().then((x) => x.join(" "))), "no source is named in what is said about the search");
@@ -187,6 +187,20 @@ try {
   ok(/could not be checked/.test(await page.locator(".chat-list > li:last-child .chat-why").innerText()), "an answer that could not be checked says so");
   ok(await page.locator(".chat-list > li:last-child .chat-answer").count() === 0, "an answer whose evidence is not a real sentence is not shown");
   ok(await page.locator(".chat-list > li:last-child .chat-general").count() === 0, "and no background is written to cover for it (the model had an answer; that is a failure, not a gap in the papers)");
+
+  console.log("the support judge: what it leaves out, what it could not read, and the sentences it found");
+  const lastLi = ".chat-list > li:last-child";
+  await send("judgedrop glaucoma", { tool: false });
+  await page.locator(`${lastLi} .chat-turn[data-status="done"]`).waitFor({ timeout: 30000 });
+  ok(/One statement was left out: the sentences it cited do not support it/.test(await page.locator(`${lastLi} .chat-left-out`).innerText()) && !/invented/.test(await page.locator(`${lastLi} .chat-answer`).innerText()), "a claim the sentences do not support is left out, and the reader is told one statement was");
+  await send("judgefail glaucoma", { tool: false });
+  await page.locator(`${lastLi} .chat-turn[data-status="done"]`).waitFor({ timeout: 30000 });
+  const warn = page.locator(`${lastLi} .ask-status[data-tone=warn]`);
+  ok(/not read against them this time/.test(await warn.innerText()) && await page.locator(`${lastLi} .chat-left-out`).count() === 0 && await page.locator(`${lastLi} .chat-answer`).getByRole("button", { name: /^Source 1/ }).isVisible(), "when the judge cannot be used the answer is still shown, with its marks, and the banner does not say each claim was read");
+  await send("judgemove glaucoma", { tool: false });
+  await page.locator(`${lastLi} .chat-turn[data-status="done"]`).waitFor({ timeout: 30000 });
+  await page.locator(`${lastLi} .chat-evidence summary`).click();
+  ok(/Performance was lower for images with cataract/.test(await page.locator(`${lastLi} .chat-evidence`).innerText()), "the sentences behind the answer are the ones the judge found");
 
   console.log("a silent wait says so");
   await page.evaluate(() => sessionStorage.setItem("scholar.quiet.ms", "1500")); // production waits 15 s

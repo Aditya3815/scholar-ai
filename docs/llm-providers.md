@@ -20,6 +20,7 @@ The LLM Gateway is implemented in `apps/api/src/llm/` (policy, fallback chain, q
 | Query expansion, intent classification | public | `gemini-3.5-flash-lite` | Workers AI `gpt-oss-120b` |
 | Search-result summaries (abstracts only) | public | `gemini-3.5-flash-lite` | Workers AI `gpt-oss-120b` |
 | Paper Q&A, review, similarity explanation | **private** | Workers AI `gpt-oss-120b` (schema-enforced) | none yet (benchmark a second model first) |
+| Claim-support judge (reads an answer's claims next to the abstracts they cite) | **private** | Workers AI `llama-3.3-70b-instruct-fp8-fast` | Workers AI `mistral-small-3.1-24b-instruct` (both measured on 238 hand-labelled claims: [claim-support.md](design/claim-support.md); not gpt-oss-120b, which is too slow for this) |
 | Embeddings | private | Workers AI `bge-m3` | Gemini embedding (public text only) |
 
 Keys live in `apps/api/.dev.vars` (gitignored) and Worker secrets; never in the repo or chat.

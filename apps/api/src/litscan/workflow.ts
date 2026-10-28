@@ -4,7 +4,7 @@ import type { StreamComplete } from "../docs/qa";
 import { installGates } from "../gate";
 import { remoteGate, type ApiGate } from "../gate/api-gate";
 import { countOutcome } from "../outcomes";
-import { answerModel, searchFor, stubbed, type ScanEnv } from "./model";
+import { answerModel, judgeModel, searchFor, stubbed, type ScanEnv } from "./model";
 import { appendEvent, endScan, getScanForRun, itemsOf, partsOf } from "./store";
 import { answerSubQuestion } from "./worker";
 
@@ -45,6 +45,7 @@ export class LitscanRun extends WorkflowEntrypoint<LitscanEnv, LitscanParams> {
           const clock = new AbortController();
           let timer: ReturnType<typeof setTimeout> | undefined;
           const model = answerModel(env, scan.userId, clock.signal);
+          const judge = judgeModel(env, scan.userId, clock.signal);
           const stream: StreamComplete = (req, hooks) => {
             timer ??= setTimeout(() => clock.abort(), MODEL_LIMIT_MS);
             return model(req, hooks);
@@ -54,7 +55,7 @@ export class LitscanRun extends WorkflowEntrypoint<LitscanEnv, LitscanParams> {
               idx,
               item,
               language: scan.language,
-              deps: { search: searchFor(env, scan.scope), stream },
+              deps: { search: searchFor(env, scan.scope), stream, judge: env.CHAT_JUDGE === "off" ? undefined : judge },
               onStage: async (stage) => void (await appendEvent(db, id, `w:${idx}:${stage}`, { type: "worker", idx, stage })),
               signal: clock.signal,
             });

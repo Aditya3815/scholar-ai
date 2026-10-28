@@ -61,7 +61,7 @@ export function ThemeBoard({ report, stages }: { report: Report; stages: Record<
 /* ---------------------------------------------------------------- the review */
 
 /** A section's text with its [n] marks as buttons; a mark opens the paper it points at, under the paragraph (APA reference, the sentence, the link), without leaving the page. */
-function MarkedText({ text, rows, sentences }: { text: string; rows: Map<number, EvidenceRow>; sentences: Map<number, string> }) {
+function MarkedText({ text, rows, sentences }: { text: string; rows: Map<number, EvidenceRow>; sentences: Map<number, string[]> }) {
   const [peek, setPeek] = useState<number | null>(null);
   const id = useId();
   const row = peek ? rows.get(peek) : undefined;
@@ -84,7 +84,7 @@ function MarkedText({ text, rows, sentences }: { text: string; rows: Map<number,
           <>
             <button type="button" className="icon-btn icon-btn-sm ls-peek-x" aria-label="Close the source" onClick={() => setPeek(null)}><X size={14} aria-hidden="true" /></button>
             <p className="ls-peek-ref"><span className="chat-ev-n" aria-hidden="true">{row.g}</span> {apaReference(row)}</p>
-            {sentences.get(row.g) && <p className="ls-peek-q">“{sentences.get(row.g)}”</p>}
+            {sentences.get(row.g)?.map((q, i) => <p key={i} className="ls-peek-q">“{q}”</p>)}
             <p className="ls-peek-m">{row.design}{row.link && <> · <a href={row.link} target="_blank" rel="noopener noreferrer">Open the paper<span className="sr-only"> (opens in a new tab)</span></a></>}</p>
           </>
         )}
@@ -96,7 +96,8 @@ function MarkedText({ text, rows, sentences }: { text: string; rows: Map<number,
 function ThemeSection({ s, rows }: { s: Extract<ReportSection, { status: "answered" }>; rows: Map<number, EvidenceRow> }) {
   const h = useId();
   const papers = [...new Set(s.evidence.map((e) => e.g))];
-  const sentences = new Map(s.evidence.map((e) => [e.g, e.sentence] as const));
+  const sentences = new Map<number, string[]>();
+  for (const e of s.evidence) sentences.set(e.g, [...(sentences.get(e.g) ?? []), e.sentence]);
   return (
     <section className="card ls-section" aria-labelledby={h}>
       <h3 id={h} className="ls-section-h">{s.title}</h3>

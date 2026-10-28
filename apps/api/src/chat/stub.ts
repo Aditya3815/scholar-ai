@@ -95,6 +95,8 @@ export const stubChatStream: StreamComplete = async (req, hooks) => {
     else json = { kind: "background", answer: "In general terms this is a well studied question, and the usual answer depends on the setting, the people involved and how the outcome is measured." };
   } else if (/unanswerable/i.test(q) || !first) json = { coverage: "none", answer: "", evidence: [] };
   else if (/hallucinate/i.test(q)) json = { coverage: "full", answer: `A made-up claim [${first}].`, evidence: [{ n: Number(first), s: 99 }] };
+  else if (/judgedrop/i.test(q)) json = { coverage: "full", answer: `The first paper reports its main result [${first}]. The paper also claims an invented cure [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
+  else if (/judge(fail|bad|slow|move)/i.test(q)) json = { coverage: "full", answer: `The first paper reports its main result (${/judge\w+/i.exec(q)![0].toLowerCase()}) [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
   else json = { coverage: "full", answer: `The first paper reports its main result [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
   const text = JSON.stringify(json, null, 2);
   hooks.onThinking?.();
@@ -104,4 +106,24 @@ export const stubChatStream: StreamComplete = async (req, hooks) => {
     await sleep(/slowly/i.test(q) ? 90 : 15);
   }
   return { json: extractJson(text), model: "stub" };
+};
+
+/**
+ * The support judge, offline (QA_STUB=1): it reads the claims of the stub answer and steers by a word in them. A claim with "invented" is judged `no`; "judgefail" makes the call fail,
+ * "judgebad" gives a reply that cannot be used, "judgeslow" takes a few seconds, "judgemove" backs the claim with sentence 3 instead of the model's sentence 2; any other claim that cites a
+ * paper is judged `yes` with sentence 2 of its first paper, and a claim that cites nothing is `framing`.
+ */
+export const stubJudgeStream = (_env?: unknown): StreamComplete => async (req) => {
+  const lines = [...req.user.matchAll(/^c(\d+) cites ([^:]*): (.*)$/gm)];
+  if (lines.some((l) => /judgefail/.test(l[3]!))) throw new Error("the stub judge failed");
+  if (lines.some((l) => /judgebad/.test(l[3]!))) return { json: { nothing: true }, model: "stub" };
+  if (lines.some((l) => /judgeslow/.test(l[3]!))) await sleep(2500);
+  const move = lines.some((l) => /judgemove/.test(l[3]!));
+  const claims = lines.map((l) => {
+    const n = Number(/\[(\d+)\]/.exec(l[2]!)?.[1]);
+    if (!n) return { c: Number(l[1]), v: "framing", refs: [] };
+    if (/invented/.test(l[3]!)) return { c: Number(l[1]), v: "no", refs: [] };
+    return { c: Number(l[1]), v: "yes", refs: [{ n, s: [move ? 3 : 2] }] };
+  });
+  return { json: { claims }, model: "stub" };
 };

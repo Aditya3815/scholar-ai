@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MAX_CHAT_CHARS, cleanChatMessage, type ChatEvent, type Paper } from "@scholar/shared";
 import { CHAT_SYSTEM, MAX_EVIDENCE_PAPERS, answerFromResults, buildChatPrompt, normaliseMarks, papersOnTheSubject, pickEvidencePapers, tidyMarkPunctuation, verifyChatAnswer } from "./answer";
-import { stubChatStream, stubPapers, stubSearchFor } from "./stub";
+import { stubChatStream, stubJudgeStream, stubPapers, stubSearchFor } from "./stub";
 
 const paper = (i: number, over: Partial<Paper> = {}): Paper => ({
   id: `doi:10.1/${i}`, doi: `10.1/${i}`, pmid: null, title: `Paper ${i}`, authors: ["A. B"], year: 2020, venue: "J", abstract: `First sentence of paper ${i} is here and it is long enough to count as an abstract. Second sentence says the model reached ninety percent. Third sentence lists a limitation.`,
@@ -63,8 +63,21 @@ describe("verifyChatAnswer", () => {
   });
   it("drops a sentence number that is not one, a paper that was not shown, and takes out the markers that point at nothing", () => {
     const a = verifyChatAnswer({ enough: true, answer: "A [1] and B [2] and C [7].", evidence: [{ n: 1, s: 2 }, { n: 2, s: 99 }, { n: 7, s: 1 }, { n: 1, s: 3 }] }, picked);
-    expect(a.citations.map((c) => c.n)).toEqual([1]);
+    // paper 1 keeps both of its real sentences (2 and 3); 99 is no sentence, paper 7 was not shown
+    expect(a.citations.map((c) => [c.n, c.sentenceNo])).toEqual([[1, 2], [1, 3]]);
     expect(a.text).toBe("A [1] and B and C.");
+  });
+  it("keeps up to three different sentences of a paper, in the order of its abstract, and not the same sentence twice", () => {
+    const a = verifyChatAnswer({ enough: true, answer: "A [1]. B [1].", evidence: [{ n: 1, s: 3 }, { n: 1, s: 1 }, { n: 1, s: 3 }, { n: 1, s: 2 }, { n: 1, s: 4 }] }, picked);
+    expect(a.citations.map((c) => c.sentenceNo)).toEqual([1, 2, 3]);
+  });
+  it("makes a run of marks that the model wrote twice one run", () => {
+    expect(verifyChatAnswer({ enough: true, answer: "A [1][1]. B [1][2] [1][2].", evidence: [{ n: 1, s: 2 }, { n: 2, s: 2 }] }, picked).text).toBe("A [1]. B [1][2].");
+  });
+  it("can leave a text with no marks without them, for the support judge to place", () => {
+    const raw = { enough: true, answer: "It worked.", evidence: [{ n: 1, s: 2 }, { n: 2, s: 2 }] };
+    expect(verifyChatAnswer(raw, picked, { addMissingMarks: false }).text).toBe("It worked.");
+    expect(verifyChatAnswer(raw, picked).text).toBe("It worked. [1][2]");
   });
   it("adds the markers when the model forgot them", () => {
     expect(verifyChatAnswer({ enough: true, answer: "It worked.", evidence: [{ n: 1, s: 2 }] }, picked).text).toBe("It worked. [1]");
@@ -138,6 +151,70 @@ describe("answerFromResults", () => {
     const picked = pickEvidencePapers(stubPapers());
     expect(picked.some((p) => p.paper.retracted)).toBe(false);
     expect(picked.map((p) => p.n)).toEqual([1, 2, 5]);
+  });
+});
+
+describe("answerFromResults with the support judge", () => {
+  const picked = pickEvidencePapers(stubPapers());
+  const run = (question: string, judge = stubJudgeStream(), extra: object = {}) => {
+    const events: ChatEvent[] = [];
+    return answerFromResults({ question, picked, stream: stubChatStream, judge, emit: (e) => void events.push(e), ...extra }).then((a) => ({ a, events }));
+  };
+  it("reads the claims after the answer is written, says so, and returns what the judge found", async () => {
+    const { a, events } = await run("what did they find?");
+    const kinds = events.map((e) => (e.type === "step" ? `step:${e.step}` : e.type));
+    expect(kinds.lastIndexOf("token")).toBeLessThan(kinds.indexOf("step:check"));
+    expect(a).toMatchObject({ grounded: true, checked: true, leftOut: 0, text: "The first paper reports its main result [1]." });
+    expect(a.citations.map((c) => [c.n, c.sentenceNo])).toEqual([[1, 2]]);
+  });
+  it("takes out a claim the sentences do not support, and the sentence only it rested on", async () => {
+    const { a } = await run("judgedrop please");
+    expect(a.text).toBe("The first paper reports its main result [1].");
+    expect(a.leftOut).toBe(1);
+    expect(a.checked).toBe(true);
+  });
+  it("shows the sentence the judge found, not the one the model named", async () => {
+    const { a } = await run("judgemove please");
+    expect(a.citations.map((c) => [c.n, c.sentenceNo])).toEqual([[1, 3]]);
+    expect(a.checked).toBe(true);
+  });
+  it("shows the answer as written, with its marks, and says it was not checked, when the judge fails or says nothing usable", async () => {
+    for (const q of ["judgefail please", "judgebad please"]) {
+      const { a } = await run(q);
+      expect(a.grounded).toBe(true);
+      expect(a.checked).toBe(false);
+      expect(a.text).toMatch(/\[1\]\.?$/);
+      expect(a.citations.map((c) => [c.n, c.sentenceNo])).toEqual([[1, 2]]);
+    }
+  });
+  it("is not grounded when the judge finds nothing that supports any claim", async () => {
+    const none = async () => ({ json: { claims: [{ c: 0, v: "no", refs: [] }] }, model: "m" });
+    const { a } = await run("what did they find?", none);
+    expect(a).toMatchObject({ grounded: false, enough: true, text: "", citations: [], checked: true, leftOut: 1 });
+  });
+  it("does not call the judge for an answer that is not grounded, and tells counts and times to onJudged", async () => {
+    let calls = 0;
+    const judge = async () => (calls++, { json: {}, model: "m" });
+    expect((await run("hallucinate this", judge)).a.grounded).toBe(false);
+    expect(calls).toBe(0);
+    const seen: { counts: Record<string, number>; model?: string }[] = [];
+    await run("what did they find?", stubJudgeStream(), { onJudged: (r: { counts: Record<string, number>; model?: string }) => seen.push(r) });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.counts.yes).toBe(1);
+    expect(seen[0]!.model).toBe("stub");
+  });
+  it("without a judge the answer is as before, and carries no `checked`", async () => {
+    const a = await answerFromResults({ question: "what did they find?", picked, stream: stubChatStream, emit: () => {} });
+    expect(a.checked).toBeUndefined();
+  });
+  it("gives a text that had no marks its marks from the judge when it works, and from the old rule when it does not", async () => {
+    const stream = async () => ({ json: { coverage: "full", answer: "It worked in the clinics.", evidence: [{ n: 1, s: 2 }] }, model: "m" });
+    const judged = await answerFromResults({ question: "q", picked, stream, judge: async () => ({ json: { claims: [{ c: 0, v: "yes", refs: [{ n: 1, s: [3] }] }] }, model: "m" }), emit: () => {} });
+    expect(judged.text).toBe("It worked in the clinics [1].");
+    expect(judged.citations.map((c) => c.sentenceNo)).toEqual([3]);
+    const failed = await answerFromResults({ question: "q", picked, stream, judge: async () => { throw new Error("down"); }, emit: () => {} });
+    expect(failed.text).toBe("It worked in the clinics. [1]");
+    expect(failed.checked).toBe(false);
   });
 });
 

@@ -18,7 +18,7 @@ const login = async (sub, email, name) => {
 };
 
 /** Sends a message and reads the whole stream (or stops after `stopAfter` events by aborting, as the Stop button does). */
-async function chat(client, message, { mode = "search", origin = APP, stopAfter, raw } = {}) {
+async function chat(client, message, { mode = "search", origin = APP, stopAfter, stopWhen, raw } = {}) {
   const ctl = new AbortController();
   const res = await client.send(`${APP}/api/v1/chat`, {
     method: "POST", signal: ctl.signal,
@@ -39,7 +39,7 @@ async function chat(client, message, { mode = "search", origin = APP, stopAfter,
         buf = buf.slice(i + 2);
         const data = block.split("\n").find((l) => l.startsWith("data:"));
         if (data) events.push(JSON.parse(data.slice(5)));
-        if (stopAfter && events.length >= stopAfter) { ctl.abort(); return { res, events }; }
+        if ((stopAfter && events.length >= stopAfter) || (stopWhen && stopWhen(events.at(-1)))) { ctl.abort(); return { res, events }; }
       }
     }
   } catch (e) {
@@ -98,6 +98,27 @@ try {
   ok(!types(un.events).includes("papers") || un.events.find((e) => e.type === "papers" && e.final).results.length === 5, "(the papers are still listed)");
   const ha = await chat(A, "hallucinate glaucoma");
   ok(ha.events.at(-1).reason === "not_grounded" && ha.events.find((e) => e.type === "answer").answer.citations.length === 0, "an answer whose evidence is not a real sentence is not shown");
+
+  console.log("the support judge reads each claim against the sentences it cites (docs/design/claim-support.md)");
+  const ansOf = (x) => x.events.find((e) => e.type === "answer").answer;
+  ok(ans.checked === true && ans.leftOut === 0, "an answer that was read claim by claim says so (checked, nothing left out)");
+  const jd = await chat(A, "judgedrop glaucoma");
+  ok(ansOf(jd).text === "The first paper reports its main result [1]." && ansOf(jd).leftOut === 1 && ansOf(jd).checked === true && jd.events.at(-1).answered === true, "a claim whose sentences do not support it is left out, and the answer that remains is shown");
+  ok(types(jd.events).lastIndexOf("token") < types(jd.events).indexOf("answer") && !ansOf(jd).text.includes("invented"), "the words streamed first included it; the checked answer, which replaces them, does not");
+  const jm = await chat(A, "judgemove glaucoma");
+  ok(ansOf(jm).citations.length === 1 && ansOf(jm).citations[0].sentenceNo === 3 && /Performance was lower/.test(ansOf(jm).citations[0].sentence), "the sentence shown is the one the judge found, taken from the abstract word for word");
+  for (const q of ["judgefail glaucoma", "judgebad glaucoma"]) {
+    const jf = await chat(A, q);
+    ok(jf.events.at(-1).answered === true && ansOf(jf).grounded === true && ansOf(jf).checked === false && /\[1\]\.?$/.test(ansOf(jf).text) && ansOf(jf).citations.length === 1, `${q.split(" ")[0]}: the answer is still shown as written, with its mark and its sentence, and says it was not read claim by claim`);
+  }
+  ok(jd.events.filter((e) => e.type === "step").map((e) => e.step).join() === "search,read,write,check", "the steps are the same with a judge: search, read, write, check (the check is the judge's reading)");
+  // Stop pressed while the judge is reading: the stream ends, nothing breaks, and the next question is answered as usual
+  const js = await chat(A, "judgeslow glaucoma", { stopWhen: (e) => e.type === "step" && e.step === "check" });
+  ok(js.events.at(-1).type === "step" && !types(js.events).includes("answer") && !types(js.events).includes("done"), "stopped while the judge reads: no answer and no `done` reach the reader");
+  const afterStop = await chat(A, "glaucoma screening");
+  ok(ansOf(afterStop).grounded === true && ansOf(afterStop).checked === true, "...and the next question is answered and read claim by claim as usual");
+  const jhal = await chat(A, "hallucinate glaucoma");
+  ok(ansOf(jhal).checked === undefined, "an answer that never reached the judge (no real sentence behind it) carries no `checked`");
 
   console.log("Indian sources: only when the reader turns them on");
   const body = (o) => ({ raw: JSON.stringify({ mode: "search", message: "glaucoma screening", ...o }) });

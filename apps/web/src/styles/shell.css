@@ -440,7 +440,8 @@ kbd {
 .chat-ev-n { flex: none; display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 0.78rem; font-weight: 700; }
 .chat-ev > span:last-child { display: grid; gap: 0.15rem; min-width: 0; }
 .chat-ev-t { font-weight: 600; font-size: 0.875rem; }
-.chat-ev-q { color: var(--muted); font-size: 0.85rem; font-style: italic; }
+.chat-ev-q { display: block; color: var(--muted); font-size: 0.85rem; font-style: italic; }
+.chat-left-out { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.8125rem; }
 .chat-why { margin: 0; padding: 0.6rem 0.8rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-s); color: var(--muted); font-size: 0.9rem; }
 .chat-why-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
 .chat-note { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0; color: var(--warn); font-size: 0.875rem; }

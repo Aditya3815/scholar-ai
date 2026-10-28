@@ -1,6 +1,8 @@
-import { sentenceAt, splitSentences, words, type ChatAnswer, type ChatCitation, type ChatEvent, type Lang, type Paper } from "@scholar/shared";
+import { splitSentences, words, type ChatAnswer, type ChatCitation, type ChatEvent, type Lang, type Paper } from "@scholar/shared";
 import { AnswerFieldStreamer } from "../docs/stream-json";
 import { isMalformedReply } from "./malformed";
+import { judgeAnswer } from "./support";
+import { abstractOf, dedupeMarkRuns, MAX_SENTENCES_PER_PAPER, shownSentence, tidyMarkPunctuation } from "./evidence";
 import type { StreamComplete } from "../docs/qa";
 
 /**
@@ -11,10 +13,7 @@ import type { StreamComplete } from "../docs/qa";
 
 /** How many papers the model reads, and the most it reads of each abstract. */
 export const MAX_EVIDENCE_PAPERS = 8;
-const MAX_ABSTRACT_CHARS = 1500;
 const MIN_ABSTRACT_CHARS = 80;
-/** A cited sentence is shown whole up to this length, then cut at a word (still word for word). */
-const MAX_SENTENCE_CHARS = 300;
 
 export const CHAT_SYSTEM = [
   "You write a short summary (at most about 120 words, in the language of the question) of what the numbered papers report about the user's question or topic, using only the papers.",
@@ -55,19 +54,11 @@ export function pickEvidencePapers(results: readonly Paper[]): Picked[] {
   return out;
 }
 
-const abstractOf = (p: Paper) => (p.abstract ?? "").slice(0, MAX_ABSTRACT_CHARS);
-
 export function buildChatPrompt(question: string, picked: readonly Picked[]): string {
   // sentences are labelled S1, S2... (not (1), (2)...) so that a sentence number cannot be mistaken for a paper number inside an answer
   const blocks = picked.map(({ n, paper }) => `[${n}] ${paper.title}${paper.year ? ` (${paper.year})` : ""}\n${splitSentences(abstractOf(paper)).map((x, i) => `S${i + 1} ${x}`).join(" ")}`);
   return `Question: ${question}\n\nPapers:\n${blocks.join("\n\n")}`;
 }
-
-const clip = (s: string) => {
-  if (s.length <= MAX_SENTENCE_CHARS) return s;
-  const cut = s.lastIndexOf(" ", MAX_SENTENCE_CHARS);
-  return s.slice(0, cut > MAX_SENTENCE_CHARS * 0.5 ? cut : MAX_SENTENCE_CHARS);
-};
 
 /**
  * The ways a model writes a mark for "paper 3, sentence 2" when it was told to write [3], brought back to [3]: 【3】(2), [3] (2), [3 (2)], (3) (2), and lists of papers ([3, 5]).
@@ -127,19 +118,13 @@ export function normaliseMarks(raw: string): string {
     .trim();
 }
 
-/**
- * The punctuation the marks leave: marks written as a list ("[4]; [1]") become one run ("[4][1]"), and a separator left in front of other punctuation when a mark that pointed at
- * nothing checked was taken out ("[1]; , as is") goes. Seen in a live run, 28 Oct 2026.
- */
-export function tidyMarkPunctuation(text: string): string {
-  return text
-    .replace(/(\[\d{1,3}\])\s*[;,]\s*(?=\[\d{1,3}\])/g, "$1")
-    .replace(/(\])\s*[;,]\s*(?=[,.;:])/g, "$1")
-    .replace(/\s{2,}/g, " ");
-}
+export { tidyMarkPunctuation };
 
-/** The model's JSON as a checked answer. Never throws: anything that does not fit is "not grounded". */
-export function verifyChatAnswer(raw: unknown, picked: readonly Picked[]): ChatAnswer & { enough: boolean } {
+/**
+ * The model's JSON as a checked answer. Never throws: anything that does not fit is "not grounded". `addMissingMarks: false` leaves a text that has no marks without them (the
+ * support judge then finds each claim's paper itself); the default adds every cited paper's mark to the end of such a text.
+ */
+export function verifyChatAnswer(raw: unknown, picked: readonly Picked[], opts: { addMissingMarks?: boolean } = {}): ChatAnswer & { enough: boolean } {
   const o = (raw && typeof raw === "object" ? raw : {}) as { coverage?: unknown; enough?: unknown; answer?: unknown; evidence?: unknown };
   // `enough` is the model's own view; what decides is whether any claim has a sentence behind it (a careful model says "not enough" about answers that are well supported)
   const enough = typeof o.coverage === "string" ? o.coverage !== "none" : o.enough === true;
@@ -151,18 +136,21 @@ export function verifyChatAnswer(raw: unknown, picked: readonly Picked[]): ChatA
     const x = (e && typeof e === "object" ? e : {}) as { n?: unknown; s?: unknown };
     const n = typeof x.n === "number" ? Math.trunc(x.n) : NaN;
     const paper = byN.get(n);
-    if (!paper || citations.some((c) => c.n === n)) continue;
-    const sentence = clip(sentenceAt(abstractOf(paper), x.s));
+    if (!paper) continue;
+    const sentence = shownSentence(paper, x.s);
     if (!sentence) continue;
-    citations.push({ n, paperId: paper.id, sentenceNo: Math.trunc(Number(x.s)), sentence });
+    const sentenceNo = Math.trunc(Number(x.s));
+    const mine = citations.filter((c) => c.n === n);
+    if (mine.length >= MAX_SENTENCES_PER_PAPER || mine.some((c) => c.sentenceNo === sentenceNo)) continue;
+    citations.push({ n, paperId: paper.id, sentenceNo, sentence });
   }
-  citations.sort((a, b) => a.n - b.n);
+  citations.sort((a, b) => a.n - b.n || a.sentenceNo - b.sentenceNo);
   if (citations.length === 0 || !text) return { text: "", citations: [], grounded: false, enough };
   const ok = new Set(citations.map((c) => c.n));
   // a marker that points at nothing that was checked is taken out rather than left looking sure
-  text = tidyMarkPunctuation(text.replace(/\[(\d{1,2})\]/g, (m, d: string) => (ok.has(Number(d)) ? m : "")).replace(/\s{2,}/g, " ").replace(/\s+([.,;:])/g, "$1").trim());
+  text = dedupeMarkRuns(tidyMarkPunctuation(text.replace(/\[(\d{1,2})\]/g, (m, d: string) => (ok.has(Number(d)) ? m : "")).replace(/\s{2,}/g, " ").replace(/\s+([.,;:])/g, "$1").trim()));
   // the model sometimes cites in the evidence list and forgets the markers: add them, so every claim shows where it came from
-  if (!/\[\d{1,2}\]/.test(text)) text = `${text} ${citations.map((c) => `[${c.n}]`).join("")}`.trim();
+  if (opts.addMissingMarks !== false && !/\[\d{1,2}\]/.test(text)) text = `${text} ${[...ok].map((n) => `[${n}]`).join("")}`.trim();
   return { text, citations, grounded: true, enough };
 }
 
@@ -181,7 +169,8 @@ export function papersOnTheSubject(question: string, picked: readonly Picked[]):
 }
 
 /** Write the answer, telling `emit` the text as it comes, and return the checked answer. The caller handles the model's failures. */
-export async function answerFromResults(args: { question: string; /** The language of the question: the summary is written in it. */ language?: Lang; picked: readonly Picked[]; stream: StreamComplete; emit: (e: ChatEvent) => void | Promise<void>; /** Local debugging only: receives the model's raw JSON. */ onRaw?: (raw: unknown) => void; /** What the usage ledger calls these calls (default: the prompt box's). */ label?: string }): Promise<ChatAnswer & { enough: boolean }> {
+export async function answerFromResults(args: { question: string; /** The support judge's model (chat/support.ts). Without it the answer is as written and is not judged. */ judge?: StreamComplete; /** Counts only, never words: how the judge did on this answer. */ onJudged?: (r: { ms: number; model?: string; counts: Record<string, number>; leftOut: number; error?: string }) => void; /** The language of the question: the summary is written in it. */ language?: Lang; picked: readonly Picked[]; stream: StreamComplete; emit: (e: ChatEvent) => void | Promise<void>; /** Local debugging only: receives the model's raw JSON. */ onRaw?: (raw: unknown) => void; /** What the usage ledger calls these calls (default: the prompt box's). */ label?: string }): Promise<ChatAnswer & { enough: boolean }> {
+  const marks = { addMissingMarks: !args.judge };
   const field = new AnswerFieldStreamer();
   // hooks are synchronous callbacks: events are queued in order and awaited at the end
   let chain: Promise<void> = Promise.resolve();
@@ -215,14 +204,20 @@ export async function answerFromResults(args: { question: string; /** The langua
   };
   let json = await ask();
   args.onRaw?.(json);
-  let checked = verifyChatAnswer(json, args.picked);
+  let checked = verifyChatAnswer(json, args.picked, marks);
   // The model sometimes says "none" about papers that plainly use the words of the question (it varies from one run to the next). That contradiction is the one case worth
   // a second try, once, with a plain reminder; the answer, if any, is checked in the same way.
   if (!checked.grounded && !checked.enough && papersOnTheSubject(args.question, args.picked) >= 2) {
     json = await ask("Note: several of the papers below use the words of the question, so they are about the subject. Write what they report (coverage partial or full), with evidence.");
     args.onRaw?.(json);
-    checked = verifyChatAnswer(json, args.picked);
+    checked = verifyChatAnswer(json, args.picked, marks);
   }
   await chain;
-  return checked;
+  if (!args.judge || !checked.grounded) return checked;
+  // every claim is read next to the abstracts it cites; the answer is shown only after this (docs/design/claim-support.md)
+  await args.emit({ type: "step", step: "check" });
+  const judged = await judgeAnswer({ answer: checked, picked: args.picked, judge: args.judge, label: args.label ? `${args.label}_judge` : undefined, onResult: args.onJudged });
+  // the judge could not be used: the answer stands as written, with the marks the old check gives it, and says it was not checked
+  if (!judged) return { ...verifyChatAnswer(json, args.picked), checked: false };
+  return { text: judged.text, citations: judged.citations, grounded: judged.grounded, enough: checked.enough, checked: judged.checked, leftOut: judged.leftOut };
 }

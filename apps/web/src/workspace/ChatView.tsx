@@ -66,7 +66,7 @@ const STEPS = [
   { id: "search", label: "Searching" },
   { id: "read", label: "Reading the papers" },
   { id: "write", label: "Writing" },
-  { id: "check", label: "Checking the sources" },
+  { id: "check", label: "Reading each claim against its sentences" },
   { id: "general", label: "Writing background" },
 ] as const;
 
@@ -229,18 +229,21 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, 
 
       {answer ? (
         <m.div className="chat-answer" initial={{ opacity: 0.4 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
-          <span className="ask-status" data-tone="ok"><ShieldCheck size={15} aria-hidden="true" /> Every claim points at a sentence of an abstract</span>
+          <span className="ask-status" data-tone={answer.checked === false ? "warn" : "ok"}>
+            <ShieldCheck size={15} aria-hidden="true" /> {answer.checked ? "Each claim was read against the sentences it cites" : answer.checked === false ? "Every mark points at a sentence of an abstract. The claims were not read against them this time" : "Every mark points at a sentence of an abstract"}
+          </span>
+          {!!answer.leftOut && <p className="chat-left-out" role="note">{answer.leftOut === 1 ? "One statement was left out: the sentences it cited do not support it." : `${answer.leftOut} statements were left out: the sentences they cited do not support them.`}</p>}
           <AnswerText text={answer.text} onCite={(n) => onCite(msg.id, n)} label={(n) => `Source ${n}: ${titleOf(n)}. Show the paper`} />
           <details className="chat-evidence">
             <summary>The sentences behind it</summary>
             <ul>
-              {answer.citations.map((c) => (
-                <li key={c.n}>
-                  <button type="button" className="chat-ev" onClick={() => onCite(msg.id, c.n)}>
-                    <span className="chat-ev-n">{c.n}</span>
+              {[...new Set(answer.citations.map((c) => c.n))].map((n) => (
+                <li key={n}>
+                  <button type="button" className="chat-ev" onClick={() => onCite(msg.id, n)}>
+                    <span className="chat-ev-n">{n}</span>
                     <span>
-                      <span className="chat-ev-t">{titleOf(c.n)}{byN(c.n)?.year ? ` (${byN(c.n)!.year})` : ""}</span>
-                      <span className="chat-ev-q">“{c.sentence}”</span>
+                      <span className="chat-ev-t">{titleOf(n)}{byN(n)?.year ? ` (${byN(n)!.year})` : ""}</span>
+                      {answer.citations.filter((c) => c.n === n).map((c) => <span key={c.sentenceNo} className="chat-ev-q">“{c.sentence}”</span>)}
                     </span>
                   </button>
                 </li>

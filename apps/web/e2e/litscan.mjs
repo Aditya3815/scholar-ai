@@ -101,13 +101,13 @@ try {
   ok(await theme(page, 0).locator(".ls-words-v").innerText() === "air pollution and evidence" && /How strong is the evidence/.test(await theme(page, 0).locator(".ls-theme-q").innerText()), "...and shows the question it is answered as and the English words that are searched");
   ok(await page.locator(".ls-theme input").count() === 0, "nothing has to be filled in: the themes are cards, not a form");
   ok(/Only each theme's search words/.test(await page.locator(".ls-sendnote").innerText()), "it says that only the search words reach the public indexes, not the topic");
-  ok(/about 12,000 AI tokens/.test(await page.locator(".ls-cost").innerText()) && /60,000/.test(await page.locator(".ls-cost").innerText()), "it says what the review is expected to use of the day's allowance");
+  ok(/about 22,000 AI tokens/.test(await page.locator(".ls-cost").innerText()) && /60,000/.test(await page.locator(".ls-cost").innerText()), "it says what the review is expected to use of the day's allowance");
   ok(await page.getByLabel("Write the review in").inputValue() === "en", "the language is chosen from the topic (English here)");
   ok(await page.getByRole("button", { name: "Indian sources only" }).getAttribute("aria-pressed") === "false", "Indian sources is a choice, off unless the person turned it on in the prompt box");
   await editTheme(page, 1, { question: "nothing found for this one?", words: "nothing words here" });
   await editTheme(page, 2, { question: "unanswerable question?", words: "unanswerable words" });
   await page.getByRole("button", { name: /^Remove theme 4:/ }).click();
-  ok(await page.locator(".ls-theme").count() === 3 && /about 9,000 AI tokens/.test(await page.locator(".ls-cost").innerText()), "removing a theme lowers the estimate");
+  ok(await page.locator(".ls-theme").count() === 3 && /about 16,500 AI tokens/.test(await page.locator(".ls-cost").innerText()), "removing a theme lowers the estimate");
   await page.getByRole("button", { name: "Add a theme" }).click();
   ok(await startBtn(page).isDisabled() && /Every theme needs a name, a question and some search words/.test(await page.locator(".ls-why").innerText()), "a new theme left empty stops the start, and says why");
   const fresh = theme(page, 3);

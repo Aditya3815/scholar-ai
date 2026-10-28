@@ -37,7 +37,7 @@ describe("the topic", () => {
     expect(cleanLitscanTopic(42)).toBeNull();
   });
   it("costs a known amount a sub-question, so the approval screen can say it before anything runs", () => {
-    expect(estimateScanTokens(5)).toBe(15_000);
+    expect(estimateScanTokens(5)).toBe(27_500);
     expect(estimateScanTokens(0)).toBe(0);
   });
 });

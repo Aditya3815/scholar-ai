@@ -31,6 +31,28 @@ describe("a title in the report", () => {
   });
 });
 
+describe("one worker of a scan with the support judge", () => {
+  const json = { coverage: "full", answer: "Attacks were more frequent near traffic [1]. The effect was strongest in winter [1]. An invented cure exists [1].", evidence: [{ n: 1, s: 2 }, { n: 1, s: 3 }] };
+  const judgeSays = (claims: unknown[]) => async () => ({ json: { claims }, model: "j" });
+  it("takes out what the sentences do not support, shows the sentences the judge found, and lists a paper once as a source", async () => {
+    const d = { ...deps([paper(1), paper(2)], json), judge: judgeSays([{ c: 0, v: "yes", refs: [{ n: 1, s: [2] }] }, { c: 1, v: "yes", refs: [{ n: 1, s: [3] }] }, { c: 2, v: "no", refs: [] }]) };
+    const part = await run(d);
+    if (part.status !== "answered") throw new Error("not answered");
+    expect(part.text).toBe("Attacks were more frequent near traffic [1]. The effect was strongest in winter [1].");
+    expect(part.citations.map((c) => [c.n, c.sentenceNo])).toEqual([[1, 2], [1, 3]]);
+    expect(part.sources.map((x) => x.n)).toEqual([1]);
+  });
+  it("is a gap, and says so, when the judge finds nothing that supports any claim", async () => {
+    const d = { ...deps([paper(1)], json), judge: judgeSays([{ c: 0, v: "no", refs: [] }, { c: 1, v: "no", refs: [] }, { c: 2, v: "no", refs: [] }]) };
+    expect(await run(d)).toMatchObject({ status: "gap", reason: "not_grounded" });
+  });
+  it("keeps the answer as it was written when the judge fails: a failing judge does not lose a scan's answer", async () => {
+    const d = { ...deps([paper(1)], json), judge: async () => { throw new AllProvidersFailedError([]); } };
+    const part = await run(d);
+    expect(part).toMatchObject({ status: "answered" });
+  });
+});
+
 describe("one worker of a scan", () => {
   it("searches with the sub-question's search words and returns a checked answer with real sources", async () => {
     const d = deps([paper(1), paper(2)], answerJson(1));

@@ -1,6 +1,6 @@
 /**
  * What a model call costs, from the provider's published price per million tokens (USD). Without this the ledger said 0 for everything and cost could not be
- * reviewed. Workers AI prices: https://developers.cloudflare.com/workers-ai/platform/pricing/ (read 2026-10-23; $0.011 per 1,000 neurons above the free 10,000 a day).
+ * reviewed. Workers AI prices: https://developers.cloudflare.com/workers-ai/platform/pricing/ (read 2026-10-23, and again on 28 Oct 2026 for the two models of the `verify` task; $0.011 per 1,000 neurons above the free 10,000 a day).
  * Re-read the page when a model is added or every few months; `pricing.test.ts` fails if a model that is routed to has no price here.
  */
 export type Price = { in: number; out: number; /** per million cached input tokens, when the provider discounts them */ cachedIn?: number };
@@ -11,6 +11,7 @@ export const PRICES: Record<string, Price> = {
   "@cf/google/gemma-4-26b-a4b-it": { in: 0.1, out: 0.3 },
   "@cf/qwen/qwen3-30b-a3b-fp8": { in: 0.051, out: 0.335 },
   "@cf/meta/llama-3.1-8b-instruct-fp8-fast": { in: 0.045, out: 0.384 },
+  "@cf/meta/llama-3.3-70b-instruct-fp8-fast": { in: 0.293, out: 2.253 },
   "@cf/meta/llama-4-scout-17b-16e-instruct": { in: 0.27, out: 0.85 },
   "@cf/mistralai/mistral-small-3.1-24b-instruct": { in: 0.351, out: 0.555 },
   "@cf/baai/bge-m3": { in: 0.012, out: 0 },

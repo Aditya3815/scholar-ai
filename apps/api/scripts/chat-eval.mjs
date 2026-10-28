@@ -100,7 +100,9 @@ async function ask(message, group) {
     // a sentence label, a model's own token, or a sentence number in round brackets: (3), and pairs or lists like (6:1) or (2,5) (seen in Hindi answers)
     const left = /.{0,30}(?:\bS\d{1,3}\b|【|】|\(\s*\d{1,2}(?:\s*[-:,;]\s*\d{1,3})*\s*\)).{0,15}/.exec(answer.text);
     if (left) row.problems.push(`a label or token is left in the words: …${left[0]}…`);
-    row.marks = answer.citations.length;
+    row.marks = new Set(answer.citations.map((c) => c.n)).size;
+    row.checked = answer.checked;
+    row.leftOut = answer.leftOut ?? 0;
     row.words = answer.text.split(/\s+/).length;
   }
   // the general background (W5): what the server finally said about it, and whether it broke a rule (checked here apart from the server's own check)
@@ -137,6 +139,7 @@ const ms = topic.map((r) => r.ms).sort((a, b) => a - b);
 const lines = [
   ["answered", `${answered} of ${answerable} questions that found at least two abstracts`, answerable === 0 || answered / answerable >= 0.75],
   ["real, not retracted, clean marks", `${problems.length} problems in ${results.filter((r) => r.answered).length} answers`, problems.length === 0],
+  ["support judge", `${results.filter((r) => r.answered && r.checked === true).length} of ${results.filter((r) => r.answered).length} answers were read claim by claim (at least 90% must be); ${results.reduce((n, r) => n + (r.leftOut ?? 0), 0)} claims were left out`, results.filter((r) => r.answered).length === 0 || results.filter((r) => r.answered && r.checked === true).length / results.filter((r) => r.answered).length >= 0.9],
   ["controls", `${controls.filter((r) => r.answered).length} of ${controls.length} nonsense questions got an answer (must be 0)`, controls.every((r) => !r.answered)],
   ["no invented background", `${controls.filter((r) => r.general?.kind === "background").length} of ${controls.length} nonsense questions and ${results.filter((r) => r.group === "greeting" && r.general?.kind === "background").length} of ${results.filter((r) => r.group === "greeting").length} greetings got a background (must be 0)`, controls.every((r) => r.general?.kind !== "background") && results.filter((r) => r.group === "greeting").every((r) => r.general?.kind !== "background")],
   ["background rules", `${results.flatMap((r) => r.problems).filter((p) => /background/.test(p)).length} breaches in ${results.filter((r) => r.general?.text).length} backgrounds (a source mark, a named source, too long, or written under a paper answer)`, !results.flatMap((r) => r.problems).some((p) => /background/.test(p))],

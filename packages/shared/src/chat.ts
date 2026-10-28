@@ -31,10 +31,18 @@ export type GeneralKind = (typeof GENERAL_KINDS)[number];
 export type ChatCitation = { n: number; paperId: string; sentenceNo: number; sentence: string };
 
 /**
- * The checked answer. `text` carries markers [n] that are exactly the citations; markers that point at nothing checked are removed. When `grounded` is false the
+ * The checked answer. `text` carries markers [n] that are exactly the papers of the citations (a paper can have up to three sentences); markers that point at nothing checked are removed. When `grounded` is false the
  * text is empty: the papers are shown, and no sentence of the model's is passed off as something a paper said.
  */
-export type ChatAnswer = { text: string; citations: ChatCitation[]; grounded: boolean };
+export type ChatAnswer = {
+  text: string;
+  citations: ChatCitation[];
+  grounded: boolean;
+  /** True when a second reading (the support judge) found, for every claim that cites a paper, the sentences that support it; false when that reading could not be done. Absent in answers made before it existed. */
+  checked?: boolean;
+  /** How many claims were taken out because the sentences they cite do not support them. */
+  leftOut?: number;
+};
 
 /** Why a message has papers but no written answer. */
 export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_grounded" | "quota" | "unavailable" | "stopped" | "routed" | "too_long";

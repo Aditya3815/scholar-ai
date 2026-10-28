@@ -57,7 +57,7 @@ POST /api/v1/litscan/:id/cancel, DELETE /api/v1/litscan/:id, GET /api/v1/litscan
 | Topic | 8 to 400 characters |
 | Sub-questions | 2 to 6 (the plan proposes 3 to 6); question at most 200 characters, search words at most 160 |
 | Scans | one running at a time; 4 started a day (UTC; a counter that deleting a scan does not reset; refunded if the start fails) |
-| Allowance | same 60,000 tokens a day; start refused if the plan's estimate (3,000 each) is more than what is left |
+| Allowance | same 60,000 tokens a day; start refused if the plan's estimate (5,500 each since the support judge, 28 Oct 2026; it was 3,000) is more than what is left |
 | One worker | search, then the model: 75 s for the model; step limit 4 minutes |
 | Kept | 24 hours, then removed (daily clean-up); delete at any time |
 | Who | signed in, privacy note of this version read |

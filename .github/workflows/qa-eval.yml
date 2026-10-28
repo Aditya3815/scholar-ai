@@ -5,6 +5,7 @@ name: Q&A quality (real models)
 # declined, sources verified). The per-push CI uses stand-in models and cannot see a changed model or prompt.
 # The same job then asks twelve searches of the prompt box (live sources, real model) and fails if answers are not real: a sentence shown as evidence
 # that is not in its abstract, a mark that is not a checked citation, a retracted paper cited, an answer to nonsense, or fewer than 75% answered.
+# Then it gives the support judge 238 claims that a person labelled (supported or not, with the abstracts they cite) and fails if it misses more than 15% of the unsupported ones, calls more than 10% of them supported, drops more than 10% of the supported ones, or a call takes longer than 15 s at the 90th percentile.
 # Then it asks the router of Auto mode about 200 labelled messages in English, Hindi and Hinglish (no search is run) and fails if it picks the wrong tool more than 10% of the time
 # (more than 15% in Hindi or Hinglish), does not translate a Hindi search, or follows an order hidden in a message. That step uses roughly a day's free Workers AI allowance.
 # Then it asks eight real papers (Europe PMC XML, arXiv PDFs, one closed paper that must fall back to its abstract), 15 questions in English, Hinglish and Hindi, through "Ask this paper"
@@ -72,6 +73,12 @@ jobs:
           set -o pipefail
           node apps/api/scripts/chat-eval.mjs --gate | tee chat-eval.txt
 
+      - name: Ask the support judge (238 hand-labelled claims, real model, no search)
+        shell: bash
+        run: |
+          set -o pipefail
+          node apps/api/scripts/support-eval.mjs --split=all --gate | tee support-eval.txt
+
       - name: Ask the router of Auto mode (English, Hindi, Hinglish; real model, no search)
         shell: bash
         run: |
@@ -92,6 +99,7 @@ jobs:
           path: |
             qa-eval.txt
             chat-eval.txt
+            support-eval.txt
             router-eval.txt
             oa-eval.txt
             worker.log

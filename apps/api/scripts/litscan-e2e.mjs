@@ -92,7 +92,7 @@ try {
   ok(p.plan?.items?.length >= 2 && p.plan.items.every((i) => i.question && i.searchQuery), "the topic becomes sub-questions, each with its question and its search words");
   ok(p.plan.items.every((i) => typeof i.title === "string" && i.title.length >= 2 && !/\?$/.test(i.title)), "...and each is a theme with a short name, like a heading of a review");
   ok(p.plan.language === "en" && p.plan.topic === "air pollution and childhood asthma", "an English topic is answered in English by default");
-  ok(p.plan.allowance.limit === 60000 && p.plan.allowance.used === 0 && p.plan.allowance.estimate === p.plan.items.length * 3000, "it says what the scan is expected to use, of what the person has today");
+  ok(p.plan.allowance.limit === 60000 && p.plan.allowance.used === 0 && p.plan.allowance.estimate === p.plan.items.length * 5500, "it says what the scan is expected to use, of what the person has today");
   ok((await (await plan(A, { topic: "kya air pollution se bachchon me asthma hota hai", language: "auto" })).json()).plan.language === "hinglish", "a Hinglish topic is answered in Hinglish when the language is left on automatic");
   ok((await (await plan(A, { topic: "kya air pollution se bachchon me asthma hota hai", language: "en" })).json()).plan.language === "en", "...and in English when the person chooses English");
   ok((await sql("SELECT COUNT(*) AS n FROM litscans"))[0][0].n === 0, "planning stores nothing");
@@ -128,7 +128,7 @@ try {
   const snap = (await get(A, id)).scan;
   ok(snap.state === "completed" && snap.total === 5 && snap.done === 5 && snap.parts.length === 5 && snap.language === "hinglish" && snap.topic === "air pollution and childhood asthma", "the scan can be read again with everything in it");
   ok(JSON.stringify(snap.parts) === JSON.stringify(Object.values(parts)), "it is the same parts the stream delivered");
-  ok(snap.items.length === 5 && snap.estimate === 5 * 3000 && Date.parse(snap.expiresAt) - Date.parse(snap.createdAt) === 24 * 3600_000, "it keeps the approved plan, what it was expected to use, and one day");
+  ok(snap.items.length === 5 && snap.estimate === 5 * 5500 && Date.parse(snap.expiresAt) - Date.parse(snap.createdAt) === 24 * 3600_000, "it keeps the approved plan, what it was expected to use, and one day");
   ok(snap.items[0].title === "Air pollution asthma" && snap.scope === undefined, "a theme sent without a name is named from its search words, and a regular scan claims no scope");
   const third = s1.events.filter((e) => e.seq).at(2).seq;
   const again = await events(A, id, { after: third, label: "reconnect" });
@@ -202,13 +202,13 @@ try {
   ok((await sql("SELECT n FROM litscan_daily"))[0].find((r) => r.n >= 4), "the day's count is kept apart from the scans, so deleting a scan does not give it back");
   const C = await login("ls-c", "ls-c@example.com", "Chandra");
   const cid = (await sql("SELECT id FROM users WHERE email = 'ls-c@example.com'"))[0][0].id;
-  await sql(`INSERT INTO llm_usage (subject, task, sensitivity, provider, model, tokens_in, tokens_out, cost_cents, ok, ms, label) VALUES ('${cid}', 'qa', 'private', 'workersai', 'm', 30000, 20000, 0, 1, 10, 'x')`);
+  await sql(`INSERT INTO llm_usage (subject, task, sensitivity, provider, model, tokens_in, tokens_out, cost_cents, ok, ms, label) VALUES ('${cid}', 'qa', 'private', 'workersai', 'm', 25000, 15000, 0, 1, 10, 'x')`);
   const poor = await start(C, { topic: "a topic with little allowance left", language: "en", items: FOUR });
   const pj = await poor.json();
-  ok(poor.status === 429 && pj.type === "quota" && /10,000 left/.test(pj.detail) && /12,000 tokens/.test(pj.detail), "a scan that today's allowance cannot cover is refused before anything runs, saying what it needs and what is left");
+  ok(poor.status === 429 && pj.type === "quota" && /20,000 left/.test(pj.detail) && /22,000 tokens/.test(pj.detail), "a scan that today's allowance cannot cover is refused before anything runs, saying what it needs and what is left");
   ok((await sql("SELECT COUNT(*) AS n FROM litscans WHERE user_id = '" + cid + "'"))[0][0].n === 0 && (await sql("SELECT COUNT(*) AS n FROM litscan_daily WHERE user_id = '" + cid + "'"))[0][0].n === 0, "...and it does not use up one of the day's scans");
   const three = await start(C, { topic: "a cheaper scan with fewer parts", language: "en", items: FOUR.slice(0, 3) });
-  ok(three.status === 201, "...while a smaller plan that the allowance does cover (9,000 of 10,000) is accepted");
+  ok(three.status === 201, "...while a smaller plan that the allowance does cover (16,500 of 20,000) is accepted");
   await waitEnded(C, (await three.json()).id);
 
   const offTopic = await start(C, { topic: "a topic with one sub-question off the subject", language: "en", items: [item("An off-topic question?", "irrelevant words here"), item("An ordinary question?", "ordinary words here")] });

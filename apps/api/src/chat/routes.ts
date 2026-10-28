@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { NOTHING_NOTICE, PARTIAL_NOTICE, SMALL_TALK_REPLY, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, ruleRoute, slimForInterim, type ChatEvent, type ChatNoAnswer, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
+import { NOTHING_NOTICE, PARTIAL_NOTICE, SMALL_TALK_REPLY, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, ruleRoute, slimForInterim, type ChatCitation, type ChatEvent, type ChatNoAnswer, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { cacheStore } from "../cache";
 import type { Complete, StreamComplete } from "../docs/qa";
@@ -8,10 +8,11 @@ import { runSearch } from "../search";
 import { sseStream } from "../sse";
 import type { SearchEnv } from "../search/types";
 import type { S2Throttle } from "../s2-throttle";
-import { answerFromResults, pickEvidencePapers } from "./answer";
+import { answerFromResults, pickEvidencePapers, type Picked } from "./answer";
+import { judgeAnswer } from "./support";
 import { answerGeneral } from "./general";
 import { routeMessage } from "./router";
-import { stubChatStream, stubSearchFor } from "./stub";
+import { stubChatStream, stubJudgeStream, stubSearchFor } from "./stub";
 import { stubRoute } from "./stub-route";
 import { countOutcome } from "../outcomes";
 
@@ -28,6 +29,12 @@ type Bindings = {
   CORE_API_KEY?: string;
   ENABLE_DEV_ROUTES?: string;
   QA_STUB?: string;
+  /** Development only (ENABLE_DEV_ROUTES): another Workers AI model for the private `qa` task, and how long a gpt-oss model thinks. */
+  LLM_QA_MODEL?: string;
+  LLM_VERIFY_MODEL?: string;
+  LLM_REASONING?: string;
+  /** "off" switches the support judge off (answers are then shown as the old check leaves them): a Worker variable, for a day when its model is down or its cost must stop. */
+  CHAT_JUDGE?: string;
 };
 type Env = { Bindings: Bindings };
 export const chatRoutes = new Hono<Env>();
@@ -39,6 +46,10 @@ chatRoutes.use("*", async (c, next) => {
 
 const deny = (c: Context<Env>, status: 400 | 403, type: string, title: string, detail?: string) => c.json({ type, title, ...(detail ? { detail } : {}) }, status);
 const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+
+/** How the judge did on one answer, for the logs: counts and times only, never a word of the question, the answer or an abstract. */
+const logJudged = (r: { ms: number; model?: string; counts: Record<string, number>; leftOut: number; error?: string }) =>
+  console.log(JSON.stringify({ level: r.error ? "warn" : "info", msg: "chat_judge", ms: r.ms, model: r.model, ...r.counts, leftOut: r.leftOut, ...(r.error ? { error: r.error } : {}) }));
 
 const searchEnv = (env: Bindings): SearchEnv => ({
   store: cacheStore(env),
@@ -56,6 +67,19 @@ function streamFor(env: Bindings, subject: string, abort: AbortSignal): StreamCo
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
     const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 60_000, label: req.label }, hooks, abort);
+    return { json: r.json, model: r.model };
+  };
+}
+
+/**
+ * The support judge's model (chat/support.ts): the answer to the person's own question, so PRIVATE. Shorter timeout than the answer's: a judge that takes longer is not waited for
+ * (the answer is then shown as written and says it was not checked).
+ */
+function judgeStreamFor(env: Bindings, subject: string, abort: AbortSignal): StreamComplete {
+  if (stubbed(env)) return stubJudgeStream(env);
+  const gateway = gatewayFromEnv(env);
+  return async (req, hooks) => {
+    const r = await gateway.stream({ task: "verify", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 20_000, label: req.label }, hooks, abort);
     return { json: r.json, model: r.model };
   };
 }
@@ -180,7 +204,7 @@ chatRoutes.post("/", async (c) => {
       let answer;
       try {
         // the question the answer is for is what the person wrote (so it is answered in their language), not the English words the indexes were asked
-        answer = await answerFromResults({ question: text.replace(/\s+/g, " ").slice(0, 600), language: route.language, picked, stream: streamFor(c.env, user.id, abort.signal), emit: send, onRaw: c.env.ENABLE_DEV_ROUTES === "1" ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
+        answer = await answerFromResults({ question: text.replace(/\s+/g, " ").slice(0, 600), language: route.language, picked, stream: streamFor(c.env, user.id, abort.signal), judge: c.env.CHAT_JUDGE === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: logJudged, emit: send, onRaw: c.env.ENABLE_DEV_ROUTES === "1" ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
       } catch (e) {
         if (s.gone) return;
         if (e instanceof QuotaError) return void (await done(false, "quota"));
@@ -191,8 +215,9 @@ chatRoutes.post("/", async (c) => {
         throw e;
       }
       if (s.gone) return;
-      await send({ type: "step", step: "check" });
-      await send({ type: "answer", answer: { text: answer.text, citations: answer.citations, grounded: answer.grounded } });
+      // the judge's reading already said "check" (answerFromResults); an answer that was not judged says it now
+      if (answer.checked === undefined) await send({ type: "step", step: "check" });
+      await send({ type: "answer", answer: { text: answer.text, citations: answer.citations, grounded: answer.grounded, ...(answer.checked === undefined ? {} : { checked: answer.checked, leftOut: answer.leftOut ?? 0 }) } });
       // papers first: only when they do not answer, and the model itself says so (not when an answer was written and could not be checked), a labelled background follows
       if (!answer.grounded && !answer.enough) await background(user.id, route.language);
       await done(answer.grounded, answer.grounded ? undefined : answer.enough ? "not_grounded" : "not_answered");
@@ -216,4 +241,30 @@ chatRoutes.post("/route", async (c) => {
   const user = await currentUser(c);
   const route = await routeMessage(text, user ? routeCompleteFor(c.env, user.id) : null);
   return c.json(route);
+});
+
+/**
+ * Development only (ENABLE_DEV_ROUTES=1; a plain 404 in a deployed Worker): the support judge on one answer with the real model and no search, so `scripts/support-eval.mjs` can measure it
+ * over a labelled list of claims (docs/design/claim-support.md). The body is the answer text and the papers it cites; `model` and `reasoning` try another Workers AI model for the call.
+ */
+chatRoutes.post("/judge", async (c) => {
+  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.notFound();
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 403, "forbidden", "Sign in first");
+  const body = (await c.req.json().catch(() => null)) as { text?: unknown; papers?: unknown; model?: unknown; reasoning?: unknown } | null;
+  const text = typeof body?.text === "string" ? body.text.slice(0, 3000) : "";
+  const list = Array.isArray(body?.papers) ? (body!.papers as { n?: unknown; title?: unknown; year?: unknown; abstract?: unknown }[]) : [];
+  if (!text || list.length === 0 || list.length > 12) return deny(c, 400, "invalid_message", "text and 1 to 12 papers are needed");
+  const picked: Picked[] = list.map((p) => ({
+    n: Number(p.n),
+    paper: { id: `dev:${Number(p.n)}`, doi: null, pmid: null, title: String(p.title ?? ""), authors: [], year: typeof p.year === "number" ? p.year : null, venue: null, abstract: typeof p.abstract === "string" ? p.abstract : null, citationCount: null, oaUrl: null, retracted: false, retractionSources: [], sources: ["openalex"], score: 1 } as Paper,
+  }));
+  const marked = new Set([...text.matchAll(/\[(\d{1,2})\]/g)].map((m) => Number(m[1])));
+  const cited = picked.filter((p) => (marked.size ? marked.has(p.n) : true));
+  const citations: ChatCitation[] = cited.map((p) => ({ n: p.n, paperId: p.paper.id, sentenceNo: 1, sentence: "" }));
+  const env = { ...c.env, LLM_VERIFY_MODEL: typeof body?.model === "string" ? body.model : undefined, LLM_REASONING: typeof body?.reasoning === "string" ? body.reasoning : undefined };
+  let detail: unknown = null;
+  const result = await judgeAnswer({ answer: { text, citations }, picked, judge: judgeStreamFor(env as Bindings, user.id, c.req.raw.signal), onResult: (r) => (detail = r) });
+  return c.json({ result, detail });
 });

@@ -1,4 +1,5 @@
 import { stubPlanScan, stubScanSearch, stubScanStream } from "./stub";
+import { stubJudgeStream } from "../chat/stub";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { gatewayFromEnv, type LlmEnv } from "../llm";
 import { cacheStore } from "../cache";
@@ -20,6 +21,8 @@ export type ScanEnv = LlmEnv & {
   ENABLE_DEV_ROUTES?: string;
   /** "1" (with ENABLE_DEV_ROUTES) swaps the model and the search for stand-ins in local tests. */
   QA_STUB?: string;
+  /** "off" switches the support judge off (see chat/routes.ts). */
+  CHAT_JUDGE?: string;
 };
 
 export const stubbed = (env: Pick<ScanEnv, "ENABLE_DEV_ROUTES" | "QA_STUB">) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
@@ -40,6 +43,19 @@ export function answerModel(env: ScanEnv, subject: string, signal: AbortSignal):
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
     const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 80_000, label: req.label }, hooks, signal);
+    return { json: r.json, model: r.model };
+  };
+}
+
+/**
+ * The support judge for one sub-question (chat/support.ts): the same private route as the prompt box's, with its own short time limit. `signal` is the worker's limit: when it fires
+ * the judge stops too, and the answer stands as it was written (not marked as checked).
+ */
+export function judgeModel(env: ScanEnv, subject: string, signal: AbortSignal): StreamComplete {
+  if (stubbed(env)) return stubJudgeStream();
+  const gateway = gatewayFromEnv(env);
+  return async (req, hooks) => {
+    const r = await gateway.stream({ task: "verify", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 25_000, label: req.label }, hooks, signal);
     return { json: r.json, model: r.model };
   };
 }

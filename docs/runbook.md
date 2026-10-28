@@ -241,6 +241,14 @@ Design and numbers: [design/litscan.md](design/litscan.md). A scan is a row in `
 - What the switch adds is measured with `node scripts/india-live.mjs` (real services, needs `OPENALEX_API_KEY`).
 - **Literature scans can use it too** (migration 0023, `litscans.scope`, `'all'` or `'india'`; the Workflow reads it in its `load` step). See which: `SELECT id, scope, state FROM litscans WHERE user_id = '…'`. The review the page shows (themes, evidence table, study designs, APA, CSV/BibTeX/RIS) is built in the browser from the stored parts: nothing new is stored for it ([litscan-review.md](design/litscan-review.md)).
 
+## The support judge (28 Oct 2026)
+
+Every answer of the prompt box, and every sub-question of a literature scan, is read a second time: a model (Llama 3.3 70B, then Mistral Small 3.1) says which sentences of the cited abstracts support each claim; unsupported claims are left out ([claim-support.md](design/claim-support.md)). It costs one more call per answer: about 2,500 tokens (2.3k in, 0.2k out), about 0.024 cent and 7 s, counted in the person's 60,000 a day like any other call (so a day holds about nine searches instead of fourteen; a scan sub-question is estimated at 5,500 tokens, it was 3,000).
+
+- **Switch it off**: set the Worker variable `CHAT_JUDGE` to `off` (`wrangler deploy --var CHAT_JUDGE:off`, or in the dashboard). Answers are then shown as before, without a `checked` flag, and the banner says only that each mark points at a sentence. Use it if the model service is failing for long or the AI cost must stop. Nothing else changes.
+- **When the judge fails** (a timeout of 20 s, an error, a reply that does not fit) the answer is shown as written and the banner says the claims were not read against the sentences. One log line a call: `chat_judge` with the counts of verdicts, `leftOut`, `ms`, the model, and `error` when it failed (never a word of the question, the answer or an abstract). Many `error` lines in a row mean the judge's models are down; the usage page shows the label `chat_judge` (and `litscan_worker_judge`) per model.
+- **Check it**: `node apps/api/scripts/support-eval.mjs --split=all --gate` against a local Worker with a real model (it runs every week in `qa-eval.yml`); the labelled claims are `apps/api/scripts/fixtures/support-gold.json`.
+
 ## Staging
 
 A separate, empty copy of the service at https://scholar-staging.shodhsetu.workers.dev (Worker `scholar-staging`, database `scholar-db-staging`, bucket `scholar-files-staging`, queue `scholar-jobs-staging`),

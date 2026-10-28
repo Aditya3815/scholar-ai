@@ -14,6 +14,8 @@ import { isRelevant } from "./relevance";
 export type WorkerDeps = {
   search: (query: string) => Promise<SearchResponse>;
   stream: StreamComplete;
+  /** The support judge's model (chat/support.ts). Without it an answer is not judged. */
+  judge?: StreamComplete;
 };
 
 /** A search that found nothing because the sources did not answer (rate limits, outages) is not "nothing found": it is thrown, so the workflow tries the step again. */
@@ -57,7 +59,7 @@ export async function answerSubQuestion(args: {
   let answer;
   try {
     // the answer is for the sub-question as the person approved it, in the language they chose; no word of it is shown before the check, so nothing is emitted
-    answer = await answerFromResults({ question: item.question, language, picked, stream: deps.stream, emit: () => {}, label: "litscan_worker" });
+    answer = await answerFromResults({ question: item.question, language, picked, stream: deps.stream, judge: deps.judge, emit: () => {}, label: "litscan_worker" });
   } catch (e) {
     if (e instanceof QuotaError) return gap(idx, n, "quota");
     if (args.signal?.aborted) return gap(idx, n, "too_slow");
@@ -67,9 +69,10 @@ export async function answerSubQuestion(args: {
   if (!answer.grounded) return gap(idx, n, answer.enough ? "not_grounded" : "not_answered");
 
   const byN = new Map(picked.map((p) => [p.n, p.paper]));
-  const sources: LitscanSource[] = answer.citations.flatMap((c) => {
-    const p = byN.get(c.n);
-    return p ? [{ n: c.n, paperId: p.id, title: cleanTitle(p.title), year: p.year, doi: p.doi, authors: p.authors.slice(0, 6), venue: p.venue, url: p.doi ? `https://doi.org/${p.doi}` : p.oaUrl }] : [];
+  // a paper can have several sentences shown; it is one source
+  const sources: LitscanSource[] = [...new Set(answer.citations.map((c) => c.n))].flatMap((n) => {
+    const p = byN.get(n);
+    return p ? [{ n, paperId: p.id, title: cleanTitle(p.title), year: p.year, doi: p.doi, authors: p.authors.slice(0, 6), venue: p.venue, url: p.doi ? `https://doi.org/${p.doi}` : p.oaUrl }] : [];
   });
   return { idx, status: "answered", found: n, text: answer.text, citations: answer.citations, sources };
 }

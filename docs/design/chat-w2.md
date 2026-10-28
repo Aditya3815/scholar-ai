@@ -49,7 +49,7 @@ Twelve questions on topics with plenty of literature (English, some with an Indi
 | nonsense questions that got an answer | 0 | **0 of 2** |
 | median reply | information | 14 to 17 s |
 
-What the gate does not and cannot say: whether a checked sentence really supports the claim it is attached to (that is the model's judgement, as in Q&A on one paper; a reader sees the sentence and can judge), and how answers behave when the abstracts contain instructions (the system message says they are untrusted, and the server only ever uses the model's numbers; there is no fixture with an injected abstract yet).
+What the gate does not and cannot say: whether a checked sentence really supports the claim it is attached to (since 28 Oct 2026 a second reading does this, [claim-support.md](claim-support.md); before it, that was the model's judgement, as in Q&A on one paper; a reader sees the sentence and can judge), and how answers behave when the abstracts contain instructions (the system message says they are untrusted, and the server only ever uses the model's numbers; there is no fixture with an injected abstract yet).
 
 ## Decisions of 25 Oct that came with W2
 
