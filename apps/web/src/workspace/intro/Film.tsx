@@ -51,9 +51,21 @@ function makeDust(ref: HTMLElement, canvas: HTMLCanvasElement) {
   let dpr = 1;
   let ink = "#fff";
   let ash = "#f88";
+  let theme: string | null = "?";
+  const STEP = 3;
+  const R = STEP * 0.38;
   const ctx = canvas.getContext("2d");
+  /** The dots take the theme's own colours, read again whenever the theme changes (they were read once, in the dark theme, and were white on the light page). */
+  const colours = () => {
+    const now = document.documentElement.getAttribute("data-theme");
+    if (now === theme) return;
+    theme = now;
+    const cs = getComputedStyle(document.documentElement);
+    ink = cs.getPropertyValue("--text").trim() || ink;
+    ash = cs.getPropertyValue("--danger").trim() || ash;
+  };
   return {
-    /** The reference's own letters, drawn once into a hidden canvas and kept as dots. */
+    /** The reference's own letters, drawn once into a hidden canvas and kept as dots on a regular grid: a dot wherever its cell is mostly ink, so no letter breaks up. */
     sample() {
       if (!ctx) return;
       const r = canvas.getBoundingClientRect();
@@ -62,9 +74,8 @@ function makeDust(ref: HTMLElement, canvas: HTMLCanvasElement) {
       h = Math.round(r.height);
       canvas.width = w * dpr;
       canvas.height = h * dpr;
-      const cs = getComputedStyle(document.documentElement);
-      ink = cs.getPropertyValue("--text").trim() || ink;
-      ash = cs.getPropertyValue("--danger").trim() || ash;
+      theme = "?";
+      colours();
       const off = document.createElement("canvas");
       off.width = w;
       off.height = h;
@@ -83,35 +94,54 @@ function makeDust(ref: HTMLElement, canvas: HTMLCanvasElement) {
         }
       }
       const data = o.getImageData(0, 0, w, h).data;
-      const step = w > 700 ? 3 : 2;
       dots = [];
-      for (let y = 0; y < h; y += step)
-        for (let x = 0; x < w; x += step) {
-          if (data[(y * w + x) * 4 + 3]! > 120) {
+      for (let y = 0; y + STEP <= h; y += STEP)
+        for (let x = 0; x + STEP <= w; x += STEP) {
+          let ink = 0;
+          for (let j = 0; j < STEP; j++) for (let i = 0; i < STEP; i++) ink += data[((y + j) * w + x + i) * 4 + 3]!;
+          if (ink / (STEP * STEP * 255) > 0.3) {
             const a = Math.random() * Math.PI * 2;
             const s = 30 + Math.random() * 200;
-            dots.push({ x, y, vx: Math.cos(a) * s + 140, vy: Math.sin(a) * s * 0.7 - 70 - Math.random() * 90, d: (x / w) * 0.45 + Math.random() * 0.12 });
+            const cx = x + STEP / 2;
+            dots.push({ x: cx, y: y + STEP / 2, vx: Math.cos(a) * s + 140, vy: Math.sin(a) * s * 0.7 - 70 - Math.random() * 90, d: (cx / w) * 0.45 + Math.random() * 0.12 });
           }
         }
     },
-    /** t 0..1: the letters leave, left first, drifting right and up like ash. */
+    /**
+     * t 0..1, in two movements. First (t < 0.22) the letters turn into dots: a wave from left to right, each dot growing into place while the text fades under it. Then the dots
+     * leave, left first, drifting right and up like ash. Dots of the same colour and strength are drawn as one path.
+     */
     draw(t: number) {
       if (!ctx) return;
+      colours();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
       if (t <= 0 || t >= 1) return;
+      const a = clamp(t / 0.22);
+      const tt = clamp((t - 0.22) / 0.78);
+      const paths = new Map<string, Path2D>();
+      const dot = (colour: string, alpha: number, x: number, y: number, rad: number) => {
+        if (alpha < 0.04) return;
+        const key = `${colour}|${Math.min(8, Math.round(alpha * 8))}`;
+        let path = paths.get(key);
+        if (!path) paths.set(key, (path = new Path2D()));
+        path.moveTo(x + rad, y);
+        path.arc(x, y, rad, 0, Math.PI * 2);
+      };
       for (const q of dots) {
-        const k = clamp((t - q.d) / 0.55);
-        if (k <= 0) {
-          ctx.globalAlpha = 1;
-          ctx.fillStyle = ink;
-          ctx.fillRect(q.x, q.y, 1.8, 1.8);
-          continue;
+        const appear = clamp(a * 1.6 - (q.x / w) * 0.6);
+        const k = clamp((tt - q.d) / 0.55);
+        if (k <= 0) dot(ink, appear, q.x, q.y, R * (0.45 + 0.55 * appear));
+        else {
+          const e = out(k);
+          dot(k < 0.15 ? ink : ash, appear * (1 - k), q.x + q.vx * e, q.y + q.vy * e, R * (1 + 0.3 * k));
         }
-        const e = out(k);
-        ctx.fillStyle = k < 0.15 ? ink : ash;
-        ctx.globalAlpha = 1 - k;
-        ctx.fillRect(q.x + q.vx * e, q.y + q.vy * e, 2, 2);
+      }
+      for (const [key, path] of paths) {
+        const [colour, strength] = key.split("|");
+        ctx.globalAlpha = Number(strength) / 8;
+        ctx.fillStyle = colour!;
+        ctx.fill(path);
       }
       ctx.globalAlpha = 1;
     },
@@ -147,23 +177,27 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
         setVar(el, "--tc", out(seg(p, 0.66, 0.82)));
       },
       question(el, p) {
-        setVar(el, "--box", out(seg(p, 0, 0.1)));
-        setVar(el, "--type", seg(p, 0.1, 0.25));
-        // the send: the button is pressed, a ring leaves it, the box lights up and a beam runs along its foot while the sources are asked
-        setVar(el, "--press", Math.sin(seg(p, 0.26, 0.31) * Math.PI));
-        setVar(el, "--rip", seg(p, 0.27, 0.37));
-        setVar(el, "--glow", Math.sin(seg(p, 0.27, 0.52) * Math.PI));
-        const beam = seg(p, 0.3, 0.5);
-        setVar(el, "--beam", (beam * 2) % 1);
+        // the shot, in five beats: the box arrives; the question is typed (a caret runs ahead of it); the send (the button pressed, a ring leaves it, a flash of light behind
+        // the box, the camera leans in); a held pause while the sources are asked (the box glows, a beam runs along it, the status moves through its three steps); then the papers
+        setVar(el, "--box", out(seg(p, 0, 0.08)));
+        setVar(el, "--type", seg(p, 0.08, 0.21));
+        setVar(el, "--caret", p < 0.24 ? 1 : 0);
+        setVar(el, "--press", Math.sin(seg(p, 0.23, 0.27) * Math.PI));
+        setVar(el, "--rip", seg(p, 0.24, 0.33));
+        setVar(el, "--bloom", Math.sin(seg(p, 0.24, 0.34) * Math.PI));
+        setVar(el, "--lean", inOut(seg(p, 0.24, 0.3)) * (1 - inOut(seg(p, 0.5, 0.56))));
+        setVar(el, "--glow", seg(p, 0.25, 0.3) * (1 - seg(p, 0.52, 0.58)));
+        const beam = seg(p, 0.27, 0.53);
+        setVar(el, "--beam", (beam * 3) % 1);
         setVar(el, "--beamv", beam > 0 && beam < 1 ? 1 : 0);
         const status = el.querySelector<HTMLElement>(".fm-qstatus");
         if (status) {
-          const text = p < 0.3 || p > 0.74 ? "" : p < 0.46 ? "Searching four sources…" : "Checking every DOI and retraction…";
+          const text = p < 0.27 || p > 0.62 ? "" : p < 0.36 ? "Searching four sources…" : p < 0.45 ? "Reading 20 records…" : "Checking every DOI and retraction…";
           if (status.textContent !== text) status.textContent = text;
         }
-        all<HTMLElement>(el, ".fm-paper").forEach((c, i) => setVar(c, "--pt", inOut(seg(p, 0.42 + i * 0.022, 0.6 + i * 0.022))));
-        setVar(el, "--st", out(seg(p, 0.76, 0.83)));
-        setVar(el, "--cnt", out(seg(p, 0.8, 0.9)));
+        all<HTMLElement>(el, ".fm-paper").forEach((c, i) => setVar(c, "--pt", inOut(seg(p, 0.54 + i * 0.018, 0.68 + i * 0.018))));
+        setVar(el, "--st", out(seg(p, 0.84, 0.9)));
+        setVar(el, "--cnt", out(seg(p, 0.88, 0.95)));
       },
       answer(el, p) {
         const g = geo.current;
@@ -197,8 +231,10 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
         setVar(el, "--sx", scan);
         setVar(el, "--sv", scan > 0 && scan < 1 ? 1 : 0);
         all<HTMLElement>(el, ".fm-lookup").forEach((l, i) => setVar(l, "--lk", out(seg(p, 0.2 + i * 0.07, 0.3 + i * 0.07))));
-        const t = seg(p, 0.44, 0.78);
-        el.querySelector(".fm-ref")?.classList.toggle("is-gone", t > 0);
+        const t = seg(p, 0.42, 0.8);
+        // the text fades as its dots grow over it; once it is all dots the card becomes the empty, dashed frame
+        setVar(el, "--lnop", 1 - clamp(t / 0.22));
+        el.querySelector(".fm-ref")?.classList.toggle("is-gone", t >= 0.22);
         dust.current?.draw(t);
         setVar(el, "--vd", out(seg(p, 0.72, 0.86)));
       },
@@ -328,10 +364,13 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
         <div className="fm-q">
           <Chapter>Chapter I · The question</Chapter>
           <h2 id="fm-q-h" className="sr-only">A question goes in, real papers come back</h2>
-          <div className="fm-qbox" aria-hidden="true">
-            <span className="fm-typed"><span>Does yoga lower blood pressure?</span></span>
-            <span className="fm-send"><ArrowRight size={18} style={{ transform: "rotate(-90deg)" }} /></span>
-            <span className="fm-beam" />
+          <div className="fm-qshot" aria-hidden="true">
+            <span className="fm-bloom" />
+            <div className="fm-qbox">
+              <span className="fm-typed"><span className="fm-typed-in"><span className="fm-typed-t">Does yoga lower blood pressure?</span><i className="fm-caret" /></span></span>
+              <span className="fm-send"><ArrowRight size={18} style={{ transform: "rotate(-90deg)" }} /></span>
+              <span className="fm-beam" />
+            </div>
           </div>
           <p className="fm-qstatus" aria-hidden="true" />
           <ol className="fm-papers" aria-hidden="true">
@@ -451,7 +490,8 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
                     <p>Pilot studies are often used to estimate the variance needed to plan a main trial.</p>
                     <p><span className="fm-hl">Small pilots give unstable estimates, and a main study planned from them is often under-powered.</span></p>
                     <p>We compare rules for the pilot's size by the chance that the main study ends up with less power than planned.</p>
-                    <p>Numerical examples use a power of <span className="fm-circ">80%<svg className="fm-ink" viewBox="0 0 100 40" preserveAspectRatio="none"><path pathLength={1} d="M8 24 C 6 8, 70 2, 94 14 C 102 26, 64 38, 30 36 C 12 34, 4 28, 14 16" /></svg><span className="fm-note">why 80%?</span></span> and a standardised effect of 0.4.</p>
+                    {/* the pen's note sits in the margin of its own paragraph (space kept for it), so it never lands on the text, however the lines wrap */}
+                    <p className="fm-annot">Numerical examples use a power of <span className="fm-circ">80%<svg className="fm-ink" viewBox="0 0 100 40" preserveAspectRatio="none"><path pathLength={1} d="M8 24 C 6 8, 70 2, 94 14 C 102 26, 64 38, 30 36 C 12 34, 4 28, 14 16" /></svg></span> and a standardised effect of 0.4.<span className="fm-note">why 80%?<svg viewBox="0 0 40 16"><path pathLength={1} d="M38 3 C 26 4, 14 8, 4 13 M4 13 l 7 -1 M4 13 l 3 -6" /></svg></span></p>
                     <p>The rules are compared over pilot sizes from 10 to 70 per group, and for effects between 0.2 and 0.8.</p>
                     </div><span className="fm-pg">p. 1 / 15</span>
                   </div>
@@ -496,7 +536,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
       <section className="fm-quiet" id="privacy" aria-labelledby="fm-priv-h">
         <div className="fm-wrap">
           <h2 id="fm-priv-h" className="fm-big fm-big-s">Your work stays <em>yours.</em></h2>
-          <div className="fm-cards fm-cards-3">
+          <div className="fm-cards">
             {[
               { Icon: Lock, t: "Private to your account", b: "Your papers, notes and questions are visible to nobody else, and the admin page shows numbers only." },
               { Icon: Share2, t: "Only an approved search leaves", b: "For an idea or a scan, you see and edit the search first. Only those words, never your text or file, go to the scholarly indexes." },

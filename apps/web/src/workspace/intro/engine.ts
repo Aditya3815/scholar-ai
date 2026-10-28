@@ -78,11 +78,18 @@ export function useFilm(root: RefObject<HTMLElement | null>, enabled: boolean, u
     };
     window.addEventListener("scroll", request, { passive: true });
     window.addEventListener("resize", remeasure);
+    // a theme chosen while a scene is on screen redraws it at once (the dust is drawn in the theme's colours, not by CSS)
+    const themeWatch = new MutationObserver(() => {
+      last.clear();
+      request();
+    });
+    themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     remeasure();
     void document.fonts?.ready.then(remeasure);
     return () => {
       window.removeEventListener("scroll", request);
       window.removeEventListener("resize", remeasure);
+      themeWatch.disconnect();
     };
     // the updaters and hooks are made once by the page
   }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps

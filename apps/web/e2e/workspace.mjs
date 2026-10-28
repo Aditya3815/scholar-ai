@@ -91,14 +91,24 @@ try {
   ok(await page.locator(".fm-title-cta").getByRole("button", { name: "Continue with Google" }).isVisible() && await page.locator(".fm-title-cta").getByRole("link", { name: /Try it without signing in/ }).isVisible(), "the title offers Continue with Google and trying it without signing in");
   ok(await page.locator(".fm-s-title .fm-frame").evaluate((el) => Math.round(el.getBoundingClientRect().top)) === 0, "a scene's frame is pinned while its stretch is scrolled");
 
-  // scene 3: the send is played like a shot (the press, the ring, the box lit, a beam and a status while the sources are asked), then the papers
+  // scene 3: the send is played like a shot (typing with a caret, the press, a ring and a flash of light, the camera leaning in), then a held pause while the sources are
+  // asked (the box lit, a beam, the status in three steps), and only then the papers
+  await toScene(page, "question", 0.15);
+  ok(await cssVar(page, ".fm-s-question", "--caret") === 1 && await cssVar(page, ".fm-s-question", "--type") > 0.3 && await cssVar(page, ".fm-s-question", "--type") < 0.8, "the question is typed with a caret running ahead of it");
+  await toScene(page, "question", 0.25);
+  ok(await cssVar(page, ".fm-s-question", "--press") > 0.5 && await cssVar(page, ".fm-s-question", "--caret") === 0, "then the send button is pressed and the caret goes");
   await toScene(page, "question", 0.29);
-  ok(await cssVar(page, ".fm-s-question", "--press") > 0.5, "the send button is pressed once the question is typed");
-  await toScene(page, "question", 0.38);
-  ok(/Searching four sources/.test(await page.locator(".fm-qstatus").innerText()) && await cssVar(page, ".fm-s-question", "--glow") > 0.3 && await cssVar(page, ".fm-s-question", "--beamv") === 1, "then the box lights up, a beam runs along it and a line says the sources are being searched");
-  await page.screenshot({ path: OUT + "02b-intro-send.png" });
+  ok(await cssVar(page, ".fm-s-question", "--bloom") > 0.5 && await cssVar(page, ".fm-s-question", "--lean") > 0.5, "a flash of light behind the box, and the camera leans in");
+  await page.screenshot({ path: OUT + "02a-intro-send.png" });
+  await toScene(page, "question", 0.31);
+  ok(/Searching four sources/.test(await page.locator(".fm-qstatus").innerText()) && await cssVar(page, ".fm-s-question", "--glow") > 0.9 && await cssVar(page, ".fm-s-question", "--beamv") === 1, "the pause: the box glows, a beam runs along it, a line says the sources are being searched");
+  await page.screenshot({ path: OUT + "02b-intro-pause.png" });
+  await toScene(page, "question", 0.4);
+  ok(/Reading 20 records/.test(await page.locator(".fm-qstatus").innerText()), "...then that the records are read");
   await toScene(page, "question", 0.5);
-  ok(/Checking every DOI/.test(await page.locator(".fm-qstatus").innerText()), "...then that every DOI and retraction is checked");
+  ok(/Checking every DOI/.test(await page.locator(".fm-qstatus").innerText()) && await page.locator(".fm-paper").first().evaluate((el) => parseFloat(getComputedStyle(el).getPropertyValue("--pt")) === 0), "...then that every DOI and retraction is checked, and still no paper: it is a pause, the answer comes after it");
+  await toScene(page, "question", 0.7);
+  ok(await page.locator(".fm-paper").first().evaluate((el) => parseFloat(getComputedStyle(el).getPropertyValue("--pt")) > 0.5), "after the pause the papers arrive");
   // scene 3: the retracted paper is stamped
   await toScene(page, "question", 0.95);
   ok(await page.locator(".fm-qstatus").innerText() === "", "the status line is gone once the papers are there");
@@ -112,9 +122,42 @@ try {
   await toScene(page, "answer", 0.97);
   ok(/100%/.test(await page.locator(".fm-abs mark").evaluate((el) => getComputedStyle(el).backgroundSize)), "at the end the quoted sentence is fully highlighted");
 
-  // scene 6: the invented reference comes apart and is said not to exist
+  // scene 6: the invented reference turns into dots (the text fading under them, a wave from the left), the dots drift away, and it is said not to exist
+  await toScene(page, "fake", 0.46);
+  const lnop = await cssVar(page, ".fm-s-fake", "--lnop");
+  ok(lnop > 0.1 && lnop < 0.9 && await page.locator(".fm-ref.is-gone").count() === 0, `the change to dots is a dissolve, not a cut: half way the text is still fading (opacity ${lnop.toFixed(2)})`);
+  /** The dots on the canvas: how many pixels are drawn, and how far their colour is from the card's (0 = the same, 1 = black on white). */
+  const dots = () => page.evaluate(() => {
+    const c = document.querySelector(".fm-dust");
+    const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+    let n = 0, r = 0, g = 0, b = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) { n++; r += d[i]; g += d[i + 1]; b += d[i + 2]; }
+    const lum = (x, y, z) => (0.2126 * x + 0.7152 * y + 0.0722 * z) / 255;
+    // the card's colour is a color-mix(): the browser gives it as "color(srgb r g b)" with 0..1 values, or as rgb() with 0..255
+    const css = getComputedStyle(document.querySelector(".fm-ref")).backgroundColor;
+    const bg = css.match(/[\d.]+/g).map(Number).slice(0, 3).map((v) => (css.startsWith("color(") ? v * 255 : v));
+    return { n, gap: n ? Math.abs(lum(r / n, g / n, b / n) - lum(bg[0], bg[1], bg[2])) : 0 };
+  });
+  const seen = [];
+  for (const theme of ["dark", "light", "read"]) {
+    await setTheme(page, theme);
+    await toScene(page, "fake", 0.505);
+    await page.waitForTimeout(700); // the card's colours ease into the theme
+    const d = await dots();
+    seen.push(`${theme}: ${d.n} px, contrast ${d.gap.toFixed(2)}`);
+    if (theme === "light") await page.screenshot({ path: OUT + "04-intro-dots-light.png" });
+  }
+  // mid-scene, with the letterbox in, in a light theme: the header's glass must not show the black bar through it (its links went faint)
+  for (const theme of ["light", "read"]) {
+    await setTheme(page, theme);
+    await toScene(page, "fake", 0.3);
+    await page.waitForTimeout(600);
+    await axe(`intro mid-scene with the letterbox, ${theme}`, page);
+  }
+  await setTheme(page, "dark");
+  ok(seen.every((s) => Number(/(\d+) px/.exec(s)[1]) > 800 && Number(/contrast ([\d.]+)/.exec(s)[1]) > 0.5), `the dots are drawn in the theme's own ink, clearly seen in dark, light and read (${seen.join("; ")})`);
   await toScene(page, "fake", 0.6);
-  ok(await page.locator(".fm-ref.is-gone").count() === 1, "the invented reference turns to dust");
+  ok(await page.locator(".fm-ref.is-gone").count() === 1, "then the dots drift away and the card is left empty");
   await page.screenshot({ path: OUT + "04-intro-dust.png" });
   await toScene(page, "fake", 0.97);
   ok(/No such record/.test(await page.locator(".fm-verdict").innerText()) && /Check references/.test(await page.locator(".fm-verdict").innerText()), "...and the verdict says so, and names the tool that checks a bibliography");
@@ -130,6 +173,27 @@ try {
   ok(marks.every((m) => m.lines >= 2 && /^100% 100%$/.test(m.size)), `the highlighter marks every line of its sentence to the end, yellow and blue (${JSON.stringify(marks)})`);
   const pg = await page.evaluate(() => [...document.querySelectorAll(".fm-face")].map((f) => { const body = f.querySelector(".fm-face-body").getBoundingClientRect(); const n = f.querySelector(".fm-pg").getBoundingClientRect(); return n.top >= body.bottom - 1; }));
   ok(pg.every(Boolean), "the page number has its own row at the foot of the page, never over the text");
+  // the pen's margin note: inside the page and clear of every line of text, at several window widths (the lines wrap differently at each)
+  const noteClear = () => page.evaluate(() => {
+    const note = document.querySelector(".fm-note").getBoundingClientRect();
+    const body = document.querySelector(".fm-face.is-front .fm-face-body").getBoundingClientRect();
+    const lines = [];
+    for (const p of document.querySelectorAll(".fm-face.is-front p")) {
+      const w = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.parentElement.closest(".fm-note") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
+      for (let n = w.nextNode(); n; n = w.nextNode()) { const r = document.createRange(); r.selectNodeContents(n); lines.push(...r.getClientRects()); }
+    }
+    const hit = lines.some((l) => l.width > 0 && !(l.right <= note.left || l.left >= note.right || l.bottom <= note.top || l.top >= note.bottom));
+    return { inside: note.left >= body.left - 1 && note.right <= body.right + 1, hit };
+  });
+  const widths = [];
+  for (const width of [1360, 1100, 960]) {
+    await page.setViewportSize({ width, height: 900 });
+    await toScene(page, "workspace", 0.45);
+    const r = await noteClear();
+    widths.push(`${width}: ${r.inside && !r.hit ? "clear" : JSON.stringify(r)}`);
+  }
+  await page.setViewportSize({ width: 1360, height: 900 });
+  ok(widths.every((w) => w.endsWith("clear")), `the pen's note sits in the margin, inside the page and on no line of text (${widths.join(", ")})`);
   ok(/blur\(26px\)/.test(await page.locator(".in-head").evaluate((el) => getComputedStyle(el).backdropFilter)), "the header is frosted glass: what passes under it is blurred");
   await page.screenshot({ path: OUT + "05-intro-workspace.png" });
 
