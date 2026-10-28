@@ -4,5 +4,5 @@
   "type": "module",
   "description": "Spike R8: can a Worker read the text of an open-access PDF within its memory limit? Not part of the app; not a workspace.",
   "dependencies": { "unpdf": "1.9.1" },
-  "devDependencies": { "wrangler": "4.151.1" }
+  "devDependencies": { "wrangler": "4.154.0" }
 }
