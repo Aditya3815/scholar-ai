@@ -1,32 +1,7 @@
-/* ============ Layout ============ */
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  border-bottom: 1px solid transparent;
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  -webkit-backdrop-filter: saturate(1.4) blur(12px);
-  backdrop-filter: saturate(1.4) blur(12px);
-  transition: border-color var(--dur) var(--ease);
-}
-.topbar-solid {
-  border-bottom-color: var(--border);
-}
-.topbar-inner {
-  /* wider than the page column: four tabs plus the controls need the room */
-  max-width: 76rem;
-  margin: 0 auto;
-  padding: 0.65rem 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
+
+
+
+
 
 .main {
   max-width: 64rem;
@@ -228,9 +203,8 @@
 .seg-btn > svg {
   position: relative;
 }
-/* Four tabs fill the bar, so the theme and library buttons are icons (their names are in the tooltip and the accessible name). */
-.seg-label,
-.lib-trigger-label {
+/* The theme switch shows icons only (the names are in the tooltip and the accessible name). */
+.seg-label {
   display: none;
 }
 
@@ -267,14 +241,8 @@
   margin-left: 1rem;
   color: var(--muted);
 }
-.searchbox-large {
-  height: 64px;
-  border-radius: 999px;
-  padding-right: 0.5rem;
-}
-.searchbox-large input {
-  font-size: 1.125rem;
-}
+
+
 .searchbox-compact {
   height: 52px;
   border-radius: 999px;
@@ -313,14 +281,6 @@
 }
 .searchbox-compact .searchbox-go {
   min-height: 42px;
-}
-
-/* ============ Hero (home) ============ */
-.hero {
-  position: relative;
-  padding: clamp(2.5rem, 8vw, 5.5rem) 0 2rem;
-  text-align: center;
-  isolation: isolate;
 }
 .orbs {
   /* Smooth radial gradients (blur/mask nahi): dark theme mein banding nahi aati aur GPU par saste hain.
@@ -369,13 +329,7 @@
   text-transform: uppercase;
   color: var(--accent);
 }
-.hero-title {
-  margin: 0.9rem auto 0;
-  max-width: 16ch;
-  font-size: clamp(2.5rem, 7vw, 4.6rem);
-  line-height: 1.04;
-  letter-spacing: -0.025em;
-}
+
 .hero-em {
   position: relative;
   display: inline-block;
@@ -391,28 +345,10 @@
   height: 0.22em;
   overflow: visible;
 }
-.hero-sub {
-  margin: 1.4rem auto 0;
-  max-width: 54ch;
-  color: var(--muted);
-  font-size: clamp(1rem, 2.2vw, 1.1875rem);
-}
-.hero-search {
-  margin: 2.2rem auto 0;
-  max-width: 42rem;
-}
-.examples {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-.examples-label {
-  color: var(--muted);
-  font-size: 0.875rem;
-}
+
+
+
+
 .principles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
@@ -820,22 +756,6 @@
   background: var(--surface-2);
 }
 
-/* ============ Library drawer ============ */
-.lib-trigger {
-  padding: 0 0.85rem;
-}
-.count-badge {
-  display: inline-grid;
-  place-items: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-fg);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
 .overlay {
   position: fixed;
   inset: 0;
@@ -857,19 +777,9 @@
   box-shadow: var(--shadow-2);
   overflow-y: auto;
 }
-.drawer-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.drawer-title {
-  font-size: 1.4rem;
-}
-.drawer-note {
-  margin: 0.35rem 0 1rem;
-  color: var(--muted);
-  font-size: 0.875rem;
-}
+
+
+
 .drawer-actions {
   display: flex;
   flex-wrap: wrap;
@@ -901,56 +811,19 @@
   font-size: 0.8125rem;
 }
 
-/* ============ Account, sign-in modal, notices ============ */
+/* ============ Sign-in modal, notices ============ */
 .signin-trigger {
   min-height: 44px;
 }
-.avatar-btn,
-.avatar-skeleton {
-  display: inline-grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
-}
-.avatar-btn {
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid var(--border-strong);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 700;
-}
-.avatar-btn img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.avatar-skeleton {
-  background: var(--surface-2);
-}
-.acct {
-  display: grid;
-  gap: 0.35rem;
-  min-width: 14rem;
-}
-.acct-name {
-  font-family: var(--font-serif);
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-.acct-line {
-  color: var(--muted);
-  font-size: 0.875rem;
-  overflow-wrap: anywhere;
-}
-.acct-role {
-  text-transform: capitalize;
-}
-.acct-btn {
-  justify-content: flex-start;
-  margin-top: 0.25rem;
-}
+
+
+
+
+
+
+
+
+
 .modal-wrap {
   position: fixed;
   inset: 0;
@@ -1012,7 +885,7 @@
   margin-top: 0.15rem;
   color: var(--ok);
 }
-/* Settings dialog */
+/* Modals */
 .modal-wide {
   width: min(34rem, 100%);
   max-height: min(90vh, 46rem);
@@ -1135,20 +1008,14 @@
   .seg-label {
     display: none;
   }
-  .lib-trigger-label {
-    display: none;
-  }
-  .topbar-actions {
-    gap: 0.35rem;
-  }
+  
+  
   .logo-word {
     font-size: 1.15rem;
   }
 }
 @media (max-width: 520px) {
-  .searchbox-large {
-    height: 58px;
-  }
+  
   .searchbox-go span {
     display: none;
   }
@@ -1162,9 +1029,7 @@
   .result-title {
     font-size: 1.18rem;
   }
-  .topbar-actions .icon-btn:first-child {
-    display: none;
-  }
+  
 }
 
 /* ============ Report a problem ============ */
@@ -1249,62 +1114,12 @@
   color: var(--ok);
 }
 
-/* ============ Start here (home) ============ */
-.start {
-  margin-top: 2.2rem;
-}
-.start-label {
-  margin: 0 0 0.7rem;
-  color: var(--muted);
-  font-size: 0.875rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-align: center;
-  text-transform: uppercase;
-}
-.start-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-  gap: 0.9rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.start-card {
-  display: grid;
-  gap: 0.35rem;
-  height: 100%;
-  padding: 1.1rem 1.2rem;
-  color: var(--text);
-  text-decoration: none;
-  transition: transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
-}
-.start-card:hover {
-  transform: translateY(-3px);
-  border-color: var(--accent);
-  box-shadow: var(--shadow-2);
-}
-.start-card:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-.start-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-family: var(--font-serif);
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-.start-body {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-@media (prefers-reduced-motion: reduce) {
-  .start-card:hover {
-    transform: none;
-  }
-}
+
+
+
+
+
+
 .src-also {
   margin: 0.3rem 0 0;
   color: var(--muted);

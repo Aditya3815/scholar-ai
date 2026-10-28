@@ -6,26 +6,24 @@ export function SearchBox({
   onChange,
   onSubmit,
   inputRef,
-  size = "large",
   busy = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSubmit: () => void;
   inputRef: RefObject<HTMLInputElement | null>;
-  size?: "large" | "compact";
   busy?: boolean;
 }) {
   return (
     <form
-      className={`searchbox searchbox-${size}`}
+      className="searchbox searchbox-compact"
       role="search"
       onSubmit={(e) => {
         e.preventDefault();
         onSubmit();
       }}
     >
-      <Search className="searchbox-icon" size={size === "large" ? 22 : 18} aria-hidden="true" />
+      <Search className="searchbox-icon" size={18} aria-hidden="true" />
       <input
         ref={inputRef}
         type="search"

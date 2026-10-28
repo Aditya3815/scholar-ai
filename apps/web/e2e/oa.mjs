@@ -24,7 +24,6 @@ const watch = (p) => {
   p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
   p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409)/.test(m.text())) errors.push("console: " + m.text()); });
 };
-const flag = (ctx) => ctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "1"); } catch {} });
 
 async function axe(label, p) {
   await p.evaluate(axeSource);
@@ -61,7 +60,6 @@ const ask = async (p, q) => {
 
 try {
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
-  await flag(ctx);
   const page = await ctx.newPage();
   watch(page);
 
@@ -168,7 +166,6 @@ try {
 
   console.log("without signing in");
   const anon = await browser.newContext({ viewport: { width: 1360, height: 900 } });
-  await flag(anon);
   const ap = await anon.newPage();
   watch(ap);
   await ap.goto(BASE + "/home", { waitUntil: "networkidle" });

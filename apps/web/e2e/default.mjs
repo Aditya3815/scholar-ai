@@ -1,6 +1,6 @@
 // Browser e2e for what a person gets with nothing switched on (phase W6: the new look is the default).
 // The same journeys the old pages had that are not covered by the other new-look suites: every address, the admin page and its way in, linking another
-// way to sign in, checking references from the rail, and the way back to the old pages (?ws=0).
+// way to sign in, checking references from the rail, and that the old pages are gone.
 // Needs the Worker with the fake identity provider and ENABLE_DEV_ROUTES: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/default.mjs [baseUrl]    (default http://localhost:8788)
 import { chromium } from "playwright-core";
@@ -156,17 +156,13 @@ try {
   await page.getByRole("heading", { level: 1, name: /Library/ }).waitFor({ timeout: 10000 });
   ok(new URL(page.url()).pathname === "/library", "a reload stays on the same page");
 
-  /* ============================ the way back ============================ */
-  console.log("the way back");
+  /* ============================ the old pages are gone (W6b) ============================ */
+  console.log("the old pages are gone");
+  await page.evaluate(() => localStorage.setItem("scholar.ws", "0"));
   await page.goto(BASE + "/?ws=0", { waitUntil: "networkidle" });
-  await page.locator(".topbar").waitFor({ timeout: 10000 });
-  ok(await page.getByRole("button", { name: /^Account:/ }).isVisible(), "?ws=0 shows the old pages, and the person is still signed in");
-  await page.getByRole("button", { name: /^Account:/ }).click();
-  ok(await page.getByRole("link", { name: "Admin" }).isVisible(), "the old account menu still has its Admin entry");
-  await page.keyboard.press("Escape");
-  await page.goto(BASE + "/?ws=1", { waitUntil: "networkidle" });
   await page.locator("#hm-h").waitFor({ timeout: 10000 });
-  ok(await page.locator(".topbar").count() === 0, "?ws=1 returns to the new look");
+  ok(await page.locator(".topbar").count() === 0 && await page.locator(".ws-rail").count() === 1, "?ws=0 and an old stored 0 no longer show the old pages: the person is still in the new look");
+  ok(await page.evaluate(() => localStorage.getItem("scholar.ws")) === null, "and the stale value is cleared from this browser");
 
   ok(errors.length === 0, `no console or page errors${errors.length ? ": " + errors.slice(0, 4).join(" | ") : ""}`);
 } catch (e) {

@@ -1,4 +1,4 @@
-// Browser e2e for the new look (phase W1, switched on with ?ws=1): the scroll-animated intro page, the home screen with its prompt box,
+// Browser e2e for the new look (phase W1): the scroll-animated intro page, the home screen with its prompt box,
 // the rail, the Library and Settings pages, My Workspace (the paper opens on the whole window; pen, highlighter, eraser, undo and redo, saved with the paper). Three themes, a phone, reduced motion.
 // Needs the Worker with the fake identity provider: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/workspace.mjs [baseUrl]    (default http://localhost:8788)
@@ -32,7 +32,6 @@ const watch = (p) => {
   p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409)/.test(m.text())) errors.push("console: " + m.text()); });
 };
 const newCtx = (opts = {}) => browser.newContext({ viewport: { width: 1360, height: 900 }, ...opts });
-const withFlag = (ctx) => ctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "1"); } catch {} });
 
 async function axe(label, p) {
   await p.evaluate(axeSource);
@@ -59,7 +58,6 @@ try {
   const fontRes = await Promise.all(preloads.map((u) => fetch(BASE + u)));
   ok(fontRes.every((r) => r.ok && /font\/woff2/.test(r.headers.get("content-type") ?? "")), "and they are served as fonts");
   const ctx = await newCtx();
-  await withFlag(ctx);
   const page = await ctx.newPage();
   globalThis.__page = page; // for the screenshot taken if something unexpected happens
   watch(page);
@@ -238,7 +236,6 @@ try {
   /* ============================ phone: the stacked layout ============================ */
   console.log("intro on a phone");
   const mctx = await newCtx({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-  await withFlag(mctx);
   const mp = await mctx.newPage();
   watch(mp);
   await mp.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -260,7 +257,6 @@ try {
   /* ============================ reduced motion ============================ */
   console.log("reduced motion");
   const rctx = await newCtx({ reducedMotion: "reduce" });
-  await withFlag(rctx);
   const rp = await rctx.newPage();
   watch(rp);
   await rp.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -1029,34 +1025,26 @@ try {
   await page.locator("#in-h1").waitFor({ timeout: 10000 });
   ok(true, "signing out returns to the intro page");
 
-  /* ============================ the new look is the default (W6); ?ws=0 is the way back ============================ */
-  console.log("the default and the way back");
+  /* ============================ the new look is the only look (W6b) ============================ */
+  console.log("the only look");
   const octx = await newCtx();
   const op = await octx.newPage();
   watch(op);
   await op.goto(BASE + "/", { waitUntil: "networkidle" });
   await op.locator("#in-h1").waitFor({ timeout: 10000 });
-  ok(await op.locator(".topbar").count() === 0, "with nothing set, a new visitor gets the new look");
+  ok(await op.locator(".topbar").count() === 0, "with nothing set, a new visitor gets the intro page");
   await op.goto(BASE + "/?ws=0", { waitUntil: "networkidle" });
-  await op.locator(".topbar").waitFor({ timeout: 10000 });
-  ok(await op.locator(".in-head, .ws-rail").count() === 0 && !new URL(op.url()).search.includes("ws="), "?ws=0 shows the old pages and disappears from the address");
-  await op.reload({ waitUntil: "networkidle" });
-  await op.locator(".topbar").waitFor({ timeout: 10000 });
-  ok(true, "and the old pages are remembered in this browser");
-  await op.goto(BASE + "/?ws=1", { waitUntil: "networkidle" });
   await op.locator("#in-h1").waitFor({ timeout: 10000 });
-  ok(!new URL(op.url()).search.includes("ws="), "?ws=1 returns to the new look and disappears from the address");
-  await op.reload({ waitUntil: "networkidle" });
-  await op.locator("#in-h1").waitFor({ timeout: 10000 });
-  ok(await op.locator(".topbar").count() === 0, "and the new look is what a reload shows");
+  ok(await op.locator(".topbar").count() === 0, "?ws=0, which used to show the old pages, is ignored");
   await octx.close();
 
   const sctx = await newCtx();
-  await sctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "1"); } catch {} });
+  await sctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "0"); } catch {} });
   const sp = await sctx.newPage();
   await sp.goto(BASE + "/", { waitUntil: "networkidle" });
   await sp.locator("#in-h1").waitFor({ timeout: 10000 });
-  ok(true, "someone who turned the new look on before W6 (the old stored value) still gets it");
+  ok(await sp.locator(".topbar").count() === 0, "someone who had chosen the old pages gets the new look, with the film's dark theme");
+  ok(await sp.evaluate(() => localStorage.getItem("scholar.ws")) === null, "and the stale value is cleared from their browser");
   await sctx.close();
 
   ok(errors.length === 0, `no console or page errors${errors.length ? ": " + errors.slice(0, 4).join(" | ") : ""}`);

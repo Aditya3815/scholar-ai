@@ -1,5 +1,5 @@
 import { BookOpenCheck, Check, Landmark, Loader2, Pencil, Plus, ShieldCheck, X } from "lucide-react";
-import { useId, useState } from "react";
+import { useId } from "react";
 import {
   INDIA_SCOPE_HELP,
   INDIA_SCOPE_LABEL,

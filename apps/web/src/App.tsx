@@ -2,21 +2,15 @@ import { AnimatePresence, LazyMotion, MotionConfig, m } from "motion/react";
 import { SearchX, WifiOff } from "lucide-react";
 import { getThemePref } from "./lib/prefs";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AccountMenu } from "./components/AccountMenu";
-import { Hero } from "./components/Hero";
-import { LibraryDrawer } from "./components/LibraryDrawer";
+import { Footer } from "./components/Footer";
 import { PaperPreview } from "./components/PaperPreview";
 import { OaAskSheet } from "./components/oa/OaAskSheet";
-import { Logo } from "./components/Logo";
-import { ReadingControls } from "./components/ReadingControls";
 import { ResultCard, SkeletonCard } from "./components/ResultCard";
 import { SearchBox } from "./components/SearchBox";
 import { SourceStatus } from "./components/SourceStatus";
-import { ThemeSwitch } from "./components/ThemeSwitch";
-import { TopNav, type View } from "./components/TopNav";
+import type { View } from "./lib/view";
 import { DocWorkspace } from "./components/papers/DocWorkspace";
 import { PapersPage } from "./components/papers/PapersPage";
-import { Footer } from "./components/Footer";
 import { takeAuthError, useAuth } from "./lib/auth";
 import { easeOut } from "./lib/motion";
 import { clearNotice, showNotice, useNotice } from "./lib/notice";
@@ -25,7 +19,7 @@ import { useBaseCommands } from "./workspace/baseCommands";
 import { resumeOffline } from "./lib/offline";
 import { openPreview } from "./lib/preview";
 import { useSearch } from "./lib/search";
-import { PAPERS_NAME, WORKSPACE } from "./lib/workspace";
+import { PAPERS_NAME } from "./lib/workspace";
 import { Shell } from "./workspace/Shell";
 import { HomePage } from "./workspace/HomePage";
 import { LibraryPage, SettingsPage } from "./workspace/Pages";
@@ -43,26 +37,26 @@ const PrivacyPage = lazy(() => import("./components/legal/LegalPages").then((m) 
 const TermsPage = lazy(() => import("./components/legal/LegalPages").then((m) => ({ default: m.TermsPage })));
 const HowWeVerifyPage = lazy(() => import("./components/legal/LegalPages").then((m) => ({ default: m.HowWeVerifyPage })));
 // Someone who has never signed in on this browser is probably about to see the intro page: ask for its chunk now, in parallel with the "who am I" request, not after it.
-if (WORKSPACE && typeof localStorage !== "undefined" && !(() => { try { return localStorage.getItem("scholar.signedin") === "1"; } catch { return false; } })()) void loadIntro();
+if (typeof localStorage !== "undefined" && !(() => { try { return localStorage.getItem("scholar.signedin") === "1"; } catch { return false; } })()) void loadIntro();
 
 const loadFeatures = () => import("./lib/motion-features").then((mod) => mod.default);
 
 type Sort = "relevance" | "citations" | "year";
 
-type Route = { view: View; docId: string | null; /** /home: the home screen for people who are not signed in (the new look only) */ home?: boolean };
+type Route = { view: View; docId: string | null; /** /home: the home screen for people who are not signed in */ home?: boolean };
 /** Real URLs for every page: / (search), /verify, /idea, /papers and /papers/<id>. No router library for five pages. */
 const routeFromPath = (): Route => {
   const p = location.pathname.replace(/\/+$/, "");
   if (p === "/verify") return { view: "verify", docId: null };
   if (p === "/idea") return { view: "idea", docId: null };
-  if (WORKSPACE && (p === "/literature-scan" || /^\/literature-scan\/shared\/[A-Za-z0-9_-]{43}$/.test(p))) return { view: "litscan", docId: null };
+  if ((p === "/literature-scan" || /^\/literature-scan\/shared\/[A-Za-z0-9_-]{43}$/.test(p))) return { view: "litscan", docId: null };
   if (p === "/admin") return { view: "admin", docId: null };
   if (p === "/privacy") return { view: "privacy", docId: null };
   if (p === "/terms") return { view: "terms", docId: null };
   if (p === "/how-we-verify") return { view: "how", docId: null };
-  if (WORKSPACE && p === "/library") return { view: "library", docId: null };
-  if (WORKSPACE && p === "/settings") return { view: "settings", docId: null };
-  if (WORKSPACE && p === "/home") return { view: "search", docId: null, home: true };
+  if (p === "/library") return { view: "library", docId: null };
+  if (p === "/settings") return { view: "settings", docId: null };
+  if (p === "/home") return { view: "search", docId: null, home: true };
   const m = /^\/papers(?:\/([a-f0-9]{8,40}))?$/.exec(p);
   if (m) return { view: "papers", docId: m[1] ?? null };
   return { view: "search", docId: null };
@@ -89,7 +83,7 @@ export function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
   useEffect(() => {
-    document.title = WORKSPACE && view === "search" && !user && !route.home && state.status === "idle" ? "Scholar AI: research you can trust" : TITLES[view];
+    document.title = view === "search" && !user && !route.home && state.status === "idle" ? "Scholar AI: research you can trust" : TITLES[view];
   }, [view, user, route.home, state.status]);
   useEffect(() => {
     if (view === "papers") window.scrollTo(0, 0);
@@ -108,13 +102,13 @@ export function App() {
 
   // offline reading, when the reader has switched it on: the worker is kept registered and current
   useEffect(() => {
-    if (WORKSPACE) resumeOffline();
+    resumeOffline();
   }, []);
-  // the command palette (Ctrl+K) and the list of shortcuts (?) of the new look
+  // the command palette (Ctrl+K) and the list of shortcuts (?)
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const openPalette = useCallback(() => WORKSPACE && (setSheetOpen(false), setPaletteOpen(true)), []);
-  const openSheet = useCallback(() => WORKSPACE && (setPaletteOpen(false), setSheetOpen(true)), []);
+  const openPalette = useCallback(() => { setSheetOpen(false); setPaletteOpen(true); }, []);
+  const openSheet = useCallback(() => { setPaletteOpen(false); setSheetOpen(true); }, []);
   useGlobalKeys(openPalette, openSheet);
 
   // ?auth_error=... left by the server redirect becomes a dismissible banner
@@ -172,9 +166,9 @@ export function App() {
   const goHome = () => {
     reset();
     setQuery("");
-    // the new look: signed-in people land on the home screen at "/", anonymous people on "/home" (the intro page is "/" for them)
-    const homePath = WORKSPACE && !user ? "/home" : "/";
-    if (view !== "search" || (WORKSPACE && location.pathname !== homePath)) {
+    // signed-in people land on the home screen at "/", anonymous people on "/home" (the intro page is "/" for them)
+    const homePath = !user ? "/home" : "/";
+    if (view !== "search" || location.pathname !== homePath) {
       history.pushState(null, "", homePath);
       setRoute({ view: "search", docId: null, home: homePath === "/home" });
     } else {
@@ -227,16 +221,12 @@ export function App() {
       <AnimatePresence mode="wait" initial={false}>
         {idle ? (
           <m.div key="home" exit={{ opacity: 0, y: -12, transition: { duration: 0.18 } }}>
-            {WORKSPACE ? (
-              <HomePage query={query} onQuery={setQuery} onOpenTool={(tool) => navigate(tool === "papers" ? "papers" : tool)} onOpenPaper={(id) => navigate("papers", id)} inputRef={homeRef} />
-            ) : (
-            <Hero value={query} onChange={setQuery} onSubmit={() => submit(query)} onPick={submit} onVerify={() => navigate("verify")} onPapers={() => navigate("papers")} onIdea={() => navigate("idea")} inputRef={inputRef} />
-            )}
+            <HomePage query={query} onQuery={setQuery} onOpenTool={(tool) => navigate(tool === "papers" ? "papers" : tool)} onOpenPaper={(id) => navigate("papers", id)} inputRef={homeRef} />
           </m.div>
         ) : (
           <m.div key="results" className="results-view" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }}>
             <div className="results-head">
-              <SearchBox value={query} onChange={setQuery} onSubmit={() => submit(query)} inputRef={inputRef} size="compact" busy={loading} />
+              <SearchBox value={query} onChange={setQuery} onSubmit={() => submit(query)} inputRef={inputRef} busy={loading} />
               <SourceStatus state={state} />
               {state.results.length > 0 && (
                 <div className="filters" role="group" aria-label="Filters">
@@ -300,8 +290,8 @@ export function App() {
     </main>
   );
 
-  // the new look: people who are not signed in see the intro page at "/"; everyone else gets the rail and the home screen
-  const onIntro = WORKSPACE && view === "search" && idle && !route.home && !user;
+  // people who are not signed in see the intro page at "/"; everyone else gets the rail and the home screen
+  const onIntro = view === "search" && idle && !route.home && !user;
   const booting = onIntro && authStatus === "loading";
   // the first paint may have set the film's dark theme for a visitor at "/" (public/theme-init.js); when the intro is not what is shown after all, "Auto" is given back
   useEffect(() => {
@@ -309,7 +299,7 @@ export function App() {
     if (getThemePref() === "auto" && document.documentElement.getAttribute("data-theme") === "dark") document.documentElement.removeAttribute("data-theme");
   }, [onIntro, booting]);
 
-  if (WORKSPACE && onIntro) {
+  if (onIntro) {
     return (
       <MotionConfig reducedMotion="user">
         <LazyMotion features={loadFeatures} strict={false}>
@@ -324,49 +314,17 @@ export function App() {
       </MotionConfig>
     );
   }
-  if (WORKSPACE) {
-    return (
-      <MotionConfig reducedMotion="user">
-        <LazyMotion features={loadFeatures} strict={false}>
-          <Shell view={view === "search" ? "home" : view} onNavigate={navigate} onHome={goHome} title={view === "search" && idle ? "Home" : TITLES[view].replace(" · Scholar AI", "")} focus={view === "papers" && !!route.docId} footer={view === "papers" ? null : <Footer />}>
-            {noticeEl}
-            {mainEl}
-          </Shell>
-          <PaperPreview />
-          <OaAskSheet onOpenPapers={() => navigate("papers")} />
-          <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
-          <ShortcutSheet open={sheetOpen} onOpenChange={setSheetOpen} />
-        </LazyMotion>
-      </MotionConfig>
-    );
-  }
-
   return (
     <MotionConfig reducedMotion="user">
       <LazyMotion features={loadFeatures} strict={false}>
-        <a className="skip-link" href="#main">Skip to content</a>
-
-        <header className={`topbar ${idle && view === "search" ? "" : "topbar-solid"}`}>
-          <div className="topbar-inner">
-            <button type="button" className="logo-btn" onClick={goHome} aria-label="Scholar AI, home">
-              <Logo />
-            </button>
-            <TopNav view={view} onNavigate={navigate} />
-            <div className="topbar-actions">
-              <ReadingControls />
-              <ThemeSwitch />
-              <LibraryDrawer />
-              <AccountMenu />
-            </div>
-          </div>
-        </header>
-
-        {noticeEl}
-
-        {mainEl}
-
-        <Footer />
+        <Shell view={view === "search" ? "home" : view} onNavigate={navigate} onHome={goHome} title={view === "search" && idle ? "Home" : TITLES[view].replace(" · Scholar AI", "")} focus={view === "papers" && !!route.docId} footer={view === "papers" ? null : <Footer />}>
+          {noticeEl}
+          {mainEl}
+        </Shell>
         <PaperPreview />
+        <OaAskSheet onOpenPapers={() => navigate("papers")} />
+        <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+        <ShortcutSheet open={sheetOpen} onOpenChange={setSheetOpen} />
       </LazyMotion>
     </MotionConfig>
   );

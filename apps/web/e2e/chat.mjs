@@ -25,7 +25,6 @@ const watch = (p) => {
   p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409|429|503)/.test(m.text())) errors.push("console: " + m.text()); });
 };
 const newCtx = (opts = {}) => browser.newContext({ viewport: { width: 1360, height: 900 }, ...opts });
-const flag = (ctx) => ctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "1"); } catch {} });
 
 async function axe(label, p) {
   await p.evaluate(axeSource);
@@ -41,7 +40,6 @@ const setTheme = (p, t) => p.evaluate((t) => document.documentElement.setAttribu
 
 try {
   const ctx = await newCtx();
-  await flag(ctx);
   const page = await ctx.newPage();
   watch(page);
   // the tool is chosen from the mode menu (a choice that is already made stays as it is)
@@ -461,7 +459,6 @@ try {
 
   console.log("without signing in");
   const anon = await newCtx();
-  await flag(anon);
   const ap = await anon.newPage();
   watch(ap);
   await ap.goto(BASE + "/home", { waitUntil: "networkidle" });
@@ -485,7 +482,6 @@ try {
 
   console.log("storage that refuses");
   const blocked = await newCtx();
-  await flag(blocked);
   await blocked.addInitScript(() => { const open = indexedDB.open.bind(indexedDB); indexedDB.open = (...a) => { if (a[0] === "scholar") throw new DOMException("blocked", "SecurityError"); return open(...a); }; });
   const bp = await blocked.newPage();
   watch(bp);

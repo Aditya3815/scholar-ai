@@ -96,7 +96,7 @@ function ModeMenu({ tool, onChange }: { tool: Tool; onChange: (t: Tool) => void 
 }
 
 /**
- * The home of the new look: one prompt box. With Auto the router chooses the tool from what you write; with the menu or the pills you choose it yourself.
+ * The home screen: one prompt box. With Auto the router chooses the tool from what you write; with the menu or the pills you choose it yourself.
  * A search is answered in this screen (the conversation below the box); the other tools open on their own page with your text.
  */
 export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: { query: string; onQuery: (v: string) => void; onOpenTool: (t: "verify" | "idea" | "papers") => void; onOpenPaper: (id: string) => void; inputRef: RefObject<HTMLTextAreaElement | null> }) {

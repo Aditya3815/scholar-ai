@@ -6,8 +6,7 @@ import { PROVIDER_LABELS, type Paper } from "@scholar/shared";
 import { easeOut, spring, springPop, stagger } from "../lib/motion";
 import { canAsk, openOaAsk } from "../lib/oa-ask";
 import { closePreview, stepPreview, usePreview } from "../lib/preview";
-import { WORKSPACE } from "../lib/workspace";
-import { CiteMenu, CopyButton } from "./CiteMenu";
+import { CiteMenu } from "./CiteMenu";
 import { CountUp, SaveButton } from "./ResultCard";
 
 const sourceName = (s: string) => PROVIDER_LABELS[s as keyof typeof PROVIDER_LABELS] ?? s;
@@ -120,7 +119,7 @@ function Body({ paper }: { paper: Paper }) {
       </m.section>
 
       <m.div className="actions pv-actions" {...rise(6)}>
-        {WORKSPACE && canAsk(paper) && (
+        {canAsk(paper) && (
           <button type="button" className="btn btn-primary btn-sm" onClick={() => { closePreview(); openOaAsk(paper); }}>
             <MessageSquareText size={15} aria-hidden="true" />
             <span>Ask this paper</span>

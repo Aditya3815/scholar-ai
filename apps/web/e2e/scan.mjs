@@ -57,7 +57,7 @@ try {
   /* ---------- sign in ---------- */
   await page.goto(BASE + "/papers", { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Continue with Google" }).click();
-  await page.locator("button[aria-label^=\"Account:\"], .ws-who").first().waitFor({ timeout: 15000 });
+  await page.locator(".ws-who").waitFor({ timeout: 15000 });
   const note = page.getByRole("region", { name: /how your papers are handled/ });
   await note.waitFor();
   await note.getByRole("button", { name: "I understand, continue" }).click();

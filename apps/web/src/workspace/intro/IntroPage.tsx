@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Logo } from "../../components/Logo";
 import { Footer } from "../../components/Footer";
 import { ProviderButtons } from "../../components/ProviderButtons";
-import { SignInDialog } from "../../components/AccountMenu";
+import { SignInDialog } from "../../components/SignInDialog";
 import { ThemeSwitch } from "../../components/ThemeSwitch";
 import { useAuth } from "../../lib/auth";
 import { useMediaQuery } from "../../lib/media";

@@ -1,5 +1,5 @@
 // Browser e2e: library sync, settings, data export and account deletion, in the new look (W6: the Library and Settings pages of the rail). Same setup as e2e/auth.mjs
-// (Worker on :8788 with a fake identity provider, `npm run build` done). The old pages' drawer and dialog are tested by e2e/auth.mjs and by default.mjs (the way back). Run:  node e2e/library.mjs [baseUrl]
+// (Worker on :8788 with a fake identity provider, `npm run build` done). The sign-in and sign-out journey is e2e/auth.mjs. Run:  node e2e/library.mjs [baseUrl]
 import { chromium } from "playwright-core";
 import { createRequire } from "node:module";
 import { mkdirSync, readFileSync } from "node:fs";

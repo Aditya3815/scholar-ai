@@ -1,20 +1,16 @@
-import * as Dialog from "@radix-ui/react-dialog";
-import { AnimatePresence, m } from "motion/react";
-import { AlertTriangle, Download, Link2, X } from "lucide-react";
+import { AlertTriangle, Download, Link2 } from "lucide-react";
 import { useState } from "react";
 import { linkProvider, refreshAuth, useAuth } from "../lib/auth";
 import { resetLibraryView } from "../lib/library";
-import { easeOut, spring } from "../lib/motion";
 import { showNotice } from "../lib/notice";
 import { setRememberOn, useRememberOn } from "../lib/remember";
 import { clearOfflineData } from "../lib/offline";
 import { clearChats, useChatState } from "../lib/chat";
 import { OfflineSettings } from "./OfflineSettings";
-import { WORKSPACE } from "../lib/workspace";
 
 /**
  * The three sections of the account settings (details, a copy of your data, erasing the account: DPDP access, portability, erasure).
- * Shown in the dialog from the account menu and, in the new look, on the Settings page.
+ * Shown on the Settings page.
  */
 export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: () => void; idPrefix?: string }) {
   const { user, providers } = useAuth();
@@ -68,7 +64,7 @@ export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: 
           <dt>Signed in with</dt>
           <dd>{user.providers.map((p) => (p === "google" ? "Google" : "ORCID")).join(", ")}</dd>
         </dl>
-        {WORKSPACE && unlinked.length > 0 && (
+        {unlinked.length > 0 && (
           <div className="settings-link">
             <p className="settings-p">Link another way to sign in, so the same account opens with either.</p>
             {unlinked.map((p) => (
@@ -81,30 +77,26 @@ export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: 
         )}
       </section>
 
-      {WORKSPACE && (
-        <section className="settings-sec" aria-labelledby={`${idPrefix}-home`}>
-          <h3 id={`${idPrefix}-home`} className="settings-h">Home screen</h3>
-          <label className="settings-check">
-            <input type="checkbox" checked={rememberOn} onChange={(e) => setRememberOn(e.target.checked)} />
-            <span>Show “Remember this?” with one of my highlights</span>
-          </label>
-          <p className="settings-p">One highlight from your own papers, the same one all day. It is chosen on your account and shown only to you. This choice is kept on this device.</p>
-        </section>
-      )}
+      <section className="settings-sec" aria-labelledby={`${idPrefix}-home`}>
+        <h3 id={`${idPrefix}-home`} className="settings-h">Home screen</h3>
+        <label className="settings-check">
+          <input type="checkbox" checked={rememberOn} onChange={(e) => setRememberOn(e.target.checked)} />
+          <span>Show “Remember this?” with one of my highlights</span>
+        </label>
+        <p className="settings-p">One highlight from your own papers, the same one all day. It is chosen on your account and shown only to you. This choice is kept on this device.</p>
+      </section>
 
-      {WORKSPACE && (
-        <section className="settings-sec" aria-labelledby={`${idPrefix}-chats`}>
-          <h3 id={`${idPrefix}-chats`} className="settings-h">Chats</h3>
-          <p className="settings-p">
-            What you ask in the prompt box on Home and the answers are kept <strong>only in this browser</strong>, never on our servers. They are removed when you sign out, and they are not part of the copy of your data you can download, because we do not have them.
-          </p>
-          <button type="button" className="btn btn-ghost btn-sm" disabled={chatCount === 0} onClick={() => void clearChats().then(() => showNotice("Your chats were deleted from this browser."))}>
-            <span>{chatCount === 0 ? "No chats kept" : `Delete ${chatCount === 1 ? "the chat" : `all ${chatCount} chats`} in this browser`}</span>
-          </button>
-        </section>
-      )}
+      <section className="settings-sec" aria-labelledby={`${idPrefix}-chats`}>
+        <h3 id={`${idPrefix}-chats`} className="settings-h">Chats</h3>
+        <p className="settings-p">
+          What you ask in the prompt box on Home and the answers are kept <strong>only in this browser</strong>, never on our servers. They are removed when you sign out, and they are not part of the copy of your data you can download, because we do not have them.
+        </p>
+        <button type="button" className="btn btn-ghost btn-sm" disabled={chatCount === 0} onClick={() => void clearChats().then(() => showNotice("Your chats were deleted from this browser."))}>
+          <span>{chatCount === 0 ? "No chats kept" : `Delete ${chatCount === 1 ? "the chat" : `all ${chatCount} chats`} in this browser`}</span>
+        </button>
+      </section>
 
-      {WORKSPACE && <OfflineSettings idPrefix={idPrefix} />}
+      <OfflineSettings idPrefix={idPrefix} />
 
       <section className="settings-sec" aria-labelledby={`${idPrefix}-data`}>
         <h3 id={`${idPrefix}-data`} className="settings-h">Your data</h3>
@@ -136,39 +128,5 @@ export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: 
         </button>
       </section>
     </>
-  );
-}
-
-/** Account details, data export, and irreversible account deletion. */
-export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const { user } = useAuth();
-  if (!user) return null;
-
-  return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <AnimatePresence>
-        {open && (
-          <Dialog.Portal forceMount>
-            <Dialog.Overlay asChild forceMount>
-              <m.div className="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease: easeOut }} />
-            </Dialog.Overlay>
-            <div className="modal-wrap">
-              <Dialog.Content asChild forceMount aria-describedby="settings-desc">
-                <m.div className="modal modal-wide" initial={{ opacity: 0, y: 18, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98, transition: { duration: 0.15 } }} transition={spring}>
-                  <Dialog.Close className="icon-btn modal-close" aria-label="Close settings">
-                    <X size={18} aria-hidden="true" />
-                  </Dialog.Close>
-                  <Dialog.Title className="modal-title">Account settings</Dialog.Title>
-                  <Dialog.Description id="settings-desc" className="modal-sub">
-                    Your details, a copy of your data, and the option to erase it.
-                  </Dialog.Description>
-                  <SettingsSections onDeleted={() => onOpenChange(false)} />
-                </m.div>
-              </Dialog.Content>
-            </div>
-          </Dialog.Portal>
-        )}
-      </AnimatePresence>
-    </Dialog.Root>
   );
 }

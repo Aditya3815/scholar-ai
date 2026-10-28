@@ -1,6 +1,6 @@
 /* ============================================================================================================
    The new look (phase W1): the rail, the home screen with its prompt box, and the Library and Settings pages.
-   Only used when the new look is on (?ws=1). Product tokens only, so Light, Dark and Read all work.
+   Product tokens only, so Light, Dark and Read all work.
    ============================================================================================================ */
 .ws-shell {
   --ws-rail: 17rem;

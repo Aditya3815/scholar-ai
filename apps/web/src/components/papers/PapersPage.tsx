@@ -3,7 +3,7 @@ import { FileSearch, LockKeyhole, ShieldCheck, Sparkles, WifiOff } from "lucide-
 import { useEffect, useMemo, useState } from "react";
 import { tagKey, type DocumentInfo, type ReadState } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
-import { PAPERS_NAME, WORKSPACE } from "../../lib/workspace";
+import { PAPERS_NAME } from "../../lib/workspace";
 import { loadDocs, removeDoc, resetDocs, useDocs } from "../../lib/documents";
 import { takeSearch } from "../../lib/jump";
 import { useCachedPapers, useOnline } from "../../lib/offline";
@@ -70,9 +70,9 @@ export function PapersPage({ onOpen }: { onOpen: (id: string) => void }) {
   const f = useFilters(docs.items);
   const kept = useCachedPapers(docs.items.length);
   const online = useOnline();
-  const searching = WORKSPACE && query.trim().length > 0;
-  const filtered = WORKSPACE && (f.state !== "all" || f.tag !== null);
-  const list = WORKSPACE ? f.shown : docs.items;
+  const searching = query.trim().length > 0;
+  const filtered = f.state !== "all" || f.tag !== null;
+  const list = f.shown;
 
   useEffect(() => {
     if (status !== "ready") return;
@@ -117,7 +117,7 @@ export function PapersPage({ onOpen }: { onOpen: (id: string) => void }) {
         </m.div>
       ) : (
         <>
-          {WORKSPACE && !online && (
+          {!online && (
             <p className="offline-banner" role="status">
               You are offline. {kept.size > 0 ? "Papers marked “On this device” can still be opened." : "Papers can be opened offline once you have switched that on in Settings and opened them while connected."}
             </p>
@@ -156,39 +156,37 @@ export function PapersPage({ onOpen }: { onOpen: (id: string) => void }) {
                 </h2>
                 {docs.usage && <p className="papers-usage">{docs.usage.count} of {docs.usage.maxCount} · {(docs.usage.bytes / 1024 / 1024).toFixed(1)} MB used</p>}
               </div>
-              {WORKSPACE && (
-                <div className="wtools">
-                  <WorkspaceSearch query={query} onQuery={setQuery} />
-                  {!searching && (
-                    <>
-                      <div className="wfilters" role="group" aria-label="Show papers by status">
-                        {(["all", ...STATES] as const).map((s) => (
-                          <button key={s} type="button" className="chip-btn" aria-pressed={f.state === s} onClick={() => f.setState(s)}>
-                            {s === "all" ? "All" : STATE_LABEL[s]} <span className="wfilters-n">{f.counts[s]}</span>
+              <div className="wtools">
+                <WorkspaceSearch query={query} onQuery={setQuery} />
+                {!searching && (
+                  <>
+                    <div className="wfilters" role="group" aria-label="Show papers by status">
+                      {(["all", ...STATES] as const).map((s) => (
+                        <button key={s} type="button" className="chip-btn" aria-pressed={f.state === s} onClick={() => f.setState(s)}>
+                          {s === "all" ? "All" : STATE_LABEL[s]} <span className="wfilters-n">{f.counts[s]}</span>
+                        </button>
+                      ))}
+                      <label className="wsort">
+                        <span className="sr-only">Order</span>
+                        <select value={f.sort} onChange={(e) => f.setSort(e.target.value as Sort)}>
+                          <option value="added">Newest first</option>
+                          <option value="opened">Recently opened</option>
+                          <option value="title">Title A to Z</option>
+                        </select>
+                      </label>
+                    </div>
+                    {f.tags.length > 0 && (
+                      <div className="wfilters" role="group" aria-label="Show papers by tag">
+                        {f.tags.slice(0, 12).map((t) => (
+                          <button key={t.label} type="button" className="chip-btn tag-filter" aria-pressed={!!f.tag && tagKey(f.tag) === tagKey(t.label)} onClick={() => f.setTag(f.tag && tagKey(f.tag) === tagKey(t.label) ? null : t.label)}>
+                            {t.label} <span className="wfilters-n">{t.n}</span>
                           </button>
                         ))}
-                        <label className="wsort">
-                          <span className="sr-only">Order</span>
-                          <select value={f.sort} onChange={(e) => f.setSort(e.target.value as Sort)}>
-                            <option value="added">Newest first</option>
-                            <option value="opened">Recently opened</option>
-                            <option value="title">Title A to Z</option>
-                          </select>
-                        </label>
                       </div>
-                      {f.tags.length > 0 && (
-                        <div className="wfilters" role="group" aria-label="Show papers by tag">
-                          {f.tags.slice(0, 12).map((t) => (
-                            <button key={t.label} type="button" className="chip-btn tag-filter" aria-pressed={!!f.tag && tagKey(f.tag) === tagKey(t.label)} onClick={() => f.setTag(f.tag && tagKey(f.tag) === tagKey(t.label) ? null : t.label)}>
-                              {t.label} <span className="wfilters-n">{t.n}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+                    )}
+                  </>
+                )}
+              </div>
               {searching ? (
                 <SearchResults query={query} onOpen={onOpen} />
               ) : (
@@ -202,7 +200,7 @@ export function PapersPage({ onOpen }: { onOpen: (id: string) => void }) {
                   <ul className="dgrid" aria-label="Your papers">
                     <AnimatePresence initial>
                       {list.map((d, i) => (
-                        <DocCard key={d.id} doc={d} index={i} kept={kept.has(d.id)} onOpen={onOpen} onDelete={setToDelete} onTag={WORKSPACE ? (t) => f.setTag(f.tag && tagKey(f.tag) === tagKey(t) ? null : t) : undefined} activeTag={f.tag} />
+                        <DocCard key={d.id} doc={d} index={i} kept={kept.has(d.id)} onOpen={onOpen} onDelete={setToDelete} onTag={(t) => f.setTag(f.tag && tagKey(f.tag) === tagKey(t) ? null : t)} activeTag={f.tag} />
                       ))}
                     </AnimatePresence>
                   </ul>

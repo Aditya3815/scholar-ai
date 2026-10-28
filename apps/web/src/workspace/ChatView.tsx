@@ -2,7 +2,7 @@ import { AnimatePresence, m } from "motion/react";
 import { ArrowRight, ChevronDown, FileStack, Info, Lightbulb, ListChecks, RefreshCw, Search, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GENERAL_LABEL, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, ROUTE_NAMES, canTighten, type AssistantMsg, type ChatMsg, type IdeaMsg, type ChatNoAnswer, type RouteMode } from "@scholar/shared";
-import { SignInDialog } from "../components/AccountMenu";
+import { SignInDialog } from "../components/SignInDialog";
 import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
 import { StreamingText } from "../components/papers/AskPanel";

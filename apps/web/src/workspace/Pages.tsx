@@ -2,7 +2,7 @@ import { Bookmark, ShieldAlert, Settings as SettingsIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { dismissAlerts, removeSaved, useLibrary, useLibraryAlerts } from "../lib/library";
 import { openPreview } from "../lib/preview";
-import { LibraryList, libraryNote } from "../components/LibraryDrawer";
+import { LibraryList, libraryNote } from "../components/LibraryList";
 import { ProviderButtons } from "../components/ProviderButtons";
 import { ReadingForm } from "../components/ReadingControls";
 import { SettingsSections } from "../components/SettingsDialog";
@@ -38,7 +38,7 @@ function RetractionNotices() {
   );
 }
 
-/** Library as a page of its own (it is a drawer in the old look). Same list, same actions. */
+/** The Library page: the saved papers, with their BibTeX and Remove. */
 export function LibraryPage() {
   const items = useLibrary();
   const signedIn = !!useAuth().user;
@@ -54,7 +54,7 @@ export function LibraryPage() {
   );
 }
 
-/** Settings as a page of its own: reading, theme, account, your data (a dialog in the old look). */
+/** The Settings page: reading, theme, account, your data. */
 export function SettingsPage() {
   const { user, status } = useAuth();
   return (

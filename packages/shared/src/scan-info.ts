@@ -5,7 +5,7 @@
  * is the line structure of the reading, and the models keep a blank line between references, which `splitReferences` uses. The title is not guessed:
  * a scan's first line is usually a running head or a stamp, and a wrong title shown as the paper's is worse than none (it can be renamed).
  */
-import { detectIdentifiers, findReferenceStart, printedMax, referenceEntries, referenceLines, type Line, type PaperInfo, type ReferenceSection } from "./paperinfo";
+import { detectIdentifiers, printedMax, referenceEntries, referenceLines, type Line, type PaperInfo, type ReferenceSection } from "./paperinfo";
 import type { PageText } from "./documents";
 
 const ENDS_AN_ENTRY = /[.!?)\]"”’]$|\d$/;

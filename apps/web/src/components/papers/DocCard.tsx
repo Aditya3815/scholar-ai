@@ -1,11 +1,10 @@
 import { m } from "motion/react";
-import { AlertCircle, ArrowRight, FileText, HardDrive, Loader2, Pencil, RefreshCw, ScanLine, Trash2 } from "lucide-react";
+import { AlertCircle, FileText, HardDrive, Loader2, Pencil, RefreshCw, ScanLine, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { DocumentInfo } from "@scholar/shared";
 import { continueScan, coverUrl, reindexDoc, renameDoc, useJobs } from "../../lib/documents";
-import { easeOut, springPop, stagger } from "../../lib/motion";
+import { easeOut, stagger } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
-import { WORKSPACE } from "../../lib/workspace";
 import { DocMeta, TagChips, progressOf } from "./DocMeta";
 
 const size = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -99,7 +98,7 @@ export function DocCard({ doc, index, onOpen, onDelete, onTag, activeTag, kept =
   const busy = useJobs().some((j) => j.docId === doc.id && ["reading", "uploading", "indexing", "scanning"].includes(j.step));
   return (
     <m.li
-      className={`card dc${WORKSPACE ? " dc-ws" : ""}`}
+      className="card dc dc-ws"
       data-status={doc.status}
       layout="position"
       initial={{ opacity: 0, y: 16, scale: 0.98 }}
@@ -113,8 +112,8 @@ export function DocCard({ doc, index, onOpen, onDelete, onTag, activeTag, kept =
       </button>
       <div
         className="dc-body"
-        // in My Workspace a click anywhere on the card opens the paper (buttons keep their own job); the cover button is the keyboard way in
-        onClick={WORKSPACE ? (e) => { const el = e.target as HTMLElement; /* a popover is drawn elsewhere in the page but its clicks still reach this card in React: only clicks inside the card count */ if (e.currentTarget.contains(el) && !el.closest("button, a, input, label")) onOpen(doc.id); } : undefined}
+        // a click anywhere on the card opens the paper (buttons keep their own job); the cover button is the keyboard way in
+        onClick={(e) => { const el = e.target as HTMLElement; /* a popover is drawn elsewhere in the page but its clicks still reach this card in React: only clicks inside the card count */ if (e.currentTarget.contains(el) && !el.closest("button, a, input, label")) onOpen(doc.id); }}
       >
         <Title doc={doc} />
         <p className="dc-meta">
@@ -127,23 +126,17 @@ export function DocCard({ doc, index, onOpen, onDelete, onTag, activeTag, kept =
           )}
         </p>
 
-        {WORKSPACE && ready && <Progress doc={doc} />}
-        {WORKSPACE && <TagChips tags={doc.tags} active={activeTag} onPick={onTag} />}
+        {ready && <Progress doc={doc} />}
+        <TagChips tags={doc.tags} active={activeTag} onPick={onTag} />
 
         {doc.status === "failed" && <p className="dc-note" data-tone="warn">{doc.error ?? "Indexing failed."}</p>}
         {scanLeft && <p className="dc-note">{doc.scanPending} scanned {doc.scanPending === 1 ? "page" : "pages"} still to be read. What has been read is kept.</p>}
         {!scanLeft && (doc.status === "uploaded" || doc.status === "indexing") && <p className="dc-note">Not indexed yet. Open it to see the pages, or index it again.</p>}
 
         <div className="dc-actions">
-          {/* In the new look the cover opens the paper (decision of 24 Oct: no "Open and ask" button); the old look keeps it until W6 */}
-          {!WORKSPACE && (
-            <m.button type="button" className="btn btn-primary btn-sm" onClick={() => onOpen(doc.id)} whileTap={{ scale: 0.96 }} transition={springPop}>
-              <span>{ready ? "Open and ask" : "Open"}</span>
-              <ArrowRight size={15} aria-hidden="true" />
-            </m.button>
-          )}
-          {WORKSPACE && ready && <DocMeta doc={doc} />}
-          {WORKSPACE && kept && <span className="dc-offline" title="Kept on this device: it opens without a connection"><HardDrive size={11} aria-hidden="true" /> On this device</span>}
+          {/* the cover opens the paper (decision of 24 Oct: no "Open and ask" button) */}
+          {ready && <DocMeta doc={doc} />}
+          {kept && <span className="dc-offline" title="Kept on this device: it opens without a connection"><HardDrive size={11} aria-hidden="true" /> On this device</span>}
           {!ready && (
             <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void (scanLeft ? continueScan(doc) : reindexDoc(doc))}>
               <RefreshCw size={14} aria-hidden="true" />

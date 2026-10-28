@@ -1,5 +1,5 @@
 import * as Tabs from "@radix-ui/react-tabs";
-import { Check, CircleAlert, Copy, Download, ExternalLink, FileSpreadsheet, FileText, Landmark, Loader2, Printer, Search, ShieldCheck, X } from "lucide-react";
+import { Check, CircleAlert, Copy, Download, FileSpreadsheet, FileText, Landmark, Loader2, Printer, Search, ShieldCheck, X } from "lucide-react";
 import { Fragment, useId, useMemo, useState } from "react";
 import {
   INDIA_SCOPE_LABEL,

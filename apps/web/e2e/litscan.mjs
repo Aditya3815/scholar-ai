@@ -26,7 +26,6 @@ const watch = (p) => {
   p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
   p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409)/.test(m.text())) errors.push("console: " + m.text()); });
 };
-const flag = (ctx) => ctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "1"); } catch {} });
 
 async function axe(label, p) {
   await p.evaluate(axeSource);
@@ -62,7 +61,6 @@ async function grab(p, label) {
 
 try {
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 }, acceptDownloads: true });
-  await flag(ctx);
   const page = await ctx.newPage();
   watch(page);
 
@@ -358,7 +356,6 @@ try {
 
   console.log("on a phone");
   const phone = await browser.newContext({ viewport: { width: 375, height: 760 }, deviceScaleFactor: 2, hasTouch: true });
-  await flag(phone);
   await phone.addCookies(await ctx.cookies());
   const pp = await phone.newPage();
   watch(pp);

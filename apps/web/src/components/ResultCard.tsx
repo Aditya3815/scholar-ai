@@ -5,7 +5,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { easeOut, springPop, stagger } from "../lib/motion";
 import { toggleSaved, useLibrary } from "../lib/library";
 import { canAsk, openOaAsk } from "../lib/oa-ask";
-import { WORKSPACE } from "../lib/workspace";
 import { CiteMenu } from "./CiteMenu";
 
 const fmt = (n: number) => n.toLocaleString("en-IN");
@@ -170,7 +169,7 @@ export function ResultCard({ paper, index, onPreview, extra, below, anchor }: { 
             <span>Preview</span>
           </button>
         )}
-        {WORKSPACE && canAsk(paper) && (
+        {canAsk(paper) && (
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => openOaAsk(paper)} aria-label={`Ask this paper: ${paper.title}`}>
             <MessageSquareText size={15} aria-hidden="true" />
             <span>Ask this paper</span>

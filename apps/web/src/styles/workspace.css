@@ -451,7 +451,16 @@
   color: var(--accent);
 }
 .dw-tab > svg,
-.dw-tab .topnav-label {
+.dw-tab-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+}
+.dw-tab-label {
+  position: relative;
+}
+.dw-tab .dw-tab-label {
   position: relative;
 }
 .dw-grid {
@@ -1107,32 +1116,6 @@
   padding: 0.55rem 1.1rem 0.7rem;
   color: var(--muted);
   font-size: 0.75rem;
-}
-
-/* With three items the phone header is tight: "Verify references" becomes "Verify". */
-.topnav-short {
-  display: none;
-  position: relative;
-}
-@media (max-width: 440px) {
-  .topnav-link {
-    padding: 0 0.45rem;
-    gap: 0.3rem;
-    font-size: 0.8125rem;
-  }
-  /* visually hidden, not display:none: the link keeps its full accessible name ("Verify references") */
-  .topnav-link[href="/verify"] .topnav-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-  .topnav-link[href="/verify"] .topnav-short {
-    display: inline;
-  }
 }
 
 /* ============ Answer in progress ============ */

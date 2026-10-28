@@ -15,7 +15,7 @@ const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "mse
 const errors = [];
 try {
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 }, acceptDownloads: true });
-  await ctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "1"); localStorage.setItem("scholar.parked", "names,split"); } catch {} });
+  await ctx.addInitScript(() => { try { localStorage.setItem("scholar.parked", "names,split"); } catch {} });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
   page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409)/.test(m.text())) errors.push("console: " + m.text()); });

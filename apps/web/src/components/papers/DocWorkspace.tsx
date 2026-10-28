@@ -11,7 +11,7 @@ import { fetchScan, fetchScanText } from "../../lib/scan";
 import { analyzeOpenPdf } from "../../lib/paperinfo";
 import { useNotes } from "../../lib/notes";
 import { useInk } from "../../lib/ink";
-import { PAPERS_NAME, PARKED, WORKSPACE } from "../../lib/workspace";
+import { PAPERS_NAME, PARKED } from "../../lib/workspace";
 import { easeOut, spring } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { PdfError, openPdf, type PDFDocumentProxy } from "../../lib/pdf";
@@ -96,8 +96,8 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const [tab, setTab] = useState<"paper" | "side">("paper");
   const [side, setSide] = useState<"ask" | "refs" | "notes">("ask");
   const notes = useNotes(id);
-  // drawing (pen, highlighter, eraser) is part of My Workspace, the new look; the old look does not load it
-  const ink = useInk(id, WORKSPACE);
+  // drawing (pen, highlighter, eraser) is part of My Workspace
+  const ink = useInk(id);
   // the note being written, or the one whose icon was pressed; `tick` makes a second press on the same note work again
   const [focusNote, setFocusNote] = useState<{ id: string; tick: number } | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -216,7 +216,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
 
   const resumed = useRef<string | null>(null);
   useEffect(() => {
-    if (!WORKSPACE || pdf.status !== "ready" || load.status !== "ready" || resumed.current === id) return;
+    if (pdf.status !== "ready" || load.status !== "ready" || resumed.current === id) return;
     resumed.current = id;
     const jump = takeJump(id);
     const wanted = jump?.page ?? (load.doc.lastPage && load.doc.lastPage > 1 ? load.doc.lastPage : null);
@@ -268,7 +268,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   pageNow.current = page;
   const sent = useRef<number | null>(null);
   const flush = useCallback((keepalive: boolean) => {
-    if (!WORKSPACE || !tracking || sent.current === pageNow.current) return;
+    if (!tracking || sent.current === pageNow.current) return;
     sent.current = pageNow.current;
     postProgress(id, pageNow.current, keepalive);
   }, [id, tracking]);
@@ -342,7 +342,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const doc0 = load.status === "ready" ? load.doc : null;
   const hasOthers = otherPapers.length > 0;
   useEffect(() => {
-    if (!WORKSPACE || !doc0) return;
+    if (!doc0) return;
     return registerCommands({
       id: "reader",
       commands: () => [
@@ -368,7 +368,6 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   }, [doc0, focus, split, hasOthers, pdf, toggleFocus, onBack]);
   // F: focus mode (not while typing, not with a modifier)
   useEffect(() => {
-    if (!WORKSPACE) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== "f" || e.ctrlKey || e.metaKey || e.altKey) return;
       if ((e.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable=true], [role=dialog]")) return;
@@ -391,7 +390,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
           <div className="empty-actions">
             <button type="button" className="btn btn-primary" onClick={onBack}>
               <ArrowLeft size={16} aria-hidden="true" />
-              <span>Back to {PAPERS_NAME === "My papers" ? "my papers" : PAPERS_NAME}</span>
+              <span>Back to {PAPERS_NAME}</span>
             </button>
             {!load.notFound && authStatus === "ready" && user && (
               <button type="button" className="btn btn-ghost" onClick={() => { setLoad({ status: "loading" }); void fetchIt(); }}>Try again</button>
@@ -429,53 +428,51 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             </p>
           )}
         </div>
-        {WORKSPACE && (
-          <div className="dw-head-end">
-            <DocMeta doc={doc} onChange={(d) => setLoad((l) => (l.status === "ready" ? { ...l, doc: { ...l.doc, readState: d.readState, tags: d.tags } } : l))} />
-            <button type="button" className="icon-btn icon-btn-sm dw-focus-btn" aria-pressed={focus} aria-keyshortcuts="F" aria-label="Focus mode" title={focus ? "Bring the side panel back (F)" : "Paper on the whole window (F)"} onClick={toggleFocus}>
-              {focus ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
+        <div className="dw-head-end">
+          <DocMeta doc={doc} onChange={(d) => setLoad((l) => (l.status === "ready" ? { ...l, doc: { ...l.doc, readState: d.readState, tags: d.tags } } : l))} />
+          <button type="button" className="icon-btn icon-btn-sm dw-focus-btn" aria-pressed={focus} aria-keyshortcuts="F" aria-label="Focus mode" title={focus ? "Bring the side panel back (F)" : "Paper on the whole window (F)"} onClick={toggleFocus}>
+            {focus ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
+          </button>
+          {PARKED.splitView && (split ? (
+            <button type="button" id="dw-split-btn" className="icon-btn icon-btn-sm dw-split-btn" aria-pressed="true" aria-label="Close the second paper" title="Close the second paper" onClick={() => setSplit(null)}>
+              <Columns2 size={16} aria-hidden="true" />
             </button>
-            {PARKED.splitView && (split ? (
-              <button type="button" id="dw-split-btn" className="icon-btn icon-btn-sm dw-split-btn" aria-pressed="true" aria-label="Close the second paper" title="Close the second paper" onClick={() => setSplit(null)}>
-                <Columns2 size={16} aria-hidden="true" />
-              </button>
-            ) : (
-              <Pop
-                label="Open another paper beside this one"
-                align="end"
-                trigger={() => (
-                  <button type="button" id="dw-split-btn" className="icon-btn icon-btn-sm dw-split-btn" aria-label="Open another paper beside this one" title="Open another paper beside this one">
-                    <Columns2 size={16} aria-hidden="true" />
-                  </button>
-                )}
-              >
-                {(close) => (
-                  <div className="split-pick">
-                    <p className="pop-title">Compare with</p>
-                    {otherPapers.length === 0 ? (
-                      <p className="meta-fine">You have no other paper that is ready. Add one in {PAPERS_NAME} first.</p>
-                    ) : (
-                      <ul className="split-list" aria-label="Your other papers">
-                        {otherPapers.map((d) => (
-                          <li key={d.id}>
-                            <button type="button" className="split-item" onClick={() => { setSplit(d.id); close(); }}>
-                              <span>{d.title}</span>
-                              {d.tags.length > 0 && <small>{d.tags.join(", ")}</small>}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </Pop>
-            ))}
-            <ThemeSwitch scope="reader" />
-          </div>
-        )}
+          ) : (
+            <Pop
+              label="Open another paper beside this one"
+              align="end"
+              trigger={() => (
+                <button type="button" id="dw-split-btn" className="icon-btn icon-btn-sm dw-split-btn" aria-label="Open another paper beside this one" title="Open another paper beside this one">
+                  <Columns2 size={16} aria-hidden="true" />
+                </button>
+              )}
+            >
+              {(close) => (
+                <div className="split-pick">
+                  <p className="pop-title">Compare with</p>
+                  {otherPapers.length === 0 ? (
+                    <p className="meta-fine">You have no other paper that is ready. Add one in {PAPERS_NAME} first.</p>
+                  ) : (
+                    <ul className="split-list" aria-label="Your other papers">
+                      {otherPapers.map((d) => (
+                        <li key={d.id}>
+                          <button type="button" className="split-item" onClick={() => { setSplit(d.id); close(); }}>
+                            <span>{d.title}</span>
+                            {d.tags.length > 0 && <small>{d.tags.join(", ")}</small>}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </Pop>
+          ))}
+          <ThemeSwitch scope="reader" />
+        </div>
       </div>
 
-      {WORKSPACE && !online && (
+      {!online && (
         <p className="offline-banner" role="status">You are offline. You can keep reading and drawing; what you draw is kept on this device and sent when you are back online.</p>
       )}
 
@@ -510,9 +507,9 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
                 }
               }}
             >
-              {active && <m.span layoutId="dw-tab-pill" className="topnav-pill" transition={spring} />}
+              {active && <m.span layoutId="dw-tab-pill" className="dw-tab-pill" transition={spring} />}
               <Icon size={16} aria-hidden="true" />
-              <span className="topnav-label">{label}</span>
+              <span className="dw-tab-label">{label}</span>
               {t === "refs" && refCount > 0 && <span className="dw-tab-n">{refCount}</span>}
               {t === "notes" && notes.notes.length > 0 && <span className="dw-tab-n">{notes.notes.length}</span>}
             </button>
@@ -538,7 +535,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             {pdf.status === "ready" && (
               <m.div key="r" className="dw-viewer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }}>
                 <Suspense fallback={<OpeningPaper progress={1} />}>
-                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} docId={doc.id} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} notes={notes.notes} onCreateNote={(n) => void onCreateNote(n)} focusNoteId={focusNote?.id ?? null} onOpenNote={openNote} ink={WORKSPACE ? ink : undefined} />
+                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} docId={doc.id} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} notes={notes.notes} onCreateNote={(n) => void onCreateNote(n)} focusNoteId={focusNote?.id ?? null} onOpenNote={openNote} ink={ink} />
                 </Suspense>
               </m.div>
             )}

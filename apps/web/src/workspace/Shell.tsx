@@ -8,14 +8,14 @@ import { useDocs } from "../lib/documents";
 import { deleteChat, openChat, startNewChat, useChatState } from "../lib/chat";
 import { easeOut, spring } from "../lib/motion";
 import { Logo } from "../components/Logo";
-import { SignInDialog } from "../components/AccountMenu";
+import { SignInDialog } from "../components/SignInDialog";
 import { ThemeSwitch } from "../components/ThemeSwitch";
 import { PAPERS_NAME } from "../lib/workspace";
-import type { View } from "../components/TopNav";
+import type { View } from "../lib/view";
 
 type Item = { id: View | "home"; label: string; href: string; Icon: typeof Home; count?: number; /** notices waiting (a saved paper was retracted) */ alerts?: number };
 
-/** The left rail of the new look: where you are, the tools that are not in the prompt box yet, and your account. */
+/** The left rail: where you are, the tools that are not in the prompt box yet, and your account. */
 function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home"; onNavigate: (v: View) => void; onHome: () => void; onClose?: () => void }) {
   const { user } = useAuth();
   const saved = useLibrary().length;

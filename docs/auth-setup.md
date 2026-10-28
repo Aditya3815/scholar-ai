@@ -1,6 +1,6 @@
 # Sign-in setup (Google and ORCID)
 
-Login code is built and tested (`apps/api/src/auth/`, `scripts/auth-e2e.mjs`, `apps/web/e2e/auth.mjs`). It stays **invisible** until
+Login code is built and tested (`apps/api/src/auth/`, `scripts/auth-e2e.mjs`, `apps/web/e2e/auth.mjs` (the new look's sign-in)). It stays **invisible** until
 the credentials below exist: the UI only shows providers the deployment has configured.
 
 Redirect URIs to register (exact match):

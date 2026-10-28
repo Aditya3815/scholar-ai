@@ -46,7 +46,6 @@ const HEX = { blue: [43, 76, 207], red: [209, 52, 43], green: [31, 138, 82], yel
 
 try {
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 }, acceptDownloads: true });
-  await ctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "1"); } catch {} });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
   page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409)/.test(m.text())) errors.push("console: " + m.text()); });

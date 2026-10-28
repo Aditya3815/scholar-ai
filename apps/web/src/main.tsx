@@ -24,6 +24,12 @@ import { App } from "./App";
 
 initPrefs();
 initMonitoring();
+// the switch to the old pages (`?ws=0`) is gone since W6b; a value it left in this browser is of no use
+try {
+  localStorage.removeItem("scholar.ws");
+} catch {
+  /* storage blocked */
+}
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

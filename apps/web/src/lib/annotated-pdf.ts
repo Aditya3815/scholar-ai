@@ -1,4 +1,4 @@
-import { DEFAULT_LEGEND, STICKY_SIDE, arrowHead, inkHex, itemHex, quadsForQuote, shapeOutline, type DocNote, type InkItem, type Legend, type NoteColor, type Quad, type TextBox } from "@scholar/shared";
+import { DEFAULT_LEGEND, STICKY_SIDE, arrowHead, itemHex, quadsForQuote, shapeOutline, type DocNote, type InkItem, type Legend, type NoteColor, type Quad, type TextBox } from "@scholar/shared";
 import type { PDFDocumentProxy, PDFPageProxy } from "./pdf";
 import { penOutline } from "../components/papers/InkLayer";
 

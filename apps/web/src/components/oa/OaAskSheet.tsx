@@ -7,7 +7,7 @@ import { askPaper, closeOaAsk, isAsking, keyOf, restoreFocus, stopAsking, useOaA
 import { useAuth } from "../../lib/auth";
 import { easeOut, spring } from "../../lib/motion";
 import { PAPERS_NAME } from "../../lib/workspace";
-import { SignInDialog } from "../AccountMenu";
+import { SignInDialog } from "../SignInDialog";
 import { StreamingText } from "../papers/AskPanel";
 
 const SUGGESTIONS = ["What is the main finding?", "How was the study done?", "What are the limitations?"];

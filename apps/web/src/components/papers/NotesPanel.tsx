@@ -5,7 +5,7 @@ import { MAX_NOTE_CHARS, NOTE_COLORS, type DocNote, type DocumentInfo, type Note
 import { easeOut, spring } from "../../lib/motion";
 import { useLegend } from "../../lib/legend";
 import { notesToMarkdown, type NotesApi } from "../../lib/notes";
-import { PARKED, WORKSPACE } from "../../lib/workspace";
+import { PARKED } from "../../lib/workspace";
 import { ColourFilter, LegendEditor } from "./HighlightsTools";
 
 function NoteItem({ n, api, autoFocus, focusTick, onGo, onFocusDone }: { n: DocNote; api: NotesApi; autoFocus: boolean; focusTick: number; onGo: (n: DocNote) => void; onFocusDone?: (id: string) => void }) {
@@ -30,7 +30,7 @@ function NoteItem({ n, api, autoFocus, focusTick, onGo, onFocusDone }: { n: DocN
         <button type="button" className="note-page" onClick={() => onGo(n)} aria-label={`Go to page ${n.page}`}>p. {n.page}</button>
         <div className="note-colors" role="group" aria-label="Colour">
           {NOTE_COLORS.map((c) => (
-            <button key={c} type="button" className="note-dot" data-color={c} aria-pressed={n.color === c} aria-label={WORKSPACE ? `${legend[c]} (${c})` : `${c}`} onClick={() => n.color !== c && void api.update(n.id, { color: c })} />
+            <button key={c} type="button" className="note-dot" data-color={c} aria-pressed={n.color === c} aria-label={`${legend[c]} (${c})`} onClick={() => n.color !== c && void api.update(n.id, { color: c })} />
           ))}
         </div>
         <button type="button" className="icon-btn icon-btn-sm" aria-label={`Delete the note on page ${n.page}`} onClick={() => void api.remove(n.id)}>
@@ -60,11 +60,11 @@ function NoteItem({ n, api, autoFocus, focusTick, onGo, onFocusDone }: { n: DocN
 export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone }: { doc: DocumentInfo; api: NotesApi; focusId: string | null; focusTick?: number; onGo: (n: DocNote) => void; onFocusDone?: (id: string) => void }) {
   const [copied, setCopied] = useState(false);
   const legend = useLegend();
-  // the new look can show one colour, or group the list by colour; the Markdown follows what is on screen
+  // the list can show one colour, or group the list by colour; the Markdown follows what is on screen
   const [colour, setColour] = useState<NoteColor | "all">("all");
   const [group, setGroup] = useState<"page" | "colour">("page");
   const shown = colour === "all" ? api.notes : api.notes.filter((n) => n.color === colour);
-  const md = () => notesToMarkdown(doc.title, WORKSPACE ? shown : api.notes, WORKSPACE ? { legend, groupBy: group, ...(colour === "all" ? {} : { colours: [colour] }) } : undefined);
+  const md = () => notesToMarkdown(doc.title, shown, { legend, groupBy: group, ...(colour === "all" ? {} : { colours: [colour] }) });
   const copy = () => navigator.clipboard?.writeText(md()).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800); }, () => {});
   const download = () => {
     const url = URL.createObjectURL(new Blob([md()], { type: "text/markdown;charset=utf-8" }));
@@ -81,16 +81,14 @@ export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone
         <p className="notes-count" role="status">{api.status === "loading" ? "Loading…" : api.notes.length === 0 ? "No highlights yet" : `${api.notes.length} ${api.notes.length === 1 ? "highlight or note" : "highlights and notes"}`}</p>
         {api.notes.length > 0 && (
           <div className="notes-actions">
-            {WORKSPACE && (
-              <div className="seg hl-group" role="group" aria-label="Order of the list">
-                {(["page", "colour"] as const).map((g) => (
-                  <button key={g} type="button" className="seg-btn" aria-pressed={group === g} onClick={() => setGroup(g)}>
-                    {group === g && <m.span layoutId="hl-group-pill" className="seg-pill" transition={spring} />}
-                    <span className="seg-label hl-seg-label">{g === "page" ? "By page" : "By colour"}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="seg hl-group" role="group" aria-label="Order of the list">
+              {(["page", "colour"] as const).map((g) => (
+                <button key={g} type="button" className="seg-btn" aria-pressed={group === g} onClick={() => setGroup(g)}>
+                  {group === g && <m.span layoutId="hl-group-pill" className="seg-pill" transition={spring} />}
+                  <span className="seg-label hl-seg-label">{g === "page" ? "By page" : "By colour"}</span>
+                </button>
+              ))}
+            </div>
             <button type="button" className="btn btn-ghost btn-sm" onClick={copy}>
               {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
               <span>{copied ? "Copied" : "Copy as Markdown"}</span>
@@ -102,7 +100,7 @@ export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone
           </div>
         )}
       </div>
-      {WORKSPACE && api.notes.length > 0 && (
+      {api.notes.length > 0 && (
         <div className="hl-tools">
           <ColourFilter notes={api.notes} value={colour} onChange={setColour} />
           {PARKED.colourNames && <LegendEditor />}
@@ -116,8 +114,8 @@ export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone
           <p>Select any text in the paper to highlight it in a colour, or to add a note. They are kept with this paper, private to you, and listed here.</p>
         </m.div>
       )}
-      {WORKSPACE && api.notes.length > 0 && shown.length === 0 && <p className="sres-empty" role="status">No highlights in this colour.</p>}
-      {WORKSPACE && group === "colour" ? (
+      {api.notes.length > 0 && shown.length === 0 && <p className="sres-empty" role="status">No highlights in this colour.</p>}
+      {group === "colour" ? (
         NOTE_COLORS.filter((c) => shown.some((n) => n.color === c)).map((c) => (
           <section key={c} className="hl-group-sec" aria-labelledby={`hl-g-${c}`}>
             <h3 id={`hl-g-${c}`} className="sres-h"><span className="sres-dot" data-color={c} aria-hidden="true" /> {legend[c]} <span className="wfilters-n">{shown.filter((n) => n.color === c).length}</span></h3>

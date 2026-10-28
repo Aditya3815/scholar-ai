@@ -24,7 +24,7 @@ const page = await (await browser.newContext({ viewport: { width: 1280, height: 
 
 await page.goto(BASE + "/papers", { waitUntil: "networkidle" });
 await page.getByRole("button", { name: "Continue with Google" }).click();
-await page.getByRole("button", { name: /^Account:/ }).waitFor({ timeout: 15000 });
+await page.locator(".ws-who").waitFor({ timeout: 15000 });
 // the privacy note, as a person would click it
 {
   const { privacyVersion } = await (await page.request.get(BASE + "/api/v1/auth/me")).json();

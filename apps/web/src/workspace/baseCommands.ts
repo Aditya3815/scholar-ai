@@ -5,9 +5,9 @@ import { useDocs } from "../lib/documents";
 import { requestSearch } from "../lib/jump";
 import { setThemePref } from "../lib/prefs";
 import { PAPERS_NAME } from "../lib/workspace";
-import type { View } from "../components/TopNav";
+import type { View } from "../lib/view";
 
-/** The commands that are always there in the new look: where to go, which paper to open, the theme, help. */
+/** The commands that are always there: where to go, which paper to open, the theme, help. */
 export function useBaseCommands({ navigate, goHome, openSheet }: { navigate: (v: View, docId?: string | null) => void; goHome: () => void; openSheet: () => void }) {
   const { user } = useAuth();
   const docs = useDocs().items;

@@ -1,5 +1,7 @@
 // Browser auth e2e against a Worker that runs with a FAKE identity provider (see apps/api/scripts/auth-e2e.mjs for the
 // wrangler command). Needs `npm run build` first because the Worker serves apps/web/dist.
+// What it checks: the way in for a visitor (the intro page's header and the rail), the sign-in dialog (words, axe, Escape and focus), coming back to the same search, linking
+// the other way to sign in, signing out (the server's session is gone), the banner after a refused sign-in, and a phone's width.
 //   node e2e/auth.mjs [baseUrl]    (default http://localhost:8788)
 import { chromium } from "playwright-core";
 import { createRequire } from "node:module";
@@ -22,7 +24,6 @@ idp.setUser({ sub: "ui-1", email: "asha.rao@example.edu", email_verified: true, 
 
 const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-await ctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "0"); } catch {} }); // these suites test the old pages, kept one release behind ?ws=0 (docs/design/w6.md)
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
@@ -38,102 +39,105 @@ async function axe(label, p = page) {
   for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
 }
 const shot = (name, p = page) => p.screenshot({ path: OUT + name + ".png" });
-const signInBtn = () => page.getByRole("button", { name: /^Sign in$/ });
-const account = () => page.getByRole("button", { name: /^Account:/ });
+/** The intro page's header button (a visitor's way in at "/"). */
+const introSignIn = (p = page) => p.locator(".in-head").getByRole("button", { name: /^Sign in$/ });
+/** The rail's button (everywhere else a visitor goes). */
+const railSignIn = (p = page) => p.locator(".ws-anon").getByRole("button", { name: /^Sign in$/ });
+const who = () => page.locator(".ws-who");
 
 try {
   await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.waitForTimeout(2000);
-  await signInBtn().waitFor({ timeout: 10000 });
-  ok(true, "anonymous visitor sees a Sign in button (providers are configured)");
+  await introSignIn().waitFor({ timeout: 15000 });
+  ok(true, "a visitor sees a Sign in button on the intro page (providers are configured)");
   await shot("20-auth-anon");
 
-  // Modal
-  await signInBtn().click();
+  // The dialog
+  await introSignIn().click();
   const dialog = page.getByRole("dialog", { name: /Sign in to Scholar/ });
   await dialog.waitFor();
   await page.waitForTimeout(500);
-  ok(await dialog.getByRole("button", { name: "Continue with Google" }).isVisible(), "modal offers Continue with Google");
-  ok(await dialog.getByRole("button", { name: "Continue with ORCID" }).isVisible(), "modal offers Continue with ORCID");
-  ok(/never used to train AI/.test(await dialog.innerText()), "modal states the privacy promise");
+  ok(await dialog.getByRole("button", { name: "Continue with Google" }).isVisible(), "the dialog offers Continue with Google");
+  ok(await dialog.getByRole("button", { name: "Continue with ORCID" }).isVisible(), "the dialog offers Continue with ORCID");
+  ok(/never used to train AI/.test(await dialog.innerText()), "the dialog states the privacy promise");
   await shot("21-signin-modal");
-  await axe("sign-in modal");
+  await axe("sign-in dialog");
   await page.keyboard.press("Escape");
   await dialog.waitFor({ state: "hidden" });
-  ok(await signInBtn().evaluate((el) => el === document.activeElement), "Escape closes the modal and returns focus to the trigger");
+  ok(await introSignIn().evaluate((el) => el === document.activeElement), "Escape closes the dialog and returns focus to the button that opened it");
 
-  // Sign in from a results URL: query must survive the round trip
-  await page.goto(BASE + "?q=" + encodeURIComponent("graph neural networks"), { waitUntil: "networkidle" });
-  await signInBtn().click();
-  await page.getByRole("button", { name: "Continue with Google" }).click();
-  await account().waitFor({ timeout: 15000 });
+  // The rail's button, on a page that is not the intro
+  await page.goto(BASE + "/privacy", { waitUntil: "networkidle" });
+  await railSignIn().waitFor({ timeout: 10000 });
+  ok(true, "a visitor on any other page has Sign in in the rail");
+
+  // Sign in from a search: the search must survive the round trip
+  await page.goto(BASE + "/?q=" + encodeURIComponent("graph neural networks"), { waitUntil: "networkidle" });
+  await railSignIn().click();
+  await page.getByRole("button", { name: "Continue with Google" }).last().click();
+  await who().waitFor({ timeout: 20000 });
   ok(page.url().includes("q=graph+neural+networks") || page.url().includes("q=graph%20neural%20networks"), `returned to the same search (${page.url().replace(BASE, "")})`);
   ok(!page.url().includes("auth_error"), "no auth error in the URL");
   await page.waitForFunction(() => /papers in/.test(document.querySelector(".src-summary")?.textContent ?? ""), null, { timeout: 40000 });
   await page.waitForTimeout(1000);
   await shot("22-signed-in-results");
 
-  // Account menu
-  await account().click();
-  const menu = page.getByRole("dialog", { name: "Account" });
-  await menu.waitFor();
-  await page.waitForTimeout(400);
-  const txt = await menu.innerText();
-  ok(/Asha Rao/.test(txt) && /asha\.rao@example\.edu/.test(txt), "account menu shows name and email");
-  ok(await menu.getByRole("button", { name: /Link ORCID/ }).isVisible(), "offers to link ORCID");
-  await shot("23-account-menu");
-  await axe("account menu");
+  // The rail says who is signed in
+  const whoText = await who().innerText();
+  ok(/Asha Rao/.test(whoText) && /asha\.rao@example\.edu/.test(whoText), "the rail shows the name and the e-mail");
+  await shot("23-rail-signed-in");
+  await axe("signed in, results");
 
-  // Link ORCID
-  await Promise.all([page.waitForNavigation({ waitUntil: "networkidle", timeout: 20000 }), menu.getByRole("button", { name: /Link ORCID/ }).click()]);
-  await account().waitFor({ timeout: 15000 });
-  await account().click();
-  const menu2 = page.getByRole("dialog", { name: "Account" });
-  await menu2.waitFor();
-  await menu2.getByText("0000-0002-1825-0097").waitFor({ timeout: 8000 }).catch(() => {}); // /me may still be revalidating
-  await menu2.getByText("0000-0002-1825-0097").waitFor({ timeout: 8000 }).catch(() => {}); // the menu can open before /me finishes loading
-  const txt2 = await menu2.innerText();
-  ok(/0000-0002-1825-0097/.test(txt2) && !/Link ORCID/.test(txt2), `ORCID linked: iD shown and the link button is gone (menu text: ${JSON.stringify(txt2)})`);
+  // Linking the other way to sign in lives in Settings
+  await page.goto(BASE + "/settings", { waitUntil: "networkidle" });
+  await page.getByRole("heading", { level: 1, name: "Settings" }).waitFor();
+  const link = page.getByRole("button", { name: /Link ORCID/ });
+  ok(await link.isVisible(), "Settings offers to link ORCID");
+  await Promise.all([page.waitForNavigation({ waitUntil: "networkidle", timeout: 20000 }), link.click()]);
+  await who().waitFor({ timeout: 15000 });
+  await page.getByRole("heading", { level: 1, name: "Settings" }).waitFor({ timeout: 15000 });
+  await page.getByText("0000-0002-1825-0097").waitFor({ timeout: 10000 }).catch(() => {});
+  const settingsText = await page.locator("main").innerText();
+  ok(/0000-0002-1825-0097/.test(settingsText) && !/Link ORCID/.test(settingsText), "ORCID linked: the iD is shown and the link button is gone");
 
   // Sign out
-  await menu2.getByRole("button", { name: /Sign out/ }).click();
-  await signInBtn().waitFor({ timeout: 10000 });
-  ok(true, "sign out returns to the anonymous state");
+  await who().getByRole("button", { name: "Sign out" }).click();
+  await railSignIn().waitFor({ timeout: 10000 });
+  ok(true, "signing out returns to the visitor's state");
   const me = await (await page.request.get(BASE + "/api/v1/auth/me")).json();
-  ok(me.user === null, "server session is gone after sign out");
+  ok(me.user === null, "the server's session is gone after signing out");
 
   // Error banner
-  await page.goto(BASE + "?auth_error=denied", { waitUntil: "networkidle" });
+  await page.goto(BASE + "/?auth_error=denied", { waitUntil: "networkidle" });
   const alert = page.getByRole("alert").filter({ hasText: "cancelled" });
   await alert.waitFor();
-  ok(!page.url().includes("auth_error"), "auth_error is removed from the URL");
+  ok(!page.url().includes("auth_error"), "auth_error is removed from the address");
   await shot("24-auth-error");
-  await axe("auth error banner");
+  await axe("the banner after a refused sign-in");
   await alert.getByRole("button", { name: "Dismiss" }).click();
   await alert.waitFor({ state: "hidden", timeout: 3000 });
-  ok(true, "banner can be dismissed");
+  ok(true, "the banner can be dismissed");
 
-  // Mobile layouts: header must fit, and nothing overflows horizontally
+  // A phone's width: the header must fit, and nothing overflows sideways
   for (const width of [390, 360]) {
     const mctx = await browser.newContext({ viewport: { width, height: 800 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-    await mctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "0"); } catch {} }); // these suites test the old pages, kept one release behind ?ws=0 (docs/design/w6.md)
     const mp = await mctx.newPage();
     await mp.goto(BASE, { waitUntil: "networkidle" });
-    await mp.waitForTimeout(1800);
+    await introSignIn(mp).waitFor({ timeout: 15000 });
+    await mp.waitForTimeout(800);
     const overflow = await mp.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
-    const box = await mp.getByRole("button", { name: /^Sign in$/ }).boundingBox();
-    ok(!overflow && box && box.x + box.width <= width, `${width}px: no horizontal overflow, Sign in fully visible (right edge ${Math.round((box?.x ?? 0) + (box?.width ?? 0))}px)`);
+    const box = await introSignIn(mp).boundingBox();
+    ok(!overflow && box && box.x >= 0 && box.x + box.width <= width, `${width}px: no sideways overflow, Sign in fully visible (right edge ${Math.round((box?.x ?? 0) + (box?.width ?? 0))}px)`);
     await mp.screenshot({ path: OUT + `25-mobile-${width}.png` });
     if (width === 390) {
-      await mp.getByRole("button", { name: /^Sign in$/ }).click();
+      await introSignIn(mp).click();
       await mp.getByRole("dialog", { name: /Sign in to Scholar/ }).waitFor();
       await mp.waitForTimeout(500);
       await mp.screenshot({ path: OUT + "26-mobile-modal.png" });
-      await axe("mobile sign-in modal", mp);
+      await axe("the sign-in dialog on a phone", mp);
     }
     await mctx.close();
   }
-  ok(errors.length === 0, `no console/page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
+  ok(errors.length === 0, `no console or page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
   failures++;

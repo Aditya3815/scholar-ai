@@ -57,7 +57,7 @@ try {
 
   /* ---------- sign in ---------- */
   await page.getByRole("button", { name: "Continue with Google" }).click();
-  await page.locator("button[aria-label^=\"Account:\"], .ws-who").first().waitFor({ timeout: 15000 });
+  await page.locator(".ws-who").waitFor({ timeout: 15000 });
   ok(new URL(page.url()).pathname === "/idea", "sign-in returns to Idea Check");
   await textbox().waitFor();
   await page.waitForTimeout(1200);

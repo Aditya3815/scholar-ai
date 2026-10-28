@@ -36,7 +36,7 @@ const KEEPALIVE_LIMIT = 60_000; // a request that may outlive the page can carry
  * Saves go out one at a time with the revision they started from; if another window saved in between, the server's drawing is shown instead and the reader is told.
  * Undo and redo are kept for this visit only.
  */
-export function useInk(docId: string, enabled = true): InkApi {
+export function useInk(docId: string): InkApi {
   const [strokes, setStrokes] = useState<InkItem[]>([]);
   const [status, setStatus] = useState<InkStatus>("loading");
   const [loaded, setLoaded] = useState(false);
@@ -168,7 +168,6 @@ export function useInk(docId: string, enabled = true): InkApi {
   changedRef.current = changed;
 
   useEffect(() => {
-    if (!enabled) return;
     alive.current = true;
     rev.current = 0;
     dirty.current = false;
@@ -202,7 +201,7 @@ export function useInk(docId: string, enabled = true): InkApi {
       window.removeEventListener("beforeunload", warn);
       window.removeEventListener("online", online);
     };
-  }, [docId, enabled, save, set, load, persistNow]);
+  }, [docId, save, set, load, persistNow]);
 
   const add = useCallback(
     (s: InkItem) => {

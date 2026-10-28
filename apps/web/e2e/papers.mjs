@@ -109,7 +109,7 @@ try {
   /* ---------- sign in and upload ---------- */
   console.log("upload");
   await page.getByRole("button", { name: "Continue with Google" }).click();
-  await page.locator("button[aria-label^=\"Account:\"], .ws-who").first().waitFor({ timeout: 15000 });
+  await page.locator(".ws-who").waitFor({ timeout: 15000 });
   ok(new URL(page.url()).pathname === "/papers", "sign-in returns to the papers page");
   await page.getByRole("button", { name: /Upload PDF papers/ }).waitFor();
   const note = page.getByRole("region", { name: /how your papers are handled/ });

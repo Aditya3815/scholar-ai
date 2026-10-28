@@ -1,6 +1,6 @@
 import { crossrefFetch, SEARCH_GATE_WAIT_MS } from "../references/crossref-gate";
 import { normalizeDoi, stripJats } from "./normalize";
-import type { Provider, ProviderPaper, SearchEnv } from "./types";
+import type { Provider, ProviderPaper } from "./types";
 
 const SELECT = "DOI,title,author,issued,container-title,is-referenced-by-count,abstract";
 

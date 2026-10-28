@@ -1,5 +1,4 @@
 import type { ChatEvent } from "./chat";
-import type { AskStreamEvent } from "./documents";
 import type { IdeaCompareEvent, IdeaInsightsEvent, IdeaSearchEvent } from "./idea";
 import type { LitscanEvent } from "./litscan";
 import type { OaAskEvent } from "./oa";

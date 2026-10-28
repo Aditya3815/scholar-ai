@@ -18,7 +18,6 @@ let offline = false;
 
 try {
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 }, serviceWorkers: "allow" });
-  await ctx.addInitScript(() => { try { localStorage.setItem("scholar.ws", "1"); } catch {} });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
   page.on("console", (m) => {
