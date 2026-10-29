@@ -1,11 +1,9 @@
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import { PRIVACY_VERSION, IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaCompareEvent, type IdeaInsightsEvent, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
-import { cacheStore } from "../cache";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "../docs/embed";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
-import type { SearchEnv } from "../search/types";
 import type { S2Throttle } from "../s2-throttle";
 import { sseStream } from "../sse";
 import { PlanError, planIdea, scrubText } from "./plan";
@@ -13,6 +11,8 @@ import { compareIdea, sanitizeCompareRequest } from "./compare";
 import { insightsIdea, sanitizeInsightsRequest } from "./insights";
 import { runIdeaSearch, sanitizeRequest } from "./search";
 import { stubCompareStream, stubInsightsStream, stubPlan, stubSearch } from "./stub";
+import { searchEnvFrom } from "../search/env";
+import { deny } from "../problem";
 
 type Bindings = {
   DB: D1Database;
@@ -37,8 +37,6 @@ ideaRoutes.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
 });
 
-const deny = (c: Context<Env>, status: 400 | 401 | 403 | 413 | 429 | 502 | 503, type: string, title: string, detail?: string) =>
-  c.json({ type, title, ...(detail ? { detail } : {}) }, status);
 
 const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
 
@@ -63,16 +61,6 @@ function streamFor(env: Bindings, subject: string, abort: AbortSignal, stub: Str
 }
 
 const embedderFor = (env: Bindings): Embedder | null => (stubbed(env) ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null);
-
-const searchEnv = (env: Bindings): SearchEnv => ({
-  store: cacheStore(env),
-  OPENALEX_API_KEY: env.OPENALEX_API_KEY,
-  NCBI_API_KEY: env.NCBI_API_KEY,
-  S2_API_KEY: env.S2_API_KEY,
-  CORE_API_KEY: env.CORE_API_KEY,
-  CROSSREF_MAILTO: env.CROSSREF_MAILTO,
-  s2Gate: (maxWaitMs) => env.S2_THROTTLE.getByName("global").reserve(maxWaitMs),
-});
 
 /* ---------------------------------------------------------------- plan */
 
@@ -134,7 +122,7 @@ ideaRoutes.post("/search", async (c) => {
         await send({ type: "done", result: stubSearch(req) });
         return;
       }
-      const result = await runIdeaSearch({ env: searchEnv(c.env), embed: embedderFor(c.env), req, emit: send });
+      const result = await runIdeaSearch({ env: searchEnvFrom(c.env), embed: embedderFor(c.env), req, emit: send });
       await send({ type: "done", result });
     } catch (e) {
       console.error(JSON.stringify({ level: "error", msg: "idea_search_failed", error: e instanceof Error ? e.name : "unknown" }));

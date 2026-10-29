@@ -25,6 +25,7 @@ type Row = {
   role: SessionUser["role"];
   privacy_ack: string | null;
   stale: number;
+  providers: string | null;
 };
 
 export async function userFromSession(db: D1Database, token: string | undefined): Promise<SessionUser | null> {
@@ -33,18 +34,14 @@ export async function userFromSession(db: D1Database, token: string | undefined)
   const row = await db
     .prepare(
       `SELECT u.id, u.name, u.email, u.orcid, u.avatar_url, u.role, u.privacy_ack,
-              (s.last_seen_at < datetime('now', '-1 day')) AS stale
+              (s.last_seen_at < datetime('now', '-1 day')) AS stale,
+              (SELECT group_concat(DISTINCT provider) FROM identities WHERE user_id = u.id) AS providers
          FROM sessions s JOIN users u ON u.id = s.user_id
         WHERE s.id = ?1 AND s.expires_at > datetime('now') AND u.deleted_at IS NULL`,
     )
     .bind(sid)
     .first<Row>();
   if (!row) return null;
-
-  const providers = await db
-    .prepare("SELECT DISTINCT provider FROM identities WHERE user_id = ?1")
-    .bind(row.id)
-    .all<{ provider: ProviderId }>();
 
   // Slide the session only when it is a day old: keeps D1 writes low.
   if (row.stale) {
@@ -60,7 +57,7 @@ export async function userFromSession(db: D1Database, token: string | undefined)
     orcid: row.orcid,
     avatarUrl: row.avatar_url,
     role: row.role,
-    providers: providers.results.map((r) => r.provider),
+    providers: row.providers ? (row.providers.split(",") as ProviderId[]) : [],
     privacyAck: row.privacy_ack,
   };
 }

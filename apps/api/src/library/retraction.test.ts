@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
 import { testD1 } from "../test-d1";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { BATCH, MAX_DOIS_PER_RUN, dueDois, recheckRetractions } from "./retraction";
+import { doiColumn } from "./validate";
 import { stubCrossrefCalls, stubCrossrefFetch } from "./retraction-stub";
 
 let db: D1Database;
@@ -12,7 +15,7 @@ const user = (id: string) => sql.prepare("INSERT INTO users (id, email) VALUES (
 const save = (userId: string, doi: string | null, extra: Record<string, unknown> = {}) => {
   const id = doi ? `doi:${doi.toLowerCase()}` : `t:${Math.random().toString(36).slice(2)}`;
   const paper = { id, doi, title: `Paper ${doi ?? id}`, retracted: false, retractionSources: [], ...extra };
-  sql.prepare("INSERT INTO library_items (user_id, paper_id, data) VALUES (?, ?, ?)").run(userId, id, JSON.stringify(paper));
+  sql.prepare("INSERT INTO library_items (user_id, paper_id, data, doi) VALUES (?, ?, ?, ?)").run(userId, id, JSON.stringify(paper), doiColumn(paper));
   return id;
 };
 const state = (doi: string) => sql.prepare("SELECT state, checked_at, retracted_at FROM paper_retraction WHERE doi = ?").get(doi) as { state: string; checked_at: string; retracted_at: string | null } | undefined;
@@ -140,5 +143,34 @@ describe("the schema", () => {
 
   it("refuses a state the code does not know", () => {
     expect(() => sql.exec("INSERT INTO paper_retraction (doi, state) VALUES ('10.1/x', 'maybe')")).toThrow();
+  });
+});
+
+describe("the DOI column of saved papers (migration 0024)", () => {
+  it("doiColumn: lower case, no spaces, null when there is none", () => {
+    expect(doiColumn({ doi: " 10.1/ABC " })).toBe("10.1/abc");
+    for (const none of [null, "", "   "]) expect(doiColumn({ doi: none })).toBeNull();
+  });
+  it("the migration fills the column of papers saved before it, from the record, in the same way", () => {
+    const text = readFileSync(fileURLToPath(new URL("../../migrations/0024_scale_indexes.sql", import.meta.url)), "utf8");
+    const backfill = /UPDATE library_items SET doi = [^;]+;/.exec(text)![0];
+    const put = (id: string, doi: unknown) => sql.prepare("INSERT INTO library_items (user_id, paper_id, data) VALUES ('u1', ?, ?)").run(id, JSON.stringify({ id, doi }));
+    put("doi:a", " 10.1/A "); put("t:b", null); put("t:c", ""); put("t:d", "   "); put("t:e", undefined);
+    sql.exec(backfill);
+    const col = (id: string) => (sql.prepare("SELECT doi FROM library_items WHERE paper_id = ?").get(id) as { doi: string | null }).doi;
+    expect([col("doi:a"), col("t:b"), col("t:c"), col("t:d"), col("t:e")]).toEqual(["10.1/a", null, null, null, null]);
+  });
+  it("finds the people who saved a DOI by the index, whatever the spelling they saved it in", async () => {
+    save("u1", "10.1/Mixed");
+    save("u2", "10.1/MIXED");
+    expect((sql.prepare("SELECT user_id FROM library_items WHERE doi = ? ORDER BY user_id").all("10.1/mixed") as { user_id: string }[]).map((r) => r.user_id)).toEqual(["u1", "u2"]);
+    const plan = (sql.prepare("EXPLAIN QUERY PLAN SELECT user_id FROM library_items WHERE doi = ?").all("x") as { detail: string }[]).map((r) => r.detail).join(" ");
+    expect(plan).toMatch(/idx_library_doi/);
+  });
+  it("a night's list does not grow with the library: many saved and checked papers, one new, and only the new one is asked", async () => {
+    for (let i = 0; i < 300; i++) save("u1", `10.1/old${i}`);
+    sql.exec("INSERT INTO paper_retraction (doi, state, checked_at) SELECT doi, 'clear', datetime('now') FROM library_items WHERE doi IS NOT NULL");
+    save("u2", "10.1/brand-new");
+    expect(await dueDois(db)).toEqual(["10.1/brand-new"]);
   });
 });

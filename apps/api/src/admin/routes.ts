@@ -9,6 +9,7 @@ import { compareInventory, listDocuments, listFiles } from "./integrity";
 import { eraseAccount } from "../account/erase";
 import { findAccount, parseAccountRef } from "./accounts";
 import { captureException, parseDsn, sendEvent, type SentryEnv } from "../monitoring/sentry";
+import { deny } from "../problem";
 
 type Env = { Bindings: SentryEnv & { DB: D1Database; FILES: R2Bucket } };
 export const adminRoutes = new Hono<Env>();
@@ -18,7 +19,6 @@ adminRoutes.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
 });
 
-const deny = (c: Context<Env>, status: 401 | 403 | 404, type: string, title: string) => c.json({ type, title }, status);
 
 /** Admin only. Anyone else, signed in or not, is told the page does not exist. */
 async function admin(c: Context<Env>) {

@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { rememberOne } from "./remember";
 import { d1KeyStore, readKey, runIdempotent } from "../idempotency";
 import { sseStream } from "../sse";
 import {
@@ -52,6 +53,7 @@ import { DailyLimitError, ReadFailedError, finishIfDone, readScanPage, registerS
 import { workersAiReader, type PageReader } from "../ocr/read";
 import { stubReader } from "../ocr/stub";
 import { askOutcome, countOutcome } from "../outcomes";
+import { deny } from "../problem";
 
 type Bindings = {
   DB: D1Database;
@@ -79,8 +81,6 @@ documentRoutes.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
 });
 
-const deny = (c: Context<Env>, status: 400 | 401 | 403 | 404 | 409 | 413 | 415 | 429 | 502 | 503, type: string, title: string, detail?: string) =>
-  c.json({ type, title, ...(detail ? { detail } : {}) }, status);
 
 type Row = {
   id: string; user_id: string; title: string; filename: string; size_bytes: number; pages: number | null; status: DocStatus;
@@ -210,13 +210,8 @@ documentRoutes.get("/search", async (c) => {
 documentRoutes.get("/remember", async (c) => {
   const user = await currentUser(c);
   if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const rows = await c.env.DB.prepare("SELECT n.doc_id, d.title, n.page, n.quote, n.note, n.color FROM doc_notes n JOIN documents d ON d.id = n.doc_id WHERE d.user_id = ?1 AND length(n.quote) >= 40 ORDER BY n.id").bind(user.id).all<{ doc_id: string; title: string; page: number; quote: string; note: string | null; color: string }>();
-  if (rows.results.length === 0) return c.json({ highlight: null, total: 0 });
   const skip = Math.max(0, Math.min(1000, Number(c.req.query("skip")) || 0));
-  const day = Math.floor(Date.now() / 86_400_000);
-  const pick = (day + skip) % rows.results.length;
-  const r = rows.results[pick]!;
-  return c.json({ highlight: { docId: r.doc_id, title: r.title, page: r.page, quote: r.quote, note: r.note ?? "", color: r.color }, total: rows.results.length });
+  return c.json(await rememberOne(c.env.DB, user.id, skip, Math.floor(Date.now() / 86_400_000)));
 });
 
 documentRoutes.get("/:id", async (c) => {
@@ -408,7 +403,7 @@ documentRoutes.post("/:id/pages", async (c) => {
   const db = c.env.DB;
   const pageNumbers = clean.map((p) => p.page);
   // Multi-row INSERTs (19 rows x 5 values = 95 bound values, under D1's limit of 100 per statement) keep the number of queries
-  // per request small: the free plan allows 50 per invocation.
+  // per request small (every query of an invocation counts toward the Workers limit on subrequests).
   const ROWS = 19;
   const inserts: D1PreparedStatement[] = [];
   for (let i = 0; i < chunks.length; i += ROWS) {

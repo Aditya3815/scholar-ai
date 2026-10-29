@@ -1,12 +1,12 @@
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import type { LibraryAlert, Paper } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
-import { MAX_IMPORT_ITEMS, MAX_LIBRARY_ITEMS, fromSqliteTime, parsePaper, sqliteTime } from "./validate";
+import { MAX_IMPORT_ITEMS, MAX_LIBRARY_ITEMS, doiColumn, fromSqliteTime, parsePaper, sqliteTime } from "./validate";
+import { deny } from "../problem";
 
 type Env = { Bindings: { DB: D1Database } };
 export const libraryRoutes = new Hono<Env>();
 
-const deny = (c: Context<Env>, status: 401 | 403 | 409 | 400, type: string, title: string) => c.json({ type, title }, status);
 
 libraryRoutes.use("*", async (c, next) => {
   await next();
@@ -77,9 +77,9 @@ libraryRoutes.put("/:id", async (c) => {
   }
   await c.env.DB
     .prepare(
-      "INSERT INTO library_items (user_id, paper_id, data) VALUES (?1, ?2, ?3) ON CONFLICT (user_id, paper_id) DO UPDATE SET data = excluded.data",
+      "INSERT INTO library_items (user_id, paper_id, data, doi) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (user_id, paper_id) DO UPDATE SET data = excluded.data, doi = excluded.doi",
     )
-    .bind(user.id, paper.id, JSON.stringify(paper))
+    .bind(user.id, paper.id, JSON.stringify(paper), doiColumn(paper))
     .run();
   return c.json({ ok: true });
 });
@@ -118,8 +118,8 @@ libraryRoutes.post("/import", async (c) => {
     const savedAt = sqliteTime((raw as { savedAt?: unknown }).savedAt);
     stmts.push(
       c.env.DB
-        .prepare("INSERT OR IGNORE INTO library_items (user_id, paper_id, data, saved_at) VALUES (?1, ?2, ?3, ?4)")
-        .bind(user.id, paper.id, JSON.stringify(paper), savedAt),
+        .prepare("INSERT OR IGNORE INTO library_items (user_id, paper_id, data, saved_at, doi) VALUES (?1, ?2, ?3, ?4, ?5)")
+        .bind(user.id, paper.id, JSON.stringify(paper), savedAt, doiColumn(paper)),
     );
     room--;
   }

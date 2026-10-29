@@ -38,9 +38,12 @@ function inProviderOrder(providers: Provider[], lists: Record<string, ProviderPa
   return Object.fromEntries(providers.filter((p) => lists[p.name]).map((p) => [p.name, lists[p.name]!]));
 }
 
+/** The text a search is remembered by: the same words in any case or spacing are the same search. */
+export const normalisedQuery = (q: string): string => q.toLowerCase().replace(/\s+/g, " ").trim();
+
 export async function runProvider(p: Provider, q: string, env: SearchEnv) {
   const t0 = Date.now();
-  const key = await cacheKey(`search:${p.name}`, q.toLowerCase(), String(PER_PROVIDER));
+  const key = await cacheKey(`search:${p.name}`, normalisedQuery(q), String(PER_PROVIDER));
   const { value, hit } = await cached<ProviderPaper[]>(env.store, `search:${p.name}`, key, SEARCH_TTL_S, () =>
     p.search(q, PER_PROVIDER, env, AbortSignal.timeout(PROVIDER_TIMEOUT_MS)),
   );

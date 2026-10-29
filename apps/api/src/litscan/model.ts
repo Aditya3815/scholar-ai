@@ -2,12 +2,11 @@ import { stubPlanScan, stubScanSearch, stubScanStream } from "./stub";
 import { stubJudgeStream } from "../chat/stub";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { gatewayFromEnv, type LlmEnv } from "../llm";
-import { cacheStore } from "../cache";
-import type { SearchEnv } from "../search/types";
 import type { S2Throttle } from "../s2-throttle";
 import type { SearchResponse, SearchScope } from "@scholar/shared";
 import { runSearch } from "../search";
 import { withGate } from "../gate";
+import { searchEnvFrom } from "../search/env";
 
 /** What the scan needs from the Worker's environment, for the request that plans it and for the Workflow that runs it. */
 export type ScanEnv = LlmEnv & {
@@ -60,20 +59,10 @@ export function judgeModel(env: ScanEnv, subject: string, signal: AbortSignal): 
   };
 }
 
-export const searchEnvOf = (env: ScanEnv): SearchEnv => ({
-  store: cacheStore(env),
-  OPENALEX_API_KEY: env.OPENALEX_API_KEY,
-  NCBI_API_KEY: env.NCBI_API_KEY,
-  S2_API_KEY: env.S2_API_KEY,
-  CORE_API_KEY: env.CORE_API_KEY,
-  CROSSREF_MAILTO: env.CROSSREF_MAILTO,
-  s2Gate: (maxWaitMs) => env.S2_THROTTLE.getByName("global").reserve(maxWaitMs),
-});
-
 /** The search of one sub-question: what the prompt box does for a message, without the progressive lists, in the scan's scope (the regular sources, or only Indian ones). */
 export function searchFor(env: ScanEnv, scope: SearchScope = "all"): (query: string) => Promise<SearchResponse> {
   if (stubbed(env)) return async (q) => stubScanSearch(q, scope);
-  const se = searchEnvOf(env);
+  const se = searchEnvFrom(env);
   return async (query) => {
     // the lane keeps a scan's searches from asking the sources all at once (see GATES.litscan); waiting there is not an error, a lane that stays busy for two minutes is
     const r = await withGate("litscan", 120_000, () => runSearch(se, query, 20, {}, scope));

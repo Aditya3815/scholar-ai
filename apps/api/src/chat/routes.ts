@@ -1,12 +1,10 @@
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import { NOTHING_NOTICE, PARTIAL_NOTICE, SMALL_TALK_REPLY, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, ruleRoute, slimForInterim, type ChatAnswer, type ChatCitation, type ChatEvent, type TightenResponse, type ChatNoAnswer, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
-import { cacheStore } from "../cache";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
 import { runSearch } from "../search";
 import { sseStream } from "../sse";
-import type { SearchEnv } from "../search/types";
 import type { S2Throttle } from "../s2-throttle";
 import { searchComplete } from "./complete";
 import { answerFromResults, pickEvidencePapers, type Picked } from "./answer";
@@ -17,6 +15,8 @@ import { routeMessage } from "./router";
 import { stubChatStream, stubJudgeStream, stubSearchFor, stubStrictStream } from "./stub";
 import { stubRoute } from "./stub-route";
 import { countOutcome } from "../outcomes";
+import { searchEnvFrom } from "../search/env";
+import { deny } from "../problem";
 
 type Bindings = {
   DB: D1Database;
@@ -46,22 +46,11 @@ chatRoutes.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
 });
 
-const deny = (c: Context<Env>, status: 400 | 403, type: string, title: string, detail?: string) => c.json({ type, title, ...(detail ? { detail } : {}) }, status);
 const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
 
 /** How the judge did on one answer, for the logs: counts and times only, never a word of the question, the answer or an abstract. */
 const logJudged = (r: JudgeReport) =>
   console.log(JSON.stringify({ level: r.error ? "warn" : "info", msg: "chat_judge", ms: r.ms, model: r.model, ...r.counts, leftOut: r.leftOut, rewritten: r.rewritten ?? 0, offered: r.rewrites?.length ?? 0, ...(r.checkMs === undefined ? {} : { checkMs: r.checkMs }), ...(r.error ? { error: r.error } : {}) }));
-
-const searchEnv = (env: Bindings): SearchEnv => ({
-  store: cacheStore(env),
-  OPENALEX_API_KEY: env.OPENALEX_API_KEY,
-  NCBI_API_KEY: env.NCBI_API_KEY,
-  S2_API_KEY: env.S2_API_KEY,
-  CORE_API_KEY: env.CORE_API_KEY,
-  CROSSREF_MAILTO: env.CROSSREF_MAILTO,
-  s2Gate: (maxWaitMs) => env.S2_THROTTLE.getByName("global").reserve(maxWaitMs),
-});
 
 /** The model, for the person's own message: PRIVATE, so the gateway only uses providers that do not keep or train on it. `abort` stops it when the reader presses Stop or leaves. */
 function streamFor(env: Bindings, subject: string, abort: AbortSignal): StreamComplete {
@@ -182,7 +171,7 @@ chatRoutes.post("/", async (c) => {
         found = stubSearchFor(query, scope);
         if (found.results.length > 0) await interim(found);
       } else {
-        found = await runSearch(searchEnv(c.env), query, 20, { onSnapshot: interim }, scope);
+        found = await runSearch(searchEnvFrom(c.env), query, 20, { onSnapshot: interim }, scope);
       }
       if (s.gone) return;
       await send({ type: "papers", results: found.results, final: true });

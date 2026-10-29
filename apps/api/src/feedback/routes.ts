@@ -1,8 +1,9 @@
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import { FEEDBACK_KINDS, FEEDBACK_PROBLEMS, MAX_FEEDBACK_NOTE_CHARS, MAX_FEEDBACK_PER_DAY, MAX_KEYWORD_QUERIES, MAX_KEYWORD_QUERY_CHARS, MAX_SEMANTIC_QUERY_CHARS, type FeedbackKind } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { d1KeyStore, fingerprintOf, readKey, runIdempotent } from "../idempotency";
 import { scrubText } from "../idea/plan";
+import { deny } from "../problem";
 
 type Env = { Bindings: { DB: D1Database } };
 export const feedbackRoutes = new Hono<Env>();
@@ -12,7 +13,6 @@ feedbackRoutes.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
 });
 
-const deny = (c: Context<Env>, status: 400 | 401 | 403 | 404 | 429, type: string, title: string, detail?: string) => c.json({ type, title, ...(detail ? { detail } : {}) }, status);
 const randomId = () => [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("");
 const REF_STATUSES = new Set(["verified", "mismatch", "not_found", "unverifiable", "unparsed"]);
 const MAX_CONTEXT_CHARS = 20_000;

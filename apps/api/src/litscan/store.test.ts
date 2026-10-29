@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DatabaseSync } from "node:sqlite";
-import { LITSCAN_PURGE_SQL, appendEvent, createScan, deleteScan, endScan, eventsAfter, failIfStale, getScan, itemsOf, listScans, partsOf, refundScan, runningScan, snapshotOf, takeScan } from "./store";
+import { LITSCAN_PURGE_SQL, appendEvent, createScan, deleteScan, endScan, eventsAfter, failIfStale, getScan, itemsOf, listScans, partsOf, refundScan, runningScan, snapshotOf, takeScan, tickOf } from "./store";
 import { testD1 } from "../test-d1";
 import type { LitscanItem, LitscanPart } from "@scholar/shared";
 
@@ -63,6 +63,52 @@ describe("a scan and its events", () => {
     await Promise.all([0, 1, 2, 3, 4].map((i) => appendEvent(db, "s1", `w:${i}`, { type: "worker", idx: i, stage: "searching" })));
     const seqs = (await eventsAfter(db, "s1", 0)).map((e) => e.seq);
     expect(seqs).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+});
+
+describe("what the stream reads on each tick", () => {
+  it("is the state and the new events in ONE query", async () => {
+    await make();
+    await appendEvent(db, "s1", "part:0", { type: "part", part: gap(0) });
+    const prepare = vi.spyOn(db, "prepare");
+    const t = await tickOf(db, "s1", 1);
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(t.state).toBe("running");
+    expect(t.events.map((e) => [e.seq, e.type])).toEqual([[2, "part"]]);
+    expect(t.more).toBe(false);
+  });
+  it("gives the state with no events when there is nothing after the one asked, and again once the scan has ended", async () => {
+    await make();
+    expect(await tickOf(db, "s1", 1)).toEqual({ state: "running", events: [], more: false });
+    await endScan(db, "s1", "completed");
+    const t = await tickOf(db, "s1", 1);
+    expect(t.state).toBe("completed");
+    expect(t.events.map((e) => e.type)).toEqual(["done"]);
+    expect(await tickOf(db, "s1", 2)).toEqual({ state: "completed", events: [], more: false });
+  });
+  it("a scan that is not there has no state and no events", async () => {
+    expect(await tickOf(db, "ghost", 0)).toEqual({ state: null, events: [], more: false });
+  });
+  it("takes at most the cap, says there is more, and the next tick takes up after the last one sent", async () => {
+    await make();
+    for (let i = 0; i < 6; i++) await appendEvent(db, "s1", `w:${i}`, { type: "worker", idx: 0, stage: "searching" });
+    const a = await tickOf(db, "s1", 0, 4);
+    expect(a.events.map((e) => e.seq)).toEqual([1, 2, 3, 4]);
+    expect(a.more).toBe(true);
+    const b = await tickOf(db, "s1", 4, 4);
+    expect(b.events.map((e) => e.seq)).toEqual([5, 6, 7]);
+    expect(b.more).toBe(false);
+  });
+  it("exactly the cap is not 'more'", async () => {
+    await make();
+    await appendEvent(db, "s1", "w:0", { type: "worker", idx: 0, stage: "searching" });
+    expect(await tickOf(db, "s1", 0, 2)).toMatchObject({ more: false });
+  });
+  it("another scan's events are never in it", async () => {
+    await make("s1");
+    await make("s2");
+    expect((await tickOf(db, "s1", 0)).events.every((e) => e.type === "started")).toBe(true);
+    expect((await tickOf(db, "s1", 0)).events).toHaveLength(1);
   });
 });
 

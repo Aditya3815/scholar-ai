@@ -60,6 +60,23 @@ export async function eventsAfter(db: D1Database, id: string, after: number): Pr
   return rows.results.map((r) => ({ ...(JSON.parse(r.data) as StoredEvent), seq: r.seq }));
 }
 
+/** How many events one tick of the stream takes (a scan has a few dozen; the cap keeps one read small whatever is stored). */
+export const TICK_EVENTS = 200;
+
+/**
+ * What the stream needs on each tick, in ONE read: the scan's state and its events after `after` (null state: the scan is gone). One statement sees one snapshot, so a scan that is
+ * not running here has all its events in the same answer, and "not running and nothing new" means the last event was already sent. `more` says the cap cut the list.
+ */
+export async function tickOf(db: D1Database, id: string, after: number, cap = TICK_EVENTS): Promise<{ state: LitscanState | null; events: StoredEvent[]; more: boolean }> {
+  const rows = await db
+    .prepare("SELECT l.state AS state, e.seq AS seq, e.data AS data FROM litscans l LEFT JOIN litscan_events e ON e.scan_id = l.id AND e.seq > ?2 WHERE l.id = ?1 ORDER BY e.seq LIMIT ?3")
+    .bind(id, after, cap + 1)
+    .all<{ state: LitscanState; seq: number | null; data: string | null }>();
+  if (rows.results.length === 0) return { state: null, events: [], more: false };
+  const events = rows.results.filter((r) => r.seq !== null && r.data !== null).map((r) => ({ ...(JSON.parse(r.data as string) as StoredEvent), seq: r.seq as number }));
+  return { state: rows.results[0]!.state, events: events.slice(0, cap), more: events.length > cap };
+}
+
 /**
  * The scan comes to an end: one `done` event with the counts and the new state, together, and only if it is still running (so a cancel and a finish that meet leave one end, whichever
  * came first). Returns whether this call ended it.

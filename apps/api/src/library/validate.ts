@@ -16,6 +16,9 @@ const strList = (v: unknown, maxItems: number, maxLen: number): string[] | null 
  * Validates and rebuilds a Paper from untrusted JSON. Unknown fields are dropped; every field is bounded; `oaUrl` must be
  * http(s) so a stored value can never become a `javascript:` link. Returns null if anything is off.
  */
+/** The DOI of a saved paper as the column `library_items.doi` keeps it: lower case, no spaces, null when the record has none (so the nightly re-check and the notices can find it by an index). */
+export const doiColumn = (paper: { doi: string | null }): string | null => paper.doi?.trim().toLowerCase() || null;
+
 export function parsePaper(x: unknown): Paper | null {
   if (!isObj(x)) return null;
   const id = text(x.id, 200);

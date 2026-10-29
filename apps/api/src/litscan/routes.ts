@@ -25,7 +25,8 @@ import { planModel } from "./model";
 import { ScanPlanError, planScan, sanitizeApproved } from "./plan";
 import { createShare, publicScan, revokeShare, shareOf } from "./share";
 import { fromSqliteTime } from "../library/validate";
-import { createScan, deleteScan, endScan, eventsAfter, failIfStale, getScan, listScans, partsOf, refundScan, runningScan, snapshotOf, takeScan } from "./store";
+import { createScan, deleteScan, endScan, failIfStale, getScan, listScans, partsOf, refundScan, runningScan, snapshotOf, takeScan, tickOf } from "./store";
+import { deny } from "../problem";
 
 type Bindings = LitscanEnv & { LITSCAN: Workflow<LitscanParams> };
 type Env = { Bindings: Bindings };
@@ -36,8 +37,6 @@ litscanRoutes.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
 });
 
-const deny = (c: Context<Env>, status: 400 | 401 | 403 | 404 | 409 | 413 | 429 | 502 | 503, type: string, title: string, detail?: string, extra?: Record<string, unknown>) =>
-  c.json({ type, title, ...(detail ? { detail } : {}), ...extra }, status);
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -171,6 +170,9 @@ litscanRoutes.get("/:id", async (c) => {
  * The scan as a stream: first how many sub-questions are finished, then the stored events after `after` (all of them when it is 0), then new ones as they happen, until the scan ends.
  * A page that was closed asks again with the last event it saw. The stream is a view: everything in it is in the database, so a lost connection loses nothing.
  */
+/** The wait between reads of a stream that sees nothing new: the first ones are quick, then it settles. */
+const STREAM_POLLS_MS = [1_200, 1_200, 2_500, 4_000];
+
 litscanRoutes.get("/:id/events", async (c) => {
   const got = await requireUser(c);
   if (got.error) return got.error;
@@ -181,7 +183,8 @@ litscanRoutes.get("/:id/events", async (c) => {
   const after = Math.max(0, Math.trunc(Number(c.req.query("after"))) || 0);
   const total = (JSON.parse(row.plan) as unknown[]).length;
   const db = c.env.DB;
-  const poll = c.env.ENABLE_DEV_ROUTES === "1" ? 400 : 1_200;
+  // a quiet scan is asked less and less often (a scan is a minute or two of work; the first answers come fast, the long waits do not need a read a second)
+  const polls = c.env.ENABLE_DEV_ROUTES === "1" ? [400] : STREAM_POLLS_MS;
 
   return sseStream<LitscanEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" } }, async (s) => {
     const send = s.send;
@@ -189,12 +192,11 @@ litscanRoutes.get("/:id/events", async (c) => {
       const before = await db.prepare("SELECT COUNT(*) AS n FROM litscan_events WHERE scan_id = ?1 AND type = 'part' AND seq <= ?2").bind(id, after).first<{ n: number }>();
       let done = before?.n ?? 0;
       let last = after;
+      let quiet = 0;
       await send({ type: "progress", done, total });
       for (let round = 0; !s.gone; round++) {
-        // the state is read before the events: a scan that has ended has all its events by then, so "ended and nothing new" means the last event was already sent
-        const state = (await db.prepare("SELECT state FROM litscans WHERE id = ?1").bind(id).first<{ state: string }>())?.state;
+        const { state, events, more } = await tickOf(db, id, last);
         if (!state) return void (await send({ type: "error", code: "gone", title: "That scan no longer exists" }));
-        const events = await eventsAfter(db, id, last);
         for (const e of events) {
           await send(e);
           last = e.seq ?? last;
@@ -206,8 +208,10 @@ litscanRoutes.get("/:id/events", async (c) => {
           const answered = parts.filter((p) => p.status === "answered").length;
           return void (await send({ type: "done", state: state as "completed" | "canceled" | "failed", answered, gaps: parts.length - answered }));
         }
+        if (more) continue;
+        quiet = events.length === 0 ? quiet + 1 : 0;
         if (round % 8 === 7) await failIfStale(db, id);
-        await new Promise((r) => setTimeout(r, poll));
+        await new Promise((r) => setTimeout(r, polls[Math.min(quiet, polls.length - 1)]));
       }
     } catch (e) {
       console.error(JSON.stringify({ level: "error", msg: "litscan_stream_failed", error: e instanceof Error ? e.name : "unknown" }));

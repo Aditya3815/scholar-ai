@@ -16,6 +16,7 @@ import { stubCrossrefFetch } from "../library/retraction-stub";
 import { retractedDois } from "../search/retraction";
 import type { OaParams } from "./workflow";
 import { askOutcome, countOutcome } from "../outcomes";
+import { deny } from "../problem";
 
 type Bindings = {
   DB: D1Database;
@@ -42,7 +43,6 @@ oaRoutes.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
 });
 
-const deny = (c: Context<Env>, status: 400 | 401 | 403 | 503, type: string, title: string, detail?: string) => c.json({ type, title, ...(detail ? { detail } : {}) }, status);
 
 /** What a request says about a paper: any of a DOI, an arXiv number, a PubMed Central number. */
 function readRef(body: unknown): OaRef | null {

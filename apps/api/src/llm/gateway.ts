@@ -1,4 +1,5 @@
 import { NoRouteError, PolicyError, QuotaError, assertAllowed, selectChain } from "./policy";
+import { sha256Hex } from "../hash";
 import { costCents } from "./pricing";
 import type {
   Attempt,
@@ -47,11 +48,6 @@ export function extractJson(text: string): unknown {
   return JSON.parse(text.slice(s, e + 1));
 }
 
-async function sha256(text: string): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function createGateway(deps: GatewayDeps) {
@@ -76,7 +72,7 @@ export function createGateway(deps: GatewayDeps) {
     // 3. Public-only response cache.
     let cacheKey: string | null = null;
     if (cache && req.sensitivity === "public") {
-      cacheKey = `llm:${await sha256(JSON.stringify([req.task, req.system, req.user, req.schema ?? null]))}`;
+      cacheKey = `llm:${await sha256Hex(JSON.stringify([req.task, req.system, req.user, req.schema ?? null]))}`;
       const hit = await cache.get(cacheKey);
       if (hit) {
         const cachedResult = { ...(JSON.parse(hit) as LlmResult), cached: true, attempts: [] };

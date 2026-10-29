@@ -1,4 +1,5 @@
 import type { CacheStore } from "../cache/store";
+import { sha256Hex } from "../hash";
 
 /**
  * Read-through cache over a CacheStore, for PUBLIC lookups. Rules that keep it safe:
@@ -8,13 +9,8 @@ import type { CacheStore } from "../cache/store";
  *    often turns up in several of them). Without this a burst of identical misses made one call each, and the key is written more than once a second, which KV refuses.
  */
 
-async function sha256(text: string): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 export async function cacheKey(source: string, ...parts: string[]): Promise<string> {
-  return `${source}:${(await sha256(parts.join("\u0000"))).slice(0, 32)}`;
+  return `${source}:${(await sha256Hex(parts.join("\u0000"))).slice(0, 32)}`;
 }
 
 /** Lookups running right now, per store (so two stores never share one). */

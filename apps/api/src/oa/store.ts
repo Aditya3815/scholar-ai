@@ -1,6 +1,7 @@
 import { OA_RETRYABLE, OA_RETRY_AFTER_MINUTES, OA_WORKING, type OaReason, type OaRef, type OaSource, type OaStatus } from "@scholar/shared";
 import { decodeVec, encodeVec } from "../docs/vector";
 import type { StoredChunk } from "../docs/qa";
+import { sqlTime } from "../sql-time";
 import type { OaChunk } from "./chunks";
 
 /**
@@ -32,7 +33,6 @@ export type OaRow = {
   refresh_at: string | null;
 };
 
-const sqlTime = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace("T", " ");
 export const fromSql = (s: string | null) => (s ? Date.parse(`${s.replace(" ", "T")}Z`) : NaN);
 
 /** The name under which a paper's files and its Workflow instances are kept: a short hash of the key (a key can be long and has characters an id cannot have). */

@@ -19,21 +19,32 @@ export const BATCH = 40;
 type Env = { CROSSREF_MAILTO: string; fetch?: typeof fetch };
 export type RecheckResult = { checked: number; retracted: number; unknown: number; alerts: number };
 
-/** DOIs saved by someone and not looked at within a week; never-checked first, then the one waiting longest. A DOI already known to be retracted is not asked again. */
+/**
+ * DOIs saved by someone and not looked at within a week; never-checked first, then the one waiting longest. A DOI already known to be retracted is not asked again.
+ * Both halves start from an index and stop at the limit (the DOI column of `library_items`, and `paper_retraction` by its date), so a night costs what it checks, not what is saved.
+ */
 export async function dueDois(db: D1Database, limit = MAX_DOIS_PER_RUN): Promise<string[]> {
-  const rows = await db
+  const fresh = await db
     .prepare(
-      `SELECT d.doi AS doi
-         FROM (SELECT DISTINCT lower(json_extract(data, '$.doi')) AS doi FROM library_items WHERE coalesce(json_extract(data, '$.retracted'), 0) = 0) d
-         LEFT JOIN paper_retraction r ON r.doi = d.doi
-        WHERE d.doi IS NOT NULL AND d.doi <> '' AND instr(d.doi, ',') = 0
-          AND (r.doi IS NULL OR (r.state <> 'retracted' AND r.checked_at < datetime('now', ?2)))
-        ORDER BY r.checked_at IS NOT NULL, r.checked_at, d.doi
-        LIMIT ?1`,
+      `SELECT DISTINCT l.doi AS doi FROM library_items l
+        WHERE l.doi IS NOT NULL AND l.doi <> '' AND instr(l.doi, ',') = 0 AND coalesce(json_extract(l.data, '$.retracted'), 0) = 0
+          AND NOT EXISTS (SELECT 1 FROM paper_retraction r WHERE r.doi = l.doi)
+        ORDER BY l.doi LIMIT ?1`,
     )
-    .bind(limit, `-${RECHECK_AFTER_DAYS} days`)
+    .bind(limit)
     .all<{ doi: string }>();
-  return rows.results.map((r) => r.doi);
+  const out = fresh.results.map((r) => r.doi);
+  if (out.length >= limit) return out;
+  const old = await db
+    .prepare(
+      `SELECT r.doi AS doi FROM paper_retraction r
+        WHERE r.state <> 'retracted' AND r.checked_at < datetime('now', ?2) AND instr(r.doi, ',') = 0
+          AND EXISTS (SELECT 1 FROM library_items l WHERE l.doi = r.doi AND coalesce(json_extract(l.data, '$.retracted'), 0) = 0)
+        ORDER BY r.checked_at, r.doi LIMIT ?1`,
+    )
+    .bind(limit - out.length, `-${RECHECK_AFTER_DAYS} days`)
+    .all<{ doi: string }>();
+  return [...out, ...old.results.map((r) => r.doi)];
 }
 
 /** A request the service rejected as such (400 and the like), not a service that is down or slow: that DOI is the problem, and waiting a week is the right answer. */
@@ -82,7 +93,7 @@ export async function recheckRetractions(db: D1Database, env: Env, opts: { max?:
             .prepare(
               `INSERT OR IGNORE INTO library_alerts (user_id, paper_id, kind, title)
                SELECT user_id, paper_id, 'retracted', coalesce(json_extract(data, '$.title'), paper_id) FROM library_items
-                WHERE lower(json_extract(data, '$.doi')) = ?1 AND coalesce(json_extract(data, '$.retracted'), 0) = 0`,
+                WHERE doi = ?1 AND coalesce(json_extract(data, '$.retracted'), 0) = 0`,
             )
             .bind(doi),
         );

@@ -11,6 +11,9 @@
  *  - a request that throws releases its key and the error carries on.
  * Keys are scoped to the person and the endpoint. The store is an interface, so the rules are tested without a database.
  */
+
+import { sqlTime } from "./sql-time";
+
 export const KEY_PATTERN = /^[A-Za-z0-9_.:-]{16,100}$/;
 export const IN_FLIGHT_TIMEOUT_MS = 60_000;
 
@@ -71,7 +74,6 @@ export async function runIdempotent(store: KeyStore, scope: Scope, key: string |
 
 /** The store on D1 (migration 0016). `claim` and `takeOver` are single statements, so two requests with one key cannot both own it. */
 export function d1KeyStore(db: D1Database): KeyStore {
-  const sqlTime = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace("T", " ");
   return {
     async claim(s, key, fingerprint, now) {
       const r = await db.prepare("INSERT OR IGNORE INTO idempotency_keys (user_id, route, key, fingerprint, created_at) VALUES (?1, ?2, ?3, ?4, ?5)").bind(s.userId, s.route, key, fingerprint, sqlTime(now)).run();

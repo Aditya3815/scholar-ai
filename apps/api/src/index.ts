@@ -21,7 +21,6 @@ import { monitoringRoutes } from "./monitoring/routes";
 import { captureException } from "./monitoring/sentry";
 import type { AuthEnv } from "./auth/providers";
 import { cacheStore, meter, writeCacheRows } from "./cache";
-import type { SearchEnv } from "./search/types";
 import { apiSecurityHeaders, requestLog } from "./middleware";
 import { rateLimit, type LimitEnv } from "./ratelimit";
 import { runMaintenance } from "./maintenance";
@@ -31,6 +30,7 @@ import { readJobs, runJob } from "./jobs";
 import type { S2Throttle } from "./s2-throttle";
 import { ApiGate, remoteGate } from "./gate/api-gate";
 import { installGates, withGate, GATES, type GateName } from "./gate";
+import { searchEnvFrom } from "./search/env";
 
 type Bindings = AuthEnv & LimitEnv & {
   S2_THROTTLE: DurableObjectNamespace<S2Throttle>;
@@ -63,16 +63,6 @@ type Bindings = AuthEnv & LimitEnv & {
   /** "1" where the daily clean-up is scheduled (production): /api/v1/health/jobs then reports a job that did not run. Staging has no schedule and leaves it unset. */
   EXPECT_CRON?: string;
 };
-
-const searchEnv = (env: Bindings): SearchEnv => ({
-  store: cacheStore(env),
-  OPENALEX_API_KEY: env.OPENALEX_API_KEY,
-  NCBI_API_KEY: env.NCBI_API_KEY,
-  S2_API_KEY: env.S2_API_KEY,
-  CORE_API_KEY: env.CORE_API_KEY,
-  CROSSREF_MAILTO: env.CROSSREF_MAILTO,
-  s2Gate: (maxWaitMs) => env.S2_THROTTLE.getByName("global").reserve(maxWaitMs),
-});
 
 const app = new Hono<{ Bindings: Bindings; Variables: { requestId: string } }>();
 
@@ -165,7 +155,7 @@ const invalidQuery = {
 app.get("/api/v1/search", async (c) => {
   const { q, limit, valid, scope } = parseSearch((k) => c.req.query(k));
   if (!valid) return c.json(invalidQuery, 400);
-  return c.json(await runSearch(searchEnv(c.env), q, limit, {}, scope));
+  return c.json(await runSearch(searchEnvFrom(c.env), q, limit, {}, scope));
 });
 
 /**
@@ -185,7 +175,7 @@ app.get("/api/v1/search/stream", (c) => {
       if (!closed) await stream.writeSSE({ event, data: JSON.stringify(data) });
     };
     try {
-      const final = await runSearch(searchEnv(c.env), q, limit, { onSnapshot: (s) => send("snapshot", s) }, scope);
+      const final = await runSearch(searchEnvFrom(c.env), q, limit, { onSnapshot: (s) => send("snapshot", s) }, scope);
       await send("done", final);
     } catch (err) {
       console.error(err);
