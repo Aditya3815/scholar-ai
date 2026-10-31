@@ -26,6 +26,9 @@ const cfg = JSON.parse(readFileSync(`${api}wrangler.jsonc`, "utf8").split("\n").
 delete cfg.ai;
 delete cfg.account_id;
 delete cfg.triggers;
+// The own domain is a production route: kept in the test copy, `wrangler dev` takes the Worker's address from it, and the login's redirects then leave for the real domain.
+delete cfg.routes;
+delete cfg.workers_dev;
 // Keep the limiter bindings (so their wiring is exercised) but make them effectively unlimited: every request from the test
 // clients shares one IP, and the suites send far more than the production per-IP budget.
 for (const r of cfg.ratelimits ?? []) r.simple.limit = 1_000_000;
