@@ -8,8 +8,8 @@ The rules of [scroll-design-system.md](scroll-design-system.md) still hold: the 
 
 | # | Scene | The one thing it says | What moves |
 | --- | --- | --- | --- |
-| 1 | **Cold open** | "An AI can write a perfect reference to a paper that was **never written**." | The words light up one by one as you scroll, like subtitles read aloud; unlit words are only an outline; "never written" is in red. Then one line: what Scholar AI does about it |
-| 2 | **Title** | Scholar AI · *Research, with the receipts.* | The name comes from very close and out of focus (3.2 times, blurred, wide letter-spacing) and settles; the book mark draws itself; a glow drifts |
+| 1 | **Cold open** | "An AI can write a perfect reference to a paper that was **never written**." | The words light up one by one as you scroll, like subtitles read aloud; unlit words are only an outline; "never written" is in red. Then one line: what Sodhsetu does about it |
+| 2 | **Title** | Sodhsetu · *Research, with the receipts.* | The name comes from very close and out of focus (3.2 times, blurred, wide letter-spacing) and settles; the book mark draws itself; a glow drifts |
 | 3 | **I · The question** | A question goes in, real papers come back | The box rises, the question types itself, **twelve papers fly in from far away** (3D depth, staggered); every card says "DOI ✓"; the retracted one is struck through and **stamped RETRACTED**; a count line: 20 papers, 4 sources, 1 retracted, never used |
 | 4 | **II · The answer** | Every claim points at a sentence | The answer in large type with its mark [3]; a ring pulses on the mark; then an **iris opens from the mark** (a circle with a ring of light on its edge) while the camera pushes into the answer, and inside it is paper 3 with **the exact sentence highlighted by a sweep**: "The sentence, word for word. Not a paraphrase." |
 | 5 | **III · The proof** | The paper is real. *We checked.* | A green ring closes around the DOI; Crossref (found), doi.org (resolves), Retraction Watch (clear) slide in one after another |

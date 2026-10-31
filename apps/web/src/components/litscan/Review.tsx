@@ -249,7 +249,7 @@ function References({ report }: { report: Report }) {
 export function ExportMenu({ topic, language, report, scope }: { topic: string; language: LitscanLanguage; report: Report; scope?: SearchScope }) {
   const rows = () => buildEvidenceTable(report);
   const items: { label: string; hint: string; Icon: typeof FileText; run: () => void }[] = [
-    { label: "Review (Markdown)", hint: "Text with headings, tables and references, for any editor", Icon: FileText, run: () => downloadText(reviewFileName(topic, "md"), buildReviewMarkdown({ appName: "Scholar AI", generatedAt: new Date().toISOString(), topic, language, report, indian: scope === "india" }), "text/markdown;charset=utf-8") },
+    { label: "Review (Markdown)", hint: "Text with headings, tables and references, for any editor", Icon: FileText, run: () => downloadText(reviewFileName(topic, "md"), buildReviewMarkdown({ appName: "Sodhsetu", generatedAt: new Date().toISOString(), topic, language, report, indian: scope === "india" }), "text/markdown;charset=utf-8") },
     {
       label: "Review (Word)",
       hint: "Opens in Word and Google Docs, with its table, links and references",
@@ -257,7 +257,7 @@ export function ExportMenu({ topic, language, report, scope }: { topic: string; 
       run: () => void (async () => {
         try {
           const { reviewDocxBlob } = await import("../../lib/docx");
-          downloadBlob(reviewFileName(topic, "docx"), await reviewDocxBlob({ appName: "Scholar AI", generatedAt: new Date().toISOString(), topic, language, report, indian: scope === "india" }));
+          downloadBlob(reviewFileName(topic, "docx"), await reviewDocxBlob({ appName: "Sodhsetu", generatedAt: new Date().toISOString(), topic, language, report, indian: scope === "india" }));
         } catch {
           showNotice("The Word file could not be made. Download the Markdown review instead.");
         }

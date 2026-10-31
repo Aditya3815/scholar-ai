@@ -261,6 +261,15 @@ Every answer of the prompt box, and every sub-question of a literature scan, is 
 - Mail: **Cloudflare Email Routing** (Free) forwards `team@sodhsetu.in` (the contact address on the legal pages) and `privacy@sodhsetu.in` (the grievance address) to the owner's own inbox; the catch-all is off. It only receives: nothing can be sent *from* these addresses yet. The MX, SPF and DKIM records are Cloudflare's and are in the zone's DNS; do not use Spaceship's own e-mail forwarding (it writes records into a DNS zone that is not in use and can pull the nameservers back).
 - Without DNSSEC the domain still works; DNSSEC is turned on in Cloudflare (DNS, Settings) and its DS record is added at Spaceship (Domain, DNSSEC). Turn it off at Spaceship **first** if the nameservers are ever moved away from Cloudflare, or the domain stops resolving for many people.
 
+## The product's name (Sodhsetu, 31 Oct 2026)
+
+The product is called **Sodhsetu** everywhere a person can see it: the page titles, the logo's wordmark, the intro film, sign-in, the legal pages, the Word and PDF exports, the scan notification, the data export file (`sodhsetu-export-DATE.json`). It was first called "Scholar AI". The old name is kept only where changing it would cost people their data or break a deployment, and none of it is shown:
+
+- the browser's saved keys and caches (`scholar.*` in localStorage, the `scholar` IndexedDB, `scholar-*` caches): renaming them would lose each person's local library, chats, drafts and offline papers;
+- the Cloudflare names (Worker `scholar`, D1 `scholar-db`, bucket `scholar-files`, queue `scholar-jobs`, the `workers.dev` address), the `@scholar/*` package names and the repository name.
+
+The names registered by hand at other services (the Google OAuth consent screen, the ORCID application, the Sentry project) are the owner's to rename there.
+
 ## Staging
 
 A separate, empty copy of the service at https://scholar-staging.shodhsetu.workers.dev (Worker `scholar-staging`, database `scholar-db-staging`, bucket `scholar-files-staging`, queue `scholar-jobs-staging`),

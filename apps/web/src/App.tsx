@@ -61,7 +61,7 @@ const routeFromPath = (): Route => {
   if (m) return { view: "papers", docId: m[1] ?? null };
   return { view: "search", docId: null };
 };
-const TITLES: Record<View, string> = { search: "Scholar AI", verify: "Verify references · Scholar AI", papers: `${PAPERS_NAME} · Scholar AI`, idea: "Idea Check · Scholar AI", litscan: "Literature scan · Scholar AI", admin: "Admin · Scholar AI", privacy: "Privacy · Scholar AI", terms: "Terms · Scholar AI", how: "How we verify · Scholar AI", library: "Library · Scholar AI", settings: "Settings · Scholar AI" };
+const TITLES: Record<View, string> = { search: "Sodhsetu", verify: "Verify references · Sodhsetu", papers: `${PAPERS_NAME} · Sodhsetu`, idea: "Idea Check · Sodhsetu", litscan: "Literature scan · Sodhsetu", admin: "Admin · Sodhsetu", privacy: "Privacy · Sodhsetu", terms: "Terms · Sodhsetu", how: "How we verify · Sodhsetu", library: "Library · Sodhsetu", settings: "Settings · Sodhsetu" };
 
 export function App() {
   const { state, run, reset } = useSearch();
@@ -83,7 +83,7 @@ export function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
   useEffect(() => {
-    document.title = view === "search" && !user && !route.home && state.status === "idle" ? "Scholar AI: research you can trust" : TITLES[view];
+    document.title = view === "search" && !user && !route.home && state.status === "idle" ? "Sodhsetu: research you can trust" : TITLES[view];
   }, [view, user, route.home, state.status]);
   useEffect(() => {
     if (view === "papers") window.scrollTo(0, 0);
@@ -317,7 +317,7 @@ export function App() {
   return (
     <MotionConfig reducedMotion="user">
       <LazyMotion features={loadFeatures} strict={false}>
-        <Shell view={view === "search" ? "home" : view} onNavigate={navigate} onHome={goHome} title={view === "search" && idle ? "Home" : TITLES[view].replace(" · Scholar AI", "")} focus={view === "papers" && !!route.docId} footer={view === "papers" ? null : <Footer />}>
+        <Shell view={view === "search" ? "home" : view} onNavigate={navigate} onHome={goHome} title={view === "search" && idle ? "Home" : TITLES[view].replace(" · Sodhsetu", "")} focus={view === "papers" && !!route.docId} footer={view === "papers" ? null : <Footer />}>
           {noticeEl}
           {mainEl}
         </Shell>

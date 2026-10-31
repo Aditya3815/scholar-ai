@@ -68,7 +68,7 @@ try {
   await page.evaluate(() => document.activeElement?.blur?.());
   ok(/An AI can write a perfect reference to a paper that was never written\./.test(await page.locator("#in-h1").textContent()), "the page's heading is the film's first sentence, whole, for screen readers");
   ok(await page.evaluate(() => document.documentElement.getAttribute("data-theme")) === "dark", "a visitor who has not chosen a theme sees the film dark, from the first paint");
-  ok(await page.locator(`.in-head .logo path[d="${LOGO_PATH}"]`).count() === 1 && /Scholar\s*AI/.test(await page.locator(".in-head .logo-word").innerText()), "the header keeps the product's own logo and wordmark");
+  ok(await page.locator(`.in-head .logo path[d="${LOGO_PATH}"]`).count() === 1 && /Sodhsetu/.test(await page.locator(".in-head .logo-word").innerText()), "the header keeps the product's own logo and wordmark");
   ok(await page.locator(".fm").getAttribute("data-mode") === "anim" && await page.locator(".fm [data-scene]").count() === 9, "on a desktop the film plays: nine scenes");
   ok(await noSideways(page), "no sideways scroll on the intro (desktop)");
   ok(await page.locator(".in-progress").count() === 1, "a thin progress line runs under the header");

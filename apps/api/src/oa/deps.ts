@@ -15,7 +15,7 @@ export function sourceDepsFor(env: DepsEnv, gate: typeof withGate = withGate): S
   const stub = env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
   return {
     ...(stub ? { fetchImpl: stubFetch } : { gated: <T,>(lane: GateName, run: () => Promise<T>) => gate(lane, LANE_WAIT_MS, () => run()) }),
-    userAgent: `ScholarAI/1.0 (+https://sodhsetu.in; mailto:${env.CROSSREF_MAILTO})`,
+    userAgent: `Sodhsetu/1.0 (+https://sodhsetu.in; mailto:${env.CROSSREF_MAILTO})`,
     mailto: env.CROSSREF_MAILTO,
     openAlexKey: env.OPENALEX_API_KEY,
   };

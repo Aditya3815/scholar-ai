@@ -341,7 +341,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
               </span>
             ))}
           </p>
-          <p className="fm-sub fm-after">Scholar AI shows you only papers that exist, and the sentence every claim stands on.</p>
+          <p className="fm-sub fm-after">Sodhsetu shows you only papers that exist, and the sentence every claim stands on.</p>
         </div>
       </Scene>
 
@@ -353,7 +353,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
             <path pathLength={1} d="M4 7.5c4-1.6 8-1.4 12 1.2v17c-4-2.6-8-2.8-12-1.2v-17Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
             <path pathLength={1} d="M28 7.5c-4-1.6-8-1.4-12 1.2v17c4-2.6 8-2.8 12-1.2v-17Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
           </svg>
-          <h2 id="fm-title-h" className="fm-title-name">Scholar <b>AI</b></h2>
+          <h2 id="fm-title-h" className="fm-title-name">Sodhsetu</h2>
           <p className="fm-title-line">Research, with the receipts.</p>
           <div className="fm-title-cta">{cta}</div>
         </div>
@@ -448,7 +448,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
           </ul>
           <div className="fm-verdict">
             <p className="fm-big fm-red">No such record.</p>
-            <p className="fm-sub">An AI wrote it, perfectly formatted. Paste your whole bibliography into Check references: Scholar AI says which ones exist, plainly, and never invents one.</p>
+            <p className="fm-sub">An AI wrote it, perfectly formatted. Paste your whole bibliography into Check references: Sodhsetu says which ones exist, plainly, and never invents one.</p>
           </div>
           <Sample>Sample: an invented reference</Sample>
         </div>

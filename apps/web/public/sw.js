@@ -1,5 +1,5 @@
 /*
- * Scholar AI service worker: offline reading, and only when the reader has switched it on in Settings.
+ * Sodhsetu service worker: offline reading, and only when the reader has switched it on in Settings.
  *
  * What it keeps on this device while it is on:
  *   - the app itself (the page, /assets, /pdfjs), so the app opens without a connection;

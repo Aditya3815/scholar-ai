@@ -41,9 +41,6 @@
   font-size: 1.3rem;
   letter-spacing: -0.02em;
 }
-.logo-ai {
-  color: var(--accent);
-}
 .logo-page {
   transform-box: fill-box;
   transition: transform 420ms var(--ease);

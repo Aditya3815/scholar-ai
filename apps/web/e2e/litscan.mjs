@@ -68,7 +68,7 @@ try {
   await page.goto(BASE + "/literature-scan", { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Literature scan", level: 1 }).waitFor();
   ok(await page.getByRole("heading", { name: "Sign in to scan the literature" }).isVisible(), "a visitor is asked to sign in (the scan runs on an account)");
-  ok(await page.title() === "Literature scan · Scholar AI", "the page has its own title");
+  ok(await page.title() === "Literature scan · Sodhsetu", "the page has its own title");
   await axe("signed out", page);
 
   console.log("sign in, find it in the rail, read the privacy note");
@@ -283,7 +283,7 @@ try {
   await sleep(300);
   const notes = await page.evaluate(() => window.__notes);
   if (!(notes.length === 1)) console.log("        notes:", JSON.stringify(notes));
-  ok(notes.length === 1 && notes[0].title === "Your literature scan has finished" && /^\d of 4 themes answered\. Open Scholar AI to read it\.$/.test(notes[0].body), "when the scan ends and the page is in the background, one notice is shown, with counts");
+  ok(notes.length === 1 && notes[0].title === "Your literature scan has finished" && /^\d of 4 themes answered\. Open Sodhsetu to read it\.$/.test(notes[0].body), "when the scan ends and the page is in the background, one notice is shown, with counts");
   ok(!/snail|notification/i.test(notes[0].body + notes[0].title), "the notice does not carry the topic");
   await page.evaluate(() => { window.__hidden = false; });
   // a page that is opened again has the stand-in installed again (a fresh record), already in the background and with the notice already allowed

@@ -147,7 +147,7 @@ function ScanView({ id, onLeave }: { id: string; onLeave: () => void }) {
     showScanNotice({
       id: scan.id,
       title: view.state === "completed" ? "Your literature scan has finished" : view.state === "failed" ? "Your literature scan did not finish" : "Your literature scan was stopped",
-      body: `${answered} of ${view.total || scan.total} themes answered. Open Scholar AI to read it.`,
+      body: `${answered} of ${view.total || scan.total} themes answered. Open Sodhsetu to read it.`,
     });
   }, [view.state, scan]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggleNotify = async () => {

@@ -84,7 +84,6 @@
 .fm-title-mark { color: var(--accent); }
 .fm-title-mark path { stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--mk, 1)); }
 .fm-title-name { margin: 0; font-family: var(--font-serif); font-weight: 650; font-size: clamp(3.4rem, 12vw, 11rem); line-height: 0.9; letter-spacing: -0.03em; transform: scale(var(--ts, 1)); filter: blur(calc(var(--tb, 0) * 1px)); white-space: nowrap; }
-.fm-title-name b { color: var(--accent); font-weight: 650; }
 .fm-title-line { margin: 0; font-family: var(--font-serif); font-style: italic; font-size: clamp(1.3rem, 2.6vw, 2.1rem); color: var(--muted); opacity: var(--tl, 1); transform: translateY(calc((1 - var(--tl, 1)) * 14px)); }
 .fm-title-cta { opacity: var(--tc, 1); transform: translateY(calc((1 - var(--tc, 1)) * 14px)); }
 /* a button reached with the keyboard is always seen, wherever the scroll has left it */

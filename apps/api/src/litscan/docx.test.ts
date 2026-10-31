@@ -23,7 +23,7 @@ function wellFormed(xml: string): string | null {
   return stack.length ? `unclosed <${stack.at(-1)}>` : null;
 }
 const texts = (xml: string) => [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((m) => m[1]!.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&"));
-const doc = (blocks: Block[], extra: Partial<DocxDoc> = {}): DocxDoc => ({ title: "T", author: "Scholar AI", created: new Date("2026-10-29T10:00:00Z"), blocks, ...extra });
+const doc = (blocks: Block[], extra: Partial<DocxDoc> = {}): DocxDoc => ({ title: "T", author: "Sodhsetu", created: new Date("2026-10-29T10:00:00Z"), blocks, ...extra });
 
 describe("what XML can hold", () => {
   it("drops control characters, U+FFFE and U+FFFF and a lone surrogate, and keeps tab, line breaks, Hindi and emoji", () => {
@@ -196,7 +196,7 @@ const report = assembleReport(items, {
   1: answered(1, "Exposure is modelled from roads [1].", [src(1, "b", "Asthma in Delhi schools", { year: 2016, doi: null, url: "https://example.org/b" })], { 1: "Exposure was estimated from distance to the nearest road." }),
   2: { idx: 2, status: "gap", found: 0, reason: "nothing_found" },
 });
-const args = { appName: "Scholar AI", generatedAt: "2026-10-29T10:00:00.000Z", topic: "Air pollution & asthma", language: "en" as const, report };
+const args = { appName: "Sodhsetu", generatedAt: "2026-10-29T10:00:00.000Z", topic: "Air pollution & asthma", language: "en" as const, report };
 
 describe("the review as a Word document", () => {
   const d = buildReviewDocx(args);
@@ -210,7 +210,7 @@ describe("the review as a Word document", () => {
     expect(d.title).toBe("Literature review: Air pollution & asthma");
     const headings = d.blocks.filter((b) => b.k === "h1").map((b) => (b as { runs: { t: string }[] }).runs[0]!.t);
     expect(headings).toEqual(["At a glance", "Findings by theme", "Evidence table", "Gaps", "References"]);
-    expect(all).toContain("Made with Scholar AI on 2026-10-29");
+    expect(all).toContain("Made with Sodhsetu on 2026-10-29");
     expect(all).toContain("Written in English");
     expect(all).toContain("not a systematic review");
   });

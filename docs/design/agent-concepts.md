@@ -1,4 +1,4 @@
-# Agent and streaming concepts: where they fit Scholar AI (research of 26 Oct 2026)
+# Agent and streaming concepts: where they fit Sodhsetu (research of 26 Oct 2026)
 
 Asked: A2UI, AG-UI, SSE, checkpointing, delta events, token streaming, multi-agent delegation, idempotency. For each: what it is, whether this application has a use for it, whether it is reliable and efficient, and the decision. Facts about the protocols come from their own documentation (linked at the end); facts about our app come from the code and from one measurement made today. Where something is my inference it says so.
 
@@ -128,7 +128,7 @@ Design rules taken from the docs: a paper becomes *ready* only when every chunk 
 
 **Would adopting it pay?** No, and it would cost: a model composing the screen can invent layout and wording, which collides with our rule that nothing is shown that the server did not check, and with the axe and contrast gates that every screen passes today; we use React (the documented renderers are not), and the format is still changing.
 
-**When to revisit.** If Scholar AI ever accepts agents or tools from other people and has to show their results, or exposes itself as an agent others embed.
+**When to revisit.** If Sodhsetu ever accepts agents or tools from other people and has to show their results, or exposes itself as an agent others embed.
 
 ## Done so far (26 Oct)
 

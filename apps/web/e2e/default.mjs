@@ -48,7 +48,7 @@ try {
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
   await page.locator("#in-h1").waitFor({ timeout: 10000 });
   ok(await page.locator(".topbar").count() === 0, "gets the new look: the intro page, with no old top bar");
-  ok(/Scholar AI/.test(await page.title()), "and a title");
+  ok(/Sodhsetu/.test(await page.title()), "and a title");
 
   const pages = [
     ["/verify", /Verify references/, "Check references"],

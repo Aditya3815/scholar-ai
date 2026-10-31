@@ -2,7 +2,7 @@
 
 > **Built 28 Oct 2026** as an opt-in "Indian sources" switch (DOAJ journals published in India, Shodhganga theses through OpenAlex, papers by authors at Indian institutions): [india-sources.md](../design/india-sources.md), with the measurements asked for in point 4 below.
 
-Question (roadmap S7, "research first: licences and APIs"): can Scholar AI search Shodhganga theses and Indian regional journals, and how.
+Question (roadmap S7, "research first: licences and APIs"): can Sodhsetu search Shodhganga theses and Indian regional journals, and how.
 
 ## Shodhganga (INFLIBNET) directly: no
 

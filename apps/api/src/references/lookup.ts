@@ -36,7 +36,7 @@ async function remembered<T>(env: LookupEnv, name: string, parts: string[], load
 const SELECT = "DOI,title,author,issued,container-title";
 const f = (env: LookupEnv) => env.fetch ?? fetch;
 const cr = (env: LookupEnv) => (url: string, init: CrossrefInit) => crossrefFetch(f(env), url, init);
-const headers = (env: LookupEnv): HeadersInit => ({ "User-Agent": `ScholarRefCheck/0.1 (mailto:${env.CROSSREF_MAILTO})` });
+const headers = (env: LookupEnv): HeadersInit => ({ "User-Agent": `SodhsetuRefCheck/0.1 (mailto:${env.CROSSREF_MAILTO})` });
 
 type CRItem = {
   DOI?: string;

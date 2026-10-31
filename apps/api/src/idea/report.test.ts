@@ -89,7 +89,7 @@ const INSIGHTS: IdeaInsights = {
 };
 
 const input = (over: Partial<ReportInput> = {}): ReportInput => ({
-  appName: "Scholar AI",
+  appName: "Sodhsetu",
   generatedAt: "2026-10-22T10:30:00.000Z",
   title: "Glaucoma screening",
   summary: "Screening glaucoma with a smartphone fundus camera in rural clinics.",

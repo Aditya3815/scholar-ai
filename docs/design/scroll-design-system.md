@@ -1,6 +1,6 @@
 # Scroll design system v2 (27 Oct 2026)
 
-For the scroll-driven intro of Scholar AI, from the study of vellum.ai ([vellum-research.md](vellum-research.md)) and the first intro ([scroll-site.md](scroll-site.md)). It is **ours**: the tokens are the app's (`apps/web/src/styles/tokens.css`), the type is the app's, nothing is Vellum's. The mock that uses all of it: [poc/scroll-v2.html](poc/scroll-v2.html). Nothing here is built in the app yet; section 8 says how it would be.
+For the scroll-driven intro of Sodhsetu, from the study of vellum.ai ([vellum-research.md](vellum-research.md)) and the first intro ([scroll-site.md](scroll-site.md)). It is **ours**: the tokens are the app's (`apps/web/src/styles/tokens.css`), the type is the app's, nothing is Vellum's. The mock that uses all of it: [poc/scroll-v2.html](poc/scroll-v2.html). Nothing here is built in the app yet; section 8 says how it would be.
 
 ## 1. Principles
 

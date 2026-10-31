@@ -7,7 +7,7 @@ import { refreshAuth } from "./auth";
  * While any is empty the pages say so and show a "draft" banner, so nobody mistakes a placeholder for a promise.
  */
 export const LEGAL = {
-  product: "Scholar AI",
+  product: "Sodhsetu",
   /** The person or company that runs the service (the "data fiduciary" under India's DPDP Act). */
   entity: "",
   /** Where to write about anything in the policy. */

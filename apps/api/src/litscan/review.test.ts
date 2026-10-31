@@ -147,7 +147,7 @@ describe("files", () => {
     expect(ris).toBe("TY  - JOUR\r\nAU  - Rao, A\r\nAU  - Kavitha, S. N\r\nTI  - Two lines\r\nJO  - J\r\nPY  - 2020\r\nDO  - 10.1/a\r\nUR  - https://doi.org/10.1/a\r\nER  - \r\n");
   });
   it("the Markdown review has the glance, the findings by theme, the table, the gaps and APA references", () => {
-    const md = buildReviewMarkdown({ appName: "Scholar AI", generatedAt: "2026-10-28T10:00:00Z", topic: "air pollution and asthma", language: "hinglish", report, indian: true });
+    const md = buildReviewMarkdown({ appName: "Sodhsetu", generatedAt: "2026-10-28T10:00:00Z", topic: "air pollution and asthma", language: "hinglish", report, indian: true });
     expect(md).toContain("# Literature review: air pollution and asthma");
     expect(md).toContain("from Indian sources only");
     expect(md).toContain("Hinglish (Hindi in Roman letters)");

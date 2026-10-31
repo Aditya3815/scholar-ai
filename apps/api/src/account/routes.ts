@@ -110,7 +110,7 @@ accountRoutes.get("/export", async (c) => {
     retractionNotices: alerts.results.map((a) => ({ paperId: a.paper_id, title: a.title, kind: a.kind, noticedAt: new Date(fromSqliteTime(a.created_at)).toISOString(), dismissedAt: a.seen_at ? new Date(fromSqliteTime(a.seen_at)).toISOString() : null })),
   };
   c.header("Content-Type", "application/json; charset=utf-8");
-  c.header("Content-Disposition", `attachment; filename="scholar-ai-export-${new Date().toISOString().slice(0, 10)}.json"`);
+  c.header("Content-Disposition", `attachment; filename="sodhsetu-export-${new Date().toISOString().slice(0, 10)}.json"`);
   return c.body(JSON.stringify(body, null, 2));
 });
 

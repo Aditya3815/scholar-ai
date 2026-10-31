@@ -47,7 +47,7 @@ try {
     await page.waitForTimeout(700);
     const body = await page.locator(".legal").innerText();
     ok(p.must.every((re) => re.test(body)), "it says what it must");
-    ok(/Scholar AI/.test(await page.title()), "the page has its own title");
+    ok(/Sodhsetu/.test(await page.title()), "the page has its own title");
     ok(!/undefined|NaN|\[object/.test(body), "nothing is left unrendered");
     if (p.path !== "/how-we-verify") ok(await page.getByRole("note").filter({ hasText: "Draft" }).isVisible(), "while contact details are missing it says it is a draft, and marks each gap");
     await page.screenshot({ path: OUT + p.shot + ".png" });

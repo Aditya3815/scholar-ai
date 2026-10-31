@@ -71,7 +71,7 @@ function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home
       <a
         className="logo-btn ws-logo"
         href="/"
-        aria-label="Scholar AI, home"
+        aria-label="Sodhsetu, home"
         onClick={(e) => {
           if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
           e.preventDefault();
@@ -148,7 +148,7 @@ export function Shell({ view, onNavigate, onHome, title, children, footer, focus
     <div className="ws-shell" data-focus={focus}>
       <a className="skip-link" href="#main">Skip to content</a>
       {!focus && (
-        <aside className="ws-rail" aria-label="Scholar AI">
+        <aside className="ws-rail" aria-label="Sodhsetu">
           <RailContent view={view} onNavigate={onNavigate} onHome={onHome} />
         </aside>
       )}

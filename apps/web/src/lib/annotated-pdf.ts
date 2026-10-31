@@ -229,7 +229,7 @@ export async function buildAnnotatedPdf(args: {
     };
     for (const l of wrap(`Notes on ${args.title}`, bold, 14, MAXW)) line(l, bold, 14);
     y -= 6;
-    line("Marked in Scholar AI. The marks on the pages show where; this page shows what was written.", font, 9, 0, rgb(0.4, 0.4, 0.45));
+    line("Marked in Sodhsetu. The marks on the pages show where; this page shows what was written.", font, 9, 0, rgb(0.4, 0.4, 0.45));
     y -= 8;
     for (const n of [...listed].sort((a, b) => a.page - b.page || a.createdAt - b.createdAt)) {
       const [r, g, b] = rgbOf(NOTE_HEX[n.color]);

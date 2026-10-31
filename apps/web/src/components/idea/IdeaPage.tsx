@@ -195,7 +195,7 @@ export function IdeaWorkspace({ initialText = "", autoPlan = false, embedded = f
   const reportText = useCallback(
     () =>
       buildIdeaReport({
-        appName: "Scholar AI",
+        appName: "Sodhsetu",
         generatedAt: new Date().toISOString(),
         title: plan?.title ?? "",
         summary: plan?.summary ?? "",

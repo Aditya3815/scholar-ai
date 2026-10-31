@@ -53,7 +53,7 @@ try {
 
   // The dialog
   await introSignIn().click();
-  const dialog = page.getByRole("dialog", { name: /Sign in to Scholar/ });
+  const dialog = page.getByRole("dialog", { name: /Sign in to Sodhsetu/ });
   await dialog.waitFor();
   await page.waitForTimeout(500);
   ok(await dialog.getByRole("button", { name: "Continue with Google" }).isVisible(), "the dialog offers Continue with Google");
@@ -130,7 +130,7 @@ try {
     await mp.screenshot({ path: OUT + `25-mobile-${width}.png` });
     if (width === 390) {
       await introSignIn(mp).click();
-      await mp.getByRole("dialog", { name: /Sign in to Scholar/ }).waitFor();
+      await mp.getByRole("dialog", { name: /Sign in to Sodhsetu/ }).waitFor();
       await mp.waitForTimeout(500);
       await mp.screenshot({ path: OUT + "26-mobile-modal.png" });
       await axe("the sign-in dialog on a phone", mp);

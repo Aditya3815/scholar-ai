@@ -35,7 +35,7 @@ function Header({ onTop }: { onTop: () => void }) {
   return (
     <header className="in-head" data-solid={solid}>
       <div className="in-head-in">
-        <button type="button" className="logo-btn" onClick={onTop} aria-label="Scholar AI, back to the top">
+        <button type="button" className="logo-btn" onClick={onTop} aria-label="Sodhsetu, back to the top">
           <Logo />
         </button>
         <nav className="in-links" aria-label="On this page">

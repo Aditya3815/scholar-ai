@@ -41,7 +41,7 @@ Colour and type: mostly white, near-black (#1a1a1a) text, a hairline grey (#e0e1
 
 Nothing here copies their code, characters, words or layout: the techniques are common practice (sticky stages, scroll-linked variables, section overlap) and the design below is ours.
 
-## 4. What we take, as ideas for Scholar AI
+## 4. What we take, as ideas for Sodhsetu
 
 1. **"Follow the citation"** (the hero's scroll story). The page's whole promise (every claim points at a sentence) shown as one journey: an answer with a numbered chip, the chip travels to the exact sentence of an abstract, the sentence is highlighted, the DOI ring draws and the record is confirmed, a retracted neighbour is marked. The chip is the actor (their avatar, our idea).
 2. **Titles that grow, with a stage colour that follows** for the four tools. Replaces the current pinned tour's chapter list with something the reader can also click; the stage tint uses our own accent, success and warning tokens.

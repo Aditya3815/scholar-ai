@@ -41,7 +41,7 @@ await wait(2200);
 await shot("01-intro-light");
 ok(await page.locator("body[data-auth=out]").count() === 1, "the page opens on the intro, signed out");
 ok(await page.locator(`.welcome .logo-btn path[d="${LOGO_PATH}"]`).count() === 1, "the logo is the product's own mark (same open-book drawing)");
-ok(/Scholar\s*AI/.test(await page.locator(".welcome .logo-word").first().innerText()), "and its wordmark: Scholar AI");
+ok(/Sodhsetu/.test(await page.locator(".welcome .logo-word").first().innerText()), "and its wordmark: Sodhsetu");
 ok(await page.locator(".w-h1").innerText().then((t) => /Research you can trust/.test(t)), "the headline is there");
 await axe("intro top, light");
 await page.locator(".demo-in .typed").waitFor();
