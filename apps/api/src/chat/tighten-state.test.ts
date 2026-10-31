@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyTighten, canTighten, failTighten, startAssistant, startTighten, tightenRequestFor, trimForStorage, MAX_TIGHTEN_PAPERS, type AssistantMsg, type Paper, type TightenResponse } from "@scholar/shared";
+import { applyTighten, canTighten, failTighten, startAssistant, startTighten, tightenRequestFor, trimForStorage, MAX_TIGHTEN_PAPERS, ABSTRACT_READ_CHARS, abstractRead, type AssistantMsg, type Paper, type TightenResponse } from "@scholar/shared";
 
 const ABSTRACT = "First sentence of the paper is here. Second sentence says the model reached ninety percent. Third sentence is a limitation.";
 const paper = (i: number, over: Partial<Paper> = {}): Paper => ({
@@ -68,10 +68,12 @@ describe("tightenRequestFor", () => {
     expect(r.papers.map((p) => p.n)).toEqual([1, 2]);
     expect(r.citations).toHaveLength(3);
   });
-  it("cuts an abstract at 1,500 characters (what the answer's own model read)", () => {
-    const long = `${"word ".repeat(600)}end.`;
+  it("cuts an abstract where the answer's own model stopped reading (whole sentences, at most ABSTRACT_READ_CHARS)", () => {
+    const long = Array.from({ length: 120 }, (_, i) => `Sentence ${i + 1} reports a finding of the study.`).join(" ");
     const r = tightenRequestFor(done({ papers: [paper(1, { abstract: long }), paper(2), paper(3)] }))!;
-    expect(r.papers[0]!.abstract.length).toBe(1500);
+    expect(r.papers[0]!.abstract).toBe(abstractRead(long));
+    expect(r.papers[0]!.abstract.length).toBeLessThanOrEqual(ABSTRACT_READ_CHARS);
+    expect(r.papers[0]!.abstract.endsWith("study.")).toBe(true);
   });
   it("is null when the answer cannot be checked", () => expect(tightenRequestFor(done({ status: "stopped" }))).toBeNull());
 });

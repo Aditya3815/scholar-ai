@@ -1,4 +1,4 @@
-import { sentenceAt, type Paper } from "@scholar/shared";
+import { abstractRead, sentenceAt, type Paper } from "@scholar/shared";
 
 /**
  * What the answer writer (answer.ts) and the support judge (support.ts) must agree on: how much of an abstract the model reads, how a sentence is numbered and cut, and how marks
@@ -12,7 +12,8 @@ export const MAX_SENTENCES_PER_PAPER = 3;
 /** A cited sentence is shown whole up to this length, then cut at a word (still word for word). */
 export const MAX_SENTENCE_CHARS = 300;
 
-export const abstractOf = (p: Paper): string => (p.abstract ?? "").slice(0, MAX_ABSTRACT_CHARS);
+/** The abstract as far as the model reads it (shared, so the browser's strict-check request cuts it in the same place): whole sentences, at most `ABSTRACT_READ_CHARS`. */
+export const abstractOf = (p: Paper): string => abstractRead(p.abstract);
 
 export const clip = (s: string): string => {
   if (s.length <= MAX_SENTENCE_CHARS) return s;

@@ -1,5 +1,6 @@
 import type { Paper, SearchScope } from "./index";
 import type { Lang, RouteHow, RouteMode as ChatMode } from "./route";
+import { ABSTRACT_READ_CHARS } from "./sentences";
 
 /**
  * The prompt box of the new home (W2): what the browser sends to `POST /api/v1/chat` and what comes back as server-sent events.
@@ -106,6 +107,6 @@ export function slimForInterim(papers: readonly Paper[]): Paper[] {
  */
 export const MAX_TIGHTEN_TEXT = 2000;
 export const MAX_TIGHTEN_PAPERS = 12;
-export const MAX_TIGHTEN_ABSTRACT = 2500;
+export const MAX_TIGHTEN_ABSTRACT = ABSTRACT_READ_CHARS;
 export type TightenRequest = { text: string; papers: { n: number; title: string; year: number | null; abstract: string }[]; citations: { n: number; sentenceNo: number }[] };
 export type TightenResponse = { answer: ChatAnswer; changed: boolean };

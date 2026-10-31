@@ -1,6 +1,7 @@
 import type { Paper, SearchScope } from "./index";
 import { MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatStep, type GeneralKind, type TightenRequest, type TightenResponse } from "./chat";
 import type { Lang, RouteHow } from "./route";
+import { abstractRead } from "./sentences";
 
 /* The conversation as the browser keeps it: a reply is built event by event while it streams, and kept as it is when it is done. All of it is pure, so it is tested without a browser. */
 
@@ -139,7 +140,7 @@ export function tightenRequestFor(m: AssistantMsg): TightenRequest | null {
   const cited = [...new Set(a.citations.map((c) => c.n))].sort((x, y) => x - y);
   return {
     text: a.text,
-    papers: cited.map((n) => ({ n, title: m.papers[n - 1]!.title, year: m.papers[n - 1]!.year, abstract: m.papers[n - 1]!.abstract!.slice(0, 1500) })),
+    papers: cited.map((n) => ({ n, title: m.papers[n - 1]!.title, year: m.papers[n - 1]!.year, abstract: abstractRead(m.papers[n - 1]!.abstract) })),
     citations: a.citations.map((c) => ({ n: c.n, sentenceNo: c.sentenceNo })),
   };
 }

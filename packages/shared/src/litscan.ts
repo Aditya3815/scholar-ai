@@ -32,8 +32,9 @@ export const LITSCAN_MAX_SHARES = 5;
  * What the approval screen says a scan will use, per sub-question. Measured on the deployed service: about 1,500 to 2,200 tokens an answer in English (R11, and 2,300 in a live scan), **3,200 in Hinglish**
  * (a live scan, 27 Oct 2026: its answers are longer). The larger figure is used so the screen under-promises.
  */
-// 5,500 since the support judge (about 2,500 tokens a call, from the ledger: 2.3k in, 0.2k out) reads every sub-question's answer; it was 3,000 before (28 Oct 2026)
-export const LITSCAN_TOKENS_PER_ITEM = 5_500;
+// 6,600 since the answer step and the judge read up to 3,000 characters of an abstract instead of 1,500 (1 Nov 2026): measured on the prompt box, the writer takes about 540 more tokens and the judge
+// about 565 more (2.7k to 3.3k and 3.3k to 3.9k in). It was 5,500 (28 Oct 2026: judge about 2,500, writer about 3,000) and 3,000 before the judge. Taken from the prompt box's calls, not re-measured on a scan.
+export const LITSCAN_TOKENS_PER_ITEM = 6_600;
 export const estimateScanTokens = (items: number): number => items * LITSCAN_TOKENS_PER_ITEM;
 
 export type LitscanLanguage = Extract<Lang, "en" | "hi" | "hinglish">;

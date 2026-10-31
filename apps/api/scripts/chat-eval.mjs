@@ -10,7 +10,7 @@
 //   clean marks   every [n] in the text is one of the checked citations, and no sentence label (S3), round-bracket number or 【】 token is left in the words
 //   controls      for nonsense questions that find nothing useful, no answer is written
 // With --gate it exits with 1 when a line below its limit. Each question uses its own throwaway account so the daily allowance does not stop a run.
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
 
@@ -47,6 +47,8 @@ const OFF_TOPIC = ["what is the capital of France", "how do I cook rice so that 
 const GREETINGS = ["hello there", "thanks a lot", "good morning"];
 // questions of general knowledge that a search of papers answers badly: where a background is written it must follow the rules above
 const BACKGROUND = ["what does a p-value mean in simple words", "explain the difference between sensitivity and specificity", "what is the boiling point of water at sea level", "standard deviation kya hota hai"];
+// --questions=gold: the 41 real questions of the claim-support set instead of the ten above (a bigger sample for comparing two versions of the answer step)
+const TOPIC_QUESTIONS = process.argv.includes("--questions=gold") ? [...new Set(JSON.parse(readFileSync(new URL("./fixtures/support-gold.json", import.meta.url), "utf8")).cases.map((c) => c.question))] : ON_TOPIC;
 const groups = process.argv.find((a) => a.startsWith("--groups="))?.slice(9)?.split(",");
 const want = (g) => !groups || groups.includes(g);
 
@@ -104,6 +106,9 @@ async function ask(message, group) {
     row.checked = answer.checked;
     row.leftOut = answer.leftOut ?? 0;
     row.words = answer.text.split(/\s+/).length;
+    // how much of the evidence stands beyond the first 1,500 characters of an abstract (where the answer step used to stop reading; docs/design/claim-support.md, "How much of an abstract")
+    row.cites = answer.citations.length;
+    row.tail = answer.citations.filter((c) => (papers[c.n - 1]?.abstract ?? "").indexOf(c.sentence) >= 1500).length;
   }
   // the general background (W5): what the server finally said about it, and whether it broke a rule (checked here apart from the server's own check)
   const general = events.find((e) => e.type === "general");
@@ -116,12 +121,12 @@ async function ask(message, group) {
     if (t.length > 1500) row.problems.push("the background is too long");
   }
   if (general && answer?.grounded) row.problems.push("a background was written under an answer made from papers");
-  if (dump && answer?.grounded) dumped.push({ message, text: answer.text, citations: answer.citations.map((c) => ({ n: c.n, title: papers[c.n - 1]?.title, sentence: c.sentence })) });
+  if (dump && answer?.grounded) dumped.push({ message, text: answer.text, marks: answer.citations.length, leftOut: answer.leftOut ?? 0, citations: answer.citations.map((c) => ({ n: c.n, title: papers[c.n - 1]?.title, sentence: c.sentence, atChar: (papers[c.n - 1]?.abstract ?? "").indexOf(c.sentence), abstractChars: (papers[c.n - 1]?.abstract ?? "").length })) });
   results.push(row);
   console.log(`${row.answered ? "answered" : "no answer"} (${row.reason}) ${String(row.ms).padStart(6)} ms  ${row.papers}/${row.withAbstract} papers  ${row.marks ?? 0} marks  ${group}: ${message}${row.problems.length ? `\n      PROBLEMS: ${row.problems.join("; ")}` : ""}`);
 }
 
-if (want("topic")) for (const q of ON_TOPIC) await ask(q, "topic");
+if (want("topic")) for (const q of TOPIC_QUESTIONS) await ask(q, "topic");
 if (want("control")) for (const q of CONTROLS) await ask(q, "control");
 if (want("language")) for (const q of LANGUAGES) await ask(q, "language");
 if (want("offtopic")) for (const q of OFF_TOPIC) await ask(q, "offtopic");
@@ -149,6 +154,9 @@ for (const [name, what, pass] of lines) console.log(`${pass ? "PASS" : "FAIL"}  
 const off = results.filter((r) => r.group === "offtopic");
 console.log(`info  general-knowledge questions: ${results.filter((r) => r.group === "background").map((r) => (r.general?.kind ?? (r.answered ? "answered from papers" : r.reason)) + (r.general?.text ? ` (${r.general.text.length} characters)` : "")).join(", ")}`);
 console.log(`info  off-topic questions: ${off.map((r) => r.general?.kind ?? (r.answered ? "answered from papers" : r.reason)).join(", ")}; greetings: ${results.filter((r) => r.group === "greeting").map((r) => r.general?.kind ?? "none").join(", ")}`);
+const cited = results.filter((r) => r.answered && r.cites != null);
+console.log(`info  evidence beyond the first 1,500 characters of an abstract: ${cited.reduce((n, r) => n + r.tail, 0)} of ${cited.reduce((n, r) => n + r.cites, 0)} citations, in ${cited.filter((r) => r.tail > 0).length} of ${cited.length} answers`);
+console.log(`info  topic answers: ${topic.filter((r) => r.answered).length} answered, ${topic.reduce((n, r) => n + (r.marks ?? 0), 0)} marks, ${topic.reduce((n, r) => n + (r.leftOut ?? 0), 0)} claims left out, ${topic.reduce((n, r) => n + (r.words ?? 0), 0)} words`);
 const med = (xs) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : null);
 console.log(`info  topic questions, median: papers ${med(topic.map((r) => r.tPapers).filter((x) => x != null))} ms, first word ${med(topic.filter((r) => r.answered).map((r) => r.tWord).filter((x) => x != null))} ms, whole reply ${med(topic.map((r) => r.ms))} ms; words after the papers: ${med(topic.filter((r) => r.answered && r.tWord != null && r.tPapers != null).map((r) => r.tWord - r.tPapers))} ms`);
 console.log(`info  median reply ${ms[Math.floor(ms.length / 2)] ?? 0} ms; languages (not gated): ${results.filter((r) => r.group === "language").map((r) => `${r.answered ? "answered" : r.reason}`).join(", ")}`);
