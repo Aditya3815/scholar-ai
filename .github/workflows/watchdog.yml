@@ -27,7 +27,7 @@ jobs:
       - id: watch
         run: node .github/scripts/watchdog.mjs
         env:
-          BASE_URL: https://scholar.shodhsetu.workers.dev
+          BASE_URL: https://sodhsetu.in
 
   alert:
     needs: [check]

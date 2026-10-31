@@ -1,5 +1,5 @@
 // Hourly check of the live service from outside: is it up, is its database migrated, did the daily job run, is the web app being served.
-//   BASE_URL=https://scholar.shodhsetu.workers.dev node .github/scripts/watchdog.mjs
+//   BASE_URL=https://sodhsetu.in node .github/scripts/watchdog.mjs
 // Each check is tried a few times before it counts as failed, so one dropped request does not wake anyone. The exit code is 1 when a check
 // failed; a short summary goes to the job summary and to the `detail` output, which the alert issue quotes.
 import { appendFileSync } from "node:fs";
@@ -72,7 +72,7 @@ export const detailLine = (results) => results.filter((r) => !r.ok).map((r) => `
 export async function main(env = process.env, out = console, doFetch = fetch, wait = sleep) {
   const base = env.BASE_URL;
   if (!base || !/^https:\/\/[^/]+\/?$/.test(base)) {
-    out.error("BASE_URL must be an https address such as https://scholar.shodhsetu.workers.dev");
+    out.error("BASE_URL must be an https address such as https://sodhsetu.in");
     return 2;
   }
   const results = await runChecks({ base, doFetch, wait });

@@ -1,6 +1,6 @@
 # Runbook
 
-Production: https://sodhsetu.in (also https://scholar.shodhsetu.workers.dev while people move over; Worker `scholar`, D1 `scholar-db`, R2 `scholar-files`, queue `scholar-jobs`).
+Production: https://sodhsetu.in (the CI health check and the watchdog use it; https://scholar.shodhsetu.workers.dev still answers while people move over, `www` redirects to the bare name; Worker `scholar`, D1 `scholar-db`, R2 `scholar-files`, queue `scholar-jobs`).
 
 ## Deploy
 
@@ -250,6 +250,15 @@ Every answer of the prompt box, and every sub-question of a literature scan, is 
 - **When the judge fails** (a timeout of 20 s, an error, a reply that does not fit) the answer is shown as written and the banner says the claims were not read against the sentences. One log line a call: `chat_judge` with the counts of verdicts, `leftOut`, `ms`, the model, and `error` when it failed (never a word of the question, the answer or an abstract). Many `error` lines in a row mean the judge's models are down; the usage page shows the label `chat_judge` (and `litscan_worker_judge`) per model.
 - **Check strictly** (`POST /api/v1/chat/tighten`, 29 Oct 2026): the reader asks for a slower, stronger reading of an answer ([claim-support.md](design/claim-support.md), section 4). It uses gpt-oss-120b (20 to 45 s, about 5,000 tokens) plus a quick second reading, counts in the person's day like any call, and has its own limiter (the AI bucket, `ASK_LIMITER`). `CHAT_JUDGE=off` switches it off as well (503 "switched off"). Logs: `chat_judge` lines with `rewritten`, `offered`, `checkMs`; usage labels `chat_strict` and `chat_strict_recheck`. About 5% of calls fail (the model's stream is cut); the reader is told and can press the button again. Nothing of the request is stored.
 - **Check it**: `node apps/api/scripts/support-eval.mjs --split=all --gate` against a local Worker with a real model (it runs every week in `qa-eval.yml`); the labelled claims are `apps/api/scripts/fixtures/support-gold.json`.
+
+## The own domain (sodhsetu.in, 31 Oct 2026)
+
+- Bought at Spaceship on 30 Oct 2026 for 2 years (auto-renew on; renews around Oct 2028). Spaceship holds only the registration and the nameservers (`leia.ns.cloudflare.com`, `will.ns.cloudflare.com`); **all DNS is in Cloudflare** (Free plan, zone `sodhsetu.in`).
+- The Worker serves it through the `routes` custom domain in `apps/api/wrangler.jsonc` (Cloudflare makes the record and the certificate). There is deliberately **no other DNS record on the bare name**: a record there stops the custom domain from attaching.
+- `www.sodhsetu.in` is a proxied dummy record (`192.0.2.1`) that exists only so a Cloudflare **redirect rule** ("www to apex", 301, path and query kept) can answer it. **Always Use HTTPS** is on (SSL/TLS, Edge Certificates). Leave Rocket Loader, Email Obfuscation and Bot Fight Mode off: they rewrite pages or challenge API clients.
+- Sign-in addresses: `https://sodhsetu.in/api/v1/auth/google/callback` and `.../orcid/callback` are registered at Google and ORCID (docs/auth-setup.md). A new domain or subdomain needs them added there first.
+- Roll back the domain alone: delete the `routes` line and deploy; `https://scholar.shodhsetu.workers.dev` keeps working (`workers_dev` is on). Do not remove the Cloudflare zone while the Worker uses it.
+- Without DNSSEC the domain still works; DNSSEC is turned on in Cloudflare (DNS, Settings) and its DS record is added at Spaceship (Domain, DNSSEC). Turn it off at Spaceship **first** if the nameservers are ever moved away from Cloudflare, or the domain stops resolving for many people.
 
 ## Staging
 
