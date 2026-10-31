@@ -37,6 +37,8 @@ Real credentials: `docs/auth-setup.md`.
 
 Uploaded papers and grounded Q&A: `docs/qa.md` (try it with the real models via `apps/api/scripts/docs-live.mjs`).
 
+How we work (decide, test first, cause before fix, prove before done): `docs/how-we-work.md`.
+
 Docs: `docs/design/UI-direction.md`, `docs/spikes/`, `docs/llm-providers.md`, `docs/auth-setup.md`, `docs/adr/`.
 
 Needs Node 22+ (see `.nvmrc`; CI uses Node 22).
