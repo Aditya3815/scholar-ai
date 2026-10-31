@@ -11,10 +11,10 @@ export const LEGAL = {
   /** The person or company that runs the service (the "data fiduciary" under India's DPDP Act). */
   entity: "",
   /** Where to write about anything in the policy. */
-  contactEmail: "tiadiaditya@gmail.com",
+  contactEmail: "team@sodhsetu.in",
   /** The person who answers complaints about personal data. */
   grievanceName: "",
-  grievanceEmail: "tiadiaditya@gmail.com",
+  grievanceEmail: "privacy@sodhsetu.in",
   /** Postal address of the entity. */
   address: "",
   /** The Indian state or city whose courts the terms refer to. */
