@@ -1,0 +1,160 @@
+/*
+ * Motion for the icons the app already has (docs/design/icon-motion.md). No JavaScript and nothing to download: every icon is a Lucide svg, and Lucide puts `lucide lucide-<name>` on it, so a rule
+ * for `.lucide-bell` reaches the bell wherever it is. Three kinds of motion:
+ *   1. what an icon does when something you can press is hovered, focused with the keyboard, or pressed (a nudge, a tilt, a turn, a ring);
+ *   2. what an icon does when it comes in because a state changed (the app swaps the icon: Copy becomes Check, Bookmark becomes BookmarkCheck): a pop, or a line that is drawn;
+ *   3. what a toggle does when it is switched on (aria-pressed becomes true).
+ * Only icons inside something pressable move (a button, a link, a summary), never one that is just a picture in a heading. Only transform and opacity change, so nothing is laid out again.
+ * All of it is inside "no-preference": with reduced motion nothing here applies and the icons stand still (tokens.css also cuts every other animation).
+ * The feel is set by the five numbers at the top: change them here, nowhere else.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    --ico-time: 200ms; /* how long a nudge takes */
+    --ico-nudge: 3px; /* how far an arrow moves */
+    --ico-lift: -1px; /* what an icon with no character of its own does */
+    --ico-press: 0.86; /* how small an icon gets while it is pressed */
+    --ico-ring: 640ms; /* how long the bell rings */
+  }
+
+  /* the container: anything pressable that is not switched off */
+  :is(button, a[href], summary, [role="button"], [role="tab"], [role="menuitem"]):not(:disabled, [aria-disabled="true"]) .lucide {
+    transition: transform var(--ico-time) var(--ease);
+  }
+
+  /* 1a. pointer hover (a finger has no hover: touch gets only the press below) */
+  @media (hover: hover) and (pointer: fine) {
+    :is(button, a[href], summary, [role="button"], [role="tab"], [role="menuitem"]):not(:disabled, [aria-disabled="true"]):hover .lucide {
+      transform: var(--ico-hover, translateY(var(--ico-lift)));
+    }
+  }
+  /* 1b. the keyboard gets the same as the pointer */
+  :is(button, a[href], summary, [role="button"], [role="tab"], [role="menuitem"]):not(:disabled, [aria-disabled="true"]):focus-visible .lucide {
+    transform: var(--ico-hover, translateY(var(--ico-lift)));
+  }
+  /* 1c. pressed: after the two above, so it wins */
+  :is(button, a[href], summary, [role="button"], [role="tab"], [role="menuitem"]):not(:disabled, [aria-disabled="true"]):active .lucide {
+    transform: scale(var(--ico-press));
+    transition-duration: 70ms;
+  }
+
+  /* the character of each icon: what it does when hovered or focused (--ico-hover); the rest take the small lift */
+  .lucide-arrow-right,
+  .lucide-chevron-right,
+  .lucide-log-in {
+    --ico-hover: translateX(var(--ico-nudge));
+  }
+  .lucide-log-out {
+    --ico-hover: translateX(calc(var(--ico-nudge) * -1));
+  }
+  .lucide-arrow-up {
+    --ico-hover: translateY(calc(var(--ico-nudge) * -0.8));
+  }
+  .lucide-chevron-down {
+    --ico-hover: translateY(calc(var(--ico-nudge) * 0.7));
+  }
+  .lucide-send {
+    --ico-hover: translate(2px, -2px);
+  }
+  .lucide-plus,
+  .lucide-x {
+    --ico-hover: rotate(90deg);
+  }
+  .lucide-search {
+    --ico-hover: scale(1.12) rotate(-10deg);
+  }
+  .lucide-pencil,
+  .lucide-highlighter {
+    --ico-hover: rotate(-12deg) translateY(-1px);
+  }
+  .lucide-link-2 {
+    --ico-hover: rotate(-18deg);
+  }
+  .lucide-copy {
+    --ico-hover: translate(-1px, -1px) scale(1.06);
+  }
+  .lucide-sparkles {
+    --ico-hover: scale(1.14) rotate(14deg);
+  }
+  .lucide-shield-check {
+    --ico-hover: scale(1.1);
+  }
+  .lucide-trash-2 {
+    --ico-hover: rotate(-10deg);
+  }
+  .lucide-file-up {
+    --ico-hover: translateY(-2px);
+  }
+
+  /* 1d. the ones that are a little scene, not a pose: they play once while hovered or focused */
+  @media (hover: hover) and (pointer: fine) {
+    :is(button, a[href], summary, [role="button"]):not(:disabled, [aria-disabled="true"]):hover .lucide-bell {
+      animation: ico-ring var(--ico-ring) var(--ease);
+    }
+    :is(button, a[href], summary, [role="button"]):not(:disabled, [aria-disabled="true"]):hover .lucide-download {
+      animation: ico-dip 420ms var(--ease);
+    }
+    :is(button, a[href], summary, [role="button"]):not(:disabled, [aria-disabled="true"]):hover .lucide-eye {
+      animation: ico-blink 360ms var(--ease);
+    }
+  }
+  :is(button, a[href], summary, [role="button"]):not(:disabled, [aria-disabled="true"]):focus-visible .lucide-bell {
+    animation: ico-ring var(--ico-ring) var(--ease);
+  }
+  :is(button, a[href], summary, [role="button"]):not(:disabled, [aria-disabled="true"]):focus-visible .lucide-download {
+    animation: ico-dip 420ms var(--ease);
+  }
+  .lucide-bell {
+    transform-origin: 50% 14%; /* it swings from the top */
+  }
+
+  /* 2. an icon that comes in because a state changed, inside a button */
+  button .lucide-check path {
+    stroke-dasharray: 24;
+    animation: ico-draw 280ms var(--ease) both; /* a line that is drawn */
+  }
+  button .lucide-bookmark-check,
+  button .lucide-circle-check,
+  button .lucide-circle-check-big {
+    animation: ico-pop 380ms var(--ease) both;
+  }
+
+  /* 3. a toggle that has just been switched on: the bell is filled and rings once, a bookmark fills */
+  [aria-pressed="true"] .lucide-bell {
+    fill: currentColor;
+    fill-opacity: 0.25;
+    animation: ico-ring var(--ico-ring) var(--ease);
+  }
+  [aria-pressed="true"] .lucide-bookmark {
+    fill: currentColor;
+    fill-opacity: 0.25;
+    animation: ico-pop 380ms var(--ease) both;
+  }
+
+  @keyframes ico-ring {
+    0% { transform: rotate(0); }
+    14% { transform: rotate(-24deg); }
+    34% { transform: rotate(18deg); }
+    54% { transform: rotate(-11deg); }
+    74% { transform: rotate(6deg); }
+    100% { transform: rotate(0); }
+  }
+  @keyframes ico-dip {
+    0% { transform: translateY(0); }
+    45% { transform: translateY(3px); }
+    100% { transform: translateY(0); }
+  }
+  @keyframes ico-blink {
+    0%, 100% { transform: scaleY(1); }
+    45% { transform: scaleY(0.15); }
+  }
+  @keyframes ico-draw {
+    from { stroke-dashoffset: 24; }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes ico-pop {
+    0% { transform: scale(0.55); opacity: 0.4; }
+    55% { transform: scale(1.18); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+}

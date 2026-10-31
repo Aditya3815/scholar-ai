@@ -17,6 +17,7 @@ import "./styles/idea.css";
 import "./styles/admin.css";
 import "./styles/legal.css";
 import "./styles/shell.css";
+import "./styles/icons.css";
 import { initPrefs } from "./lib/prefs";
 import { initMonitoring } from "./lib/monitoring";
 import { ErrorBoundary } from "./components/ErrorBoundary";
