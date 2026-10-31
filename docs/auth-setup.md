@@ -8,7 +8,8 @@ Redirect URIs to register (exact match):
 | Environment | Google | ORCID |
 | --- | --- | --- |
 | Local dev (`npm run dev:api`) | `http://localhost:8787/api/v1/auth/google/callback` | `http://localhost:8787/api/v1/auth/orcid/callback` (ORCID: use the sandbox, see below) |
-| Production | `https://scholar.shodhsetu.workers.dev/api/v1/auth/google/callback` | `https://scholar.shodhsetu.workers.dev/api/v1/auth/orcid/callback` |
+| Production (own domain) | `https://sodhsetu.in/api/v1/auth/google/callback` | `https://sodhsetu.in/api/v1/auth/orcid/callback` |
+| Production (workers.dev, kept while people move over) | `https://scholar.shodhsetu.workers.dev/api/v1/auth/google/callback` | `https://scholar.shodhsetu.workers.dev/api/v1/auth/orcid/callback` |
 
 ## Google (about 10 minutes)
 1. <https://console.cloud.google.com> -> create a project (e.g. "Scholar").

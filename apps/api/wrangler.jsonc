@@ -4,6 +4,10 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "account_id": "6de82fc604465aa52a67dee951309199",
+  // The own domain (sodhsetu.in, bought at Spaceship, its DNS on Cloudflare). A custom domain needs the zone to be Active in this account and no other DNS record on the name; Cloudflare
+  // then makes the record and the certificate. `www` is a redirect rule to this name, not a second Worker domain. workers.dev stays on while people move over.
+  "routes": [{ "pattern": "sodhsetu.in", "custom_domain": true }],
+  "workers_dev": true,
   "assets": {
     "directory": "../web/dist",
     "not_found_handling": "single-page-application",

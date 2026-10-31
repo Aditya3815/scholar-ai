@@ -1,6 +1,6 @@
 # Runbook
 
-Production: https://scholar.shodhsetu.workers.dev (Worker `scholar`, D1 `scholar-db`, R2 `scholar-files`, queue `scholar-jobs`).
+Production: https://sodhsetu.in (also https://scholar.shodhsetu.workers.dev while people move over; Worker `scholar`, D1 `scholar-db`, R2 `scholar-files`, queue `scholar-jobs`).
 
 ## Deploy
 
