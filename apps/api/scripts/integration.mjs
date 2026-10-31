@@ -127,6 +127,8 @@ try {
     ok = await run("browser: chat (prompt box)", "e2e/chat.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: ask any paper", "e2e/oa.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: literature scan", "e2e/litscan.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: icon motion", "e2e/icons.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: Rive pictures", "e2e/rive.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: idea check in the conversation", "e2e/idea-chat.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: annotated PDF", "e2e/annotated.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: offline reading", "e2e/offline.mjs", [`http://localhost:${PORT}`], web) && ok;

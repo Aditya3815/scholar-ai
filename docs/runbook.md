@@ -270,6 +270,15 @@ The product is called **Sodhsetu** everywhere a person can see it: the page titl
 
 The names registered by hand at other services (the Google OAuth consent screen, the ORCID application, the Sentry project) are the owner's to rename there.
 
+## Pictures drawn by Rive files, and the motion of icons (1 Nov 2026)
+
+- Three pictures are drawn by Rive files: the bridge on a running scan, the box in the upload zone, the scene beside an upload ([design/setu-rive.md](design/setu-rive.md), [design/rive-ideas.md](design/rive-ideas.md)). They are decoration: the page is whole without them and every fact is in text.
+- **What it costs.** The runtime is a lazy chunk of about 56 KB and a wasm file of about 337 KB (gzip), fetched from our own origin only when a picture is on the page; the files of the pictures are 3.4 KB. Nothing of it is in the first load, and `scripts/budget.mjs` fails the build if any of it is, or if a chunk grows past its line.
+- **Who does not get them.** A person with reduced motion, with Save-Data on, on a 2g connection, or in a browser without WebAssembly; and anyone whose browser cannot start the runtime. The page shows the icons it had. If the runtime cannot be fetched at all the console says so once and nothing else changes.
+- **The CSP must stay as it is.** The runtime needs `'wasm-unsafe-eval'` (already there) and fetches its files from `'self'`. It will not fetch from a `data:` address, so `vite.config.ts` never inlines a `.riv`; a build that did would show no picture for the two small files. If a browser cannot start the main wasm the runtime asks a CDN for a fallback, which the CSP refuses.
+- **Changing a picture** needs the Rive CLI on the machine (no account, no login: the files have no scripts, so nothing is signed or uploaded). Edit the generator in `apps/web/rive/<name>/`, build, copy the `.riv` into `apps/web/src/assets/rive/`, and commit both: [the folder's README](../apps/web/rive/README.md). CI does not have the CLI, so it cannot check that the committed file is the generator's.
+- **Icons:** hover, press, focus and "switched on" motion of the icons the app already has is CSS ([design/icon-motion.md](design/icon-motion.md)); its feel is five numbers at the top of `styles/icons.css`. Tests: `e2e/icons.mjs` and `e2e/rive.mjs` in the browser run.
+
 ## Staging
 
 A separate, empty copy of the service at https://scholar-staging.shodhsetu.workers.dev (Worker `scholar-staging`, database `scholar-db-staging`, bucket `scholar-files-staging`, queue `scholar-jobs-staging`),

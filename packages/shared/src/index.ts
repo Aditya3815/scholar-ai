@@ -140,6 +140,7 @@ export * from "./ink";
 export * from "./notes-md";
 export * from "./quote-quads";
 export * from "./palette";
+export * from "./rive";
 export * from "./ask-source";
 export * from "./stream-shape";
 export * from "./chat";

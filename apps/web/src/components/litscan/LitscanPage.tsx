@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { BookOpenCheck, Bell, Check, Copy, Link2, Loader2, LockKeyhole, Square, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   LITSCAN_LANGUAGES,
   LITSCAN_LANGUAGE_NAMES,
@@ -24,6 +24,9 @@ import { ProviderButtons } from "../ProviderButtons";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { PrivacyCard } from "../legal/PrivacyCard";
 import "../../styles/litscan.css";
+
+/** The bridge is a picture drawn by a Rive file: its runtime is a chunk of its own, fetched only when a scan is on the page. */
+const Setu = lazy(() => import("./Setu"));
 
 /** What the person is told when a call fails: the service's own words when it gave some, a fallback otherwise. */
 const errorText = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : e instanceof Error && e.name !== "AbortError" ? fallback : "");
@@ -134,6 +137,11 @@ function ScanView({ id, onLeave }: { id: string; onLeave: () => void }) {
   const [support, setSupport] = useState(notifySupport);
   const [notify, setNotify] = useState(() => notifyWanted() && notifySupport() === "granted");
   const armed = useRef(false);
+  // the bridge is shown for a scan this page saw running (so that the crossing at the end is seen), never for one opened after it ended
+  const [watchedId, setWatchedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (scan && view.state === "running") setWatchedId(scan.id);
+  }, [scan, view.state]);
   useEffect(() => {
     if (!scan) return;
     if (view.state === "running") {
@@ -207,6 +215,11 @@ function ScanView({ id, onLeave }: { id: string; onLeave: () => void }) {
         <p className="eyebrow">Literature scan · {STATE_NAME[view.state]}</p>
         <h2 className="ls-topic" tabIndex={-1} ref={headRef}>{scan.topic}</h2>
         <p className="ls-meta">Written in {LITSCAN_LANGUAGE_NAMES[scan.language]}{scan.scope === "india" ? " · Indian sources only" : ""} · kept until {when(scan.expiresAt)}, then removed</p>
+        {(running || (scan && watchedId === scan.id)) && (
+          <Suspense fallback={null}>
+            <Setu view={view} />
+          </Suspense>
+        )}
         {running ? (
           <>
             <div className="ls-progress" role="progressbar" aria-label="Themes finished" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>

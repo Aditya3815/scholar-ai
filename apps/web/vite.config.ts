@@ -26,6 +26,10 @@ function preloadFonts(): Plugin {
 
 export default defineConfig({
   plugins: [react(), preloadFonts()],
+  build: {
+    // A small file is normally written into the script as a data: address. The CSP forbids fetching those, and the Rive runtime fetches its files: so a .riv is always a file of its own.
+    assetsInlineLimit: (file) => (file.endsWith(".riv") ? false : undefined),
+  },
   server: {
     proxy: { "/api": "http://localhost:8787" },
   },

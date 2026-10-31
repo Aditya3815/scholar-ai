@@ -1135,3 +1135,30 @@
   margin-top: 0.15rem;
   color: var(--danger);
 }
+
+/* A picture drawn by a Rive file (components/RivePiece.tsx): the box has its final shape from the first paint, and the canvas shows when the file has been drawn */
+.rive-piece {
+  position: relative;
+  width: 100%;
+}
+.rive-piece canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms var(--ease);
+}
+.rive-piece[data-ready="true"] canvas {
+  opacity: 1;
+}
+.rive-piece-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  transition: opacity 240ms var(--ease);
+}
+.rive-piece[data-ready="true"] .rive-piece-fallback {
+  opacity: 0;
+}

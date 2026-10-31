@@ -189,3 +189,9 @@
   .ls-page .ls-print-h { display: block; margin: 1rem 0 0.3rem; font-size: 1.15rem; }
   .ls-page .ls-table { font-size: 9pt; }
 }
+
+/* the bridge laid while a scan runs (components/litscan/Setu.tsx) */
+.setu {
+  max-width: 520px;
+  margin: 0.4rem 0 0.2rem;
+}

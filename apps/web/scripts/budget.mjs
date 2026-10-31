@@ -20,6 +20,10 @@ export const LIMITS = {
   // 6.5 KB after the user's corrections the same day (the cinematic send and its pause, the margin note, the dust's dissolve, the frosted header): 6.0 KB measured, about 2 ms more
   "the intro page chunk, style (gzip)": 6.5 * KB,
   "the PDF reader chunk, script and style (gzip)": 66 * KB,
+  // The Rive pieces (docs/design/setu-rive.md, rive-ideas.md), fetched only when a picture is wanted: 57.6, 331 and 8.4 KB measured on 1 Nov 2026, plus about 10%. None of them may be in the first load.
+  "the Rive runtime chunk, script (gzip)": 64 * KB,
+  "the Rive runtime, wasm (gzip)": 365 * KB,
+  "the Rive files of the pictures (gzip)": 10 * KB,
 };
 
 const gz = (file) => gzipSync(readFileSync(file), { level: 9 }).length;
@@ -37,7 +41,7 @@ const pick = (re) => assets.filter((f) => re.test(f)).map((f) => join(DIST, "ass
 const newest = (files) => {
   const byName = new Map();
   for (const f of files) {
-    const key = f.replace(/.*[\\/]/, "").replace(/-[A-Za-z0-9_-]{8}\.(js|css)$/, ".$1");
+    const key = f.replace(/.*[\\/]/, "").replace(/-[A-Za-z0-9_-]{8}\.(js|css|wasm|riv)$/, ".$1");
     const prev = byName.get(key);
     if (!prev || statSync(f).mtimeMs > statSync(prev).mtimeMs) byName.set(key, f);
   }
@@ -52,15 +56,18 @@ const measured = {
   "the intro page chunk, script (gzip)": sum(newest(pick(/^IntroPage-.*\.js$/)), gz),
   "the intro page chunk, style (gzip)": sum(newest(pick(/^IntroPage-.*\.css$/)), gz),
   "the PDF reader chunk, script and style (gzip)": sum(newest(pick(/^PdfViewer-.*\.(js|css)$/)), gz),
+  "the Rive runtime chunk, script (gzip)": sum(newest(pick(/^rive-.*\.js$/)), gz),
+  "the Rive runtime, wasm (gzip)": sum(newest(pick(/^rive-.*\.wasm$/)), gz),
+  "the Rive files of the pictures (gzip)": sum(newest(pick(/\.riv$/)), gz),
 };
 
 let failed = false;
 for (const file of [...scripts, ...styles, ...fonts]) {
   if (!existsSync(local(file))) { console.log(` FAIL  index.html names ${file}, which is not in dist`); failed = true; }
 }
-// The heavy chunks are for people who open a paper or download a marked copy; they must never be part of the first load.
+// The heavy chunks are for people who open a paper, download a marked copy or watch a scan; they must never be part of the first load.
 for (const file of scripts) {
-  if (/\/(pdf|es|annotated-pdf|PdfViewer|IntroPage)-/.test(file)) { console.log(` FAIL  the first load has started to include ${file}`); failed = true; }
+  if (/\/(pdf|es|annotated-pdf|PdfViewer|IntroPage|rive|RivePiece|Setu|Reading|DropBox)-/.test(file)) { console.log(` FAIL  the first load has started to include ${file}`); failed = true; }
 }
 // The CSS minifier (Lightning CSS, Vite 8) drops a standard property that is written before its -webkit- twin: Chrome and Edge then get no blur at all (seen 28 Oct 2026). Every
 // -webkit- property in the built style sheets must have its standard twin.

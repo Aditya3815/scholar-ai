@@ -1946,3 +1946,24 @@
     margin-left: calc(32px + 0.7rem);
   }
 }
+
+/* the pictures drawn by Rive files in the upload zone and its rows (components/papers/DropBox.tsx, Reading.tsx): their box is reserved from the first paint */
+.uz-scene-box {
+  display: grid;
+  place-items: center;
+  width: 78px;
+  height: 65px;
+}
+.uz-scene {
+  width: 100%;
+}
+.job-scene {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+}
+.job-scene-piece {
+  width: 100%;
+}
