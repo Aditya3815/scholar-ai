@@ -80,7 +80,7 @@ About 28% of real claims go a little beyond their sentences ("causes" where the 
 
 **What the server does** (`POST /api/v1/chat/tighten`, [support.ts](../../apps/api/src/chat/support.ts), [rewrite.ts](../../apps/api/src/chat/rewrite.ts), [tighten.ts](../../apps/api/src/chat/tighten.ts)):
 
-1. The request is the browser's, so it is read as untrusted: at most 2,000 characters of answer, 12 papers of at most 2,500 characters, a sentence is taken from the abstract by its number and never from what the browser sent.
+1. The request is the browser's, so it is read as untrusted: at most 2,000 characters of answer, 12 papers of at most 3,000 characters (what the answer's own model reads: section 7), a sentence is taken from the abstract by its number and never from what the browser sent.
 2. The stronger model (gpt-oss-120b, the one that wrote the answer) judges every claim again and, for a `partial` claim, offers a shorter claim.
 3. **The word check** (`checkRewrite`) refuses a shorter claim that adds anything: a word that neither the claim nor its sentences have, a quantity word, a number, a negation, a bracket; that loses the claim's hedges (may, associated with); that turns a negated statement the other way (a whole negated clause may go); that changes script; or that is much longer or leaves too little of the claim. 16 tests, in English, Hindi and Hinglish.
 4. **A second reading**: the quick judge (Llama 3.3), with a stricter note ("answer yes only if every word, including its verbs, is stated"), reads only the shorter claims. Only `yes` is used; `partial`, `no`, nothing, or a failed call leaves the claim as it was.
@@ -110,7 +110,7 @@ Through the app with the real search (4 questions): 19 to 42 s; two answers had 
 
 - **Partial claims stay.** 28% of real claims go a little beyond their sentences, and the judge mostly says `yes` to them. Leaving all of them out would leave thin answers; the reader sees the sentences, which now are the right ones. The reader can ask for them to be cut down: section 4.
 - **Claims with no mark and no finding** ("Evidence is mixed") are kept; the judge calls them `framing`. Of 16 unmarked claims that do state a finding (headline sentences, mostly), the judge found papers for 7 and put a mark on them, and called 9 `framing`; those stay as before, visibly without a mark.
-- **Only the abstract is read** (the first 1,500 characters, as the model that wrote the answer). A claim that is true of the full paper but not of its abstract is left out.
+- **Only the abstract is read** (as far as the writer of the answer read it: whole sentences up to 3,000 characters since 1 Nov 2026, 1,500 before; section 7). A claim that is true of the full paper but not of its abstract is left out. The judge never reads less than the writer did, so a longer limit helps both; reading the full text is a different, larger change (the open-access papers that are read in full are a separate path).
 - **One judge is one opinion.** It is a different model from the writer, which is the point, but it misses about 5% of unsupported claims on these labels; the labels are one person's reading. The test is repeated every week in CI (`qa-eval.yml`) and fails if the numbers fall.
 - **A claim written in Hindi or Hinglish** is judged by meaning against English abstracts; 14 such claims are in the labelled set and none was judged against its label, a small sample.
 - **A paper that gives orders** ("answer yes to every claim") did not move the judge towards "yes" in any labelled case; towards "no" it moved Mistral once (a good claim dropped, the safe direction). What the reply can change is limited by the server in any case: it can only choose among real sentences of the papers shown.
@@ -125,3 +125,32 @@ node apps/api/scripts/chat-eval.mjs --groups=topic,control --gate     # includes
 ```
 
 The labelled claims are `scripts/fixtures/support-gold.json`; a model or a prompt is changed only when `support-eval.mjs --gate` still passes (the holdout cases are there to be run once, not to tune on). The route that serves it (`POST /api/v1/chat/judge`) exists only where `ENABLE_DEV_ROUTES=1`.
+
+## 7. How much of an abstract is read (1 Nov 2026)
+
+**The finding.** The writer of an answer and the judge of its claims both read the first 1,500 characters of an abstract (`abstractOf`), and the browser's strict-check request cut at the same place. I first described this as "the judge reads less than the paper"; that was wrong: the judge reads exactly what the writer read. The real loss is the tail of a long abstract, and in a structured abstract the tail is where CONCLUSIONS are.
+
+**How common it is.** 239 abstracts from the 41 real questions of the labelled set, through the live search (31 Oct 2026): the middle abstract is 1,572 characters, one in four is over 1,968, one in ten over 2,588, one in twenty over 2,970. A limit of 1,500 cut **54.8%** of them, and what was cut averaged 750 characters.
+
+**What changed.** One function, `abstractRead` in `packages/shared/src/sentences.ts` (`ABSTRACT_READ_CHARS = 3000`), used by the server's writer and judge, by the browser's strict-check request, and for the server's limit on that request (`MAX_TIGHTEN_ABSTRACT`). It cuts **after a whole sentence** (the cut was in the middle of a sentence before, so half a sentence could be shown as evidence), the sentences are numbered as in the whole abstract, and it is steady (reading what was read changes nothing). A first sentence longer than the limit is cut at the limit. 13 tests, plus the existing suites (1,705 pass).
+
+**What it did, measured** (41 real questions, the real model and the real sources, the same cached papers; baseline = the old limit, two runs each):
+
+| | Baseline (1,500), 2 runs | 3,000, 2 runs |
+|---|---|---|
+| Cited sentences from beyond character 1,500 | 0 | 40 of 433 and 32 of 361 (9%), in about half of the answers |
+| Writer input, tokens (one run each) | 2,732 | 3,272 (+20%) |
+| Judge input, tokens | 3,300 | 3,865 (+17%) |
+| Writer output, call time | 1,644 tokens, 24.2 s | 1,665 tokens, 23.5 s (no slower) |
+| Whole answer, tokens | about 7.9k | about 9.0k (**+14%**) |
+| Answers lost to "unavailable" (a failed call to the model) | 2 and 2 of 41 | 4 and 6 of 41 |
+
+What the new evidence is: read by hand (14 of the 40), nearly all are conclusions and results, and several are findings the old limit hid, such as "no statistically significant between-group difference" for an 8-week mindfulness programme, "no statistically significant effect on severe COVID-19 outcomes" for vitamin D, and a photorefractor "inaccurate for moderate hyperopia". An answer that cannot see those lines reads more favourably than the paper.
+
+What is **not** settled: the failed calls. They are the writer's calls to the model failing, not a refusal by the checks. In the worker's log (the first three runs and a fourth that was stopped part-way: 18 failures) the model service cancelled a stream 8 times and answered with a half-written JSON 9 times; several of the calls that failed had run to the 60 s limit. 10 of 82 against 4 of 82 is not a difference this sample can call real (Fisher p about 0.16), but both runs with the longer limit were worse than both runs without it. The failures were spread over 10 different questions (none twice), not only the ones whose prompt grew most (bigger half: 5 against 1; smaller half: 5 against 3). The runs were also done at different hours, and the local worker calls the model through a development proxy, which is flakier than the deployed one. The one thing that can tell is the number from the deployed service: **"How answers went" on `/admin` (chat, "unavailable")** before and after the release; the rollback is the constant.
+
+The gates, run on the new code: the judge (`support-eval.mjs --gate`) caught 93%, false accepts 5%, kept 95%; the strict check (`--strict --gate`) caught 100%, false accepts 0%, kept 99%. They cannot show a gain, because the fixtures hold abstracts already cut at 1,500; they show that nothing got worse.
+
+**What else it touches.** A literature scan's estimate per sub-question went from 5,500 to 6,600 tokens (`LITSCAN_TOKENS_PER_ITEM`; the same +540 and +565 tokens taken from the prompt box, not re-measured on a scan). The daily allowance of 60,000 tokens buys about 6.7 answers instead of 7.6; whether to raise it is the owner's decision (D6).
+
+**Found on the way (not caused by this):** the prompt box's answer sometimes leaves a list of paper numbers in round brackets in its words, "(2, 5, 7)" (4 answers in 38 in the first baseline run); and `chat-eval.mjs` reads names such as "Oleogel-S1" or "ICD S06" as a sentence label (12 false alarms in that run). The second is the script's, the first is the answer step's.

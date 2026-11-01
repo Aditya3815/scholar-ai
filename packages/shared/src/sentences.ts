@@ -26,6 +26,32 @@ export function splitSentences(text: string): string[] {
   return out.filter((s) => s.trim() !== "");
 }
 
+/**
+ * How much of an abstract the model reads: the writer of an answer, the judge of its claims and the strict check all read this much, so a sentence number means the same to each. Measured
+ * on 239 abstracts from the 41 real questions of the claim-support set (31 Oct 2026): the middle abstract is 1,572 characters, one in four is over 1,968 and one in ten over 2,588, so a
+ * limit of 1,500 cut more than half of them, and what it cut was often the CONCLUSIONS. 3,000 reads all but about 5 in 100 (the rest are mostly something that is not an abstract).
+ */
+export const ABSTRACT_READ_CHARS = 3000;
+
+/**
+ * The abstract as far as the model reads it. A short abstract is given back as it is. A longer one is cut after a whole sentence (the sentences are the ones of the whole abstract, so
+ * sentence k here is sentence k of the whole, and what is cut is never half of a sentence that could be quoted as evidence). A first sentence that alone is longer than the limit is cut
+ * at the limit. Always at most ABSTRACT_READ_CHARS characters; never throws.
+ */
+export function abstractRead(abstract: string | null | undefined): string {
+  const text = typeof abstract === "string" ? abstract : "";
+  if (text.length <= ABSTRACT_READ_CHARS) return text;
+  const kept: string[] = [];
+  let length = 0;
+  for (const s of splitSentences(text)) {
+    const next = length + (kept.length ? 1 : 0) + s.length;
+    if (next > ABSTRACT_READ_CHARS) break;
+    kept.push(s);
+    length = next;
+  }
+  return kept.length > 0 ? kept.join(" ") : text.replace(/\s+/g, " ").trim().slice(0, ABSTRACT_READ_CHARS);
+}
+
 /** The abstract with "(1) ... (2) ..." in front of its sentences, for the prompt. */
 export const numberSentences = (text: string): string =>
   splitSentences(text)
