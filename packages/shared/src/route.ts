@@ -149,6 +149,80 @@ const SMALL_TALK_DEVANAGARI = /^(?:नमस्ते|नमस्कार|ध�
 /** A greeting, thanks, a goodbye, "ok", or a question about the box itself. Only the whole message counts: "hello world dataset" is a search. */
 export function isSmallTalk(text: string): boolean {
   const t = text.trim().replace(/[\s]+/g, " ").replace(/[.!?,;:~…।\u{1F300}-\u{1FAFF}\u2600-\u27BF]+$/gu, "").replace(/^[.!?,;:~…।\s\u{1F300}-\u{1FAFF}☀-➿]+/u, "").trim();
-  if (t.length === 0 || t.length > 40) return false;
-  return SMALL_TALK.test(t) || SMALL_TALK_DEVANAGARI.test(t);
+  if (t.length === 0) return false;
+  if (t.length <= 40 && (SMALL_TALK.test(t) || SMALL_TALK_DEVANAGARI.test(t))) return true;
+  return onlyFiller(text);
+}
+
+/**
+ * Greetings are not a list of phrases ("hey how are you" is two of them joined): a message is small talk when **every** word in it is a greeting, a politeness, a chit-chat word or one of
+ * the little words they are made of (English, Hinglish, Devanagari). Safe by construction: a word that can be a topic ("BERT", "transformers", "world") is not on the list, so a single real
+ * word makes the message a search; an all-capitals word in a mixed-case message is an acronym ("WHO guidelines") and counts as a real word; digits make it a search. Anything long is a search.
+ */
+const FILLER = new Set(
+  (
+    // English
+    "hi hii hello hey heya hiya hullo yo there everyone all sir madam folks friends good morning afternoon evening night gm gn thanks thank thx ty please pls plz welcome " +
+    "ok okay k cool nice great fine alright sure yes yeah yep no nope nah awesome perfect amazing wonderful excellent helpful bye goodbye later soon " +
+    "how what whats who are is am was do does did you your yours u r me i im we can could will would doing going today now so well then again really very much lot a name made that this " +
+    "help test testing lol haha hehe hmm hm umm um uh oh ah wow oops sorry bot " +
+    // Hinglish (Hindi in Roman letters)
+    "namaste namaskar salaam kaise kaisi kaisa ho hain hai hu hoon hun kya haal aap aapka tum tu tumhara tera kaun mera naam bhai yaar dost ji shukriya dhanyavaad dhanyawad bahut haan han nahi nahin " +
+    "accha achha theek thik chalo alvida tata sunao bolo mujhe madad karo main sakte sakti " +
+    // Devanagari
+    "नमस्ते नमस्कार धन्यवाद शुक्रिया जी ठीक अच्छा हाँ हां नहीं भाई दोस्त कैसे कैसी हो हैं हूँ हूं है क्या कौन आप तुम मैं मेरा नाम अलविदा सकते कर हाल हेलो"
+  ).split(" "),
+);
+/** "hellooo", "heyyy", "okkk": the stretched forms of the shortest chat words. */
+const STRETCHED = /^(?:h+i+|h+e+l+o+|h+e+y+|y+o+|o+k+(?:a+y+)?|t+h+a+n+k+s+|b+y+e+|l+o+l+|h+m+|w+o+w+|s+o+r+y+|p+l+[sz]+)$/;
+/** Chat words that are still chat when written in capitals. */
+const SHOUT_OK = new Set("hi hey hello ok okay lol yo bye thanks thx ty omg gm gn hmm wow pls plz".split(" "));
+
+function onlyFiller(text: string): boolean {
+  const t = text.trim();
+  if (t.length === 0 || t.length > 60 || /\p{N}/u.test(t)) return false;
+  const words = t.match(/[\p{L}\p{M}][\p{L}\p{M}'’]*/gu) ?? [];
+  if (words.length === 0 || words.length > 8) return false;
+  const shouting = words.length > 1 && !/\p{Ll}/u.test(t);
+  return words.every((w) => {
+    const low = w.toLowerCase().replace(/['’]/g, "");
+    if (!FILLER.has(low) && !STRETCHED.test(low)) return false;
+    const caps = w.length >= 2 && w === w.toUpperCase() && w !== w.toLowerCase();
+    return !(caps && !shouting && !SHOUT_OK.has(low));
+  });
+}
+
+/* what kind of small talk it was, so that the reply can answer it (a thanks is not met with "hello") */
+const GREET_WORD = /\b(?:hi+|hello+|hey+|hiya|heya|yo|namaste|namaskar|salaam|good (?:morning|afternoon|evening)|gm)\b|नमस्ते|नमस्कार|हेलो/i;
+const THANKS_WORD = /\b(?:thanks?|thank you|thx|ty|shukriya|dhanyavaa?d|dhanyawad)\b|धन्यवाद|शुक्रिया/i;
+const BYE_WORD = /\b(?:bye|goodbye|good bye|see you|see ya|take care|tata|alvida)\b|अलविदा/i;
+const HOW_WORD = /\b(?:how are you|how r u|how are u|kaise ho|kaise hain|kaisi ho|kya haal|what'?s up|whats up|sup)\b|कैसे हो|कैसे हैं|क्या हाल/i;
+
+const TALK_TEXT: Record<"en" | "hinglish" | "hi", { greet: string; how: string; thanks: string; bye: string; what: string }> = {
+  en: { greet: "Hello!", how: "I'm doing well, thank you.", thanks: "You are welcome.", bye: "Goodbye.", what: SMALL_TALK_REPLY },
+  hinglish: {
+    greet: "Namaste!",
+    how: "Main theek hu, shukriya.",
+    thanks: "Koi baat nahi.",
+    bye: "Alvida.",
+    what: "Ye box research papers dhundta hai aur unhi se jawab deta hai. Kisi topic ke baare mein poochiye, apne references paste kijiye, ya apna idea batayiye.",
+  },
+  hi: {
+    greet: "नमस्ते!",
+    how: "मैं ठीक हूँ, धन्यवाद।",
+    thanks: "कोई बात नहीं।",
+    bye: "अलविदा।",
+    what: "यह बॉक्स शोध पत्र खोजता है और उन्हीं से उत्तर देता है। किसी विषय के बारे में पूछिए, अपने संदर्भ चिपकाइए, या अपना विचार बताइए।",
+  },
+};
+
+/**
+ * What the page answers to small talk: a line that suits the message (a hello, a "how are you", a thanks, a goodbye), in its language, then what the box is for. Written here, not by a
+ * model, so it costs nothing, is the same for everyone and sends nothing anywhere. It makes no claim about the world.
+ */
+export function smallTalkReply(text: string, language: Lang): string {
+  const w = TALK_TEXT[language === "hinglish" || language === "hi" ? language : "en"];
+  const greeted = GREET_WORD.test(text);
+  const open = THANKS_WORD.test(text) ? w.thanks : BYE_WORD.test(text) ? w.bye : HOW_WORD.test(text) ? (greeted ? `${w.greet} ${w.how}` : w.how) : greeted ? w.greet : "";
+  return open ? `${open} ${w.what}` : w.what;
 }

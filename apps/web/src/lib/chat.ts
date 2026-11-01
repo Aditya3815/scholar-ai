@@ -217,16 +217,17 @@ function askedFor(msgs: ChatMsg[], at: number): string | null {
 
 /**
  * "Search again" on a reply: the same question asked again, in the same place, the same way (Auto chooses again; a search chosen by hand is searched as written).
- * With `as: "search"` ("Use my exact words", or Change to Search papers) it is asked as an explicit search whatever the router did before.
+ * With `as: "search"` ("Use my exact words", or Change to Search papers) it is asked as an explicit search whatever the router did before. With `as: "anyway"` ("Search for these words anyway",
+ * under the reply to small talk) it is a search of the words as written that the box does not take for small talk.
  */
-export function retryReply(assistantId: string, as?: "search"): SendResult {
+export function retryReply(assistantId: string, as?: "search" | "anyway"): SendResult {
   const id = state.active;
   if (!id || runs.has(id)) return "busy";
   const msgs = state.chats.get(id);
   const at = msgs?.findIndex((m) => m.id === assistantId) ?? -1;
   const old = msgs?.[at];
   if (!msgs || !old || old.role !== "assistant") return "invalid";
-  const mode: SendMode = as === "search" || !old.auto ? "search" : "auto";
+  const mode: SendMode = as === "search" || as === "anyway" || !old.auto ? "search" : "auto";
   const written = askedFor(msgs, at);
   const text = mode === "auto" ? cleanAutoMessage(written) : cleanChatMessage(written ?? old.query);
   if (!text) {
@@ -238,7 +239,7 @@ export function retryReply(assistantId: string, as?: "search"): SendResult {
   const reply = startAssistant(assistantId, text.replace(/\s+/g, " ").slice(0, 300), Date.now(), mode === "auto", scope);
   setChat(id, msgs.map((m, i) => (i === at ? reply : m)));
   persist(id, true);
-  void run(id, assistantId, text, mode, scope);
+  void run(id, assistantId, text, mode, scope, as === "anyway");
   return "sent";
 }
 
@@ -248,7 +249,7 @@ export function stopReply() {
   r?.ctl.abort();
 }
 
-async function run(chatId: string, assistantId: string, text: string, mode: SendMode, scope: SearchScope) {
+async function run(chatId: string, assistantId: string, text: string, mode: SendMode, scope: SearchScope, anyway = false) {
   const ctl = new AbortController();
   runs.set(chatId, { ctl, assistantId });
   set({ running: new Set(runs.keys()) });
@@ -269,7 +270,7 @@ async function run(chatId: string, assistantId: string, text: string, mode: Send
     }
   };
   try {
-    const res = await fetch("/api/v1/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify({ mode, message: text, ...(scope !== "all" ? { scope } : {}) }), signal: ctl.signal });
+    const res = await fetch("/api/v1/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify({ mode, message: text, ...(scope !== "all" ? { scope } : {}), ...(anyway ? { anyway: true } : {}) }), signal: ctl.signal });
     if (!res.ok) {
       const j = (await res.json().catch(() => null)) as { title?: string; detail?: string } | null;
       throw new Error(res.status === 429 ? "Too many searches just now. Please wait a minute and try again." : (j?.title ?? "That could not be sent. Please try again."));

@@ -11,6 +11,7 @@ import { Pop } from "../components/Pop";
 import { ContinueReading, RememberThis } from "./HomeExtras";
 import { ChatView } from "./ChatView";
 import { resumeChat, retryReply, reviveIdea, sendMessage, startIdeaCheck, startNewChat, stopReply, useChatState } from "../lib/chat";
+import { STARTERS } from "./starters";
 
 /**
  * Auto, and the four tools. With Auto (the default) the router reads the message and chooses (W3); a tool chosen by hand is never overridden.
@@ -24,7 +25,6 @@ const TOOLS: { id: Tool; name: string; short: string; help: string; placeholder:
   { id: "idea", name: "Idea Check", short: "Idea", help: "Closest papers, part by part, and the gaps. Never a verdict on novelty.", placeholder: "Describe your idea in a few sentences…", Icon: Lightbulb },
   { id: "paper", name: "Ask a paper", short: "Papers", help: "Answers from your own papers, with the page and the exact quote.", placeholder: "Open My Workspace to ask one of your papers…", Icon: FileStack },
 ];
-const STARTERS = ["graph neural networks", "NEP 2020 higher education India", "CRISPR off-target effects", "plagiarism detection techniques"];
 
 /** The "Indian sources" switch is remembered on this device (a convenience: without storage it simply starts off). */
 const SCOPE_KEY = "scholar.scope";

@@ -478,6 +478,30 @@ try {
   await ap.keyboard.press("Enter");
   await ap.locator(".chat-offer").waitFor({ timeout: 20000 });
   ok(/Check references/.test(await ap.locator(".chat-und").last().innerText()), "the words of a tool are enough for it to be offered, with no model");
+  // small talk, joined or not (docs/design/not-research.md): the page answers it, in the language it was written in, and never leaves the reader at a dead end
+  const talkTurn = () => ap.locator(".chat-turn").last();
+  const talkDone = () => ap.waitForFunction(() => !document.querySelector('.chat-turn[data-status="working"]'), null, { timeout: 30000 });
+  await ap.locator(".hm-input").fill("Hey How are you?");
+  await ap.keyboard.press("Enter");
+  await ap.locator(".chat-talk").waitFor({ timeout: 20000 });
+  const talkText = await talkTurn().innerText();
+  ok(/Hello! I'm doing well, thank you\. This box finds research papers and answers from them/.test(talkText) && !/I understood this as/.test(talkText) && await talkTurn().locator(".result").count() === 0, "'Hey How are you?' in Auto: a greeting answered by the page, with no 'I understood this as Search papers' and no papers");
+  ok(await talkTurn().locator(".chat-talk .chip-btn").count() === 4 && await talkTurn().getByRole("button", { name: "Search for these words anyway" }).isVisible(), "...with example searches to click and a way to search the words anyway");
+  await ap.waitForTimeout(900);
+  await ap.evaluate(() => window.scrollTo(0, 0));
+  await axe("small talk reply", ap);
+  const turnsBefore = await ap.locator(".chat-turn").count();
+  await talkTurn().locator(".chat-talk .chip-btn").first().click();
+  await ap.waitForFunction((n) => document.querySelectorAll(".chat-turn").length > n, turnsBefore, { timeout: 20000 });
+  await talkDone();
+  ok(/graph neural networks/.test(await ap.locator(".chat-list").innerText()) && await talkTurn().locator(".result").count() > 0, "an example search sends that search at once");
+  await ap.locator(".hm-input").fill("hello bhai kaise ho");
+  await ap.keyboard.press("Enter");
+  await ap.waitForFunction(() => /Namaste!/.test([...document.querySelectorAll(".chat-turn")].at(-1)?.textContent ?? ""), null, { timeout: 20000 });
+  ok(/Namaste! Main theek hu, shukriya\. Ye box research papers dhundta hai/.test(await talkTurn().innerText()), "a Hinglish greeting gets a Hinglish reply");
+  await talkTurn().getByRole("button", { name: "Search for these words anyway" }).click();
+  await talkDone();
+  ok(/Searching papers, as you chose/.test(await talkTurn().innerText()) && await talkTurn().locator(".chat-talk").count() === 0 && !/Namaste!/.test(await talkTurn().innerText()), "'Search for these words anyway' searches them as written, in the same place");
   await anon.close();
 
   console.log("storage that refuses");

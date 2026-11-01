@@ -49,7 +49,7 @@ export type ChatAnswer = {
 };
 
 /** Why a message has papers but no written answer. */
-export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_grounded" | "quota" | "unavailable" | "stopped" | "routed" | "too_long";
+export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_grounded" | "quota" | "unavailable" | "stopped" | "routed" | "too_long" | "small_talk";
 
 export type ChatEvent =
   /**

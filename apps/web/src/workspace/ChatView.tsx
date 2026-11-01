@@ -6,7 +6,8 @@ import { SignInDialog } from "../components/SignInDialog";
 import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
 import { StreamingText } from "../components/papers/AskPanel";
-import { cancelTighten, tightenReply } from "../lib/chat";
+import { cancelTighten, sendMessage, tightenReply } from "../lib/chat";
+import { STARTERS } from "./starters";
 import { openPreview } from "../lib/preview";
 import { easeOut, spring } from "../lib/motion";
 import { PAPERS_NAME } from "../lib/workspace";
@@ -23,6 +24,7 @@ const WHY: Record<ChatNoAnswer, string> = {
   unavailable: "Writing an answer is not available right now. The papers are below.",
   stopped: "Stopped.",
   routed: "",
+  small_talk: "",
   too_long: `This is too long for a search (${MAX_CHAT_CHARS} characters at most). Choose Check references or Idea Check, or write a shorter question.`,
 };
 
@@ -224,19 +226,19 @@ function Strict({ msg, signedIn }: { msg: AssistantMsg; signedIn: boolean }) {
   );
 }
 
-function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, onRefine, onOpenPage }: { msg: AssistantMsg; text: string; signedIn: boolean; flash: { msgId: string; n: number } | null; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void }) {
+function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, onRefine, onOpenPage }: { msg: AssistantMsg; text: string; signedIn: boolean; flash: { msgId: string; n: number } | null; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void }) {
   const working = msg.status === "working";
   const byN = (n: number) => msg.papers[n - 1];
   const answer = msg.answer?.grounded ? msg.answer : null;
   const titleOf = (n: number) => byN(n)?.title ?? `paper ${n}`;
   const routed = msg.status === "done" && msg.reason === "routed" && msg.mode !== "search";
   const quiet = useQuiet(msg);
-  const announce = working ? "" : msg.status === "done" ? (routed ? "Understood. A tool can be opened." : `${answer ? "Answer ready" : "Papers ready"}, ${msg.papers.length} ${msg.papers.length === 1 ? "paper" : "papers"}.`) : msg.status === "stopped" ? "Stopped." : msg.error ?? "This answer was interrupted.";
+  const announce = working ? "" : msg.status === "done" ? (msg.reason === "small_talk" ? "Reply ready." : routed ? "Understood. A tool can be opened." : `${answer ? "Answer ready" : "Papers ready"}, ${msg.papers.length} ${msg.papers.length === 1 ? "paper" : "papers"}.`) : msg.status === "stopped" ? "Stopped." : msg.error ?? "This answer was interrupted.";
 
   return (
     <div className="chat-turn" data-status={msg.status}>
       {/* while Auto is still reading the message the step list says so; the line comes once the tool is known (and not at all if the reply failed before that) */}
-      {msg.understood !== false && <Understood msg={msg} text={text} working={working} onChange={onChange} onExact={() => onRetry(msg.id, "search")} />}
+      {msg.understood !== false && msg.reason !== "small_talk" && <Understood msg={msg} text={text} working={working} onChange={onChange} onExact={() => onRetry(msg.id, "search")} />}
 
       {routed && msg.mode !== "search" && (
         <div className="chat-offer" role="group" aria-label="Open the tool">
@@ -288,7 +290,7 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, 
         <StreamingText text={msg.live} writing={msg.step === "write"} />
       ) : null}
 
-      {!working && !answer && msg.status === "done" && msg.reason && msg.reason !== "routed" && (
+      {!working && !answer && msg.status === "done" && msg.reason && msg.reason !== "routed" && msg.reason !== "small_talk" && (
         <p className="chat-why" role="note">
           {msg.reason === "sign_in" ? (
             <span className="chat-why-row">
@@ -301,6 +303,19 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, 
         </p>
       )}
       <Background msg={msg} question={text} onRefine={onRefine} />
+      {msg.status === "done" && msg.reason === "small_talk" && (
+        <div className="chat-talk">
+          <div className="hm-starters" role="group" aria-label="Example searches">
+            <span className="hm-try">Try</span>
+            {STARTERS.map((s) => (
+              <button key={s} type="button" className="chip-btn" onClick={() => sendMessage(s, "search")}>{s}</button>
+            ))}
+          </div>
+          <p className="chat-talk-any">
+            Not small talk? <button type="button" className="link-btn" onClick={() => onRetry(msg.id, "anyway")}>Search for these words anyway</button>
+          </p>
+        </div>
+      )}
       {msg.status === "stopped" && <p className="chat-why" role="note">Stopped. The papers found so far are below.</p>}
       {(msg.status === "error" || msg.status === "interrupted") && (
         <div className="ask-error" role="alert">
@@ -375,7 +390,7 @@ function IdeaTurn({ msg, live, onAgain }: { msg: IdeaMsg; live: boolean; onAgain
   );
 }
 
-export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onRefine, onOpenPage, onIdeaAgain }: { messages: ChatMsg[]; signedIn: boolean; liveIdeas: ReadonlySet<string>; onRetry: (id: string, as?: "search") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onIdeaAgain: (id: string) => void }) {
+export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onRefine, onOpenPage, onIdeaAgain }: { messages: ChatMsg[]; signedIn: boolean; liveIdeas: ReadonlySet<string>; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onIdeaAgain: (id: string) => void }) {
   const [flash, setFlash] = useState<{ msgId: string; n: number } | null>(null);
   const list = useRef<HTMLOListElement>(null);
 

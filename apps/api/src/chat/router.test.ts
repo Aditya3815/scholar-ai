@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_AUTO_CHARS, SMALL_TALK_REPLY, cleanAutoMessage, detectLanguage, isSmallTalk, looksLikeReferenceList, offlineRoute, ruleRoute } from "@scholar/shared";
+import { MAX_AUTO_CHARS, SMALL_TALK_REPLY, cleanAutoMessage, detectLanguage, isSmallTalk, looksLikeReferenceList, offlineRoute, ruleRoute, smallTalkReply } from "@scholar/shared";
 import { AllProvidersFailedError } from "../llm";
 import { ROUTER_SYSTEM, parseRoute, routeMessage, routerPrompt } from "./router";
 import { stubRoute } from "./stub-route";
@@ -191,7 +191,53 @@ describe("isSmallTalk", () => {
     "hello world dataset", "help desk ticket classification", "test time augmentation", "good practice guidelines for clinical trials", "thanks to graph neural networks", "what is a p-value",
     "who are the authors of attention is all you need", "how does CRISPR work", "how do vaccines work", "what can you do about microplastics", "ok computer", "nice to meet you in the literature", "yes no maybe survey design", "", "   ", "?!", "a".repeat(60),
   ])("%s is not", (t) => expect(isSmallTalk(t)).toBe(false));
-  it("the reply is plain, and the same in every language", () => {
+  it("the English reply says what the box is for", () => {
     expect(SMALL_TALK_REPLY).toMatch(/finds research papers and answers from them/);
+  });
+});
+
+// A greeting is not one phrase: it is any message made only of greeting, politeness and chit-chat words ("hey how are you", "hi thanks", "ok thanks bye").
+// The gate is safe by construction: a word that can be a topic is not in its word list, so one real word makes the message a search.
+describe("isSmallTalk: messages made only of filler words", () => {
+  it.each([
+    "Hey How are you?", "hello, how are you", "hi how are you doing today", "hey there, who are you?", "good morning, what can you do", "hello hello", "hi thanks", "ok thanks bye",
+    "thank you so much, that was helpful", "are you there", "can you help me", "lol", "hmm", "wow", "HELLO!", "HOW ARE YOU", "hellooo", "heyyy how r u", "what's up", "I'm fine thanks",
+    "namaste aap kaun ho", "hello bhai kaise ho", "hi, kya haal hai", "namaste, aap kaise ho", "नमस्ते आप कैसे हैं", "हेलो आप कौन हो", "what's your name", "who made you", "are you a bot",
+  ])("%s is small talk", (t) => expect(isSmallTalk(t)).toBe(true));
+  it.each([
+    // one word that can be a topic, and the message is a search
+    "BERT", "transformers", "WHO", "WHO guidelines", "Hey WHO guidelines", "Hi-C sequencing", "ME/CFS", "IT", "how are you doing metrics for student engagement", "hello world", "hey google dataset",
+    "good practice guidelines", "can you help me find papers on dengue", "are you a robot vacuum", "what is your name entity recognition", "hi 2020 survey", "thanks 2",
+  ])("%s is not", (t) => expect(isSmallTalk(t)).toBe(false));
+  it("a long run of filler is not read as small talk", () => {
+    expect(isSmallTalk("hi ".repeat(40))).toBe(false);
+  });
+});
+
+describe("smallTalkReply", () => {
+  it("opens with what suits the message, then says what the box is for", () => {
+    expect(smallTalkReply("hello", "en")).toBe(`Hello! ${SMALL_TALK_REPLY}`);
+    expect(smallTalkReply("Hey How are you?", "en")).toBe(`Hello! I'm doing well, thank you. ${SMALL_TALK_REPLY}`);
+    expect(smallTalkReply("how are you", "en")).toBe(`I'm doing well, thank you. ${SMALL_TALK_REPLY}`);
+    expect(smallTalkReply("thanks a lot", "en")).toBe(`You are welcome. ${SMALL_TALK_REPLY}`);
+    expect(smallTalkReply("ok thanks bye", "en")).toBe(`You are welcome. ${SMALL_TALK_REPLY}`);
+    expect(smallTalkReply("bye", "en")).toBe(`Goodbye. ${SMALL_TALK_REPLY}`);
+    expect(smallTalkReply("who are you", "en")).toBe(SMALL_TALK_REPLY);
+  });
+  it("is written in the language of the message", () => {
+    expect(smallTalkReply("hello bhai kaise ho", "hinglish")).toMatch(/^Namaste! Main theek hu, shukriya\. Ye box research papers dhundta hai/);
+    expect(smallTalkReply("shukriya", "hinglish")).toMatch(/^Koi baat nahi\./);
+    expect(smallTalkReply("नमस्ते आप कैसे हैं", "hi")).toMatch(/^नमस्ते! मैं ठीक हूँ, धन्यवाद। यह बॉक्स शोध पत्र खोजता है/);
+    expect(smallTalkReply("धन्यवाद", "hi")).toMatch(/^कोई बात नहीं।/);
+    expect(smallTalkReply("hello", "other")).toBe(`Hello! ${SMALL_TALK_REPLY}`);
+  });
+  it("is never empty, and makes no claim a paper could back", () => {
+    for (const t of ["hi", "thanks", "bye", "how are you", "who are you", "lol", "नमस्ते", "kaise ho"]) {
+      for (const lang of ["en", "hinglish", "hi", "other"] as const) {
+        const r = smallTalkReply(t, lang);
+        expect(r.length).toBeGreaterThan(20);
+        expect(r).not.toMatch(/https?:|\bdoi\b|\d/i);
+      }
+    }
   });
 });

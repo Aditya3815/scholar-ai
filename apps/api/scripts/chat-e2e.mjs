@@ -218,6 +218,15 @@ try {
   const hindiHi = await chat(A, "नमस्ते", { mode: "auto" });
   ok(types(hindiHi.events).join() === "understood,general,done" && understood(hindiHi).auto === true && understood(hindiHi).how === "rules", "a greeting in Hindi is the same, and Auto does not call its router for it");
   ok(types((await chat(A, "hello world dataset")).events).includes("papers"), "a message that only starts like a greeting is still searched");
+  // not one phrase but any message made only of greeting and chit-chat words (docs/design/not-research.md)
+  const talk2 = await chat(A, "Hey How are you?", { mode: "auto" });
+  ok(types(talk2.events).join() === "understood,general,done" && talk2.events.at(-1).reason === "small_talk" && /^Hello! I'm doing well, thank you\. This box finds research papers/.test(bg(talk2)?.text ?? ""), "a joined greeting ('Hey How are you?') is small talk too: one line that suits it, no search, no model");
+  const talk3 = await chat(A, "hello bhai kaise ho", { mode: "auto" });
+  ok(understood(talk3).language === "hinglish" && /^Namaste! Main theek hu, shukriya\./.test(bg(talk3)?.text ?? "") && talk3.events.at(-1).reason === "small_talk", "...in the language it was written in (Hinglish)");
+  ok(types((await chat(A, "BERT", { mode: "auto" })).events).includes("papers") && types((await chat(A, "WHO guidelines")).events).includes("papers"), "a one-word topic, or an acronym next to a word, is a search: no real word is taken for small talk");
+  const any1 = await chat(A, "Hey How are you?", { raw: JSON.stringify({ mode: "search", message: "Hey How are you?", anyway: true }) });
+  ok(types(any1.events).includes("papers") && any1.events.at(-1).reason !== "small_talk", "'Search for these words anyway' searches them as written");
+  ok((await chat(A, "hello", { raw: JSON.stringify({ mode: "auto", message: "hello", anyway: true }) })).res.status === 400 && (await chat(A, "hello", { raw: JSON.stringify({ mode: "search", message: "hello", anyway: "yes" }) })).res.status === 400, "the option is only for a search chosen by hand, and only true");
 
   console.log("Auto: the model decides (signed in)");
   const a4 = await auto(A, "mere references check karo");

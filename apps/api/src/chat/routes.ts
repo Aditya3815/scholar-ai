@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { NOTHING_NOTICE, PARTIAL_NOTICE, SMALL_TALK_REPLY, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, ruleRoute, slimForInterim, type ChatAnswer, type ChatCitation, type ChatEvent, type TightenResponse, type ChatNoAnswer, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
+import { NOTHING_NOTICE, PARTIAL_NOTICE, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatEvent, type TightenResponse, type ChatNoAnswer, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
@@ -94,11 +94,14 @@ function routeCompleteFor(env: Bindings, subject: string): Complete {
  */
 chatRoutes.post("/", async (c) => {
   if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const body = (await c.req.json().catch(() => null)) as { mode?: unknown; message?: unknown; scope?: unknown } | null;
+  const body = (await c.req.json().catch(() => null)) as { mode?: unknown; message?: unknown; scope?: unknown; anyway?: unknown } | null;
   if (!body || (body.mode !== "search" && body.mode !== "auto")) return deny(c, 400, "invalid_mode", "That mode is not available");
   // where a search looks: the regular sources, or only Indian ones when the reader turned that on (an unknown value is refused, not quietly widened)
   if (body.scope !== undefined && !isSearchScope(body.scope)) return deny(c, 400, "invalid_scope", "That search scope is not available");
   const scope: SearchScope = isSearchScope(body.scope) ? body.scope : "all";
+  // "Search for it anyway": the reader says the words are to be searched as written, whatever they look like (only a search chosen by hand can carry it)
+  if (body.anyway !== undefined && (body.anyway !== true || body.mode !== "search")) return deny(c, 400, "invalid_flag", "That option is not available");
+  const anyway = body.anyway === true;
   const auto = body.mode === "auto";
   const text = auto ? cleanAutoMessage(body.message) : cleanChatMessage(body.message);
   if (!text) return deny(c, 400, "invalid_message", auto ? "Write something, at most 20,000 characters" : "Write 2 to 300 characters");
@@ -139,8 +142,8 @@ chatRoutes.post("/", async (c) => {
 
     try {
       let route: Route;
-      // a greeting, thanks or "what can you do" is answered by the box itself: no router, no search, no model, the same for a visitor who is not signed in
-      const talk = isSmallTalk(text);
+      // a greeting, thanks or "what can you do" is answered by the box itself: no router, no search, no model, the same for a visitor who is not signed in (unless the reader asked for the search anyway)
+      const talk = !anyway && isSmallTalk(text);
       if (auto && !talk) {
         // the rules settle most messages without a model; only when they cannot, a step says so while the model looks
         if (user && !ruleRoute(text)) await send({ type: "step", step: "route" });
@@ -153,8 +156,8 @@ chatRoutes.post("/", async (c) => {
       await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}), ...(scope !== "all" && route.mode === "search" ? { scope } : {}) });
       if (talk) {
         outcome = "small_talk";
-        await send({ type: "general", kind: "not_research", text: SMALL_TALK_REPLY });
-        return void (await done(false));
+        await send({ type: "general", kind: "not_research", text: smallTalkReply(text, route.language) });
+        return void (await done(false, "small_talk"));
       }
       // another tool: nothing runs here; the browser offers to open it
       if (route.mode !== "search") return void (await done(false, "routed"));
