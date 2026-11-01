@@ -3,6 +3,7 @@ import { SearchX, WifiOff } from "lucide-react";
 import { getThemePref } from "./lib/prefs";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Footer } from "./components/Footer";
+import { useConversing } from "./lib/chat";
 import { PaperPreview } from "./components/PaperPreview";
 import { OaAskSheet } from "./components/oa/OaAskSheet";
 import { ResultCard, SkeletonCard } from "./components/ResultCard";
@@ -75,6 +76,7 @@ export function App() {
   const inputRef = useRef<HTMLInputElement>(null);
   const homeRef = useRef<HTMLTextAreaElement>(null);
   const { user, status: authStatus } = useAuth();
+  const conversing = useConversing();
 
   // Real URLs (/ and /verify) with back/forward support; no router library for two pages.
   useEffect(() => {
@@ -174,7 +176,9 @@ export function App() {
     } else {
       history.replaceState(null, "", location.pathname);
     }
-    window.setTimeout(() => (inputRef.current ?? homeRef.current)?.focus(), 0);
+    // "back to the start": the top of the page, with the box ready to type in; focusing must not scroll, or it would carry the reader down again
+    window.scrollTo(0, 0);
+    window.setTimeout(() => (inputRef.current ?? homeRef.current)?.focus({ preventScroll: true }), 0);
   };
   useBaseCommands({ navigate, goHome, openSheet });
   /** The intro page's "Try it without signing in". */
@@ -317,7 +321,7 @@ export function App() {
   return (
     <MotionConfig reducedMotion="user">
       <LazyMotion features={loadFeatures} strict={false}>
-        <Shell view={view === "search" ? "home" : view} onNavigate={navigate} onHome={goHome} title={view === "search" && idle ? "Home" : TITLES[view].replace(" · Sodhsetu", "")} focus={view === "papers" && !!route.docId} footer={view === "papers" ? null : <Footer />}>
+        <Shell view={view === "search" ? "home" : view} onNavigate={navigate} onHome={goHome} title={view === "search" && idle ? "Home" : TITLES[view].replace(" · Sodhsetu", "")} focus={view === "papers" && !!route.docId} footer={view === "papers" || (view === "search" && conversing) ? null : <Footer />}>
           {noticeEl}
           {mainEl}
         </Shell>

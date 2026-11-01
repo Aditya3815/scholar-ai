@@ -470,8 +470,10 @@ kbd {
 @media (hover: none) { .ws-recent-x { opacity: 1; } }
 .ws-recent-x:hover { background: var(--border); color: var(--text); }
 @media (max-width: 640px) { .chat-bubble { max-width: 95%; } .hm[data-chat="true"] .hm-box { bottom: 0.4rem; } }
-/* the box stays at the bottom of the window while a conversation is on screen: what is focused or scrolled to must not end up behind it (WCAG 2.4.11) */
-html:has(.hm[data-chat="true"]) { scroll-padding-bottom: 9rem; }
+/* the box stays at the bottom of the window while a conversation is on screen: what is focused or scrolled to inside the conversation must not end up behind it (WCAG 2.4.11).
+   It is a margin on those things and not scroll-padding on the page: padding would also reach the box's own text field, which sits inside the padded zone by design, and the browser
+   would keep scrolling the page to get it out from behind itself (the page crept down with every letter typed and jumped when the field was focused). */
+.hm[data-chat="true"] .chat-list :is(a[href], button, input, select, textarea, summary, [tabindex], [id]) { scroll-margin-bottom: 9rem; }
 
 /* ---------- General background (W5): apart from the papers, always labelled ---------- */
 .chat-general { display: grid; gap: 0.5rem; padding: 0.8rem 1rem; border: 1px dashed var(--border-strong); border-radius: var(--radius); background: var(--surface-2); }

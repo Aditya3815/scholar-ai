@@ -10,7 +10,7 @@ import { PAPERS_NAME, putHandoff } from "../lib/workspace";
 import { Pop } from "../components/Pop";
 import { ContinueReading, RememberThis } from "./HomeExtras";
 import { ChatView } from "./ChatView";
-import { resumeChat, retryReply, reviveIdea, sendMessage, startIdeaCheck, startNewChat, stopReply, useChatState } from "../lib/chat";
+import { resumeChat, retryReply, reviveIdea, sendMessage, startIdeaCheck, startNewChat, stopReply, useChatState, useConversing } from "../lib/chat";
 import { STARTERS } from "./starters";
 
 /**
@@ -119,7 +119,8 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
   // the conversation of this tab: the box glides to the bottom once there is one
   const chat = useChatState();
   const messages = chat.active ? chat.chats.get(chat.active) ?? [] : [];
-  const conversing = messages.length > 0;
+  const conversing = useConversing();
+  const glide = useMemo(() => ({}), [chat.chats, chat.active]);
   const busy = !!chat.active && chat.running.has(chat.active);
   const title = chat.index.find((e) => e.id === chat.active)?.title ?? "New chat";
   const [problem, setProblem] = useState<string | null>(null);
@@ -219,7 +220,9 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
 
       {conversing && <ChatView messages={messages} signedIn={!!user} onRetry={(rid, as) => void retryReply(rid, as)} liveIdeas={chat.liveIdeas} onOpenPage={openPage} onIdeaAgain={reviveIdea} onChange={changeMode} onRefine={(t) => { onQuery(t); window.setTimeout(() => inputRef.current?.focus(), 0); }} />}
 
-      <m.form className="hm-box" layout="position" transition={{ type: "spring", stiffness: 260, damping: 30 }} onSubmit={(e) => { e.preventDefault(); if (busy) stopReply(); else send(); }} {...(conversing ? {} : rise(3))}>
+      {/* the box's layout is measured when the conversation changes (the glide to the bottom, then as the answer grows the page) and not on every letter typed: measured on every render, which is the
+          default, a long question typed after a search ended in React's limit of 50 nested updates ("Maximum update depth exceeded", error 185) */}
+      <m.form className="hm-box" layout="position" layoutDependency={glide} transition={{ type: "spring", stiffness: 260, damping: 30 }} onSubmit={(e) => { e.preventDefault(); if (busy) stopReply(); else send(); }} {...(conversing ? {} : rise(3))}>
         <label className="sr-only" htmlFor={`${id}-in`}>Your question or text</label>
         <textarea
           id={`${id}-in`}

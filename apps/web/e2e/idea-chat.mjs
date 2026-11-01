@@ -73,6 +73,11 @@ try {
   await note.waitFor();
   ok(requests.length === 0, "a person who has not read the privacy note yet is asked to, before anything is read (nothing sent)");
   await page.waitForTimeout(700);
+  // the workspace is loaded after it is opened: when it has arrived it is brought to the top of the window, so what the reader has to act on is in view and not under the box at the bottom
+  const ideaTop = await page.locator(".chat-idea").evaluate((el) => Math.round(el.getBoundingClientRect().top));
+  const cardBottom = await note.evaluate((el) => Math.round(el.getBoundingClientRect().bottom));
+  const boxTop = await page.locator(".hm-box").evaluate((el) => Math.round(el.getBoundingClientRect().top));
+  ok(ideaTop < 120 && cardBottom < boxTop, `the Idea Check opened in the conversation is brought to the top once it has loaded, its privacy note clear of the box (it starts at ${ideaTop}px, the note ends at ${cardBottom}px, the box starts at ${boxTop}px)`);
   await axe("idea in the conversation, privacy note", page);
   await note.getByRole("button", { name: "I understand, continue" }).click();
   await note.waitFor({ state: "detached", timeout: 8000 });

@@ -504,6 +504,64 @@ try {
   ok(/Searching papers, as you chose/.test(await talkTurn().innerText()) && await talkTurn().locator(".chat-talk").count() === 0 && !/Namaste!/.test(await talkTurn().innerText()), "'Search for these words anyway' searches them as written, in the same place");
   await anon.close();
 
+  console.log("the page does not move under the reader");
+  // While a conversation is on screen the box is fixed to the bottom of the window. A rule meant to keep focused things clear of it (scroll-padding on the whole page) also applied to the
+  // box's own text field, so the browser kept trying to scroll the field out from behind the box it sits in: the page crept down with every letter typed, and jumped when the logo focused the field.
+  const still = await newCtx({ viewport: { width: 1360, height: 560 } });
+  const sp = await still.newPage();
+  watch(sp);
+  await sp.goto(BASE + "/home", { waitUntil: "networkidle" });
+  await sp.locator("#hm-h").waitFor({ timeout: 20000 });
+  ok(await sp.locator("footer.footer").count() === 1, "the footer (sources, How we verify, Privacy, Terms) is on the home screen");
+  const settle = (p) => p.waitForFunction(() => !document.querySelector('.chat-turn[data-status="working"]') && document.querySelectorAll(".chat-turn").length > 0, null, { timeout: 30000 });
+  const scrollY = (p) => p.evaluate(() => Math.round(window.scrollY));
+  for (const q of ["glaucoma screening", "diabetic retinopathy"]) {
+    await sp.locator(".hm-input").fill(q);
+    await sp.keyboard.press("Enter");
+    await settle(sp);
+    await sp.waitForTimeout(700);
+  }
+  const room = await sp.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+  ok(room > 1200, `(two searches make a page long enough to scroll: ${room}px)`);
+  ok(await sp.locator("footer.footer").count() === 0, "once a search has been asked the footer is not shown under the conversation");
+  await sp.evaluate(() => window.scrollTo(0, 400));
+  const rest = await scrollY(sp);
+  await sp.locator(".hm-input").click();
+  await sp.waitForTimeout(150);
+  ok(await scrollY(sp) === rest, `clicking into the box does not scroll the page (${rest} then ${await scrollY(sp)})`);
+  let crept = 0;
+  for (const ch of "and what about the cost of screening in rural clinics") {
+    await sp.keyboard.type(ch);
+    await sp.waitForTimeout(25);
+    if (await scrollY(sp) !== rest) crept++;
+  }
+  ok(crept === 0, `typing in the box does not move the page (it moved on ${crept} of 53 letters)`);
+  await sp.keyboard.type(" and then a much longer follow up that keeps going so that the box has to wrap onto a second and a third line, because that is how a real person writes a question");
+  await sp.waitForTimeout(300);
+  ok(await sp.evaluate(() => document.querySelector(".hm-input").clientHeight > 40), "(the box grew to a second line)");
+  ok(await scrollY(sp) === rest, `...nor when the box grows to more lines (${rest} then ${await scrollY(sp)})`);
+  await sp.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const end = await scrollY(sp);
+  await sp.keyboard.type(" and one more thing");
+  await sp.waitForTimeout(200);
+  ok(errors.length === 0, `typing a long question after a search raises no error (React stops at 50 nested updates in a row: ${errors.length ? errors[0].slice(0, 60) : "none raised"})`);
+  ok(Math.abs(await scrollY(sp) - end) <= 1, `...and at the very end of the page it stays where it is (${end} then ${await scrollY(sp)})`);
+  await sp.evaluate(() => window.scrollTo(0, 600));
+  await sp.locator(".ws-logo").click();
+  await sp.waitForTimeout(500);
+  ok(await scrollY(sp) === 0, `the logo brings the reader to the top of the page, not down it (${await scrollY(sp)})`);
+  ok(await sp.evaluate(() => document.activeElement?.classList.contains("hm-input")), "...with the box ready to type in");
+  // what the page rule was for: a focused button in the conversation must not end up behind the box (WCAG 2.4.11 Focus Not Obscured)
+  await sp.evaluate(() => window.scrollTo(0, 0));
+  await sp.locator(".chat-turn").last().locator(".result").last().getByRole("button").last().focus();
+  await sp.waitForTimeout(150);
+  const clear = await sp.evaluate(() => ({ bottom: document.activeElement.getBoundingClientRect().bottom, boxTop: document.querySelector(".hm-box").getBoundingClientRect().top }));
+  ok(clear.bottom <= clear.boxTop + 1, `a button reached by the keyboard is scrolled clear of the box (its bottom ${Math.round(clear.bottom)}, the box starts at ${Math.round(clear.boxTop)})`);
+  await sp.getByRole("button", { name: "New chat" }).first().click();
+  await sp.locator("footer.footer").waitFor({ timeout: 5000 });
+  ok(true, "...and a new chat brings it back");
+  await still.close();
+
   console.log("storage that refuses");
   const blocked = await newCtx();
   await blocked.addInitScript(() => { const open = indexedDB.open.bind(indexedDB); indexedDB.open = (...a) => { if (a[0] === "scholar") throw new DOMException("blocked", "SecurityError"); return open(...a); }; });

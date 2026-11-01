@@ -44,15 +44,15 @@ const set = (next: Partial<State>) => {
 };
 const setChat = (id: string, msgs: ChatMsg[]) => set({ chats: new Map(state.chats).set(id, msgs) });
 
-export const useChatState = (): State =>
-  useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => state,
-    () => state,
-  );
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => listeners.delete(l);
+};
+export const useChatState = (): State => useSyncExternalStore(subscribe, () => state, () => state);
+
+const isConversing = () => !!state.active && (state.chats.get(state.active)?.length ?? 0) > 0;
+/** Whether this tab has a conversation on screen. A boolean snapshot: what uses it renders again only when it flips, not on every event of a streaming reply. */
+export const useConversing = (): boolean => useSyncExternalStore(subscribe, isConversing, isConversing);
 
 const newId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID().replace(/-/g, "").slice(0, 20) : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`);
 

@@ -359,6 +359,17 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, 
   );
 }
 
+/**
+ * Calls `onShown` once, when it first appears: placed beside something that loads late, inside the same Suspense, it appears when that does.
+ * The effect must return nothing: React takes a returned value for the clean-up, and `scrollIntoView` returns a Promise in current browsers.
+ */
+function WhenShown({ onShown }: { onShown: () => void }) {
+  useEffect(() => {
+    onShown();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
 /** A long message (a pasted list of references) is shown by its start. */
 const SHOWN = 400;
 
@@ -367,13 +378,16 @@ const SHOWN = 400;
  * An Idea Check in the conversation. While it runs here it is the Idea Check workspace itself: it reads the idea and proposes a search plan, which the person edits and approves
  * before anything is searched, then shows the closest papers and the comparison. After a reload only the idea's text is left (nothing about an idea is stored).
  */
-function IdeaTurn({ msg, live, onAgain }: { msg: IdeaMsg; live: boolean; onAgain: (id: string) => void }) {
+function IdeaTurn({ msg, live, last, onAgain }: { msg: IdeaMsg; live: boolean; last: boolean; onAgain: (id: string) => void }) {
+  const section = useRef<HTMLElement>(null);
   return (
-    <section className="chat-idea" aria-label="Idea Check">
+    <section ref={section} className="chat-idea" aria-label="Idea Check">
       <p className="chat-idea-kicker"><Lightbulb size={15} aria-hidden="true" /> <b>Idea Check</b></p>
       {live ? (
         <Suspense fallback={<p className="chat-why" role="status">Opening Idea Check…</p>}>
           <IdeaWorkspace initialText={msg.text} autoPlan embedded />
+          {/* the workspace arrives after the section was first scrolled to (the page below it was short then): once it is here, the section goes to the top of the window again, so what the reader has to act on is not under the box */}
+          {last && <WhenShown onShown={() => { section.current?.scrollIntoView({ block: "start", behavior: "auto" }); }} />}
         </Suspense>
       ) : (
         <p className="chat-why" role="note">
@@ -421,7 +435,7 @@ export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onR
           return (
             <li key={msg.id} className={msg.role === "user" ? "chat-u" : msg.role === "idea" ? "chat-a chat-idea-li" : "chat-a"}>
               {msg.role === "idea" ? (
-                <IdeaTurn msg={msg} live={liveIdeas.has(msg.id)} onAgain={onIdeaAgain} />
+                <IdeaTurn msg={msg} live={liveIdeas.has(msg.id)} last={at === messages.length - 1} onAgain={onIdeaAgain} />
               ) : msg.role === "user" ? (
                 <m.p className="chat-bubble" initial={{ opacity: 0, y: 10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={spring}>
                   <Search size={13} aria-hidden="true" /> {msg.text.length > SHOWN ? `${msg.text.slice(0, SHOWN)}…` : msg.text}
