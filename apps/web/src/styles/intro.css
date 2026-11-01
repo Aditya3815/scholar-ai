@@ -1,6 +1,6 @@
 /* ============================================================================================================
    The intro page (signed out): a short film in nine scenes. Built in workspace/intro/ (Film.tsx, engine.ts); design notes in docs/design/cinematic-story.md.
-   Each scene writes a few variables (engine.ts); their defaults here are the finished state, which is the stacked layout for phones and reduced motion.
+   Each scene writes a few variables (engine.ts); their defaults here are the finished state, which is the stacked layout for reduced motion.
    Only transform, opacity, filter (two places), clip-path and one canvas move. Every colour is a product token, so Light, Dark and Read all work.
    ============================================================================================================ */
 .intro { --in-head: 3.9rem; background: var(--bg); color: var(--text); }
@@ -29,8 +29,14 @@
 .in-cta .provider-btn:hover { border-color: var(--accent); }
 
 /* ---------- the film: chrome ---------- */
-.fm { --lb: 0; position: relative; }
-.fm-bars::before, .fm-bars::after { content: ""; position: fixed; left: 0; right: 0; z-index: 30; height: calc(var(--lb) * 8.5vh); background: #000; pointer-events: none; }
+.fm { --lb: 0; --u: 1vh; --bar-max: 8.5; position: relative;
+  /* the room a frame leaves for the film: under the header, between the two black bars, with margins (a window's own unit where the browser has the small one: a phone's address bar) */
+  --bar: calc(var(--bar-max) * var(--u));
+  --pad-x: max(clamp(1.1rem, 5vw, 4rem), env(safe-area-inset-left), env(safe-area-inset-right));
+  --pad-t: calc(var(--in-head) + var(--bar) + 0.8rem);
+  --pad-b: max(calc(var(--bar) + 0.8rem), 3.5rem); } /* at least the strip of scenes (a fixed pill at the foot) and its margin */
+@supports (height: 1svh) { .fm { --u: 1svh; } }
+.fm-bars::before, .fm-bars::after { content: ""; position: fixed; left: 0; right: 0; z-index: 30; height: calc(var(--lb) * var(--bar)); background: #000; pointer-events: none; }
 /* the top bar starts under the header, so the header never shows the black through its glass (it turned grey, with faint links, in the light themes) */
 .fm-bars::before { top: var(--in-head); }
 .fm-bars::after { bottom: 0; }
@@ -54,7 +60,10 @@
 .fm-scene { position: relative; }
 .fm[data-mode="anim"] .fm-scene { height: calc(var(--vh) * 1vh); }
 .fm-frame { position: relative; display: grid; place-items: center; padding: clamp(3rem, 9vh, 6rem) clamp(1.1rem, 5vw, 4rem); overflow: clip; }
-.fm[data-mode="anim"] .fm-frame { position: sticky; top: 0; height: 100vh; padding-block: calc(8.5vh + 2.5rem); }
+/* one row and one column the size of the frame: content taller than the room is centred in it, and scaled about its centre, instead of hanging down from the top of the room */
+.fm[data-mode="anim"] .fm-frame { position: sticky; top: 0; height: 100vh; height: 100svh; padding: var(--pad-t) var(--pad-x) var(--pad-b); grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
+/* what a scene shows is scaled to the room the frame has (engine.ts, fitScenes): nothing is cut off, in a window of any shape */
+:where(.fm[data-mode="anim"]) [data-fit] { transform: scale(var(--fit, 1)); }
 .fm[data-mode="static"] .fm-scene + .fm-scene { border-top: 1px solid var(--border); }
 .fm-stack > * + * { margin-top: 1.4rem; }
 .fm-center { text-align: center; display: grid; justify-items: center; }
@@ -92,7 +101,7 @@
 /* 3 the question: twelve papers arrive from far away; one is retracted */
 /* longer than the others: the pause after the send is part of the shot */
 .fm-s-question { --vh: 460; }
-.fm-q { width: min(67rem, 100%); display: grid; gap: clamp(18px, 3vh, 34px); justify-items: center; transform: scale(calc(1 + var(--lean, 0) * 0.035)); }
+.fm-q { width: min(67rem, 100%); display: grid; gap: clamp(18px, 3vh, 34px); justify-items: center; transform: scale(calc(var(--fit, 1) * (1 + var(--lean, 0) * 0.035))); }
 .fm-q .fm-sample { justify-self: center; }
 .fm-qshot { position: relative; width: min(45rem, 100%); }
 .fm-bloom { position: absolute; left: 50%; top: 50%; width: 140%; height: 420%; translate: -50% -50%; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 55%, transparent), transparent 72%); opacity: calc(var(--bloom, 0) * 0.9); transform: scale(calc(0.6 + var(--bloom, 0) * 0.5)); pointer-events: none; }
@@ -132,14 +141,14 @@
 .fm-a-text .fm-chip { font-size: 0.5em; position: relative; }
 .fm-a-text .fm-chip::after { content: ""; position: absolute; inset: -6px; border-radius: 999px; border: 2px solid var(--accent); opacity: var(--ring, 0); transform: scale(calc(1 + var(--ring, 0) * 0.25)); }
 .fm-a-note { margin: 0; color: var(--muted); font-size: 1.05rem; opacity: var(--at, 1); }
-.fm-iris { position: absolute; inset: 0; display: grid; place-items: center; padding: calc(8.5vh + 2.5rem) clamp(1.1rem, 5vw, 4rem);
+.fm-iris { position: absolute; inset: 0; display: grid; place-items: center; padding: var(--pad-t) var(--pad-x) var(--pad-b);
   background: radial-gradient(circle at var(--cx, 50%) var(--cy, 50%), color-mix(in srgb, var(--accent) 20%, var(--surface-2)), var(--surface-2) 55%);
   clip-path: circle(var(--r, 150vmax) at var(--cx, 50%) var(--cy, 50%)); }
 .fm-iris-ring { position: absolute; left: var(--cx, 50%); top: var(--cy, 50%); width: calc(var(--r, 0px) * 2); height: calc(var(--r, 0px) * 2); translate: -50% -50%; border-radius: 50%; border: 2px solid var(--accent); box-shadow: 0 0 40px 6px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 0 40px 6px color-mix(in srgb, var(--accent) 30%, transparent); opacity: var(--ro, 0); pointer-events: none; }
 .fm[data-mode="static"] .fm-iris { position: relative; clip-path: none; margin-top: 2rem; border-radius: var(--radius-l); padding: clamp(1.2rem, 4vw, 2.5rem); }
 .fm[data-mode="static"] .fm-iris-ring { display: none; }
 .fm[data-mode="static"] .fm-s-answer .fm-frame { display: block; }
-.fm-abs { width: min(54rem, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-l); box-shadow: var(--shadow-2); padding: clamp(1.2rem, 3.5vw, 2.5rem); opacity: var(--ab, 1); transform: scale(calc(0.92 + var(--ab, 1) * 0.08)); }
+.fm-abs { width: min(54rem, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-l); box-shadow: var(--shadow-2); padding: clamp(1.2rem, 3.5vw, 2.5rem); opacity: var(--ab, 1); transform: scale(calc((0.92 + var(--ab, 1) * 0.08) * var(--fit, 1))); }
 .fm-abs-meta { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin: 0; font: 600 0.78rem/1.2 var(--font-mono); color: var(--muted); }
 .fm-abs-meta .fm-chip { font-size: 0.9rem; }
 .fm-abs h3 { margin: 0.7rem 0 0; font-family: var(--font-serif); font-size: clamp(1.3rem, 2.2vw, 1.75rem); line-height: 1.2; }
@@ -202,9 +211,9 @@
 .fm-s-workspace { --vh: 400; }
 .fm-ws { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 72px); align-items: center; }
 .fm-ws-left { display: grid; gap: 14px; justify-items: center; }
-.fm-file { display: inline-flex; align-items: center; gap: 0.55rem; padding: 0.5rem 0.85rem; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); font: 600 0.86rem/1 var(--font-ui); box-shadow: var(--shadow-1); opacity: var(--fd, 1); transform: translateY(calc((1 - var(--fd, 1)) * -60px)) rotate(calc((1 - var(--fd, 1)) * -8deg)); }
+.fm-file { display: inline-flex; align-items: center; gap: 0.55rem; padding: 0.5rem 0.85rem; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); font: 600 0.86rem/1 var(--font-ui); box-shadow: var(--shadow-1); opacity: calc(var(--fd, 1) * (1 - var(--bk, 0))); transform: translateY(calc((1 - var(--fd, 1)) * -60px)) rotate(calc((1 - var(--fd, 1)) * -8deg)); }
 .fm-file b { color: var(--ok); }
-.fm-book { position: relative; width: min(26rem, 100%, calc((100vh - 17vh - 190px) / 1.28)); aspect-ratio: 1 / 1.28; perspective: 1600px; opacity: var(--po, 1); transform: scale(calc(0.86 + var(--po, 1) * 0.14)); }
+.fm-book { position: relative; width: min(26rem, 100%, calc((100vh - 17vh - 190px) / 1.28)); aspect-ratio: 1 / 1.28; perspective: 1600px; opacity: calc(var(--po, 1) * (1 - var(--bk, 0))); transform: scale(calc((0.86 + var(--po, 1) * 0.14) * (1 - var(--bk, 0) * 0.08))); }
 .fm-leaf { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateY(calc(var(--fl, 1) * -180deg)); }
 .fm-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; background: #fbfaf6; color: #23252b; border-radius: 6px; box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.6), 0 2px 8px rgb(0 0 0 / 0.25); padding: 9% 10%; font-family: var(--font-serif); overflow: hidden; }
 .fm-face.is-back { transform: rotateY(180deg); }
@@ -232,6 +241,7 @@
 /* the ring may reach past the first letter of a line: the page's text has a little room on each side */
 .fm-face-body { padding-inline: 0.5em; margin-inline: -0.5em; }
 .fm-ws-right { display: grid; gap: 1rem; }
+.fm-ws-qa { display: contents; }
 .fm-ask { justify-self: end; margin: 0; max-width: 30ch; padding: 0.85rem 1.05rem; border-radius: 18px; border-bottom-right-radius: 6px; background: var(--accent); color: var(--accent-fg); line-height: 1.5; opacity: var(--wq, 1); transform: translateY(calc((1 - var(--wq, 1)) * 16px)); }
 .fm-ans { padding: 1rem 1.15rem; border-radius: 18px; border-bottom-left-radius: 6px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-2); opacity: var(--wa, 1); transform: translateY(calc((1 - var(--wa, 1)) * 16px)); }
 .fm-ans p { margin: 0; font-family: var(--font-serif); font-size: clamp(1.15rem, 1.8vw, 1.45rem); line-height: 1.35; }
@@ -261,14 +271,69 @@
 .fm-credits li { font-size: 0.95rem; color: var(--muted); }
 .fm-credits b { color: var(--text); font-weight: 600; }
 
-/* ---------- narrow screens (the stacked layout) ---------- */
+/* ---------- narrow screens (a phone, a tablet upright) ---------- */
 @media (max-width: 56rem) {
+  .fm { --bar-max: 4.5; }
+  .fm-tc { display: none; }
+  .fm-stamp { right: 4px; }
+}
+/* the layouts that fold into one column need height as well as narrowness: a phone on its side is wide enough for two columns and has no room to stack them */
+@media (max-width: 56rem) and (min-height: 34rem) {
   .fm-papers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fm-proof, .fm-india, .fm-ws { grid-template-columns: minmax(0, 1fr); }
   .fm-proof, .fm-ws-left { justify-items: center; }
   .fm-ln { white-space: normal; }
+  .fm-ring { width: clamp(150px, 44vw, 210px); }
+  .fm-num strong { font-size: clamp(2.2rem, 10vw, 3.2rem); }
+  .fm-deva { font-size: clamp(7rem, 40vw, 12rem); }
+}
+/* My Workspace on a narrow screen plays in two beats in one place: the page, marked and turned to the quoted page; then the book steps back and the question and its answer take its place */
+@media (max-width: 56rem) and (min-height: 34rem) {
+  .fm[data-mode="anim"] .fm-ws { gap: 0.9rem; }
+  .fm[data-mode="anim"] .fm-ws-right { display: contents; }
+  .fm[data-mode="anim"] .fm-ws h2 { grid-row: 1; }
+  .fm[data-mode="anim"] .fm-ws-left { grid-row: 2; grid-column: 1; }
+  .fm[data-mode="anim"] .fm-ws-qa { grid-row: 2; grid-column: 1; display: grid; align-content: center; gap: 0.9rem; }
+  .fm[data-mode="anim"] .fm-ws .fm-sample { grid-row: 3; justify-self: center; }
+  .fm[data-mode="anim"] .fm-book { width: min(24rem, 100%, calc((100svh - var(--pad-t) - var(--pad-b) - 13rem) / 1.28)); }
 }
 @media (max-width: 32rem) {
   .fm-papers .fm-paper:nth-child(n + 7) { display: none; }
   .fm-title-name { font-size: 3.2rem; }
+  .fm-chapter { gap: 0.6rem; font-size: 0.7rem; letter-spacing: 0.18em; }
+  .fm-chapter::before { width: 22px; }
+}
+/* the scenes of a small screen's strip: smaller buttons, so nine of them fit a narrow window */
+@media (max-width: 26rem) {
+  .fm-strip { gap: 4px; padding: 5px 6px; }
+  .fm-strip button { width: 20px; height: 24px; }
+  .fm-strip button[aria-current="true"] { width: 34px; }
+  .fm-strip i { width: 11px; }
+  .fm-strip [aria-current="true"] i { width: 24px; }
+}
+/* a phone is not given the film grain: it blends the whole screen at every frame, for a texture a small screen hardly shows */
+@media (pointer: coarse) { .fm-grain { display: none; } }
+/* a window that is not tall (a phone on its side, a short browser): a slimmer header, no black bars, the scenes of the strip down the right edge instead of across the foot (where they
+   would be on the picture), and each scene says a little less, so that what it keeps is large enough to read */
+@media (max-height: 34rem) {
+  .intro { --in-head: 3rem; }
+  .fm { --bar-max: 0; --pad-b: 0.8rem; --pad-x: max(clamp(1.1rem, 5vw, 4rem), 3.4rem, env(safe-area-inset-left), env(safe-area-inset-right)); } /* room at the sides for the strip */
+  .fm-tc { display: none; }
+  .fm-strip { left: auto; right: 6px; bottom: auto; top: 50%; transform: translateY(-50%); flex-direction: column; padding: 8px 6px; }
+  .fm-strip button { width: 24px; height: 22px; }
+  .fm-strip button[aria-current="true"] { width: 24px; height: 36px; }
+  .fm-strip i { width: 3px; height: 12px; }
+  .fm-strip [aria-current="true"] i { width: 3px; height: 26px; }
+  .fm-strip i::after { transform-origin: 50% 0; transform: scaleY(var(--sp, 0)); }
+  .fm-strip span { bottom: auto; left: auto; right: 34px; top: 50%; transform: translateY(-50%); }
+  .fm-chapter { display: none; }
+  .fm-papers .fm-paper:nth-child(n + 9) { display: none; }
+  .fm-papers { gap: 8px; }
+  .fm-paper { padding: 0.5rem 0.65rem; }
+  .fm-count { display: none; }
+  .fm-ring { width: clamp(120px, 42vh, 190px); }
+  .fm-feats { display: none; }
+  .fm-big-s { font-size: clamp(1.5rem, 8vh, 2.2rem); }
+  .fm-book { width: min(26rem, 100%, calc((100svh - var(--pad-t) - var(--pad-b) - 2.8rem) / 1.28)); }
+  .fm-credits { height: 6rem; }
 }

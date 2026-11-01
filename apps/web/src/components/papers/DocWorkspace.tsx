@@ -1,5 +1,6 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowLeft, BookMarked, Columns2, ExternalLink, FileWarning, Highlighter, Loader2, Maximize2, MessageSquareText, Minimize2, Pencil, ScrollText, X } from "lucide-react";
+import { ArrowLeft, BookMarked, Columns2, ExternalLink, FileWarning, Highlighter, Loader2, Maximize2, MessageSquareText, Minimize2, Pencil, PanelRightClose, PanelRightOpen, ScrollText, X } from "lucide-react";
+import { leaveFullscreen, toggleFullscreen, useFullscreen } from "../../lib/fullscreen";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { analyzeScan, planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type OutlineItem, type PaperInfo, type ScanInfo } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
@@ -107,24 +108,25 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   // My Workspace remembers the page: the paper opens where the reader left it ("resume"), and the place is saved while they read
   const [resumedFrom, setResumedFrom] = useState<number | null>(null);
   const [tracking, setTracking] = useState(false);
-  // focus mode: the paper takes the whole window (the Ask, References and Notes panel is put away); kept on this device
-  const [focus, setFocus] = useState(() => {
+  // the side panel (Ask, References, Notes) put away so the paper has the width; kept on this device. The key is the one "focus mode" used, so a choice made then still stands.
+  const [sideAway, setSideAway] = useState(() => {
     try {
       return localStorage.getItem("scholar.focus") === "1";
     } catch {
       return false;
     }
   });
-  const toggleFocus = useCallback(() => {
-    setFocus((f) => {
-      try {
-        localStorage.setItem("scholar.focus", f ? "0" : "1");
-      } catch {
-        /* private mode: only for this visit */
-      }
-      return !f;
-    });
+  const putSideAway = useCallback((away: boolean) => {
+    setSideAway(away);
+    try {
+      localStorage.setItem("scholar.focus", away ? "1" : "0");
+    } catch {
+      /* private mode: only for this visit */
+    }
   }, []);
+  // the browser's full screen is a separate choice from the side panel; it ends with the visit to the paper, so it is never left on without the button to end it
+  const fs = useFullscreen();
+  useEffect(() => () => leaveFullscreen(), []);
   // a second paper beside this one (compare two); not kept: a fresh visit starts with one
   const [split, setSplit] = useState<string | null>(null);
   const online = useOnline();
@@ -346,15 +348,16 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     return registerCommands({
       id: "reader",
       commands: () => [
-        { id: "r-focus", label: focus ? "Leave focus mode" : "Focus mode: paper on the whole window", group: "This paper", keywords: "focus full width reading side panel hide", hint: "F", run: toggleFocus },
+        ...(fs.available ? [{ id: "r-full", label: fs.on ? "Leave full screen" : "Full screen", group: "This paper", keywords: "fullscreen full screen whole screen reading focus maximize", hint: "F", run: toggleFullscreen }] : []),
+        { id: "r-side", label: sideAway ? "Show the side panel" : "Hide the side panel", group: "This paper", keywords: "side panel ask notes references hide show close open wide paper", run: () => putSideAway(!sideAway) },
         ...(pdf.status === "ready" ? [
           { id: "r-draw", label: "Draw, highlight and write on the paper", group: "This paper", keywords: "pen highlighter tools annotate shapes text note lasso", run: () => viewer.current?.toggleDraw() },
           { id: "r-find", label: "Find in this paper", group: "This paper", keywords: "search", hint: "Ctrl+F", run: () => viewer.current?.find() },
           { id: "r-pdf", label: "Download a copy with my marks", group: "This paper", keywords: "annotated pdf export save", run: () => window.dispatchEvent(new Event("scholar:annotated")) },
         ] : []),
-        { id: "r-ask", label: "Ask this paper a question", group: "This paper", keywords: "chat questions", run: () => { setSide("ask"); setTab("side"); if (focus) toggleFocus(); } },
-        { id: "r-notes", label: "Show my highlights and notes", group: "This paper", keywords: "notes colours legend", run: () => { setSide("notes"); setTab("side"); if (focus) toggleFocus(); } },
-        { id: "r-refs", label: "Show the references of this paper", group: "This paper", keywords: "bibliography", run: () => { setSide("refs"); setTab("side"); if (focus) toggleFocus(); } },
+        { id: "r-ask", label: "Ask this paper a question", group: "This paper", keywords: "chat questions", run: () => { setSide("ask"); setTab("side"); if (sideAway) putSideAway(false); } },
+        { id: "r-notes", label: "Show my highlights and notes", group: "This paper", keywords: "notes colours legend", run: () => { setSide("notes"); setTab("side"); if (sideAway) putSideAway(false); } },
+        { id: "r-refs", label: "Show the references of this paper", group: "This paper", keywords: "bibliography", run: () => { setSide("refs"); setTab("side"); if (sideAway) putSideAway(false); } },
         ...(PARKED.splitView && split ? [{ id: "r-split-off", label: "Close the second paper", group: "This paper", keywords: "split beside compare", run: () => setSplit(null) }] : []),
         ...(PARKED.splitView && !split && hasOthers ? [{ id: "r-split", label: "Open another paper beside this one", group: "This paper", keywords: "split compare two side by side", run: () => document.getElementById("dw-split-btn")?.click() }] : []),
         { id: "r-back", label: `Back to ${PAPERS_NAME}`, group: "This paper", keywords: "close list", run: onBack },
@@ -365,18 +368,19 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
         return n && total > 0 && Number(n) >= 1 && Number(n) <= total ? [{ id: "r-page", label: `Go to page ${Number(n)} of ${total}`, group: "This paper", run: () => viewer.current?.goTo(Number(n)) }] : [];
       },
     });
-  }, [doc0, focus, split, hasOthers, pdf, toggleFocus, onBack]);
-  // F: focus mode (not while typing, not with a modifier)
+  }, [doc0, sideAway, putSideAway, fs.available, fs.on, split, hasOthers, pdf, onBack]);
+  // F: full screen (not while typing, not with a modifier), as in a video player
   useEffect(() => {
+    if (!fs.available) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== "f" || e.ctrlKey || e.metaKey || e.altKey) return;
       if ((e.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable=true], [role=dialog]")) return;
       e.preventDefault();
-      toggleFocus();
+      toggleFullscreen();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleFocus]);
+  }, [fs.available]);
 
   if (load.status === "loading") {
     return <div className="dw dw-center"><OpeningPaper progress={0} /></div>;
@@ -405,7 +409,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const meta = info?.metadata;
   const refCount = info?.references.length ?? 0;
   return (
-    <m.div className="dw" data-focus={focus} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: easeOut }}>
+    <m.div className="dw" data-side={sideAway ? "closed" : "open"} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: easeOut }}>
       <div className="dw-head">
         <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>
           <ArrowLeft size={15} aria-hidden="true" />
@@ -430,9 +434,11 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
         </div>
         <div className="dw-head-end">
           <DocMeta doc={doc} onChange={(d) => setLoad((l) => (l.status === "ready" ? { ...l, doc: { ...l.doc, readState: d.readState, tags: d.tags } } : l))} />
-          <button type="button" className="icon-btn icon-btn-sm dw-focus-btn" aria-pressed={focus} aria-keyshortcuts="F" aria-label="Focus mode" title={focus ? "Bring the side panel back (F)" : "Paper on the whole window (F)"} onClick={toggleFocus}>
-            {focus ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
-          </button>
+          {fs.available && (
+            <button type="button" className="icon-btn icon-btn-sm dw-full-btn" aria-pressed={fs.on} aria-keyshortcuts="F" aria-label="Full screen" title={fs.on ? "Leave full screen (F or Esc)" : "Full screen (F)"} onClick={toggleFullscreen}>
+              {fs.on ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
+            </button>
+          )}
           {PARKED.splitView && (split ? (
             <button type="button" id="dw-split-btn" className="icon-btn icon-btn-sm dw-split-btn" aria-pressed="true" aria-label="Close the second paper" title="Close the second paper" onClick={() => setSplit(null)}>
               <Columns2 size={16} aria-hidden="true" />
@@ -535,7 +541,11 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             {pdf.status === "ready" && (
               <m.div key="r" className="dw-viewer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }}>
                 <Suspense fallback={<OpeningPaper progress={1} />}>
-                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} docId={doc.id} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} notes={notes.notes} onCreateNote={(n) => void onCreateNote(n)} focusNoteId={focusNote?.id ?? null} onOpenNote={openNote} ink={ink} />
+                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} docId={doc.id} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} notes={notes.notes} onCreateNote={(n) => void onCreateNote(n)} focusNoteId={focusNote?.id ?? null} onOpenNote={openNote} ink={ink} toolbarEnd={
+                    <button type="button" className="icon-btn icon-btn-sm dw-side-btn" aria-expanded={!sideAway} aria-controls="dw-panel-side" aria-label="Side panel" title={sideAway ? "Show the side panel: Ask, References, Notes" : "Hide the side panel"} onClick={() => putSideAway(!sideAway)}>
+                      {sideAway ? <PanelRightOpen size={16} aria-hidden="true" /> : <PanelRightClose size={16} aria-hidden="true" />}
+                    </button>
+                  } />
                 </Suspense>
               </m.div>
             )}
@@ -554,16 +564,21 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
         </div>
 
         <div id="dw-panel-side" role="tabpanel" className="dw-panel dw-ask" data-active={tab === "side"}>
-          <div className="dw-sidetabs" role="tablist" aria-label="Ask, references or notes">
-            {([["ask", "Ask", MessageSquareText], ["refs", "References", BookMarked], ["notes", "Notes", Highlighter]] as const).map(([s, label, Icon]) => (
-              <button key={s} type="button" role="tab" aria-selected={side === s} className="dw-sidetab" onClick={() => setSide(s)}>
-                {side === s && <m.span layoutId="dw-side-pill" className="dw-sidetab-pill" transition={spring} />}
-                <Icon size={15} aria-hidden="true" />
-                <span>{label}</span>
-                {s === "refs" && refCount > 0 && <span className="dw-tab-n">{refCount}</span>}
-                {s === "notes" && notes.notes.length > 0 && <span className="dw-tab-n">{notes.notes.length}</span>}
-              </button>
-            ))}
+          <div className="dw-sidehead">
+            <div className="dw-sidetabs" role="tablist" aria-label="Ask, references or notes">
+              {([["ask", "Ask", MessageSquareText], ["refs", "References", BookMarked], ["notes", "Notes", Highlighter]] as const).map(([s, label, Icon]) => (
+                <button key={s} type="button" role="tab" aria-selected={side === s} className="dw-sidetab" onClick={() => setSide(s)}>
+                  {side === s && <m.span layoutId="dw-side-pill" className="dw-sidetab-pill" transition={spring} />}
+                  <Icon size={15} aria-hidden="true" />
+                  <span>{label}</span>
+                  {s === "refs" && refCount > 0 && <span className="dw-tab-n">{refCount}</span>}
+                  {s === "notes" && notes.notes.length > 0 && <span className="dw-tab-n">{notes.notes.length}</span>}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="icon-btn icon-btn-sm dw-side-close" aria-label="Close the side panel" title="Hide the side panel" onClick={() => putSideAway(true)}>
+              <PanelRightClose size={15} aria-hidden="true" />
+            </button>
           </div>
           {/* Both stay mounted so a question being answered, or references being checked, are never lost by switching tabs. */}
           <div className="dw-side" hidden={side !== "ask"}>

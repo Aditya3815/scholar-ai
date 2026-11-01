@@ -1,11 +1,11 @@
 import { ArrowRight, FileText, Landmark, Lock, Share2, Trash2 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { clamp, inOut, out, seg, setVar, useFilm, type Updater } from "./engine";
+import { clamp, fitScenes, inOut, out, seg, setVar, useFilm, type Updater } from "./engine";
 
 /* ====================================================================================================================
  * The intro as a short film (docs/design/cinematic-story.md; approved as the mock docs/design/poc/scroll-v3.html, 28 Oct 2026). Nine scenes, each one claim. Every
  * example is labelled sample data; the two counts of chapter V are real (OpenAlex and DOAJ, 27-28 Oct 2026). The animated copy is decoration: each scene says what it shows in
- * plain text for screen readers, and the stacked layout (phones, reduced motion) is the same page at its finished state.
+ * plain text for screen readers, and the stacked layout (reduced motion) is the same page at its finished state.
  * ==================================================================================================================== */
 
 const SHODHGANGA_THESES = 117635;
@@ -70,8 +70,10 @@ function makeDust(ref: HTMLElement, canvas: HTMLCanvasElement) {
       if (!ctx) return;
       const r = canvas.getBoundingClientRect();
       dpr = Math.min(2, window.devicePixelRatio || 1);
-      w = Math.round(r.width);
-      h = Math.round(r.height);
+      w = canvas.offsetWidth;
+      h = canvas.offsetHeight;
+      // the card may be scaled to fit the screen: its rectangles are measured in screen pixels, the canvas is drawn in layout pixels
+      const s = w > 0 ? r.width / w : 1;
       canvas.width = w * dpr;
       canvas.height = h * dpr;
       theme = "?";
@@ -84,13 +86,31 @@ function makeDust(ref: HTMLElement, canvas: HTMLCanvasElement) {
       for (const ln of ref.querySelectorAll<HTMLElement>(".fm-ln")) {
         const walker = document.createTreeWalker(ln, NodeFilter.SHOW_TEXT);
         for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-          const range = document.createRange();
-          range.selectNodeContents(node);
-          const rr = range.getClientRects()[0];
-          if (!rr) continue;
+          const text = node.textContent ?? "";
           const st = getComputedStyle(node.parentElement!);
           o.font = `${st.fontStyle} ${st.fontWeight} ${st.fontSize} ${st.fontFamily}`;
-          o.fillText(node.textContent ?? "", rr.left - r.left, rr.top - r.top + rr.height * 0.78);
+          const range = document.createRange();
+          // one run of text for each line the browser broke it into: found by where each letter is, so a narrow screen's wrapped lines are drawn where they are
+          let from = 0;
+          let line = NaN;
+          let start: DOMRect | null = null;
+          const draw = (to: number) => {
+            if (start) o.fillText(text.slice(from, to), (start.left - r.left) / s, (start.top - r.top + start.height * 0.78) / s);
+          };
+          for (let i = 0; i < text.length; i++) {
+            range.setStart(node, i);
+            range.setEnd(node, i + 1);
+            const rc = range.getClientRects()[0];
+            if (!rc || rc.width === 0) continue; // a space the line break swallowed
+            const top = Math.round(rc.top);
+            if (top !== line) {
+              draw(i);
+              line = top;
+              from = i;
+              start = rc;
+            }
+          }
+          draw(text.length);
         }
       }
       const data = o.getImageData(0, 0, w, h).data;
@@ -156,7 +176,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
   const words = useMemo(() => OPEN.flatMap((line) => line.length), []).reduce((a, b) => a + b, 0);
 
   // geometry measured on start, after fonts and on resize
-  const geo = useRef({ cx: 0, cy: 0, r0: 10, r1: 2000, ox: 0, oy: 0 });
+  const geo = useRef({ cx: 0, cy: 0, r0: 10, r1: 2000, ox: 0, oy: 0, narrow: false });
   const dust = useRef<ReturnType<typeof makeDust> | null>(null);
 
   const updaters = useMemo<Record<string, Updater>>(() => {
@@ -250,6 +270,18 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
         setVar(el, "--po", out(seg(p, 0.06, 0.18)));
         setVar(el, "--hw", out(seg(p, 0.18, 0.32)));
         setVar(el, "--ink", inOut(seg(p, 0.28, 0.42)));
+        if (geo.current.narrow) {
+          // a narrow screen has room for one thing at a time: the page (marked, then turned to the quoted page), then the book steps back and the question about it takes its place
+          setVar(el, "--fl", inOut(seg(p, 0.44, 0.58)));
+          setVar(el, "--qw", out(seg(p, 0.58, 0.66)));
+          setVar(el, "--bk", out(seg(p, 0.68, 0.76)));
+          setVar(el, "--wq", out(seg(p, 0.72, 0.8)));
+          setVar(el, "--wa", out(seg(p, 0.8, 0.88)));
+          setVar(el, "--pp", Math.sin(seg(p, 0.86, 0.94) * Math.PI));
+          all<HTMLElement>(el, ".fm-feats li").forEach((x, i) => setVar(x, "--wf", out(seg(p, 0.86 + i * 0.015, 0.93 + i * 0.015))));
+          return;
+        }
+        setVar(el, "--bk", 0);
         setVar(el, "--wq", out(seg(p, 0.42, 0.52)));
         setVar(el, "--wa", out(seg(p, 0.52, 0.62)));
         setVar(el, "--pp", Math.sin(seg(p, 0.6, 0.7) * Math.PI));
@@ -269,6 +301,8 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
     measure() {
       const el = root.current;
       if (!el) return;
+      fitScenes(el);
+      geo.current.narrow = matchMedia("(max-width: 56rem) and (min-height: 34rem)").matches;
       const frame = el.querySelector<HTMLElement>(".fm-s-answer .fm-frame");
       const chip = el.querySelector<HTMLElement>(".fm-zchip");
       const layer = el.querySelector<HTMLElement>(".fm-a-layer");
@@ -278,6 +312,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
         const l = layer.getBoundingClientRect();
         const push = 1 + Number(getComputedStyle(layer).getPropertyValue("--push") || 0) * 0.14;
         geo.current = {
+          narrow: geo.current.narrow,
           cx: c.left + c.width / 2 - f.left,
           cy: c.top + c.height / 2 - f.top,
           r0: Math.max(c.width, c.height) / 2,
@@ -322,7 +357,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
 
       {/* 1 */}
       <Scene id="open" i={0} bars={false} label="in-h1">
-        <div className="fm-center fm-stack">
+        <div className="fm-center fm-stack" data-fit>
           <Chapter>A film about citations</Chapter>
           <h1 id="in-h1" className="sr-only">An AI can write a perfect reference to a paper that was never written.</h1>
           <p className="fm-open" aria-hidden="true">
@@ -348,7 +383,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
       {/* 2 */}
       <Scene id="title" i={1} label="fm-title-h">
         <div className="fm-halo" aria-hidden="true" />
-        <div className="fm-title-wrap">
+        <div className="fm-title-wrap" data-fit>
           <svg className="fm-title-mark" width="60" height="60" viewBox="0 0 32 32" fill="none" aria-hidden="true">
             <path pathLength={1} d="M4 7.5c4-1.6 8-1.4 12 1.2v17c-4-2.6-8-2.8-12-1.2v-17Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
             <path pathLength={1} d="M28 7.5c-4-1.6-8-1.4-12 1.2v17c4-2.6 8-2.8 12-1.2v-17Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
@@ -361,7 +396,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
 
       {/* 3 */}
       <Scene id="question" i={2} label="fm-q-h">
-        <div className="fm-q">
+        <div className="fm-q" data-fit>
           <Chapter>Chapter I · The question</Chapter>
           <h2 id="fm-q-h" className="sr-only">A question goes in, real papers come back</h2>
           <div className="fm-qshot" aria-hidden="true">
@@ -400,7 +435,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
           <p className="fm-a-note">Press the mark. It opens the sentence the claim stands on.</p>
         </div>
         <div className="fm-iris">
-          <article className="fm-abs" aria-label="Paper 3, sample">
+          <article className="fm-abs" aria-label="Paper 3, sample" data-fit>
             <p className="fm-abs-meta"><span className="fm-chip">3</span> 2019 · Journal of Sample Studies · <Sample /></p>
             <h3>Yoga as an adjunct treatment for hypertension: a meta-analysis of randomised trials</h3>
             <p>Forty-nine trials with 3,517 participants were included. <mark>Yoga reduced systolic blood pressure by 5.0 mmHg compared with usual care.</mark> Effects were larger when breathing and meditation were part of the practice. The quality of the evidence was moderate.</p>
@@ -412,7 +447,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
 
       {/* 5 */}
       <Scene id="proof" i={4} label="fm-p-h">
-        <div className="fm-stack fm-w">
+        <div className="fm-stack fm-w" data-fit>
           <Chapter>Chapter III · The proof</Chapter>
           <h2 id="fm-p-h" className="fm-big fm-big-s">The paper is real. <em>We checked.</em></h2>
           <div className="fm-proof">
@@ -431,7 +466,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
 
       {/* 6 */}
       <Scene id="fake" i={5} label="fm-f-h">
-        <div className="fm-fake">
+        <div className="fm-fake" data-fit>
           <Chapter>Chapter IV · The fake</Chapter>
           <h2 id="fm-f-h" className="sr-only">A reference that does not exist is said so</h2>
           <figure className="fm-ref">
@@ -456,7 +491,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
 
       {/* 7 */}
       <Scene id="india" i={6} label="fm-i-h">
-        <div className="fm-stack fm-w">
+        <div className="fm-stack fm-w" data-fit>
           <Chapter>Chapter V · Close to home</Chapter>
           <div className="fm-india">
             <span className="fm-deva" aria-hidden="true" data-w="शोध" />
@@ -478,7 +513,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
 
       {/* 8 */}
       <Scene id="workspace" i={7} label="fm-w-h">
-        <div className="fm-stack fm-w">
+        <div className="fm-stack fm-w" data-fit>
           <Chapter>Chapter VI · Your own papers</Chapter>
           <div className="fm-ws">
             <div className="fm-ws-left" aria-hidden="true">
@@ -508,15 +543,17 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
             </div>
             <div className="fm-ws-right">
               <h2 id="fm-w-h" className="fm-big fm-big-s">Your PDFs. Marked, <em>and asked.</em></h2>
-              <p className="fm-ask">How many people does the main study need?</p>
-              <div className="fm-ans">
-                <p>158 in each group.</p>
-                <blockquote>“The main study requires NL = 158 subjects per group.”</blockquote>
-                <span className="fm-page">Page 4 · the exact quote</span>
+              <div className="fm-ws-qa">
+                <p className="fm-ask">How many people does the main study need?</p>
+                <div className="fm-ans">
+                  <p>158 in each group.</p>
+                  <blockquote>“The main study requires NL = 158 subjects per group.”</blockquote>
+                  <span className="fm-page">Page 4 · the exact quote</span>
+                </div>
+                <ul className="fm-feats" aria-label="What My Workspace does">
+                  <li>Pen and highlighter</li><li>Annotated PDF download</li><li>Scanned papers too</li><li>Offline reading</li><li>Private to your account, never used to train AI</li>
+                </ul>
               </div>
-              <ul className="fm-feats" aria-label="What My Workspace does">
-                <li>Pen and highlighter</li><li>Annotated PDF download</li><li>Scanned papers too</li><li>Offline reading</li><li>Private to your account, never used to train AI</li>
-              </ul>
               <Sample>Sample paper</Sample>
             </div>
           </div>
@@ -551,7 +588,7 @@ export function Film({ animated, cta, onTimecode }: { animated: boolean; cta: Re
       {/* 9 */}
       <Scene id="end" i={8} bars={false} label="fm-e-h">
         <div className="fm-dawn" aria-hidden="true" />
-        <div className="fm-end">
+        <div className="fm-end" data-fit>
           <Chapter>Your turn</Chapter>
           <h2 id="fm-e-h" className="fm-big">Ask your <em>first</em> question.</h2>
           <div className="fm-end-cta">{cta}</div>

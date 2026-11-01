@@ -7,14 +7,14 @@ import { ProviderButtons } from "../../components/ProviderButtons";
 import { SignInDialog } from "../../components/SignInDialog";
 import { ThemeSwitch } from "../../components/ThemeSwitch";
 import { useAuth } from "../../lib/auth";
-import { useMediaQuery } from "../../lib/media";
 import { getThemePref, useThemePref } from "../../lib/prefs";
 import { Film } from "./Film";
 import "../../styles/intro.css";
 
 /* ====================================================================================================================
- * The intro page for people who are not signed in: a short film in nine scenes (docs/design/cinematic-story.md). Native scrolling only; on a phone or with reduced
- * motion the same page is stacked at its finished state. The header, the sign-in and the theme switch are the app's own.
+ * The intro page for people who are not signed in: a short film in nine scenes (docs/design/cinematic-story.md). Native scrolling only. It plays in every window (a phone,
+ * a tablet, a large screen; what a scene shows is scaled to the room it has, and a narrow window has compositions of its own); only with reduced motion is the same page stacked at its
+ * finished state. The header, the sign-in and the theme switch are the app's own.
  * ==================================================================================================================== */
 
 function Header({ onTop }: { onTop: () => void }) {
@@ -83,9 +83,8 @@ function useFilmTheme() {
 }
 
 export default function IntroPage({ onStart }: { onStart: () => void }) {
-  const small = useMediaQuery("(max-width: 900px)");
   const reduce = useReducedMotion();
-  const animated = !small && !reduce;
+  const animated = !reduce;
   const tc = useRef<HTMLParagraphElement>(null);
   useFilmTheme();
   return (

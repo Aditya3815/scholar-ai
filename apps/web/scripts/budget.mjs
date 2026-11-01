@@ -18,7 +18,8 @@ export const LIMITS = {
   "the intro page chunk, script (gzip)": 15 * KB,
   // 6 KB since the intro became the film of nine scenes (28 Oct 2026, docs/design/cinematic-story.md): 5.7 KB measured; the rise is about 4 ms on the slow profile.
   // 6.5 KB after the user's corrections the same day (the cinematic send and its pause, the margin note, the dust's dissolve, the frosted header): 6.0 KB measured, about 2 ms more
-  "the intro page chunk, style (gzip)": 6.5 * KB,
+  // 7 KB when the film began to play in every window (1 Nov 2026: the room of a frame, the narrow and the short compositions): 6.6 KB measured, about 1 ms more on the slow profile
+  "the intro page chunk, style (gzip)": 7 * KB,
   "the PDF reader chunk, script and style (gzip)": 66 * KB,
   // The Rive pieces (docs/design/setu-rive.md, rive-ideas.md), fetched only when a picture is wanted: 57.6, 331 and 8.4 KB measured on 1 Nov 2026, plus about 10%. None of them may be in the first load.
   "the Rive runtime chunk, script (gzip)": 64 * KB,

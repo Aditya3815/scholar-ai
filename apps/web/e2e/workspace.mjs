@@ -233,7 +233,7 @@ try {
   await page.locator(".in-head").getByRole("button", { name: "Auto theme" }).click();
   ok(await page.evaluate(() => document.documentElement.getAttribute("data-theme")) === "dark", "and Auto gives it back its dark");
 
-  /* ============================ phone: the stacked layout ============================ */
+  /* ============================ phone: the film plays here too ============================ */
   console.log("intro on a phone");
   const mctx = await newCtx({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const mp = await mctx.newPage();
@@ -241,18 +241,88 @@ try {
   await mp.goto(BASE + "/", { waitUntil: "networkidle" });
   await mp.locator("#in-h1").waitFor({ state: "attached" });
   await mp.waitForTimeout(800);
-  ok(await mp.locator(".fm").getAttribute("data-mode") === "static" && await mp.locator(".fm-strip").count() === 0, "on a phone the film is stacked: every scene in turn, nothing pinned");
-  ok(await mp.locator("#film-question").evaluate((el) => el.offsetHeight < innerHeight * 2.5), "a scene is as tall as its content, not a long scroll");
-  ok(await mp.locator(".fm-paper.is-bad .fm-stamp").isVisible() && await mp.locator(".fm-dust").isHidden() && (await mp.locator("[data-count]").allInnerTexts()).join("|") === "1,17,635|3,09,564", "each scene shows its finished state");
+  ok(await mp.locator(".fm").getAttribute("data-mode") === "anim" && await mp.locator(".fm [data-scene]").count() === 9 && await mp.locator(".fm-strip button").count() === 9, "on a phone the film plays too: nine scenes, pinned while their stretch is scrolled, and the strip of scenes");
   ok(await noSideways(mp), "no sideways scroll at 390 px");
-  await mp.screenshot({ path: OUT + "07-intro-phone.png" });
   await axe("intro, phone, top", mp);
-  for (const id of ["film-answer", "film-workspace", "privacy"]) {
+  const pk1 = await cssVar(mp, ".fm-s-open", "--k");
+  await toScene(mp, "open", 0.55);
+  const pk2 = await cssVar(mp, ".fm-s-open", "--k");
+  ok(pk2 > pk1 + 2, `it moves with the scroll: the opening words light up one by one (${pk1} then ${pk2})`);
+  await toScene(mp, "title", 0.5);
+  ok(await mp.locator(".fm-s-title .fm-frame").evaluate((el) => Math.round(el.getBoundingClientRect().top)) === 0, "a scene's frame is pinned on a phone");
+  await toScene(mp, "question", 0.97);
+  const stamp = await mp.locator(".fm-paper.is-bad .fm-stamp").boundingBox();
+  ok(stamp && stamp.x >= 0 && stamp.x + stamp.width <= 390, "the RETRACTED stamp is whole on the screen, not cut at its edge");
+  await toScene(mp, "fake", 0.505);
+  await mp.waitForTimeout(500);
+  const phoneDots = await mp.evaluate(() => { const c = document.querySelector(".fm-dust"); const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 200) n++; return n; });
+  ok(phoneDots > 300, `the invented reference turns into dots on a phone too, from its own wrapped lines (${phoneDots} px drawn)`);
+  // My Workspace has room for one thing at a time on a narrow screen: the page, then the question about it
+  const phoneOpacity = (sel) => mp.evaluate((sel) => parseFloat(getComputedStyle(document.querySelector(sel)).opacity), sel);
+  await toScene(mp, "workspace", 0.5);
+  ok(await phoneOpacity(".fm-book") > 0.9 && await phoneOpacity(".fm-ans") < 0.1, "My Workspace on a phone: first the page, marked and turned to the quoted page, with no answer yet");
+  await toScene(mp, "workspace", 0.97);
+  ok(await phoneOpacity(".fm-book") < 0.1 && await phoneOpacity(".fm-ans") > 0.9 && /Page 4/.test(await mp.locator(".fm-page").innerText()), "then the book steps back and the question and its answer take its place");
+  await mp.screenshot({ path: OUT + "07-intro-phone.png" });
+  for (const theme of ["dark", "light"]) {
+    await setTheme(mp, theme);
+    await mp.waitForTimeout(300);
+    let clean = true;
+    for (const id of SCENES) {
+      await toScene(mp, id, 0.97);
+      await mp.evaluate(axeSource);
+      const v = await mp.evaluate(async () => (await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } })).violations.map((x) => `${x.id} ${x.nodes[0]?.target?.join(" ")}`));
+      if (v.length) { clean = false; console.log(`        phone ${theme} ${id}: ${v.join(" | ")}`); }
+    }
+    ok(clean, `axe [the end of every scene, on a phone, ${theme}]`);
+  }
+  await setTheme(mp, "dark");
+  for (const id of ["more", "privacy"]) {
     await mp.evaluate((id) => document.getElementById(id).scrollIntoView({ behavior: "instant" }), id);
     await mp.waitForTimeout(300);
     await axe(`intro, phone, ${id}`, mp);
   }
   await mctx.close();
+
+  /* ============================ every window size ============================ */
+  // What a scene shows must be in the room between the header and the black bars, and inside the width, whatever the window: a phone upright and on its side, a tablet, a short browser,
+  // a large screen and an ultra-wide one. (The scale a scene is given to fit is never below 0.62.)
+  console.log("the film at every window size");
+  const SIZES = [[360, 640], [390, 844], [430, 932], [768, 1024], [1024, 768], [844, 390], [667, 375], [1280, 600], [1366, 768], [1920, 1080], [2560, 1080]];
+  for (const [w, h] of SIZES) {
+    const sc = await newCtx({ viewport: { width: w, height: h }, isMobile: w < 700, hasTouch: w < 1100 });
+    const sp = await sc.newPage();
+    watch(sp);
+    await sp.goto(BASE + "/", { waitUntil: "networkidle" });
+    await sp.locator("#in-h1").waitFor({ state: "attached" });
+    await sp.evaluate(() => document.fonts.ready);
+    await sp.waitForTimeout(500);
+    const bad = [];
+    let least = 1;
+    for (const id of SCENES) {
+      await sp.evaluate((id) => { const s = document.getElementById("film-" + id); window.scrollTo({ top: scrollY + s.getBoundingClientRect().top + (s.offsetHeight - innerHeight) * 0.97, behavior: "instant" }); }, id);
+      await sp.waitForTimeout(160);
+      const r = await sp.evaluate((id) => {
+        const s = document.getElementById("film-" + id);
+        const bars = document.querySelector(".fm-bars");
+        const barBottom = document.querySelector(".in-head").getBoundingClientRect().bottom + (parseFloat(getComputedStyle(bars, "::before").height) || 0);
+        const barTop = innerHeight - (parseFloat(getComputedStyle(bars, "::after").height) || 0);
+        const roots = [...s.querySelectorAll("[data-fit]")];
+        const box = roots.map((el) => el.getBoundingClientRect());
+        const strip = document.querySelector(".fm-strip").getBoundingClientRect();
+        const hit = box.some((q) => q.left < strip.right - 2 && q.right > strip.left + 2 && q.top < strip.bottom - 2 && q.bottom > strip.top + 2);
+        return { fit: Math.min(...roots.map((e) => parseFloat(e.style.getPropertyValue("--fit") || "1"))), top: Math.min(...box.map((q) => q.top)), bottom: Math.max(...box.map((q) => q.bottom)), left: Math.min(...box.map((q) => q.left)), right: Math.max(...box.map((q) => q.right)), barBottom, barTop, hit, vw: innerWidth };
+      }, id);
+      least = Math.min(least, r.fit);
+      if (r.top < r.barBottom - 2) bad.push(`${id} top ${Math.round(r.top)}<${Math.round(r.barBottom)}`);
+      if (r.bottom > r.barTop + 2) bad.push(`${id} bottom ${Math.round(r.bottom)}>${Math.round(r.barTop)}`);
+      if (r.left < -1 || r.right > r.vw + 1) bad.push(`${id} x ${Math.round(r.left)}..${Math.round(r.right)}`);
+      if (r.hit) bad.push(`${id} under the strip of scenes`);
+    }
+    ok(bad.length === 0 && least >= 0.65, `${w}x${h}: every scene is whole between the header and the bars, and clear of the strip (smallest scale ${least.toFixed(2)}${bad.length ? "; " + bad.join(", ") : ""})`);
+    ok(await noSideways(sp), `${w}x${h}: no sideways scroll`);
+    await sc.close();
+  }
 
   /* ============================ reduced motion ============================ */
   console.log("reduced motion");
@@ -952,20 +1022,62 @@ try {
   ok(await page.getByRole("option", { name: /Go to page 2 of 2/ }).isVisible(), "in a paper, a number offers 'Go to page'");
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => document.getElementById("pdfv-page")?.value === "2", null, { timeout: 8000 });
+  // the side panel (Ask, References, Notes) is put away from the paper's own toolbar, and from the panel's own close button
+  const sideBtn = page.getByRole("button", { name: "Side panel", exact: true });
+  ok(await sideBtn.getAttribute("aria-expanded") === "true" && await page.locator(".dw-ask").isVisible(), "the paper's toolbar has a Side panel button, and the panel is open to begin with");
+  await page.screenshot({ path: OUT + "38-side-open.png" });
+  const paperW0 = await page.locator(".dw-paper").evaluate((el) => Math.round(el.getBoundingClientRect().width));
+  await sideBtn.click();
+  await page.waitForFunction(() => document.querySelector(".dw")?.getAttribute("data-side") === "closed", null, { timeout: 4000 });
+  ok(await page.locator(".dw-ask").evaluate((el) => getComputedStyle(el).display) === "none" && await sideBtn.getAttribute("aria-expanded") === "false", "the Side panel button puts the panel away, and says it is closed");
+  ok(await page.locator(".dw-paper").evaluate((el, w0) => el.getBoundingClientRect().width > w0 + 100, paperW0), "so the paper has the room");
+  ok(await sideBtn.isVisible(), "the button stays where it was, to bring the panel back");
+  ok(await page.evaluate(() => localStorage.getItem("scholar.focus")) === "1", "and the choice is kept on this device");
+  await page.screenshot({ path: OUT + "38-side-closed.png" });
+  await axe("side panel closed", page);
+  await sideBtn.click();
+  await page.waitForFunction(() => document.querySelector(".dw")?.getAttribute("data-side") === "open", null, { timeout: 4000 });
+  ok(await page.locator(".dw-ask").isVisible(), "pressed again, the panel is back");
+  await page.getByRole("button", { name: "Close the side panel" }).click();
+  await page.waitForFunction(() => document.querySelector(".dw")?.getAttribute("data-side") === "closed", null, { timeout: 4000 });
+  ok(true, "the panel has its own close button too");
   await page.keyboard.press("Control+k");
-  await pal.fill("focus");
+  await pal.fill("ask this paper");
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => document.querySelector(".dw")?.getAttribute("data-focus") === "true", null, { timeout: 4000 });
-  ok(await page.locator(".dw-ask").evaluate((el) => getComputedStyle(el).display) === "none", "'Focus mode' puts the side panel away so the paper has the whole window");
-  await page.screenshot({ path: OUT + "38-focus.png" });
+  await page.waitForFunction(() => document.querySelector(".dw")?.getAttribute("data-side") === "open", null, { timeout: 4000 });
+  ok(await page.locator(".dw-ask").isVisible(), "asking the paper from the palette brings a put-away panel back");
   await page.locator(".palette").waitFor({ state: "detached", timeout: 8000 }); // the palette has finished closing (F is not a shortcut while a text box has the keys)
-  await axe("focus mode", page);
-  await page.keyboard.press("f");
-  await page.waitForFunction(() => document.querySelector(".dw")?.getAttribute("data-focus") === "false", null, { timeout: 4000 });
-  ok(await page.locator(".dw-ask").isVisible(), "the letter F brings it back");
-  await page.getByRole("button", { name: "Focus mode" }).click();
-  ok(await page.getByRole("button", { name: "Focus mode" }).getAttribute("aria-pressed") === "true", "and the Focus button does the same");
-  await page.getByRole("button", { name: "Focus mode" }).click();
+
+  // the expand button in the header is the full screen: the whole screen, not only a wider paper
+  const fsBtn = page.getByRole("button", { name: "Full screen" });
+  const fsOn = () => page.evaluate(() => !!document.fullscreenElement);
+  const supported = await page.evaluate(() => !!document.fullscreenEnabled);
+  ok(supported ? await fsBtn.isVisible() : await fsBtn.count() === 0, `the header has a Full screen button where the browser allows it (${supported ? "here it does" : "here it does not, so there is none"})`);
+  if (supported) {
+    ok(await fsBtn.getAttribute("aria-pressed") === "false" && !(await fsOn()), "it starts off");
+    await fsBtn.click();
+    await page.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 4000 });
+    ok(await fsBtn.getAttribute("aria-pressed") === "true", "pressed, the browser goes full screen and the button says so");
+    ok(await page.locator(".dw-ask").isVisible(), "the side panel is a separate choice: it stays as it was");
+    await page.evaluate(() => document.exitFullscreen()); // what Esc does
+    await page.waitForFunction(() => !document.fullscreenElement, null, { timeout: 4000 });
+    await page.waitForFunction(() => document.querySelector(".dw-full-btn")?.getAttribute("aria-pressed") === "false", null, { timeout: 4000 });
+    ok(true, "leaving full screen another way (Esc) is noticed: the button follows the browser, not its own count");
+    await page.keyboard.press("f");
+    await page.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 4000 });
+    ok(true, "the letter F goes full screen too");
+    await page.keyboard.press("f");
+    await page.waitForFunction(() => !document.fullscreenElement, null, { timeout: 4000 });
+    ok(true, "and leaves it");
+    await fsBtn.click();
+    await page.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 4000 });
+    await page.locator(".dw-head > button").first().click();
+    await page.waitForFunction(() => !document.fullscreenElement, null, { timeout: 4000 });
+    ok(true, "leaving the paper leaves full screen: there is no stuck full screen without the button");
+    await page.goBack();
+    await page.locator(".dw-title").waitFor({ timeout: 15000 });
+    await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+  }
 
   // the list of shortcuts
   await page.keyboard.press("Shift+?");

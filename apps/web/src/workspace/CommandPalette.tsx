@@ -172,7 +172,7 @@ const SECTIONS: { name: string; rows: [string[], string][] }[] = [
     name: "Reading a paper",
     rows: [
       [["Ctrl", "F"], "Find in this paper"],
-      [["F"], "Focus mode: the paper takes the whole window (press again to bring the side panel back)"],
+      [["F"], "Full screen (press again, or Esc, to leave it)"],
     ],
   },
   {

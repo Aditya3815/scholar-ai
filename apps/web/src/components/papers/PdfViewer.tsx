@@ -1,7 +1,7 @@
 import "pdfjs-dist/web/pdf_viewer.css";
 import { m } from "motion/react";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, ListTree, Loader2, Maximize2, Minus, PencilLine, Plus, Search, StickyNote, X } from "lucide-react";
-import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type Ref } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, ListTree, Loader2, MoveHorizontal, Minus, PencilLine, Plus, Search, StickyNote, X } from "lucide-react";
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import { NOTE_COLORS, anchoredScroll, clampZoom, pinchFactor, stepZoom, wheelFactor, type DocNote, type InkItem, type InkSize, type MarkRect, type NoteColor, type OutlineItem } from "@scholar/shared";
 import type { PDFDocumentProxy } from "../../lib/pdf";
 import { Pop } from "../Pop";
@@ -301,7 +301,7 @@ function Contents({ items, detected, current, onPick }: { items: OutlineItem[]; 
   );
 }
 
-export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote, ink, idPrefix = "pdfv" }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; docId: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void; /** Drawing on the paper (My Workspace). Without it the viewer has no drawing tools. */ ink?: InkApi; /** Start of the ids inside the viewer: a second viewer on the page needs another one. */ idPrefix?: string }) {
+export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote, ink, idPrefix = "pdfv", toolbarEnd }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; docId: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void; /** Drawing on the paper (My Workspace). Without it the viewer has no drawing tools. */ ink?: InkApi; /** Start of the ids inside the viewer: a second viewer on the page needs another one. */ idPrefix?: string; /** What the page puts at the end of the toolbar (the reader's side-panel button). */ toolbarEnd?: ReactNode }) {
   const scroller = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
   const [zoomLevel, setZoomLevel] = useState(readZoom);
@@ -843,12 +843,13 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
             <Plus size={16} aria-hidden="true" />
           </button>
           <button type="button" className="icon-btn icon-btn-sm pdfv-fit" aria-label="Fit to width" onClick={() => zoomTo(1)}>
-            <Maximize2 size={15} aria-hidden="true" />
+            <MoveHorizontal size={15} aria-hidden="true" />
           </button>
           <a className="icon-btn icon-btn-sm" href={downloadHref} download aria-label={`Download ${title}`} title="Download the PDF">
             <Download size={15} aria-hidden="true" />
           </a>
           {ink && <AnnotatedDownload docId={docId} pdf={pdf} title={title} notes={notes ?? []} strokes={ink.strokes} />}
+          {toolbarEnd}
         </div>
       </div>
 

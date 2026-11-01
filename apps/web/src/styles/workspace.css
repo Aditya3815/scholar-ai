@@ -1226,13 +1226,25 @@
 }
 
 /* ============ Side panel tabs, byline, contents, references ============ */
-.dw-sidetabs {
+.dw-sidehead {
   display: flex;
   flex: none;
+  align-items: flex-end;
   gap: 0.25rem;
-  padding: 0.4rem 0.6rem 0;
+  padding-right: 0.45rem;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
+}
+.dw-side-close {
+  align-self: center;
+  margin-left: auto;
+}
+.dw-sidetabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 0.25rem;
+  padding: 0.4rem 0.6rem 0;
 }
 .dw-sidetab {
   position: relative;
@@ -1284,7 +1296,7 @@
   display: none;
 }
 @media (max-width: 999px) {
-  .dw-sidetabs {
+  .dw-sidehead {
     display: none;
   }
 }

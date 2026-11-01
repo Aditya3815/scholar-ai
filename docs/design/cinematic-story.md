@@ -36,7 +36,7 @@ Each scene is a tall section with a sticky full-screen frame; one passive scroll
 - axe (WCAG 2.2 AA): 0 violations at the end of all nine scenes in **dark, light and read**, in the **stacked layout on a phone** and with **reduced motion**. (A first run found that the big Devanagari watermark counted as text with no contrast; it is now drawn by CSS as decoration.)
 - No sideways scroll at 1440 px or 390 px (a first run found the glows overflowing on a phone: fixed).
 - Keyboard: the first Tab is "Skip the film"; the strip's buttons take you to their scene; the Playground opens and Escape closes it. No page errors.
-- Phones and reduced motion get the stacked layout before first paint; without JavaScript the page is the stacked layout.
+- Phones and reduced motion got the stacked layout before first paint; without JavaScript the page is the stacked layout. (Since 1 Nov 2026 a phone gets the film: see "Every window size" below.)
 
 ## Playground (mock only)
 
@@ -55,6 +55,25 @@ The intro page for signed-out visitors (`/`) is now the film: `apps/web/src/work
 - **Found on the way:** the CSS minifier (Lightning CSS) drops a standard property written *before* its `-webkit-` twin, so Chrome and Edge had no blur at all; the `-webkit-` one is now written first everywhere, and `scripts/budget.mjs` fails a build in which a rule keeps only the `-webkit-` one.
 - **Measured** (`e2e/perf.mjs`, 4× CPU, 1.6 Mbit/s): first paint 3.6 to 3.9 s, layout shift 0.001 (desktop) and 0.000 (phone). The intro chunk is 13.5 KB of script and 5.7 KB of style (gzip); the style budget was raised from 5 to 6 KB for it, and to 6.5 KB after your corrections (6.0 KB measured; about 2 ms more on the slow profile).
 - **Tests:** `e2e/workspace.mjs` "intro: the film" (heading, dark default, nine scenes, scroll both ways, the way in, pinning, stamp, iris, dust and verdict, real counts, page turn, the strip, axe at the end of every scene in three themes, the quiet sections, theme choice kept, phone and reduced motion stacked); `smoke`, `default`, `offline` and `perf` suites pass with it.
+
+## Every window size (1 Nov 2026)
+
+You asked that the film play in every window and not be a static page on a phone. Until then a window under 900 px got the stacked page (the sentences above about phones were true then). Now **the film plays in every window**; only reduced motion (the visitor's own setting) and no JavaScript keep the stacked page.
+
+What was done (`engine.ts`, `Film.tsx`, `intro.css`):
+
+- **The room a scene has is worked out, not guessed.** A frame leaves room for the header, the black bars and a margin (`--pad-t`, `--pad-b`, `--pad-x`); heights are in `svh` where the browser has it (a phone's address bar no longer moves the frame); the bars are 8.5% of the height, 4.5% on a narrow window and none on a short one; the strip of scenes has its own room at the foot (or at the right edge on a short window, where it would be over the picture).
+- **Nothing is cut off, whatever the window.** What a scene must show whole is marked `data-fit` and scaled down (never up) to the room it has, measured from its layout size (the film's own movement does not change it). The scale never goes below 0.62. The frame's grid has one row the size of the frame, so a taller scene is centred and scaled about its centre (a first version hung it down from the top and cut off its foot).
+- **Compositions of their own for a narrow window:** one column; two columns of papers (six papers on a phone); the stamp inside the card; My Workspace in **two beats in one place** (the page, marked and turned to the quoted page, then the book steps back and the question and its answer take its place: side by side they needed twice the height of a phone).
+- **A window that is short** (a phone on its side) keeps the two-column layouts, loses the black bars and the chapter label, shows eight papers, and puts the strip of scenes down the right edge.
+- **The dust of scene 6 is sampled line by line, from where each letter is**, and in layout pixels, so a reference that wraps on a narrow screen (or is scaled to fit) is drawn where it is. (The first version drew the wrapped lines in the wrong place.)
+- **Easier on a phone:** no film grain on a coarse pointer (it blends the whole screen at every frame); a phone's address bar coming and going (a height change under 160 px, same width) does not measure everything again, and a real resize waits until it has stopped.
+
+Checked (`e2e/workspace.mjs`, "the film at every window size", 11 sizes from 360×640 to 2560×1080, a phone upright and on its side, a tablet, a short desktop window): at the end of every scene all of its content is between the header and the bars and inside the width, clear of the strip, no sideways scroll, and the smallest scale is 0.65 or more (measured: 0.73 at 360×640, 0.82 at 844×390, 0.88 at 390×844 and 768×1024, 1.00 at 1920×1080). On a phone: the film plays, moves with the scroll, the dots appear from the wrapped lines, My Workspace plays in its two beats, and axe finds nothing at the end of every scene in dark and light.
+
+The intro's style chunk grew to 6.6 KB (gzip); its budget in `scripts/budget.mjs` was raised from 6.5 to 7 KB for it.
+
+Not checked: **a real phone** (Safari on an iPhone, Chrome on Android, the address bar, a slow GPU). The only measure of smoothness is a proxy: scrolling the whole film at a brisk pace in a headless browser with the CPU slowed four times, 390×844: half of the frames 7 ms, 95% under 14 ms, 2 of 2,531 over 50 ms (the desktop window: 21 ms and none). The scenes keep the same scroll length on a phone (about 29 screens): shorter would be a change to make by feel, on a phone.
 
 ## How it was planned (kept for the record)
 

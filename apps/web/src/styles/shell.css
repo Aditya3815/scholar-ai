@@ -373,9 +373,13 @@ kbd {
 .keys-row dd { color: var(--muted); font-size: 0.9rem; }
 @media (max-width: 520px) { .keys-row { grid-template-columns: 1fr; gap: 0.15rem; } }
 
-/* ---------- reader: focus mode, a second paper beside the first ---------- */
-.dw[data-focus="true"] .dw-grid { grid-template-columns: minmax(0, 1fr); }
-.dw[data-focus="true"] .dw-ask { display: none; }
+/* ---------- reader: the side panel put away, full screen, a second paper beside the first ---------- */
+/* two columns from 1000px; below that the panel is a tab of the page (workspace.css) and "put away" means nothing, so no button is offered for it and the state is ignored */
+@media (min-width: 1000px) {
+  .dw[data-side="closed"] .dw-grid { grid-template-columns: minmax(0, 1fr); }
+  .dw[data-side="closed"] .dw-ask { display: none; }
+}
+@media (max-width: 999px) { .dw-side-btn { display: none; } }
 .dw-paper[data-split="true"] { flex-direction: row; gap: 0; }
 .dw-paper[data-split="true"] > .dw-viewer { flex: 1 1 0; min-width: 0; }
 .dw-second { display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; border-left: 1px solid var(--border-strong); }
@@ -387,12 +391,10 @@ kbd {
 .split-item { display: grid; gap: 0.1rem; width: 100%; padding: 0.5rem 0.6rem; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface); color: var(--text); text-align: left; }
 .split-item:hover { border-color: var(--accent); background: var(--surface-2); }
 .split-item small { color: var(--muted); }
-.dw-focus-btn[aria-pressed="true"], .dw-split-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.dw-full-btn[aria-pressed="true"], .dw-split-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 /* two papers side by side need room: on narrower windows the buttons are not offered and a second paper is put away */
 @media (max-width: 1100px) {
   .dw-split-btn, .dw-second { display: none; }
-  .dw-focus-btn { display: none; }
-  .dw[data-focus="true"] .dw-ask { display: flex; }
 }
 
 /* ---------- offline reading ---------- */
