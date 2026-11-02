@@ -206,6 +206,10 @@ try {
   const strictBtn = page.locator(`${lastLi} .chat-strict`).getByRole("button", { name: "Check strictly" });
   ok(await strictBtn.isVisible() && /also claims a cure/.test(await page.locator(`${lastLi} .chat-answer`).innerText()), "an answer that was read claim by claim offers 'Check strictly', and says what it costs");
   ok(/About 5,000 tokens/.test(await page.locator(`${lastLi} .chat-strict-h`).innerText()) && !!(await strictBtn.getAttribute("aria-describedby")), "the cost is said in words, and tied to the button for a screen reader");
+  // at the foot of the page, where the last answer must be clear of the prompt box that sticks to the bottom of the window (the page keeps room for it); the check ran on whatever
+  // place the page had scrolled to, and on a machine that scrolls differently the buttons of the answer were half under the box
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(400);
   await axe("an answer with Check strictly", page);
   await strictBtn.click();
   await page.locator(`${lastLi} .chat-answer`).waitFor();

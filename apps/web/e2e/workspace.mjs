@@ -1057,6 +1057,8 @@ try {
     ok(await fsBtn.getAttribute("aria-pressed") === "false" && !(await fsOn()), "it starts off");
     await fsBtn.click();
     await page.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 4000 });
+    // the button follows the browser's own event, which the page handles a moment after the element is set (a slower machine shows the gap)
+    await page.waitForFunction(() => document.querySelector(".dw-full-btn")?.getAttribute("aria-pressed") === "true", null, { timeout: 4000 });
     ok(await fsBtn.getAttribute("aria-pressed") === "true", "pressed, the browser goes full screen and the button says so");
     ok(await page.locator(".dw-ask").isVisible(), "the side panel is a separate choice: it stays as it was");
     await page.evaluate(() => document.exitFullscreen()); // what Esc does
