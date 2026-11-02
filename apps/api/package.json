@@ -21,14 +21,14 @@
   },
   "dependencies": {
     "@scholar/shared": "*",
-    "hono": "^4.13.13",
+    "hono": "^4.13.14",
     "unpdf": "1.9.1"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20261024.1",
+    "@cloudflare/workers-types": "^5.20261030.1",
     "sharp": "^0.35.5",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5",
-    "wrangler": "^4.152.0"
+    "wrangler": "^4.156.0"
   }
 }
