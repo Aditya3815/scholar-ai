@@ -74,9 +74,14 @@ export function groupLines(items: readonly RawItem[], page: number): Line[] {
   return lines.filter((l) => l.size > 0);
 }
 
+/** A line that is only the end of a DOI or of another long number that a PDF wrapped onto a line of its own ("3538933", "2021.9610916"). It is no page number (those have up to four digits). */
+const WRAPPED_NUMBER = /^\d{5,}$|^\d{3,}(?:\.\d+)+$/;
+
 /** Page numbers and headers or footers that repeat on many pages are not content. */
 export function stripRunningHeads(lines: Line[], pageCount: number): Line[] {
-  const key = (t: string) => t.toLowerCase().replace(/\d+/g, "#").replace(/\s+/g, " ").trim();
+  // Lines are compared with their digits blanked, so that "Journal 12(3), page 4" and "... page 5" are one header. A wrapped DOI tail would be "#", the same as every page number,
+  // and be removed from the reference it belongs to (the DOI of a real paper then named a different one): it is compared as it is written, so only the very same number on many pages goes.
+  const key = (t: string) => (WRAPPED_NUMBER.test(t) ? t : t.toLowerCase().replace(/\d+/g, "#").replace(/\s+/g, " ").trim());
   const pagesBy = new Map<string, Set<number>>();
   for (const l of lines) {
     if (l.text.length > 140) continue;
@@ -298,7 +303,26 @@ function splitNumbered(block: Line[]): string[] {
 /** Something that cites a work: a year, a DOI, an arXiv id or an address. What does not is not a reference (an appendix paragraph that followed the list). */
 const CITES = /\b(1[5-9]\d{2}|20\d{2})[a-z]?\b|doi\.org|\b10\.\d{4,9}\/|arxiv|https?:\/\/|www\.|in press|forthcoming|to appear/i;
 
-const clean = (s: string) => squash(s.replace(MARKER, ""));
+/** A key in place of a number ("[ADG16]", "[BBDIW20]", "[Knu97a]": BibTeX's alpha style); a PDF may break it in two lines ("[ADG" and then "16] ..."). */
+const KEY_COMPLETE = /^\[\p{Lu}[\p{L}+-]{1,9}\d{2,4}[a-z]?\]/u;
+const KEY_BROKEN = /^\[\p{Lu}[\p{L}+-]{1,9}$/u;
+const KEY_LABEL = /^\[\p{Lu}[\p{L}+-]{1,9}\s?(?:\d{2,4}[a-z]?)?\]\s*/u;
+const startsWithKey = (text: string): boolean => KEY_COMPLETE.test(text) || KEY_BROKEN.test(text);
+
+/**
+ * A list labelled with keys. Its labels are usually right-aligned, so the first lines of its entries start at a different x each time and the hanging-indent reading finds almost no
+ * entry start: a whole list became thirty entries of five references each. A key is the start of an entry, whatever the x.
+ */
+function splitKeyed(block: Line[]): string[] {
+  const entries: string[] = [];
+  for (const l of block) {
+    if (startsWithKey(l.text) || entries.length === 0) entries.push(l.text);
+    else entries[entries.length - 1] += ` ${l.text}`;
+  }
+  return entries;
+}
+
+const clean = (s: string) => squash(s.replace(MARKER, "").replace(KEY_LABEL, ""));
 
 /**
  * An entry with a very long author list (hundreds of names) would be cut inside the author list when it is checked, and the title, which comes after
@@ -315,7 +339,8 @@ export function referenceEntries(block: Line[]): string[] {
   if (block.length === 0) return [];
   const numbered = block.filter((l) => markerNumber(l.text) !== null).length >= Math.min(3, Math.ceil(block.length / 12));
   const byNumber = numbered ? splitNumbered(block) : [];
-  const entries = (byNumber.length >= 2 && byNumber) || (!numbered && splitByIndent(block)) || splitReferences(block.map((l) => l.text).join("\n"));
+  const keyed = !numbered && block.filter((l) => startsWithKey(l.text)).length >= Math.max(3, Math.ceil(block.length / 10));
+  const entries = (byNumber.length >= 2 && byNumber) || (keyed && splitKeyed(block)) || (!numbered && splitByIndent(block)) || splitReferences(block.map((l) => l.text).join("\n"));
   const kept = entries
     .map((e) => compactLong(clean(e)))
     .filter((e) => e.length >= 20 && /\p{L}{3}/u.test(e));

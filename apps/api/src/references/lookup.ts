@@ -44,6 +44,9 @@ type CRItem = {
   author?: { given?: string; family?: string; name?: string }[];
   issued?: { "date-parts"?: (number | null)[][] };
   "container-title"?: string[];
+  volume?: string;
+  page?: string;
+  "article-number"?: string;
 };
 
 /** Crossref titles carry markup ("<i>Anionic Mishran</i> Supplementation …", "&amp;"); a citation does not. */
@@ -63,6 +66,14 @@ function fromCrossref(it: CRItem): Candidate | null {
     year: it.issued?.["date-parts"]?.[0]?.[0] ?? null,
     venue: it["container-title"]?.[0] ?? null,
   };
+}
+
+/** The record with the facts a reference without a title is told by: its volume, and the first page (or the article number, which is where a journal without pages puts it). */
+function fromCrossrefLocator(it: CRItem): Candidate | null {
+  const c = fromCrossref(it);
+  if (!c) return null;
+  const first = (it.page ?? "").split(/[-\u2010-\u2013]/)[0]?.trim();
+  return { ...c, volume: it.volume ?? null, pages: [first, it["article-number"]].filter((p): p is string => !!p) };
 }
 
 /** Crossref record for a DOI. null = Crossref says 404 (not registered with Crossref). Throws LookupError on other failures. */
@@ -93,6 +104,32 @@ async function crossrefSearchLive(text: string, env: LookupEnv, rows: number): P
   if (!res.ok) throw new LookupError(`Crossref HTTP ${res.status}`);
   const body = (await res.json()) as { message?: { items?: CRItem[] } };
   return (body.message?.items ?? []).map(fromCrossref).filter((c): c is Candidate => !!c);
+}
+
+/**
+ * For a reference that gives no title: the records of the years around the printed one whose authors include the first author's name, ranked by the numbers in the reference (the volume and the
+ * page). Ranked by the numbers alone: with the whole reference as the query, the paper of "Abdo, A. A., et al. 2009, ApJ, 699, 976" was not among the first fifteen of the many papers by authors called
+ * Abdo (the names and the journal's acronym outweigh the numbers); with "699 976" it is the first. Asked with the fields a volume and a page need, so it is a request of its own and the others keep their fields.
+ */
+export async function crossrefByLocator(numbers: string[], author: string | null, year: number, env: LookupEnv, rows = 15): Promise<Candidate[]> {
+  const query = numbers.join(" ").slice(0, 120);
+  return remembered(env, "crossref-locator", [query, author ?? "", String(year), String(rows)], () => crossrefByLocatorLive(query, author, year, env, rows));
+}
+async function crossrefByLocatorLive(query: string, author: string | null, year: number, env: LookupEnv, rows: number): Promise<Candidate[]> {
+  const params = new URLSearchParams({
+    "query.bibliographic": query,
+    filter: `from-pub-date:${year - 1},until-pub-date:${year + 1}`,
+    rows: String(rows),
+    select: `${SELECT},volume,page,article-number`,
+    mailto: env.CROSSREF_MAILTO,
+  });
+  if (author) params.set("query.author", author);
+  const res = await cr(env)(`https://api.crossref.org/works?${params}`, { headers: headers(env), timeoutMs: 12_000 }).catch((e) => {
+    throw new LookupError(`Crossref unreachable: ${e instanceof Error ? e.message : e}`);
+  });
+  if (!res.ok) throw new LookupError(`Crossref HTTP ${res.status}`);
+  const body = (await res.json()) as { message?: { items?: CRItem[] } };
+  return (body.message?.items ?? []).map(fromCrossrefLocator).filter((c): c is Candidate => !!c);
 }
 
 /** Title-focused search: ranks the right paper higher than the whole-string search when the reference carries long author lists. */

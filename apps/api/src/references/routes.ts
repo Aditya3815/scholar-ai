@@ -21,7 +21,9 @@ const TTL_SECONDS: Partial<Record<RefResult["status"], number>> = { verified: 86
  */
 export async function verifyCached(store: CacheStore, text: string, env: LookupEnv): Promise<{ result: RefResult; cached: boolean }> {
   const clean = text.replace(/\s+/g, " ").trim();
-  const key = await cacheKey("refverify", clean.toLowerCase());
+  // "refverify2": the answers kept under "refverify" (up to a day) were given before the verifier read titles, DOIs and years as it does now (2 Nov 2026); a reference that was wrongly called
+  // "not found" or "different" would have kept that answer. Change the name again whenever the same text should get a new answer.
+  const key = await cacheKey("refverify2", clean.toLowerCase());
   try {
     const hit = await store.get(key);
     if (hit) return { result: { ...(JSON.parse(hit) as RefResult), input: clean }, cached: true };

@@ -59,6 +59,27 @@ describe("stripRunningHeads", () => {
     const lines = [L("Repeated", { page: 1 }), L("Repeated", { page: 2 }), L("Other", { page: 3 })];
     expect(stripRunningHeads(lines, 3)).toHaveLength(3);
   });
+
+  it("keeps the digits that finish a DOI wrapped onto a line of its own: they are not a page number", () => {
+    const lines: Line[] = [];
+    for (let p = 1; p <= 10; p++) lines.push(L(`An entry that ends with doi:10.1145/349836${p}.`, { page: p }), L(String(3538900 + p), { page: p, y: 600 }), L(String(p), { page: p, y: 20 }));
+    const kept = stripRunningHeads(lines, 10).map((l) => l.text);
+    for (let p = 1; p <= 10; p++) expect(kept).toContain(String(3538900 + p));
+    expect(kept.filter((t) => /^\d{1,2}$/.test(t))).toEqual([]); // the page numbers are gone
+  });
+  it("and the reference list then has the whole DOI", () => {
+    const lines: Line[] = [];
+    for (let p = 1; p <= 6; p++) lines.push(L(String(p), { page: p, y: 20 }));
+    lines.push(
+      L("References", { page: 6, y: 700, size: 14 }),
+      L("[1] Ishan Chatterjee, Maruchi Kim, and Steven M. Seitz. 2022. ClearBuds: wireless binaural earbuds. ACM, 384-396. doi:10.1145/3498361.", { page: 6, y: 680 }),
+      L("3538933", { page: 6, y: 668, x: 69 }),
+      L("[2] Jiaben Chen, Renrui Zhang, and Jianbo Shi. 2022. iQuery: Instruments as queries for audio-visual sound separation. arXiv:2212.03814", { page: 6, y: 650 }),
+      L("[3] Someone Else and Another Person. 2021. A third reference entry for the list. Journal of Things 4, 1-9.", { page: 6, y: 620 }),
+    );
+    const section = referenceSection(lines, 6);
+    expect(section.entries[0]).toMatch(/doi:10\.1145\/3498361\. 3538933$/);
+  });
 });
 
 describe("title and identifiers", () => {
@@ -153,6 +174,45 @@ describe("referenceEntries", () => {
   });
   it("returns nothing for an empty block", () => {
     expect(referenceEntries([])).toEqual([]);
+  });
+});
+
+describe("a list whose entries carry a key, not a number (BibTeX's alpha style)", () => {
+  // the lines of the reference list of "Language Models are Few-Shot Learners" as pdf.js gives them: the labels are right-aligned (so the first line of an entry starts at a different x each
+  // time, which the hanging-indent reading cannot follow), and a key can break in two: "[ADG" and then "16] Marcin ..."
+  const gpt3 = (): Line[] => [
+    L("[ADG", { x: 80.3 }),
+    L("16] Marcin Andrychowicz, Misha Denil, Sergio Gomez, Matthew W Hoffman, David Pfau, Tom Schaul,", { x: 111.8 }),
+    L("Brendan Shillingford, and Nando De Freitas. Learning to learn by gradient descent by gradient descent.", { x: 130.1 }),
+    L("In Advances in neural information processing systems, pages 3981\u20133989, 2016.", { x: 130.1 }),
+    L("[AI19] WeChat AI. Tr-mt (ensemble), December 2019.", { x: 98 }),
+    L("[AJF19] Roee Aharoni, Melvin Johnson, and Orhan Firat. Massively multilingual neural machine translation. In", { x: 91.9 }),
+    L("Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational", { x: 129.8 }),
+    L("Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers), 2019.", { x: 129.8 }),
+    L("[BBDIW20] Su Lin Blodgett, Solon Barocas, Hal Daum\u00b4e III, and Hanna Wallach. Language (technology) is power:", { x: 75.3 }),
+    L("A critical survey of \u201cbias\u201d in nlp. arXiv preprint arXiv:2005.14050, 2020.", { x: 129.7 }),
+    L("[BDD", { x: 80.9 }),
+    L("09] Luisa Bentivogli, Ido Dagan, Hoa Trang Dang, Danilo Giampiccolo, and Bernardo Magnini. The fifth", { x: 111.8 }),
+    L("PASCAL recognizing textual entailment challenge. 2009.", { x: 130.1 }),
+    L("[Cra17] Kate Crawford. The trouble with bias. NIPS 2017 keynote, 2017.", { x: 93 }),
+  ];
+
+  it("starts an entry at every key, also a key that broke in two, and takes the key off", () => {
+    const e = referenceEntries(gpt3());
+    expect(e).toHaveLength(6);
+    expect(e[0]).toBe("Marcin Andrychowicz, Misha Denil, Sergio Gomez, Matthew W Hoffman, David Pfau, Tom Schaul, Brendan Shillingford, and Nando De Freitas. Learning to learn by gradient descent by gradient descent. In Advances in neural information processing systems, pages 3981\u20133989, 2016.");
+    expect(e[1]).toBe("WeChat AI. Tr-mt (ensemble), December 2019.");
+    expect(e[2]).toMatch(/^Roee Aharoni.*Papers\), 2019\.$/);
+    expect(e[4]).toMatch(/^Luisa Bentivogli.*2009\.$/);
+    expect(e.every((x) => !/^\[/.test(x))).toBe(true);
+  });
+
+  it("is not mistaken for a numbered list, nor does it change what a numbered or an indented list gives", () => {
+    expect(referenceEntries(column(["[1] Smith J. A first paper title. Journal of Things 1, 2001.", "[2] Jones K. A second paper title. Journal of Things 2, 2002.", "[3] Brown L. A third paper title. Journal of Things 3, 2003."]))).toHaveLength(3);
+    // a bracket that is not a key ([Online], a number in brackets, a lone word) does not start entries
+    const online = column(["Smith J. A first paper title. Journal of Things 1, 2001. [Online].", "[Online] Available: https://example.org/first", "Jones K. A second paper title. Journal of Things 2, 2002.", "Brown L. A third paper title. Journal of Things 3, 2003."]);
+    expect(referenceEntries(online).length).toBeGreaterThan(0);
+    expect(referenceEntries(online).some((x) => /Available/.test(x) && /Smith/.test(x))).toBe(true);
   });
 });
 

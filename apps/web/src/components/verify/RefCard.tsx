@@ -31,10 +31,17 @@ const authorLine = (a: string[]) => (a.length === 0 ? "No authors listed" : a.le
 
 /** What was compared, in words, so a verdict is never a black box. Each pill has an icon-free text meaning of its own. */
 function Checks({ checks }: { checks: RefChecks }) {
-  const items: { ok: boolean | null; text: string }[] = [
-    { ok: checks.title >= 0.8, text: checks.title >= 0.95 ? "Title matches" : `Title ${Math.round(checks.title * 100)}% matches` },
+  const items: { ok: boolean | null; text: string }[] = checks.locator
+    ? [
+        { ok: null, text: "No title in the reference" },
+        { ok: true, text: "Author matches" },
+        { ok: true, text: "Year matches" },
+        { ok: true, text: "Volume and page match" },
+      ]
+    : [
+    { ok: checks.title >= 0.8, text: checks.shortened ? "Title matches (shortened)" : checks.title >= 0.95 ? "Title matches" : `Title ${Math.round(checks.title * 100)}% matches` },
     { ok: checks.author, text: checks.author === null ? "Record lists no authors" : checks.author ? "Author matches" : "Authors differ" },
-    { ok: checks.year, text: checks.year === null ? "Year not compared" : checks.year ? "Year matches" : "Year differs" },
+    { ok: checks.year, text: checks.year === null ? "Year not compared" : checks.year ? "Year matches" : checks.yearOff ? `Year differs by ${checks.yearOff}` : "Year differs" },
   ];
   return (
     <ul className="ref-checks" aria-label="What was compared">

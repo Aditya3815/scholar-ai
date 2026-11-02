@@ -42,6 +42,18 @@ part of the day's OpenAlex budget): list them with `npm run eval 2>&1 | grep "^ 
 ("printed up to"), how many look merged (very long) or cut (very short), and flags a disagreement. `--dump` writes the reference block and the entries for reading. Use it on any paper that shows too few or too many references (22 Oct: it found the two
 bugs fixed that day). The unit tests in `apps/api/src/docs/paperinfo.test.ts` cover each style (numbered, hanging indent, two columns, appendix straight after the list, wrapped lines that begin with a year or a dash).
 
+## References of real PDFs against the live services
+(2 Nov 2026, 35 open-access papers, 1,325 references, the first 60 of each: Indian and global medicine, physics, astronomy, economics, mathematics, machine learning, HCI. The same services' answers kept on disk for the before and the after.
+**Before: 71.9% verified (953), 366 under Needs attention. After: 86.0% verified (1,164 of 1,354), 184 under Needs attention.** Per paper, for example: GW150914 0 of 60 to 36, an astronomy paper 0 to 47 of 60, DETR 36 to 50 of 53, a 20-reference manuscript 13 to 20. About 50 of the 184 that are left are not papers (web pages, patents, reports, books).
+Read the other way too: 100 references that were verified without a title, deliberately corrupted (volume, page, first author, year moved), gave 100 non-verified. A random 40 of the 83 verified without a title, and every one verified by a shortened title, a year note or a cut DOI, were read by a person: all were the right paper.)
+
+The eval above uses clean records written out in five formats. A reference taken from a PDF is not clean, and that is where real papers were called "Needs attention" (2 Nov 2026, see the roadmap log).
+`node apps/api/scripts/refs-live.mjs <folder or file.pdf> [--limit=60] [--out=results.json] [--cache=<folder>] [--all]` runs the browser's extraction and then the real verifier against the live Crossref, OpenAlex
+and doi.org, and lists every reference that is not verified, with the record it came closest to. Read that list as a person would: each line is either a real paper (a defect to fix), or something the
+registries do not hold (a web page, software, a patent, a report, a book: not a defect). `--cache` keeps every answer by URL, so a run before and a run after a change see the same world; `--out` writes the results for diffing.
+Use it on any paper that shows real references under "Needs attention", and add what it finds as a test (the cases of 2 Nov 2026 are in `match.test.ts`, `verify.test.ts` and `paperinfo.test.ts`, each with the reference text as it was printed).
+What it is not: a number to tune on. It has no ground truth beyond a person reading the list, so it finds defects; the gates above (fakes 0, genuine and held-out rates) are what stops a fix from blessing a fake.
+
 ## Prior-art recall (Idea Check)
 
 `eval/prior-art.eval.ts` asks: if a researcher's idea were as clear as a paper's abstract, does Idea Check find the papers that paper itself cites? 40 recent papers (`data/prior_art.json`,
@@ -52,6 +64,27 @@ It measures retrieval only: not the AI step that writes the search plan, and not
 Deterministic, no LLM. `verified` needs the record's title covered by the reference text (>= 85%, >= 95% plus author and year for very short generic titles)
 **and** a confirming author or year, with nothing contradicting it. A real title with invented authors is `mismatch`, a DOI that does not resolve is
 `not_found`, and network errors are `unverifiable`, never `verified` or `not_found`.
+
+How a reference is read before it is compared (all of it added on 2 Nov 2026, from real PDFs; each rule has a test with the reference as printed, and each can only help a reference that
+the record agrees with, never one it contradicts):
+- **The title is found before it is searched for.** "Bahdanau, D., Cho, K., Bengio, Y.: Neural machine translation ... In: ICLR (2015)" (Springer's proceedings style) and "Vaswani A, Shazeer N et al (2017) Attention is all you need." used to
+  be searched with the authors glued to the title, and OpenAlex's title search needs every word to be in the title: 0 records. The title ends at its own full stop (not at an acronym such as "HCI.", and not after the venue).
+- **A word the PDF broke is read the way the record writes it.** "attention- based" (a real hyphen) and "ma- chine" (a soft one) look the same; rejoining every break guessed wrong for the real ones. Two neighbouring words that make one
+  word of the record's title are that word ("im- age", "Under water"); one word that makes two of its title's words is those two ("attentionbased", "filtersimultaneous"). The words around a break are left out of the OpenAlex search.
+- **A title the reference shortened** ("A decomposable attention model" for "... for Natural Language Inference") verifies when it is the beginning of the record's title, at least three words, and author **and** year agree.
+- **A year two off** (a paper first printed online or at a conference, dated by the later issue) verifies when the whole title and an author agree, and the answer says "Check the year: the reference says 2019, the record says 2021". Three or more stays a difference.
+  A year that is part of the title ("during 2006-2015") is never taken for the reference's own (the eval found this: a moved year passed for the real one).
+- **A DOI a PDF wrapped** ("doi:10.1145/3498361. 3538933", "...I3DA48870. 2021.9610916") is read whole first and as printed second; a DOI is called nonexistent only when none of its readings is. A DOI that was cut short
+  (it names the proceedings) verifies when the reference's own title finds the paper and the printed DOI is the beginning of the paper's. The digits that finish a wrapped DOI used to be deleted by the page-number filter
+  (they looked like "a number that repeats on every page"), which made a real DOI name a different paper.
+- **A reference that gives no title** ("Abdo, A. A., et al. 2009a, ApJ, 699, 976", "D. Finkelstein, Phys. Rev. 110, 965 (1958)": the style of physics, astronomy and much of chemistry) used to be "not found" every time, a whole
+  paper's list at once. It is now told by where it was printed: Crossref is asked for the records of the years around the printed one whose authors include the first author's name, ranked by **the numbers alone** (with
+  the whole reference as the query, the paper was not among the first fifteen of the many by authors called Abdo; with "699 976" it is the first), and a record counts only when its first author, a year within one of its,
+  its volume and its first page (or article number) are all in the reference **and the reference has no words of its own besides** (the record's authors and the words of its journal's name, an abbreviation being the start of
+  one, are taken away; at most the journal's acronym may remain). That last rule is what keeps a made-up title on a real page from passing. It is tried for any reference that title did not verify, because a journal named in full reads like
+  a title. An arXiv id with no title is told the same way (id, first author, year). A "not found" for such a reference says it gave no title and what could be compared.
+- **A letter after a surname** that a manuscript printed for the author's affiliation ("Lia", "Wangc", "Zhanga,1") does not hide the author.
+- **A patent** ("U.S. Patent No. ...") is not in either registry and is said to be a patent, not "a real paper with a similar title".
 
 ## What the eval has already caught (real bugs, fixed)
 The first run against live data failed three gates and exposed problems no unit test had found:
@@ -82,6 +115,9 @@ or unusual typography (`<mml:math ...>` in a physics title, a hyphenated chemist
 the title words line up; one is also a title Crossref spells differently. None is a fabricated reference being blessed, which is
 the failure that matters; they are false alarms. Gates H1-H3 guard against getting worse (fakes 0, genuine >= 88%, known-item
 >= 92%); do not raise them by tuning on this set.
+
+Re-measured on 2 Nov 2026 after those changes (replay): genuine 100/100, fabricated verified 0/30, held-out genuine **58/60 (97%)** (it was 57/60), held-out fabricated verified 0/40. The eval caught one thing on the way:
+the year rule above first let two altered-year fakes through because of the years inside their titles; that is fixed and has a test.
 
 ## Limits worth knowing
 - The tuned set's 100% is optimistic; the held-out set above (93%) is the number to quote. 60 + 40 items is still small: a few more misses move it by points.

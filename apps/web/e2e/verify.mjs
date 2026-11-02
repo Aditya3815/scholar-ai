@@ -30,6 +30,9 @@ const VERDICTS = [
   { when: "Wakefield", status: "verified", retracted: true, reason: "Matches “Ileal-lymphoid-nodular hyperplasia” by A. J. Wakefield et al. (1998).", match: rec("Ileal-lymphoid-nodular hyperplasia, non-specific colitis, and pervasive developmental disorder in children", ["A. J. Wakefield"], 1998, "10.1016/s0140-6736(97)11096-0"), checks: { title: 1, author: true, year: true } },
   { when: "Kumar, V.", status: "mismatch", reason: "A real paper with a very similar title exists: “Deep learning” by Yann LeCun et al. (2015), but the authors do not match.", match: rec("Deep learning", ["Yann LeCun", "Yoshua Bengio", "Geoffrey Hinton"], 2015, "10.1038/nature14539"), checks: { title: 1, author: false, year: true } },
   { when: "Sharma, R.", status: "not_found", reason: "No paper matching this title, authors and year was found in Crossref.", match: null, checks: { title: 0.4, author: false, year: null } },
+  { when: "Abdo, A.", status: "verified", reason: "Matches “Fermi/LAT discovery of gamma-ray emission from a relativistic jet in PMN J0948+0022” by A. A. Abdo et al. (2009). The reference gives no title, so this is by its author, year, volume and page.", match: rec("Fermi/LAT discovery of gamma-ray emission from a relativistic jet in PMN J0948+0022", ["A. A. Abdo", "M. Ackermann"], 2009, "10.1088/0004-637x/699/2/976"), checks: { title: 0, author: true, year: true, locator: true } },
+  { when: "Parikh, A.", status: "verified", reason: "Matches “A Decomposable Attention Model for Natural Language Inference” by Ankur Parikh et al. (2016). The reference gives a shortened title.", match: rec("A Decomposable Attention Model for Natural Language Inference", ["Ankur Parikh", "Oscar Täckström"], 2016, "10.18653/v1/d16-1244"), checks: { title: 0.9, author: true, year: true, shortened: true } },
+  { when: "Cai, Z.", status: "verified", reason: "Matches “Cascade R-CNN: High Quality Object Detection and Instance Segmentation” by Zhaowei Cai et al. (2021). Check the year: the reference says 2019, the record says 2021.", match: rec("Cascade R-CNN: High Quality Object Detection and Instance Segmentation", ["Zhaowei Cai", "Nuno Vasconcelos"], 2021, "10.1109/tpami.2019.2956516"), checks: { title: 1, author: true, year: false, yearOff: 2 } },
   { when: "Offline", status: "unverifiable", reason: "We could not reach the reference databases just now, so this was not checked. Please try again.", match: null, checks: null },
 ];
 const REFS = [
@@ -189,6 +192,26 @@ try {
     await box.fill(REFS[2]);
     await page.reload({ waitUntil: "networkidle" });
     ok((await page.getByLabel("Your references").inputValue()) === REFS[2], "the draft survives a reload (this tab only)");
+    await page.getByRole("button", { name: "Clear" }).click();
+
+    // a reference that is verified without an exact match says how: no title (told by author, year, volume and page), a shortened title, a year two off
+    console.log("verified, but not by an exact match");
+    await box.fill([
+      "Abdo, A. A., Ackermann, M., Ajello, M., et al. 2009a, ApJ, 699, 976",
+      "Parikh, A., Täckström, O., Das, D., & Uszkoreit, J. A decomposable attention model. In Empirical Methods in Natural Language Processing, 2016.",
+      "Cai, Z., Vasconcelos, N.: Cascade R-CNN: High quality object detection and instance segmentation. PAMI (2019)",
+    ].join("\n"));
+    await box.press("Control+Enter");
+    await page.locator(".vsum-headline").filter({ hasText: /3 references checked/ }).waitFor({ timeout: 20000 });
+    const inexact = page.locator(".ref");
+    const text = async (i, sel) => ((await inexact.nth(i).locator(sel).allInnerTexts()).join(" | ")).replace(/\s+/g, " ");
+    ok((await Promise.all([0, 1, 2].map((i) => text(i, ".ref-status")))).every((s) => s === "Verified"), "all three are Verified");
+    ok(/No title in the reference/.test(await text(0, ".ref-checks")) && /Volume and page match/.test(await text(0, ".ref-checks")) && !/Title \d+% matches/.test(await text(0, ".ref-checks")), "without a title the card says what it was told by, not 'Title 0% matches'");
+    ok(/no title/.test(await text(0, ".ref-reason")), "...and the answer says the reference gave no title");
+    ok(/Title matches \(shortened\)/.test(await text(1, ".ref-checks")) && /shortened title/.test(await text(1, ".ref-reason")), "a shortened title is called one, in the pill and in the answer");
+    ok(/Year differs by 2/.test(await text(2, ".ref-checks")) && /Check the year: the reference says 2019, the record says 2021/.test(await text(2, ".ref-reason")), "a year two off says by how much, and what the two years are");
+    await page.waitForTimeout(900); // the cards fade in; axe would read the colours half-way
+    await axe("verify, verified but not exactly");
     await page.getByRole("button", { name: "Clear" }).click();
   } else {
     await page.locator(".vsum-headline").filter({ hasText: /checked/ }).waitFor({ timeout: 60000 });

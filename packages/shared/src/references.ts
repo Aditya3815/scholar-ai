@@ -26,6 +26,12 @@ export type RefChecks = {
   /** true/false = an author does / does not appear in the reference; null = the record has no authors to compare. */
   author: boolean | null;
   year: boolean | null;
+  /** How many years the nearest year printed in the reference is from the record's (absent when the reference prints none). */
+  yearOff?: number;
+  /** The reference gives only the beginning of the record's title. */
+  shortened?: boolean;
+  /** The reference gives no title: the record was matched by its first author, year, volume and page. */
+  locator?: boolean;
 };
 
 export type RefVerdict = {

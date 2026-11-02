@@ -343,7 +343,8 @@ describe("citation accuracy gates", () => {
   });
 
   it("G3: no fabricated reference is ever verified", () => {
-    expect(M.verifier.fakes.verified.map((f) => `${f.id} ${f.kind}: ${f.text}`)).toHaveLength(GATES.fakesVerified);
+    const list = M.verifier.fakes.verified.map((f) => `${f.id} ${f.kind}: ${f.text}`);
+    expect(list, list.join(" ||| ")).toHaveLength(GATES.fakesVerified);
   });
 
   it("G4: genuine references are verified at an acceptable rate", () => {
@@ -359,7 +360,8 @@ describe("citation accuracy gates", () => {
   });
 
   it("H1: no fabricated reference from the held-out set is verified", () => {
-    expect(M.heldout.fakes.verified.map((f) => `${f.id} ${f.kind}: ${f.text}`)).toHaveLength(GATES.heldoutFakesVerified);
+    const list = M.heldout.fakes.verified.map((f) => `${f.id} ${f.kind}: ${f.text}`);
+    expect(list, list.join(" ||| ")).toHaveLength(GATES.heldoutFakesVerified);
   });
 
   it("H2: held-out genuine references are verified at no less than the measured rate", () => {
