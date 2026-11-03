@@ -95,7 +95,7 @@ A teaching notebook (62 components in 8 phases), not a library; nothing is insta
 | Compact tool results | search results reach the model as numbered short records (title, year, sentence-numbered abstract) |
 | Cache-friendly prompt order | system prompt and tools first, the person's text last, so the provider's prompt cache applies (measured in R5) |
 | Definition of done per task | every tool has a check before it may answer (search: at least one verified record or it says so; paper Q&A: a checked quote or it says it found none) |
-| Memory tiers | two only: this chat (browser) and saved papers. No memory of the person |
+| Memory tiers | two only: this chat (browser) and saved papers. No memory of the person. **Changed on 2 Nov 2026** ([chat-actions-context.md](chat-actions-context.md)): earlier questions of this chat go with the next one, and, only by the person's choice ("Continue from an earlier chat", or the Settings switch "Use my earlier chats", off by default), up to three earlier questions of other chats, picked on the device, shown on the answer and removable, never an answer, an Idea Check or a pasted list. No memory text is written by a model (the index words come from what the person typed and from the English search words the router made for each reply, checked by the server), and nothing about the person is kept on the server |
 
 Left out: a free-running loop that decides its own steps. It is costly, hard to test, and its failure ("it searched for something else and answered confidently") is exactly what this product must not do.
 
@@ -144,7 +144,7 @@ papers shown come from lookups and the model refers to them by number. A fetched
 
 ### 4.7 One streaming endpoint
 
-`POST /api/v1/chat` (Server-Sent Events, same-origin, signed in, rate limited): events `understood`, `step`, `token`, `papers`, `cite`, `notice` (partial results), `done`, `error`. The browser sends the last six messages of the chat (the server keeps no chat).
+`POST /api/v1/chat` (Server-Sent Events, same-origin, signed in, rate limited): events `understood`, `step`, `token`, `papers`, `cite`, `notice` (partial results), `done`, `error`. The first release sent no earlier message (a follow-up was a new search); the "last six messages" planned here are built from 2 Nov 2026 in a smaller and stricter form, [chat-actions-context.md](chat-actions-context.md) part B: an optional `history` with an Auto message, at most 3 turns (the earlier questions, the search words and the cited titles of their answers, and up to 500 characters of the last answer, which only the answer's writer reads, only for a follow-up about the answer itself), only from finished searches, never an Idea Check or a message over 300 characters, read and capped by the server (the server keeps no chat), only for a signed-in person, and switched off by `CHAT_CONTEXT=off` (which also ignores `earlier`).
 Search and Q&A streaming already exist and are reused. Idea Check stays on its own routes (it has the approval step in the middle).
 
 ## 5. Ask any paper (S1): what I first proposed, why it was not efficient, and the design that replaces it
@@ -202,7 +202,7 @@ Browser (React)  ──SSE──▶  Worker API (Hono)
 
 | Piece | Decision | Why |
 | --- | --- | --- |
-| Chat state | none on the server; the browser sends the last six messages | no stored chats means nothing new to protect or delete; decision for the first release (section 9, CH-1) |
+| Chat state | none on the server; the browser sends a small validated `history` (at most 3 turns, section 4.7; first release: nothing) | no stored chats means nothing new to protect or delete; decision for the first release (section 9, CH-1) |
 | Router | `routeIntent(text, context)`: pure rules first, then one model call with a JSON schema; result is data (`mode`, `confidence`, `query`, `language`), never an action | testable without a model for the rules; the model part has an eval |
 | Tools | plain functions with a typed result; the chat route only maps events to SSE | the existing routes keep working and keep their tests |
 | Open-access index | new tables `oa_papers(id, doi, title, source_url, license, content_sha, pages, status, error, chunk_count, r2_key, created_at, checked_at)` and `oa_chunks(paper_id, idx, page, text, embedding)`; `documents` gets `oa_paper_id` | one shared public copy; saving is a pointer |

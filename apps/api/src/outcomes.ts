@@ -8,6 +8,20 @@ import type { AnswerOutcomeRow } from "@scholar/shared";
 export const OUTCOME_FEATURES = ["chat", "oa_ask", "oa_ask_abstract", "doc_ask", "litscan"] as const;
 export type OutcomeFeature = (typeof OUTCOME_FEATURES)[number];
 
+/**
+ * What a message that came with the turns before it (a follow-up, docs/design/chat-actions-context.md; whether or not a model had to read them) counts as, in the place of "answered" and
+ * "not_grounded" (every other ending keeps its name):
+ * `followup_answered` and `followup_not_grounded` say how the follow-ups went apart from the first messages; `followup_rewrite_failed` is a follow-up whose restatement did not pass the server's
+ * checks and was searched as written (so /admin shows how often the model's reading is not used); `followup_context_ignored` is one that carried turns while the CHAT_CONTEXT switch was off. Counts
+ * only, at most 40 characters each.
+ */
+export const FOLLOW_UP_OUTCOMES = {
+  answered: "followup_answered",
+  notGrounded: "followup_not_grounded",
+  rewriteFailed: "followup_rewrite_failed",
+  contextIgnored: "followup_context_ignored",
+} as const;
+
 const MAX_KEEP_DAYS = 90;
 export const OUTCOME_RETENTION_SQL = `DELETE FROM answer_outcomes WHERE day < date('now', '-${MAX_KEEP_DAYS} days')`;
 

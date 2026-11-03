@@ -6,7 +6,7 @@ import { QuotaError } from "../llm";
 /**
  * Offline stand-ins for the search and the model, used ONLY by tests and the local end-to-end run (QA_STUB=1 with ENABLE_DEV_ROUTES=1, never production secrets).
  * Words in the question steer them: "nothing" finds no papers, "partial" makes one source fail, "unanswerable" makes the model say the papers do not answer,
- * "hallucinate" makes it cite a sentence that does not exist, "slowly" makes the answer take a few seconds (to press Stop), "longabstract" gives the first paper a long abstract, "stalled" keeps the stream silent for a few seconds. When the papers do not answer, the general background (chat_general) is steered by "gibberish", "greeting", "cites" and "marks".
+ * "hallucinate" makes it cite a sentence that does not exist, "slowly" makes the answer take a few seconds (to press Stop), "longabstract" gives the first paper a long abstract, "stalled" keeps the stream silent for a few seconds. When the papers do not answer, the general background (chat_general) is steered by "gibberish", "greeting", "cites" and "marks". A follow-up's earlier answer (answer.ts) is a fenced block of prefixed lines that these words never steer by: the stand-in reads the first `Question:` line only, and the block just makes the plain answer say it was given.
  */
 const RECORDS = [
   { doi: "10.1000/glaucoma.1", title: "Deep learning for glaucoma screening from fundus photographs", year: 2021, venue: "Journal of Ophthalmic AI", abstract: "We trained a convolutional network on 12,000 fundus photographs to detect glaucoma. The model reached an AUC of 0.94 on a held-out set. Performance was lower for images with cataract." },
@@ -101,7 +101,9 @@ export const stubChatStream: StreamComplete = async (req, hooks) => {
   else if (/tighten/i.test(q)) json = { coverage: "full", answer: `The first paper reports its main result and also claims a cure [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
   else if (/judgedrop/i.test(q)) json = { coverage: "full", answer: `The first paper reports its main result [${first}]. The paper also claims an invented cure [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
   else if (/judge(fail|bad|slow|move)/i.test(q)) json = { coverage: "full", answer: `The first paper reports its main result (${/judge\w+/i.exec(q)![0].toLowerCase()}) [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
-  else json = { coverage: "full", answer: `The first paper reports its main result [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
+  // a follow-up about the same papers carries the earlier answer in a fenced block of its own (answer.ts): the stand-in only notes that it is there, so that a test can tell the two apart. It reads the
+  // question from the FIRST `Question:` line and the paper from the first `[n] ` line, and never from the fenced, prefixed lines of that block.
+  else json = { coverage: "full", answer: /^<<<EARLIER_ANSWER$/m.test(req.user) ? `The first paper reports its main result, said again in simpler words [${first}].` : `The first paper reports its main result [${first}].`, evidence: [{ n: Number(first), s: 2 }] };
   const text = JSON.stringify(json, null, 2);
   hooks.onThinking?.();
   await sleep(/slowly/i.test(q) ? 400 : 60);

@@ -1,8 +1,11 @@
 import { Hono } from "hono";
-import { NOTHING_NOTICE, PARTIAL_NOTICE, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatEvent, type TightenResponse, type ChatNoAnswer, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
+import type { Context } from "hono";
+import { FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, NOTHING_NOTICE, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatEvent, type EarlierQuestion, type TightenResponse, type ChatNoAnswer, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
+import { DEFAULT_CONFIG } from "../llm/config";
+import { d1Ledger } from "../llm/d1";
 import { runSearch } from "../search";
 import { sseStream } from "../sse";
 import type { S2Throttle } from "../s2-throttle";
@@ -11,10 +14,11 @@ import { answerFromResults, pickEvidencePapers, type Picked } from "./answer";
 import { judgeAnswer, type JudgeReport } from "./support";
 import { readTighten } from "./tighten";
 import { answerGeneral } from "./general";
-import { routeMessage } from "./router";
+import { askedOf, contextInfo, ownQuestions, routeContextOf, routeFollowUp, routeMessage, type FollowUp, type RouterContext } from "./router";
+import { errorKind, readEarlier, readHistory, stripInvisible, type ChatHistory, type Refusal } from "./history";
 import { stubChatStream, stubJudgeStream, stubSearchFor, stubStrictStream } from "./stub";
 import { stubRoute } from "./stub-route";
-import { countOutcome } from "../outcomes";
+import { FOLLOW_UP_OUTCOMES, countOutcome } from "../outcomes";
 import { searchEnvFrom } from "../search/env";
 import { deny } from "../problem";
 
@@ -37,6 +41,8 @@ type Bindings = {
   LLM_REASONING?: string;
   /** "off" switches the support judge off (answers are then shown as the old check leaves them): a Worker variable, for a day when its model is down or its cost must stop. */
   CHAT_JUDGE?: string;
+  /** "off" makes the chat ignore the earlier messages of a conversation altogether (`history` and `earlier` are neither read nor refused), as it was before there were any: a Worker variable, a rollback that needs no new code. */
+  CHAT_CONTEXT?: string;
 };
 type Env = { Bindings: Bindings };
 export const chatRoutes = new Hono<Env>();
@@ -75,15 +81,64 @@ function judgeStreamFor(env: Bindings, subject: string, abort: AbortSignal, time
   };
 }
 
-/** The router's model: the person's own free text, so PRIVATE (the gateway only uses providers that do not keep or train on it). */
-function routeCompleteFor(env: Bindings, subject: string): Complete {
+/**
+ * The router's model: the person's own free text, so PRIVATE (the gateway only uses providers that do not keep or train on it). `onUsage` hears what a call cost, for the development route that
+ * measures a follow-up (scripts/router-eval.mjs); the stream never uses it.
+ */
+function routeCompleteFor(env: Bindings, subject: string, onUsage?: (u: { tokensIn?: number | null; tokensOut?: number | null }) => void): Complete {
   if (stubbed(env)) return stubRoute;
   const gateway = gatewayFromEnv(env);
   return async (req) => {
     const r = await gateway.complete({ task: "classify", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 30_000, label: req.label });
+    onUsage?.({ tokensIn: r.tokensIn, tokensOut: r.tokensOut });
     return { json: r.json, model: r.model };
   };
 }
+
+/**
+ * The JSON body of a chat request, with a limit on its size (`MAX_CHAT_BODY_BYTES`): refused by its Content-Length where it has one (as Idea Check and the literature scan do), and by counting the
+ * bytes as they arrive where it has not, since a chunked body has no length and a length can be a lie. A body that is not JSON is `null`, as before.
+ */
+async function readChatBody(c: Context): Promise<{ tooLarge: true } | { tooLarge: false; body: unknown }> {
+  if (Number(c.req.header("content-length") ?? 0) > MAX_CHAT_BODY_BYTES) return { tooLarge: true };
+  const reader = c.req.raw.body?.getReader();
+  if (!reader) return { tooLarge: false, body: null };
+  const parts: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_CHAT_BODY_BYTES) {
+      await reader.cancel().catch(() => {});
+      return { tooLarge: true };
+    }
+    parts.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let at = 0;
+  for (const p of parts) {
+    bytes.set(p, at);
+    at += p.byteLength;
+  }
+  try {
+    return { tooLarge: false, body: JSON.parse(new TextDecoder().decode(bytes)) };
+  } catch {
+    return { tooLarge: false, body: null };
+  }
+}
+
+/** Is enough of the day's allowance left for a follow-up that a model reads with the earlier turns? Not being able to tell is not a reason to refuse. */
+async function canAfford(db: D1Database, subject: string): Promise<boolean> {
+  try {
+    return DEFAULT_CONFIG.dailyTokenQuota - (await d1Ledger(db).tokensToday(subject)) >= FOLLOW_UP_TOKENS_ESTIMATE;
+  } catch {
+    return true;
+  }
+}
+
+/** "2020 or later", "2015 or earlier", "2019", "2018 to 2020": a year range in words, for the line that says how many papers it left. */
+const rangeWords = (from?: number, to?: number): string => (from !== undefined && to !== undefined ? (from === to ? `${from}` : `${from} to ${to}`) : from !== undefined ? `${from} or later` : `${to} or earlier`);
 
 
 /**
@@ -94,7 +149,9 @@ function routeCompleteFor(env: Bindings, subject: string): Complete {
  */
 chatRoutes.post("/", async (c) => {
   if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const body = (await c.req.json().catch(() => null)) as { mode?: unknown; message?: unknown; scope?: unknown; anyway?: unknown } | null;
+  const read = await readChatBody(c);
+  if (read.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
+  const body = read.body as { mode?: unknown; message?: unknown; scope?: unknown; anyway?: unknown; history?: unknown; earlier?: unknown } | null;
   if (!body || (body.mode !== "search" && body.mode !== "auto")) return deny(c, 400, "invalid_mode", "That mode is not available");
   // where a search looks: the regular sources, or only Indian ones when the reader turned that on (an unknown value is refused, not quietly widened)
   if (body.scope !== undefined && !isSearchScope(body.scope)) return deny(c, 400, "invalid_scope", "That search scope is not available");
@@ -103,9 +160,35 @@ chatRoutes.post("/", async (c) => {
   if (body.anyway !== undefined && (body.anyway !== true || body.mode !== "search")) return deny(c, 400, "invalid_flag", "That option is not available");
   const anyway = body.anyway === true;
   const auto = body.mode === "auto";
-  const text = auto ? cleanAutoMessage(body.message) : cleanChatMessage(body.message);
-  if (!text) return deny(c, 400, "invalid_message", auto ? "Write something, at most 20,000 characters" : "Write 2 to 300 characters");
+  // The earlier turns of the conversation (docs/design/chat-actions-context.md): for Auto only (a search chosen by hand is searched as written, so it refuses them as it refuses `anyway`), checked here
+  // whoever sends them, read by a model only for a signed-in person, and not even looked at while CHAT_CONTEXT is "off" (a server that did not know the field would ignore it).
+  const contextOn = c.env.CHAT_CONTEXT !== "off";
+  const carries = (body.history !== undefined && body.history !== null) || (body.earlier !== undefined && body.earlier !== null);
+  if (carries && contextOn && !auto) return deny(c, 400, "invalid_flag", "That option is not available");
+  let history: ChatHistory | null = null;
+  let earlier: EarlierQuestion[] = [];
+  if (carries && contextOn) {
+    const h = readHistory(body.history);
+    const e = readEarlier(body.earlier);
+    const refusal: Refusal | null = !h.ok ? h : !e.ok ? e : null;
+    if (refusal) {
+      // a count, so that abuse shows in the logs; never a word of what was sent
+      console.warn(JSON.stringify({ level: "warn", msg: "chat_history_refused" }));
+      return deny(c, 400, "invalid_history", "The earlier messages could not be used", refusal.detail);
+    }
+    if (h.ok && e.ok) {
+      history = h.history;
+      earlier = e.earlier;
+    }
+  }
+  const cleaned = auto ? cleanAutoMessage(body.message) : cleanChatMessage(body.message);
+  if (!cleaned) return deny(c, 400, "invalid_message", auto ? "Write something, at most 20,000 characters" : "Write 2 to 300 characters");
   const user = await currentUser(c);
+  const ctx: RouterContext | null = auto && user && history && (history.turns > 0 || earlier.length > 0) ? { history, earlier } : null;
+  // read with turns before it, the message loses its invisible characters too (they hide an instruction from a person's eyes and not from a model's)
+  const text = ctx ? cleanAutoMessage(stripInvisible(cleaned)) : cleaned;
+  if (!text) return deny(c, 400, "invalid_message", "Write something, at most 20,000 characters");
+  const ignored = carries && !contextOn;
   const started = Date.now();
 
   const abort = new AbortController();
@@ -113,24 +196,41 @@ chatRoutes.post("/", async (c) => {
     const send = s.send;
     // how this question went is counted once, as it ends (counts only, src/outcomes.ts): what the papers did, or what stopped it
     let outcome: string | null = null;
+    // what the router made of a message that was read with turns before it (null for any other message)
+    let follow: FollowUp | null = null;
+    // the day cannot pay for a model to read the earlier turns: the message is searched as written and no answer is written
+    let poor = false;
     const done = async (answered: boolean, reason?: ChatNoAnswer) => {
-      await countOutcome(c.env.DB, "chat", outcome ?? (answered ? "answered" : (reason ?? "other")));
+      const plain = outcome ?? (answered ? "answered" : (reason ?? "other"));
+      // a message that carried turns is counted by name when it ends the way a question ends well or badly: as a follow-up, as one whose restatement was not used, or as one whose turns were ignored
+      const counted =
+        (ctx || ignored) && (plain === "answered" || plain === "not_grounded")
+          ? ignored
+            ? FOLLOW_UP_OUTCOMES.contextIgnored
+            : follow?.fellBack
+              ? FOLLOW_UP_OUTCOMES.rewriteFailed
+              : plain === "answered"
+                ? FOLLOW_UP_OUTCOMES.answered
+                : FOLLOW_UP_OUTCOMES.notGrounded
+          : plain;
+      await countOutcome(c.env.DB, "chat", counted);
       return send({ type: "done", answered, ...(reason ? { reason } : {}), tookMs: Date.now() - started });
     };
     /**
      * Background from general knowledge, when the papers did not answer (general.ts): a separate call, its own step, its own event, shown under a label on every screen.
-     * If the allowance is used or the service is down it is simply not given: the plain line about the papers is already there.
+     * If the allowance is used or the service is down it is simply not given: the plain line about the papers is already there. It is given the question alone (for a follow-up, the
+     * standalone question) and never the earlier turns or an earlier answer.
      */
-    const background = async (subject: string, language: Route["language"]) => {
+    const background = async (subject: string, language: Route["language"], question: string) => {
       if (s.gone) return;
       try {
         await send({ type: "step", step: "general" });
         const g = await answerGeneral({
-          question: text.replace(/\s+/g, " ").slice(0, 600),
+          question,
           language,
           stream: streamFor(c.env, subject, abort.signal),
           emit: send,
-          onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !stubbed(c.env) ? (raw) => console.log(JSON.stringify({ msg: "chat_general_debug", raw })) : undefined,
+          onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !stubbed(c.env) && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_general_debug", raw })) : undefined,
         });
         if (!s.gone) await send({ type: "general", kind: g.kind, text: g.text });
       } catch (e) {
@@ -142,21 +242,38 @@ chatRoutes.post("/", async (c) => {
 
     try {
       let route: Route;
+      const shown = text.replace(/\s+/g, " ").slice(0, 300);
+      // with turns before the message the rules know it (routeContextOf): after an answer only the social words are small talk, and only a message that stands alone is settled as a plain search
+      const rctx = ctx ? routeContextOf(ctx) : undefined;
       // a greeting, thanks or "what can you do" is answered by the box itself: no router, no search, no model, the same for a visitor who is not signed in (unless the reader asked for the search anyway)
-      const talk = !anyway && isSmallTalk(text);
+      const talk = !anyway && isSmallTalk(text, rctx);
       if (auto && !talk) {
-        // the rules settle most messages without a model; only when they cannot, a step says so while the model looks
-        if (user && !ruleRoute(text)) await send({ type: "step", step: "route" });
-        route = await routeMessage(text, user ? routeCompleteFor(c.env, user.id) : null);
+        // a model is about to read the turns: it is not started for a day that cannot pay for the answer that follows (the quota is checked before each call and is not atomic). The words are then searched as
+        // written, as for a visitor (the search is free), and the papers are shown with no answer: the line the screen says for this ("the papers are below") is true, which it was not when nothing was done.
+        if (ctx && user && needsContext(text) && !ruleRoute(text, rctx) && !(await canAfford(c.env.DB, user.id))) {
+          poor = true;
+          route = { ...offlineRoute(text), language: languageWithContext(text, ownQuestions(ctx)) };
+        } else {
+          // the rules settle most messages without a model; only when they cannot, a step says so while the model looks
+          if (user && !ruleRoute(text, rctx)) await send({ type: "step", step: "route" });
+          if (ctx) {
+            const routed = await routeFollowUp(text, user ? routeCompleteFor(c.env, user.id) : null, ctx);
+            route = routed.route;
+            follow = routed.followUp;
+          } else {
+            route = await routeMessage(text, user ? routeCompleteFor(c.env, user.id) : null);
+          }
+        }
         if (s.gone) return;
       } else {
-        route = { mode: "search", how: auto ? "rules" : "chosen", confidence: 1, language: detectLanguage(text) };
+        route = { mode: "search", how: auto ? "rules" : "chosen", confidence: 1, language: ctx ? languageWithContext(text, ownQuestions(ctx)) : detectLanguage(text) };
       }
-      const shown = text.replace(/\s+/g, " ").slice(0, 300);
-      await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}), ...(scope !== "all" && route.mode === "search" ? { scope } : {}) });
+      await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}), ...(scope !== "all" && route.mode === "search" ? { scope } : {}), ...(follow && ctx ? { context: contextInfo(follow, ctx) } : {}) });
+      // counts and short names only: how many turns were read and what came of them, never a word of them
+      if (follow && ctx) console.log(JSON.stringify({ level: "info", msg: "chat_followup", turns: ctx.history.turns, earlier: ctx.earlier.length, mode: route.mode, intent: follow.intent, rewrote: follow.rewrote, fellBack: follow.fellBack, check: follow.check, years: follow.yearFrom !== undefined || follow.yearTo !== undefined }));
       if (talk) {
         outcome = "small_talk";
-        await send({ type: "general", kind: "not_research", text: smallTalkReply(text, route.language) });
+        await send({ type: "general", kind: "not_research", text: smallTalkReply(text, route.language, rctx) });
         return void (await done(false, "small_talk"));
       }
       // another tool: nothing runs here; the browser offers to open it
@@ -165,43 +282,61 @@ chatRoutes.post("/", async (c) => {
       const query = route.searchQuery ?? text.replace(/\s+/g, " ");
       if (query.length > 300) return void (await done(false, "too_long"));
 
+      // what the answer is for and in what language: the standalone question of a follow-up (the message as written for any other message, so that it is answered in the person's language),
+      // and the language the person asked for ("in Hindi") before the one the rules found
+      const asked = askedOf(follow, text.replace(/\s+/g, " ").slice(0, 600));
+      const spoken = follow?.answerLanguage ?? route.language;
+      // a year range ("only after 2020") is applied to the papers' own years before they are numbered, so that card numbers and marks stay true; the search asks for more, so that what is left is not thin
+      const years = follow && (follow.yearFrom !== undefined || follow.yearTo !== undefined) ? { from: follow.yearFrom, to: follow.yearTo } : null;
+      const shape = (list: Paper[]): Paper[] => (years ? list.filter((p) => p.year !== null && (years.from === undefined || p.year >= years.from) && (years.to === undefined || p.year <= years.to)).slice(0, 20) : list);
+
       await send({ type: "step", step: "search" });
       // while the sources answer, each list carries only the start of the abstracts; the final one below carries all of them (slimForInterim)
-      const interim = (r: SearchResponse | SearchSnapshot) => send({ type: "papers", results: slimForInterim(r.results), final: false });
+      const interim = (r: SearchResponse | SearchSnapshot) => send({ type: "papers", results: slimForInterim(shape(r.results)), final: false });
       let found: SearchResponse;
       if (stubbed(c.env)) {
         if (/\bstalled\b/i.test(query)) await new Promise((r) => setTimeout(r, 3500)); // a silent wait, to see the keep-alive line and the "still working" hint
         found = stubSearchFor(query, scope);
         if (found.results.length > 0) await interim(found);
       } else {
-        found = await runSearch(searchEnvFrom(c.env), query, 20, { onSnapshot: interim }, scope);
+        found = await runSearch(searchEnvFrom(c.env), query, years ? YEAR_FILTER_SEARCH_LIMIT : 20, { onSnapshot: interim }, scope);
       }
       if (s.gone) return;
+      const beforeYears = found.results.length;
+      if (years) found = { ...found, results: shape(found.results) };
       await send({ type: "papers", results: found.results, final: true });
-      if (!searchComplete(found)) await send({ type: "notice", kind: "partial", text: PARTIAL_NOTICE });
+      const complete = searchComplete(found);
+      if (!complete) await send({ type: "notice", kind: "partial", text: PARTIAL_NOTICE });
       if (found.results.length === 0) {
-        await send({ type: "notice", kind: "nothing", text: NOTHING_NOTICE });
-        if (user) await background(user.id, route.language);
+        // a year range that took every paper away says so under its own kind (the browser must not take it for a source that did not answer); a search that found nothing at all is the ordinary notice
+        await send(years && beforeYears > 0 ? { type: "notice", kind: "years", text: `No paper from ${rangeWords(years.from, years.to)} was found for this. Remove the year filter to see more.` } : { type: "notice", kind: "nothing", text: NOTHING_NOTICE });
+        if (user) await background(user.id, spoken, asked);
         return void (await done(false));
       }
+      // a short list is said to be short, under the kind of its own: it is a different thing from a source that did not answer, and both are said
+      if (years && found.results.length < YEAR_FILTER_FEW) await send({ type: "notice", kind: "years", text:`Only ${found.results.length} of the papers found ${found.results.length === 1 ? "is" : "are"} from ${rangeWords(years.from, years.to)}, so this list is short. Remove the year filter to see more.` });
       if (found.results.some((p) => p.retracted)) await send({ type: "notice", kind: "retracted", text: "At least one paper in this list has been retracted. It is marked, and it was not used for the answer." });
       if (!user) return void (await done(false, "sign_in"));
+      if (poor) return void (await done(false, "quota"));
       const picked = pickEvidencePapers(found.results);
       if (picked.length === 0) {
-        await background(user.id, route.language);
+        await background(user.id, spoken, asked);
         return void (await done(false, "no_abstracts"));
       }
 
       await send({ type: "step", step: "read" });
       let answer;
       try {
-        // the question the answer is for is what the person wrote (so it is answered in their language), not the English words the indexes were asked
-        answer = await answerFromResults({ question: text.replace(/\s+/g, " ").slice(0, 600), language: route.language, picked, stream: streamFor(c.env, user.id, abort.signal), judge: c.env.CHAT_JUDGE === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: logJudged, emit: send, onRaw: c.env.ENABLE_DEV_ROUTES === "1" ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
+        // the question the answer is for is what the person wrote (so it is answered in their language), not the English words the indexes were asked; for a follow-up it is the standalone question,
+        // and for the same papers only, the earlier answer goes with it as context the writer is told is not evidence. The judge is given neither (it reads claims and the abstracts they cite).
+        // The debug log of what a model said is for the first message in development; a follow-up never uses it.
+        answer = await answerFromResults({ question: asked, language: spoken, languageAsked: !!follow?.answerLanguage, earlierAnswer: follow?.intent === "same_papers" ? (ctx?.history.lastAnswer ?? undefined) : undefined, picked, stream: streamFor(c.env, user.id, abort.signal), judge: c.env.CHAT_JUDGE === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: logJudged, emit: send, onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
       } catch (e) {
         if (s.gone) return;
         if (e instanceof QuotaError) return void (await done(false, "quota"));
         if (e instanceof NoRouteError || e instanceof AllProvidersFailedError) {
-          if (e instanceof AllProvidersFailedError) console.error(JSON.stringify({ level: "error", msg: "chat_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
+          // only the kind of failure is logged, for every message: a provider's own error text can echo what it was sent, and the privacy text says no question reaches a log
+          if (e instanceof AllProvidersFailedError) console.error(JSON.stringify({ level: "error", msg: "chat_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : errorKind(a.error)}`) }));
           return void (await done(false, "unavailable"));
         }
         throw e;
@@ -211,7 +346,7 @@ chatRoutes.post("/", async (c) => {
       if (answer.checked === undefined) await send({ type: "step", step: "check" });
       await send({ type: "answer", answer: { text: answer.text, citations: answer.citations, grounded: answer.grounded, ...(answer.checked === undefined ? {} : { checked: answer.checked, leftOut: answer.leftOut ?? 0, rewritten: answer.rewritten ?? 0 }) } });
       // papers first: only when they do not answer, and the model itself says so (not when an answer was written and could not be checked), a labelled background follows
-      if (!answer.grounded && !answer.enough) await background(user.id, route.language);
+      if (!answer.grounded && !answer.enough) await background(user.id, spoken, asked);
       await done(answer.grounded, answer.grounded ? undefined : answer.enough ? "not_grounded" : "not_answered");
     } catch (e) {
       console.error(JSON.stringify({ level: "error", msg: "chat_stream_failed", error: e instanceof Error ? e.name : "unknown" }));
@@ -222,17 +357,35 @@ chatRoutes.post("/", async (c) => {
 
 /**
  * Development only (ENABLE_DEV_ROUTES=1; the deployed Workers do not set it, so this is a plain 404 there): the router's choice for one message, with the real model and no
- * search, so `scripts/router-eval.mjs` can measure the router over a labelled list without spending the search sources.
+ * search, so `scripts/router-eval.mjs` can measure the router over a labelled list without spending the search sources. With `history` and/or `earlier` (as the stream reads them) it reads
+ * the message as a follow-up would be read and answers with the route plus `followUp` (what the checks made of the model's reading: intent, standalone question, search words, years, and the
+ * reason if they did not pass) and `usage` (what the calls cost), so that `--followup` can score them. Without them the answer is the route and nothing more, as it always was.
  */
 chatRoutes.post("/route", async (c) => {
   if (c.env.ENABLE_DEV_ROUTES !== "1") return c.notFound();
   if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const body = (await c.req.json().catch(() => null)) as { message?: unknown } | null;
+  const read = await readChatBody(c);
+  if (read.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
+  const body = read.body as { message?: unknown; history?: unknown; earlier?: unknown } | null;
   const text = cleanAutoMessage(body?.message);
   if (!text) return deny(c, 400, "invalid_message", "Write something, at most 20,000 characters");
   const user = await currentUser(c);
-  const route = await routeMessage(text, user ? routeCompleteFor(c.env, user.id) : null);
-  return c.json(route);
+  const carries = (body?.history !== undefined && body.history !== null) || (body?.earlier !== undefined && body.earlier !== null);
+  if (!carries) return c.json(await routeMessage(text, user ? routeCompleteFor(c.env, user.id) : null));
+  const h = readHistory(body?.history);
+  const e = readEarlier(body?.earlier);
+  const refusal: Refusal | null = !h.ok ? h : !e.ok ? e : null;
+  if (refusal || !h.ok || !e.ok) return deny(c, 400, "invalid_history", "The earlier messages could not be used", refusal?.detail);
+  const usage = { calls: 0, tokensIn: 0, tokensOut: 0 };
+  const complete = user
+    ? routeCompleteFor(c.env, user.id, (u) => {
+        usage.calls++;
+        usage.tokensIn += u.tokensIn ?? 0;
+        usage.tokensOut += u.tokensOut ?? 0;
+      })
+    : null;
+  const routed = await routeFollowUp(cleanAutoMessage(stripInvisible(text)) ?? text, complete, { history: h.history, earlier: e.earlier });
+  return c.json({ ...routed.route, followUp: routed.followUp, usage });
 });
 
 /**

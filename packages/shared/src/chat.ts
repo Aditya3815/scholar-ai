@@ -1,4 +1,5 @@
 import type { Paper, SearchScope } from "./index";
+import type { ChatContextInfo } from "./chat-context";
 import type { Lang, RouteHow, RouteMode as ChatMode } from "./route";
 import { ABSTRACT_READ_CHARS } from "./sentences";
 
@@ -52,17 +53,26 @@ export type ChatAnswer = {
 /** Why a message has papers but no written answer. */
 export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_grounded" | "quota" | "unavailable" | "stopped" | "routed" | "too_long" | "small_talk";
 
+export const NOTICE_KINDS = ["partial", "nothing", "retracted", "years"] as const;
+export type NoticeKind = (typeof NOTICE_KINDS)[number];
+
 export type ChatEvent =
   /**
    * What the message was taken to be. `query` is the message as written (a long one is cut); `searchQuery` is what the search indexes are asked when that is not the words as
    * written (a translation). `auto` is true when the router chose, `how` says by what, `confidence` how sure it was. `scope` is there when the reader chose where to
-   * look ("india": only Indian sources).
+   * look ("india": only Indian sources). `context` is there only when a model read the earlier turns of the conversation to understand the message (chat-context.ts): an old open tab
+   * ignores a field it does not know, where a new event type would crash its reducer.
    */
-  | { type: "understood"; mode: ChatMode; query: string; language: Lang; auto: boolean; how: RouteHow; confidence: number; searchQuery?: string; scope?: SearchScope }
+  | { type: "understood"; mode: ChatMode; query: string; language: Lang; auto: boolean; how: RouteHow; confidence: number; searchQuery?: string; scope?: SearchScope; context?: ChatContextInfo }
   | { type: "step"; step: ChatStep }
   /** The papers so far (a snapshot, in rank order); `final` once every source has answered and the checks are done. */
   | { type: "papers"; results: Paper[]; final: boolean }
-  | { type: "notice"; kind: "partial" | "nothing" | "retracted"; text: string }
+  /**
+   * A plain line about the list. `partial`: a source did not answer (the one kind that has "Search again" beside it). `nothing`: no paper was found. `retracted`: a paper in the list was retracted.
+   * `years`: what a year range did to the list ("Only 3 of the papers found are from 2020 or later", "No paper from 2030 was found"): asking again would give the same list, so it has no retry.
+   * A page that does not know a kind shows its text as it is and offers nothing (an old tab meeting a newer server).
+   */
+  | { type: "notice"; kind: NoticeKind; text: string }
   /** A piece of the answer as it is written. Provisional: only the `answer` event has been checked. */
   | { type: "token"; text: string }
   | { type: "answer"; answer: ChatAnswer }

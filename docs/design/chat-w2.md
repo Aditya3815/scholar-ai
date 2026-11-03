@@ -61,7 +61,7 @@ What the gate does not and cannot say: whether a checked sentence really support
 - ~~The prompt box does not choose the tool~~ (done in W3: Auto, with Hinglish and Hindi and a translated query for the indexes; see [router-w3.md](router-w3.md)).
 - Check references and Ask a paper still open their own pages; Idea Check now opens inside the conversation (**W5**, see [chat-w5.md](chat-w5.md)); Ask any open-access paper is **W4**.
 - ~~General answers (no paper) with the label~~ (done in W5: [chat-w5.md](chat-w5.md)).
-- Follow-up messages ("only after 2020") are new searches: the server does not use the earlier messages yet.
+- ~~Follow-up messages ("only after 2020") are new searches: the server does not use the earlier messages yet.~~ Changed on 2 Nov 2026: in Auto, for a signed-in person, a follow-up can use the earlier questions of the same chat (and, by the person's choice, of earlier chats), with the new privacy text; see [chat-actions-context.md](chat-actions-context.md), section 11 for what was built differently. A search chosen by hand is still searched as written, and a visitor's messages are still read by the rules alone.
 - The "Still working…" line after 15 s of silence and a retry on a dropped connection beyond "Search again": the stream has no heartbeat yet.
 
 ## Edge cases from the register that W2 covers

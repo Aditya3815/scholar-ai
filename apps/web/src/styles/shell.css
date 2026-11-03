@@ -99,10 +99,10 @@
 .hm-send { margin-left: auto; display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 0; border-radius: 50%; background: var(--accent); color: var(--accent-fg); }
 .hm-send:disabled { opacity: 0.4; cursor: default; }
 .hm-menu { display: grid; gap: 2px; min-width: min(20rem, 80vw); }
-.hm-menu-item { display: grid; grid-template-columns: 2.1rem 1fr 1.2rem; align-items: center; gap: 0.6rem; width: 100%; padding: 0.5rem 0.55rem; border: 0; border-radius: 0.7rem; background: none; text-align: left; }
+.hm-menu-item { display: grid; grid-template-columns: 2.1rem minmax(0, 1fr) 1.2rem; align-items: center; gap: 0.6rem; width: 100%; padding: 0.5rem 0.55rem; border: 0; border-radius: 0.7rem; background: none; text-align: left; }
 .hm-menu-item:hover, .hm-menu-item:focus-visible { background: var(--surface-2); }
 .hm-menu-ico { display: grid; place-items: center; width: 2.1rem; height: 2.1rem; border-radius: 0.6rem; background: var(--accent-soft); color: var(--accent); }
-.hm-menu-txt { display: grid; line-height: 1.3; }
+.hm-menu-txt { display: grid; min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
 .hm-menu-txt small { color: var(--muted); font-size: 0.8rem; }
 .hm-tick { color: var(--accent); opacity: 0; }
 .hm-menu-item[aria-checked="true"] .hm-tick { opacity: 1; }
@@ -413,15 +413,29 @@ kbd {
 .chat-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; }
 .chat-title { margin: 0; overflow: hidden; font-size: 1.15rem; text-overflow: ellipsis; white-space: nowrap; }
 .chat-list { display: grid; gap: 1.4rem; margin: 0; padding: 0; list-style: none; }
-.chat-u { display: flex; justify-content: flex-end; }
+.chat-u { display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem; }
 .chat-bubble { display: inline-flex; align-items: baseline; gap: 0.45rem; max-width: 85%; margin: 0; padding: 0.55rem 0.9rem; border-radius: 1.1rem 1.1rem 0.3rem 1.1rem; background: var(--accent); color: var(--accent-fg); overflow-wrap: anywhere; }
 .chat-bubble { flex-wrap: wrap; white-space: pre-line; }
 .chat-bubble svg { flex: none; align-self: center; opacity: 0.8; }
 .chat-long { flex-basis: 100%; font-size: 0.75rem; opacity: 0.85; }
 .chat-turn { display: grid; gap: 0.8rem; }
+/* A grid's column is as wide as the widest thing in it unless it may shrink: one unbroken word (a DOI, a URL, a long title) of about 35 characters or more set the whole conversation wider than a 320 px
+   window, and html and body clip sideways overflow (so no scroll bar showed it): the right-hand buttons (Copy, Edit, the pager, a chip's X) were cut off and out of reach even by keyboard. The column may
+   shrink (minmax(0, 1fr)) and what is written in it may break anywhere. */
+.chat-list, .chat-turn { grid-template-columns: minmax(0, 1fr); }
+/* ...and so must the page's own grid: `.hm` is a grid, the conversation is one of its items, and an item's automatic minimum width is its min-content, which for a grid of 1fr columns is the width of
+   its widest line unwrapped. Without this the whole column stayed as wide as that line (703 px in a 320 px window) whatever the list inside it did. */
+.hm[data-chat="true"] { grid-template-columns: minmax(0, 1fr); }
+.chat { min-width: 0; }
+.chat-und, .chat-chip > span, .chat-why, .chat-note span, .chat-text, .chat-ev-t, .chat-ev-q, .chat .result-title, .chat .result-authors, .chat .abstract { min-width: 0; overflow-wrap: anywhere; }
 .chat-und { margin: 0; color: var(--muted); font-size: 0.875rem; }
 .chat-und b { color: var(--text); }
 .chat-searched { margin-top: -0.35rem; }
+/* the year range a follow-up cut the papers to: a chip with a remove button of its own (28 px; 24 is the least WCAG 2.2 asks), the muted colour on the second surface as the rows of buttons use */
+.chat-chip { display: inline-flex; align-items: center; gap: 0.1rem; min-height: 32px; padding: 0 0.25rem 0 0.7rem; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface-2); color: var(--text); font-size: 0.8125rem; }
+.hm-bar .chat-chip, .chat-chip { max-width: 100%; min-width: 0; }
+.chat-chip-x { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); }
+.chat-chip-x:hover { background: var(--border); color: var(--text); }
 .chat-quiet { margin: 0; color: var(--muted); font-size: 0.875rem; }
 .chat-step-hint { color: var(--muted); font-size: 0.85em; }
 .chat-change { display: inline-flex; align-items: center; gap: 0.15rem; }
@@ -471,7 +485,53 @@ kbd {
 .ws-recent li:hover .ws-recent-x, .ws-recent-x:focus-visible { opacity: 1; }
 @media (hover: none) { .ws-recent-x { opacity: 1; } }
 .ws-recent-x:hover { background: var(--border); color: var(--text); }
+/* chat to chat: the small menu beside a chat of the rail, the box's own menu (its list of chats scrolls), and popovers above the drawer */
+.ws-recent-more { right: 1.9rem; }
+.ws-recent-more[aria-expanded="true"] { opacity: 1; }
+.ws-recent li:has(.ws-recent-more) .ws-recent-open { padding-right: 3.9rem; }
+/* A finger is larger than two 26 px buttons side by side, and one of them deletes the chat at once with no way back: on touch each is 40 px, with 8 px between them, and Delete stays the farthest from the title. */
+@media (pointer: coarse), (hover: none) {
+  .ws-recent li { min-height: 44px; }
+  .ws-recent-x { width: 40px; height: 40px; }
+  .ws-recent-more { right: calc(0.3rem + 48px); }
+  .ws-recent li .ws-recent-open { padding-right: calc(0.3rem + 48px + 8px); }
+  .ws-recent li:has(.ws-recent-more) .ws-recent-open { padding-right: calc(0.3rem + 96px + 8px); }
+}
+.hm-more { width: 2.25rem; height: 2.25rem; color: var(--muted); }
+.hm-menu-list { display: grid; gap: 2px; max-height: 40vh; overflow-y: auto; }
+.pop { z-index: 80; }
 @media (max-width: 640px) { .chat-bubble { max-width: 95%; } .hm[data-chat="true"] .hm-box { bottom: 0.4rem; } }
+/* ---------- Message actions (docs/design/chat-actions-context.md): Copy, Edit and the version pager under a question, Copy the answer and Search again under a reply ----------
+   The row sits under the bubble and keeps its height (36 px) whether it is shown or not, so nothing moves. Only a pointer that can hover hides it, and it hides by opacity: never display or
+   visibility, which would take the buttons out of the tab order. It is shown by hovering the whole message (so the pointer can travel from the bubble) or by a button focused with the keyboard
+   (:focus-visible: :focus-within would hold it open after a mouse click), and stays for a moment after a copy. Every rule is its own: one selector that a browser does not know would void a list.
+   Where :has is not known the row is simply always shown. A finger has no hover: touch always sees it. */
+.chat-u-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 2px; min-height: 36px; }
+.chat-act { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); }
+.chat-act:hover { background: var(--surface-2); color: var(--text); }
+.chat-act[aria-disabled="true"] { opacity: 0.55; cursor: default; }
+.chat-act[aria-disabled="true"]:hover { background: transparent; color: var(--muted); }
+.chat-ver { display: inline-flex; align-items: center; }
+.chat-ver-n { min-width: 2.6rem; color: var(--muted); font-size: 0.8125rem; font-variant-numeric: tabular-nums; text-align: center; }
+.chat-act-note { margin-inline: 0.4rem; color: var(--danger); font-size: 0.8125rem; }
+.chat-act-note[data-tone="info"] { color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
+  @supports selector(:has(*)) {
+    .chat-u-actions[data-hide="true"] { opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+    .chat-u:hover .chat-u-actions[data-hide="true"] { opacity: 1; }
+    .chat-u:has(:focus-visible) .chat-u-actions[data-hide="true"] { opacity: 1; }
+    .chat-u-actions[data-hide="true"][data-pin="true"] { opacity: 1; }
+  }
+}
+.chat-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.chat-edit { display: grid; gap: 0.5rem; align-self: stretch; }
+.chat-edit-ta { width: 100%; max-height: 18rem; padding: 0.6rem 0.75rem; border: 1px solid var(--muted); border-radius: var(--radius-s); background: var(--surface); color: var(--text); font: inherit; line-height: 1.5; resize: vertical; }
+.chat-edit-hint { color: var(--muted); font-size: 0.8125rem; }
+.chat-edit-hint p { margin: 0; }
+@media (hover: none), (pointer: coarse) { .chat-edit-keys { display: none; } }
+.chat-edit-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; }
+.chat-edit-count { margin-right: auto; color: var(--muted); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.chat-edit-count[data-over="true"] { color: var(--danger); }
 /* the box stays at the bottom of the window while a conversation is on screen: what is focused or scrolled to inside the conversation must not end up behind it (WCAG 2.4.11).
    It is a margin on those things and not scroll-padding on the page: padding would also reach the box's own text field, which sits inside the padded zone by design, and the browser
    would keep scrolling the page to get it out from behind itself (the page crept down with every letter typed and jumped when the field was focused). */

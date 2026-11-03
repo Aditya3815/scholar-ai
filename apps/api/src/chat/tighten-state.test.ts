@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyTighten, canTighten, failTighten, startAssistant, startTighten, tightenRequestFor, trimForStorage, MAX_TIGHTEN_PAPERS, ABSTRACT_READ_CHARS, abstractRead, type AssistantMsg, type Paper, type TightenResponse } from "@scholar/shared";
+import { applyTighten, canTighten, citedPaperIds, failTighten, startAssistant, startTighten, tightenRequestFor, trimForStorage, MAX_TIGHTEN_PAPERS, ABSTRACT_READ_CHARS, abstractRead, type AssistantMsg, type Paper, type TightenResponse } from "@scholar/shared";
 
 const ABSTRACT = "First sentence of the paper is here. Second sentence says the model reached ninety percent. Third sentence is a limitation.";
 const paper = (i: number, over: Partial<Paper> = {}): Paper => ({
@@ -102,6 +102,29 @@ describe("applyTighten", () => {
   it("a strict answer that is no longer grounded is kept as it is (the reader sees that nothing supported it)", () => {
     const m = applyTighten(done(), res({ text: "", grounded: false, citations: [], leftOut: 2 }));
     expect(m.answer).toMatchObject({ grounded: false, strict: true, leftOut: 2 });
+  });
+
+  describe("when told which papers the request was made from", () => {
+    const asked = citedPaperIds(done());
+    it("names them: the id of the paper at each place the answer cited", () => expect(asked).toEqual({ 1: "doi:10.1/1", 2: "doi:10.1/2" }));
+    it("takes the answer when the papers are still those", () => expect(applyTighten(done(), res(), asked).answer?.strict).toBe(true));
+    it("refuses an answer for other papers: a reply written again under the same id has other papers at the same places, and the old sentences must not be bound to them", () => {
+      const other = done({ papers: [paper(9), paper(2), paper(3)], strict: { status: "done" } });
+      expect(applyTighten(other, res(), asked)).toBe(other);
+    });
+    it("a reply that was waiting for this check is not left waiting for ever when its answer is refused", () => {
+      const waiting = startTighten(done({ papers: [paper(9), paper(2), paper(3)] }));
+      const out = applyTighten(waiting, res(), asked);
+      expect(out.strict?.status).toBe("failed");
+      expect(out.answer).toEqual(waiting.answer);
+    });
+  });
+});
+
+describe("citedPaperIds", () => {
+  it("is empty for a reply with no answer, and ignores a place with no paper", () => {
+    expect(citedPaperIds(done({ answer: null }))).toEqual({});
+    expect(citedPaperIds(done({ papers: [paper(1)] }))).toEqual({ 1: "doi:10.1/1" });
   });
 });
 

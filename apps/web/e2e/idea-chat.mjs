@@ -35,6 +35,17 @@ async function axe(label, p) {
   for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
 }
 const setTheme = (p, t) => p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), t);
+/**
+ * Waits until `fn`, run in the page, gives something true. For what has to be asked of the page asynchronously (the browser's storage): `waitForFunction` takes the Promise that an async function
+ * returns for a true value and is done at once, so it cannot be used for that (the same helper is in chat.mjs).
+ */
+async function until(p, fn, arg, timeout = 15000) {
+  const t = Date.now();
+  while (!(await p.evaluate(fn, arg))) {
+    if (Date.now() - t > timeout) throw new Error(`timed out waiting for ${fn.toString().slice(0, 90).replace(/[^ -~]+| {2,}/g, " ")}`);
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
 const noSideways = (p) => p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 async function pick(p, name) {
   if (new RegExp(name).test(await p.locator(".hm-mode").innerText())) return;
@@ -119,12 +130,12 @@ try {
   ok(await page.locator(".chat-idea .result").count() === 3, "a search after it does not disturb the Idea Check above");
 
   console.log("after a reload only the idea's text is left");
-  await page.waitForFunction(async () => {
+  await until(page, async () => {
     const db = await new Promise((res, rej) => { const r = indexedDB.open("scholar"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
     const all = await new Promise((res) => { const q = db.transaction("chats").objectStore("chats").getAll(); q.onsuccess = () => res(q.result); });
     db.close();
     return all.some((c) => c.messages.some((m) => m.role === "idea")) && all.every((c) => c.messages.every((m) => m.role !== "assistant" || m.status !== "working"));
-  }, null, { timeout: 15000 });
+  }, null, 15000);
   await page.reload({ waitUntil: "networkidle" });
   await page.locator(".chat-idea").waitFor({ timeout: 15000 });
   ok(/run in an earlier visit/.test(await page.locator(".chat-idea").innerText()) && await page.locator(".chat-idea .result").count() === 0 && await page.locator(".chat-idea textarea").count() === 0, "the Idea Check says it was run before, and that its plan and papers are not kept");

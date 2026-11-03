@@ -52,7 +52,8 @@ const server = spawn("npx", ["wrangler", "dev", "--config", CONFIG, "--port", St
   cwd: api, shell: isWin, stdio: ["ignore", "pipe", "pipe"], detached: !isWin,
 });
 let log = "";
-for (const s of [server.stdout, server.stderr]) s.on("data", (d) => { log += d; });
+// only the end of it is ever read (to say why the Worker did not start), so it is kept short however long the run is
+for (const s of [server.stdout, server.stderr]) s.on("data", (d) => { log = (log + d).slice(-65536); });
 
 const stop = () => {
   if (server.exitCode !== null) return;
@@ -92,8 +93,14 @@ const run = async (label, file, args = [], cwd = api) => {
   console.log(`
 === ${label}`);
   if (!(await resetAccounts())) throw new Error("could not reset the local accounts between suites");
-  const r = spawnSync(process.execPath, [file, ...args], { cwd, stdio: "inherit", env: { ...process.env, APP: `http://localhost:${PORT}` } });
-  return r.status === 0;
+  // Not spawnSync: that stops this process's event loop for the whole suite, so the `data` handlers above stop reading the Worker's log pipe, and once the pipe is full (about 175 KB on
+  // Windows: a suite of three minutes and more) the Worker stops answering (pending requests, 30 s timeouts at a different step each run). An async child keeps the loop, and the pipe, going.
+  const code = await new Promise((resolve) => {
+    const child = spawn(process.execPath, [file, ...args], { cwd, stdio: "inherit", env: { ...process.env, APP: `http://localhost:${PORT}` } });
+    child.on("error", (e) => { console.error(`could not start ${file}: ${e.message}`); resolve(1); });
+    child.on("close", (c) => resolve(c ?? 1)); // a suite that was killed by a signal has no exit code: that is a failure
+  });
+  return code === 0;
 };
 
 let ok = true;

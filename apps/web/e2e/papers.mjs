@@ -282,8 +282,9 @@ try {
   ok(true, "'Add note' opens the Notes tab with the note box ready to type in");
   await noteBox.fill("Check this against the second paper");
   await noteBox.blur();
-  await page.waitForFunction(async (id) => (await (await fetch(`/api/v1/documents/${id}/notes`)).json()).items.some((n) => n.note === "Check this against the second paper"), await page.evaluate(() => location.pathname.split("/").pop()), { timeout: 8000 });
-  ok(true, "the note is saved when the box loses focus");
+  // asked of the server from here until it says so: waitForFunction takes the Promise of an async predicate for a true value and is done at once, so it waited for nothing
+  const noteDoc = await page.evaluate(() => location.pathname.split("/").pop());
+  ok(await until(() => page.evaluate(async (id) => (await (await fetch(`/api/v1/documents/${id}/notes`)).json()).items.some((n) => n.note === "Check this against the second paper"), noteDoc), 8000), "the note is saved when the box loses focus");
   ok((await page.locator(".note").count()) === 2, "the Notes tab lists both, in page order");
   ok((await page.locator(".dw-tab-n").filter({ hasText: "2" }).count()) >= 1, "the Notes tab shows how many there are");
   await shot("66c-notes-panel");

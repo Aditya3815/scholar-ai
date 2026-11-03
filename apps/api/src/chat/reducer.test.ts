@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { INTERIM_ABSTRACT_CHARS, applyChatEvent, chatTitle, interruptAssistant, slimForInterim, startAssistant, stopAssistant, trimForStorage, type ChatEvent, type Paper } from "@scholar/shared";
+import { INTERIM_ABSTRACT_CHARS, activePath, applyChatEvent, chatTitle, editUserMessage, interruptAssistant, interruptMessages, noticeOffersRetry, slimForInterim, startAssistant, stopAssistant, trimForStorage, trimMessagesForStorage, versionInfo, type ChatEvent, type ChatMsg, type Paper, type UserMsg } from "@scholar/shared";
 import { stubPapers } from "./stub";
 
 const run = (events: ChatEvent[]) => events.reduce(applyChatEvent, startAssistant("a1", "glaucoma", 1));
@@ -35,6 +35,23 @@ describe("applyChatEvent", () => {
   it("a notice of a kind is kept once", () => {
     const m = run([{ type: "notice", kind: "partial", text: "x" }, { type: "notice", kind: "partial", text: "x" }, { type: "notice", kind: "retracted", text: "y" }]);
     expect(m.notices.map((n) => n.kind)).toEqual(["partial", "retracted"]);
+  });
+  it("the year line is a notice of its own kind: it is kept next to a source notice, and neither hides the other", () => {
+    const m = run([{ type: "notice", kind: "partial", text: "some sources did not answer" }, { type: "notice", kind: "years", text: "Only 2 of the papers found are from 2020 or later, so this list is short." }, { type: "notice", kind: "years", text: "again" }]);
+    expect(m.notices.map((n) => n.kind)).toEqual(["partial", "years"]);
+    expect(m.notices[1]!.text).toMatch(/^Only 2 of the papers/);
+  });
+  it("a notice of a kind this page does not know (an old tab meeting a newer server, or the other way round) does not crash the reducer or the view's decisions: it is kept once and offers no retry", () => {
+    const unknown = { type: "notice", kind: "from-the-future", text: "something new" } as unknown as ChatEvent;
+    const m = run([unknown, unknown, { type: "notice", kind: "partial", text: "x" }]);
+    expect(m.notices.map((n) => n.kind)).toEqual(["from-the-future", "partial"]);
+    const end = applyChatEvent(m, { type: "done", answered: false, tookMs: 1 });
+    expect(noticeOffersRetry(end, end.notices[0]!)).toBe(false);
+    expect(noticeOffersRetry(end, end.notices[1]!)).toBe(true);
+    // a notice with no text, or with a kind that is not a string, is still only data
+    const odd = run([{ type: "notice", kind: 7, text: undefined } as unknown as ChatEvent]);
+    expect(odd.notices).toHaveLength(1);
+    expect(() => noticeOffersRetry(odd, odd.notices[0]!)).not.toThrow();
   });
   it("done carries the reason there is no answer; an error ends the reply and drops the half-written words", () => {
     expect(run([{ type: "done", answered: false, reason: "sign_in", tookMs: 5 }]).reason).toBe("sign_in");
@@ -164,5 +181,18 @@ describe("general background (W5)", () => {
     const done = applyChatEvent(old as ReturnType<typeof startAssistant>, { type: "done", answered: true, tookMs: 1 });
     expect(done.status).toBe("done");
     expect(applyChatEvent(old as ReturnType<typeof startAssistant>, { type: "general_token", text: "x" }).generalLive).toBe("x");
+  });
+
+  it("a conversation kept before editing existed (no versions or ver on any message) opens as it was, and can be edited from there", () => {
+    const kept: ChatMsg[] = [{ id: "u", role: "user", text: "q", at: 1 }, run([{ type: "done", answered: true, tookMs: 1 }])];
+    const stored = JSON.parse(JSON.stringify(kept)) as ChatMsg[]; // what comes back out of the browser's storage
+    const opened = interruptMessages(stored);
+    expect(opened).toEqual(kept);
+    expect(trimMessagesForStorage(opened)).toEqual(kept);
+    expect(activePath(opened)).toEqual(kept);
+    expect("versions" in opened[0]! || "ver" in opened[0]!).toBe(false);
+    expect(versionInfo(opened[0] as UserMsg)).toEqual({ count: 1, number: 1, hasPrev: false, hasNext: false });
+    const edited = editUserMessage(opened, "u", "q again", startAssistant("b", "q again", 5))!;
+    expect(versionInfo(edited[0] as UserMsg)).toEqual({ count: 2, number: 2, hasPrev: true, hasNext: false });
   });
 });

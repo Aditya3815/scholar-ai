@@ -34,11 +34,16 @@ const watch = (p) => {
 const newCtx = (opts = {}) => browser.newContext({ viewport: { width: 1360, height: 900 }, ...opts });
 
 async function axe(label, p) {
+  // In a conversation the prompt box sticks to the bottom of the window and covers whatever is scrolled under it; axe reports a button that is partly under it (target-size, "partially obscured"),
+  // and which one depends on where the page happens to be scrolled, so a row more under a message was enough to move it. For the run the box is in the flow of the page, so what axe reads is the
+  // page and not its scroll position (that a focused button is never left behind the box is checked in chat.mjs). The same two lines are in chat.mjs's axe().
+  const unstick = await p.addStyleTag({ content: ".hm-box { position: static !important; }" });
   await p.evaluate(axeSource);
   const res = await p.evaluate(async () => {
     const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
     return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
   });
+  await unstick.evaluate((el) => el.remove());
   ok(res.length === 0, `axe [${label}]`);
   for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
 }

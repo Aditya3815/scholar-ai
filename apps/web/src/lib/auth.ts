@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { AuthProviderInfo, AuthUser } from "@scholar/shared";
-import { clearChats } from "./chat";
+import { beginWipe, clearChats, setChatOwner } from "./chat";
 import { clearOaAsk } from "./oa-ask";
 import { clearOfflineData, pendingDrawings } from "./offline";
 
@@ -33,6 +33,9 @@ export async function refreshAuth(): Promise<void> {
     const user = me.ok ? ((await me.json()) as { user: AuthUser | null }).user : null;
     const providers = prov.ok ? ((await prov.json()) as { providers: AuthProviderInfo[] }).providers : [];
     set({ status: "ready", user, providers });
+    // who is here is now known for certain (a failed check, below, says nothing, and removes nobody's chats): the chats of ANOTHER signed-in person are removed; with nobody signed in the owned chats are
+    // held (not shown, not used), not deleted: a session that ran out is not a sign-out
+    if (me.ok) setChatOwner(user?.id ?? null);
     try {
       if (user) localStorage.setItem("scholar.signedin", "1");
       else if (me.ok) localStorage.removeItem("scholar.signedin");
@@ -72,6 +75,9 @@ export async function signOut(): Promise<void> {
   // drawings made offline that have not reached the server would be lost with the sign-out: ask first
   const pending = await pendingDrawings();
   if (pending > 0 && !window.confirm(`${pending === 1 ? "A drawing" : `${pending} drawings`} made without a connection ${pending === 1 ? "has" : "have"} not been sent yet and will be lost if you sign out now. Sign out anyway?`)) return;
+  // the conversations are cleared below, after the session is ended: a tab that is closed before that is done leaves a mark, and the next page that loads finishes it. (Chats are NOT removed because a page
+  // finds nobody signed in: a cookie that ran out is not a sign-out. Only this, "Delete all" and another person signing in remove a person's chats.)
+  beginWipe();
   await fetch("/api/v1/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
   // what was kept on this device for this person (papers for offline reading) goes with the session
   await clearOfflineData();

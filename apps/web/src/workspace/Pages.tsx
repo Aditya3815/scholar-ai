@@ -1,12 +1,24 @@
 import { Bookmark, ShieldAlert, Settings as SettingsIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { dismissAlerts, removeSaved, useLibrary, useLibraryAlerts } from "../lib/library";
 import { openPreview } from "../lib/preview";
 import { LibraryList, libraryNote } from "../components/LibraryList";
 import { ProviderButtons } from "../components/ProviderButtons";
 import { ReadingForm } from "../components/ReadingControls";
-import { SettingsSections } from "../components/SettingsDialog";
 import { ThemeSwitch } from "../components/ThemeSwitch";
+// The signed-in part of Settings (account, chats, your data) is a chunk of its own: what a first visit downloads at once has a size budget (apps/web/scripts/budget.mjs). The rail fetches it as soon as
+// somebody is signed in (`warmSettings`), so that by the time the page is asked for it is here and is drawn at once, with no moment of "loading" (a lazy component would always draw one).
+type SettingsChunk = typeof import("../components/SettingsDialog");
+let settingsChunk: SettingsChunk | null = null;
+export const warmSettings = (): Promise<SettingsChunk> => import("../components/SettingsDialog").then((m) => (settingsChunk = m));
+function SignedInSettings() {
+  const [chunk, setChunk] = useState(settingsChunk);
+  useEffect(() => {
+    if (!chunk) void warmSettings().then(setChunk);
+  }, [chunk]);
+  return chunk ? <chunk.SettingsSections idPrefix="ws-set" /> : <p className="settings-p" role="status">Loading your settings…</p>;
+}
 
 /**
  * Papers in the library that were retracted after they were saved (the daily re-check found them). The notice stays until it is dismissed or the paper is removed; the paper itself
@@ -75,7 +87,7 @@ export function SettingsPage() {
       </section>
 
       {user ? (
-        <SettingsSections idPrefix="ws-set" />
+        <SignedInSettings />
       ) : (
         status === "ready" && (
           <section className="settings-sec" aria-labelledby="set-in">

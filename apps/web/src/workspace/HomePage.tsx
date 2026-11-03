@@ -1,7 +1,7 @@
 import { m } from "motion/react";
-import { ArrowUp, Bookmark, Check, ChevronDown, FileStack, Landmark, Lightbulb, ListChecks, Plus, Search, Sparkles, Square } from "lucide-react";
+import { ArrowUp, Bookmark, Check, ChevronDown, EyeOff, FileStack, Landmark, Lightbulb, ListChecks, MessageSquare, MoreHorizontal, Plus, Search, Sparkles, Square, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
-import { INDIA_SCOPE_HELP, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MIN_IDEA_CHARS, type RouteMode, type SearchScope } from "@scholar/shared";
+import { INDIA_SCOPE_HELP, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MIN_IDEA_CHARS, type MemoryEntry, type RouteMode, type SearchScope } from "@scholar/shared";
 import { useAuth } from "../lib/auth";
 import { coverUrl, loadDocs, useDocs } from "../lib/documents";
 import { useLibrary } from "../lib/library";
@@ -10,8 +10,9 @@ import { PAPERS_NAME, putHandoff } from "../lib/workspace";
 import { Pop } from "../components/Pop";
 import { ContinueReading, RememberThis } from "./HomeExtras";
 import { ChatView } from "./ChatView";
-import { resumeChat, retryReply, reviveIdea, sendMessage, startIdeaCheck, startNewChat, stopReply, useChatState, useConversing } from "../lib/chat";
+import { continueFromChat, continuedFrom, isPrivateChat, resumeChat, retryReply, reviveIdea, sendMessage, startIdeaCheck, startNewChat, startPrivateChat, stopContinuing, stopReply, useChatState, useConversing } from "../lib/chat";
 import { STARTERS } from "./starters";
+import { menuKeys } from "./menuKeys";
 
 /**
  * Auto, and the four tools. With Auto (the default) the router reads the message and chooses (W3); a tool chosen by hand is never overridden.
@@ -96,6 +97,47 @@ function ModeMenu({ tool, onChange }: { tool: Tool; onChange: (t: Tool) => void 
 }
 
 /**
+ * The box's other choices (docs/design/chat-actions-context.md, section 6), in a menu of their own: start a private chat (not kept, not used as memory), and, for a signed-in person, continue from an
+ * earlier chat (a new chat that carries that chat's last three questions until the chip is removed). Both are plain buttons in a menu, so the keyboard reaches them with the arrow keys as in the tool menu.
+ */
+function ChatMenu({ chats, signedIn, onContinue, onPrivate }: { chats: readonly MemoryEntry[]; signedIn: boolean; onContinue: (id: string) => void; onPrivate: () => void }) {
+  return (
+    <Pop
+      label="Chat options"
+      align="start"
+      trigger={(open) => (
+        <button type="button" className="icon-btn hm-more" aria-label="Chat options" title="Continue from an earlier chat, or start a private chat" aria-haspopup="menu" aria-expanded={open}>
+          <MoreHorizontal size={18} aria-hidden="true" />
+        </button>
+      )}
+    >
+      {(close) => (
+        <div role="menu" aria-label="Chat options" className="hm-menu" onKeyDown={menuKeys}>
+          <button type="button" role="menuitem" className="hm-menu-item" autoFocus onClick={() => { onPrivate(); close(); }}>
+            <span className="hm-menu-ico"><EyeOff size={16} aria-hidden="true" /></span>
+            <span className="hm-menu-txt"><b>Private chat</b><small>Not kept, and not used as memory. It is gone when you leave it.</small></span>
+          </button>
+          {signedIn && (
+            <div role="group" aria-labelledby="hm-continue-h">
+              <p className="ws-nav-h" id="hm-continue-h">Continue from an earlier chat</p>
+              {chats.length === 0 && <p className="hm-fine">No earlier chat is kept in this browser.</p>}
+              <div className="hm-menu-list">
+                {chats.map((e) => (
+                  <button key={e.id} type="button" role="menuitem" className="hm-menu-item" onClick={() => { onContinue(e.id); close(); }}>
+                    <span className="hm-menu-ico"><MessageSquare size={16} aria-hidden="true" /></span>
+                    <span className="hm-menu-txt"><b>{e.title}</b></span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </Pop>
+  );
+}
+
+/**
  * The home screen: one prompt box. With Auto the router chooses the tool from what you write; with the menu or the pills you choose it yourself.
  * A search is answered in this screen (the conversation below the box); the other tools open on their own page with your text.
  */
@@ -122,7 +164,9 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
   const conversing = useConversing();
   const glide = useMemo(() => ({}), [chat.chats, chat.active]);
   const busy = !!chat.active && chat.running.has(chat.active);
-  const title = chat.index.find((e) => e.id === chat.active)?.title ?? "New chat";
+  const priv = isPrivateChat(chat);
+  const from = continuedFrom(chat);
+  const title = priv ? "Private chat" : chat.index.find((e) => e.id === chat.active)?.title ?? "New chat";
   const [problem, setProblem] = useState<string | null>(null);
   useEffect(() => resumeChat(), []);
   useEffect(() => setProblem(null), [query, tool]);
@@ -218,11 +262,23 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
         </>
       )}
 
+      {conversing && priv && <p className="chat-und" role="note">Private chat: it is not kept, and not used as memory. It is gone when you leave it.</p>}
       {conversing && <ChatView messages={messages} signedIn={!!user} onRetry={(rid, as) => void retryReply(rid, as)} liveIdeas={chat.liveIdeas} onOpenPage={openPage} onIdeaAgain={reviveIdea} onChange={changeMode} onRefine={(t) => { onQuery(t); window.setTimeout(() => inputRef.current?.focus(), 0); }} />}
 
       {/* the box's layout is measured when the conversation changes (the glide to the bottom, then as the answer grows the page) and not on every letter typed: measured on every render, which is the
           default, a long question typed after a search ended in React's limit of 50 nested updates ("Maximum update depth exceeded", error 185) */}
       <m.form className="hm-box" layout="position" layoutDependency={glide} transition={{ type: "spring", stiffness: 260, damping: 30 }} onSubmit={(e) => { e.preventDefault(); if (busy) stopReply(); else send(); }} {...(conversing ? {} : rise(3))}>
+        {(from || (priv && !conversing)) && (
+          // what the next message is sent with, or not kept: always in view, with its own button to take it away (one chip at a time: the two choices replace each other)
+          <div className="hm-bar">
+            <span className="chat-chip">
+              <span id={`${id}-chip`}>{from ? <>Continuing from: <b>{from.title}</b>{tool === "auto" ? "" : " (used in Auto only)"}</> : "Private chat: not kept, not used as memory"}</span>
+              <button type="button" className="chat-chip-x" aria-label={from ? `Stop continuing from ${from.title}` : "Make this a normal chat again"} onClick={() => { if (from) stopContinuing(); else startNewChat(); inputRef.current?.focus(); }}>
+                <X size={14} aria-hidden="true" />
+              </button>
+            </span>
+          </div>
+        )}
         <label className="sr-only" htmlFor={`${id}-in`}>Your question or text</label>
         <textarea
           id={`${id}-in`}
@@ -235,11 +291,18 @@ export function HomePage({ query, onQuery, onOpenTool, onOpenPaper, inputRef }: 
           aria-invalid={problem ? true : undefined}
           onChange={(e) => onQuery(e.target.value)}
           onKeyDown={onKey}
-          aria-describedby={`${id}-help`}
+          aria-describedby={from || (priv && !conversing) ? `${id}-chip ${id}-help` : `${id}-help`}
           maxLength={20000}
         />
         <div className="hm-bar">
           <ModeMenu tool={tool} onChange={setTool} />
+          <ChatMenu
+            signedIn={!!user}
+            chats={chat.index.filter((e) => e.id !== chat.active)}
+            // what was typed stays in the box: these two are a setting for the NEXT message (often the one just written, which is why the person chose "private" after typing it), not a start over
+            onContinue={(sid) => { if (continueFromChat(sid)) window.setTimeout(() => inputRef.current?.focus(), 0); }}
+            onPrivate={() => { startPrivateChat(); window.setTimeout(() => inputRef.current?.focus(), 0); }}
+          />
           {scoped && (
             <button type="button" className="hm-scope" aria-pressed={scope === "india"} onClick={toggleScope} title={INDIA_SCOPE_HELP}>
               <Landmark size={15} aria-hidden="true" />

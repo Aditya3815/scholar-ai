@@ -1,7 +1,10 @@
 // Quality check of the router of the prompt box (W3): does Auto pick the tool a person means, in English, Hindi (Devanagari) and Hinglish (Roman letters)?
 // It uses the REAL model through the development-only route POST /api/v1/chat/route (no search is run), over the labelled messages of router-cases.mjs.
 //
-//   npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911 --var ENABLE_DEV_ROUTES:1
+//   npx wrangler dev --port 8788 --local-upstream localhost:8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911 --var ENABLE_DEV_ROUTES:1
+//
+// (--local-upstream, or a copy of wrangler.jsonc without its "routes": with the custom domain of the production route, the worker builds the sign-in's redirect address for the live site, the fake sign-in
+// never comes back to it, every account stays a visitor, no model reads anything, and a score is printed all the same. The script stops when the sign-in did not take.)
 //   node scripts/router-eval.mjs [--gate] [--show] [--set=tuned|holdout|all]
 //
 // What it measures (the tool the person ends up with: a doubtful choice is already a search, as it is on the screen):
@@ -11,16 +14,31 @@
 //   safe          small talk and orders hidden in a message are a search, never another tool
 // The list the router was tuned on is `tuned` (the default, and the one CI gates on); `holdout` is a list written after the tuning, run for an honest number (router-cases.mjs).
 // With --gate it exits with 1 when a line is below its limit. With --show every wrong answer is listed. Each 20 messages use their own throwaway account, so the daily allowance does not stop a run.
+//
+//   node scripts/router-eval.mjs --followup [--set=tuned|holdout|holdout2|all] [--gate] [--show]     (the default set here is all, not tuned)
+//
+// The same, for a message that comes with the turns before it (docs/design/chat-actions-context.md, section 9): the labelled follow-ups of router-followup-cases.mjs, in English, Hindi and Hinglish
+// (new search, refinement, the same papers, restyle, year filter, topic switch, earlier-chat reference), sent as `{ message, history, earlier }` to the same development route, which then answers
+// with `followUp` (what the server made of the model's reading) and `usage`. It prints the gates below and a table per class and per language. It spends the real model: about 1,500 tokens a message
+// that needs the turns, so each 20 messages use their own throwaway account here too. The 203-message list above is NOT run by it, and must stay at its present result.
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
 import { CASES as TUNED, GROUPS, HOLDOUT } from "./router-cases.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 const gate = process.argv.includes("--gate");
-const set = process.argv.find((a) => a.startsWith("--set="))?.slice(6) ?? "tuned";
+// the follow-up list is gated on all of its cases unless a set is named: the tuned list alone has 4 language cases, 9 year cases and 12 topic switches, so one answer moves a gate
+const set = process.argv.find((a) => a.startsWith("--set="))?.slice(6) ?? (process.argv.includes("--followup") ? "all" : "tuned");
 const CASES = set === "holdout" ? HOLDOUT : set === "all" ? [...TUNED, ...HOLDOUT] : TUNED;
 const show = process.argv.includes("--show") || gate;
 const LIMITS = { overall: 0.9, en: 0.9, hinglish: 0.85, hi: 0.85, language: 0.9, translated: 0.9, safe: 0.9, recall: 0.8 };
+// The limits of the follow-up list (--followup). Chosen BEFORE its first run, from what the first-turn list reaches and from what a wrong answer costs: a follow-up taken for "the same papers" answers
+// from the wrong papers (so that rate is held low), a new topic that carries the old topic's words is a mixed search (bleed), a question the server throws away is a follow-up the model did not read.
+// The first measured run may move a limit; the move and the reason are then written in docs/design, as for the first-turn list.
+// `translated` is the limit of the first-turn list's own line: for a Hindi or Hinglish message that is searched for, the search words are English.
+const FOLLOWUP_LIMITS = { intent: 0.85, intentHinglish: 0.8, intentHindi: 0.8, falseSamePapers: 0.05, valid: 0.9, content: 0.8, ask: 0.8, yearWords: 0.9, bleed: 0.05, years: 0.85, falseYear: 0.1, language: 0.9, translated: 0.9, tokens: 2200 };
+
+if (process.argv.includes("--followup")) process.exit(await followUpMain());
 
 const idp = await startFakeIdp(9911);
 const clients = new Map();
@@ -31,8 +49,7 @@ async function clientFor(i) {
     clients.set(k, (async () => {
       idp.setUser({ sub: `router-eval-${run}-${k}`, email: `routereval${run}x${k}@example.edu`, email_verified: true, name: "Router Eval" });
       const A = createClient(APP);
-      await A.follow(`${APP}/api/v1/auth/google/start`);
-      await A.ack();
+      await signedIn(A);
       return A;
     })());
   }
@@ -55,6 +72,19 @@ async function ask(i) {
     else throw new Error(`HTTP ${res.status} for: ${text.slice(0, 60)}`);
   }
   throw new Error("rate limited: " + text.slice(0, 60));
+}
+
+/**
+ * A fake sign-in, and the privacy acknowledgement a person gives before the first use. If it did not take, every answer would be a visitor's (the rules only: no model is asked, the score is
+ * meaningless): the run stops, saying so, instead of printing a plausible failing score.
+ */
+async function signedIn(A) {
+  await A.follow(`${APP}/api/v1/auth/google/start`);
+  const ack = await A.ack();
+  if (!ack.ok) {
+    console.error(`router eval: the fake sign-in did not take (privacy acknowledgement answered ${ack.status}): the answers would be a visitor's. Start the worker as the header of this script says (--local-upstream localhost:8788, or a wrangler config without "routes").`);
+    process.exit(2);
+  }
 }
 
 const out = new Array(CASES.length);
@@ -115,4 +145,58 @@ const failed = lines.filter((l) => !l.pass);
 if (gate && failed.length) {
   console.log(`\nbelow the limit: ${failed.map((l) => l.name).join(", ")}`);
   process.exit(1);
+}
+
+/* ---------------------------------------------------------------- --followup: a message with the turns before it */
+
+/** Runs the labelled follow-ups through the development route and prints the gates and the tables. Returns the exit code (1 with --gate when a line is past its limit). */
+async function followUpMain() {
+  const { TUNED: FOLLOW_TUNED, HOLDOUT: FOLLOW_HOLDOUT, HOLDOUT2: FOLLOW_HOLDOUT2, CLASSES, LANGS } = await import("./router-followup-cases.mjs");
+  const { scoreCase, formatReport } = await import("./lib/followup-score.mjs");
+  const cases = set === "holdout" ? FOLLOW_HOLDOUT : set === "holdout2" ? FOLLOW_HOLDOUT2 : set === "all" ? [...FOLLOW_TUNED, ...FOLLOW_HOLDOUT, ...FOLLOW_HOLDOUT2] : FOLLOW_TUNED;
+  const idp = await startFakeIdp(9911);
+  const clients = new Map();
+  const stamp = Date.now(); // a new set of accounts for every run: the allowance is counted per account
+  const clientFor = (i) => {
+    const k = Math.floor(i / 20);
+    if (!clients.has(k)) {
+      clients.set(k, (async () => {
+        idp.setUser({ sub: `followup-eval-${stamp}-${k}`, email: `followupeval${stamp}x${k}@example.edu`, email_verified: true, name: "Follow-up Eval" });
+        const A = createClient(APP);
+        await signedIn(A);
+        return A;
+      })());
+    }
+    return clients.get(k);
+  };
+  async function ask(i) {
+    const c = cases[i];
+    const A = await clientFor(i);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await A.send(`${APP}/api/v1/chat/route`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/json" }, body: JSON.stringify({ message: c.message, history: c.history, ...(c.earlier.length > 0 ? { earlier: c.earlier } : {}) }) });
+      if (res.ok) return await res.json();
+      if (res.status === 429) await new Promise((r) => setTimeout(r, 5000));
+      else throw new Error(`HTTP ${res.status} for: ${c.message.slice(0, 60)}`);
+    }
+    throw new Error(`rate limited: ${c.message.slice(0, 60)}`);
+  }
+  const out = new Array(cases.length);
+  let next = 0;
+  const started = Date.now();
+  await Promise.all(Array.from({ length: 4 }, async () => {
+    while (next < cases.length) {
+      const i = next++;
+      out[i] = await ask(i).catch((e) => ({ error: String(e.message ?? e) }));
+    }
+  }));
+  idp.close();
+
+  const rows = cases.map((c, i) => scoreCase(c, out[i]));
+  const report = formatReport({ rows, cases, limits: FOLLOWUP_LIMITS, classes: CLASSES, langs: LANGS, set, seconds: (Date.now() - started) / 1000, show });
+  console.log(report.text);
+  if (gate && report.failed.length > 0) {
+    console.log(`\npast the limit: ${report.failed.join(", ")}`);
+    return 1;
+  }
+  return 0;
 }

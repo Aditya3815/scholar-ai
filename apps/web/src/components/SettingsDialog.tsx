@@ -6,6 +6,7 @@ import { showNotice } from "../lib/notice";
 import { setRememberOn, useRememberOn } from "../lib/remember";
 import { clearOfflineData } from "../lib/offline";
 import { clearChats, useChatState } from "../lib/chat";
+import { setEarlierChats, useEarlierChats } from "../lib/memory";
 import { OfflineSettings } from "./OfflineSettings";
 
 /**
@@ -15,7 +16,9 @@ import { OfflineSettings } from "./OfflineSettings";
 export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: () => void; idPrefix?: string }) {
   const { user, providers } = useAuth();
   const rememberOn = useRememberOn();
-  const chatCount = useChatState().index.length;
+  const { index, kept } = useChatState();
+  const chatCount = index.length;
+  const earlierOn = useEarlierChats(user?.id);
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +92,26 @@ export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: 
       <section className="settings-sec" aria-labelledby={`${idPrefix}-chats`}>
         <h3 id={`${idPrefix}-chats`} className="settings-h">Chats</h3>
         <p className="settings-p">
-          What you ask in the prompt box on Home and the answers are kept <strong>only in this browser</strong>, never on our servers. They are removed when you sign out, and they are not part of the copy of your data you can download, because we do not have them.
+          What you ask in the prompt box on Home, the answers and the earlier versions of a question you edited are kept <strong>only in this browser</strong>, never on our servers. A follow-up carries your last few earlier questions of the same chat, the words they were searched with and, when you ask about the answer itself, the start of the last answer, to our server; the private AI service, which does not keep them, reads them only when the new message needs them. They are removed when you sign out, when a different person signs in on this browser, or with the button below. If your sign-in only runs out, they stay here, out of sight, until you sign in again. They are not part of the copy of your data you can download, because we do not have them.
+        </p>
+        <label className="settings-check">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={earlierOn && kept}
+            disabled={!kept}
+            aria-describedby={`${idPrefix}-earlier-help`}
+            onChange={(e) => {
+              // on only if this browser really kept the choice: a switch that looks on and is forgotten would be a promise the page cannot keep
+              if (!setEarlierChats(e.target.checked, user.id)) showNotice("This browser would not keep that choice, so “Use my earlier chats” stays off.");
+            }}
+          />
+          <span>Use my earlier chats</span>
+        </label>
+        <p className="settings-p" id={`${idPrefix}-earlier-help`}>
+          {kept
+            ? "Off unless you turn it on. When it is on, a new question in Auto that cannot stand alone can be sent with up to three of your earlier questions, picked on this device from the chats listed under Recent (the latest six; a chat kept before this switch existed is used only after you open it), to the private AI service, only to read what the new question refers to. Never their answers, ideas or lists. When a search used them, the answer shows them, and you can remove them. A private chat does not use other chats and is not used. You can leave one chat out from its menu under Recent. This choice is kept on this device, with your account number, so another person who signs in here starts with it off."
+            : "This browser would not keep your chats, so there is nothing to use. The switch stays off."}
         </p>
         <button type="button" className="btn btn-ghost btn-sm" disabled={chatCount === 0} onClick={() => void clearChats().then(() => showNotice("Your chats were deleted from this browser."))}>
           <span>{chatCount === 0 ? "No chats kept" : `Delete ${chatCount === 1 ? "the chat" : `all ${chatCount} chats`} in this browser`}</span>

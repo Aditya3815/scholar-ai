@@ -40,6 +40,6 @@ The background call sends the question alone to the private AI service (no paper
 ## Not done
 
 - A background that a person can "turn off" (a setting): not asked for.
-- Follow-up questions still do not use earlier messages.
+- ~~Follow-up questions still do not use earlier messages.~~ Changed on 2 Nov 2026: in Auto they can, and the background call then gets the question as rewritten to stand on its own (never the earlier messages themselves, although the rewritten question, or for a message left as it was the search words made for it, can carry words from them), so "the question alone" in the Privacy section above reads "your question alone, as rewritten for a follow-up" from version `2026-11-draft-14`; see [chat-actions-context.md](chat-actions-context.md).
 - The Idea Check report is not kept in the chat after a reload (by design: papers and plan are not stored in the browser).
 - Real-tablet testing remains with the user.

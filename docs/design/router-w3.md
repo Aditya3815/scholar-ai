@@ -57,7 +57,7 @@ What the gate does not say: how Auto behaves with a message that mixes two real 
 
 ## Not done in W3 (on purpose)
 
-- Follow-up messages ("only after 2020") are new searches; the server does not use the earlier messages yet.
+- ~~Follow-up messages ("only after 2020") are new searches; the server does not use the earlier messages yet.~~ Changed on 2 Nov 2026: the router can read the earlier questions of the same chat (with their search words, year ranges and the titles of the papers they cited, **never the text of an earlier answer**) to work out what a follow-up refers to, only for a message that cannot stand alone and only for a signed-in person, and the privacy text sentence above ("only to decide which tool it belongs to") now says so; see [chat-actions-context.md](chat-actions-context.md), section 11 for what was built differently (the "stands alone" rule is no longer just "5 words or more"; a visitor's messages are settled by the rules as before). Only Auto does this; a tool chosen by hand never reads earlier messages.
 - Idea Check and Check references still open their own pages (**W5** brings Idea Check inside); Ask a paper opens My Workspace (the paper to ask is chosen there).
 - Ask any open-access paper: **W4**. General answers with the label: **W5**.
 - Other Indian languages (Tamil, Bengali ...) are not in the eval; the model may translate them, nothing promises it.

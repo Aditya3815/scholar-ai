@@ -4,17 +4,9 @@ import { Check, Copy, Quote } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Paper } from "@scholar/shared";
 import { CITE_STYLES, formatCitation, type CiteStyle } from "../lib/cite";
+import { copyText } from "../lib/copy";
 import { spring, springPop } from "../lib/motion";
 import { Pop } from "./Pop";
-
-export async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");

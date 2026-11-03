@@ -1,6 +1,6 @@
 import { CircleAlert, CircleCheck, DatabaseBackup, FolderSearch, UserX } from "lucide-react";
 import { useState } from "react";
-import type { AnswerOutcomeRow, IntegrityReport, JobState, JobStatus } from "@scholar/shared";
+import { chatRefusalShare, type AnswerOutcomeRow, type IntegrityReport, type JobState, type JobStatus } from "@scholar/shared";
 
 const JOB_NAME: Record<string, string> = { maintenance: "Daily clean-up", retraction_check: "Retraction re-check of saved papers" };
 const STATE_TEXT: Record<JobState, string> = {
@@ -35,10 +35,13 @@ const OUTCOME_TEXT: Record<string, string> = {
   small_talk: "A greeting or thanks, answered by the page",
   sign_in: "A signed-out visitor: papers, no written answer",
   too_long: "Too long to search for",
+  // a message that came with the turns before it (a follow-up) is booked under these instead of "answered" and "not_grounded" (apps/api/src/outcomes.ts)
+  followup_answered: "A follow-up (read with the turns before it): answered, every claim checked",
+  followup_not_grounded: "A follow-up: the model wrote an answer that our own check then refused",
+  followup_rewrite_failed: "A follow-up whose restatement was not used, so it was searched as written (answered or refused)",
+  followup_context_ignored: "A follow-up sent while the switch that ignores earlier turns was on (answered or refused)",
   other: "Something else",
 };
-/** Outcomes where the model was asked and the papers could have answered: the ones the share of "refused by our check" is taken over. */
-const ATTEMPTED = ["answered", "not_grounded", "not_answered"];
 
 /**
  * How answers went in the last seven days, as counts (no text, no person, no paper). The line to watch is how often the model wrote an answer that our own check refused: if it is
@@ -46,9 +49,8 @@ const ATTEMPTED = ["answered", "not_grounded", "not_answered"];
  */
 export function AnswerOutcomes({ rows }: { rows: AnswerOutcomeRow[] }) {
   const features = [...new Set(rows.map((r) => r.feature))];
-  const chat = rows.filter((r) => r.feature === "chat");
-  const attempted = chat.filter((r) => ATTEMPTED.includes(r.outcome)).reduce((sum, r) => sum + r.n, 0);
-  const refused = chat.find((r) => r.outcome === "not_grounded")?.n ?? 0;
+  // the share is taken over the questions that the papers could have answered, the first messages and the follow-ups alike (chatRefusalShare); follow-ups booked without saying how they ended are not guessed
+  const { attempted, refused, unsplit } = chatRefusalShare(rows);
   return (
     <section className="card admin-sec" aria-labelledby="answers-h">
       <h2 id="answers-h" className="admin-h2">How answers went, last 7 days</h2>
@@ -58,7 +60,7 @@ export function AnswerOutcomes({ rows }: { rows: AnswerOutcomeRow[] }) {
         <>
           <p className="admin-lead">
             {attempted > 0
-              ? `In the prompt box, the model wrote an answer that our own check then refused in ${refused.toLocaleString("en-IN")} of ${attempted.toLocaleString("en-IN")} questions that the papers could have answered (${Math.round((refused / attempted) * 100)}%).`
+              ? `In the prompt box, the model wrote an answer that our own check then refused in ${refused.toLocaleString("en-IN")} of ${attempted.toLocaleString("en-IN")} questions that the papers could have answered (${Math.round((refused / attempted) * 100)}%).${unsplit > 0 ? ` ${unsplit.toLocaleString("en-IN")} follow-ups are left out of this share because their ending is not told apart: they are in the table below.` : ""}`
               : "No question in the prompt box was answered by the papers in this period."}
           </p>
           {features.map((f) => {
