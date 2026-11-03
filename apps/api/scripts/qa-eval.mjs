@@ -2,7 +2,8 @@
 // question per paper). Each paper is uploaded and indexed through the real pipeline (browser-style page batches), each question
 // is asked through the real endpoint, and the answer is scored the way the spike did: every `must` pattern has to match.
 //
-//   npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911
+//   npx wrangler dev --port 8788 --local-upstream localhost:8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911
+//   (--local-upstream: the custom-domain route in wrangler.jsonc would otherwise send the fake sign-in to the live domain)
 //   node scripts/qa-eval.mjs <folder with <paper>.pdf and <paper>.txt>   [--only=attention,milk]
 //
 // The .txt files are pdftotext output with pages separated by "[[page N]]" (see scripts/r2/README.md). Each paper uses its own
