@@ -73,11 +73,26 @@ const decodeEntity = (whole: string, body: string): string => {
   const code = body.startsWith("#x") || body.startsWith("#X") ? parseInt(body.slice(2), 16) : body.startsWith("#") ? parseInt(body.slice(1), 10) : ENTITIES[body];
   return code === undefined || !Number.isInteger(code) || code > 0x10ffff ? whole : String.fromCodePoint(code);
 };
+// Everything from a "<" to the next ">" goes, scanned and not matched: the same text as replacing /<[^>]*>/ once, and a text that is only read here, never put on a page.
+const stripTags = (s: string): string => {
+  let out = "";
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] === "<") {
+      const close = s.indexOf(">", i);
+      if (close < 0) return out + s.slice(i);
+      i = close + 1;
+    } else {
+      out += s[i];
+      i += 1;
+    }
+  }
+  return out;
+};
 // The page's source as text, close to what a reader sees: tags go, the entities and {" "} turn into what they render, white space is one space. It is still the SOURCE: a {expression} stays as written and
 // component output is not there, which is why a pinned sentence is a literal run of the source (see (4) in the header and throughExpression below).
 const plain = (jsx: string) =>
-  jsx
-    .replace(/<[^>]*>/g, "")
+  stripTags(jsx)
     .replace(/\{" "\}/g, " ")
     .replace(/&(#[xX][0-9a-fA-F]+|#[0-9]+|[a-z]+);/g, decodeEntity)
     .replace(/\s+/g, " ");
