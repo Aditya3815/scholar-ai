@@ -7,18 +7,21 @@ import { CANARY, HOSTILE_MESSAGES } from "./hostile-messages";
  * have it and messages that must not, and 30 labelled messages whose whole shape is written down by hand), and that the function is pure, linear, total and never gives back a piece of the text.
  */
 
-// the plan's list, in the plan's order (4.4), and `anyway`, the one name more (the end of 4.4)
+// the plan's list, in the plan's order (4.4), `anyway`, the one name more (the end of 4.4), and the six names the safety lane (R4, 4.5) adds: `lane_help`, which the plan's list has no help tier for, and the five
+// `would_*` of its shadow (4.5 names them; 4.4 says a later shadow run takes the R3 names with a `_shadow` suffix: the two are reconciled in 4.5's "As built", and the `would_*` names are the ones used)
 const PLAN_NAMES = [
   "frame", "frame_polite", "frame_all", "qty", "year", "neg", "order", "long", "first_person",
   "subj0", "subj1", "subj2_6", "subj7p", "id",
   "lane_urgent", "lane_crisis", "lane_decision", "lane_care", "lane_notsearch",
   "cue_paper", "cue_list", "cue_paste", "ask_acronym", "ask_broad", "spell_candidate", "scrub",
   "one_source", "tier_none", "tier_few", "anyway",
+  "lane_help", "would_urgent", "would_crisis", "would_help", "would_decision", "would_care",
 ];
 // names whose definition needs a module of a later release (the safety lane, the tool cues, the ask table, the speller) or the result of the search: reserved, never given in Phase 0
 const RESERVED: readonly string[] = [
   "lane_urgent", "lane_crisis", "lane_decision", "lane_care", "lane_notsearch", "cue_paper", "cue_list", "cue_paste", "ask_acronym", "ask_broad", "spell_candidate",
   "one_source", "tier_none", "tier_few", "anyway",
+  "lane_help", "would_urgent", "would_crisis", "would_help", "would_decision", "would_care",
 ];
 const SUBJ: readonly string[] = ["subj0", "subj1", "subj2_6", "subj7p"];
 const closed = new Set<string>(INPUT_SHAPE_NAMES);

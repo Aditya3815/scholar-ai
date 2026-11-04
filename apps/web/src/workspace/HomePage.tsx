@@ -12,7 +12,7 @@ import { PAPERS_NAME, putHandoff } from "../lib/workspace";
 import { Pop } from "../components/Pop";
 import { ContinueReading, RememberThis } from "./HomeExtras";
 import type { ChatView as ChatViewType } from "./ChatView";
-import { continueFromChat, continuedFrom, isPrivateChat, resumeChat, retryReply, reviveIdea, sendMessage, startIdeaCheck, startNewChat, startPrivateChat, stopContinuing, stopReply, useChatState, useConversing } from "../lib/chat";
+import { continueFromChat, continuedFrom, deleteChat, isPrivateChat, resumeChat, retryReply, reviveIdea, sendMessage, startIdeaCheck, startNewChat, startPrivateChat, stopContinuing, stopReply, useChatState, useConversing } from "../lib/chat";
 import { startersFor, starterMode } from "./starters";
 import { menuKeys } from "./menuKeys";
 import { TrendingChips, TryChips } from "./HomeChips";
@@ -482,7 +482,7 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
       {conversing && priv && <p className="chat-und" role="note">Private chat: it is not kept, and not used as memory. It is gone when you leave it.</p>}
       {resuming && <p className="sr-only" role="status">Loading the conversation…</p>}
       {conversing && (
-        <ChatViewSlot jumpSlot={jumpSlot} messages={messages} signedIn={!!user} onRetry={(rid, as) => void retryReply(rid, as)} liveIdeas={chat.liveIdeas} onOpenPage={openPage} onIdeaAgain={reviveIdea} onChange={changeMode} onRefine={(t) => { onQuery(t); window.setTimeout(() => inputRef.current?.focus(), 0); }} />
+        <ChatViewSlot jumpSlot={jumpSlot} messages={messages} signedIn={!!user} onRetry={(rid, as) => void retryReply(rid, as)} liveIdeas={chat.liveIdeas} onOpenPage={openPage} onIdeaAgain={reviveIdea} onChange={changeMode} onRefine={(t) => { onQuery(t); window.setTimeout(() => inputRef.current?.focus(), 0); }} onDelete={() => { if (chat.active) deleteChat(chat.active); }} />
       )}
 
       {/* the box's layout is measured when the conversation changes (the glide to the bottom, then as the answer grows the page) and not on every letter typed: measured on every render, which is the

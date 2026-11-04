@@ -434,6 +434,26 @@ const DIFF: Case[] = [
   { name: "refused, a message that is too short", body: byHand("x") },
   { name: "refused, a body that is not JSON", body: "not json" },
   { name: "the judge switch is off", body: auto("effect of yoga on blood pressure"), opts: { env: { CHAT_JUDGE: "off" } } },
+  // R4 (docs/design/intent-and-state.md, 4.5): messages of the safety lane, added to the list on 4 Nov 2026 and recorded by hand from the code BEFORE the lane existed (`producedFrom` in the golden says which
+  // commit). With CHAT_SAFETY unset, off or shadow they are answered as they always were (a search, small talk, an offer of Idea Check); with `core` or `on` they are the lane's own and are tested in
+  // lane-route.test.ts, so the 37 requests above are the ones that must not move in any position.
+  { name: "safety, an urgent symptom", body: auto("my father has chest pain and his left arm hurts right now") },
+  { name: "safety, someone else in danger", body: auto("my friend collapsed and is not breathing, what do I do") },
+  { name: "safety, self-harm", body: auto("I want to kill myself") },
+  { name: "safety, the word suicidal", body: auto("I am suicidal") },
+  { name: "safety, help me", body: auto("help me") },
+  { name: "safety, a bare help", body: auto("help") },
+  { name: "safety, I need help", body: auto("I need help") },
+  { name: "safety, a long distress message", body: auto("I have not been able to sleep properly for weeks now. Work is piling up, my parents keep asking when I will settle down, and my friends have stopped calling because I never reply. I wake up every day tired before anything has even started. I used to enjoy cooking and going for walks but now it all feels pointless. Last night I sat on the balcony for hours thinking about everything I have done wrong. I cannot go on like this any more and I want to die") },
+  { name: "safety, Hinglish urgent", body: auto("papa ko seene mein dard ho raha hai abhi aur saans nahi aa rahi") },
+  { name: "safety, Hindi self-harm", body: auto("मैं मरना चाहता हूँ") },
+  { name: "safety, a medicine decision", body: auto("I take amlodipine for my blood pressure, can I also take ibuprofen for knee pain") },
+  { name: "safety, a health story with a question", body: auto("I am 10 weeks pregnant and drink three cups of coffee a day, is there any research on caffeine and miscarriage") },
+  { name: "safety, a research topic on suicide", body: auto("suicide prevention programmes for farmers in India") },
+  { name: "safety, urgent, not signed in", body: auto("my father has chest pain and his left arm hurts right now"), opts: { signedIn: false } },
+  { name: "safety, self-harm, chosen by hand", body: byHand("I want to kill myself") },
+  { name: "safety, help me, anyway", body: byHand("help me", { anyway: true }) },
+  { name: "safety, self-harm, with turns before it", body: auto("I want to kill myself", { history: GLAUCOMA }) },
 ];
 
 const GOLDEN = fileURLToPath(new URL("./since-year.golden.json", import.meta.url));
@@ -476,6 +496,8 @@ describe("a request without sinceYear is answered exactly as before the field ex
  * The gate flags of the understanding releases (docs/design/intent-and-state.md, 4.0 and E5): in every position, the stream of every request of the list above is the golden's, byte for byte.
  * `CHAT_COUNTERS` (R3) only counts, so even `on` changes nothing on the wire; `CHAT_FAILPOLICY` (R5) acts only on a follow-up whose router call FAILED, and no request of the list has one (the stand-in
  * router fails on the word "boom", which none of them holds), so `shadow` and `on` change nothing here either. The two cases that do meet it are in failpolicy.test.ts, with their own expectations.
+ * `CHAT_SAFETY` (R4) has four positions. Unset, `off` and `shadow` change nothing on the wire for ANY request of the list, the 17 messages of the safety lane included (shadow only reads and, with CHAT_COUNTERS
+ * on, counts); `core` and `on` act on those 17 (lane-route.test.ts looks at what they do) and must leave the 37 requests that are not about safety exactly as the golden has them.
  */
 describe("the gate flags leave the stream of every request of the list as the golden has it, in every position", () => {
   const POSITIONS: Record<string, Record<string, string>>[] = [
@@ -487,6 +509,11 @@ describe("the gate flags leave the stream of every request of the list as the go
     { "CHAT_FAILPOLICY=on": { CHAT_FAILPOLICY: "on" } },
     { "both shadow": { CHAT_COUNTERS: "shadow", CHAT_FAILPOLICY: "shadow" } },
     { "both on": { CHAT_COUNTERS: "on", CHAT_FAILPOLICY: "on" } },
+    { "CHAT_SAFETY=off": { CHAT_SAFETY: "off" } },
+    { "CHAT_SAFETY=shadow": { CHAT_SAFETY: "shadow" } },
+    { "CHAT_SAFETY=shadow with the counters on": { CHAT_SAFETY: "shadow", CHAT_COUNTERS: "on" } },
+    { "every flag shadow": { CHAT_COUNTERS: "shadow", CHAT_FAILPOLICY: "shadow", CHAT_SAFETY: "shadow" } },
+    { "a value that is not a position": { CHAT_SAFETY: "ON" } },
   ];
   it("holds for all of them", async () => {
     const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
@@ -496,6 +523,31 @@ describe("the gate flags leave the stream of every request of the list as the go
       const changed = now.filter((n, i) => JSON.stringify(n) !== JSON.stringify(golden.entries[i])).map((n) => n.name);
       expect(changed, label).toEqual([]);
     }
+  }, 120_000);
+
+  it("CHAT_SAFETY=core and =on leave the 37 requests that are not about safety as the golden has them (the 17 of the lane are its own, and are looked at in lane-route.test.ts)", async () => {
+    const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
+    const others = DIFF.filter((c) => !c.name.startsWith("safety, "));
+    expect(others).toHaveLength(37);
+    const flagSets: Record<string, string>[] = [{ CHAT_SAFETY: "core" }, { CHAT_SAFETY: "on" }, { CHAT_SAFETY: "on", CHAT_COUNTERS: "on", CHAT_FAILPOLICY: "on" }];
+    for (const flags of flagSets) {
+      const now = await Promise.all(others.map((c) => wire({ ...c, opts: { ...c.opts, env: { ...c.opts?.env, ...flags } } })));
+      const changed = now.filter((n) => JSON.stringify(n) !== JSON.stringify(golden.entries.find((e) => e.name === n.name))).map((n) => n.name);
+      expect(changed, JSON.stringify(flags)).toEqual([]);
+    }
+  }, 120_000);
+
+  it("and the lane's 17 messages DO change in core and on (the check above is not vacuous): the ones that are read as a reply or get a line", async () => {
+    const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
+    const own = DIFF.filter((c) => c.name.startsWith("safety, "));
+    const now = await Promise.all(own.map((c) => wire({ ...c, opts: { ...c.opts, env: { ...c.opts?.env, CHAT_SAFETY: "on" } } })));
+    const changed = now.filter((n) => JSON.stringify(n) !== JSON.stringify(golden.entries.find((e) => e.name === n.name))).map((n) => n.name);
+    expect(changed.length).toBeGreaterThanOrEqual(12);
+    expect(changed).toContain("safety, self-harm");
+    expect(changed).toContain("safety, help me");
+    // a bare "help" is still small talk's, and a topic on suicide is still a search
+    expect(changed).not.toContain("safety, a bare help");
+    expect(changed).not.toContain("safety, a research topic on suicide");
   }, 120_000);
 
   it("the counters, when on, do write for the requests of the list that are first messages in Auto (the test is not vacuous)", async () => {

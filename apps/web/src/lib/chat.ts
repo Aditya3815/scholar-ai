@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import {
-  applyChatEvent, applyTighten, busyReason, chatRequestBody, chatTitle, citedPaperIds, cleanAutoMessage, cleanChatMessage, contextBefore, earlierFor, editInfo, editUserMessage, failTighten, goneFromIndex, interruptMessages, keywordsFor, leftOfEarlier, MAX_CHAT_CHARS, MAX_IDEA_CHARS, MIN_IDEA_CHARS, ownedBy,
+  applyChatEvent, applyTighten, busyReason, chatRequestBody, chatTitle, citedPaperIds, cleanAutoMessage, cleanChatMessage, contextBefore, earlierFor, editInfo, editUserMessage, failTighten, goneFromIndex, interruptMessages, keywordsFor, leavesNoTrace, leftOfEarlier, MAX_CHAT_CHARS, MAX_IDEA_CHARS, MIN_IDEA_CHARS, ownedBy,
   parseIndex, releaseRun, retryText, startAssistant, startTighten, stopAssistant, switchVersion, tightenRequestFor, titleAfterEdit, touchIndex, trimMessagesForStorage, withHeld,
   type AssistantMsg, type ChatEvent, type ChatMsg, type EarlierQuestion, type HistoryEntry, type IdeaMsg, type MemoryEntry, type SearchScope, type TightenResponse, type UserMsg,
 } from "@scholar/shared";
@@ -675,6 +675,8 @@ async function run(chatId: string, assistantId: string, text: string, mode: Send
     // only this run's own registration: a run that was stopped ends after a new one began, and must not unregister it (the box would take the new run's reply for finished)
     releaseRun(runs, chatId, ctl);
     set({ running: new Set(runs.keys()) });
+    // the safety lane (R4): a reply that was an emergency or a crisis leaves nothing of the words behind, before the saves below can put them back
+    settleSafety(chatId, assistantId);
     // a conversation deleted while it was being answered stays deleted; and one that was replaced by what another tab saved (`changedElsewhere`) no longer has this reply: writing it back would only
     // make this page's copy of the other tab's work the newest, and the other tab the one that is behind
     if (state.index.some((e) => e.id === chatId) && state.chats.get(chatId)?.some((m) => m.id === assistantId)) {
@@ -682,6 +684,35 @@ async function run(chatId: string, assistantId: string, text: string, mode: Send
       persist(chatId, true);
     }
   }
+}
+
+/**
+ * The store rule of the safety lane (docs/design/intent-and-state.md, 4.5, "What the chat remembers of it"). A finished reply that is the lane's urgent or safety reply, or carries its crisis or urgent line
+ * (`leavesNoTrace`), must not leave the words of the message on this device as a title in the rail or a word the chat is found by (a shared family or café computer would show them). The server decides it, so the
+ * message was already put in the list when it was sent; this takes it out again once the reply is known:
+ *  - a chat of one message pair is made private at once, as a chat the person started as private is: its place in the list and its record are taken away, nothing is listed, it is not saved again, and it is gone
+ *    when it is left (the messages stay on the screen until then, with the card and its "Delete this chat");
+ *  - in a longer chat the title stays what it was (it is the FIRST message's words) and the words of the message are left out of the words the chat is found by: `historyTurn` makes no turn of such a reply, and
+ *    the words are made from the turns (`keywordsFor`), so there is nothing to take out here.
+ * A page closed before the reply is known still holds the message (the lane is the server's, and nothing here may read the words to guess).
+ */
+function settleSafety(chatId: string, assistantId: string) {
+  const msgs = state.chats.get(chatId);
+  const reply = msgs?.find((m): m is AssistantMsg => m.role === "assistant" && m.id === assistantId);
+  if (!msgs || !reply || !leavesNoTrace(reply) || state.privateChats.has(chatId)) return;
+  if (msgs.length === 2 && state.index.some((e) => e.id === chatId)) void leaveNoTrace(chatId);
+}
+async function leaveNoTrace(id: string) {
+  window.clearTimeout(timers.get(id));
+  timers.delete(id);
+  const index = state.index.filter((e) => e.id !== id);
+  set({ index, privateChats: new Set(state.privateChats).add(id) });
+  writeIndex(index);
+  // a save that is under way finishes first, and then its record goes
+  await saving.get(id)?.catch(() => undefined);
+  revs.delete(id);
+  synced.delete(id);
+  await idbDelete(id, "chats");
 }
 
 /**

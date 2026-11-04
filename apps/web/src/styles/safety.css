@@ -1,0 +1,12 @@
+/*
+ * The safety lane (R4, docs/design/intent-and-state.md, 4.5): the card that answers a message that describes an emergency or says the person may hurt themselves, and the lines above an answer. It is a
+ * card and not a footnote: full-contrast text of at least 1.0625rem, a rule in the warning colour, no dashed grey box (that is `.chat-why`, which reads like a footnote). Imported by ChatView, which is a lazy
+ * chunk of its own, so none of it is in the first-load style sheet (its limit is 26 KB, and 23.6 of them are used).
+ */
+.chat-safety-card { display: grid; gap: 0.7rem; padding: 1rem 1.15rem; border: 1px solid var(--border-strong); border-left: 4px solid var(--warn); border-radius: var(--radius-s); background: var(--surface); }
+.chat-safety-first { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 1.0625rem; line-height: 1.55; color: var(--text); }
+.chat-safety-more { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 0.9rem; line-height: 1.5; color: var(--muted); }
+.chat-safety-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; }
+/* the lines above the answer and the papers: one for each kind of cue the message had, in the order crisis, urgent, decision, care */
+.chat-safety-lines { display: grid; gap: 0.5rem; }
+.chat-safety { margin: 0; min-width: 0; overflow-wrap: anywhere; padding: 0.15rem 0 0.15rem 0.8rem; border-left: 3px solid var(--warn); font-size: 1rem; line-height: 1.5; color: var(--text); }

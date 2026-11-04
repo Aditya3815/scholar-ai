@@ -2,7 +2,7 @@ import { AnimatePresence, m } from "motion/react";
 import { ArrowDown, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileStack, Info, Lightbulb, ListChecks, Pencil, RefreshCw, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { GENERAL_LABEL, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MAX_VERSIONS, ROUTE_NAMES, answerCopy, busyReason, canTighten, citeParts, earlierUsed, editInfo, followUpNote, noticeOffersRetry, textAttrs, turnToShow, unfilteredWords, versionInfo, type AssistantMsg, type ChatMsg, type EditInfo, type IdeaMsg, type ChatNoAnswer, type Paper, type RouteMode, type UserMsg } from "@scholar/shared";
+import { GENERAL_LABEL, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MAX_VERSIONS, ROUTE_NAMES, SAFETY_NOTICE_KINDS, answerCopy, busyReason, canTighten, citeParts, earlierUsed, editInfo, followUpNote, noticeOffersRetry, textAttrs, turnToShow, unfilteredWords, versionInfo, type AssistantMsg, type ChatMsg, type EditInfo, type IdeaMsg, type ChatNoAnswer, type Paper, type RouteMode, type UserMsg } from "@scholar/shared";
 import { SignInDialog } from "../components/SignInDialog";
 import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
@@ -16,6 +16,8 @@ import { openPreview } from "../lib/preview";
 import { easeOut, spring } from "../lib/motion";
 import { PAPERS_NAME } from "../lib/workspace";
 import "../styles/chat-lazy.css";
+// the safety lane's card and lines (R4): in this lazy chunk, and not in the first-load style sheet
+import "../styles/safety.css";
 // the Idea Check workspace is a chunk of its own, fetched when an idea is checked here (the first load has a size budget)
 const IdeaWorkspace = lazy(() => import("../components/idea/IdeaPage").then((m) => ({ default: m.IdeaWorkspace })));
 
@@ -30,6 +32,10 @@ const WHY: Record<ChatNoAnswer, string> = {
   stopped: "Stopped.",
   routed: "",
   small_talk: "",
+  // the safety lane (R4): its reply is a card of its own (`SafetyReply`), and a decision says what it has to say in the line above the papers, so none of them has a line here
+  urgent: "",
+  safety: "",
+  decision: "",
   too_long: `This is too long for a search (${MAX_CHAT_CHARS} characters at most). Choose Check references or Idea Check, or write a shorter question.`,
 };
 
@@ -140,6 +146,56 @@ function LiveText({ text, writing }: { text: string; writing: boolean }) {
 }
 
 type ChangeTool = (to: RouteMode, replyId: string, text: string) => void;
+
+/** The safety lane answered this message itself (docs/design/intent-and-state.md, 4.5): a fixed text instead of papers, for an emergency (`urgent`) or for self-harm or a plain call for help (`safety`). */
+const isLaneReply = (m: AssistantMsg): boolean => m.status === "done" && (m.reason === "urgent" || m.reason === "safety");
+/** The words to say aloud when the card appears: its first sentence. */
+const firstSentence = (text: string): string => {
+  const first = (text.split("\n\n")[0] ?? "").trim();
+  return /^.*?[.!?।](?=\s|$)/.exec(first)?.[0] ?? first;
+};
+
+/**
+ * The card of the safety lane: what to do first, in full-contrast text of at least 1.0625rem; a second paragraph, if the text has one, in the muted style (how to look up research); under an emergency
+ * the one button, "Search the research anyway", which sends exactly a search chosen by hand (it carries the urgent line); and "Delete this chat", because what was written here is nobody's business.
+ * No "I understood this as" line, no "Not small talk?", no example chips and no reply actions: those belong to other replies. The text comes from the server and is the same for everyone.
+ */
+function SafetyReply({ msg, onAnyway, onDelete }: { msg: AssistantMsg; onAnyway: () => void; onDelete: () => void }) {
+  const text = msg.general?.kind === "not_research" ? msg.general.text : "";
+  const [first, ...more] = text.split("\n\n");
+  if (!first) return null;
+  return (
+    <div className="chat-safety-card" role="group" aria-label="Safety information">
+      <p className="chat-safety-first" {...textAttrs(first)}>{first}</p>
+      {more.map((p, i) => (
+        <p key={i} className="chat-safety-more" {...textAttrs(p)}>{p}</p>
+      ))}
+      <div className="chat-safety-acts">
+        {msg.reason === "urgent" && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onAnyway}>
+            <Search size={14} aria-hidden="true" />
+            <span>Search the research anyway</span>
+          </button>
+        )}
+        <button type="button" className="link-btn" onClick={onDelete}>Delete this chat</button>
+      </div>
+    </div>
+  );
+}
+
+/** The lines of the lane above the answer and the papers, one for each kind, in the order crisis, urgent, decision, care. */
+function SafetyLines({ msg }: { msg: AssistantMsg }) {
+  const lines = SAFETY_NOTICE_KINDS.flatMap((k) => msg.notices.filter((n) => n.kind === k));
+  if (lines.length === 0) return null;
+  return (
+    <div className="chat-safety-lines">
+      {lines.map((n) => (
+        <p key={n.kind} className="chat-safety" data-kind={n.kind} role="note" {...textAttrs(n.text)}>{n.text}</p>
+      ))}
+    </div>
+  );
+}
+const isSafetyKind = (kind: string): boolean => (SAFETY_NOTICE_KINDS as readonly string[]).includes(kind);
 
 /**
  * Background from general knowledge (W5), when the papers did not answer: always under its label, apart from the checked answer, with no source marks and no citations.
@@ -366,7 +422,7 @@ const PaperList = memo(function PaperList({ msgId, papers, flashN, working }: { 
  * A finished search that found no paper (not a greeting, not another tool's offer, not a message that was too long, and not one whose year filter took every paper away: that has its own way out, the chip with
  * the X). It says so. (It used to offer the Try chips as well: example searches have no place in a conversation, which the person is in the middle of; the empty Home offers them.)
  */
-const noPapers = (m: AssistantMsg): boolean => m.status === "done" && m.mode === "search" && m.papers.length === 0 && m.reason !== "small_talk" && m.reason !== "routed" && m.reason !== "too_long" && !m.notices.some((n) => n.kind === "years");
+const noPapers = (m: AssistantMsg): boolean => m.status === "done" && m.mode === "search" && m.papers.length === 0 && m.reason !== "small_talk" && m.reason !== "routed" && m.reason !== "too_long" && m.reason !== "urgent" && m.reason !== "safety" && !m.notices.some((n) => n.kind === "years");
 /**
  * No answer was written because the message could not be read (the notice kind "weak", docs/design/intent-and-state.md, 4.6): the notice says why, in its own words, and the general line for the reason
  * "not_answered" ("the papers found do not seem to answer this") is not drawn beside it, since nobody checked the papers.
@@ -382,13 +438,14 @@ const REPLY_IN = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }
  * being written, 1.8 to 2.4 s while a reply was; now 60 ms and 150 to 230 ms: e2e/chat-perf.mjs).
  * `flashN` is the number of this reply's paper that is being pointed at (0 for none).
  */
-const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN, onCite, onRetry, onChange, onRefine, onOpenPage }: { msg: AssistantMsg; text: string; signedIn: boolean; flashN: number; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void }) {
+const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN, onCite, onRetry, onChange, onRefine, onOpenPage, onDelete }: { msg: AssistantMsg; text: string; signedIn: boolean; flashN: number; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onDelete: () => void }) {
   const working = msg.status === "working";
   const byN = (n: number) => msg.papers[n - 1];
   const answer = msg.answer?.grounded ? msg.answer : null;
   const titleOf = (n: number) => byN(n)?.title ?? `paper ${n}`;
   const routed = msg.status === "done" && msg.reason === "routed" && msg.mode !== "search";
   const reserved = working && signedIn && msg.mode === "search" && !msg.live && !answer && (msg.step === "read" || msg.step === "write");
+  const lane = isLaneReply(msg);
   const quiet = useQuiet(msg);
   // A button of this reply was pressed (Search again, Try again, Use these exact words, the year chip's X, an earlier question taken away) and the reply began again in its place: the button was shown only
   // while the reply was not working, so it is gone from the page and the focus has dropped to the page's body (a keyboard user loses their place, a screen reader says nothing). The focus goes to the reply
@@ -403,15 +460,27 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
   // One polite message when the reply is ready (not the words one by one), through the conversation's one status line, and only for a reply that was being written here: one that is merely shown (a conversation opened again) says nothing.
   const was = useRef(working);
   useEffect(() => {
-    if (was.current && !working) announce(msg.status === "done" ? (msg.reason === "small_talk" ? "Reply ready." : routed ? "Understood. A tool can be opened." : msg.papers.length === 0 ? (noPapers(msg) ? "No papers were found. You can change the words and search again." : "No papers were found.") : `${answer ? "Answer ready" : "Papers ready"}, ${msg.papers.length} ${msg.papers.length === 1 ? "paper" : "papers"}.`) : msg.status === "stopped" ? "Stopped." : msg.error ?? "This answer was interrupted.");
+    // (the safety lane's card has an announcement of its own, below)
+    if (was.current && !working && !isLaneReply(msg)) announce(msg.status === "done" ? (msg.reason === "small_talk" ? "Reply ready." : routed ? "Understood. A tool can be opened." : msg.papers.length === 0 ? (noPapers(msg) ? "No papers were found. You can change the words and search again." : "No papers were found.") : `${answer ? "Answer ready" : "Papers ready"}, ${msg.papers.length} ${msg.papers.length === 1 ? "paper" : "papers"}.`) : msg.status === "stopped" ? "Stopped." : msg.error ?? "This answer was interrupted.");
     was.current = working;
   }, [working]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The safety lane's card says its first sentence, once, and keeps it in the line for a long while (a person reading in distress is not reading the line at a glance). It is the reply that most needs to be
+  // heard, and the page reaches it before the view does as often as not (the lane answers in a moment, and this chunk can still be on its way on the first message of a visit), so it is not left to the change
+  // from working to done that the other replies are announced by: a card that was made a moment ago and is drawn now is said too. One that is merely shown (a conversation opened again) is older and says nothing.
+  const spoken = useRef(false);
+  useEffect(() => {
+    if (!lane || spoken.current || !msg.general?.text || Date.now() - msg.at > 20_000) return;
+    spoken.current = true;
+    announce(firstSentence(msg.general.text), 15_000);
+  }, [lane]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <m.div {...REPLY_IN}>
     <div ref={turn} className="chat-turn" data-status={msg.status} role="group" aria-label={working ? "Reply, being written" : "Reply"} tabIndex={-1}>
       {/* while Auto is still reading the message the step list says so; the line comes once the tool is known (and not at all if the reply failed before that) */}
-      {msg.understood !== false && msg.reason !== "small_talk" && <Understood msg={msg} text={text} working={working} onChange={onChange} onExact={() => onRetry(msg.id, "search")} onWords={(words) => void retryReply(msg.id, "search", words)} />}
+      {msg.understood !== false && msg.reason !== "small_talk" && !lane && <Understood msg={msg} text={text} working={working} onChange={onChange} onExact={() => onRetry(msg.id, "search")} onWords={(words) => void retryReply(msg.id, "search", words)} />}
+
+      <SafetyLines msg={msg} />
 
       {routed && msg.mode !== "search" && (
         <div className="chat-offer" role="group" aria-label="Open the tool">
@@ -478,7 +547,7 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
         </m.div>
       ) : null}
 
-      {!working && !answer && msg.status === "done" && msg.reason && msg.reason !== "routed" && msg.reason !== "small_talk" && !saidByNotice(msg) && (
+      {!working && !answer && msg.status === "done" && msg.reason && msg.reason !== "routed" && msg.reason !== "small_talk" && msg.reason !== "urgent" && msg.reason !== "safety" && msg.reason !== "decision" && !saidByNotice(msg) && (
         <p className="chat-why" role="note">
           {msg.reason === "sign_in" ? (
             <span className="chat-why-row">
@@ -490,7 +559,7 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
           )}
         </p>
       )}
-      <Background msg={msg} question={text} onRefine={onRefine} />
+      {lane ? <SafetyReply msg={msg} onAnyway={() => onRetry(msg.id, "anyway")} onDelete={onDelete} /> : <Background msg={msg} question={text} onRefine={onRefine} />}
       {msg.status === "done" && msg.reason === "small_talk" && (
         <div className="chat-talk">
           {/* the way out of a wrong guess: the person's own words, searched as written. (No example searches here: they are for the empty Home.) */}
@@ -512,9 +581,9 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
       )}
 
       {/* a finished search has its own row of actions (not a greeting, and not the offer of another tool, which has its own buttons) */}
-      {msg.status === "done" && !routed && msg.reason !== "small_talk" && msg.reason !== "too_long" && <ReplyActions msg={msg} onRetry={onRetry} />}
+      {msg.status === "done" && !routed && msg.reason !== "small_talk" && msg.reason !== "too_long" && !lane && <ReplyActions msg={msg} onRetry={onRetry} />}
 
-      {msg.notices.map((n) => (
+      {msg.notices.filter((n) => !isSafetyKind(n.kind)).map((n) => (
         <p key={n.kind} className="chat-note" data-kind={n.kind} role="note">
           <TriangleAlert size={14} aria-hidden="true" />
           <span>{n.text}</span>
@@ -844,7 +913,7 @@ function JumpToLatest({ slot, end }: { slot: HTMLElement; end: RefObject<HTMLEle
   );
 }
 
-export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onRefine, onOpenPage, onIdeaAgain, jumpSlot = null }: { messages: ChatMsg[]; signedIn: boolean; liveIdeas: ReadonlySet<string>; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onIdeaAgain: (id: string) => void; /** the anchor on the box's top edge that the arrow to the latest message is drawn into (the page makes it) */ jumpSlot?: HTMLElement | null }) {
+export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onRefine, onOpenPage, onIdeaAgain, onDelete, jumpSlot = null }: { messages: ChatMsg[]; signedIn: boolean; liveIdeas: ReadonlySet<string>; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onIdeaAgain: (id: string) => void; onDelete: () => void; /** the anchor on the box's top edge that the arrow to the latest message is drawn into (the page makes it) */ jumpSlot?: HTMLElement | null }) {
   const [flash, setFlash] = useState<{ msgId: string; n: number } | null>(null);
   const list = useRef<HTMLOListElement>(null);
   const end = useRef<HTMLDivElement>(null);
@@ -867,10 +936,11 @@ export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onR
   // What the turns are given must not be new when nothing about it is: a turn is drawn again for a prop that is merely a new object or a new function, and a long conversation has twenty of them or more, each
   // of them thousands of nodes, which every word of the reply being written (and every key pressed in the box) would draw again. The functions of the page above are new for every render of it, so they are held
   // here and called through these, which never change; the rest are made once.
-  const parent = useRef({ onRetry, onChange, onRefine, onOpenPage });
+  const parent = useRef({ onRetry, onChange, onRefine, onOpenPage, onDelete });
   useLayoutEffect(() => {
-    parent.current = { onRetry, onChange, onRefine, onOpenPage };
+    parent.current = { onRetry, onChange, onRefine, onOpenPage, onDelete };
   });
+  const deleteChat = useCallback(() => parent.current.onDelete(), []);
   const retry = useCallback((id: string, as?: "search" | "anyway") => parent.current.onRetry(id, as), []);
   const change = useCallback<ChangeTool>((to, id, text) => parent.current.onChange(to, id, text), []);
   const refine = useCallback((text: string) => parent.current.onRefine(text), []);
@@ -978,7 +1048,7 @@ export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onR
                   onAnchor={anchorAt}
                 />
               ) : (
-                <AssistantTurn msg={msg} text={before?.role === "user" ? before.text : msg.query} signedIn={signedIn} flashN={flash?.msgId === msg.id ? flash.n : 0} onCite={cite} onRetry={retry} onChange={change} onRefine={refine} onOpenPage={openPage} />
+                <AssistantTurn msg={msg} text={before?.role === "user" ? before.text : msg.query} signedIn={signedIn} flashN={flash?.msgId === msg.id ? flash.n : 0} onCite={cite} onRetry={retry} onChange={change} onRefine={refine} onOpenPage={openPage} onDelete={deleteChat} />
               )}
             </li>
           );

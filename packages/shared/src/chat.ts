@@ -50,10 +50,21 @@ export type ChatAnswer = {
   strict?: boolean;
 };
 
-/** Why a message has papers but no written answer. */
-export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_grounded" | "quota" | "unavailable" | "stopped" | "routed" | "too_long" | "small_talk";
+/**
+ * Why a message has papers but no written answer. `urgent` and `safety` are the safety lane's replies (docs/design/intent-and-state.md, 4.5): the page answered a message that describes an emergency
+ * (`urgent`), or one that says the person may hurt themselves or plainly asks for help (`safety`), with a fixed text and no search; they carry no papers. `decision` is a message that asks what the person
+ * should take: the papers of the topic are shown, and no answer is written, because the papers are about the topic and not about the person's case.
+ */
+export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_grounded" | "quota" | "unavailable" | "stopped" | "routed" | "too_long" | "small_talk" | "urgent" | "safety" | "decision";
 
-export const NOTICE_KINDS = ["partial", "nothing", "retracted", "years", "weak"] as const;
+/**
+ * The four lines of the safety lane (one kind for each, because the reducer keeps one notice of a kind): the crisis line, the urgent line (also for a plain call for help), the line for a personal
+ * medicine decision, and the care line (a health or distress story with a research question). They are drawn under the Understood line, above the offer, the answer and the papers.
+ */
+export const SAFETY_NOTICE_KINDS = ["safety_crisis", "safety_urgent", "safety_decision", "safety_care"] as const;
+export type SafetyNoticeKind = (typeof SAFETY_NOTICE_KINDS)[number];
+
+export const NOTICE_KINDS = ["partial", "nothing", "retracted", "years", "weak", ...SAFETY_NOTICE_KINDS] as const;
 export type NoticeKind = (typeof NOTICE_KINDS)[number];
 
 export type ChatEvent =
