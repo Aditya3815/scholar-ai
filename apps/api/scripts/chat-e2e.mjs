@@ -367,7 +367,7 @@ try {
   const shapeDelta = delta(shapeBefore, await countsOf("chat_input"));
   if (VARS.CHAT_COUNTERS === "on") {
     ok(viaA.res.status === 200 && viaVisitor.res.status === 200, "(both messages were taken)");
-    ok(Object.keys(shapeDelta).sort().join() === "frame,frame_all,frame_polite,one_source,subj2_6,year", `with CHAT_COUNTERS=on both messages are counted by their shape, a signed-in person's and a visitor's alike (${JSON.stringify(shapeDelta)})`);
+    ok(Object.keys(shapeDelta).filter((k) => k !== "would_clean" && k !== "clean_applied").sort().join() === "frame,frame_all,frame_polite,one_source,subj2_6,year", `with CHAT_COUNTERS=on both messages are counted by their shape, a signed-in person's and a visitor's alike (${JSON.stringify(shapeDelta)})`);
     ok(Object.values(shapeDelta).every((n) => n === 2), "...each name once for each of the two messages, and exactly one of the four subject counts");
     const names = (await sqlRows("SELECT outcome FROM answer_outcomes WHERE feature = 'chat_input'")).map((r) => r.outcome);
     ok(names.every((n) => /^[a-z][a-z0-9_]{0,39}$/.test(n)) && !names.some((n) => /crispr|target|effects|papers|please/i.test(n)), "no name is a word of a message");
@@ -439,10 +439,50 @@ try {
   else ok(decideLines.length === 0 && decide.events.some((e) => e.type === "answer"), `CHAT_SAFETY=${SAFETY}: a personal medicine decision is searched and answered as it always was`);
   const laneDelta = delta(beforeLane, await countsOf("chat"));
   const inputDelta = delta(beforeInput, await countsOf("chat_input"));
-  const wouldNames = Object.keys(inputDelta).filter((n) => /^(would_|lane_)/.test(n));
+  // (the names of the lane, not `would_clean` of the cleaner (R8), which has its own checks below)
+  const wouldNames = Object.keys(inputDelta).filter((n) => /^(would_|lane_)/.test(n) && n !== "would_clean");
   if (VARS.CHAT_COUNTERS === "on" && SAFETY === "shadow") ok(wouldNames.length > 0 && wouldNames.every((n) => n.startsWith("would_")) && !laneDelta.urgent && !laneDelta.safety, `shadow with the counters on counts what it would have done, by name, and nothing changed for the person (${wouldNames.join()})`);
   else if (VARS.CHAT_COUNTERS === "on" && (SAFETY === "core" || SAFETY === "on")) ok(inputDelta.lane_urgent >= 2 && inputDelta.lane_crisis >= 2 && inputDelta.lane_help >= 2 && laneDelta.urgent === 2 && laneDelta.safety === 4, `the lane counts what it did, by closed name, for a first message in Auto (${JSON.stringify({ ...inputDelta, ...laneDelta })})`);
   else ok(wouldNames.length === 0 && !laneDelta.urgent && !laneDelta.safety && !laneDelta.decision, `without CHAT_COUNTERS=on nothing new is stored by the lane: no would_*, no lane_*, no new ending (${JSON.stringify({ ...inputDelta, ...laneDelta })})`);
+  // The request-frame cleaner (R8, docs/design/intent-and-state.md, 4.8): CHAT_CLEAN is unset in wrangler.jsonc, so a default run looks at it OFF; INTEGRATION_VARS="CHAT_CLEAN:shadow" or ":on" (with "CHAT_COUNTERS:on") starts the
+  // Worker with it, and these checks look at what it does on the real Worker and the real local database. In off and shadow nothing on the wire changes; on, the owner's message is searched as three words and says what was left out.
+  console.log("the request-frame cleaner: off and shadow change nothing; on searches the topic and says what was left out");
+  const CLEAN = VARS.CHAT_CLEAN ?? "unset";
+  const OWNER_M = "Can you search about convoluton nueral netwrk all papers";
+  const OWNER_TOPIC = "convoluton nueral netwrk";
+  const beforeClean = await countsOf("chat_input");
+  for (const [who, client] of [["a signed-in person", A], ["a visitor", anon]]) {
+    const r = await chat(client, OWNER_M, { mode: "auto" });
+    const u = r.events.find((e) => e.type === "understood");
+    if (CLEAN === "on") {
+      ok(u?.searchQuery === OWNER_TOPIC && u?.query === OWNER_M && JSON.stringify(u?.reading) === JSON.stringify({ v: 1, source: "rules", topic: OWNER_TOPIC, left: ["Can you search about", "all papers"], notes: [{ kind: "all" }] }), `CHAT_CLEAN=on: the message of ${who} is searched as the three words, and the stream says what was left out (${JSON.stringify(u?.searchQuery)})`);
+    } else {
+      ok(u?.searchQuery === undefined && u?.reading === undefined, `CHAT_CLEAN=${CLEAN}: the message of ${who} is searched as written, with no reading on the wire`);
+    }
+    ok(r.events.some((e) => e.type === "papers"), `...and its papers come as ever (${who})`);
+  }
+  const handClean = await chat(A, OWNER_M, { mode: "search" });
+  const uh = handClean.events.find((e) => e.type === "understood");
+  ok(uh?.searchQuery === undefined && uh?.reading === undefined && uh?.how === "chosen", "a search chosen by hand is searched as written, in every position of the flag");
+  const plainClean = await chat(A, "effect of yoga on blood pressure", { mode: "auto" });
+  ok(plainClean.events.find((e) => e.type === "understood")?.reading === undefined, "a message with nothing to take out has no reading, in every position");
+  const hindiClean = await chat(A, "mujhe diabetes ke baare mein papers dikhao", { mode: "auto" });
+  ok(hindiClean.events.find((e) => e.type === "understood")?.reading === undefined, "a Hinglish message is left alone, in every position");
+  const authorClean = await chat(A, "papers by Geoffrey Hinton on deep learning", { mode: "auto" });
+  const ua = authorClean.events.find((e) => e.type === "understood");
+  if (CLEAN === "on") ok(ua?.searchQuery === undefined && ua?.reading?.notes?.[0]?.kind === "author", "CHAT_CLEAN=on: an author is named and stays in the words (no search words of its own)");
+  else ok(ua?.reading === undefined, `CHAT_CLEAN=${CLEAN}: an author is not named`);
+  const cleanDelta = delta(beforeClean, await countsOf("chat_input"));
+  if (VARS.CHAT_COUNTERS === "on" && CLEAN === "shadow") ok(cleanDelta.would_clean >= 3 && !cleanDelta.clean_applied, `shadow with the counters on counts what it would have done (${cleanDelta.would_clean} would_clean), and nothing changed for the person`);
+  else if (VARS.CHAT_COUNTERS === "on" && CLEAN === "on") ok(cleanDelta.clean_applied >= 3 && !cleanDelta.would_clean, `on with the counters on counts what it did (${cleanDelta.clean_applied} clean_applied)`);
+  else ok(!cleanDelta.would_clean && !cleanDelta.clean_applied, `without CHAT_COUNTERS=on, or with the cleaner off, nothing new is stored by the cleaner (${JSON.stringify(cleanDelta)})`);
+  if (CLEAN === "on" && VARS.CHAT_SAFETY === "on") {
+    const noTopic = await chat(anon, "can I take ibuprofen", { mode: "auto" });
+    ok(noTopic.events.map((e) => e.type).join() === "understood,notice,general,done" && !noTopic.events.some((e) => e.type === "papers") && noTopic.events.at(-1).reason === "small_talk", "CHAT_CLEAN=on with the lane on: a personal question with no topic left asks what to look up, and searches nothing");
+    const strip = await chat(anon, "I take amlodipine for my blood pressure, can I also take ibuprofen for knee pain", { mode: "auto" });
+    const us = strip.events.find((e) => e.type === "understood");
+    ok(!/\b(I|my)\b/.test(us?.searchQuery ?? "I") && /amlodipine/.test(us?.searchQuery ?? "") && /ibuprofen/.test(us?.searchQuery ?? ""), `...and a personal clause is not in the words searched, the medicines are (${JSON.stringify(us?.searchQuery)})`);
+  }
   reportStreams(ok);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);

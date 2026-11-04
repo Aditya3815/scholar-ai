@@ -16,12 +16,14 @@ const PLAN_NAMES = [
   "cue_paper", "cue_list", "cue_paste", "ask_acronym", "ask_broad", "spell_candidate", "scrub",
   "one_source", "tier_none", "tier_few", "anyway",
   "lane_help", "would_urgent", "would_crisis", "would_help", "would_decision", "would_care",
+  "would_clean", "clean_applied",
 ];
 // names whose definition needs a module of a later release (the safety lane, the tool cues, the ask table, the speller) or the result of the search: reserved, never given in Phase 0
 const RESERVED: readonly string[] = [
   "lane_urgent", "lane_crisis", "lane_decision", "lane_care", "lane_notsearch", "cue_paper", "cue_list", "cue_paste", "ask_acronym", "ask_broad", "spell_candidate",
   "one_source", "tier_none", "tier_few", "anyway",
   "lane_help", "would_urgent", "would_crisis", "would_help", "would_decision", "would_care",
+  "would_clean", "clean_applied",
 ];
 const SUBJ: readonly string[] = ["subj0", "subj1", "subj2_6", "subj7p"];
 const closed = new Set<string>(INPUT_SHAPE_NAMES);

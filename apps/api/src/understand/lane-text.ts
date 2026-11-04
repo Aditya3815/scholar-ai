@@ -100,17 +100,21 @@ export function replyText(reply: "crisis" | "urgent" | "help", language: Lang | 
  * The line above the papers. `auto`: the message came through Auto, so a decision withheld its written answer; for a search chosen by hand the answer is written and the line does not say it was not (the one
  * change to the plan's sentence: "and no answer was written" is left off). `careKind`: which of the two sentences of the care line.
  */
-export function noticeText(kind: SafetyNoticeKind, language: Lang | LaneLang, o: { auto: boolean; careKind: "health" | "distress" | null; checked?: boolean }): string {
+export function noticeText(kind: SafetyNoticeKind, language: Lang | LaneLang, o: { auto: boolean; careKind: "health" | "distress" | null; checked?: boolean; searched?: boolean }): string {
   const checked = o.checked ?? helplinesChecked();
   switch (kind) {
     case "safety_crisis":
       return say("crisisNote", language, checked);
     case "safety_urgent":
       return say("urgentNote", language, checked);
-    case "safety_care":
-      return say(o.careKind === "distress" ? "distress" : "care", language, checked);
+    case "safety_care": {
+      const full = say(o.careKind === "distress" ? "distress" : "care", language, checked);
+      // nothing was searched (R8: the personal words were all there was): no list is shown, so the sentence about "this list" is left off and the rest is the plan's own
+      return o.searched === false && o.careKind !== "distress" ? full.replace(/^This list is research, mostly on groups of people or in the lab\. /, "") : full;
+    }
     case "safety_decision": {
       const full = say("decision", language, checked);
+      if (o.searched === false) return full.replace(/ These papers are about the topic, not about your case, and no answer was written\.$/, "");
       return o.auto ? full : full.replace(/, and no answer was written\.$/, ".").replace(/, aur koi jawab nahi likha gaya\.$/, ".");
     }
   }

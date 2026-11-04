@@ -1,8 +1,8 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowDown, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileStack, Info, Lightbulb, ListChecks, Pencil, RefreshCw, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileStack, Info, Lightbulb, ListChecks, Pencil, Plus, RefreshCw, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { GENERAL_LABEL, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MAX_VERSIONS, ROUTE_NAMES, SAFETY_NOTICE_KINDS, answerCopy, busyReason, canTighten, citeParts, earlierUsed, editInfo, followUpNote, noticeOffersRetry, textAttrs, turnToShow, unfilteredWords, versionInfo, type AssistantMsg, type ChatMsg, type EditInfo, type IdeaMsg, type ChatNoAnswer, type Paper, type RouteMode, type UserMsg } from "@scholar/shared";
+import { GENERAL_LABEL, INDIA_SCOPE_LABEL, LEFT_OUT_LABEL, MAX_CHAT_CHARS, MAX_VERSIONS, ROUTE_NAMES, SAFETY_NOTICE_KINDS, answerCopy, busyReason, canTighten, citeParts, earlierUsed, editInfo, followUpNote, noticeOffersRetry, quoted, readingLines, restoreWords, textAttrs, turnToShow, unfilteredWords, versionInfo, type AssistantMsg, type MessageReading, type ChatMsg, type EditInfo, type IdeaMsg, type ChatNoAnswer, type Paper, type RouteMode, type UserMsg } from "@scholar/shared";
 import { SignInDialog } from "../components/SignInDialog";
 import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
@@ -16,8 +16,9 @@ import { openPreview } from "../lib/preview";
 import { easeOut, spring } from "../lib/motion";
 import { PAPERS_NAME } from "../lib/workspace";
 import "../styles/chat-lazy.css";
-// the safety lane's card and lines (R4): in this lazy chunk, and not in the first-load style sheet
+// the safety lane's card and lines (R4) and the reading lines (R8): in this lazy chunk, and not in the first-load style sheet
 import "../styles/safety.css";
+import "../styles/reading.css";
 // the Idea Check workspace is a chunk of its own, fetched when an idea is checked here (the first load has a size budget)
 const IdeaWorkspace = lazy(() => import("../components/idea/IdeaPage").then((m) => ({ default: m.IdeaWorkspace })));
 
@@ -221,6 +222,41 @@ function Background({ msg, question, onRefine }: { msg: AssistantMsg; question: 
 }
 
 /**
+ * What the request-frame cleaner left out of the words and what the box could not do with it (R8, docs/design/intent-and-state.md, 4.8 and 5.3): the pieces as chips, each with a button that puts it back and
+ * searches again (a search chosen by hand of the message with just that piece in it again; "Use my exact words" puts them all back), and the fixed sentence of each note. Both are built from the Reading alone
+ * (`readingLines`), and a Reading with nothing to say draws nothing at all (12b.4).
+ */
+function ReadingLines({ reading, text, working, onWords }: { reading: MessageReading; text: string; working: boolean; onWords: (words: string) => void }) {
+  const lines = readingLines(reading);
+  if (lines.left.length === 0 && lines.notes.length === 0) return null;
+  return (
+    <>
+      {lines.left.length > 0 && (
+        <p className="chat-und chat-searched chat-left">
+          <span>{LEFT_OUT_LABEL}</span>
+          {lines.left.map((piece, i) => {
+            const words = working ? null : restoreWords(text, reading.left, i);
+            return (
+              <span key={i} className="chat-chip chat-left-chip">
+                <span lang="en">{piece}</span>
+                {words && (
+                  <button type="button" className="chat-chip-x" aria-label={`Put ${quoted(piece)} back and search again`} title="Put it back and search again" onClick={() => onWords(words)}>
+                    <Plus size={14} aria-hidden="true" />
+                  </button>
+                )}
+              </span>
+            );
+          })}
+        </p>
+      )}
+      {lines.notes.map((sentence, i) => (
+        <p key={i} className="chat-und chat-searched chat-reading-note" role="note">{sentence}</p>
+      ))}
+    </>
+  );
+}
+
+/**
  * "I understood this as … · Change": which tool the message was taken for, and, when Auto searched with English words that are not the reader's own, those words
  * ("I searched for: …") with a way back to the exact words. A search that was chosen by hand says so; a guess that fell back to a search says it was a guess.
  * A follow-up that was read with the turns before it says what it was read as ("Using your earlier question: …", with a way to search exactly that), and a year range that cut the papers is a chip with a
@@ -308,6 +344,7 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
           I searched for: <b {...textAttrs(searchedAs, true)}>{searchedAs}</b>
         </p>
       )}
+      {msg.mode === "search" && msg.reading && <ReadingLines reading={msg.reading} text={text} working={working} onWords={onWords} />}
       {note?.years && (
         <p className="chat-und chat-searched">
           <span className="chat-chip">

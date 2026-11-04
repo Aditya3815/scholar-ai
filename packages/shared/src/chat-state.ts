@@ -3,6 +3,7 @@ import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage,
 import { MAX_FILTER_YEAR, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MIN_FILTER_YEAR, MIN_SINCE_YEAR, type ChatContextInfo, type EarlierQuestion, type HistoryEntry, type HistoryPaper } from "./chat-context";
 import { MAX_AUTO_CHARS, type Lang, type RouteHow } from "./route";
 import { abstractRead } from "./sentences";
+import type { Reading } from "./reading";
 
 /* The conversation as the browser keeps it: a reply is built event by event while it streams, and kept as it is when it is done. All of it is pure, so it is tested without a browser. */
 
@@ -29,6 +30,8 @@ export type AssistantMsg = {
   how: RouteHow;
   confidence: number;
   searchQuery?: string;
+  /** What the request-frame cleaner left out of the words and what the box could not do with it (R8); absent when it had nothing to say, and in replies kept before it existed. */
+  reading?: Reading;
   /** What the server read of the earlier turns of the conversation to understand this message (a follow-up: "only after 2020"), when a model read them. Absent for a message nothing was read for. */
   context?: ChatContextInfo;
   /**
@@ -90,7 +93,7 @@ export function applyChatEvent(m: AssistantMsg, e: ChatEvent): AssistantMsg {
   if (m.status !== "working") return m;
   switch (e.type) {
     case "understood":
-      return { ...m, understood: true, query: e.query, mode: e.mode, language: e.language, auto: e.auto, how: e.how, confidence: e.confidence, searchQuery: e.searchQuery, ...(e.context ? { context: e.context } : {}) };
+      return { ...m, understood: true, query: e.query, mode: e.mode, language: e.language, auto: e.auto, how: e.how, confidence: e.confidence, searchQuery: e.searchQuery, ...(e.context ? { context: e.context } : {}), ...(e.reading ? { reading: e.reading } : {}) };
     case "step": {
       const at = STEP_ORDER.indexOf(e.step);
       // "route" is only a step when the router really had to look (a message sent to Auto that the rules could not settle)
