@@ -2,6 +2,7 @@ import type { Paper, SearchScope } from "./index";
 import type { ChatContextInfo } from "./chat-context";
 import type { Lang, RouteHow, RouteMode as ChatMode } from "./route";
 import { ABSTRACT_READ_CHARS } from "./sentences";
+import type { Reading } from "./reading";
 
 /**
  * The prompt box of the new home (W2): what the browser sends to `POST /api/v1/chat` and what comes back as server-sent events.
@@ -72,9 +73,10 @@ export type ChatEvent =
    * What the message was taken to be. `query` is the message as written (a long one is cut); `searchQuery` is what the search indexes are asked when that is not the words as
    * written (a translation). `auto` is true when the router chose, `how` says by what, `confidence` how sure it was. `scope` is there when the reader chose where to
    * look ("india": only Indian sources). `context` is there only when a model read the earlier turns of the conversation to understand the message (chat-context.ts): an old open tab
-   * ignores a field it does not know, where a new event type would crash its reducer.
+   * ignores a field it does not know, where a new event type would crash its reducer. `reading` is there only when the request-frame cleaner (R8, docs/design/intent-and-state.md, 4.8) had something to say:
+   * what it left out of the words and what the box could not do with it; `searchQuery` is then the words it left (the topic).
    */
-  | { type: "understood"; mode: ChatMode; query: string; language: Lang; auto: boolean; how: RouteHow; confidence: number; searchQuery?: string; scope?: SearchScope; context?: ChatContextInfo }
+  | { type: "understood"; mode: ChatMode; query: string; language: Lang; auto: boolean; how: RouteHow; confidence: number; searchQuery?: string; scope?: SearchScope; context?: ChatContextInfo; reading?: Reading }
   | { type: "step"; step: ChatStep }
   /** The papers so far (a snapshot, in rank order); `final` once every source has answered and the checks are done. */
   | { type: "papers"; results: Paper[]; final: boolean }

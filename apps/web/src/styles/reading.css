@@ -1,0 +1,9 @@
+/*
+ * The reading lines (R8, docs/design/intent-and-state.md, 4.8 and 5.3): "Left out: [chip] [chip]" and the fixed sentence of each note, under "I searched for: ... Use my exact words". They are muted lines of the same
+ * size as that one (`.chat-und`), and the pieces left out are the chips the year filter already uses (`.chat-chip`, in the first-load sheet). A Reading with nothing to say draws none of this. Imported by ChatView, a lazy chunk
+ * of its own, so none of it is in the first-load style sheet.
+ */
+.chat-left { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; }
+.chat-left-chip > span { min-width: 0; overflow-wrap: anywhere; }
+.chat-left-chip:not(:has(button)) { padding-right: 0.7rem; }
+.chat-reading-note { line-height: 1.5; }

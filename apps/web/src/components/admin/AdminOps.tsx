@@ -80,6 +80,8 @@ const INPUT_TEXT: Record<string, string> = {
   would_help: "Read as a plain call for help, not yet acted on (searched as before)",
   would_decision: "Read as asking what the writer should take, not yet acted on (searched and answered as before)",
   would_care: "Read as a health or distress story with a research question, not yet acted on",
+  would_clean: "Would have had words that only make a request left out of the search, not yet acted on (searched as written)",
+  clean_applied: "Had words that only make a request left out of the search (the answer says what was left out)",
   lane_notsearch: "Asks for something the box cannot do (writing, translating, the weather)",
   cue_paper: "Points at a paper (for example “this paper”)",
   cue_list: "Holds a list of references",

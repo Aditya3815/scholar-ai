@@ -1173,6 +1173,162 @@ try {
     else ok(await t6.locator(".chat-safety-card").count() === 0 && await t6.locator(".result").count() > 0, "with the flag unset the same words are searched as they were");
     await cx.close();
   };
+  /* ============================ the reading lines ============================
+     (docs/design/intent-and-state.md, 4.8 and 5.3, R8.) CHAT_CLEAN is unset in the committed config (a gate flag: unset is off), so the Worker of this run does not clean a message. The streams it sends with the flag
+     on are sent to the page by the test itself (apps/api/src/chat/clean-route.test.ts and the chat integration with INTEGRATION_VARS="CHAT_CLEAN:on" hold the Worker to them; with that variable this block lets the
+     owner's message through to the Worker and holds the page to what the Worker really sends). What is held to account HERE is the page: "I searched for: ... Use my exact words" as ever, the new line
+     "Left out:" with one chip for each piece and a button that puts it back and searches again, the fixed sentence of each note under it, NOTHING at all when the Reading has nothing to say (or when an old server sends
+     none), a search chosen by hand after "Use my exact words", and that every part of it is read in the light, dark and reading themes at 1280 and 390 px. Runs in a context of its own:
+     CHAT_ONLY=reading node e2e/chat.mjs <baseUrl>. */
+  const reading = async () => {
+    console.log("the reading lines (R8): what was left out, the notes, put a piece back, 'Use my exact words', and nothing when there is nothing to say");
+    const OWNER = "Can you search about convoluton nueral netwrk all papers";
+    const TOPIC = "convoluton nueral netwrk";
+    const MANY = "top 5 papers on yoga and blood pressure, but not in children";
+    const PLAIN = "effect of yoga on blood pressure";
+    const AUTHOR = "papers by Geoffrey Hinton on deep learning";
+    const NOTE_ALL = "This box shows the 20 best matches, not every paper.";
+    const NOTE_COUNT = "“top 5” was left out of the words searched.";
+    const NOTE_NEG = "This search cannot leave a topic out yet, so “but not in children” was left out of the words. Some papers may still mention it.";
+    const NOTE_AUTHOR = "This box cannot filter by author yet, so “by Geoffrey Hinton” was searched as words.";
+    const flag = process.env.INTEGRATION_VARS ?? "";
+    const cleanOn = /CHAT_CLEAN:on/.test(flag);
+    const cx = await newCtx({ viewport: { width: 1280, height: 900 } });
+    const R = await cx.newPage();
+    watch(R);
+    const paper = (n, title, year) => ({ id: `doi:10.1000/rd.${n}`, doi: `10.1000/rd.${n}`, pmid: null, title, authors: ["A. Rao"], year, venue: "Journal of Tests", abstract: "We looked at one thing in a small group. The result was clear.", citationCount: 3, oaUrl: null, retracted: false, retractionSources: [], sources: ["openalex"], score: 1 - n / 10 });
+    const LIST = [paper(1, "Convolutional networks for images", 2021), paper(2, "Neural network training in practice", 2022)];
+    const ANSWER = { text: "The first paper reports a clear result in a small group [1].", citations: [{ n: 1, paperId: LIST[0].id, sentenceNo: 2, sentence: "The result was clear." }], grounded: true, checked: true, leftOut: 0 };
+    const sse = (events) => events.map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
+    const found = (understood) => [understood, { type: "step", step: "search" }, { type: "papers", results: LIST, final: true }, { type: "answer", answer: ANSWER }, { type: "done", answered: true, tookMs: 40 }];
+    const base = (q, how = "rules") => ({ type: "understood", mode: "search", query: q, language: "en", auto: how !== "chosen", how, confidence: 1 });
+    const rd = (topic, left, notes) => ({ v: 1, source: "rules", topic, left, notes });
+    // what the Worker would send for each message, by the words and the way they were sent (a message that is not here goes to the Worker)
+    const streams = (body) => {
+      if (body.message === OWNER && body.mode === "auto" && !cleanOn) return found({ ...base(OWNER), searchQuery: TOPIC, reading: rd(TOPIC, ["Can you search about", "all papers"], [{ kind: "all" }]) });
+      if (body.message === MANY && body.mode === "auto" && !cleanOn) return found({ ...base(MANY), searchQuery: "yoga and blood pressure", reading: rd("yoga and blood pressure", ["top 5 papers on", "but not in children"], [{ kind: "count", phrase: "top 5" }, { kind: "negation", phrase: "but not in children" }]) });
+      if (body.message === AUTHOR && body.mode === "auto" && !cleanOn) return found({ ...base(AUTHOR), reading: rd(AUTHOR, [], [{ kind: "author", phrase: "by Geoffrey Hinton" }]) });
+      if (body.mode === "search" && !body.anyway) return found(base(body.message, "chosen"));
+      if (body.message === PLAIN && body.mode === "auto" && !cleanOn) return found(base(PLAIN));
+      return null;
+    };
+    const posted = [];
+    R.on("request", (r) => { if (r.method() === "POST" && new URL(r.url()).pathname === "/api/v1/chat") posted.push(JSON.parse(r.postData() ?? "{}")); });
+    await R.route("**/api/v1/chat", async (route) => {
+      const body = JSON.parse(route.request().postData() ?? "{}");
+      const s = streams(body);
+      if (s) return route.fulfill({ status: 200, contentType: "text/event-stream", body: sse(s) });
+      return route.continue();
+    });
+    await R.goto(BASE + "/", { waitUntil: "networkidle" });
+    if (await R.locator(".in-head").getByRole("button", { name: /^Sign in$/ }).count()) {
+      await R.locator(".in-head").getByRole("button", { name: /^Sign in$/ }).click();
+      await R.getByRole("button", { name: "Continue with Google" }).last().click();
+    }
+    await R.locator("#hm-h").waitFor({ timeout: 20000 });
+    const sendR = async (text, tool = "Auto") => {
+      await R.waitForFunction(() => !document.querySelector('.chat-turn[data-status="working"]'), null, { timeout: 30000 });
+      await pick(R, tool);
+      await R.locator(".hm-input").fill(text);
+      await R.keyboard.press("Enter");
+    };
+    const fresh = async () => {
+      await R.locator(".ws-rail").getByRole("button", { name: "New chat" }).click();
+      await R.locator(".hm-title").waitFor({ timeout: 10000 });
+    };
+    const readable = async (label, locs) => {
+      for (const theme of ["light", "dark", "read"]) {
+        await setTheme(R, theme);
+        await R.evaluate(() => window.scrollTo(0, 0));
+        await calm(R);
+        await faded(R);
+        await axe(`${label}, ${theme}, ${await R.evaluate(() => window.innerWidth)} px`, R);
+        for (const [name, loc] of locs) {
+          const c = await contrastOf(loc);
+          ok(c >= 4.5, `${label}, ${theme}: ${name} is ${c.toFixed(2)}:1 (4.5 at least)`);
+        }
+      }
+      await setTheme(R, "light");
+    };
+
+    console.log(`  the owner's own message${cleanOn ? " (the Worker's own stream: CHAT_CLEAN is on in this run)" : " (the stream the Worker sends with the flag on, sent by the test)"}`);
+    await sendR(OWNER);
+    await doneN(R, 1);
+    const t1 = R.locator(".chat-turn").first();
+    ok((await t1.locator(".chat-searched").first().innerText()).includes(`I searched for: ${TOPIC}`) && await t1.getByRole("button", { name: "Use my exact words" }).count() === 1, "the existing line says what was searched, with 'Use my exact words' beside it, and no word of it is new");
+    const left = t1.locator(".chat-left");
+    ok(await left.count() === 1 && (await left.innerText()).replace(/\s+/g, " ").trim().startsWith("Left out:"), "a line 'Left out:' is drawn");
+    ok((await left.locator(".chat-left-chip > span").allInnerTexts()).join("|") === "Can you search about|all papers", "...with one chip for each piece, as the person wrote it");
+    ok(await left.getByRole("button", { name: "Put “Can you search about” back and search again" }).count() === 1 && await left.getByRole("button", { name: "Put “all papers” back and search again" }).count() === 1, "...and a real button on each chip, named by what it puts back");
+    ok((await t1.locator(".chat-reading-note").allInnerTexts()).join("|") === NOTE_ALL, "the note says the box shows the 20 best matches, in the plan's own words");
+    ok(await t1.locator(".chat-und.chat-searched").count() === 3 && await t1.locator(".result").count() >= 2 && await t1.locator(".chat-answer").count() === 1, "the papers and the answer are there as ever");
+    await R.screenshot({ path: `${OUT}reading-owner.png` });
+    for (const width of [1280, 390]) {
+      await R.setViewportSize({ width, height: 900 });
+      await R.evaluate(() => window.scrollTo(0, 0));
+      await calm(R);
+      ok(await noSideways(R), `at ${width} px the page does not scroll sideways`);
+      await readable("the reading lines", [["the label", left.locator("span").first()], ["a chip", left.locator(".chat-left-chip").first()], ["the note", t1.locator(".chat-reading-note").first()], ["Use my exact words", t1.getByRole("button", { name: "Use my exact words" })]]);
+    }
+    await R.setViewportSize({ width: 1280, height: 900 });
+
+    console.log("  a piece put back: a search chosen by hand of the words with just that piece in them");
+    posted.length = 0;
+    await left.getByRole("button", { name: "Put “all papers” back and search again" }).click();
+    await doneN(R, 1);
+    ok(posted.length === 1 && posted[0].mode === "search" && posted[0].message === `${TOPIC} all papers` && posted[0].anyway === undefined, `it sends exactly a search chosen by hand of those words (${JSON.stringify(posted.at(-1))})`);
+    ok((await R.locator(".chat-turn").first().locator(".chat-searched").first().innerText()).includes(`I searched for: ${TOPIC} all papers`), "...and the reply says what was searched");
+    ok(await R.locator(".chat-turn").first().locator(".chat-left, .chat-reading-note").count() === 0, "...and, being a search chosen by hand, it has no reading lines");
+
+    console.log("  'Use my exact words': the whole message, as a search chosen by hand");
+    await fresh();
+    await sendR(OWNER);
+    await doneN(R, 1);
+    posted.length = 0;
+    await R.locator(".chat-turn").first().getByRole("button", { name: "Use my exact words" }).click();
+    await doneN(R, 1);
+    ok(posted.length === 1 && posted[0].mode === "search" && posted[0].message === OWNER, `it sends the whole message as a search chosen by hand (${JSON.stringify(posted.at(-1))})`);
+    ok(await R.locator(".chat-turn").first().locator(".chat-left, .chat-reading-note").count() === 0, "the reading lines are gone with the words that were left out");
+
+    console.log("  two pieces and two notes (a long line at a narrow width), and a note that only names");
+    await fresh();
+    await sendR(MANY);
+    await doneN(R, 1);
+    const t2 = R.locator(".chat-turn").first();
+    ok((await t2.locator(".chat-reading-note").allInnerTexts()).join("|") === `${NOTE_COUNT}|${NOTE_NEG}`, "each note is its own fixed sentence, with the person's own words in it, in the order they stand in the message");
+    for (const width of [1280, 390]) {
+      await R.setViewportSize({ width, height: 900 });
+      await R.evaluate(() => window.scrollTo(0, 0));
+      await calm(R);
+      ok(await noSideways(R), `at ${width} px the page does not scroll sideways`);
+      await readable("two pieces and two notes", [["a chip", t2.locator(".chat-left-chip").first()], ["a note", t2.locator(".chat-reading-note").first()]]);
+    }
+    await R.setViewportSize({ width: 1280, height: 900 });
+    await fresh();
+    await sendR(AUTHOR);
+    await doneN(R, 1);
+    const t3 = R.locator(".chat-turn").first();
+    ok(await t3.locator(".chat-left").count() === 0 && (await t3.locator(".chat-reading-note").allInnerTexts()).join("|") === NOTE_AUTHOR, "a note that leaves the words as they are has its sentence and no 'Left out' line");
+    ok(!(await t3.innerText()).includes("I searched for"), "...and no 'I searched for' line, since the words are the words written");
+
+    console.log("  nothing to say: no new line at all");
+    await fresh();
+    await sendR(PLAIN);
+    await doneN(R, 1);
+    const t4 = R.locator(".chat-turn").first();
+    ok(await t4.locator(".chat-left, .chat-reading-note").count() === 0 && !(await t4.innerText()).includes("Left out") && !(await t4.innerText()).includes("I searched for"), "a message the cleaner leaves alone draws no 'Left out', no note and no 'I searched for' (12b.4)");
+    ok(await t4.locator(".chat-und").count() === 1 && /I understood this as/.test(await t4.locator(".chat-und").innerText()), "...only the line 'I understood this as Search papers' that every message has");
+
+    console.log("  what is kept: the lines are there after a reload, and a reply kept before the lines existed has none");
+    await fresh();
+    await sendR(OWNER);
+    await doneN(R, 1);
+    await settled(R);
+    await R.reload({ waitUntil: "networkidle" });
+    await R.locator(".chat-turn").first().waitFor({ timeout: 15000 });
+    ok(await R.locator(".chat-turn").first().locator(".chat-left-chip").count() === 2 && await R.locator(".chat-turn").first().locator(".chat-reading-note").count() === 1, "a conversation opened again shows the lines it showed");
+    await cx.close();
+  };
   /* ============================ chat to chat ============================
      (docs/design/chat-actions-context.md, section 6.) Whose chats they are (a session that ends without a sign-out, another person on the same browser, another tab), the few words kept with each
      chat, the switch "Use my earlier chats" (off unless turned on), the chat chosen to continue from, a private chat, and, for every state of them, what /api/v1/chat was SENT: the body is compared
@@ -2019,6 +2175,8 @@ try {
   if (only === "failpolicy") throw new Stop();
   if (!only || only === "safety") await safety();
   if (only === "safety") throw new Stop();
+  if (!only || only === "reading") await reading();
+  if (only === "reading") throw new Stop();
   if (!only || only === "memory") await memory();
   if (only === "memory") throw new Stop();
   if (!only || only === "layout") await layout();
