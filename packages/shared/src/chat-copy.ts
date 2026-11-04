@@ -82,18 +82,5 @@ export function answerCopy(m: AssistantMsg): { text: string; what: "answer" | "p
 /** The text "Copy the answer" puts on the clipboard, or null when there is none (see `answerCopy`). */
 export const answerAsText = (m: AssistantMsg): string | null => answerCopy(m)?.text ?? null;
 
-/**
- * Write to the clipboard by one way after another until one works. A way that answers false, throws, or REJECTS (a refused permission, a page without the press that asked for it) hands over
- * to the next: a failure must not end as a button that did nothing. The first way starts before anything is awaited, because Safari and Firefox take a clipboard write only inside the press that
- * asked for it. The ways themselves (the clipboard API, a selected text field) are in the browser's code, `apps/web/src/lib/copy.ts`.
- */
-export async function copyThrough(ways: readonly ((text: string) => boolean | Promise<boolean>)[], text: string): Promise<boolean> {
-  for (const way of ways) {
-    try {
-      if (await way(text)) return true;
-    } catch {
-      /* the next way */
-    }
-  }
-  return false;
-}
+/** Writing to the clipboard by one way after another (`copy-through.ts`: its own module, so that the first screen does not carry the rest of this one). */
+export { copyThrough } from "./copy-through";

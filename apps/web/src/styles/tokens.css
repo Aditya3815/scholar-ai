@@ -38,7 +38,14 @@
 
   /* type */
   --font-ui: "Inter Variable", "Noto Sans Devanagari", "Noto Sans Oriya", system-ui, sans-serif;
-  --font-serif: "Source Serif 4 Variable", "Noto Serif Devanagari", Georgia, serif;
+  /* Devanagari in reading text is drawn in Noto Sans Devanagari, the face that is already shipped for the interface (main.tsx; fetched only when there is Devanagari on the screen, so nothing is added to the first load and
+     a Hindi page pays for one face, not two). It used to name "Noto Serif Devanagari", which is not bundled: only a device that happened to have it got it, everyone else the system's own face, heavier than the Latin serif
+     beside it. The serif was measured and left out: 51 KB (400) and 55 KB (600) more, plus a package, for a difference that is small at reading size (docs/design/chatview-and-trending.md, 8.7). */
+  --font-serif: "Source Serif 4 Variable", "Noto Sans Devanagari", Georgia, serif;
+  /* The same, with the Georgia stand-in (base.css) before Noto and Georgia: for the headline of Home ONLY (.hm-title, shell.css), which it was tuned to. Everywhere else the serif is as it was: on the intro page,
+     which every new visitor sees first, the stand-in raised the layout shift from 0.021 to 0.067 (perf.mjs, 4 Nov 2026, three runs each), because the swap to Source Serif then moved the film's heading and the links
+     beside the logo, whose widths it was never tuned to. */
+  --font-serif-fit: "Source Serif 4 Variable", "Source Serif Stand-in", "Noto Sans Devanagari", Georgia, serif;
   --font-easy: "Atkinson Hyperlegible", "Noto Sans Devanagari", system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
 

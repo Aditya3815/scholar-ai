@@ -1,0 +1,467 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyChatEvent, contextBefore, followUpNote, startAssistant, streamShapeProblems, type AssistantMsg, type ChatEvent } from "@scholar/shared";
+import type { StreamComplete } from "../docs/qa";
+
+/**
+ * `sinceYear` on POST /api/v1/chat (docs/design/chatview-and-trending.md, decision T9): an optional whole year, from 1990 to this year, that a Trending chip sets. The server applies it exactly like the
+ * router's year filter (before the cards are numbered, before the evidence is picked, on the lists sent while the sources answer, and carried to "the same papers" by the reply's own range) and says it
+ * on `understood.context.yearFrom`, which is where the page already reads a year chip from. A request without it is what it always was: the differential check below.
+ */
+
+/** Every call the stand-ins receive: the router, the writer (and the background, by its label), the judge and the strict check. */
+const calls = vi.hoisted(() => [] as { who: string; label?: string; system: string; user: string }[]);
+
+vi.mock("./stub", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./stub")>();
+  const rec = (who: string, f: StreamComplete): StreamComplete => async (req, hooks) => {
+    calls.push({ who, label: req.label, system: req.system, user: req.user });
+    return f(req, hooks);
+  };
+  return { ...real, stubChatStream: rec("writer", real.stubChatStream), stubJudgeStream: (env?: unknown) => rec("judge", real.stubJudgeStream(env)), stubStrictStream: rec("strict", real.stubStrictStream) };
+});
+vi.mock("./stub-route", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./stub-route")>();
+  return { ...real, stubRoute: async (req: Parameters<typeof real.stubRoute>[0]) => (calls.push({ who: "router", label: req.label, system: req.system, user: req.user }), real.stubRoute(req)) };
+});
+
+import { chatRoutes } from "./routes";
+
+const TOKEN = "t".repeat(40);
+const sessionRow = { id: "user-1", name: "Test", email: "t@example.org", orcid: null, avatar_url: null, role: "scholar", privacy_ack: null, stale: 0, providers: "google" };
+
+function fakeDb(used = 0) {
+  const outcomes: string[] = [];
+  const db = {
+    prepare(sql: string) {
+      return {
+        bind(...args: unknown[]) {
+          return {
+            first: async () => (/FROM sessions/.test(sql) ? sessionRow : /SUM\(tokens_in/.test(sql) ? { t: used } : null),
+            run: async () => {
+              if (/answer_outcomes/.test(sql)) outcomes.push(String(args[1]));
+              return {};
+            },
+            all: async () => ({ results: [] }),
+          };
+        },
+      };
+    },
+  };
+  return { db, outcomes };
+}
+
+type Opts = { signedIn?: boolean; used?: number; env?: Record<string, string>; headers?: Record<string, string>; path?: string };
+async function post(body: unknown, opts: Opts = {}) {
+  const { db, outcomes } = fakeDb(opts.used ?? 0);
+  const headers: Record<string, string> = { "content-type": "application/json", origin: "http://localhost", ...(opts.signedIn === false ? {} : { cookie: `sid=${TOKEN}` }), ...opts.headers };
+  const res = await chatRoutes.request(`http://localhost${opts.path ?? "/"}`, { method: "POST", headers, body: typeof body === "string" ? body : JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
+  const text = await res.text();
+  return { res, text, outcomes, json: () => JSON.parse(text) as Record<string, unknown> };
+}
+const eventsOf = (text: string): ChatEvent[] =>
+  text.split("\n\n").flatMap((block) => {
+    const data = block.split("\n").find((l) => l.startsWith("data:"));
+    return data ? [JSON.parse(data.slice(5)) as ChatEvent] : [];
+  });
+type Understood = Extract<ChatEvent, { type: "understood" }>;
+const run = async (body: unknown, opts: Opts = {}) => {
+  const { res, text, outcomes } = await post(body, opts);
+  expect(res.status).toBe(200);
+  const ev = eventsOf(text);
+  return {
+    ev,
+    text,
+    outcomes,
+    understood: ev.find((e) => e.type === "understood") as Understood,
+    answer: (ev.find((e) => e.type === "answer") as Extract<ChatEvent, { type: "answer" }> | undefined)?.answer,
+    done: ev.at(-1) as Extract<ChatEvent, { type: "done" }>,
+    lists: ev.filter((e) => e.type === "papers") as Extract<ChatEvent, { type: "papers" }>[],
+    finalPapers: (ev.filter((e) => e.type === "papers" && e.final).at(-1) as Extract<ChatEvent, { type: "papers" }> | undefined)?.results ?? [],
+    notices: (ev.filter((e) => e.type === "notice") as Extract<ChatEvent, { type: "notice" }>[]).map((n) => ({ kind: n.kind, text: n.text })),
+  };
+};
+
+const auto = (message: string, extra: Record<string, unknown> = {}) => ({ mode: "auto", message, ...extra });
+const byHand = (message: string, extra: Record<string, unknown> = {}) => ({ mode: "search", message, ...extra });
+const u = (text: string) => ({ role: "user", text });
+const a = (extra: Record<string, unknown> = {}) => ({ role: "assistant", ...extra });
+const GLAUCOMA = [u("glaucoma screening in rural India"), a({ searchQuery: "glaucoma screening rural India", papers: [{ n: 1, title: "Deep learning for glaucoma screening from fundus photographs", year: 2021 }], text: "Screening found glaucoma early [1]." })];
+const callsOf = (who: string) => calls.filter((c) => c.who === who);
+
+/** The stand-in's list, in its order, with the year of each: 2021, 2022, 2019 (retracted), 2018 (no abstract), 2020. The Indian list: 2021, 2016, 2022. */
+const NOW = new Date("2026-11-03T12:00:00Z");
+beforeEach(() => {
+  calls.length = 0;
+  // only the clock is held still (the stream's own timers keep running), so that "this year" is a fixed number
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe("the field: a whole year from 1990 to this year, or a 400 in the repository's problem format", () => {
+  it("1990, a year in between and this year are accepted, in Auto and in a search chosen by hand, in the Indian scope and with `anyway`", async () => {
+    for (const year of [1990, 2005, 2025, 2026]) {
+      expect((await post(auto("effect of yoga on blood pressure", { sinceYear: year }))).res.status, `auto ${year}`).toBe(200);
+      expect((await post(byHand("effect of yoga on blood pressure", { sinceYear: year }))).res.status, `search ${year}`).toBe(200);
+    }
+    expect((await post(byHand("glaucoma screening", { sinceYear: 2020, scope: "india" }))).res.status).toBe(200);
+    expect((await post(byHand("glaucoma screening", { sinceYear: 2020, anyway: true }))).res.status).toBe(200);
+  });
+
+  it("anything else is `invalid_since_year` (400, with a title and a detail that say what is allowed), and nothing is read, searched or sent to a model", async () => {
+    const bad: unknown[] = [1989, 1900, 0, -1, -0, 2027, 3000, 1e21, 2025.5, 1990.0001, "2025", "", " 2025", null, true, false, [2025], { year: 2025 }, [], {}];
+    for (const sinceYear of bad) {
+      const r = await post(auto("effect of yoga on blood pressure", { sinceYear }));
+      expect(r.res.status, JSON.stringify(sinceYear)).toBe(400);
+      expect(r.res.headers.get("content-type"), JSON.stringify(sinceYear)).toMatch(/json/);
+      expect(r.res.headers.get("cache-control")).toBe("no-store");
+      const body = r.json();
+      expect(body, JSON.stringify(sinceYear)).toMatchObject({ type: "invalid_since_year", title: expect.any(String) });
+      expect(String(body.detail)).toMatch(/1990/);
+      expect(String(body.detail)).toMatch(/2026/);
+      expect(Object.keys(body).sort()).toEqual(["detail", "title", "type"]);
+      // the same for a search chosen by hand
+      expect((await post(byHand("glaucoma screening", { sinceYear }))).res.status).toBe(400);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("a number that JSON writes out of range (1e400) or without a fraction (2025.0) is read as the number it is", async () => {
+    const raw = (v: string) => `{"mode":"auto","message":"effect of yoga on blood pressure","sinceYear":${v}}`;
+    expect((await post(raw("1e400"))).res.status).toBe(400);
+    expect((await post(raw("2025.0"))).res.status).toBe(200);
+  });
+
+  it("'this year' is the year of the server's clock: the last second of a year does not accept the next one, the first second of it does", async () => {
+    vi.setSystemTime(new Date("2026-12-31T23:59:59Z"));
+    expect((await post(auto("effect of yoga on blood pressure", { sinceYear: 2027 }))).res.status).toBe(400);
+    expect((await post(auto("effect of yoga on blood pressure", { sinceYear: 2026 }))).res.status).toBe(200);
+    vi.setSystemTime(new Date("2027-01-01T00:00:00Z"));
+    expect((await post(auto("effect of yoga on blood pressure", { sinceYear: 2027 }))).res.status).toBe(200);
+    expect((await post(auto("effect of yoga on blood pressure", { sinceYear: 2028 }))).res.status).toBe(400);
+  });
+
+  it("is checked before the history, whoever sends it, and for a person who is not signed in", async () => {
+    expect((await post(auto("only after 2020", { history: GLAUCOMA, sinceYear: 1800 }))).json()).toMatchObject({ type: "invalid_since_year" });
+    expect((await post(auto("effect of yoga on blood pressure", { sinceYear: "x" }), { signedIn: false })).res.status).toBe(400);
+  });
+
+  it("another request's refusals are as they were: a bad mode, scope and flag still answer with their own kind", async () => {
+    expect((await post({ mode: "x", message: "yoga", sinceYear: 2025 })).json()).toMatchObject({ type: "invalid_mode" });
+    expect((await post({ mode: "auto", message: "yoga", scope: "mars", sinceYear: 2025 })).json()).toMatchObject({ type: "invalid_scope" });
+    expect((await post({ mode: "auto", message: "yoga", anyway: true, sinceYear: 2025 })).json()).toMatchObject({ type: "invalid_flag" });
+  });
+});
+
+describe("applied like the router's year filter", () => {
+  it("Auto, first message: the papers are cut by year BEFORE they are numbered, so the card number and the mark are the place in the list that is shown", async () => {
+    const r = await run(auto("effect of yoga on blood pressure", { sinceYear: 2022 }));
+    expect(r.finalPapers.map((p) => p.year)).toEqual([2022]);
+    // [1] is the 2022 paper whatever its place in the unfiltered list (it was second there)
+    expect(r.answer?.citations.map((c) => [c.n, c.paperId])).toEqual([[1, "doi:10.1000/glaucoma.2"]]);
+    expect(r.answer?.grounded).toBe(true);
+    expect(streamShapeProblems("chat", r.ev)).toEqual([]);
+    // counted as any first answer is, not as a follow-up
+    expect(r.outcomes).toEqual(["answered"]);
+  });
+
+  it("...and the evidence is picked from what is left: no paper that the filter took away is read by the writer or the judge", async () => {
+    await run(auto("effect of yoga on blood pressure", { sinceYear: 2022 }));
+    const writer = callsOf("writer").filter((c) => c.label === "chat_search");
+    expect(writer).toHaveLength(1);
+    expect(writer[0]!.user).toContain("Smartphone-based retinal imaging in rural clinics");
+    for (const gone of ["Deep learning for glaucoma screening", "Cost of population screening", "A retracted study"]) expect(writer[0]!.user).not.toContain(gone);
+    for (const j of callsOf("judge")) expect(j.user).not.toContain("Deep learning for glaucoma screening");
+  });
+
+  it("the lists sent while the sources answer are cut too (the first one that has any paper in it, and every later one)", async () => {
+    const r = await run(auto("effect of yoga on blood pressure", { sinceYear: 2022 }));
+    expect(r.lists.length).toBeGreaterThanOrEqual(2);
+    for (const l of r.lists) expect(l.results.every((p) => (p.year ?? 0) >= 2022)).toBe(true);
+  });
+
+  it("a search chosen by hand stays searched as written (no router, no search words of a model, the words as typed) plus the filter", async () => {
+    const r = await run(byHand("effect of yoga on blood pressure", { sinceYear: 2022 }));
+    expect(r.understood).toMatchObject({ mode: "search", auto: false, how: "chosen", query: "effect of yoga on blood pressure" });
+    expect(r.understood.searchQuery).toBeUndefined();
+    expect(callsOf("router")).toHaveLength(0);
+    expect(r.finalPapers.map((p) => p.year)).toEqual([2022]);
+    expect(r.understood.context).toEqual({ turns: 0, intent: "new", rewrote: false, yearFrom: 2022 });
+    // "searched as written" also for a text the rules would not call a search, which only `anyway` sends
+    const odd = await run(byHand("hello there friend", { sinceYear: 2022, anyway: true }));
+    expect(odd.understood).toMatchObject({ how: "chosen", query: "hello there friend" });
+    expect(odd.finalPapers.map((p) => p.year)).toEqual([2022]);
+  });
+
+  it("in the Indian scope too: the scope is kept and the list is cut", async () => {
+    const r = await run(byHand("glaucoma screening", { scope: "india", sinceYear: 2022 }));
+    expect(r.understood).toMatchObject({ scope: "india" });
+    expect(r.finalPapers.map((p) => p.year)).toEqual([2022]);
+    expect(r.understood.context).toMatchObject({ yearFrom: 2022 });
+  });
+
+  it("a person who is not signed in gets the cut list and the sign-in line, as ever", async () => {
+    const r = await run(auto("effect of yoga on blood pressure", { sinceYear: 2022 }), { signedIn: false });
+    expect(r.finalPapers.map((p) => p.year)).toEqual([2022]);
+    expect(r.done).toMatchObject({ answered: false, reason: "sign_in" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("a day with no allowance left for a model reading the earlier turns: the words are searched as written and the filter still applies", async () => {
+    const r = await run(auto("and in children?", { history: GLAUCOMA, sinceYear: 2022 }), { used: 60_000 });
+    expect(r.done).toMatchObject({ answered: false, reason: "quota" });
+    expect(r.finalPapers.map((p) => p.year)).toEqual([2022]);
+    expect(r.understood.context).toMatchObject({ yearFrom: 2022 });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("says plainly, in the words and under the kind of the year filter, when the range leaves few papers and when it leaves none", async () => {
+    const few = await run(auto("effect of yoga on blood pressure", { sinceYear: 2020 }));
+    expect(few.finalPapers.map((p) => p.year)).toEqual([2021, 2022, 2020]);
+    expect(few.notices.filter((n) => n.kind === "years")).toEqual([{ kind: "years", text: "Only 3 of the papers found are from 2020 or later, so this list is short. Remove the year filter to see more." }]);
+    const none = await run(auto("effect of yoga on blood pressure", { sinceYear: 2026 }));
+    expect(none.notices.find((n) => n.kind === "years")).toEqual({ kind: "years", text: "No paper from 2026 or later was found for this. Remove the year filter to see more." });
+    expect(none.done).toMatchObject({ answered: false });
+    expect(none.ev.some((e) => e.type === "token" || e.type === "answer")).toBe(false);
+    // a search that found nothing at all is the ordinary line, not a year line
+    const empty = await run(auto("nothing at all about glaucoma", { sinceYear: 2020 }));
+    expect(empty.notices.map((n) => n.kind)).toEqual(["nothing"]);
+  });
+
+  it("a source that did not answer is still said, next to the year line", async () => {
+    const r = await run(auto("partial glaucoma", { sinceYear: 2020 }));
+    expect(r.notices.map((n) => n.kind)).toEqual(["partial", "years"]);
+  });
+});
+
+describe("shown the way the year filter is shown: understood.context.yearFrom", () => {
+  it("a first message carries a context with the year and nothing else (no question, no turns read, no earlier chats, no fallback)", async () => {
+    const r = await run(auto("effect of yoga on blood pressure", { sinceYear: 2024 }));
+    expect(r.understood.context).toEqual({ turns: 0, intent: "new", rewrote: false, yearFrom: 2024 });
+    expect(callsOf("router")).toHaveLength(0); // the rules settled it: the filter did not make a model read anything
+    expect(r.understood).toMatchObject({ how: "rules", query: "effect of yoga on blood pressure" });
+    expect(r.understood.searchQuery).toBeUndefined();
+  });
+
+  it("the page's own reader makes the one year chip of it: followUpNote gives the range in words and no 'earlier question' line", async () => {
+    const r = await run(auto("effect of yoga on blood pressure", { sinceYear: 2022 }));
+    const m = r.ev.reduce<AssistantMsg>((acc, e) => applyChatEvent(acc, e), startAssistant("a1", "effect of yoga on blood pressure", 0, true));
+    expect(followUpNote(m)).toEqual({ years: { from: 2022, words: "2022 or later" } });
+  });
+
+  it("no year is said when none was applied: small talk and another tool's offer say nothing of the filter", async () => {
+    const talk = await run(auto("thanks a lot", { sinceYear: 2024 }));
+    expect(talk.ev.map((e) => e.type)).toEqual(["understood", "general", "done"]);
+    expect(talk.understood.context).toBeUndefined();
+    const idea = await run(auto("now my idea about bees, is it novel", { sinceYear: 2024 }));
+    expect(idea.understood).toMatchObject({ mode: "idea" });
+    expect(idea.understood.context).toBeUndefined();
+    expect(idea.ev.some((e) => e.type === "papers")).toBe(false);
+  });
+
+  it("with the switch for context off the filter is still applied and said (it is not context)", async () => {
+    const r = await run(auto("effect of yoga on blood pressure", { sinceYear: 2022 }), { env: { CHAT_CONTEXT: "off" } });
+    expect(r.finalPapers.map((p) => p.year)).toEqual([2022]);
+    expect(r.understood.context).toEqual({ turns: 0, intent: "new", rewrote: false, yearFrom: 2022 });
+  });
+
+  it("with turns before it and a model's reading, the context keeps what the reading said (turns, intent, question) and the year is the larger of the two", async () => {
+    // "only after 2020" is read as from 2020; the chip's 2022 is the larger: the filter is 2022 and the page says 2022
+    const r = await run(auto("only after 2020", { history: GLAUCOMA, sinceYear: 2022 }));
+    expect(r.understood.context).toEqual({ turns: 1, intent: "refine", rewrote: true, question: "glaucoma screening rural India only after 2020", yearFrom: 2022 });
+    expect(r.finalPapers.map((p) => p.year)).toEqual([2022]);
+    expect(r.notices.find((n) => n.kind === "years")?.text).toMatch(/^Only 1 of the papers found is from 2022 or later/);
+    // the router's year is the larger one: 2022 asked for, the chip's 2021 is not what is applied
+    const r2 = await run(auto("only after 2022", { history: GLAUCOMA, sinceYear: 2021 }));
+    expect(r2.understood.context).toMatchObject({ yearFrom: 2022 });
+    expect(r2.finalPapers.map((p) => p.year)).toEqual([2022]);
+    // a router's year with no chip is as it was
+    const r3 = await run(auto("only after 2022", { history: GLAUCOMA }));
+    expect(r3.understood.context).toEqual({ turns: 1, intent: "refine", rewrote: true, question: "glaucoma screening rural India only after 2022", yearFrom: 2022 });
+  });
+
+  it("a follow-up whose reading could not be used still shows the chip: the page hides the whole of a context that fell back, and the filter must not be hidden with it", async () => {
+    // without a chip such a reading says nothing (as ever)
+    const plain = await run(auto("restatefail and in children", { history: GLAUCOMA }));
+    expect(plain.understood.context).toEqual({ turns: 1, intent: "new", rewrote: false, fellBack: true });
+    // with one, the words are still searched as written, the papers are still cut, and the year is said
+    const r = await run(auto("restatefail and in children", { history: GLAUCOMA, sinceYear: 2022 }));
+    expect(r.understood).toMatchObject({ how: "fallback", query: "restatefail and in children" });
+    expect(r.understood.searchQuery).toBeUndefined();
+    expect(r.understood.context).toEqual({ turns: 1, intent: "new", rewrote: false, yearFrom: 2022 });
+    expect(r.finalPapers.map((p) => p.year)).toEqual([2022]);
+    const m = r.ev.reduce<AssistantMsg>((acc, e) => applyChatEvent(acc, e), startAssistant("a1", "restatefail and in children", 0, true));
+    expect(followUpNote(m)).toEqual({ years: { from: 2022, words: "2022 or later" } });
+    // it is still counted as a reading that was not used
+    expect(r.outcomes).toEqual(["followup_rewrite_failed"]);
+  });
+
+  it("the same value from both is that value; the router's upper end is kept as it is", async () => {
+    const same = await run(auto("only after 2021", { history: GLAUCOMA, sinceYear: 2021 }));
+    expect(same.understood.context).toMatchObject({ yearFrom: 2021 });
+    expect(same.finalPapers.map((p) => p.year)).toEqual([2021, 2022]);
+    // "in 2021" is a range from 2021 to 2021: a chip of 2020 does not widen it, one of 2021 leaves it
+    const both = await run(auto("only in 2021", { history: GLAUCOMA, sinceYear: 2020 }));
+    expect(both.understood.context).toMatchObject({ yearFrom: 2021, yearTo: 2021 });
+    expect(both.finalPapers.map((p) => p.year)).toEqual([2021]);
+  });
+
+  it("a chip that starts after the router's own upper end cannot be met together with it: the person's words are the filter, the chip's year is dropped, and what the page shows is what was applied", async () => {
+    const r = await run(auto("papers before 2021", { history: GLAUCOMA, sinceYear: 2025 }));
+    expect(r.understood.context).toMatchObject({ yearTo: 2021 });
+    expect(r.understood.context?.yearFrom).toBeUndefined();
+    expect(r.finalPapers.map((p) => p.year)).toEqual([2021, 2019, 2018, 2020]);
+  });
+
+  it("a first message that the rules leave to a model (here a Hinglish one) is read as ever, with its search words, and the filter is the chip's", async () => {
+    const r = await run(auto("kuch bhi", { sinceYear: 2022 }));
+    expect(r.understood).toMatchObject({ how: "model", searchQuery: "translated: kuch bhi" });
+    expect(r.understood.context).toEqual({ turns: 0, intent: "new", rewrote: false, yearFrom: 2022 });
+    expect(r.finalPapers.map((p) => p.year)).toEqual([2022]);
+  });
+
+  it("carried by 'the same papers': what the page keeps of this reply (its context range) and sends with the next message makes 'explain that simpler' the same filtered papers", async () => {
+    const first = await run(auto("glaucoma screening in rural India", { sinceYear: 2022 }));
+    // the browser builds the reply as the events say, and `contextBefore` is what it sends next
+    const built = first.ev.reduce<AssistantMsg>((acc, e) => applyChatEvent(acc, e), startAssistant("a1", "glaucoma screening in rural India", 1, true));
+    const reply: AssistantMsg = { ...built, searchQuery: "glaucoma screening rural India" };
+    const history = contextBefore([{ id: "u1", role: "user", text: "glaucoma screening in rural India", at: 0 }, reply], 2);
+    expect(history.at(-1)).toMatchObject({ role: "assistant", yearFrom: 2022 });
+    // the next message carries no `sinceYear` of its own: the chip belongs to the first message
+    const next = await run(auto("explain that simpler", { history }));
+    expect(next.understood.context).toMatchObject({ intent: "same_papers", yearFrom: 2022 });
+    expect(next.finalPapers.map((p) => p.year)).toEqual([2022]);
+  });
+
+  it("with the same papers asked again AND a chip: the larger of the carried range and the chip", async () => {
+    const history = [u("glaucoma screening"), a({ searchQuery: "glaucoma screening", yearFrom: 2020, text: "Screening works [1]." })];
+    const r = await run(auto("explain that simpler", { history, sinceYear: 2022 }));
+    expect(r.understood.context).toMatchObject({ intent: "same_papers", yearFrom: 2022 });
+    expect(r.finalPapers.map((p) => p.year)).toEqual([2022]);
+  });
+});
+
+describe("what a model is given, and what is written down", () => {
+  it("the year is a filter and not words: it is in no call of a model, in the writer's question or in a log; the judge reads the answer's claims and the abstracts, as ever", async () => {
+    const spies = (["log", "info", "warn", "error", "debug"] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
+    try {
+      await run(auto("effect of yoga CANARY-WORDS on blood pressure", { sinceYear: 2022 }));
+      await run(auto("only after 2020 CANARY-WORDS", { history: GLAUCOMA, sinceYear: 2022 }));
+      expect(calls.length).toBeGreaterThan(2);
+      for (const c of calls) expect(`${c.system}\n${c.user}`, c.who).not.toMatch(/sinceYear|since_year|since year/i);
+      for (const w of callsOf("writer").filter((c) => c.label === "chat_search")) expect(w.user.split("\n")[0]).not.toMatch(/2022/);
+      for (const j of callsOf("judge")) expect(`${j.system}\n${j.user}`).not.toMatch(/CANARY|Question:|conversation/);
+      const logged = spies.flatMap((s) => s.mock.calls.map((c) => c.map(String).join(" "))).join("\n");
+      expect(logged).not.toMatch(/sinceYear|CANARY|yoga/i);
+    } finally {
+      for (const s of spies) s.mockRestore();
+    }
+  });
+
+  it("the judge, the strict check and the development judge do not so much as name it", () => {
+    const src = readFileSync(fileURLToPath(new URL("./routes.ts", import.meta.url)), "utf8");
+    const handlers = src.split("chatRoutes.post(").slice(1);
+    const named = (path: string) => handlers.find((h) => h.startsWith(`"${path}"`)) ?? "";
+    for (const path of ["/tighten", "/judge", "/route"]) {
+      expect(named(path).length).toBeGreaterThan(200);
+      expect(named(path)).not.toMatch(/sinceYear|since_year/i);
+    }
+  });
+
+  it("the strict check ignores a sinceYear that is sent to it", async () => {
+    const good = { text: "The first paper reports its main result and also claims a cure [1].", papers: [{ n: 1, title: "Deep learning for glaucoma screening", year: 2021, abstract: "We trained a convolutional network on 12,000 fundus photographs to detect glaucoma. The model reached an AUC of 0.94 on a held-out set. Performance was lower for images with cataract." }], citations: [{ n: 1, sentenceNo: 2 }] };
+    const r = await post({ ...good, sinceYear: 2022 }, { path: "/tighten" });
+    expect(r.res.status).toBe(200);
+    for (const c of calls) expect(`${c.system}${c.user}`).not.toMatch(/sinceYear/);
+  });
+});
+
+/* ---------------------------------------------------------------- the differential check */
+
+/**
+ * A request that says nothing of `sinceYear` is answered exactly as before the field existed. `since-year.golden.json` was written ONCE, from the code of the commit before this change (its
+ * `producedFrom` says which), by running these requests through the route with the stand-in network and model: for each one, the status, the order of the events and a SHA-256 of the whole
+ * stream as it went over the wire (only the time it took, which is not repeatable, is set to 0; `wire` below is what was run, and it has no way to write the file: a change that is meant to alter what a
+ * first message gets must say so by re-recording it by hand from the code it replaces). Every request here is compared with that, byte for byte. The requests are not chosen to be about years:
+ * they are the ways a message ends (answered, nothing found, a source down, not grounded, judged, small talk, another tool, the Indian scope, a follow-up, a refusal).
+ */
+type Case = { name: string; body: unknown; opts?: Opts };
+const DIFF: Case[] = [
+  { name: "auto, a plain question", body: auto("effect of yoga on blood pressure") },
+  { name: "auto, nothing found", body: auto("nothing at all about glaucoma") },
+  { name: "auto, a source down", body: auto("partial glaucoma screening") },
+  { name: "auto, the papers do not answer", body: auto("unanswerable glaucoma question") },
+  { name: "auto, a made-up citation", body: auto("hallucinate glaucoma") },
+  { name: "auto, the judge drops a claim", body: auto("judgedrop glaucoma") },
+  { name: "auto, a long abstract", body: auto("longabstract glaucoma") },
+  { name: "auto, the open-access papers", body: auto("oapapers glaucoma") },
+  { name: "auto, a message the rules leave to the model", body: auto("kuch bhi") },
+  { name: "auto, small talk", body: auto("thanks a lot") },
+  { name: "auto, another tool", body: auto("now my idea about bees, is it novel") },
+  { name: "auto, Indian scope", body: auto("glaucoma screening", { scope: "india" }) },
+  { name: "auto, not signed in", body: auto("effect of yoga on blood pressure"), opts: { signedIn: false } },
+  { name: "auto, a message of 409 characters", body: auto(`glaucoma ${"screening ".repeat(40)}`) },
+  { name: "auto, a message of 360 characters", body: auto("effect of yoga on blood pressure in adults ".repeat(8)) },
+  { name: "search by hand", body: byHand("glaucoma screening") },
+  { name: "search by hand, anyway", body: byHand("hello there friend", { anyway: true }) },
+  { name: "search by hand, Indian scope", body: byHand("glaucoma screening", { scope: "india" }) },
+  { name: "search by hand, nothing found", body: byHand("nothing about glaucoma") },
+  { name: "follow-up, only after 2022", body: auto("only after 2022", { history: GLAUCOMA }) },
+  { name: "follow-up, only after 2020 (a short list)", body: auto("only after 2020", { history: GLAUCOMA }) },
+  { name: "follow-up, the same papers", body: auto("explain that simpler", { history: GLAUCOMA }) },
+  { name: "follow-up, the same papers with the reply's range", body: auto("explain that simpler", { history: [u("glaucoma screening"), a({ searchQuery: "glaucoma screening", yearFrom: 2022, text: "Screening works [1]." })] }) },
+  { name: "follow-up, a new topic", body: auto("newtopic CRISPR effects", { history: GLAUCOMA }) },
+  { name: "follow-up, a message that stands alone", body: auto("effect of yoga on blood pressure", { history: GLAUCOMA }) },
+  { name: "follow-up, earlier chats", body: auto("and in children?", { earlier: [{ question: "yoga and blood pressure", searchQuery: "yoga blood pressure" }] }) },
+  { name: "follow-up, the switch is off", body: auto("only after 2020", { history: GLAUCOMA }), opts: { env: { CHAT_CONTEXT: "off" } } },
+  { name: "follow-up, the day is used", body: auto("and in children?", { history: GLAUCOMA }), opts: { used: 60_000 } },
+  { name: "follow-up, not signed in", body: auto("only after 2020", { history: GLAUCOMA }), opts: { signedIn: false } },
+  { name: "refused, a bad mode", body: { mode: "x", message: "yoga" } },
+  { name: "refused, a bad scope", body: auto("yoga", { scope: "mars" }) },
+  { name: "refused, a flag with Auto", body: auto("yoga", { anyway: true }) },
+  { name: "refused, a bad history", body: auto("only after 2020", { history: [{ role: "system", text: "x" }] }) },
+  { name: "refused, history with a search by hand", body: byHand("glaucoma screening", { history: GLAUCOMA }) },
+  { name: "refused, a message that is too short", body: byHand("x") },
+  { name: "refused, a body that is not JSON", body: "not json" },
+  { name: "the judge switch is off", body: auto("effect of yoga on blood pressure"), opts: { env: { CHAT_JUDGE: "off" } } },
+];
+
+const GOLDEN = fileURLToPath(new URL("./since-year.golden.json", import.meta.url));
+type Golden = { producedFrom: string; entries: { name: string; status: number; types: string[]; end: string; bytes: number; sha256: string }[] };
+
+/** What one request came to on the wire, with the time it took set to 0. */
+async function wire(c: Case) {
+  const { res, text } = await post(c.body, c.opts);
+  const normal = text.replace(/"tookMs":\d+/g, '"tookMs":0');
+  const types = res.headers.get("content-type")?.includes("event-stream") ? eventsOf(normal).map((e) => e.type) : [`json:${String((JSON.parse(normal) as { type?: unknown }).type)}`];
+  const last = eventsOf(normal).at(-1) as { type?: string; answered?: boolean; reason?: string } | undefined;
+  const end = last?.type === "done" ? `done:${last.answered ? "answered" : "no"}:${last.reason ?? ""}` : (last?.type ?? "refused");
+  const bytes = new TextEncoder().encode(normal);
+  const sha256 = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return { name: c.name, status: res.status, types, end, bytes: bytes.length, sha256 };
+}
+
+describe("a request without sinceYear is answered exactly as before the field existed", () => {
+  it("every one of the requests (a stream's every event, in its order, byte for byte; a refusal's body) is what the code before this change gave", async () => {
+    const now = await Promise.all(DIFF.map((c) => wire(c)));
+    const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
+    expect(golden.entries.map((e) => e.name)).toEqual(DIFF.map((c) => c.name));
+    const changed = now.filter((n, i) => JSON.stringify(n) !== JSON.stringify(golden.entries[i])).map((n) => n.name);
+    expect(changed).toEqual([]);
+    // the list is real: streams of every kind and refusals
+    expect(golden.entries.filter((e) => e.status === 200).length).toBeGreaterThanOrEqual(28);
+    expect(golden.entries.filter((e) => e.status === 400).length).toBeGreaterThanOrEqual(6);
+    expect(golden.entries.some((e) => e.types.includes("answer"))).toBe(true);
+    expect(golden.entries.some((e) => e.types.includes("notice"))).toBe(true);
+  });
+
+  it("an explicit `sinceYear: undefined` is the key not being there (JSON leaves it out), and the same answer comes back", async () => {
+    const plain = await wire({ name: "x", body: auto("effect of yoga on blood pressure") });
+    const undef = await wire({ name: "x", body: auto("effect of yoga on blood pressure", { sinceYear: undefined }) });
+    expect(undef).toEqual(plain);
+  });
+});

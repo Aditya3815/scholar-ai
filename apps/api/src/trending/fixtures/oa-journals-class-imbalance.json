@@ -1,0 +1,71 @@
+{
+ "meta": {
+  "count": 803,
+  "db_response_time_ms": 61,
+  "page": 1,
+  "per_page": 200,
+  "groups_count": 200
+ },
+ "group_by": [
+  {
+   "key": "https://openalex.org/S196734849",
+   "key_display_name": "Scientific Reports",
+   "count": 24
+  },
+  {
+   "key": "https://openalex.org/S4210184485",
+   "key_display_name": "Jurnal Informatika dan Teknik Elektro Terapan",
+   "count": 10
+  },
+  {
+   "key": "https://openalex.org/S5406979607",
+   "key_display_name": "International Journal of Computer Information Systems and Industrial Management Applications",
+   "count": 10
+  },
+  {
+   "key": "https://openalex.org/S4210197006",
+   "key_display_name": "Frontiers in Artificial Intelligence",
+   "count": 9
+  },
+  {
+   "key": "https://openalex.org/S4210206696",
+   "key_display_name": "Journal of Applied Informatics and Computing",
+   "count": 9
+  },
+  {
+   "key": "https://openalex.org/S4210178232",
+   "key_display_name": "Rabit Jurnal Teknologi dan Sistem Informasi Univrab",
+   "count": 8
+  },
+  {
+   "key": "https://openalex.org/S2764566388",
+   "key_display_name": "International Journal for Research in Applied Science and Engineering Technology",
+   "count": 7
+  },
+  {
+   "key": "https://openalex.org/S4210205812",
+   "key_display_name": "Applied Sciences",
+   "count": 7
+  },
+  {
+   "key": "https://openalex.org/S4210239397",
+   "key_display_name": "JATI (Jurnal Mahasiswa Teknik Informatika)",
+   "count": 7
+  },
+  {
+   "key": "https://openalex.org/S5406990484",
+   "key_display_name": "International Journal of Engineering Research and Science & Technology",
+   "count": 7
+  },
+  {
+   "key": "https://openalex.org/S5407049300",
+   "key_display_name": "Journal of Intelligent Decision Making and Information Science",
+   "count": 7
+  },
+  {
+   "key": "https://openalex.org/S4210227372",
+   "key_display_name": "Intelligence-Based Medicine",
+   "count": 6
+  }
+ ]
+}

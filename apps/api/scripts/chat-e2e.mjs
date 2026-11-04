@@ -302,6 +302,22 @@ try {
   const devJson = await devRoute.json().catch(() => ({}));
   ok(devRoute.status === 200 && devJson.followUp?.intent === "refine" && devJson.followUp.check === "ok", "the development route reads a follow-up as the stream does (for the follow-up eval)");
 
+  console.log("a Trending chip's year filter: sinceYear (docs/design/chatview-and-trending.md, T9)");
+  // the bad values the page can never send but anything else can: each is refused in the repository's problem format, before anything is read or searched
+  for (const sinceYear of [1989, 2200, 2025.5, "2025", null, true, [2025]]) {
+    const r = await chat(A, "glaucoma screening in India", { raw: JSON.stringify({ mode: "search", message: "glaucoma screening in India", sinceYear }) });
+    const body = await r.res.json().catch(() => ({}));
+    ok(r.res.status === 400 && body.type === "invalid_since_year" && typeof body.title === "string" && /1990/.test(body.detail ?? "") && String(r.res.headers.get("content-type")).includes("json") && r.res.headers.get("cache-control") === "no-store", `sinceYear ${JSON.stringify(sinceYear)} is refused: 400 invalid_since_year`);
+  }
+  const plain = stateOf(await withTurns("glaucoma screening in India", {}, A, "search"));
+  const since = stateOf(await withTurns("glaucoma screening in India", { sinceYear: 2022 }, A, "search"));
+  ok(plain.lastList.length === 5 && plain.context === undefined, "(without it: five papers, and no context on the reply)");
+  ok(since.lastList.length === 1 && since.lastList.every((p) => p.year >= 2022), "a hand-chosen search with sinceYear 2022 is cut by the papers' own years before they are numbered: the one paper from 2022 is left");
+  ok(JSON.stringify(since.context) === JSON.stringify({ turns: 0, intent: "new", rewrote: false, yearFrom: 2022 }) && since.understood.mode === "search" && since.understood.query === "glaucoma screening in India" && since.understood.searchQuery === undefined, "...it is said on the reply as the year range (and nothing else of context), and the words are searched as typed");
+  ok(since.answer !== undefined && since.answer.citations.length >= 1 && since.answer.citations.every((c) => c.paperId === since.lastList[0].id), `...and the answer cites only what is left (${JSON.stringify(since.answer?.citations?.map((c) => c.paperId))})`);
+  const sinceAnon = await withTurns("glaucoma screening in India", { sinceYear: 2022 }, anon, "search");
+  ok(sinceAnon.res.status === 200 && stateOf(sinceAnon).lastList.every((p) => p.year >= 2022), "a person who is not signed in gets the same cut list");
+
   console.log("streams: keep-alive, terminal event, lighter interim lists");
   const rawText = async (client, message) => {
     const res = await client.send(`${APP}/api/v1/chat`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify({ mode: "search", message }) });

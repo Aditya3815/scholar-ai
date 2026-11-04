@@ -1,7 +1,7 @@
 import { AnimatePresence, LazyMotion, MotionConfig, m } from "motion/react";
 import { SearchX, WifiOff } from "lucide-react";
 import { getThemePref } from "./lib/prefs";
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Footer } from "./components/Footer";
 import { useConversing } from "./lib/chat";
 import { PaperPreview } from "./components/PaperPreview";
@@ -23,6 +23,7 @@ import { useSearch } from "./lib/search";
 import { PAPERS_NAME } from "./lib/workspace";
 import { Shell } from "./workspace/Shell";
 import { HomePage } from "./workspace/HomePage";
+import { NO_DRAFT, type Draft } from "@scholar/shared/src/trending-row";
 import { LibraryPage, SettingsPage } from "./workspace/Pages";
 
 // the intro page is its own chunk: people who are signed in never download it
@@ -41,6 +42,22 @@ const HowWeVerifyPage = lazy(() => import("./components/legal/LegalPages").then(
 if (typeof localStorage !== "undefined" && !(() => { try { return localStorage.getItem("scholar.signedin") === "1"; } catch { return false; } })()) void loadIntro();
 
 const loadFeatures = () => import("./lib/motion-features").then((mod) => mod.default);
+
+/**
+ * The motion library's two providers, ABOVE the app (main.tsx puts `<App />` inside it). `LazyMotion` hands its context a new object every time it renders, and it renders whenever its parent does: kept inside
+ * `App`, which renders for every letter typed in the box and every word of a reply being written, it made every motion component of the page render again each time (four hundred cards in a long conversation),
+ * whatever `memo` said of the turns that hold them (measured, at a processor four times slower, in a conversation of twenty replies: a key press took 0.74 s with only the turns memoised, and 0.58 s with this). Here its parent never renders again, so its context
+ * stays the same one, and it renders once more only when the animation features have been fetched.
+ */
+export function MotionRoot({ children }: { children: ReactNode }) {
+  return (
+    <MotionConfig reducedMotion="user">
+      <LazyMotion features={loadFeatures} strict={false}>
+        {children}
+      </LazyMotion>
+    </MotionConfig>
+  );
+}
 
 type Sort = "relevance" | "citations" | "year";
 
@@ -67,6 +84,9 @@ const TITLES: Record<View, string> = { search: "Sodhsetu", verify: "Verify refer
 export function App() {
   const { state, run, reset } = useSearch();
   const [query, setQuery] = useState(() => new URLSearchParams(location.search).get("q") ?? "");
+  // what a Trending chip added to the text of the box (the year filter, the words it replaced): kept here next to the text, because both outlive the Home screen (a page opened from Home and the browser's Back
+  // button draw it again with the text still in the box); the rules for it are in packages/shared/src/trending-row.ts and the Home page
+  const [draft, setDraft] = useState<Draft>(NO_DRAFT);
   const [openOnly, setOpenOnly] = useState(false);
   const [hideRetracted, setHideRetracted] = useState(false);
   const [sort, setSort] = useState<Sort>("relevance");
@@ -168,6 +188,7 @@ export function App() {
   const goHome = () => {
     reset();
     setQuery("");
+    setDraft(NO_DRAFT);
     // signed-in people land on the home screen at "/", anonymous people on "/home" (the intro page is "/" for them)
     const homePath = !user ? "/home" : "/";
     if (view !== "search" || location.pathname !== homePath) {
@@ -222,10 +243,13 @@ export function App() {
       ) : view === "papers" ? (
         route.docId ? <DocWorkspace key={route.docId} id={route.docId} onBack={() => navigate("papers")} /> : <PapersPage onOpen={(id) => navigate("papers", id)} />
       ) : (
-      <AnimatePresence mode="wait" initial={false}>
+      /* presenceAffectsLayout={false}: by default every render of this (it renders for every letter typed in the box) hands the whole page below it a new presence context, which makes every motion component of
+          it render again, memo or not (four hundred cards of a long conversation: 0.4 s of every key press at a processor four times slower). Only one thing is shown here at a time (mode="wait"), so nothing around it
+          has a layout to keep that this would tell. */
+      <AnimatePresence mode="wait" initial={false} presenceAffectsLayout={false}>
         {idle ? (
           <m.div key="home" exit={{ opacity: 0, y: -12, transition: { duration: 0.18 } }}>
-            <HomePage query={query} onQuery={setQuery} onOpenTool={(tool) => navigate(tool === "papers" ? "papers" : tool)} onOpenPaper={(id) => navigate("papers", id)} inputRef={homeRef} />
+            <HomePage query={query} onQuery={setQuery} kept={draft} setDraft={setDraft} onOpenTool={(tool) => navigate(tool === "papers" ? "papers" : tool)} onOpenPaper={(id) => navigate("papers", id)} inputRef={homeRef} />
           </m.div>
         ) : (
           <m.div key="results" className="results-view" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }}>
@@ -305,31 +329,27 @@ export function App() {
 
   if (onIntro) {
     return (
-      <MotionConfig reducedMotion="user">
-        <LazyMotion features={loadFeatures} strict={false}>
-          {noticeEl}
-          {booting ? null : (
-            <Suspense fallback={null}>
-              <IntroPage onStart={startAnonymous} />
-            </Suspense>
-          )}
-          <PaperPreview />
-        </LazyMotion>
-      </MotionConfig>
+      <>
+        {noticeEl}
+        {booting ? null : (
+          <Suspense fallback={null}>
+            <IntroPage onStart={startAnonymous} />
+          </Suspense>
+        )}
+        <PaperPreview />
+      </>
     );
   }
   return (
-    <MotionConfig reducedMotion="user">
-      <LazyMotion features={loadFeatures} strict={false}>
-        <Shell view={view === "search" ? "home" : view} onNavigate={navigate} onHome={goHome} title={view === "search" && idle ? "Home" : TITLES[view].replace(" · Sodhsetu", "")} focus={view === "papers" && !!route.docId} footer={view === "papers" || (view === "search" && conversing) ? null : <Footer />}>
-          {noticeEl}
-          {mainEl}
-        </Shell>
-        <PaperPreview />
-        <OaAskSheet onOpenPapers={() => navigate("papers")} />
-        <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
-        <ShortcutSheet open={sheetOpen} onOpenChange={setSheetOpen} />
-      </LazyMotion>
-    </MotionConfig>
+    <>
+      <Shell view={view === "search" ? "home" : view} onNavigate={navigate} onHome={goHome} title={view === "search" && idle ? "Home" : TITLES[view].replace(" · Sodhsetu", "")} focus={view === "papers" && !!route.docId} footer={view === "papers" || (view === "search" && conversing) ? null : <Footer />}>
+        {noticeEl}
+        {mainEl}
+      </Shell>
+      <PaperPreview />
+      <OaAskSheet onOpenPapers={() => navigate("papers")} />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <ShortcutSheet open={sheetOpen} onOpenChange={setSheetOpen} />
+    </>
   );
 }

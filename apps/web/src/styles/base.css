@@ -4,6 +4,22 @@
   box-sizing: border-box;
 }
 
+/* What the HEADLINE OF HOME (.hm-title: `--font-serif-fit`, tokens.css; not the serif of the rest of the pages) is drawn in until Source Serif 4 has arrived: Georgia, made as wide as Source Serif (Georgia is 9% wider in a regular weight and 25% in a bold one: measured 4 Nov 2026 on the headline of
+   Home, 62 px, weight 600, 1,072 px against 856). Without it the headline was two lines in the fallback and one line in the font, so when the font came (after the first paint, on a slow link) everything under
+   the headline moved up by a line: a layout shift of 0.085 on Home, and 0.142 once a row of chips sat under the box. Where there is no Georgia the browser's own serif is used, as before. */
+@font-face {
+  font-family: "Source Serif Stand-in";
+  src: local("Georgia Bold"), local("Georgia-Bold");
+  font-weight: 600 900;
+  size-adjust: 79.8%;
+}
+@font-face {
+  font-family: "Source Serif Stand-in";
+  src: local("Georgia");
+  font-weight: 100 599;
+  size-adjust: 91%;
+}
+
 html {
   font-size: 100%; /* rem units: user ka browser text-size respect hota hai */
   -webkit-text-size-adjust: 100%;

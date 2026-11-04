@@ -1162,3 +1162,10 @@
 .rive-piece[data-ready="true"] .rive-piece-fallback {
   opacity: 0;
 }
+/* a note in a label, "(optional)": the report form on every page uses it, and so do the Idea Check forms (idea.css, which only that page loads) */
+.idea-opt {
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 450;
+}

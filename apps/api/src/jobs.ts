@@ -12,6 +12,8 @@ export const JOB_SPECS = {
   maintenance: { everyHours: 24, graceHours: 6 },
   // The same cron: saved papers are looked at again for retractions (library/retraction.ts), each at most once a week, a few hundred a run.
   retraction_check: { everyHours: 24, graceHours: 6 },
+  // The same cron: the Trending list is made once a day (src/trending/job.ts), and on Mondays the weekly scan it is made from. A day's run that fails leaves the last good file, and says so here.
+  trending: { everyHours: 24, graceHours: 6 },
 } as const;
 export type JobName = keyof typeof JOB_SPECS;
 

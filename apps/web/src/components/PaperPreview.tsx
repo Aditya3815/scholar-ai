@@ -2,7 +2,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
 import { BadgeCheck, ChevronLeft, ChevronRight, ExternalLink, FileText, Hash, LockOpen, MessageSquareText, ShieldAlert, TriangleAlert, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { PROVIDER_LABELS, type Paper } from "@scholar/shared";
+import { PROVIDER_LABELS, textAttrs, type Paper } from "@scholar/shared";
 import { easeOut, spring, springPop, stagger } from "../lib/motion";
 import { canAsk, openOaAsk } from "../lib/oa-ask";
 import { closePreview, stepPreview, usePreview } from "../lib/preview";
@@ -16,7 +16,7 @@ function Authors({ authors }: { authors: string[] }) {
   if (authors.length === 0) return <p className="pv-authors pv-muted">Authors unavailable</p>;
   const shown = all ? authors : authors.slice(0, 6);
   return (
-    <p className="pv-authors">
+    <p className="pv-authors" {...textAttrs(shown.join(", "))}>
       {shown.join(", ")}
       {authors.length > 6 && (
         <>
@@ -50,10 +50,10 @@ function Body({ paper }: { paper: Paper }) {
 
       <m.div className="pv-meta" {...rise(0)}>
         {paper.year && <span className="pv-year">{paper.year}</span>}
-        {paper.venue && <span className="pv-venue">{paper.venue}</span>}
+        {paper.venue && <span className="pv-venue" {...textAttrs(paper.venue)}>{paper.venue}</span>}
       </m.div>
 
-      <m.h2 className="pv-title" {...rise(1)}>
+      <m.h2 className="pv-title" {...textAttrs(paper.title)} {...rise(1)}>
         {paper.title}
       </m.h2>
       <m.div {...rise(2)}>
@@ -85,7 +85,7 @@ function Body({ paper }: { paper: Paper }) {
       <m.section className="pv-section" aria-label="Abstract" {...rise(4)}>
         <h3 className="pv-h">Abstract</h3>
         {paper.abstract ? (
-          <p className="reading pv-abstract">{paper.abstract}</p>
+          <p className="reading pv-abstract" {...textAttrs(paper.abstract)}>{paper.abstract}</p>
         ) : (
           <p className="pv-muted">None of our sources has an abstract for this paper. Open the DOI or the full text to read it.</p>
         )}

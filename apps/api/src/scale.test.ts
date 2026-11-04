@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { testD1 } from "./test-d1";
 import { MAINTENANCE_JOBS } from "./maintenance";
+import { JOB_SPECS, runJob } from "./jobs";
 
 /**
  * The query plans of what runs often or on big tables (docs/design/scalability.md). A table that holds a row for every call or every visit grows without a limit, and a query that
@@ -39,6 +40,9 @@ describe("what runs on every request or every call reads a few rows", () => {
     ["the DOIs to look at again", "SELECT r.doi FROM paper_retraction r WHERE r.state <> 'retracted' AND r.checked_at < datetime('now', '-7 days') ORDER BY r.checked_at LIMIT ?1", [400]],
     ["the people who saved a paper that turned out retracted", "SELECT user_id, paper_id FROM library_items WHERE doi = ?1", ["10.1/x"]],
     ["the usage of a feature in the last 14 days (admin)", "SELECT label, COUNT(*) FROM llm_usage WHERE ts >= date('now', '-14 days') GROUP BY label", []],
+    // the Trending job (src/trending) keeps its list in KV and touches the database only for its heartbeat, like every scheduled job: both writes are by the job's name, the table's primary key
+    ["the heartbeat of a scheduled job at its end, when it went well (the Trending job's too)", "UPDATE job_runs SET last_finished_at = datetime('now'), last_result = 'ok', last_ok_at = datetime('now'), last_error = NULL WHERE name = ?1", ["trending"]],
+    ["the heartbeat of a scheduled job at its end, when it failed (the Trending job's too)", "UPDATE job_runs SET last_finished_at = datetime('now'), last_result = 'failed', last_error = ?2, failures = failures + 1 WHERE name = ?1", ["trending", "x"]],
   ];
   for (const [name, text, args] of HOT) {
     it(name, () => {
@@ -46,4 +50,19 @@ describe("what runs on every request or every call reads a few rows", () => {
       expect(scans(p), p).toBe(false);
     });
   }
+});
+
+describe("the heartbeat table cannot grow", () => {
+  // /api/v1/health/jobs reads all of job_runs (one row per scheduled job): that is cheap only while the table stays that small, so a run must update its row, never add one
+  it("has one row per scheduled job after any number of runs, the Trending job's included: its start is an upsert on its name", async () => {
+    const { db, sql: raw } = testD1();
+    const before = (raw.prepare("SELECT COUNT(*) AS n FROM job_runs").get() as { n: number }).n;
+    expect(before).toBe(Object.keys(JOB_SPECS).length); // the migrations seed exactly the jobs there are
+    for (let i = 0; i < 5; i++) {
+      await runJob(db, "trending", async () => i);
+      await runJob(db, "trending", async () => { throw new Error("boom"); }).catch(() => undefined);
+    }
+    expect((raw.prepare("SELECT COUNT(*) AS n FROM job_runs").get() as { n: number }).n).toBe(before);
+    expect((raw.prepare("SELECT runs, failures FROM job_runs WHERE name = 'trending'").get() as { runs: number; failures: number })).toEqual({ runs: 10, failures: 5 });
+  });
 });

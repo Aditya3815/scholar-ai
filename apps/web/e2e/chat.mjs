@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
 import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 
 const require = createRequire(import.meta.url);
@@ -18,6 +19,13 @@ let failures = 0;
 /** Thrown to leave the run early (CHAT_ONLY=actions runs only the message actions). */
 class Stop extends Error {}
 const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
+
+/** The Try chips as the page has them (starters.ts, bundled here: the owner edits that list, and what this suite holds the page to is how many a visitor who is not signed in is offered, not which words). */
+const STARTERS = await (async () => {
+  const out = await build({ stdin: { contents: 'export * from "./src/workspace/starters";', resolveDir: fileURLToPath(new URL("..", import.meta.url)), loader: "ts" }, bundle: true, format: "esm", platform: "node", write: false, logLevel: "silent" });
+  return import("data:text/javascript;base64," + Buffer.from(out.outputFiles[0].text).toString("base64"));
+})();
+const VISITOR_CHIPS = STARTERS.startersFor(false).length;
 
 const idp = await startFakeIdp(9911);
 idp.setUser({ sub: "chat-ui-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
@@ -52,7 +60,9 @@ async function axe(label, p) {
   // The box that sticks to the bottom of the window covers whatever is scrolled under it, and axe reports a link or a button that is partly under it (target-size, "partially obscured"): which one
   // depends on where the page happens to be scrolled, and a row more under a message was enough to move it. For the run the box is in the flow of the page instead, so that nothing is under it and
   // what axe reads is the page and not its scroll position (that a focused button is never left behind the box is checked separately, below).
-  const unstick = await p.addStyleTag({ content: ".hm-box { position: static !important; }" });
+  // (And every reply is drawn: a reply far from the window is skipped by the browser (content-visibility), and axe cannot find what lies behind an element that has no box, so it takes the page to be white: in the
+  // dark and the reading themes every button of a skipped reply was reported as light text on white. A skipped reply is drawn when the reader scrolls to it, and then it is as the other replies are.)
+  const unstick = await p.addStyleTag({ content: ".hm-box { position: static !important; } .chat-list > li { content-visibility: visible !important; }" });
   await p.evaluate(stillPage);
   await p.evaluate(axeSource);
   const res = await p.evaluate(async () => {
@@ -136,8 +146,8 @@ try {
     console.log("message actions: Copy, Edit and resend, versions");
     const rowOpacity = (p, i) => p.evaluate((i) => getComputedStyle(document.querySelectorAll(".chat-u-actions")[i]).opacity, i);
     const waitRow = (p, i, v) => p.waitForFunction(([i, v]) => { const el = document.querySelectorAll(".chat-u-actions")[i]; return !!el && getComputedStyle(el).opacity === v; }, [i, v], { timeout: 6000 });
-    /** The polite status line of the i-th question (the row's own), waited for by what it says. */
-    const says = (p, i, re) => p.waitForFunction(([i, src]) => new RegExp(src).test(document.querySelectorAll(".chat-u")[i]?.querySelector(":scope > [role=status]")?.textContent ?? ""), [i, re.source], { timeout: 6000 });
+    /** The conversation's one polite status line (a message's row no longer has its own: `i` only says which message the words are about), waited for by what it says. */
+    const says = (p, i, re) => p.waitForFunction((src) => new RegExp(src).test(document.querySelector("[data-announcer]")?.textContent ?? ""), re.source, { timeout: 6000 });
     const focused =(p) => p.evaluate(() => { const e = document.activeElement; return e ? { tag: e.tagName, label: e.getAttribute("aria-label"), row: [...document.querySelectorAll(".chat-u")].indexOf(e.closest(".chat-u")), disabled: e.getAttribute("aria-disabled") } : null; });
     // (the operating system's clipboard keeps line breaks its own way, and Windows gives them back as CR LF)
     const readClip = (p) => p.evaluate(() => navigator.clipboard.readText()).then((t) => t.replace(/\r\n/g, "\n"));
@@ -234,10 +244,17 @@ try {
     const turn1 = A.locator(".chat-turn").first();
     ok(await working(A).count() === 0 && await turn1.getByRole("group", { name: "What to do with this reply" }).isVisible(), "a finished reply has its row of actions, always shown (it is not revealed by hover)");
     await turn1.getByRole("button", { name: "Copy the answer", exact: true }).click();
-    await A.waitForFunction(() => /^Answer copied$/.test(document.querySelector(".chat-turn .chat-acts [role=status]")?.textContent ?? ""), null, { timeout: 6000 });
+    await A.waitForFunction(() => /^Answer copied$/.test(document.querySelector("[data-announcer]")?.textContent ?? ""), null, { timeout: 6000 });
     const answerClip = await readClip(A);
     ok(answerClip.startsWith("The first paper reports its main result [1].\n\nSources\n[1] Rao, A., & Iyer, S. (2021). Deep learning for glaucoma screening from fundus photographs."), `the answer's words and its mark, then 'Sources' and the paper the mark points at, from the paper's own record (got ${JSON.stringify(answerClip.slice(0, 300))})`);
     ok((answerClip.split("\nSources\n")[1] ?? "").split("\n").length === 1 && !/Smartphone|Cost of population|retracted study|Notes on optic/.test(answerClip) && /https:\/\/doi\.org\/10\.1000\/glaucoma\.1$/.test(answerClip), "only the cited paper is listed, with its DOI link");
+    console.log("  one status line for the whole conversation: two things said close together are both said, in the order they came");
+    await copyBtn(0).click();
+    await turn1.getByRole("button", { name: "Copy the answer", exact: true }).click();
+    await says(A, 0, /^Message copied$/);
+    await says(A, 0, /^Answer copied$/);
+    ok(await A.locator("[data-announcer]").count() === 1 && await A.locator(".chat .sr-only[role=status], .chat [aria-live]").count() === 1, "a message copied and, at once, an answer copied are both said, one after the other, through the one status line (and it is the only live region of the conversation)");
+    await says(A, 0, /^$/);
     ok(await turn1.getByRole("button", { name: "Copy the answer", exact: true }).count() === 1 && await turn1.getByRole("button", { name: "Search again", exact: true }).count() === 1, "'Answer copied' is said politely, the button keeps its name, and a finished reply can be searched again");
 
     console.log("  Edit: the editor, its keys and its refusals");
@@ -486,7 +503,7 @@ try {
     const bg = A.locator(".chat-turn").first();
     await bg.locator(".chat-general").waitFor();
     await bg.getByRole("button", { name: "Copy the answer", exact: true }).click();
-    await A.waitForFunction(() => /^Answer copied$/.test(document.querySelector(".chat-turn .chat-acts [role=status]")?.textContent ?? ""), null, { timeout: 6000 });
+    await A.waitForFunction(() => /^Answer copied$/.test(document.querySelector("[data-announcer]")?.textContent ?? ""), null, { timeout: 6000 });
     const bgClip = await readClip(A);
     ok(bgClip.startsWith("General background, not from a paper in your results\n") && !/\[\d/.test(bgClip) && !/Sources/.test(bgClip), "background from general knowledge is copied under its label line, with no source mark and no list of sources");
     posted.length = 0;
@@ -544,12 +561,12 @@ try {
       await fp.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
       await fp.getByRole("button", { name: "Copy your message", exact: true }).click();
       if (v.works) {
-        await fp.waitForFunction(() => /^Message copied$/.test(document.querySelector(".chat-u > [role=status]")?.textContent ?? ""), null, { timeout: 6000 });
+        await fp.waitForFunction(() => /^Message copied$/.test(document.querySelector("[data-announcer]")?.textContent ?? ""), null, { timeout: 6000 });
         const got = await fp.evaluate(() => window.__copied);
         ok(got.length === 1 && got[0] === WORDS && WORDS.length > 400, `${v.name}: the fallback copies the whole ${WORDS.length} characters, and says 'Message copied'`);
         ok((await focused(fp))?.label === "Copy your message", "...and the focus is back on the button (selecting the text moved it)");
       } else {
-        await fp.waitForFunction(() => /Could not copy\. Select the text and copy it\./.test(document.querySelector(".chat-u > [role=status]")?.textContent ?? ""), null, { timeout: 6000 });
+        await fp.waitForFunction(() => /Could not copy\. Select the text and copy it\./.test(document.querySelector("[data-announcer]")?.textContent ?? ""), null, { timeout: 6000 });
         ok(/Could not copy\. Select the text and copy it\./.test(await fp.locator(".chat-act-note").innerText()) && !/Ctrl|press/i.test(await fp.locator(".chat-act-note").innerText()) && await fp.locator(".chat-u .lucide-check").count() === 0, `${v.name}: it says so in words (with no key a touch screen does not have), on the page and to a screen reader, and does not show a check mark`);
       }
       await fctx.close();
@@ -574,7 +591,7 @@ try {
       ok(await noSideways(tp), "nothing scrolls sideways");
       await axe("message actions, a touch screen", tp);
       await tp.locator(".chat-turn").getByRole("button", { name: "Copy the papers", exact: true }).tap();
-      await tp.waitForFunction(() => /^Papers copied$/.test(document.querySelector(".chat-turn .chat-acts [role=status]")?.textContent ?? ""), null, { timeout: 6000 });
+      await tp.waitForFunction(() => /^Papers copied$/.test(document.querySelector("[data-announcer]")?.textContent ?? ""), null, { timeout: 6000 });
       const lines = (await readClip(tp)).split("\n");
       ok(lines.length === 5 && lines.every((l, i) => l.startsWith(`[${i + 1}] `)) && lines.filter((l) => l.endsWith("(retracted)")).length === 1, "a reply with no written answer (the reader is not signed in) copies its papers: five numbered lines, the retracted one marked as such");
       await tp.getByRole("button", { name: "Edit your message", exact: true }).tap();
@@ -610,7 +627,7 @@ try {
     await waitRow(rp, 0, "1");
     ok(true, "the row is still shown by hover with reduced motion");
     await rp.getByRole("button", { name: "Copy your message", exact: true }).click();
-    await rp.waitForFunction(() => /^Message copied$/.test(document.querySelector(".chat-u > [role=status]")?.textContent ?? ""), null, { timeout: 6000 });
+    await rp.waitForFunction(() => /^Message copied$/.test(document.querySelector("[data-announcer]")?.textContent ?? ""), null, { timeout: 6000 });
     const draw = await rp.locator(".chat-u .lucide-check path").first().evaluate((el) => getComputedStyle(el).animationName);
     ok(await rp.locator(".chat-u .lucide-check").count() === 1 && draw === "none", `the check mark appears without being drawn (animation: ${draw})`);
     await rctx.close();
@@ -838,7 +855,8 @@ try {
     await settled(C);
     await C.reload({ waitUntil: "networkidle" });
     await C.locator(".chat-list").waitFor({ timeout: 15000 });
-    ok(await C.locator(".chat-ctx").count() >= 2 && await C.locator(".chat-ctx b").first().innerText().then((t) => t.trim().length > 0), "after a reload the lines that say what a reply was read as are still there");
+    // (textContent, not innerText: the first of these lines is in an early reply, which the browser skips while it is far from the window (content-visibility), and the innerText of an element in a skipped reply is empty)
+    ok(await C.locator(".chat-ctx").count() >= 2 && await C.locator(".chat-ctx b").first().textContent().then((t) => (t ?? "").trim().length > 0), "after a reload the lines that say what a reply was read as are still there");
 
     console.log("  a new chat has no memory of the old one");
     posted.length = 0;
@@ -1603,7 +1621,89 @@ try {
 
     await mx.close();
   };
+  /* The conversation is a chunk of its own (docs/design/chatview-and-trending.md, C3: the first load has a size budget). The page's first load does not name it; it is asked for when the box is
+     focused or the browser is idle; a question sent before it has arrived waits for it (a note says so) and is drawn, with its papers, when it comes; when it cannot be fetched at all the page says
+     so and Reload brings the conversation back; and a tab that reloads in a conversation has its frame at once, without the empty page's greeting for a moment first. Runs in contexts of its own,
+     so it can be run alone: CHAT_ONLY=lazy node e2e/chat.mjs <baseUrl>. */
+  const lazy = async () => {
+    console.log("the conversation is a chunk of its own");
+    const html = await (await fetch(BASE + "/home")).text();
+    ok(!/ChatView/.test(html), "the page's first load does not name the conversation's chunk");
+    const chunk = /\/assets\/ChatView-[^/]*\.js(\?.*)?$/;
+    const pickIn = async (p, name) => {
+      if (new RegExp(name).test(await p.locator(".hm-mode").innerText())) return;
+      await p.locator(".hm-mode").click();
+      await p.getByRole("menuitemradio", { name: new RegExp("^" + name) }).click();
+      await p.getByRole("menu", { name: "What should I do?" }).waitFor({ state: "hidden" });
+    };
+
+    const slow = await newCtx();
+    const sp = await slow.newPage();
+    watch(sp);
+    let asked = 0;
+    await sp.route(chunk, async (route) => { asked++; await new Promise((r) => setTimeout(r, 2500)); await route.continue(); });
+    await sp.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+    await sp.locator("#hm-h").waitFor();
+    await pickIn(sp, "Search papers");
+    await sp.locator(".hm-input").fill("glaucoma screening");
+    await sp.keyboard.press("Enter");
+    await sp.getByText("Loading the conversation…").waitFor({ state: "attached", timeout: 2000 });
+    ok(asked >= 1 && (await sp.locator(".chat-bubble").count()) === 0, "a question sent before the conversation's chunk has arrived waits for it, and a note says so");
+    await sp.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
+    ok(/glaucoma screening/.test(await sp.locator(".chat-bubble").first().innerText()) && (await sp.locator(".chat-turn .result").count()) === 5, "...and is drawn with its papers when the chunk has come");
+    ok((await sp.locator(".hm-input").inputValue()) === "" && (await sp.getByText("Loading the conversation…").count()) === 0, "...with the box empty again and the note gone");
+    ok(asked === 1, `...and the chunk was asked for once (${asked})`);
+    await slow.close();
+
+    // not fetchable at all: the page does not go blank, and a reload (with the chunk back) shows the conversation that was kept
+    const gone = await newCtx();
+    const gp = await gone.newPage(); // not watched: a refused script is an error in the console by design
+    await gp.route(chunk, (route) => route.abort());
+    await gp.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+    await gp.locator("#hm-h").waitFor();
+    await pickIn(gp, "Search papers");
+    await gp.locator(".hm-input").fill("soil carbon in rice fields");
+    await gp.keyboard.press("Enter");
+    await gp.getByText("The conversation could not be loaded").waitFor({ timeout: 10000 });
+    ok(await gp.getByRole("alert").filter({ hasText: "The conversation could not be loaded" }).isVisible() && await gp.getByRole("button", { name: "Try again" }).isVisible(), "when the chunk cannot be fetched the conversation's place says so and offers Try again (not a blank page)");
+    ok(await gp.locator(".ws-rail").isVisible() && await gp.locator(".hm-input").isVisible() && await gp.getByText("Something went wrong").count() === 0, "...and the rest of the page is still there (the rail, the box): the whole app is not replaced by the generic error page");
+    ok(await gp.getByRole("link", { name: "Library" }).first().isVisible(), "...so the person can still go to the Library");
+    await gp.getByRole("button", { name: "Try again" }).click();
+    await gp.getByText("The conversation could not be loaded").waitFor({ timeout: 10000 });
+    ok(true, "(Try again while the chunk is still refused says so again, and does not loop or blank the page)");
+    await gp.unroute(chunk);
+    await gp.getByRole("button", { name: "Try again" }).click();
+    await gp.locator(".chat-bubble").first().waitFor({ timeout: 15000 });
+    ok(/soil carbon in rice fields/.test(await gp.locator(".chat-bubble").first().innerText()) && await gp.getByText("The conversation could not be loaded").count() === 0, "...and Try again, with the chunk back, shows the conversation with the question that was asked, without reloading the page");
+    await gone.close();
+
+    // a tab that reloads in a conversation has its frame at once: the greeting of the empty page is never on the page while the conversation is read (no flash of the empty Home, and no jump when the conversation comes)
+    const rc = await newCtx();
+    const rp = await rc.newPage();
+    watch(rp);
+    await rp.goto(BASE + "/home", { waitUntil: "networkidle" });
+    await pickIn(rp, "Search papers");
+    await rp.locator(".hm-input").fill("monsoon forecasting");
+    await rp.keyboard.press("Enter");
+    await rp.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
+    await until(rp, async () => {
+      const db = await new Promise((resolve, reject) => { const r = indexedDB.open("scholar"); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+      const all = await new Promise((resolve) => { const q = db.transaction("chats").objectStore("chats").getAll(); q.onsuccess = () => resolve(q.result); });
+      db.close();
+      return all.length > 0 && all.every((c) => c.messages.every((m) => m.role !== "assistant" || m.status !== "working"));
+    });
+    await rp.addInitScript(() => {
+      window.__hero = false;
+      new MutationObserver(() => { if (document.querySelector(".hm-title, .hm-greet")) window.__hero = true; }).observe(document, { childList: true, subtree: true });
+    });
+    await rp.reload({ waitUntil: "domcontentloaded" });
+    await rp.locator(".chat-turn").first().waitFor({ timeout: 15000 });
+    ok(/monsoon forecasting/.test(await rp.locator(".chat-bubble").first().innerText()), "a tab that reloads in a conversation gets it back");
+    ok(!(await rp.evaluate(() => window.__hero)), "...and never draws the empty page's greeting while it is read");
+    await rc.close();
+  };
   const only = process.env.CHAT_ONLY;
+  if (only === "lazy") { await lazy(); throw new Stop(); }
   if (!only || only === "actions") await actions();
   if (only === "actions") throw new Stop();
   if (!only || only === "context") await context();
@@ -1612,6 +1712,7 @@ try {
   if (only === "memory") throw new Stop();
   if (!only || only === "layout") await layout();
   if (only === "layout") throw new Stop();
+  if (!only) await lazy();
 
   console.log("sign in");
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -1638,7 +1739,10 @@ try {
   ok(/The first paper reports its main result/.test(await answer.innerText()) && await answer.getByRole("button", { name: /^Source 1/ }).isVisible(), "a short answer is written, its claim marked with a button for paper 1");
   ok(/Each claim was read against the sentences it cites/.test(await answer.innerText()) && await answer.locator(".ask-status[data-tone=ok]").count() === 1 && await answer.locator(".chat-left-out").count() === 0, "and it says what that means: each claim was read against the sentences it cites, and nothing was left out");
   ok(await page.locator(".result[data-retracted=true] .retract").first().isVisible() && await page.locator(".chat-note[data-kind=retracted]").isVisible(), "the retracted paper has its banner, and a line says it was not used for the answer");
-  ok(await page.locator(".chat-turn > .sr-only[role=status]").innerText().then((t) => /Answer ready, 5 papers/.test(t)), "a polite message tells a screen reader that the answer is ready (not the words one by one)");
+  await page.waitForFunction(() => /^Answer ready, 5 papers\.$/.test(document.querySelector("[data-announcer]")?.textContent ?? ""), null, { timeout: 6000 });
+  ok(true, "a polite message tells a screen reader that the answer is ready (not the words one by one), in the conversation's one status line");
+  ok(await page.locator("[data-announcer]").count() === 1 && await page.locator("[data-announcer]").getAttribute("role") === "status" && await page.locator(".chat .sr-only[role=status], .chat [aria-live]").count() === 1, "and that line is the only live region of the conversation: not one or more for every turn");
+  ok(await page.locator(".chat-turn > .sr-only[role=status], .chat-u > [role=status], .chat-acts [role=status]").count() === 0, "(a reply, a question and a row of buttons no longer have a status line of their own)");
   ok(!/openalex|s2|semantic|crossref|pubmed/i.test(await turns().first().locator(".chat-note, .chat-why, .chat-und, .chat-steps").allInnerTexts().then((x) => x.join(" "))), "no source is named in what is said about the search");
   await page.waitForTimeout(1200);
   await page.screenshot({ path: OUT + "1-conversation.png" });
@@ -1957,6 +2061,7 @@ try {
   await page.reload({ waitUntil: "networkidle" });
   await page.locator(".chat-offer").first().waitFor({ timeout: 15000 });
   ok(await page.locator(".chat-offer").count() >= 1 && await page.locator(".chat-searched").count() === 0, "after a reload the offers are still there, with the same text");
+  ok((await page.locator("[data-announcer]").innerText()) === "" && await page.locator("[data-announcer]").count() === 1, "...and a conversation that is opened again says nothing to a screen reader (its replies were not written just now), through its one status line");
   await page.waitForTimeout(600);
   await page.evaluate(() => window.scrollTo(0, 0));
   await axe("Auto conversation after a reload", page);
@@ -2058,7 +2163,9 @@ try {
   await ap.locator(".chat-talk").waitFor({ timeout: 20000 });
   const talkText = await talkTurn().innerText();
   ok(/Hello! I'm doing well, thank you\. This box finds research papers and answers from them/.test(talkText) && !/I understood this as/.test(talkText) && await talkTurn().locator(".result").count() === 0, "'Hey How are you?' in Auto: a greeting answered by the page, with no 'I understood this as Search papers' and no papers");
-  ok(await talkTurn().locator(".chat-talk .chip-btn").count() === 4 && await talkTurn().getByRole("button", { name: "Search for these words anyway" }).isVisible(), "...with example searches to click and a way to search the words anyway");
+  ok(await talkTurn().locator(".chat-talk .chip-btn").count() === VISITOR_CHIPS && await talkTurn().getByRole("button", { name: "Search for these words anyway" }).isVisible(), `...with example searches to click (${VISITOR_CHIPS}: the ones a visitor who is not signed in is offered, which are not the Hinglish ones: those need Auto's translation) and a way to search the words anyway`);
+  // the way out of a wrong guess is ABOVE the example searches: under eight chips, one to a line on a phone, it was a screen down and behind the box that sticks to the bottom of the window
+  ok(await talkTurn().evaluate((turn) => { const any = turn.querySelector(".chat-talk-any"); const chips = turn.querySelector(".chat-talk .hm-starters"); return !!any && !!chips && !!(any.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING) && any.getBoundingClientRect().bottom <= chips.getBoundingClientRect().top + 1; }), "...and the line 'Not small talk? Search for these words anyway' comes before the example searches, not after them");
   await ap.waitForTimeout(900);
   await ap.evaluate(() => window.scrollTo(0, 0));
   await axe("small talk reply", ap);

@@ -1,0 +1,161 @@
+{
+ "meta": {
+  "count": 16924,
+  "db_response_time_ms": 1122,
+  "page": 1,
+  "per_page": 200,
+  "groups_count": 200
+ },
+ "group_by": [
+  {
+   "key": "https://openalex.org/keywords/large-language-models",
+   "key_display_name": "large language models",
+   "count": 903
+  },
+  {
+   "key": "https://openalex.org/keywords/sentiment-analysis",
+   "key_display_name": "sentiment analysis",
+   "count": 898
+  },
+  {
+   "key": "https://openalex.org/keywords/artificial-intelligence",
+   "key_display_name": "artificial intelligence",
+   "count": 677
+  },
+  {
+   "key": "https://openalex.org/keywords/federated-learning",
+   "key_display_name": "federated learning",
+   "count": 569
+  },
+  {
+   "key": "https://openalex.org/keywords/class-imbalance",
+   "key_display_name": "class imbalance",
+   "count": 537
+  },
+  {
+   "key": "https://openalex.org/keywords/explainable-ai",
+   "key_display_name": "explainable AI",
+   "count": 508
+  },
+  {
+   "key": "https://openalex.org/keywords/convolutional-neural-networks",
+   "key_display_name": "convolutional neural networks",
+   "count": 457
+  },
+  {
+   "key": "https://openalex.org/keywords/support-vector-machine",
+   "key_display_name": "support vector machine",
+   "count": 454
+  },
+  {
+   "key": "https://openalex.org/keywords/data-privacy",
+   "key_display_name": "data privacy",
+   "count": 373
+  },
+  {
+   "key": "https://openalex.org/keywords/random-forest",
+   "key_display_name": "random forest",
+   "count": 327
+  },
+  {
+   "key": "https://openalex.org/keywords/deep-learning",
+   "key_display_name": "deep learning",
+   "count": 325
+  },
+  {
+   "key": "https://openalex.org/keywords/twitter",
+   "key_display_name": "Twitter",
+   "count": 311
+  },
+  {
+   "key": "https://openalex.org/keywords/chatbots",
+   "key_display_name": "chatbots",
+   "count": 310
+  },
+  {
+   "key": "https://openalex.org/keywords/text-classification",
+   "key_display_name": "text classification",
+   "count": 291
+  },
+  {
+   "key": "https://openalex.org/keywords/generative-ai",
+   "key_display_name": "generative AI",
+   "count": 289
+  },
+  {
+   "key": "https://openalex.org/keywords/anomaly-detection",
+   "key_display_name": "anomaly detection",
+   "count": 278
+  },
+  {
+   "key": "https://openalex.org/keywords/natural-language-processing",
+   "key_display_name": "natural language processing",
+   "count": 273
+  },
+  {
+   "key": "https://openalex.org/keywords/transformer",
+   "key_display_name": "transformer models",
+   "count": 273
+  },
+  {
+   "key": "https://openalex.org/keywords/bert",
+   "key_display_name": "BERT",
+   "count": 270
+  },
+  {
+   "key": "https://openalex.org/keywords/machine-learning",
+   "key_display_name": "machine learning",
+   "count": 248
+  },
+  {
+   "key": "https://openalex.org/keywords/tf-idf",
+   "key_display_name": "TF-IDF",
+   "count": 247
+  },
+  {
+   "key": "https://openalex.org/keywords/transfer-learning",
+   "key_display_name": "transfer learning",
+   "count": 242
+  },
+  {
+   "key": "https://openalex.org/keywords/ai-ethics",
+   "key_display_name": "AI ethics",
+   "count": 235
+  },
+  {
+   "key": "https://openalex.org/keywords/hyperparameter-optimization",
+   "key_display_name": "hyperparameter optimization",
+   "count": 234
+  },
+  {
+   "key": "https://openalex.org/keywords/model-interpretability",
+   "key_display_name": "model interpretability",
+   "count": 230
+  },
+  {
+   "key": "https://openalex.org/keywords/interpretability",
+   "key_display_name": "interpretability",
+   "count": 226
+  },
+  {
+   "key": "https://openalex.org/keywords/metaheuristic-optimization",
+   "key_display_name": "metaheuristic optimization",
+   "count": 225
+  },
+  {
+   "key": "https://openalex.org/keywords/neural-network",
+   "key_display_name": "artificial neural networks",
+   "count": 224
+  },
+  {
+   "key": "https://openalex.org/keywords/data-augmentation",
+   "key_display_name": "data augmentation",
+   "count": 215
+  },
+  {
+   "key": "https://openalex.org/keywords/graph-neural-networks",
+   "key_display_name": "graph neural networks",
+   "count": 208
+  }
+ ]
+}

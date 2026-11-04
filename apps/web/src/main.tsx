@@ -13,15 +13,14 @@ import "./styles/app.css";
 import "./styles/verify.css";
 import "./styles/papers.css";
 import "./styles/workspace.css";
-import "./styles/idea.css";
-import "./styles/admin.css";
+// idea.css and admin.css are imported by the pages that use them (IdeaPage, AdminPage), which are chunks of their own: the first load has a size budget (apps/web/scripts/budget.mjs)
 import "./styles/legal.css";
 import "./styles/shell.css";
 import "./styles/icons.css";
 import { initPrefs } from "./lib/prefs";
 import { initMonitoring } from "./lib/monitoring";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { App } from "./App";
+import { App, MotionRoot } from "./App";
 
 initPrefs();
 initMonitoring();
@@ -35,7 +34,9 @@ try {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <MotionRoot>
+        <App />
+      </MotionRoot>
     </ErrorBoundary>
   </StrictMode>,
 );

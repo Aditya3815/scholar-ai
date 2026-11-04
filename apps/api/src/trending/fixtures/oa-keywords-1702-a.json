@@ -1,0 +1,161 @@
+{
+ "meta": {
+  "count": 18526,
+  "db_response_time_ms": 3191,
+  "page": 1,
+  "per_page": 200,
+  "groups_count": 200
+ },
+ "group_by": [
+  {
+   "key": "https://openalex.org/keywords/large-language-models",
+   "key_display_name": "large language models",
+   "count": 1345
+  },
+  {
+   "key": "https://openalex.org/keywords/class-imbalance",
+   "key_display_name": "class imbalance",
+   "count": 803
+  },
+  {
+   "key": "https://openalex.org/keywords/explainable-ai",
+   "key_display_name": "explainable AI",
+   "count": 786
+  },
+  {
+   "key": "https://openalex.org/keywords/sentiment-analysis",
+   "key_display_name": "sentiment analysis",
+   "count": 777
+  },
+  {
+   "key": "https://openalex.org/keywords/artificial-intelligence",
+   "key_display_name": "artificial intelligence",
+   "count": 670
+  },
+  {
+   "key": "https://openalex.org/keywords/federated-learning",
+   "key_display_name": "federated learning",
+   "count": 595
+  },
+  {
+   "key": "https://openalex.org/keywords/generative-ai",
+   "key_display_name": "generative AI",
+   "count": 465
+  },
+  {
+   "key": "https://openalex.org/keywords/retrieval-augmented-generation",
+   "key_display_name": "retrieval-augmented generation",
+   "count": 432
+  },
+  {
+   "key": "https://openalex.org/keywords/support-vector-machine",
+   "key_display_name": "support vector machine",
+   "count": 400
+  },
+  {
+   "key": "https://openalex.org/keywords/shap",
+   "key_display_name": "SHAP",
+   "count": 398
+  },
+  {
+   "key": "https://openalex.org/keywords/random-forest",
+   "key_display_name": "random forest",
+   "count": 384
+  },
+  {
+   "key": "https://openalex.org/keywords/tf-idf",
+   "key_display_name": "TF-IDF",
+   "count": 334
+  },
+  {
+   "key": "https://openalex.org/keywords/chatbots",
+   "key_display_name": "chatbots",
+   "count": 333
+  },
+  {
+   "key": "https://openalex.org/keywords/convolutional-neural-networks",
+   "key_display_name": "convolutional neural networks",
+   "count": 313
+  },
+  {
+   "key": "https://openalex.org/keywords/xgboost",
+   "key_display_name": "XGBoost",
+   "count": 312
+  },
+  {
+   "key": "https://openalex.org/keywords/transformer",
+   "key_display_name": "transformer models",
+   "count": 296
+  },
+  {
+   "key": "https://openalex.org/keywords/anomaly-detection",
+   "key_display_name": "anomaly detection",
+   "count": 284
+  },
+  {
+   "key": "https://openalex.org/keywords/differential-privacy",
+   "key_display_name": "differential privacy",
+   "count": 279
+  },
+  {
+   "key": "https://openalex.org/keywords/data-privacy",
+   "key_display_name": "data privacy",
+   "count": 277
+  },
+  {
+   "key": "https://openalex.org/keywords/model-interpretability",
+   "key_display_name": "model interpretability",
+   "count": 263
+  },
+  {
+   "key": "https://openalex.org/keywords/interpretability",
+   "key_display_name": "interpretability",
+   "count": 260
+  },
+  {
+   "key": "https://openalex.org/keywords/deep-learning",
+   "key_display_name": "deep learning",
+   "count": 254
+  },
+  {
+   "key": "https://openalex.org/keywords/low-resource-languages",
+   "key_display_name": "low-resource languages",
+   "count": 247
+  },
+  {
+   "key": "https://openalex.org/keywords/smote",
+   "key_display_name": "SMOTE",
+   "count": 231
+  },
+  {
+   "key": "https://openalex.org/keywords/twitter",
+   "key_display_name": "Twitter",
+   "count": 231
+  },
+  {
+   "key": "https://openalex.org/keywords/clinical-decision-support",
+   "key_display_name": "clinical decision support",
+   "count": 229
+  },
+  {
+   "key": "https://openalex.org/keywords/electronic-health-records",
+   "key_display_name": "electronic health records",
+   "count": 222
+  },
+  {
+   "key": "https://openalex.org/keywords/natural-language-processing",
+   "key_display_name": "natural language processing",
+   "count": 221
+  },
+  {
+   "key": "https://openalex.org/keywords/privacy-preserving-machine-learning",
+   "key_display_name": "privacy-preserving machine learning",
+   "count": 216
+  },
+  {
+   "key": "https://openalex.org/keywords/text-classification",
+   "key_display_name": "text classification",
+   "count": 212
+  }
+ ]
+}

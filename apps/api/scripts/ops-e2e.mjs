@@ -68,7 +68,15 @@ try {
     ok((await runCron()) === 200, "the cron fires");
     const { res, body } = await jobsHealth();
     ok(res.status === 200 && body.jobs[0].runs === runsBefore + 1 && body.jobs[0].state === "ok", "one run recorded, still on time");
-    ok(body.jobs.length === 2 && body.jobs[1].name === "retraction_check" && body.jobs[1].state === "ok" && body.jobs[1].runs >= 1, "the saved-paper retraction re-check is listed as a second job, and ran too");
+    ok(body.jobs.length === 3 && body.jobs[1].name === "retraction_check" && body.jobs[1].state === "ok" && body.jobs[1].runs >= 1, "the saved-paper retraction re-check is listed as a second job, and ran too");
+    ok(body.jobs[2].name === "trending" && body.jobs[2].state === "ok" && body.jobs[2].runs >= 1, "the Home page's Trending job is listed as a third job, and ran too");
+    // the job runs on its stand-ins here (QA_STUB): its one file is in KV, and the public route serves it (src/trending/job.ts, routes.ts)
+    const trending = await fetch(`${APP}/api/v1/home/trending`, { headers: { cookie: "sid=not-a-session" } });
+    const file = await trending.json();
+    ok(trending.status === 200 && trending.headers.get("cache-control") === "public, max-age=300" && !trending.headers.has("set-cookie"), "GET /api/v1/home/trending answers 200 with Cache-Control public, max-age=300, and sets no cookie");
+    ok(file.version === 1 && file.disabled === false && file.groups?.global?.chips?.length >= 8 && file.groups.global.chips.length <= 12 && Date.parse(file.validUntil) > Date.now(), "the job's first run made a file of 8 to 12 phrases, valid for the next two days (the page's own reader checks the rest)");
+    const row2 = (await sql("SELECT last_result, last_error, failures FROM job_runs WHERE name = 'trending'"))[0];
+    ok(row2.last_result === "ok" && row2.last_error === null && row2.failures === 0, "the Trending job's row says it finished well, with no error");
     ok(Date.now() - Date.parse(body.jobs[0].lastOkAt) < 120_000, "its last good run is now");
     const row = (await sql("SELECT last_result, last_error, failures, last_finished_at IS NOT NULL AS finished FROM job_runs WHERE name = 'maintenance'"))[0];
     ok(row.last_result === "ok" && row.last_error === null && row.failures === 0 && row.finished === 1, "the row says it finished well, with no error");

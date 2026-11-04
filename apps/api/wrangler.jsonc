@@ -47,7 +47,12 @@
   // Daily housekeeping (expired cache/sessions/oauth states, old usage rows): see src/maintenance.ts
   "triggers": { "crons": ["17 3 * * *"] },
   // Tells /api/v1/health/jobs that the daily job is expected here (staging has no schedule, so it does not set this).
-  "vars": { "EXPECT_CRON": "1" },
+  // A switch that must survive a deploy goes here too (same for CHAT_JUDGE and CHAT_CONTEXT). "TRENDING" ("The Trending list" in docs/runbook.md):
+  //   "dark" = the job makes the list and the route hides it (nobody is shown a list the owner has not read);
+  //   "off"  = the route hides it and the job is stopped too: THE LAUNCH STATE (4 Nov 2026). The job has never run on the real sources, its one partial run
+  //            published nothing (2 of 40 phrases passed, 8 are needed), and a job that fails every night turns /api/v1/health/jobs red and opens a Watchdog issue.
+  // The way on (runbook, "LAUNCH DARK"): make a first list by hand and read it, then "dark" (the job runs, still hidden), then take the TRENDING line out and push.
+  "vars": { "EXPECT_CRON": "1", "TRENDING": "off" },
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "observability": { "enabled": true },
 

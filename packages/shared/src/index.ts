@@ -154,3 +154,5 @@ export * from "./litscan";
 export * from "./litscan-review";
 export * from "./docx";
 export * from "./litscan-docx";
+export * from "./trending-client";
+export * from "./script";
