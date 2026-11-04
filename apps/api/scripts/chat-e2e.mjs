@@ -400,6 +400,49 @@ try {
   }
   const readOk = await followUp("only after 2022");
   ok(readOk.events.some((e) => e.type === "answer") && !readOk.events.some((e) => e.type === "notice" && e.kind === "weak"), "a follow-up the router reads is answered as before, in every position of the flag");
+  // The safety lane (R4, docs/design/intent-and-state.md, 4.5): CHAT_SAFETY is unset in wrangler.jsonc, so a default run looks at it OFF; INTEGRATION_VARS="CHAT_SAFETY:shadow", ":core" or ":on" (with "CHAT_COUNTERS:on")
+  // starts the Worker with it, and these checks look at what it does on the real Worker and the real local database. The sentences have no number in them (HELPLINE_CHECKED is null).
+  console.log("the safety lane: off and shadow change nothing; core answers the unmistakable messages with a fixed text and no search; on answers every tier");
+  const SAFETY = VARS.CHAT_SAFETY ?? "unset";
+  const URGENT_M = "my father has chest pain and his left arm hurts right now";
+  const typesOf = (r) => r.events.map((e) => e.type).join();
+  const lanes = [
+    ["an emergency", URGENT_M, "urgent"],
+    ["self-harm", "I want to kill myself", "safety"],
+    ["a plain call for help", "please help me I cant do this anymore", "safety"],
+  ];
+  const beforeLane = await countsOf("chat");
+  const beforeInput = await countsOf("chat_input");
+  for (const [what, message, reason] of lanes) {
+    for (const [who, client] of [["a signed-in person", A], ["a visitor", anon]]) {
+      const r = await chat(client, message, { mode: "auto" });
+      if (SAFETY === "core" || SAFETY === "on") {
+        ok(r.res.status === 200 && typesOf(r) === "understood,general,done" && r.events.at(-1).reason === reason && r.events.at(-1).answered === false, `CHAT_SAFETY=${SAFETY}: ${what} (${who}) is answered by the page: understood, one fixed text, done as ${reason}; no search, no papers`);
+        const text = r.events.find((e) => e.type === "general")?.text ?? "";
+        ok(r.events.find((e) => e.type === "general")?.kind === "not_research" && !/\d/.test(text) && /your local emergency number/.test(text), "...with no number in it (nothing has been checked on an official page) and the words that tell what to do");
+      } else {
+        ok(r.res.status === 200 && r.events.some((e) => e.type === "papers" || e.type === "understood") && !r.events.some((e) => e.type === "notice" && String(e.kind).startsWith("safety_")) && r.events.at(-1).reason !== reason, `CHAT_SAFETY=${SAFETY}: ${what} (${who}) is handled as it always was (a search, or the offer of a tool): no lane reply, no line`);
+      }
+    }
+  }
+  const small = await chat(A, "help", { mode: "auto" });
+  ok(small.events.at(-1).reason === "small_talk", "a bare 'help' is small talk's in every position");
+  const topic = await chat(A, "suicide prevention programmes for farmers in India", { mode: "auto" });
+  ok(topic.events.some((e) => e.type === "papers") && !["urgent", "safety"].includes(topic.events.at(-1).reason), "a research topic on suicide is searched in every position");
+  const byHand = await chat(A, "I want to kill myself", { mode: "search" });
+  const handLines = byHand.events.filter((e) => e.type === "notice" && String(e.kind).startsWith("safety_")).map((e) => e.kind);
+  ok(byHand.events.some((e) => e.type === "answer") && byHand.events.some((e) => e.type === "papers"), "a search chosen by hand keeps its papers and its written answer in every position");
+  ok(SAFETY === "core" || SAFETY === "on" ? handLines.join() === "safety_crisis" && byHand.events.findIndex((e) => e.type === "notice" && e.kind === "safety_crisis") < byHand.events.findIndex((e) => e.type === "papers") : handLines.length === 0, `...and has the crisis line above them only when the lane acts (${handLines.join() || "no line"})`);
+  const decide = await chat(A, "can I take paracetamol with my blood pressure tablets", { mode: "auto" });
+  const decideLines = decide.events.filter((e) => e.type === "notice" && String(e.kind).startsWith("safety_")).map((e) => e.kind);
+  if (SAFETY === "on") ok(decideLines.join() === "safety_decision" && decide.events.some((e) => e.type === "papers") && !decide.events.some((e) => e.type === "answer" || e.type === "general") && decide.events.at(-1).reason === "decision", "CHAT_SAFETY=on: a personal medicine decision keeps its papers, has the line above them and no written answer and no background");
+  else ok(decideLines.length === 0 && decide.events.some((e) => e.type === "answer"), `CHAT_SAFETY=${SAFETY}: a personal medicine decision is searched and answered as it always was`);
+  const laneDelta = delta(beforeLane, await countsOf("chat"));
+  const inputDelta = delta(beforeInput, await countsOf("chat_input"));
+  const wouldNames = Object.keys(inputDelta).filter((n) => /^(would_|lane_)/.test(n));
+  if (VARS.CHAT_COUNTERS === "on" && SAFETY === "shadow") ok(wouldNames.length > 0 && wouldNames.every((n) => n.startsWith("would_")) && !laneDelta.urgent && !laneDelta.safety, `shadow with the counters on counts what it would have done, by name, and nothing changed for the person (${wouldNames.join()})`);
+  else if (VARS.CHAT_COUNTERS === "on" && (SAFETY === "core" || SAFETY === "on")) ok(inputDelta.lane_urgent >= 2 && inputDelta.lane_crisis >= 2 && inputDelta.lane_help >= 2 && laneDelta.urgent === 2 && laneDelta.safety === 4, `the lane counts what it did, by closed name, for a first message in Auto (${JSON.stringify({ ...inputDelta, ...laneDelta })})`);
+  else ok(wouldNames.length === 0 && !laneDelta.urgent && !laneDelta.safety && !laneDelta.decision, `without CHAT_COUNTERS=on nothing new is stored by the lane: no would_*, no lane_*, no new ending (${JSON.stringify({ ...inputDelta, ...laneDelta })})`);
   reportStreams(ok);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);

@@ -61,6 +61,15 @@ describe("the labels of /admin", () => {
     expect(OUTCOME_TEXT.followup_unread_shadow).toMatch(/answer was written as before/);
   });
 
+  it("the three endings of the safety lane (urgent, safety, decision: the reasons of ChatNoAnswer) have a plain label of their own in the table of the prompt box, and so does what it would have done (would_*)", () => {
+    for (const name of ["urgent", "safety", "decision"]) {
+      expect(OUTCOME_TEXT[name], `no label for ${name}`).toBeTypeOf("string");
+      plainly(OUTCOME_TEXT[name]!);
+    }
+    for (const name of INPUT_SHAPE_NAMES.filter((n) => n.startsWith("would_"))) expect(INPUT_TEXT[name], name).toMatch(/not yet acted on/);
+    for (const name of INPUT_SHAPE_NAMES.filter((n) => n.startsWith("lane_"))) expect(INPUT_TEXT[name], name).toMatch(/^[A-Z]/);
+  });
+
   it("the shape of messages has a caption of its own, like every feature that is counted, and the caption says what the share is of", () => {
     for (const f of OUTCOME_FEATURES) expect(FEATURE_NAME[f], `no caption for ${f}`).toBeTypeOf("string");
     expect(FEATURE_NAME.chat_input).toMatch(/messages counted/);

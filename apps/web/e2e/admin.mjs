@@ -115,7 +115,19 @@ try {
   ok(unread?.[1] === "7", "a follow-up the model could not read is its own row, in plain words");
   ok(unreadShadow?.[1] === "9", "...and so is the same follow-up counted while the rule is only being tried");
   ok((await headline()) === headlineBefore, "the headline of the page does not move for either of them: no model was asked to write an answer for the one, and the other is in a row already");
-  await sql(["DELETE FROM answer_outcomes WHERE feature IN ('chat_input') OR outcome IN ('followup_unread', 'followup_unread_shadow')"]);
+  // the safety lane (CHAT_SAFETY, 4.5): what it would have done, what it did, and how its replies ended, each in plain words and none by its name
+  await sql([row("chat_input", "would_crisis", 3), row("chat_input", "lane_help", 2), row("chat", "urgent", 4), row("chat", "safety", 5), row("chat", "decision", 6)]);
+  await page.goto(BASE + "/admin", { waitUntil: "networkidle" });
+  await answers.waitFor({ timeout: 8000 });
+  const laneRows = await answers.locator("table tbody tr").evaluateAll((trs) => trs.map((tr) => [...tr.children].map((td) => td.textContent.trim())));
+  const laneRow = (label) => laneRows.find((r) => r[0].startsWith(label));
+  ok(laneRow("Read as saying the writer may hurt themselves, not yet acted on")?.[1] === "3", "what the lane would have done is counted in plain words, and says it was not acted on");
+  ok(laneRow("Asks for help in plain words with nothing to look up")?.[1] === "2", "...and what it did, in the words of what it answered");
+  ok(laneRow("Described an emergency: the page answered with a fixed text")?.[1] === "4" && laneRow("Said the writer may hurt themselves, or plainly asked for help")?.[1] === "5" && laneRow("Asked what the writer should take")?.[1] === "6", "how its replies ended are rows of their own, in plain words");
+  const laneText = await answers.innerText();
+  ok(!["would_crisis", "lane_help", "urgent:", "safety:"].some((name) => laneText.includes(name)), "no raw name is on the page");
+  ok((await headline()) === headlineBefore, "the headline does not move for any of them");
+  await sql(["DELETE FROM answer_outcomes WHERE feature IN ('chat_input') OR outcome IN ('followup_unread', 'followup_unread_shadow', 'urgent', 'safety', 'decision')"]);
   ok(/\b1\b/.test(await page.locator(".admin-stat").first().innerText()), "the people count is right");
   const reports = page.locator(".admin-report");
   ok((await reports.count()) === 1, "the report that was just sent is listed");
