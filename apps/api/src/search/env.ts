@@ -10,6 +10,7 @@ export type SearchBindings = CacheEnv & {
   NCBI_API_KEY?: string;
   S2_API_KEY?: string;
   CORE_API_KEY?: string;
+  SEARCH_PLAINTEXT?: string;
 };
 
 /** The search's environment from the bindings: the public cache, the keys, and the shared lane for Semantic Scholar. One place, so a new key or source is added once. */
@@ -20,5 +21,6 @@ export const searchEnvFrom = (env: SearchBindings): SearchEnv => ({
   S2_API_KEY: env.S2_API_KEY,
   CORE_API_KEY: env.CORE_API_KEY,
   CROSSREF_MAILTO: env.CROSSREF_MAILTO,
+  SEARCH_PLAINTEXT: env.SEARCH_PLAINTEXT,
   s2Gate: (maxWaitMs) => env.S2_THROTTLE.getByName("global").reserve(maxWaitMs),
 });
