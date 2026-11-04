@@ -1,0 +1,316 @@
+{
+ "version": 1,
+ "plan": "docs/design/intent-and-state.md, section 8.2",
+ "note": "A missing gold field means not labelled. Sets not built here are written by people (plan 8.2): no text of theirs exists in this repository, and the hold-out is not created here.",
+ "sets": {
+  "dev": {
+   "target": 185,
+   "targetKind": "exact",
+   "writtenBy": "the studies (visible to builders: tuning allowed)",
+   "neededBefore": "R3",
+   "status": "built",
+   "count": 187,
+   "byClass": {
+    "typos": 7,
+    "filler": 6,
+    "quantity": 5,
+    "recency_type": 6,
+    "abbrev": 6,
+    "rambling": 5,
+    "short": 5,
+    "hindi_hinglish": 5,
+    "constraints": 6,
+    "negation_exclusion": 4,
+    "comparison_multipart": 5,
+    "claim_form": 5,
+    "vague_broad": 5,
+    "acronym_ambiguity": 6,
+    "india_focused": 4,
+    "definition_or_concept": 4,
+    "how_to_or_method": 3,
+    "cause_and_effect_or_claim": 4,
+    "comparison": 3,
+    "state_of_the_art_or_overview": 4,
+    "best_or_recommended_method": 3,
+    "statistics_or_prevalence": 3,
+    "topic_by_method_or_dataset": 3,
+    "very_narrow_technical": 3,
+    "very_broad_field_name": 3,
+    "little_open_literature": 3,
+    "research_topic_with_a_personal_situation_safety": 4,
+    "controversial_topic_neutral_and_non_neutral": 5,
+    "numbers_and_units": 3,
+    "known_paper_by_title": 3,
+    "known_paper_by_authors_and_year": 3,
+    "doi_pmid_or_arxiv_id": 6,
+    "papers_by_an_author": 3,
+    "papers_from_institution_or_journal": 4,
+    "reference_list_to_check": 6,
+    "idea_to_test_for_novelty": 5,
+    "question_about_one_paper": 3,
+    "small_talk_variants": 4,
+    "off_topic_everyday_or_code": 4,
+    "request_it_cannot_do": 5,
+    "prompt_injection_or_extraction": 4,
+    "long_paste_with_request_at_end": 6,
+    "empty_ish_message": 3
+   },
+   "byLanguage": {
+    "en": 179,
+    "hinglish": 4,
+    "hi": 1,
+    "other": 3
+   },
+   "byAuthor": {
+    "study": 187
+   }
+  },
+  "safety_dev": {
+   "target": 395,
+   "targetKind": "about",
+   "writtenBy": "a clinician and a student, not the engineers; the owner in his natural Hinglish for the Hinglish part",
+   "neededBefore": "R4 (first)",
+   "status": "not built here: written by people",
+   "count": 0,
+   "byClass": {},
+   "byLanguage": {},
+   "byAuthor": {}
+  },
+  "notsearch": {
+   "target": 460,
+   "targetKind": "about",
+   "writtenBy": "people",
+   "neededBefore": "R10",
+   "status": "not built here: written by people",
+   "count": 0,
+   "byClass": {},
+   "byLanguage": {},
+   "byAuthor": {}
+  },
+  "ids_cues": {
+   "target": 390,
+   "targetKind": "about",
+   "writtenBy": "people; the lists built from the real references of the reference-extraction fixtures",
+   "neededBefore": "R13, R15",
+   "status": "not built here: written by people",
+   "count": 0,
+   "byClass": {},
+   "byLanguage": {},
+   "byAuthor": {}
+  },
+  "ask_typo_years_traps": {
+   "target": 330,
+   "targetKind": "about",
+   "writtenBy": "people",
+   "neededBefore": "R8, R12, R16, R17",
+   "status": "not built here: written by people",
+   "count": 0,
+   "byClass": {},
+   "byLanguage": {},
+   "byAuthor": {}
+  },
+  "controls": {
+   "target": 300,
+   "targetKind": "at_least",
+   "writtenBy": "existing repository data (the English router cases, the G5 titles, the G6 queries) plus clean messages drafted by the assistant, for the owner to review",
+   "neededBefore": "R8",
+   "status": "built",
+   "count": 355,
+   "byClass": {
+    "router_search": 14,
+    "g5_title": 30,
+    "g6_query": 20,
+    "trap_token": 45,
+    "clean_topic": 216,
+    "clean_hindi": 15,
+    "clean_hinglish": 15
+   },
+   "byLanguage": {
+    "en": 325,
+    "hi": 15,
+    "hinglish": 15
+   },
+   "byAuthor": {
+    "repository": 64,
+    "assistant-drafted": 291
+   }
+  },
+  "rare_valid": {
+   "target": 100,
+   "targetKind": "exact",
+   "writtenBy": "people",
+   "neededBefore": "R12",
+   "status": "not built here: written by people",
+   "count": 0,
+   "byClass": {},
+   "byLanguage": {},
+   "byAuthor": {}
+  },
+  "holdout": {
+   "target": 120,
+   "targetKind": "exact",
+   "writtenBy": "the owner, a medical student, a PhD student and a clinician; no writer sees another's list",
+   "neededBefore": "E0 end",
+   "status": "not built here: written by people",
+   "count": 0,
+   "byClass": {},
+   "byLanguage": {},
+   "byAuthor": {}
+  },
+  "chains": {
+   "target": 25,
+   "targetKind": "exact",
+   "writtenBy": "two writers per gold standalone question (the CAsT method), 20% frozen",
+   "neededBefore": "R20",
+   "status": "not built here: written by people",
+   "count": 0,
+   "byClass": {},
+   "byLanguage": {},
+   "byAuthor": {}
+  }
+ },
+ "sourcesNote": "The study files are outside the repository (the studies' working folder): only their base names are recorded. fileSha256 is the hash of the file's text, casesSha256 of the JSON of its list of cases as the files here hold it.",
+ "sources": {
+  "r3-cases-a.json": {
+   "key": "a",
+   "count": 40,
+   "fileSha256": "e5485196065bc1012f778e88d2c92ad22214290cbfd1b8b94751272fc6f2e403",
+   "casesSha256": "a2cd168acdfa078a1d1a2a2c0446b25d5150e93cf1d7d77020b037f45759bba1",
+   "meta": {
+    "_note": "40 labelled cases written BEFORE any production probe (2026-11-03, IST evening). 'anchors' = words of which a relevant title or abstract must contain at least one (case-insensitive). The anchor list is a cross-check only; the relevance label comes from the reviewer's reading of title (and abstract where shown). Classes: typos(7), filler(6), quantity(5), recency_type(6), abbrev(6), rambling(5), short(5)."
+   }
+  },
+  "r3-cases-b.json": {
+   "key": "b",
+   "count": 40,
+   "fileSha256": "67d182416d1721f7e33971aeb4fadcdfa75709ca5550bd9f092e79ee6abc9d3f",
+   "casesSha256": "85171dce955b75e7f30a473f797cbfa9b19407a94664f131b6cb3efb1c16e991",
+   "meta": {
+    "meta": {
+     "written": "2026-11-03, before any probe was run",
+     "note": "40 labelled cases for production baseline probe-b. anyOf = words a relevant result must contain (any of; matched on title, abstract and venue, lowercase). alsoAnyOf = a second group a fully relevant result should also touch (any of). avoid = words that, in a title, mean the exclusion was ignored. constraint = what is checked on the returned records. goodSystemDoes = what a good system would do. Labels of relevance are made by reading titles (and abstracts when present); the word lists only pre-screen. Cases V1-V5 and A4 are deliberately ambiguous: for them relevant means on-topic under any reasonable reading, and what matters most is whether the system asked or narrowed.",
+     "classes": [
+      "H hindi-hinglish",
+      "C constraints",
+      "N negation-exclusion",
+      "M comparison-multipart",
+      "Q claim-form",
+      "V vague-broad",
+      "A acronym-ambiguity",
+      "I india-focused"
+     ]
+    }
+   }
+  },
+  "r3-cases-c1.json": {
+   "key": "c1",
+   "count": 48,
+   "fileSha256": "51534995bd4836a20634cf559249e4548c8cc23f59cc1c153e08ee6c62ed3631",
+   "casesSha256": "66fb6edfe8805aac190cdb8353890eb83407118e0146bf1f73e2d40f03d727a3",
+   "meta": {
+    "study": "c1: categories of research questions across fields",
+    "written": "2026-11-03, before any probe",
+    "note": "Probing is as a VISITOR (not signed in): Auto uses the rules and the offline cues only, no model, and the whole message is searched as written. shouldDo values: search | search_and_say_assumption | ask_back | not_a_search. toolWanted: search | verify | idea | paper | none."
+   }
+  },
+  "r3-cases-c2.json": {
+   "key": "c2",
+   "count": 48,
+   "fileSha256": "e10fd917bfd19e0ce45b1a282ade066a6e1650db71ad5490996aa07e44887792",
+   "casesSha256": "ec9dc916130924ff46e15511ba122cf5012d97bd2c4ffe0460ca6df6d89ef51f",
+   "meta": {
+    "study": "c2 - tool boundaries and non-search intents",
+    "written_before_probing": true,
+    "date": "2026-11-03",
+    "notes": [
+     "Written BEFORE any probe. tool_wanted is one of: search, verify (Check references), idea (Idea Check), paper (Ask a paper), small_talk, none (not research / cannot be done: a good system does not search).",
+     "ideal_action: search | search_and_say_assumed | ask_back | not_a_search. 'none' cases: the product docs treat a harmless search as an acceptable default; I still count the search as a miss against the ideal and say so.",
+     "As a visitor (not signed in) the model never runs: only rules, cues and the small-talk gate decide (offlineRoute). The router-w3 eval numbers are about the signed-in model path; this study cannot see that path.",
+     "Facts checked before writing: PMID 33378609 = Baden et al, NEJM 2021 (mRNA-1273); DOIs 10.1109/CVPR.2016.90, 10.1038/s41586-021-03819-2, 10.1016/S0140-6736(20)30183-5 resolve in Crossref.",
+     "Multi-line messages use a real newline (single backslash n in this JSON)."
+    ]
+   }
+  },
+  "r3-cases-c2-followups.json": {
+   "key": "c2f",
+   "count": 11,
+   "fileSha256": "0ad1776240a058c8c1aaca3434f8d24fe3180ecd1eb5d6821be5de96f7151ffa",
+   "casesSha256": "672924ba74a019fb2d0c8afc5b91974c9573e64748c8d16b88be3e147ee39963",
+   "meta": {
+    "note": "Follow-up probes written AFTER the 48 auto probes (so not part of the pre-registered 48). They show what the same search engine returns when it is given the words a good router would have produced. cat is the category of the parent case."
+   }
+  }
+ },
+ "dev": {
+  "reconciliation": {
+   "planCount": 185,
+   "total": 187,
+   "fromFile": {
+    "r3-cases-a.json": 40,
+    "r3-cases-b.json": 40,
+    "r3-cases-c1.json": 48,
+    "r3-cases-c2.json": 48,
+    "r3-cases-c2-followups.json": 11
+   },
+   "notInPlanIds": [
+    "dev-c2-20c",
+    "dev-c2-29c"
+   ],
+   "note": "The plan's 185 is 40 + 40 + 48 + 48 + 9 follow-ups. The follow-ups file holds 11 records: the 9 follow-ups and 2 probe controls (tagged study-control). All 187 are kept, so nothing of the studies is lost; 187 - 2 = 185."
+  },
+  "doNotTouchClasses": [
+   "comparison",
+   "topic_by_method_or_dataset",
+   "very_narrow_technical",
+   "little_open_literature",
+   "known_paper_by_title"
+  ],
+  "doNotTouchNote": "A class is taken whole. known_paper_by_title holds the exact title (dev-c2-01) and also a half-remembered title (dev-c2-02) and a misspelt one (dev-c2-03); a test that wants only exact titles picks dev-c2-01.",
+  "intendedDuplicates": [
+   [
+    "dev-c2-22",
+    "dev-c2-22s"
+   ]
+  ],
+  "contestedLabels": [
+   {
+    "field": "gold.years",
+    "ids": [
+     "dev-b-C1",
+     "dev-b-H5"
+    ],
+    "why": "Study b reads 'after 2020' as years.from 2021 (after means later than). Plan 4.16 reads 'published after 2019' as years.from 2019. The same wording gives two labels, so R16's '40 of 40 year phrases read' cannot be judged against either until the owner says whether 'after N' includes N. The closed range of dev-b-C2 (between 2018 and 2020) is not in doubt and is labelled."
+   }
+  ]
+ },
+ "controls": {
+  "floor": 300,
+  "frameExceptions": {
+   "ctl-g5-24": "Plan 8.2 names the 30 G5 titles as controls, and this one opens with 'The', which plan 4.8 lists among the leading determiners (some, any, all, the, a few) to take off: the plan disagrees with itself, and its author decides which list wins.",
+   "ctl-g5-30": "Plan 8.2 names the 30 G5 titles as controls, and this one opens with 'The', which plan 4.8 lists among the leading determiners (some, any, all, the, a few) to take off: the plan disagrees with itself, and its author decides which list wins.",
+   "ctl-g6-08": "Plan 8.2 names all 20 G6 queries as controls, and this one opens with 'how to', which plan 4.8 lists as a question stem to take off: the plan disagrees with itself, and its author decides which list wins."
+  },
+  "intendedOverlaps": [],
+  "composition": {
+   "router": {
+    "english": 70,
+    "englishSearch": 37,
+    "taken": 14,
+    "leftOut": {
+     "typo": 3,
+     "small_talk_or_order": 8,
+     "id": 2,
+     "frame": 10
+    }
+   },
+   "g5": {
+    "taken": 30,
+    "of": 100
+   },
+   "g6": {
+    "taken": 20,
+    "of": 20
+   }
+  }
+ }
+}

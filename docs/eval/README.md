@@ -125,3 +125,35 @@ the year rule above first let two altered-year fakes through because of the year
 - Fabrications here were written by us; real LLM fabrications may differ. Add real ones (from the "wrong citation" button) as they arrive.
 - Replay protects against code regressions, not upstream drift (that is what the weekly live run is for).
 - Recordings are trimmed (abstracts and unused fields dropped) and contain no API keys or email addresses.
+
+## Understanding eval (Phase 0 of docs/design/intent-and-state.md)
+
+This is the measuring tape for the work that turns what a person types into what the search does (the plan's releases R1 to R23). It was built before any of that work, so that every later release is judged against numbers that were written down first. Nothing in it changes what the product does.
+
+**What exists now**
+- **Cases** (`apps/api/eval/data/`): `intent-cases.json` is the DEV set, 187 messages from the five studies (the plan's 185 plus the 2 probe controls the studies carry), every original field kept under `source.record` and only the labels a study states turned into gold labels (a field that is absent means "not labelled"). `intent-controls.json` is 355 messages that must come back unchanged (14 router cases, 30 G5 titles, 20 G6 queries, 45 messages with the plan's trap tokens, and 246 clean messages drafted by an assistant, 15 of them Hindi and 15 Hinglish that a native reader still has to check). `intent-manifest.json` counts every set against the plan's target and pins each study file by hash. The schema and its validator (it refuses e-mail addresses, links, phone numbers and invisible characters) are in `eval/lib/intent-schema.ts`. `eval/build-intent-cases.mjs` is the mapping from the study files; rerun it with no argument to rebuild the manifest after editing the controls.
+- **Gates** (`docs/eval/intent-gates.json`): the numbers of plan section 8.5 as data, 112 gates (78 `proposed`, 34 `needs_owner` because the plan gives no number, no n or an ambiguous rule; a `needs_owner` gate can never pass until the owner settles it in writing). `eval/lib/metrics.ts` reads them: exact binomial bounds, the one-sided sign test, Clopper-Pearson and Wilson intervals, Cohen's kappa, a clustered bootstrap, and `evaluateGate`, which answers pass, fail, insufficient_n, needs_owner or report_only and never passes a gate that has too few cases.
+- **Hash**: `node apps/api/scripts/intent-gates-hash.mjs` prints the canonical SHA-256 of the gates file (keys sorted, two-space indent, one line feed). It is not what `sha256sum` gives for the file's bytes. The commit that freezes the gates carries this hash in its message, written as "canonical SHA-256".
+- **Hold-out seal**: `node apps/api/scripts/intent-holdout.mjs` with `keygen`, `check`, `seal`, `verify`, `aggregate` and `reveal`. The sealed file (`apps/api/eval/data/intent-holdout.enc`, AES-256-GCM, header authenticated) is opened only with a key that stays outside the repository; `check` tests plain files against the schema with no key; only `reveal`, which the owner alone may run, prints a case, and that case then moves to DEV. The file does not exist yet.
+- **Replay plan**: `node apps/api/scripts/intent-replay-plan.mjs` prints, with no network call, which searches a recording of the cases would need (raw, read and oracle forms), how many requests that is per source, and what it costs in OpenAlex calls. It records nothing. `docs/eval/openalex-budget.md` is the budget page for it.
+- **Guides**: `docs/eval/intent-writing-guide.md` (how the people who write the sets work, the 80 hold-out scenarios in four sheets, the draft safety brief for the clinician, the owner's checklist).
+- **Tests**: `eval/intent-data.eval.ts` (the data), `eval/metrics.eval.ts` (the statistics), `eval/intent-gates.eval.ts` (the gates file against a second, independent transcription of the plan table), and `.node-test.mjs` files for the hold-out seal, the replay plan and the canonical hash.
+
+**What is NOT built yet**
+- The scoring layers that need the product (L1 to L5 of plan 8.3: `eval/intent.eval.ts`, the replay recordings, the human-label layer, the real-model layer): each comes with the release that has something to measure.
+- The sets that people write: SAFETY dev (395), NOT-A-SEARCH (460), IDS and CUES (390), ASK/TYPO/YEARS/TRAPS (330), RARE VALID (100), CHAINS (25). The manifest lists them with count 0.
+- The sealed HOLD-OUT (120 messages, written from scenarios by people who have not seen the phrase lists) and its hash.
+- The recording itself (about 600 to 1,100 searches through the real code), which needs the OpenAlex key's budget read first, and `eval/patch-fixtures.mjs` stopping at a 429, which it does not do today.
+
+**Commands**
+```bash
+cd apps/api
+npx vitest run -c vitest.eval.config.ts eval/intent-data.eval.ts eval/metrics.eval.ts eval/intent-gates.eval.ts   # also part of npm run eval
+INTENT_STUDY_DIR=<folder of the five study files> npx vitest run -c vitest.eval.config.ts eval/intent-data.eval.ts   # also compares every DEV record with the study files on disk
+node scripts/intent-gates-hash.mjs                      # the hash for the commit message
+node scripts/intent-replay-plan.mjs                     # dry run, no network
+node scripts/intent-holdout.mjs check <plain files>     # before sealing
+cd ../.. && npm run test:scripts                        # the node tests of the seal, the plan and the hash
+```
+
+**The rule.** The gates file is frozen at the commit that carries its hash (its `frozen` field is `true` there; set it first, because it changes the hash). After that a number is loosened only by the owner, in writing, and never by the engineer whose release missed it: a change to a number is a new commit whose message says the owner allowed it and gives the new hash. A gate that fails is reported as failed; it is not edited to pass.

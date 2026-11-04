@@ -1,0 +1,6172 @@
+[
+ {
+  "id": "ctl-router-000",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "glaucoma screening with smartphone fundus photographs",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 0
+  },
+  "tags": [
+   "router-plain"
+  ]
+ },
+ {
+  "id": "ctl-router-001",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "does intermittent fasting improve insulin sensitivity",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 1
+  },
+  "tags": [
+   "router-plain"
+  ]
+ },
+ {
+  "id": "ctl-router-002",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "transformer models for low-resource Indian languages",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 2
+  },
+  "tags": [
+   "router-plain"
+  ]
+ },
+ {
+  "id": "ctl-router-003",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "how effective is BCG vaccine against tuberculosis in adults",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 3
+  },
+  "tags": [
+   "router-plain"
+  ]
+ },
+ {
+  "id": "ctl-router-004",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "effect of yoga on blood pressure",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 4
+  },
+  "tags": [
+   "router-plain"
+  ]
+ },
+ {
+  "id": "ctl-router-005",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "machine learning crop yield prediction India",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 5
+  },
+  "tags": [
+   "router-plain"
+  ]
+ },
+ {
+  "id": "ctl-router-011",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "NEP 2020 higher education India",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 11
+  },
+  "tags": [
+   "router-plain"
+  ]
+ },
+ {
+  "id": "ctl-router-012",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "Is vitamin D supplementation effective for depression?",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 12
+  },
+  "tags": [
+   "router-plain"
+  ]
+ },
+ {
+  "id": "ctl-router-013",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "systematic review of mindfulness for student anxiety",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 13
+  },
+  "tags": [
+   "router-plain"
+  ]
+ },
+ {
+  "id": "ctl-router-015",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "who proved the four colour theorem",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 15
+  },
+  "tags": [
+   "router-plain"
+  ]
+ },
+ {
+  "id": "ctl-router-016",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "solar powered irrigation smallholder farmers",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 16
+  },
+  "tags": [
+   "router-plain"
+  ]
+ },
+ {
+  "id": "ctl-router-017",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "air pollution and childhood asthma in Delhi",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 17
+  },
+  "tags": [
+   "router-plain"
+  ]
+ },
+ {
+  "id": "ctl-router-145",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "novelty detection in time series",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 145
+  },
+  "tags": [
+   "router-mixed"
+  ]
+ },
+ {
+  "id": "ctl-router-147",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "source",
+  "class": "router_search",
+  "text": "bibliography of the history of Indian mathematics",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/scripts/router-cases.mjs",
+   "index": 147
+  },
+  "tags": [
+   "router-mixed"
+  ]
+ },
+ {
+  "id": "ctl-g5-01",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Inception-v4, Inception-ResNet and the Impact of Residual Connections on Learning",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 0
+  }
+ },
+ {
+  "id": "ctl-g5-02",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "A Comprehensive Survey on Graph Neural Networks",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 1
+  }
+ },
+ {
+  "id": "ctl-g5-03",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Grad-CAM: Visual Explanations from Deep Networks via Gradient-Based Localization",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 2
+  }
+ },
+ {
+  "id": "ctl-g5-04",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Deep Convolutional Neural Networks for Computer-Aided Detection: CNN Architectures, Dataset Characteristics and Transfer Learning",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 3
+  }
+ },
+ {
+  "id": "ctl-g5-05",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "BioBERT: a pre-trained biomedical language representation model for biomedical text mining",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 4
+  }
+ },
+ {
+  "id": "ctl-g5-06",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Med-BERT: pretrained contextualized embeddings on large-scale structured electronic health records for disease prediction",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 5
+  }
+ },
+ {
+  "id": "ctl-g5-07",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "AMMU: A survey of transformer-based biomedical pretrained language models",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 6
+  }
+ },
+ {
+  "id": "ctl-g5-08",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Classification of Brain Tumor from Magnetic Resonance Imaging Using Vision Transformers Ensembling",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 7
+  }
+ },
+ {
+  "id": "ctl-g5-09",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "A Programmable Dual-RNA-Guided DNA Endonuclease in Adaptive Bacterial Immunity",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 8
+  }
+ },
+ {
+  "id": "ctl-g5-10",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Multiplex Genome Engineering Using CRISPR/Cas Systems",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 9
+  }
+ },
+ {
+  "id": "ctl-g5-11",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Genome engineering using the CRISPR-Cas9 system",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 10
+  }
+ },
+ {
+  "id": "ctl-g5-12",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "RNA-Guided Human Genome Engineering via Cas9",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 11
+  }
+ },
+ {
+  "id": "ctl-g5-13",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Global estimates of visual impairment: 2010",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 12
+  }
+ },
+ {
+  "id": "ctl-g5-14",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Effectiveness of Covid-19 Vaccines against the B.1.617.2 (Delta) Variant",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 13
+  }
+ },
+ {
+  "id": "ctl-g5-15",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "BNT162b2 mRNA Covid-19 Vaccine in a Nationwide Mass Vaccination Setting",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 14
+  }
+ },
+ {
+  "id": "ctl-g5-16",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Covid-19 Vaccine Effectiveness against the Omicron (B.1.1.529) Variant",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 15
+  }
+ },
+ {
+  "id": "ctl-g5-17",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Cancer immunotherapy using checkpoint blockade",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 16
+  }
+ },
+ {
+  "id": "ctl-g5-18",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "TGFβ attenuates tumour response to PD-L1 blockade by contributing to exclusion of T cells",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 17
+  }
+ },
+ {
+  "id": "ctl-g5-19",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Signatures of T cell dysfunction and exclusion predict cancer immunotherapy response",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 18
+  }
+ },
+ {
+  "id": "ctl-g5-20",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Pan-cancer Immunogenomic Analyses Reveal Genotype-Immunophenotype Relationships and Predictors of Response to Checkpoint Blockade",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 19
+  }
+ },
+ {
+  "id": "ctl-g5-21",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Solutions for a cultivated planet",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 20
+  }
+ },
+ {
+  "id": "ctl-g5-22",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Investigating soil moisture-climate interactions in a changing climate: A review",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 21
+  }
+ },
+ {
+  "id": "ctl-g5-23",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Climate Change 2007: Impacts, Adaptation and Vulnerability. Contribution of Working Group II to the Fourth Assessment Report of the Intergovernmental Panel on Climate Change",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 22
+  }
+ },
+ {
+  "id": "ctl-g5-24",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "The impacts of climate change on water resources and agriculture in China",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 23
+  }
+ },
+ {
+  "id": "ctl-g5-25",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Organometal Halide Perovskites as Visible-Light Sensitizers for Photovoltaic Cells",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 24
+  }
+ },
+ {
+  "id": "ctl-g5-26",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Efficient Hybrid Solar Cells Based on Meso-Superstructured Organometal Halide Perovskites",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 25
+  }
+ },
+ {
+  "id": "ctl-g5-27",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Electron-Hole Diffusion Lengths Exceeding 1 Micrometer in an Organometal Trihalide Perovskite Absorber",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 26
+  }
+ },
+ {
+  "id": "ctl-g5-28",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Sequential deposition as a route to high-performance perovskite-sensitized solar cells",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 27
+  }
+ },
+ {
+  "id": "ctl-g5-29",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "Materials for electrochemical capacitors",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 28
+  }
+ },
+ {
+  "id": "ctl-g5-30",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g5_title",
+  "text": "The chemistry of two-dimensional layered transition metal dichalcogenide nanosheets",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/papers.json",
+   "index": 29
+  }
+ },
+ {
+  "id": "ctl-g6-01",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "Deep learning LeCun Bengio Hinton",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 0
+  }
+ },
+ {
+  "id": "ctl-g6-02",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "programmable dual-RNA-guided DNA endonuclease in adaptive bacterial immunity",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 1
+  }
+ },
+ {
+  "id": "ctl-g6-03",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "random forests Breiman 2001",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 2
+  }
+ },
+ {
+  "id": "ctl-g6-04",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "support-vector networks Cortes Vapnik",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 3
+  }
+ },
+ {
+  "id": "ctl-g6-05",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "preferred reporting items for systematic reviews and meta-analyses: the PRISMA statement",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 4
+  }
+ },
+ {
+  "id": "ctl-g6-06",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "gradient-based learning applied to document recognition",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 5
+  }
+ },
+ {
+  "id": "ctl-g6-07",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "coefficient alpha and the internal structure of tests Cronbach",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 6
+  }
+ },
+ {
+  "id": "ctl-g6-08",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "how to conduct a bibliometric analysis: an overview and guidelines",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 7
+  },
+  "tags": [
+   "plan-conflict"
+  ]
+ },
+ {
+  "id": "ctl-g6-09",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "clinical features of patients infected with 2019 novel coronavirus in Wuhan, China",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 8
+  }
+ },
+ {
+  "id": "ctl-g6-10",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "BERT pre-training of deep bidirectional transformers for language understanding",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 9
+  }
+ },
+ {
+  "id": "ctl-g6-11",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "Adam: a method for stochastic optimization",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 10
+  }
+ },
+ {
+  "id": "ctl-g6-12",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "ImageNet classification with deep convolutional neural networks",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 11
+  }
+ },
+ {
+  "id": "ctl-g6-13",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "using thematic analysis in psychology Braun Clarke",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 12
+  }
+ },
+ {
+  "id": "ctl-g6-14",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "fuzzy sets Zadeh 1965",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 13
+  }
+ },
+ {
+  "id": "ctl-g6-15",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "a mathematical theory of communication Shannon",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 14
+  }
+ },
+ {
+  "id": "ctl-g6-16",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "attention is all you need",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 15
+  }
+ },
+ {
+  "id": "ctl-g6-17",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "generative adversarial networks Goodfellow",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 16
+  }
+ },
+ {
+  "id": "ctl-g6-18",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "hallmarks of cancer: the next generation",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 17
+  }
+ },
+ {
+  "id": "ctl-g6-19",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "global burden of 369 diseases and injuries in 204 countries and territories 1990-2019",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 18
+  }
+ },
+ {
+  "id": "ctl-g6-20",
+  "set": "controls",
+  "author": "repository",
+  "language": "en",
+  "languageBasis": "latin",
+  "class": "g6_query",
+  "text": "mastering the game of Go with deep neural networks and tree search",
+  "gold": {
+   "tool": "search",
+   "spell": null
+  },
+  "source": {
+   "file": "apps/api/eval/data/topical.json",
+   "index": 19
+  }
+ },
+ {
+  "id": "ctl-trap-01",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "all-trans retinoic acid in acute promyelocytic leukemia",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "all-trans retinoic acid"
+   ]
+  },
+  "tags": [
+   "trap-all-trans-retinoic-acid"
+  ]
+ },
+ {
+  "id": "ctl-trap-02",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "Does all-trans retinoic acid improve outcomes in neuroblastoma?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "all-trans retinoic acid"
+   ]
+  },
+  "tags": [
+   "trap-all-trans-retinoic-acid"
+  ]
+ },
+ {
+  "id": "ctl-trap-03",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "mechanism of all-trans retinoic acid induced differentiation",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "all-trans retinoic acid"
+   ]
+  },
+  "tags": [
+   "trap-all-trans-retinoic-acid"
+  ]
+ },
+ {
+  "id": "ctl-trap-04",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "all-trans retinoic acid and photoaging of human skin",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "all-trans retinoic acid"
+   ]
+  },
+  "tags": [
+   "trap-all-trans-retinoic-acid"
+  ]
+ },
+ {
+  "id": "ctl-trap-05",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "TOP2A expression in cancer",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "TOP2A"
+   ]
+  },
+  "tags": [
+   "trap-top2a"
+  ]
+ },
+ {
+  "id": "ctl-trap-06",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "TOP2A inhibitors and drug resistance in breast cancer",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "TOP2A"
+   ]
+  },
+  "tags": [
+   "trap-top2a"
+  ]
+ },
+ {
+  "id": "ctl-trap-07",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "Is TOP2A a prognostic marker in hepatocellular carcinoma?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "TOP2A"
+   ]
+  },
+  "tags": [
+   "trap-top2a"
+  ]
+ },
+ {
+  "id": "ctl-trap-08",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "CAN bus security in modern vehicles",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "CAN bus"
+   ]
+  },
+  "tags": [
+   "trap-can-bus"
+  ]
+ },
+ {
+  "id": "ctl-trap-09",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "intrusion detection for CAN bus networks",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "CAN bus"
+   ]
+  },
+  "tags": [
+   "trap-can-bus"
+  ]
+ },
+ {
+  "id": "ctl-trap-10",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "message authentication on a CAN bus in heavy trucks",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "CAN bus"
+   ]
+  },
+  "tags": [
+   "trap-can-bus"
+  ]
+ },
+ {
+  "id": "ctl-trap-11",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "You Only Look Once: unified, real-time object detection",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "You Only Look Once"
+   ]
+  },
+  "tags": [
+   "trap-you-only-look-once"
+  ]
+ },
+ {
+  "id": "ctl-trap-12",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "You Only Look Once for small object detection in drone images",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "You Only Look Once"
+   ]
+  },
+  "tags": [
+   "trap-you-only-look-once"
+  ]
+ },
+ {
+  "id": "ctl-trap-13",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "improvements to You Only Look Once for traffic sign recognition",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "You Only Look Once"
+   ]
+  },
+  "tags": [
+   "trap-you-only-look-once"
+  ]
+ },
+ {
+  "id": "ctl-trap-14",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "Papers with Code benchmarks for image classification",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "Papers with Code"
+   ]
+  },
+  "tags": [
+   "trap-papers-with-code"
+  ]
+ },
+ {
+  "id": "ctl-trap-15",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "reproducibility of results listed on Papers with Code",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "Papers with Code"
+   ]
+  },
+  "tags": [
+   "trap-papers-with-code"
+  ]
+ },
+ {
+  "id": "ctl-trap-16",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "Is the Papers with Code leaderboard reliable for comparing models?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "Papers with Code"
+   ]
+  },
+  "tags": [
+   "trap-papers-with-code"
+  ]
+ },
+ {
+  "id": "ctl-trap-17",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "new-onset diabetes after kidney transplantation",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "new-onset diabetes"
+   ]
+  },
+  "tags": [
+   "trap-new-onset-diabetes"
+  ]
+ },
+ {
+  "id": "ctl-trap-18",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "risk factors for new-onset diabetes after COVID-19 infection",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "new-onset diabetes"
+   ]
+  },
+  "tags": [
+   "trap-new-onset-diabetes"
+  ]
+ },
+ {
+  "id": "ctl-trap-19",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "Do statins cause new-onset diabetes?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "new-onset diabetes"
+   ]
+  },
+  "tags": [
+   "trap-new-onset-diabetes"
+  ]
+ },
+ {
+  "id": "ctl-trap-20",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "CRISPR base editing for sickle cell disease",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "CRISPR"
+   ]
+  },
+  "tags": [
+   "trap-crispr"
+  ]
+ },
+ {
+  "id": "ctl-trap-21",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "CRISPR off-target detection methods",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "CRISPR"
+   ]
+  },
+  "tags": [
+   "trap-crispr"
+  ]
+ },
+ {
+  "id": "ctl-trap-22",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "Is CRISPR screening feasible in primary T cells?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "CRISPR"
+   ]
+  },
+  "tags": [
+   "trap-crispr"
+  ]
+ },
+ {
+  "id": "ctl-trap-23",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "GAN training instability and mode collapse",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "GAN"
+   ]
+  },
+  "tags": [
+   "trap-gan"
+  ]
+ },
+ {
+  "id": "ctl-trap-24",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "GAN based data augmentation for skin lesion classification",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "GAN"
+   ]
+  },
+  "tags": [
+   "trap-gan"
+  ]
+ },
+ {
+  "id": "ctl-trap-25",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "Why does GAN training collapse on small datasets?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "GAN"
+   ]
+  },
+  "tags": [
+   "trap-gan"
+  ]
+ },
+ {
+  "id": "ctl-trap-26",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "BERT fine-tuning for clinical text classification",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "BERT"
+   ]
+  },
+  "tags": [
+   "trap-bert"
+  ]
+ },
+ {
+  "id": "ctl-trap-27",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "BERT embeddings for legal document retrieval",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "BERT"
+   ]
+  },
+  "tags": [
+   "trap-bert"
+  ]
+ },
+ {
+  "id": "ctl-trap-28",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "Is BERT robust to adversarial misspellings?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "BERT"
+   ]
+  },
+  "tags": [
+   "trap-bert"
+  ]
+ },
+ {
+  "id": "ctl-trap-29",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "RAG evaluation metrics for question answering",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "RAG"
+   ]
+  },
+  "tags": [
+   "trap-rag"
+  ]
+ },
+ {
+  "id": "ctl-trap-30",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "RAG for enterprise document search",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "RAG"
+   ]
+  },
+  "tags": [
+   "trap-rag"
+  ]
+ },
+ {
+  "id": "ctl-trap-31",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "Does RAG reduce hallucination in clinical question answering?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "RAG"
+   ]
+  },
+  "tags": [
+   "trap-rag"
+  ]
+ },
+ {
+  "id": "ctl-trap-32",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "5G network slicing for industrial IoT",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "5G"
+   ]
+  },
+  "tags": [
+   "trap-5g"
+  ]
+ },
+ {
+  "id": "ctl-trap-33",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "energy consumption of 5G base stations",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "5G"
+   ]
+  },
+  "tags": [
+   "trap-5g"
+  ]
+ },
+ {
+  "id": "ctl-trap-34",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "Are 5G millimetre waves safe for human health?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "5G"
+   ]
+  },
+  "tags": [
+   "trap-5g"
+  ]
+ },
+ {
+  "id": "ctl-trap-35",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "GPT-4 performance on medical licensing exams",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "GPT-4"
+   ]
+  },
+  "tags": [
+   "trap-gpt-4"
+  ]
+ },
+ {
+  "id": "ctl-trap-36",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "GPT-4 for automated essay scoring",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "GPT-4"
+   ]
+  },
+  "tags": [
+   "trap-gpt-4"
+  ]
+ },
+ {
+  "id": "ctl-trap-37",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "Can GPT-4 screen abstracts for systematic reviews?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "GPT-4"
+   ]
+  },
+  "tags": [
+   "trap-gpt-4"
+  ]
+ },
+ {
+  "id": "ctl-trap-38",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "top-down proteomics of intact proteins",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "top-down"
+   ]
+  },
+  "tags": [
+   "trap-top-down"
+  ]
+ },
+ {
+  "id": "ctl-trap-39",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "Type 2 diabetes remission after bariatric surgery",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "Type 2"
+   ]
+  },
+  "tags": [
+   "trap-type-2"
+  ]
+ },
+ {
+  "id": "ctl-trap-40",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "5-year survival after lung cancer surgery",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "5-year"
+   ]
+  },
+  "tags": [
+   "trap-5-year"
+  ]
+ },
+ {
+  "id": "ctl-trap-41",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "COVID-19 vaccine effectiveness in older adults",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "COVID-19"
+   ]
+  },
+  "tags": [
+   "trap-covid-19"
+  ]
+ },
+ {
+  "id": "ctl-trap-42",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "HbA1c variability and diabetic complications",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "HbA1c"
+   ]
+  },
+  "tags": [
+   "trap-hba1c"
+  ]
+ },
+ {
+  "id": "ctl-trap-43",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "IL-6 inhibitors in rheumatoid arthritis",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "IL-6"
+   ]
+  },
+  "tags": [
+   "trap-il-6"
+  ]
+ },
+ {
+  "id": "ctl-trap-44",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "p53 mutations in colorectal cancer",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "p53"
+   ]
+  },
+  "tags": [
+   "trap-p53"
+  ]
+ },
+ {
+  "id": "ctl-trap-45",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "trap_token",
+  "text": "PM2.5 exposure and childhood asthma",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null,
+   "protected": [
+    "PM2.5"
+   ]
+  },
+  "tags": [
+   "trap-pm2-5"
+  ]
+ },
+ {
+  "id": "ctl-new-001",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "sepsis biomarkers in emergency department triage",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-medicine",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-002",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "postoperative delirium prevention in elderly hip fracture patients",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-medicine",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-003",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does early mobilisation shorten hospital stay after stroke?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-medicine",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-004",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is aspirin useful for primary prevention of colorectal cancer?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-medicine",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-005",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Tranexamic acid in postpartum haemorrhage: a randomised placebo-controlled trial",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-medicine",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-006",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "WOMAN trial 2017 tranexamic acid maternal mortality",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-medicine",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-007",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"number needed to treat\" interpretation in clinical trials",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-medicine",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-008",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "pressure ulcer risk assessment scales in intensive care",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-medicine",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-009",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "hippocampal place cells and spatial memory",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-neuroscience",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-010",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "deep brain stimulation for treatment-resistant depression",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-neuroscience",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-011",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Why does sleep deprivation impair working memory?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-neuroscience",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-012",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Can transcranial magnetic stimulation improve post-stroke aphasia?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-neuroscience",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-013",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Adult neurogenesis in the human hippocampus: evidence and controversy",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-neuroscience",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-014",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "BRAIN Initiative 2013 research priorities",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-neuroscience",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-015",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"default mode network\" connectivity in schizophrenia",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-neuroscience",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-016",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "microglia activation in neurodegenerative disease",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-neuroscience",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-017",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "tuberculosis case finding in urban slums",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-public-health",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-018",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "oral cholera vaccine campaigns in sub-Saharan Africa",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-public-health",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-019",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does community health worker home visiting reduce neonatal mortality?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-public-health",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-020",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Are sugar-sweetened beverage taxes effective in lowering consumption?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-public-health",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-021",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Global, regional and national burden of stroke: a systematic analysis",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-public-health",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-022",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Ebola outbreak West Africa 2014 response evaluation",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-public-health",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-023",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"herd immunity\" thresholds for measles",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-public-health",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-024",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "maternal anaemia and low birth weight in South Asia",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-public-health",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-025",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "pharmacokinetics of vancomycin in critically ill children",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-pharmacology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-026",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "CYP3A4 inhibition by grapefruit juice",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-pharmacology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-027",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is metformin safe in patients with chronic kidney disease?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-pharmacology",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-028",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Do proton pump inhibitors increase fracture risk?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-pharmacology",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-029",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Drug-drug interactions between warfarin and common antibiotics",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-pharmacology",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-030",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "thalidomide tragedy 1961 and drug regulation reform",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-pharmacology",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-031",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"therapeutic drug monitoring\" of antiepileptics",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-pharmacology",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-032",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "adverse drug reaction reporting systems in hospitals",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-pharmacology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-033",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "graph neural networks for molecular property prediction",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-computer-science",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-034",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "self-supervised representation learning for time series",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-computer-science",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-035",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Why do deep neural networks generalise despite overparameterisation?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-computer-science",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-036",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does batch normalisation reduce internal covariate shift?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-computer-science",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-037",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Dropout: a simple way to prevent neural networks from overfitting",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-computer-science",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-038",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "ImageNet challenge 2012 results and the rise of deep learning",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-computer-science",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-039",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"scaling laws\" for neural language models",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-computer-science",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-040",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "differential privacy in federated learning",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-computer-science",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-041",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "named entity recognition for low-resource languages",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-language-technology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-042",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "machine translation evaluation with human judgements",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-language-technology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-043",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Can large language models reason about causality?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-language-technology",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-044",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is perplexity a reliable measure of language model quality?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-language-technology",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-045",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Cross-lingual transfer learning for sentiment analysis in Indian languages",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-language-technology",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-046",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "SemEval 2016 aspect-based sentiment analysis task",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-language-technology",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-047",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"code-mixing\" in social media text",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-language-technology",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-048",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "speech recognition for children's voices",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-language-technology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-049",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "topological insulators and surface states",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-physics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-050",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "gravitational wave detection with laser interferometers",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-physics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-051",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Why does superconductivity disappear above a critical temperature?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-physics",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-052",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is dark matter made of axions?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-physics",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-053",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Observation of gravitational waves from a binary black hole merger",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-physics",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-054",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Higgs boson discovery 2012 ATLAS and CMS combined analysis",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-physics",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-055",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"quantum supremacy\" claims and classical simulation",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-physics",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-056",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "neutrino oscillation parameters from reactor experiments",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-physics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-057",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "palladium-catalysed cross-coupling reaction mechanisms",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-chemistry",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-058",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "metal-organic frameworks for carbon dioxide capture",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-chemistry",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-059",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Why do enzymes accelerate reactions by many orders of magnitude?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-chemistry",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-060",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is hydrogen peroxide a viable green oxidant for epoxidation?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-chemistry",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-061",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Click chemistry: diverse chemical function from a few good reactions",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-chemistry",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-062",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Nobel Prize chemistry 2019 lithium-ion battery development",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-chemistry",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-063",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"green chemistry\" metrics for pharmaceutical synthesis",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-chemistry",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-064",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "density functional theory benchmarks for transition metal complexes",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-chemistry",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-065",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "graphene oxide membranes for water desalination",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-materials",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-066",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "shape memory alloys in biomedical stents",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-materials",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-067",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does grain boundary engineering improve corrosion resistance of stainless steel?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-materials",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-068",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Are perovskite solar cells stable enough for commercial use?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-materials",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-069",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Self-healing polymers and composites",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-materials",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-070",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Bessemer process 1856 and modern steelmaking",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-materials",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-071",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"high-entropy alloys\" mechanical properties at cryogenic temperatures",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-materials",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-072",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "thermal conductivity of boron nitride nanotubes",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-materials",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-073",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "polygenic risk scores for coronary artery disease",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-genetics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-074",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "mitochondrial DNA heteroplasmy and ageing",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-genetics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-075",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does epigenetic age acceleration predict mortality?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-genetics",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-076",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is lactase persistence a recent adaptation in pastoralist populations?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-genetics",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-077",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Genome-wide association studies of height: what have we learned?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-genetics",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-078",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Human Genome Project 2003 completion and sequence accuracy",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-genetics",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-079",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"missing heritability\" in complex traits",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-genetics",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-080",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "founder mutations in Indian population genetics",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-genetics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-081",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "keystone species and trophic cascades in kelp forests",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-ecology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-082",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "pollinator decline and agricultural landscapes",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-ecology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-083",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does habitat fragmentation reduce bird species richness?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-ecology",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-084",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Are marine protected areas effective for fish recovery?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-ecology",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-085",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Island biogeography and extinction debt in fragmented forests",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-ecology",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-086",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Silent Spring 1962 and pesticide policy",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-ecology",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-087",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"ecosystem services\" valuation of wetlands",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-ecology",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-088",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "mangrove carbon sequestration in the Sundarbans",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-ecology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-089",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Arctic sea ice decline and mid-latitude weather",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-climate",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-090",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "El Nino southern oscillation and Indian monsoon rainfall",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-climate",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-091",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Do aerosols weaken the South Asian monsoon?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-climate",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-092",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is the Atlantic meridional overturning circulation slowing down?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-climate",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-093",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Glacier mass loss in the Himalaya: observations and projections",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-climate",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-094",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Kyoto Protocol 1997 emissions targets effectiveness",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-climate",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-095",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"carbon budget\" estimates for limiting warming to 1.5 degrees",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-climate",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-096",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "urban heat island mitigation with green roofs",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-climate",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-097",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "drip irrigation and water productivity in sugarcane",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-agriculture",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-098",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "integrated pest management in vegetable crops",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-agriculture",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-099",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does zero tillage improve wheat yields in the Indo-Gangetic plains?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-agriculture",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-100",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is vermicompost an effective substitute for chemical fertiliser?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-agriculture",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-101",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Biofortification of staple crops to reduce micronutrient deficiency",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-agriculture",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-102",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Green Revolution 1960s wheat varieties and yield gains",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-agriculture",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-103",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"conservation agriculture\" adoption by smallholders",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-agriculture",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-104",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "post-harvest losses in fruit supply chains",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-agriculture",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-105",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "conditional cash transfers and school enrolment",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-economics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-106",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "inflation targeting in emerging markets",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-economics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-107",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does microfinance reduce poverty?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-economics",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-108",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is the Phillips curve still valid?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-economics",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-109",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Long-run effects of demonetisation on informal employment",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-economics",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-110",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Asian financial crisis 1997 contagion and capital controls",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-economics",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-111",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"universal basic income\" pilot evaluations",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-economics",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-112",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "gender wage gap decomposition methods",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-economics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-113",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "social capital and neighbourhood trust",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-sociology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-114",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "caste and occupational mobility in urban India",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-sociology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-115",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does remote work change gender roles in households?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-sociology",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-116",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is social media use associated with loneliness among adolescents?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-sociology",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-117",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Strength of weak ties revisited",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-sociology",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-118",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Census of India 2011 literacy differentials by caste",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-sociology",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-119",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"digital divide\" among older adults",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-sociology",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-120",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "migrant worker networks and informal housing",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-sociology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-121",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "working memory training and fluid intelligence",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-psychology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-122",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "implicit bias measurement with the implicit association test",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-psychology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-123",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does mindfulness meditation reduce rumination?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-psychology",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-124",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is growth mindset intervention effective for low-income students?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-psychology",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-125",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Replication crisis in social psychology: causes and remedies",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-psychology",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-126",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Stanford prison experiment 1971 methodological critique",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-psychology",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-127",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"learned helplessness\" in animal models and humans",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-psychology",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-128",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "adolescent risk taking and peer influence",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-psychology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-129",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "formative assessment and student achievement",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-education",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-130",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "mother tongue instruction in early primary grades",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-education",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-131",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does class size affect learning outcomes in primary schools?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-education",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-132",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is flipped classroom teaching better than lectures for undergraduates?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-education",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-133",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Teacher professional development and classroom practice in rural schools",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-education",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-134",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Right to Education Act 2009 implementation challenges",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-education",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-135",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"learning poverty\" measurement across countries",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-education",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-136",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "midday meal programme and child nutrition",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-education",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-137",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "judicial review of administrative discretion",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-law",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-138",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "intellectual property rights for traditional knowledge",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-law",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-139",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does the right to privacy limit biometric identification schemes?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-law",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-140",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is data localisation compatible with free trade rules?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-law",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-141",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Constitutional morality and the evolution of fundamental rights",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-law",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-142",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Vishaka guidelines 1997 workplace harassment law",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-law",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-143",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"basic structure doctrine\" of the Constitution",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-law",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-144",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "arbitration clauses in consumer contracts",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-law",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-145",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Mughal land revenue administration",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-history",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-146",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Indian Ocean trade networks in the medieval period",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-history",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-147",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Why did the Bengal famine of 1943 occur?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-history",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-148",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Did the Industrial Revolution raise real wages for workers?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-history",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-149",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Peasant movements in colonial India: a historiographical survey",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-history",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-150",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Partition of India 1947 refugee resettlement",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-history",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-151",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"moral economy\" of the crowd in eighteenth-century England",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-history",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-152",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "women's education reform in nineteenth-century Bengal",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-history",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-153",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "phonological change in contact languages",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-linguistics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-154",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "bilingual language acquisition in early childhood",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-linguistics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-155",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does language shape colour perception?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-linguistics",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-156",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is Hindi-Urdu one language or two?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-linguistics",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-157",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Evidentiality in grammar: a typological perspective",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-linguistics",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-158",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Aspects of the Theory of Syntax 1965 and generative grammar",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-linguistics",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-159",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"language endangerment\" and revitalisation programmes",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-linguistics",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-160",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "code-switching patterns among urban youth",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-linguistics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-161",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "free will and moral responsibility",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-philosophy",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-162",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "epistemic injustice and testimony",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-philosophy",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-163",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Can machines have moral agency?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-philosophy",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-164",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is moral realism compatible with evolutionary explanations?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-philosophy",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-165",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Justice as fairness: a restatement",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-philosophy",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-166",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Gettier problem 1963 and the analysis of knowledge",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-philosophy",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-167",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"veil of ignorance\" and distributive justice",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-philosophy",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-168",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "personal identity and psychological continuity",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-philosophy",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-169",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "seismic retrofitting of reinforced concrete buildings",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-civil-engineering",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-170",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "geopolymer concrete durability in marine environments",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-civil-engineering",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-171",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does fibre reinforcement improve the ductility of concrete beams?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-civil-engineering",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-172",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Are pervious pavements effective for urban stormwater management?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-civil-engineering",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-173",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Performance of bridge bearings under repeated seismic loading",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-civil-engineering",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-174",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Bhuj earthquake 2001 building damage survey",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-civil-engineering",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-175",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"performance-based design\" for tall buildings",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-civil-engineering",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-176",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "scour around bridge piers in alluvial rivers",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-civil-engineering",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-177",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "grid-scale battery storage economics",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-energy",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-178",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "green hydrogen production by electrolysis",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-energy",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-179",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Can rooftop solar meet household electricity demand in India?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-energy",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-180",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is nuclear power essential for deep decarbonisation?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-energy",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-181",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Levelised cost of electricity for onshore wind: methods and uncertainties",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-energy",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-182",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Paris Agreement 2015 nationally determined contributions energy sector",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-energy",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-183",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"energy poverty\" indicators in developing countries",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-energy",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-184",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "demand response in smart grids",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-energy",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-185",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Ramanujan graphs and expander constructions",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-mathematics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-186",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "convergence rates of Markov chain Monte Carlo",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-mathematics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-187",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is the Riemann hypothesis equivalent to a statement about prime gaps?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-mathematics",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-188",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does every planar graph have a four-colouring?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-mathematics",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-189",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Prime numbers and the Riemann zeta function: a survey",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-mathematics",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-190",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Poincare conjecture 2003 Perelman proof verification",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-mathematics",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-191",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"hyperbolic geometry\" models of social networks",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-mathematics",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-192",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "optimal transport and Wasserstein distances",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-mathematics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-193",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "exoplanet atmospheres from transmission spectroscopy",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-astronomy",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-194",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "fast radio bursts and magnetar origins",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-astronomy",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-195",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Why is the universe expanding at an accelerating rate?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-astronomy",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-196",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is the Hubble tension a sign of new physics?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-astronomy",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-197",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Stellar nucleosynthesis in core-collapse supernovae",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-astronomy",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-198",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Voyager 2 1986 Uranus flyby observations",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-astronomy",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-199",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"dark energy\" constraints from supernova surveys",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-astronomy",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-200",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "galaxy rotation curves and modified gravity",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-astronomy",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-201",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "electoral systems and party fragmentation",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-political-science",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-202",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "women's reservation in local government",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-political-science",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-203",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does compulsory voting increase turnout?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-political-science",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-204",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Are coalition governments less stable than single-party governments?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-political-science",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-205",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Democratic backsliding: concepts, causes and consequences",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-political-science",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-206",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "India Against Corruption movement 2011 mobilisation",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-political-science",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-207",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"state capacity\" and economic development",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-political-science",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-208",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "federalism and fiscal transfers in India",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-political-science",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-209",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "gut microbiome response to dietary fibre",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-nutrition",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-210",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "vitamin B12 deficiency in vegetarian populations",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-nutrition",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-211",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Does intermittent fasting improve cardiometabolic health?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-nutrition",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-212",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Is breakfast skipping associated with obesity in children?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-nutrition",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-213",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Ultra-processed food consumption and mortality: a meta-analysis",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-nutrition",
+   "style-title"
+  ]
+ },
+ {
+  "id": "ctl-new-214",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "Mediterranean diet PREDIMED 2013 cardiovascular trial",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-nutrition",
+   "style-year"
+  ]
+ },
+ {
+  "id": "ctl-new-215",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "\"glycaemic index\" of traditional Indian foods",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-nutrition",
+   "style-quote"
+  ]
+ },
+ {
+  "id": "ctl-new-216",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "en",
+  "class": "clean_topic",
+  "text": "iron fortification of wheat flour",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-nutrition",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-217",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "मलेरिया की रोकथाम में मच्छरदानी का प्रभाव",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-public-health",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-218",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "जलवायु परिवर्तन और भारतीय मानसून",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-climate",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-219",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "ग्रामीण भारत में महिला साक्षरता",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-sociology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-220",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "कृत्रिम बुद्धिमत्ता और स्वास्थ्य सेवा",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-computer-science",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-221",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "बाजरे की खेती में जल प्रबंधन",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-agriculture",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-222",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "बाल पोषण और आंगनवाड़ी कार्यक्रम",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-nutrition",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-223",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "सौर ऊर्जा से सिंचाई के लाभ",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-energy",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-224",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "मोबाइल बैंकिंग और वित्तीय समावेशन",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-economics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-225",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "वायु प्रदूषण का बच्चों के फेफड़ों पर प्रभाव",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-public-health",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-226",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "क्या ध्यान से तनाव कम होता है?",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-psychology",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-227",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "हिंदी भाषा में मशीन अनुवाद की चुनौतियाँ",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-language-technology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-228",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "पंचायती राज और स्थानीय शासन",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-political-science",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-229",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "आयुर्वेद में अश्वगंधा का उपयोग",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-medicine",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-230",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "भूजल स्तर में गिरावट के कारण",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-ecology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-231",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hi",
+  "class": "clean_hindi",
+  "text": "प्राथमिक शिक्षा में मातृभाषा का महत्व",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-education",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-232",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "dengue ke lakshan aur ilaj",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-public-health",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-233",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "gehu ki fasal me khad ka prabandhan",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-agriculture",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-234",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "bharat me berozgari ke karan",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-economics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-235",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "bachon me kuposhan ki samasya",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-nutrition",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-236",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "solar pump se sinchai ke fayde",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-energy",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-237",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "mobile banking se gaon ki arthvyavastha par asar",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-economics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-238",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "jalvayu parivartan ka kisanon par prabhav",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-climate",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-239",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "plastic pradushan aur samudri jeevon par asar",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-ecology",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-240",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "machine learning se fasal ki bimari ki pehchan",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-agriculture",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-241",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "kya meditation se anxiety kam hoti hai",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-psychology",
+   "style-question"
+  ]
+ },
+ {
+  "id": "ctl-new-242",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "ayurveda me tulsi ka upyog",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-medicine",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-243",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "online shiksha ke fayde aur nuksan",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-education",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-244",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "TB ki nayi dawai par research",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-medicine",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-245",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "UPI payments aur chhote dukandaaron par asar",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-economics",
+   "style-phrase"
+  ]
+ },
+ {
+  "id": "ctl-new-246",
+  "set": "controls",
+  "author": "assistant-drafted",
+  "language": "hinglish",
+  "class": "clean_hinglish",
+  "text": "shahri hawa pradushan ka dama par asar",
+  "gold": {
+   "tool": "search",
+   "ask": "none",
+   "spell": null
+  },
+  "tags": [
+   "field-public-health",
+   "style-phrase"
+  ]
+ }
+]
