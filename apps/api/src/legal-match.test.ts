@@ -454,7 +454,10 @@ const listModules = (dir: string): string[] =>
     .sort();
 const understandFiles = (): string[] => listModules(UNDERSTAND);
 /** Modules of understand/ that export no function a string can call, with the reason: a module that runs nothing is then a decision made here, and not a hole in the run-time check. */
-const NO_FUNCTION_TO_CALL: Readonly<Record<string, string>> = { "hostile-messages.ts": "exports a list of messages and a canary string, no function" };
+const NO_FUNCTION_TO_CALL: Readonly<Record<string, string>> = {
+  "hostile-messages.ts": "exports a list of messages and a canary string, no function",
+  "lane-words.ts": "exports the phrase lists of the safety lane as data, no function (lane.ts, which reads them, is run here)",
+};
 const moduleOf = (file: string): Module => ({ label: `understand/${file}`, source: readFileSync(join(UNDERSTAND, file), "utf8"), dir: dirname(join(UNDERSTAND, file)) });
 /** A folder under node_modules/.cache (which git ignores, and which needs no Node type that this project does not declare) holding the given files; a name with a slash makes its folders. The caller removes it. */
 function tempFolder(files: Record<string, string>): { dir: string; remove: () => void } {

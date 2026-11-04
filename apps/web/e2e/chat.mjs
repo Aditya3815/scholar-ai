@@ -939,6 +939,240 @@ try {
     ok(await F.locator(".chat-turn").nth(2).locator(".chat-note[data-kind=weak]").count() === 0 && await F.locator(".chat-turn").nth(2).locator(".chat-answer").count() > 0, "a follow-up the Worker answers itself (the switch is off here) still has its answer and no such line");
     await cx.close();
   };
+  /* ============================ the safety lane ============================
+     (docs/design/intent-and-state.md, 4.5, R4.) CHAT_SAFETY is unset in the committed config (a gate flag: unset is off), so the Worker of this run does not answer a message of the lane. The streams it sends with
+     the flag at `core` or `on` are sent to the page by the test itself (apps/api/src/chat/lane-route.test.ts and the chat integration with INTEGRATION_VARS="CHAT_SAFETY:on" hold the Worker to them), and what is
+     held to account HERE is the page: the card of an emergency and of self-harm (full-contrast text of at least 1.0625rem, no "I understood this as", no reply actions, no Try chips, no "No papers were found"), its
+     one button under an emergency and none under self-harm, "Delete this chat", its own announcement, the lines above the answer and the papers, what the chat keeps on the device, and that every part of it is read
+     in the light, dark and reading themes at 1280 and 390 px. The sentences are the ones of the build with no number in them (HELPLINE_CHECKED is null). Runs in a context of its own:
+     CHAT_ONLY=safety node e2e/chat.mjs <baseUrl>. */
+  const safety = async () => {
+    console.log("the safety lane (R4): the card of an emergency and of self-harm, the lines above an answer, and what the chat keeps");
+    const URGENT = "If you or someone with you is in danger now, call your local emergency number, or go to the nearest hospital. This box finds research papers and cannot help in a medical emergency.";
+    const CRISIS_1 = "If you might hurt yourself, or you are in danger now, please call your local emergency number. In India you can also call Tele-MANAS, free and open at all hours, to talk with a trained counsellor. You do not have to face this alone. This box cannot give you the support a person can.";
+    const CRISIS_2 = "To look up research on this topic, choose Search papers and write the topic.";
+    const NOTE_URGENT = "If someone is in pain or in danger right now, call your local emergency number, or go to the nearest hospital. These papers are research, not medical advice.";
+    const NOTE_CRISIS = "If you might hurt yourself, please call your local emergency number now. In India you can also call Tele-MANAS, free and open at all hours. These papers are research and cannot give you support.";
+    const NOTE_DECISION = "I cannot say what is right for you to take. A doctor or pharmacist can. These papers are about the topic, not about your case, and no answer was written.";
+    const NOTE_CARE = "This list is research, mostly on groups of people or in the lab. It cannot tell what is right for you or your family. For your own health, ask your doctor or pharmacist.";
+    const M_URGENT = "my father has chest pain and his left arm hurts right now";
+    const M_CRISIS = "I want to kill myself";
+    const M_DECISION = "can I take paracetamol with my blood pressure tablets";
+    const M_CARE = "i am 8 weeks pregnant, what does research say about caffeine and miscarriage";
+    const cx = await newCtx({ viewport: { width: 1280, height: 900 } });
+    const F = await cx.newPage();
+    watch(F);
+    const paper = (n, title, year) => ({ id: `doi:10.1000/sf.${n}`, doi: `10.1000/sf.${n}`, pmid: null, title, authors: ["A. Rao"], year, venue: "Journal of Tests", abstract: "We looked at one thing in a small group. The result was clear.", citationCount: 3, oaUrl: null, retracted: false, retractionSources: [], sources: ["openalex"], score: 1 - n / 10 });
+    const LIST = [paper(1, "Glaucoma screening in children", 2021), paper(2, "Paediatric eye disease in rural clinics", 2022)];
+    const ANSWER = { text: "The first paper reports a clear result in a small group [1].", citations: [{ n: 1, paperId: LIST[0].id, sentenceNo: 2, sentence: "The result was clear." }], grounded: true, checked: true, leftOut: 0 };
+    const sse = (events) => events.map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
+    const understood = (q, how = "rules") => ({ type: "understood", mode: "search", query: q, language: "en", auto: how !== "chosen", how, confidence: 1 });
+    const reply = (q, text, reason) => [understood(q), { type: "general", kind: "not_research", text }, { type: "done", answered: false, reason, tookMs: 12 }];
+    const found = (q, notices, extra, done, how = "rules") => [understood(q, how), ...notices.map(([kind, text]) => ({ type: "notice", kind, text })), { type: "step", step: "search" }, { type: "papers", results: LIST, final: true }, ...extra, done];
+    const answered = { type: "done", answered: true, tookMs: 40 };
+    // what the Worker would send for each message, by the words and the way they were sent
+    const streams = (body) => {
+      if (body.message === M_URGENT && body.mode === "auto") return reply(M_URGENT, URGENT, "urgent");
+      if (body.message === M_URGENT && body.anyway) return found(M_URGENT, [["safety_urgent", NOTE_URGENT]], [{ type: "answer", answer: ANSWER }], answered, "chosen");
+      if (body.message === M_CRISIS && body.mode === "auto") return reply(M_CRISIS, `${CRISIS_1}\n\n${CRISIS_2}`, "safety");
+      if (body.message === M_CRISIS && body.mode === "search") return found(M_CRISIS, [["safety_crisis", NOTE_CRISIS]], [{ type: "answer", answer: ANSWER }], answered, "chosen");
+      if (body.message === M_DECISION) return found(M_DECISION, [["safety_decision", NOTE_DECISION]], [], { type: "done", answered: false, reason: "decision", tookMs: 30 });
+      if (body.message === M_CARE) return found(M_CARE, [["safety_care", NOTE_CARE]], [{ type: "answer", answer: ANSWER }], answered);
+      return null;
+    };
+    const posted = [];
+    F.on("request", (r) => { if (r.method() === "POST" && new URL(r.url()).pathname === "/api/v1/chat") posted.push(JSON.parse(r.postData() ?? "{}")); });
+    await F.route("**/api/v1/chat", async (route) => {
+      const body = JSON.parse(route.request().postData() ?? "{}");
+      const s = streams(body);
+      if (s) return route.fulfill({ status: 200, contentType: "text/event-stream", body: sse(s) });
+      return route.continue();
+    });
+    const signIn = async () => {
+      await F.goto(BASE + "/", { waitUntil: "networkidle" });
+      if (await F.locator(".in-head").getByRole("button", { name: /^Sign in$/ }).count()) {
+        await F.locator(".in-head").getByRole("button", { name: /^Sign in$/ }).click();
+        await F.getByRole("button", { name: "Continue with Google" }).last().click();
+      }
+      await F.locator("#hm-h").waitFor({ timeout: 20000 });
+    };
+    const sendF = async (text, tool = "Auto") => {
+      await F.waitForFunction(() => !document.querySelector('.chat-turn[data-status="working"]'), null, { timeout: 30000 });
+      await pick(F, tool);
+      await F.locator(".hm-input").fill(text);
+      await F.keyboard.press("Enter");
+    };
+    /** A new chat, as the person starts one: the headline is back and nothing of the last one is on the page. */
+    const fresh = async () => {
+      await F.locator(".ws-rail").getByRole("button", { name: "New chat" }).click();
+      await F.locator(".hm-title").waitFor({ timeout: 10000 });
+    };
+    const kept = () => F.evaluate(async () => {
+      const db = await new Promise((resolve, reject) => { const r = indexedDB.open("scholar"); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
+      const all = await new Promise((resolve) => { const q = db.transaction("chats").objectStore("chats").getAll(); q.onsuccess = () => resolve(q.result); });
+      db.close();
+      return { records: all.length, text: JSON.stringify(all), index: localStorage.getItem("scholar.chats.v1") ?? "[]" };
+    });
+    /** Waits until the conversation's one status line says exactly this; when it does not, says what it did say. */
+    const announced = async (words) => {
+      try {
+        await F.waitForFunction((s) => (document.querySelector("[data-announcer]")?.textContent ?? "") === s, words, { timeout: 6000 });
+      } catch {
+        throw new Error(`the status line did not say "${words}"; it says "${await F.locator("[data-announcer]").innerText()}"`);
+      }
+    };
+    const readable = async (label, locs) => {
+      for (const theme of ["light", "dark", "read"]) {
+        await setTheme(F, theme);
+        await F.evaluate(() => window.scrollTo(0, 0));
+        await calm(F);
+        await faded(F);
+        await axe(`${label}, ${theme}, ${await F.evaluate(() => window.innerWidth)} px`, F);
+        for (const [name, loc] of locs) {
+          const c = await contrastOf(loc);
+          ok(c >= 4.5, `${label}, ${theme}: ${name} is ${c.toFixed(2)}:1 (4.5 at least)`);
+        }
+      }
+      await setTheme(F, "light");
+    };
+    await signIn();
+
+    console.log("  an emergency: the card, in place of an answer");
+    await sendF(M_URGENT);
+    await doneN(F, 1);
+    const t1 = F.locator(".chat-turn").first();
+    const card = t1.locator(".chat-safety-card");
+    ok(await card.count() === 1 && (await card.locator(".chat-safety-first").innerText()).trim() === URGENT, "the text of the server is drawn as a card of its own");
+    ok(await t1.locator(".chat-und").count() === 0 && !/I understood this as/.test(await t1.innerText()), "no 'I understood this as' line");
+    ok(await t1.locator(".chat-acts").count() === 0 && await t1.getByRole("button", { name: /Copy|Search again/ }).count() === 0, "no reply actions (Copy, Search again)");
+    ok(await t1.locator(".chat-talk, .hm-starters").count() === 0 && !/Not small talk|Try one of|No papers were found/.test(await t1.innerText()), "no 'Not small talk?', no example chips and no 'No papers were found'");
+    ok(await t1.locator(".chat-why, .chat-general, .result, .chat-answer").count() === 0, "no dashed grey line, no background, no papers, no answer");
+    ok(await card.locator(".chat-safety-first").evaluate((el) => parseFloat(getComputedStyle(el).fontSize)) >= 17, "the first paragraph is at least 1.0625rem (17 px)");
+    ok(await card.getByRole("button", { name: "Search the research anyway" }).count() === 1 && await card.getByRole("button", { name: "Delete this chat" }).count() === 1, "one button, 'Search the research anyway', is a real button, and so is 'Delete this chat'");
+    await announced("If you or someone with you is in danger now, call your local emergency number, or go to the nearest hospital.");
+    ok(true, "its first sentence is what a screen reader is told, through the conversation's one status line");
+    await F.waitForTimeout(1500);
+    ok(!/Papers ready|Answer ready|No papers/.test(await F.locator("[data-announcer]").innerText()), "...and nothing about papers is said");
+    const k1 = await kept();
+    ok(k1.records === 0 && !/chest pain|left arm/.test(k1.text + k1.index), "the chat of one message pair is kept nowhere: no record, no place in the list, no title, no word");
+    ok(/Private chat/.test(await F.locator(".chat-title").innerText()), "...it is a private chat from then on, and the page says so");
+    await F.screenshot({ path: `${OUT}safety-urgent.png` });
+    for (const width of [1280, 390]) {
+      await F.setViewportSize({ width, height: 900 });
+      await F.evaluate(() => window.scrollTo(0, 0));
+      await calm(F);
+      ok(await noSideways(F), `at ${width} px the page does not scroll sideways`);
+      await readable("the card of an emergency", [["its text", card.locator(".chat-safety-first")], ["its button", card.getByRole("button", { name: "Search the research anyway" })], ["Delete this chat", card.getByRole("button", { name: "Delete this chat" })]]);
+    }
+    await F.setViewportSize({ width: 1280, height: 900 });
+
+    console.log("  'Search the research anyway': a search chosen by hand, with the line above the papers and the answer");
+    await card.getByRole("button", { name: "Search the research anyway" }).click();
+    await F.waitForFunction(() => document.querySelectorAll(".chat-turn .result").length > 0 && !document.querySelector('.chat-turn[data-status="working"]'), null, { timeout: 15000 });
+    const last = posted.at(-1);
+    ok(last.mode === "search" && last.anyway === true && last.message === M_URGENT, `it sends exactly a search chosen by hand with the flag (${JSON.stringify(last)})`);
+    const t1b = F.locator(".chat-turn").first();
+    const line = t1b.locator(".chat-safety[data-kind=safety_urgent]");
+    ok(await line.count() === 1 && (await line.innerText()).trim() === NOTE_URGENT, "the urgent line is drawn");
+    ok(await t1b.locator(".chat-note[data-kind=safety_urgent]").count() === 0, "...in its own style, and not as the small grey note of the other lines");
+    const order = await t1b.evaluate((el) => {
+      const pos = (sel) => { const n = el.querySelector(sel); return n ? [...el.querySelectorAll("*")].indexOf(n) : -1; };
+      return { line: pos(".chat-safety"), und: pos(".chat-und"), answer: pos(".chat-answer"), papers: pos(".chat-papers") };
+    });
+    ok(order.und >= 0 && order.und < order.line && order.line < order.answer && order.answer < order.papers, `it comes directly under the Understood line and before the answer and the papers (${JSON.stringify(order)})`);
+    ok((await line.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))) >= 16, "its text is at least 1rem");
+    await F.screenshot({ path: `${OUT}safety-urgent-note.png` });
+    for (const width of [1280, 390]) {
+      await F.setViewportSize({ width, height: 900 });
+      await F.evaluate(() => window.scrollTo(0, 0));
+      await calm(F);
+      ok(await noSideways(F), `at ${width} px the page does not scroll sideways`);
+      await readable("the urgent line above an answer", [["the line", line]]);
+    }
+    await F.setViewportSize({ width: 1280, height: 900 });
+
+    console.log("  self-harm: the card with no button, a quiet second paragraph, and Delete this chat");
+    await F.goto(BASE + "/", { waitUntil: "networkidle" });
+    await F.locator("#hm-h").waitFor({ timeout: 20000 });
+    ok(await F.locator(".hm-title").isVisible(), "after a reload the chat of the emergency is gone (nothing was kept)");
+    await sendF(M_CRISIS);
+    await doneN(F, 1);
+    const t2 = F.locator(".chat-turn").first();
+    const card2 = t2.locator(".chat-safety-card");
+    ok((await card2.locator(".chat-safety-first").innerText()).trim() === CRISIS_1 && (await card2.locator(".chat-safety-more").innerText()).trim() === CRISIS_2, "two paragraphs: what to do, and, apart and quieter, how to look up research");
+    ok(await card2.getByRole("button", { name: "Search the research anyway" }).count() === 0, "no button to search anyway: a person who may hurt themselves is not offered papers");
+    ok(await card2.locator(".chat-safety-more").evaluate((el) => parseFloat(getComputedStyle(el).fontSize)) < await card2.locator(".chat-safety-first").evaluate((el) => parseFloat(getComputedStyle(el).fontSize)), "the second paragraph is the smaller");
+    ok(await t2.locator(".chat-und, .chat-acts, .chat-talk, .chat-why, .result").count() === 0, "nothing else is drawn with it");
+    await announced("If you might hurt yourself, or you are in danger now, please call your local emergency number.");
+    ok(true, "its first sentence is announced");
+    await F.screenshot({ path: `${OUT}safety-crisis.png` });
+    for (const width of [1280, 390]) {
+      await F.setViewportSize({ width, height: 900 });
+      await F.evaluate(() => window.scrollTo(0, 0));
+      await calm(F);
+      ok(await noSideways(F), `at ${width} px the page does not scroll sideways`);
+      await readable("the card of self-harm", [["its text", card2.locator(".chat-safety-first")], ["its second paragraph", card2.locator(".chat-safety-more")], ["Delete this chat", card2.getByRole("button", { name: "Delete this chat" })]]);
+    }
+    await F.setViewportSize({ width: 1280, height: 900 });
+    await card2.getByRole("button", { name: "Delete this chat" }).click();
+    await F.locator(".hm-title").waitFor({ timeout: 8000 });
+    ok(await F.locator(".chat-turn").count() === 0 && (await kept()).records === 0, "'Delete this chat' removes it at once: the page is the empty home again");
+
+    console.log("  in a longer chat the chat stays, with its first words as its title, and the words of the message are not among the words it is found by");
+    await sendF("glaucoma screening in rural India", "Search papers");
+    await doneN(F, 1);
+    await sendF(M_URGENT);
+    await doneN(F, 2);
+    await F.waitForTimeout(1200);
+    const k2 = await kept();
+    ok(k2.records === 1 && /glaucoma/.test(k2.index) && !/chest pain|left arm/.test(JSON.parse(k2.index).map((e) => `${e.title} ${e.kw ?? ""}`).join(" ")), "the chat keeps its place in the list and its title, and neither the title nor the words it is found by hold the message");
+    ok(await F.locator(".chat-turn").nth(1).locator(".chat-safety-card").count() === 1, "and the card is drawn under the message");
+
+    console.log("  a search chosen by hand that says it: the crisis line above the answer, and the chat leaves nothing");
+    await fresh();
+    const keptBefore = (await kept()).records;
+    await sendF(M_CRISIS, "Search papers");
+    await doneN(F, 1);
+    const t3 = F.locator(".chat-turn").first();
+    const line3 = t3.locator(".chat-safety[data-kind=safety_crisis]");
+    ok(await line3.count() === 1 && (await line3.innerText()).trim() === NOTE_CRISIS && await t3.locator(".result").count() === 2 && await t3.locator(".chat-answer").count() === 1, "the line is there, and so are the papers and the written answer (a search by hand is not withheld)");
+    ok(await t3.locator(".chat-safety-card").count() === 0, "...and no card: nothing replaced the papers");
+    await F.waitForTimeout(1200);
+    ok((await kept()).records === keptBefore, `the chat of one pair that carries the crisis line is kept nowhere (the chats kept: ${keptBefore} before, ${(await kept()).records} after)`);
+    await readable("the crisis line above an answer", [["the line", line3]]);
+
+    console.log("  a question about what to take, and a health story: a line above the papers; the first has no written answer and says nothing more");
+    await fresh();
+    const keptBeforeCare = (await kept()).records;
+    await sendF(M_DECISION);
+    await doneN(F, 1);
+    const t4 = F.locator(".chat-turn").first();
+    const line4 = t4.locator(".chat-safety[data-kind=safety_decision]");
+    ok(await line4.count() === 1 && (await line4.innerText()).trim() === NOTE_DECISION, "the decision line is drawn");
+    ok(await t4.locator(".result").count() === 2 && await t4.locator(".chat-answer, .chat-general").count() === 0 && await t4.locator(".chat-why").count() === 0, "the papers are shown, no answer is written, and no second line says why (this one says it)");
+    await readable("the decision line above the papers", [["the line", line4]]);
+    await sendF(M_CARE);
+    await doneN(F, 2);
+    const t5 = F.locator(".chat-turn").nth(1);
+    const line5 = t5.locator(".chat-safety[data-kind=safety_care]");
+    ok(await line5.count() === 1 && (await line5.innerText()).trim() === NOTE_CARE && await t5.locator(".chat-answer").count() === 1, "the care line is drawn above the answer, which goes on");
+    await F.waitForTimeout(800);
+    ok((await kept()).records === keptBeforeCare + 1, "neither is a reason to keep less: the chat of the two is kept as any chat is");
+    await readable("the care line above an answer", [["the line", line5]]);
+    await F.screenshot({ path: `${OUT}safety-lines.png` });
+
+    console.log("  a server that has not got the lane (this one: the flag is unset) answers as it always did");
+    await F.unroute("**/api/v1/chat");
+    await fresh();
+    await sendF(M_URGENT);
+    await doneN(F, 1);
+    const flag = process.env.INTEGRATION_VARS ?? "";
+    const laneOn = /CHAT_SAFETY:(core|on)/.test(flag);
+    const t6 = F.locator(".chat-turn").first();
+    if (laneOn) ok(await t6.locator(".chat-safety-card").count() === 1 && await t6.locator(".result").count() === 0, "the Worker started with CHAT_SAFETY core or on answers an emergency with the card, and searches nothing");
+    else ok(await t6.locator(".chat-safety-card").count() === 0 && await t6.locator(".result").count() > 0, "with the flag unset the same words are searched as they were");
+    await cx.close();
+  };
   /* ============================ chat to chat ============================
      (docs/design/chat-actions-context.md, section 6.) Whose chats they are (a session that ends without a sign-out, another person on the same browser, another tab), the few words kept with each
      chat, the switch "Use my earlier chats" (off unless turned on), the chat chosen to continue from, a private chat, and, for every state of them, what /api/v1/chat was SENT: the body is compared
@@ -1783,6 +2017,8 @@ try {
   if (only === "context") throw new Stop();
   if (!only || only === "failpolicy") await failpolicy();
   if (only === "failpolicy") throw new Stop();
+  if (!only || only === "safety") await safety();
+  if (only === "safety") throw new Stop();
   if (!only || only === "memory") await memory();
   if (only === "memory") throw new Stop();
   if (!only || only === "layout") await layout();

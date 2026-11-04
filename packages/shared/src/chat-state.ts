@@ -399,12 +399,25 @@ function answerWords(a: AssistantMsg): string | undefined {
 }
 
 /**
+ * Does a finished reply have to leave no trace of the words on this device? True for the safety lane's two replies (`urgent`, `safety`) and for a reply that carries its crisis or urgent line (a search the
+ * person chose by hand, which has the line above its papers). The page's store then makes a chat of one message pair private at once, and in a longer chat keeps the title and leaves the words out of the
+ * words the chat is found by (docs/design/intent-and-state.md, 4.5, "What the chat remembers of it"). A reply that is still being written is not asked: its reason is known only at the end. Pure.
+ */
+export function leavesNoTrace(m: AssistantMsg): boolean {
+  if (m.status === "working") return false;
+  return m.reason === "urgent" || m.reason === "safety" || m.notices.some((n) => n.kind === "safety_crisis" || n.kind === "safety_urgent");
+}
+
+/**
  * One question of the person's and the reply under it, as context, or null when they may not be: a reply that is not a finished search (stopped, failed, interrupted, still being written; another
  * tool's, which is offered and never run here; small talk; one that was too long for a search; one that said the message is not research), and a question that cannot be sent (more than 300
  * characters is a pasted manuscript or a list, which never goes along as context; too short once the invisible characters are out). The background from general knowledge is never in it.
  */
 function historyTurn(u: UserMsg, a: AssistantMsg): { asked: AskedEntry; reply: ReplyEntry; from: AssistantMsg } | null {
   if (a.status !== "done" || a.mode !== "search" || a.reason === "routed" || a.reason === "small_talk" || a.reason === "too_long" || a.reason === "stopped" || a.general?.kind === "not_research") return null;
+  // the safety lane (docs/design/intent-and-state.md, 4.5): a message that described an emergency, said the person may hurt themselves, or asked what to take never rides along as context, and is in no words an
+  // earlier chat is found by (the same turns make both). Its reply is not an answer about anything the next message could lean on.
+  if (a.reason === "urgent" || a.reason === "safety" || a.reason === "decision" || a.notices.some((n) => n.kind === "safety_crisis" || n.kind === "safety_urgent")) return null;
   const text = askable(u.text);
   if (!text) return null;
   // what the indexes were asked: the words the reply says it searched; else, for a reply made from other words than the person wrote (searched again as written, with the year filter taken off), the words it was made from

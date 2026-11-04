@@ -20,6 +20,8 @@ import { stubChatStream, stubJudgeStream, stubSearchFor, stubStrictStream } from
 import { stubRoute } from "./stub-route";
 import { FOLLOW_UP_OUTCOMES, UNREAD_OUTCOMES, countOutcome, countOutcomes } from "../outcomes";
 import { flagOf, type FlagPosition } from "../understand/flags";
+import { NO_PLAN, planLane, safetyRead, type LanePlan } from "../understand/lane";
+import { noticeText, replyText } from "../understand/lane-text";
 import { inputShape } from "../understand/input-shape";
 import { searchEnvFrom } from "../search/env";
 import { deny } from "../problem";
@@ -55,6 +57,12 @@ type Bindings = {
    * A gate flag: unset is off.
    */
   CHAT_FAILPOLICY?: string;
+  /**
+   * R4 (4.5): the safety lane. Four positions. Unset, "off" or a value that is not one of them: nothing is read. "shadow": every Auto message is read and only counted (`would_*`, and only with CHAT_COUNTERS "on"), nothing
+   * on the wire changes. "core": the unmistakable phrases of an emergency, self-harm and a plain call for help are answered by the page with a fixed text and no search, no router and no model; a search chosen by hand
+   * gets a line. "on": every tier. The numbers in the sentences are checked by a person first (lane-text.ts HELPLINE_CHECKED), and a test fails if the committed wrangler.jsonc sets this above "shadow" until they are.
+   */
+  CHAT_SAFETY?: string;
 };
 type Env = { Bindings: Bindings };
 export const chatRoutes = new Hono<Env>();
@@ -70,8 +78,9 @@ const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB 
  * Where a gate flag of the understanding releases stands for this request (understand/flags.ts: unset is off, and an off flag reads nothing from KV). A value that is not exactly a position is off, and
  * one line says WHICH FLAG held it (a constant name, never anything of a message): a typo must not turn behaviour on, and must not pass unseen either.
  */
-async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY"): Promise<FlagPosition> {
-  const r = await flagOf(env, name);
+async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY"): Promise<FlagPosition> {
+  // the safety lane is the one flag with a fourth position, `core`, between shadow and on
+  const r = await flagOf(env, name, { allowCore: name === "CHAT_SAFETY" });
   if (r.badVariable) console.warn(JSON.stringify({ level: "warn", msg: "flag_bad_value", flag: name }));
   return r.position;
 }
@@ -254,6 +263,9 @@ chatRoutes.post("/", async (c) => {
     let oneSource = false;
     // R5: where the follow-up failure policy stands for this message; read only when the router call failed, and "off" for every other message
     let failPolicy: FlagPosition = "off";
+    // R4 (4.5): what the safety lane does for this message (nothing, while its flag is off), and which of the two care lines it would show
+    let lane: LanePlan = NO_PLAN;
+    let careKind: "health" | "distress" | null = null;
     /**
      * R3 (docs/design/intent-and-state.md, 4.4), once, as the message ends whatever the ending (so also a message that was left, or one that failed): with CHAT_COUNTERS=on the SHAPE of an Auto message
      * that carries no earlier turns is counted by closed names, in one batch, with `one_source` once a list was found; a search chosen by hand counts only `anyway` when it carries it. Never any text of
@@ -263,7 +275,7 @@ chatRoutes.post("/", async (c) => {
       if (!anyway && !(auto && !carries)) return;
       try {
         if ((await gate(c.env, "CHAT_COUNTERS")) !== "on") return;
-        await countOutcomes(c.env.DB, "chat_input", anyway ? ["anyway"] : [...inputShape(text), ...(oneSource ? ["one_source"] : [])]);
+        await countOutcomes(c.env.DB, "chat_input", anyway ? ["anyway"] : [...lane.names, ...inputShape(text), ...(oneSource ? ["one_source"] : [])]);
       } catch {
         /* counting never gets in the way of an answer */
       }
@@ -281,7 +293,9 @@ chatRoutes.post("/", async (c) => {
                 ? FOLLOW_UP_OUTCOMES.answered
                 : FOLLOW_UP_OUTCOMES.notGrounded
           : plain;
-      await countOutcome(c.env.DB, "chat", counted);
+      // the safety lane's own endings are a new name in a table that is kept: counted only when CHAT_COUNTERS is on, like every other count that is new (the privacy page says what is counted before that is switched on)
+      if (reason !== "urgent" && reason !== "safety" && reason !== "decision") await countOutcome(c.env.DB, "chat", counted);
+      else if ((await gate(c.env, "CHAT_COUNTERS")) === "on") await countOutcome(c.env.DB, "chat", counted);
       return send({ type: "done", answered, ...(reason ? { reason } : {}), tookMs: Date.now() - started });
     };
     /**
@@ -314,6 +328,25 @@ chatRoutes.post("/", async (c) => {
       // with turns before the message the rules know it (routeContextOf): after an answer only the social words are small talk, and only a message that stands alone is settled as a plain search
       const rctx = ctx ? routeContextOf(ctx) : undefined;
       // a greeting, thanks or "what can you do" is answered by the box itself: no router, no search, no model, the same for a visitor who is not signed in (unless the reader asked for the search anyway)
+      // R4 (4.5): the safety lane reads the WHOLE message before anything else: before small talk (which answers "help me" with a greeting), before the router and before any search, so that a message that
+      // describes an emergency, says the person may hurt themselves or plainly asks for help is answered by the page with a fixed text, no model and no search. Auto only; a search chosen by hand only gets a line
+      // (below). Shadow reads every Auto message and only counts. A failure of the lane never stops a message.
+      const safety = await gate(c.env, "CHAT_SAFETY");
+      if (safety !== "off" && (auto || safety !== "shadow")) {
+        try {
+          const read = safetyRead(text);
+          careKind = read.careKind;
+          lane = planLane(read, safety, auto ? "auto" : "hand");
+        } catch {
+          lane = NO_PLAN;
+        }
+      }
+      if (lane.reply) {
+        const language = detectLanguage(text);
+        await send({ type: "understood", mode: "search", query: shown, language, auto: true, how: "rules", confidence: 1 });
+        await send({ type: "general", kind: "not_research", text: replyText(lane.reply, language) });
+        return void (await done(false, lane.reply === "urgent" ? "urgent" : "safety"));
+      }
       const talk = !anyway && isSmallTalk(text, rctx);
       if (auto && !talk) {
         // a model is about to read the turns: it is not started for a day that cannot pay for the answer that follows (the quota is checked before each call and is not atomic). The words are then searched as
@@ -351,6 +384,11 @@ chatRoutes.post("/", async (c) => {
       await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}), ...(scope !== "all" && route.mode === "search" ? { scope } : {}), ...(context ? { context } : {}) });
       // counts and short names only: how many turns were read and what came of them, never a word of them
       if (follow && ctx) console.log(JSON.stringify({ level: "info", msg: "chat_followup", turns: ctx.history.turns, earlier: ctx.earlier.length, mode: route.mode, intent: follow.intent, rewrote: follow.rewrote, fellBack: follow.fellBack, check: follow.check, years: follow.yearFrom !== undefined || follow.yearTo !== undefined }));
+      // R4: the lines of the lane go right after what the message was understood as, above the answer and the papers (a search chosen by hand gets only these)
+      if (lane.notices.length > 0) {
+        const language = detectLanguage(text);
+        for (const kind of lane.notices) await send({ type: "notice", kind, text: noticeText(kind, language, { auto, careKind }) });
+      }
       if (talk) {
         outcome = "small_talk";
         await send({ type: "general", kind: "not_research", text: smallTalkReply(text, route.language, rctx) });
@@ -399,13 +437,15 @@ chatRoutes.post("/", async (c) => {
         // a year range that took every paper away says so under its own kind (the browser must not take it for a source that did not answer); a search that found nothing at all is the ordinary notice
         await send(years && beforeYears > 0 ? { type: "notice", kind: "years", text: `No paper from ${rangeWords(years.from, years.to)} was found for this. Remove the year filter to see more.` } : { type: "notice", kind: "nothing", text: NOTHING_NOTICE });
         if (unread) return void (await endUnread());
-        if (user) await background(user.id, spoken, asked);
-        return void (await done(false));
+        if (user && !lane.withhold) await background(user.id, spoken, asked);
+        return void (await done(false, lane.withhold ? "decision" : undefined));
       }
       // a short list is said to be short, under the kind of its own: it is a different thing from a source that did not answer, and both are said
       if (years && found.results.length < YEAR_FILTER_FEW) await send({ type: "notice", kind: "years", text:`Only ${found.results.length} of the papers found ${found.results.length === 1 ? "is" : "are"} from ${rangeWords(years.from, years.to)}, so this list is short. Remove the year filter to see more.` });
       if (found.results.some((p) => p.retracted)) await send({ type: "notice", kind: "retracted", text: "At least one paper in this list has been retracted. It is marked, and it was not used for the answer." });
       if (unread) return void (await endUnread());
+      // R4: a question about what the person should take: the papers of the topic are shown, and no answer is written (for a visitor too: signing in would not give one), and no background
+      if (lane.withhold) return void (await done(false, "decision"));
       if (!user) return void (await done(false, "sign_in"));
       if (poor) return void (await done(false, "quota"));
       const picked = pickEvidencePapers(found.results);

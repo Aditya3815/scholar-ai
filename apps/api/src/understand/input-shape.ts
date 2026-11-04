@@ -19,6 +19,8 @@ export const INPUT_SHAPE_NAMES = [
   "lane_urgent", "lane_crisis", "lane_decision", "lane_care", "lane_notsearch",
   "cue_paper", "cue_list", "cue_paste", "ask_acronym", "ask_broad", "spell_candidate", "scrub",
   "one_source", "tier_none", "tier_few", "anyway",
+  // R4 (4.5): the help tier of the safety lane, and what the lane would have done while it is only being read (`would_*`: shadow, and the phrases that are not yet acted on at `core`). Counted by the route, not given by `inputShape`.
+  "lane_help", "would_urgent", "would_crisis", "would_help", "would_decision", "would_care",
 ] as const;
 export type InputShapeName = (typeof INPUT_SHAPE_NAMES)[number];
 /** The four counts of subject words: exactly one of them is given to every text, so together they are the number of messages counted (and countOutcomes always keeps it, past the cap of names). */
