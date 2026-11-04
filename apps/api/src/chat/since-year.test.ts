@@ -44,9 +44,15 @@ function fakeDb(used = 0) {
               return {};
             },
             all: async () => ({ results: [] }),
+            // a statement as a batch holds it (CHAT_COUNTERS writes the names of a message in one batch)
+            __args: args,
           };
         },
       };
+    },
+    async batch(statements: { __args: unknown[] }[]) {
+      for (const s of statements) outcomes.push(`batch:${String(s.__args[0])}:${String(s.__args[1])}`);
+      return statements.map(() => ({}));
     },
   };
   return { db, outcomes };
@@ -463,5 +469,37 @@ describe("a request without sinceYear is answered exactly as before the field ex
     const plain = await wire({ name: "x", body: auto("effect of yoga on blood pressure") });
     const undef = await wire({ name: "x", body: auto("effect of yoga on blood pressure", { sinceYear: undefined }) });
     expect(undef).toEqual(plain);
+  });
+});
+
+/**
+ * The gate flags of the understanding releases (docs/design/intent-and-state.md, 4.0 and E5): in every position, the stream of every request of the list above is the golden's, byte for byte.
+ * `CHAT_COUNTERS` (R3) only counts, so even `on` changes nothing on the wire; `CHAT_FAILPOLICY` (R5) acts only on a follow-up whose router call FAILED, and no request of the list has one (the stand-in
+ * router fails on the word "boom", which none of them holds), so `shadow` and `on` change nothing here either. The two cases that do meet it are in failpolicy.test.ts, with their own expectations.
+ */
+describe("the gate flags leave the stream of every request of the list as the golden has it, in every position", () => {
+  const POSITIONS: Record<string, Record<string, string>>[] = [
+    { "CHAT_COUNTERS=off": { CHAT_COUNTERS: "off" } },
+    { "CHAT_COUNTERS=shadow": { CHAT_COUNTERS: "shadow" } },
+    { "CHAT_COUNTERS=on": { CHAT_COUNTERS: "on" } },
+    { "CHAT_FAILPOLICY=off": { CHAT_FAILPOLICY: "off" } },
+    { "CHAT_FAILPOLICY=shadow": { CHAT_FAILPOLICY: "shadow" } },
+    { "CHAT_FAILPOLICY=on": { CHAT_FAILPOLICY: "on" } },
+    { "both shadow": { CHAT_COUNTERS: "shadow", CHAT_FAILPOLICY: "shadow" } },
+    { "both on": { CHAT_COUNTERS: "on", CHAT_FAILPOLICY: "on" } },
+  ];
+  it("holds for all of them", async () => {
+    const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
+    const runs = POSITIONS.flatMap((p) => Object.entries(p).map(([label, flags]) => ({ label, flags })));
+    const results = await Promise.all(runs.map(async ({ label, flags }) => ({ label, now: await Promise.all(DIFF.map((c) => wire({ ...c, opts: { ...c.opts, env: { ...c.opts?.env, ...flags } } }))) })));
+    for (const { label, now } of results) {
+      const changed = now.filter((n, i) => JSON.stringify(n) !== JSON.stringify(golden.entries[i])).map((n) => n.name);
+      expect(changed, label).toEqual([]);
+    }
+  }, 120_000);
+
+  it("the counters, when on, do write for the requests of the list that are first messages in Auto (the test is not vacuous)", async () => {
+    const { outcomes } = await post(auto("effect of yoga on blood pressure"), { env: { CHAT_COUNTERS: "on" } });
+    expect(outcomes.filter((o) => o.startsWith("batch:chat_input:")).length).toBeGreaterThan(0);
   });
 });

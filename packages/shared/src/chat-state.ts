@@ -615,6 +615,10 @@ export function applyTighten(m: AssistantMsg, res: TightenResponse, asked?: Read
  * check refused. A message that came with the turns before it is booked by the server under `followup_answered` and `followup_not_grounded` (src/outcomes.ts), and they count here exactly as
  * `answered` and `not_grounded` do: left out, the line would cover only the first message of every chat. `followup_rewrite_failed` and `followup_context_ignored` take both endings under one name, so how
  * many of those were refused cannot be said: they are counted apart (`unsplit`) and are not guessed into either number. Counts only; no text, no person.
+ *
+ * `followup_unread` (a follow-up whose router call failed: the papers were shown and NO answer was written, CHAT_FAILPOLICY=on) is in none of the three numbers on purpose: no model was asked to write an
+ * answer, so it is not a question that the papers could have answered, and its ending is known, so it is not unsplit. `followup_unread_shadow` is a second count of messages already in another row (the
+ * answer was written as before), so it is left out too. They are in the table below the line, by name.
  */
 export function chatRefusalShare(rows: readonly { feature: string; outcome: string; n: number }[]): { attempted: number; refused: number; unsplit: number } {
   let attempted = 0;

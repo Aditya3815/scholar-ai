@@ -859,6 +859,86 @@ try {
     ok(posted.length === 1 && posted[0].raw === '{"mode":"auto","message":"only after 2020"}', `the first message of another chat carries nothing of the first (${posted[0]?.raw})`);
     await cx.close();
   };
+  /* ============================ a follow-up the model could not read ============================
+     (docs/design/intent-and-state.md, 4.6, R5.) With CHAT_FAILPOLICY=on a follow-up whose router call failed gets the papers, a plain line (the notice kind "weak") and NO written answer: the stream ends with
+     the reason not_answered. The local Worker runs with that switch unset (a gate flag: unset is off), so the stream the Worker sends with it ON is sent to the page by the test itself; apps/api/src/chat/
+     failpolicy.test.ts holds the Worker to that stream, and what is held to account HERE is the page: the line is drawn, it is the only explanation (the generic "the papers do not seem to answer this"
+     is not drawn beside it, because nobody checked the papers), nothing of an answer is drawn, the papers are, and the line is read as text in every theme. Runs in a context of its own, so it can be run
+     alone: CHAT_ONLY=failpolicy node e2e/chat.mjs <baseUrl>. */
+  const failpolicy = async () => {
+    console.log("a follow-up the model could not read (the reply of CHAT_FAILPOLICY=on): the papers, one plain line, no answer");
+    const NOTICE = "I could not tell what this refers to, so I searched your words on their own and wrote no answer.";
+    const cx = await newCtx();
+    const F = await cx.newPage();
+    watch(F);
+    const paper = (n, title, year) => ({ id: `doi:10.1000/fp.${n}`, doi: `10.1000/fp.${n}`, pmid: null, title, authors: ["A. Rao"], year, venue: "Journal of Tests", abstract: "We looked at one thing in a small group. The result was clear.", citationCount: 3, oaUrl: null, retracted: false, retractionSources: [], sources: ["openalex"], score: 1 - n / 10 });
+    const LIST = [paper(1, "Glaucoma screening in children", 2021), paper(2, "Paediatric eye disease in rural clinics", 2022)];
+    const sse = (events) => events.map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
+    const onReply = (text) => [
+      { type: "understood", mode: "search", query: text, language: "en", auto: true, how: "fallback", confidence: 0, context: { turns: 1, intent: "new", rewrote: false, fellBack: true } },
+      { type: "step", step: "search" },
+      { type: "papers", results: LIST, final: true },
+      { type: "notice", kind: "weak", text: NOTICE },
+      { type: "done", answered: false, reason: "not_answered", tookMs: 40 },
+    ];
+    let canned = true;
+    const posted = [];
+    F.on("request", (r) => { if (r.method() === "POST" && new URL(r.url()).pathname === "/api/v1/chat") posted.push(JSON.parse(r.postData() ?? "{}")); });
+    await F.route("**/api/v1/chat", async (route) => {
+      const body = JSON.parse(route.request().postData() ?? "{}");
+      if (canned && body.history) return route.fulfill({ status: 200, contentType: "text/event-stream", body: sse(onReply(body.message)) });
+      return route.continue();
+    });
+    await F.goto(BASE + "/", { waitUntil: "networkidle" });
+    await F.locator(".in-head").getByRole("button", { name: /^Sign in$/ }).click();
+    await F.getByRole("button", { name: "Continue with Google" }).last().click();
+    await F.locator("#hm-h").waitFor({ timeout: 20000 });
+    const sendF = async (text) => {
+      await F.waitForFunction(() => !document.querySelector('.chat-turn[data-status="working"]'), null, { timeout: 30000 });
+      await pick(F, "Auto");
+      await F.locator(".hm-input").fill(text);
+      await F.keyboard.press("Enter");
+    };
+    await sendF("glaucoma screening in India");
+    await doneN(F, 1);
+    await sendF("and in children?");
+    await doneN(F, 2);
+    ok(posted.length === 2 && posted[1].mode === "auto" && Array.isArray(posted[1].history), "the follow-up is sent as the page sends it, with the turns before it");
+    const t2 = F.locator(".chat-turn").nth(1);
+    ok(await t2.locator(".result").count() === 2, "the papers are shown");
+    const note = t2.locator(".chat-note[data-kind=weak]");
+    ok(await note.count() === 1 && (await note.innerText()).trim() === NOTICE, "the notice of the kind weak is drawn, in the words of the server");
+    ok(await note.locator("button").count() === 0, "...and it has no Search again of its own (the same words would be searched again)");
+    ok(await t2.locator(".chat-why").count() === 0, "nothing else says why there is no answer: the line that says the papers do not seem to answer it is not drawn beside it");
+    ok(await t2.locator(".chat-answer, .chat-bg, .chat-general").count() === 0 && await t2.getByRole("button", { name: /Check strictly/ }).count() === 0, "no answer, no background and no strict check are drawn");
+    ok(await t2.locator(".chat-ctx").count() === 0, "and no 'Using your earlier question' line: nothing was read from the earlier turns");
+    await F.screenshot({ path: `${OUT}failpolicy.png` });
+    console.log("  readable in every theme, and on a phone");
+    await F.mouse.move(5, 5);
+    for (const theme of ["light", "dark", "read"]) {
+      await setTheme(F, theme);
+      await F.evaluate(() => window.scrollTo(0, 0));
+      await calm(F);
+      await faded(F);
+      await axe(`the follow-up the model could not read, ${theme}`, F);
+      const c = await contrastOf(note.locator("span"));
+      ok(c >= 4.5, `in ${theme}: the line is ${c.toFixed(2)}:1 (4.5 at least)`);
+    }
+    await setTheme(F, "light");
+    for (const width of [390, 320]) {
+      await F.setViewportSize({ width, height: 800 });
+      await F.evaluate(() => window.scrollTo(0, 0));
+      await calm(F);
+      ok(await noSideways(F), `at ${width} px the page does not scroll sideways`);
+    }
+    await F.setViewportSize({ width: 1360, height: 900 });
+    console.log("  a stream an older server sends (the reason with no such line) is drawn as it always was");
+    canned = false;
+    await sendF("only after 2022");
+    await doneN(F, 3);
+    ok(await F.locator(".chat-turn").nth(2).locator(".chat-note[data-kind=weak]").count() === 0 && await F.locator(".chat-turn").nth(2).locator(".chat-answer").count() > 0, "a follow-up the Worker answers itself (the switch is off here) still has its answer and no such line");
+    await cx.close();
+  };
   /* ============================ chat to chat ============================
      (docs/design/chat-actions-context.md, section 6.) Whose chats they are (a session that ends without a sign-out, another person on the same browser, another tab), the few words kept with each
      chat, the switch "Use my earlier chats" (off unless turned on), the chat chosen to continue from, a private chat, and, for every state of them, what /api/v1/chat was SENT: the body is compared
@@ -1701,6 +1781,8 @@ try {
   if (only === "actions") throw new Stop();
   if (!only || only === "context") await context();
   if (only === "context") throw new Stop();
+  if (!only || only === "failpolicy") await failpolicy();
+  if (only === "failpolicy") throw new Stop();
   if (!only || only === "memory") await memory();
   if (only === "memory") throw new Stop();
   if (!only || only === "layout") await layout();

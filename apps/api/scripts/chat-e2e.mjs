@@ -353,6 +353,53 @@ try {
   ok(byOutcome.answered >= 1 && byOutcome.not_answered >= 1 && byOutcome.not_grounded >= 1 && byOutcome.small_talk >= 1 && byOutcome.sign_in >= 1 && byOutcome.routed >= 1, `the prompt box counts answered, not answered, refused by the check, small talk, signed-out and offered-another-tool (${JSON.stringify(byOutcome)})`);
   ok((counted.results?.[1] ?? []).map((r) => r.name).join() === "day,feature,outcome,n", "and the table holds a day, a feature, an outcome and a count: no text, no person");
   ok(byOutcome.followup_answered >= 1 && byOutcome.followup_rewrite_failed >= 1, `a follow-up is counted by name: answered, and one whose restatement was not used (${JSON.stringify(byOutcome)})`);
+  // The gate flags of the understanding releases (docs/design/intent-and-state.md): unset in wrangler.jsonc, so a default run looks at them OFF; INTEGRATION_VARS="CHAT_COUNTERS:on,CHAT_FAILPOLICY:on" (or
+  // shadow) starts the Worker with them, and these checks then look at what they do on the real Worker and the real local database.
+  console.log("the gate flags: off they store and change nothing; on they count closed names, never text, and a follow-up that could not be read gets no answer");
+  const VARS = Object.fromEntries((process.env.INTEGRATION_VARS ?? "").split(",").filter(Boolean).map((p) => [p.slice(0, p.indexOf(":")), p.slice(p.indexOf(":") + 1)]));
+  const sqlRows = async (stmt) => (await (await A.api("/api/v1/dev/sql", { method: "POST", body: { sql: [stmt] } })).json()).results?.[0] ?? [];
+  const countsOf = async (feature) => Object.fromEntries((await sqlRows(`SELECT outcome, SUM(n) AS n FROM answer_outcomes WHERE feature = '${feature}' GROUP BY outcome`)).map((r) => [r.outcome, r.n]));
+  const delta = (before, after) => Object.fromEntries(Object.entries(after).map(([k, n]) => [k, n - (before[k] ?? 0)]).filter(([, n]) => n !== 0));
+  const WORDS = "Can you search about CRISPR off-target effects since 2019, all papers please";
+  const shapeBefore = await countsOf("chat_input");
+  const viaA = await chat(A, WORDS, { mode: "auto" });
+  const viaVisitor = await chat(anon, WORDS, { mode: "auto" });
+  const shapeDelta = delta(shapeBefore, await countsOf("chat_input"));
+  if (VARS.CHAT_COUNTERS === "on") {
+    ok(viaA.res.status === 200 && viaVisitor.res.status === 200, "(both messages were taken)");
+    ok(Object.keys(shapeDelta).sort().join() === "frame,frame_all,frame_polite,one_source,subj2_6,year", `with CHAT_COUNTERS=on both messages are counted by their shape, a signed-in person's and a visitor's alike (${JSON.stringify(shapeDelta)})`);
+    ok(Object.values(shapeDelta).every((n) => n === 2), "...each name once for each of the two messages, and exactly one of the four subject counts");
+    const names = (await sqlRows("SELECT outcome FROM answer_outcomes WHERE feature = 'chat_input'")).map((r) => r.outcome);
+    ok(names.every((n) => /^[a-z][a-z0-9_]{0,39}$/.test(n)) && !names.some((n) => /crispr|target|effects|papers|please/i.test(n)), "no name is a word of a message");
+    const beforeHand = await countsOf("chat_input");
+    await chat(A, "hello there friend", { mode: "search" });
+    const hand = delta(beforeHand, await countsOf("chat_input"));
+    ok(Object.keys(hand).length === 0, "a search chosen by hand counts nothing (its words are searched as written, and its shape is not counted)");
+  } else {
+    ok(Object.keys(shapeDelta).length === 0 && Object.keys(shapeBefore).length === 0, `with CHAT_COUNTERS unset nothing is counted, and nothing is stored: not one row of chat_input (${JSON.stringify(shapeDelta)})`);
+  }
+  const HISTORY = [{ role: "user", text: "glaucoma screening in rural India" }, { role: "assistant", searchQuery: "glaucoma screening rural India", papers: [{ n: 1, title: "Deep learning for glaucoma screening from fundus photographs", year: 2021 }], text: "Screening found glaucoma early [1]." }];
+  const followUp = (message) => chat(A, message, { raw: JSON.stringify({ mode: "auto", message, history: HISTORY }) });
+  const chatBefore = await countsOf("chat");
+  const failed = await followUp("and in children? routertimeout");
+  const chatDelta = delta(chatBefore, await countsOf("chat"));
+  const noticeKinds = failed.events.filter((e) => e.type === "notice").map((e) => e.kind);
+  const answered = failed.events.some((e) => e.type === "answer");
+  const understoodOf = failed.events.find((e) => e.type === "understood");
+  ok(failed.res.status === 200 && understoodOf?.context?.fellBack === true, "a follow-up whose router call fails is searched as written (the stand-in router times out on the word routertimeout)");
+  if (VARS.CHAT_FAILPOLICY === "on") {
+    ok(!answered && !failed.events.some((e) => e.type === "general" || e.type === "token") && noticeKinds.includes("weak") && failed.events.at(-1).reason === "not_answered" && failed.events.at(-1).answered === false, "with CHAT_FAILPOLICY=on: the papers, the notice, no written answer and no background, the reason not_answered");
+    ok(failed.events.find((e) => e.type === "notice" && e.kind === "weak")?.text === "I could not tell what this refers to, so I searched your words on their own and wrote no answer.", "...in the words of the plan");
+    ok(chatDelta.followup_unread === 1 && !chatDelta.followup_rewrite_failed && !chatDelta.followup_unread_shadow, `...counted as followup_unread and nothing else (${JSON.stringify(chatDelta)})`);
+  } else if (VARS.CHAT_FAILPOLICY === "shadow") {
+    ok(answered && !noticeKinds.includes("weak") && failed.events.at(-1).answered === true, "with CHAT_FAILPOLICY=shadow the answer is written as before, and no such line");
+    ok(chatDelta.followup_unread_shadow === 1 && chatDelta.followup_rewrite_failed === 1 && !chatDelta.followup_unread, `...and the follow-up is counted as followup_unread_shadow, besides how it ended (${JSON.stringify(chatDelta)})`);
+  } else {
+    ok(answered && !noticeKinds.includes("weak") && failed.events.at(-1).answered === true, "with CHAT_FAILPOLICY unset a follow-up whose router call failed is what it was: an answer is written");
+    ok(chatDelta.followup_rewrite_failed === 1 && !chatDelta.followup_unread && !chatDelta.followup_unread_shadow, `...and counted as before, with none of the new names (${JSON.stringify(chatDelta)})`);
+  }
+  const readOk = await followUp("only after 2022");
+  ok(readOk.events.some((e) => e.type === "answer") && !readOk.events.some((e) => e.type === "notice" && e.kind === "weak"), "a follow-up the router reads is answered as before, in every position of the flag");
   reportStreams(ok);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);

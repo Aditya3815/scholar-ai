@@ -146,6 +146,7 @@ export * from "./stream-shape";
 export * from "./chat";
 export * from "./chat-context";
 export * from "./chat-state";
+export * from "./outcome-counts";
 export * from "./chat-copy";
 export * from "./chat-memory";
 export * from "./route";

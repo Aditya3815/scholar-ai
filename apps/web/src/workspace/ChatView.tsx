@@ -367,6 +367,11 @@ const PaperList = memo(function PaperList({ msgId, papers, flashN, working }: { 
  * the X). It says so. (It used to offer the Try chips as well: example searches have no place in a conversation, which the person is in the middle of; the empty Home offers them.)
  */
 const noPapers = (m: AssistantMsg): boolean => m.status === "done" && m.mode === "search" && m.papers.length === 0 && m.reason !== "small_talk" && m.reason !== "routed" && m.reason !== "too_long" && !m.notices.some((n) => n.kind === "years");
+/**
+ * No answer was written because the message could not be read (the notice kind "weak", docs/design/intent-and-state.md, 4.6): the notice says why, in its own words, and the general line for the reason
+ * "not_answered" ("the papers found do not seem to answer this") is not drawn beside it, since nobody checked the papers.
+ */
+const saidByNotice = (m: AssistantMsg): boolean => m.reason === "not_answered" && m.notices.some((n) => n.kind === "weak");
 
 /** What a reply is drawn from, as module constants: an object made in a render would be a new one every time, and a memoised child would be drawn again for it. */
 const REPLY_IN = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35, ease: easeOut } } as const;
@@ -473,7 +478,7 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
         </m.div>
       ) : null}
 
-      {!working && !answer && msg.status === "done" && msg.reason && msg.reason !== "routed" && msg.reason !== "small_talk" && (
+      {!working && !answer && msg.status === "done" && msg.reason && msg.reason !== "routed" && msg.reason !== "small_talk" && !saidByNotice(msg) && (
         <p className="chat-why" role="note">
           {msg.reason === "sign_in" ? (
             <span className="chat-why-row">

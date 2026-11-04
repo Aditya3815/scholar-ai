@@ -87,6 +87,35 @@ try {
   const answersText = await answers.innerText();
   ok(/Nothing counted yet|questions that the papers could have answered|No question in the prompt box was answered/.test(answersText), "it says how answers went in the last seven days, in words");
   ok(!/@|http/.test(answersText), "...with counts only: no text, no person");
+  // The counts of what messages looked like (CHAT_COUNTERS, docs/design/intent-and-state.md, 4.4) and of follow-ups the model could not read (CHAT_FAILPOLICY, 4.6). The local Worker runs with both switches
+  // unset, so nothing counts them here: the rows are written through the dev route, and what is held to account is how the page says them.
+  const sql = (statements) => page.request.post(BASE + "/api/v1/dev/sql", { headers: { Origin: BASE }, data: { sql: statements } });
+  const row = (feature, outcome, n) => `INSERT INTO answer_outcomes (day, feature, outcome, n) VALUES (date('now'), '${feature}', '${outcome}', ${n}) ON CONFLICT (day, feature, outcome) DO UPDATE SET n = n + ${n}`;
+  const headline = async () => (await page.locator("#answers-h").locator("xpath=following-sibling::p[1]").innerText()).trim();
+  await sql([row("chat", "answered", 10), row("chat_input", "subj0", 10), row("chat_input", "subj1", 20), row("chat_input", "subj2_6", 60), row("chat_input", "subj7p", 10), row("chat_input", "frame", 40), row("chat_input", "frame_polite", 15), row("chat_input", "year", 5), row("chat_input", "one_source", 30), row("chat_input", "anyway", 2)]);
+  await page.goto(BASE + "/admin", { waitUntil: "networkidle" });
+  await answers.waitFor({ timeout: 8000 });
+  const headlineBefore = await headline();
+  const shape = answers.locator("table").filter({ has: page.locator("caption", { hasText: "What a first message in the prompt box looked like" }) });
+  ok(await shape.count() === 1, "the shape of messages has a table of its own, with a caption that says what it is");
+  const shapeRows = await shape.locator("tbody tr").evaluateAll((trs) => trs.map((tr) => [...tr.children].map((td) => td.textContent.trim())));
+  const rowOf = (label) => shapeRows.find((r) => r[0].startsWith(label));
+  ok(rowOf("Has two to six topic words")?.[1] === "60" && rowOf("Has two to six topic words")?.[2] === "60%", "a name is in plain words, with its count and its share of the messages counted (60 of 100)");
+  ok(rowOf("Has request words around the topic")?.[2] === "40%" && rowOf("The papers found came from one source only")?.[2] === "30%" && rowOf("Names a year or a range")?.[2] === "5%", "...the shares of the other names are of the same 100 messages, not of the sum of all the names");
+  ok(rowOf("A search sent by pressing a")?.[1] === "2", "a search sent by pressing an anyway button is counted by its own name");
+  const shapeText = await shape.innerText();
+  ok(!["subj", "frame_", "one_source", "chat_input", "first_person"].some((name) => shapeText.includes(name)), "no raw name is on the page");
+  await sql([row("chat", "followup_unread", 7), row("chat", "followup_unread_shadow", 9)]);
+  await page.goto(BASE + "/admin", { waitUntil: "networkidle" });
+  await answers.waitFor({ timeout: 8000 });
+  const chatTable = answers.locator("table").filter({ has: page.locator("caption", { hasText: "Questions in the prompt box" }) });
+  const chatRows = await chatTable.locator("tbody tr").evaluateAll((trs) => trs.map((tr) => [...tr.children].map((td) => td.textContent.trim())));
+  const unread = chatRows.find((r) => r[0].startsWith("A follow-up the model could not read: its words were searched on their own, the papers are shown and no answer was written"));
+  const unreadShadow = chatRows.find((r) => r[0].startsWith("A follow-up the model could not read, counted while that rule is only being tried"));
+  ok(unread?.[1] === "7", "a follow-up the model could not read is its own row, in plain words");
+  ok(unreadShadow?.[1] === "9", "...and so is the same follow-up counted while the rule is only being tried");
+  ok((await headline()) === headlineBefore, "the headline of the page does not move for either of them: no model was asked to write an answer for the one, and the other is in a row already");
+  await sql(["DELETE FROM answer_outcomes WHERE feature IN ('chat_input') OR outcome IN ('followup_unread', 'followup_unread_shadow')"]);
   ok(/\b1\b/.test(await page.locator(".admin-stat").first().innerText()), "the people count is right");
   const reports = page.locator(".admin-report");
   ok((await reports.count()) === 1, "the report that was just sent is listed");

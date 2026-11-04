@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { testD1 } from "./test-d1";
 import { MAINTENANCE_JOBS } from "./maintenance";
 import { JOB_SPECS, runJob } from "./jobs";
+import { COUNT_SQL } from "./outcomes";
 
 /**
  * The query plans of what runs often or on big tables (docs/design/scalability.md). A table that holds a row for every call or every visit grows without a limit, and a query that
@@ -50,6 +51,23 @@ describe("what runs on every request or every call reads a few rows", () => {
       expect(scans(p), p).toBe(false);
     });
   }
+});
+
+describe("a count is one row by the primary key, however many a day has", () => {
+  // R3 (CHAT_COUNTERS=on): every message of the prompt box writes up to eight of these in one batch, and every answer one. SQLite prints no plan at all for an INSERT with ON CONFLICT (the plan of the
+  // statement is empty, so the check above would pass for any statement), so what is checked is what makes it one row: its conflict target is the primary key of the table, and a row is found by that key.
+  it("the upsert of a count names the whole primary key (day, feature, outcome) as its conflict target, which is the table's primary key", () => {
+    const pk = (sql.prepare("PRAGMA table_info(answer_outcomes)").all() as { name: string; pk: number }[]).filter((c) => c.pk > 0).sort((a, b) => a.pk - b.pk).map((c) => c.name);
+    expect(pk).toEqual(["day", "feature", "outcome"]);
+    expect(COUNT_SQL).toBe("INSERT INTO answer_outcomes (day, feature, outcome, n) VALUES (date('now'), ?1, ?2, 1) ON CONFLICT (day, feature, outcome) DO UPDATE SET n = n + 1");
+  });
+  it("a row by that key is found by the key (a search by the primary key's index, no scan), and the rows of the last seven days are read by the day, its first column", () => {
+    const byKey = plan("UPDATE answer_outcomes SET n = n + 1 WHERE day = ?1 AND feature = ?2 AND outcome = ?3", ["2026-11-04", "chat_input", "frame"]);
+    expect(byKey).toContain("SEARCH answer_outcomes USING INDEX sqlite_autoindex_answer_outcomes_1 (day=? AND feature=? AND outcome=?)");
+    const week = plan("SELECT feature, outcome, SUM(n) AS n FROM answer_outcomes WHERE day >= date('now', '-6 days') GROUP BY feature, outcome ORDER BY feature, SUM(n) DESC, outcome", []);
+    expect(week).toContain("SEARCH answer_outcomes USING INDEX sqlite_autoindex_answer_outcomes_1 (day>?)");
+    expect(scans(byKey), byKey).toBe(false);
+  });
 });
 
 describe("the heartbeat table cannot grow", () => {
