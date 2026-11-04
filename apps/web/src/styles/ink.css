@@ -89,6 +89,15 @@
 }
 
 /* ---------- the toolbar ---------- */
+/* Four parts, each a flex item that moves as a whole when the room runs out: the tools, the size and colour (.inkbar-style), undo and redo (.inkbar-hist), and the saved mark with close (.inkbar-end).
+   The room is the container's (the paper's column, not the window: the side panel takes some of it), and what happens at each width is stated here and not left to wrapping, so that a divider is never left
+   alone at the end of a row and the pair is never torn from its own divider:
+     from 812 px  one row:   tools | size and colour ........ | undo redo  saved  close
+     from 600 px  two rows:  tools
+                             size and colour ........ | undo redo  saved  close
+     under 600    three rows (a phone): tools / size and colour / undo redo ........ saved  close
+   Undo and redo are at the end of the last row in every case, beside the saved mark and the close button. The tools and the size buttons grow with the room up to a comfortable size and never go below 24 px
+   (WCAG 2.2, target size), so that the eleven tools are one row down to a container 330 px wide (a window of 355 px); below that the tools are in two rows and have no dividers. Nothing here scrolls. */
 .inkbar-wrap {
   container-type: inline-size;
   overflow: hidden;
@@ -96,11 +105,38 @@
   background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface));
 }
 .inkbar {
+  --tb: clamp(24px, calc((100cqw - 60px) / 11), 34px);
+  --sz: clamp(24px, calc((100cqw - 60px) / 10), 32px);
+  --ic: 30px;
+  --edge: color-mix(in srgb, var(--text) 55%, transparent);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem 0.55rem;
-  padding: 0.45rem 0.7rem;
+  gap: 0.3rem 0.5rem;
+  padding: 0.4rem 0.6rem;
+}
+.inkbar-tools,
+.inkbar-style {
+  display: flex;
+  flex: 1 0 100%;
+  align-items: center;
+  min-width: 0;
+}
+.inkbar-style {
+  gap: 0.5rem;
+}
+.inkbar-hist,
+.inkbar-end {
+  display: flex;
+  align-items: center;
+}
+.inkbar-hist {
+  gap: 2px;
+}
+.inkbar-end {
+  gap: 0.3rem;
+  min-width: 0;
+  margin-left: auto;
 }
 .inkbar-group {
   display: inline-flex;
@@ -111,20 +147,28 @@
   opacity: 0.4;
 }
 .inkbar-sep {
-  align-self: stretch;
+  flex: none;
+  align-self: center;
   width: 1px;
-  margin: 0.2rem 0.15rem;
+  height: 1.3rem;
+  margin-inline: 3px;
   background: var(--border-strong);
+}
+.inkbar-sep-lead,
+.inkbar-sep-hist {
+  display: none;
 }
 .inkbar-tool {
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
-  min-height: 2.2rem;
-  padding: 0.25rem 0.7rem;
+  width: var(--tb);
+  height: var(--tb);
+  padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: 0.6rem;
   background: transparent;
   color: var(--muted);
   font-size: 0.85rem;
@@ -137,75 +181,95 @@
   color: var(--text);
   background: var(--surface-2);
 }
+/* the chosen tool: a soft tinted rounded square with a fine ring, and the accent for its icon; not a filled circle */
 .inkbar-tool[aria-pressed="true"] {
-  color: var(--accent-fg);
+  color: var(--accent);
 }
 .inkbar-pill {
   position: absolute !important;
   inset: 0;
   z-index: 0;
-  border-radius: 999px;
-  background: var(--accent);
+  border-radius: 0.6rem;
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent);
 }
-.inkbar-tool > svg {
-  z-index: 1;
-}
+.inkbar-tool > svg,
 .inkbar-lab {
   z-index: 1;
 }
+.inkbar-lab {
+  display: none;
+}
+/* the sizes: round dots in whole pixels that keep the proportions of the real line widths; the chosen one has a ring and a tint */
 .inkbar-size {
   display: grid;
+  flex: none;
   place-items: center;
-  width: 2rem;
-  height: 2rem;
-  border: 1px solid transparent;
+  width: var(--sz);
+  height: var(--sz);
+  padding: 0;
+  border: 0;
   border-radius: 0.6rem;
   background: transparent;
   color: var(--text);
 }
-.inkbar-size span {
+.inkbar-dot {
   display: block;
+  flex: none;
   border-radius: 50%;
   background: currentColor;
 }
-.inkbar-size span[data-eraser="true"] {
+.inkbar-dot[data-eraser="true"] {
   background: transparent;
-  border: 1.5px dashed currentColor;
+  box-shadow: inset 0 0 0 1.5px currentColor;
 }
 .inkbar-size:hover:not(:disabled) {
   background: var(--surface-2);
 }
 .inkbar-size[aria-checked="true"] {
-  border-color: var(--accent);
   background: var(--accent-soft);
-  color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
+.inkbar-aa {
+  font-weight: 700;
+  line-height: 1;
+}
+/* the colours: a target round a dot of 18 px, with a hairline so that a pale colour is seen on a pale bar and a dark one on a dark bar; the chosen one has a gap and a ring */
 .inkbar-color {
-  width: 1.45rem;
-  height: 1.45rem;
-  margin: 0 0.12rem;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--sz);
+  height: var(--sz);
   padding: 0;
-  border: 2px solid var(--surface);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+.inkbar-color > span {
+  display: block;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--c);
-  box-shadow: 0 0 0 1px var(--border-strong);
-  transition: transform 0.15s var(--ease), box-shadow 0.15s;
+  box-shadow: 0 0 0 1px var(--edge);
+  transition: box-shadow 0.15s;
 }
-.inkbar-color:hover:not(:disabled) {
-  transform: scale(1.12);
+.inkbar-color:hover:not(:disabled) > span {
+  box-shadow: 0 0 0 1px var(--edge), 0 0 0 3px var(--surface-2);
 }
-.inkbar-color[aria-checked="true"] {
-  box-shadow: 0 0 0 2px var(--accent);
-  transform: scale(1.12);
+.inkbar-color[aria-checked="true"] > span {
+  box-shadow: 0 0 0 1px var(--edge), 0 0 0 3px var(--surface), 0 0 0 5px var(--accent);
 }
 .inkbar-color:disabled {
   cursor: default;
 }
 .inkbar-icon {
   display: grid;
+  flex: none;
   place-items: center;
-  width: 2.1rem;
-  height: 2.1rem;
+  width: var(--ic);
+  height: var(--ic);
   border: 0;
   border-radius: 0.6rem;
   background: transparent;
@@ -222,16 +286,12 @@
   background: var(--accent-soft);
   color: var(--accent);
 }
-.inkbar-end {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
 .inkbar-status {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  min-width: 0;
+  max-width: 7.5rem;
   padding: 0.15rem 0.6rem;
   border: 0;
   border-radius: 999px;
@@ -239,6 +299,15 @@
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 600;
+}
+.inkbar-status > svg {
+  flex: none;
+}
+.inkbar-status-t {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .inkbar-status[data-tone="ok"] {
   color: var(--ok);
@@ -252,17 +321,86 @@
   background: var(--accent-soft);
   color: var(--accent);
 }
-/* the toolbar sits in the paper's column, which is not as wide as the window: when it is narrow the tools show only their icons */
-@container (max-width: 980px) {
-  .inkbar-lab {
+@container (max-width: 329px) {
+  .inkbar {
+    --tb: 30px;
+  }
+  .inkbar-tools {
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+  .inkbar-tools > .inkbar-sep {
     display: none;
   }
+}
+@container (min-width: 600px) {
+  .inkbar {
+    --sz: 28px;
+  }
+  .inkbar-style {
+    flex: 0 0 auto;
+  }
+  .inkbar-hist {
+    margin-left: auto;
+  }
+  .inkbar-end {
+    margin-left: 0;
+  }
+  .inkbar-sep-hist {
+    display: block;
+  }
+}
+@container (min-width: 812px) {
+  .inkbar {
+    --tb: 27px;
+    --sz: 24px;
+    --ic: 28px;
+  }
+  .inkbar-tools {
+    flex: 0 0 auto;
+  }
+  .inkbar-sep-lead {
+    display: block;
+  }
+  /* the saved mark is its icon until there is room for its words (they are still there for a screen reader, and in its tooltip) */
+  .inkbar-status {
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+  }
+  .inkbar-status-t {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+  }
+}
+@container (min-width: 960px) {
+  .inkbar-status {
+    width: auto;
+    height: auto;
+    padding: 0.15rem 0.6rem;
+  }
+  .inkbar-status-t {
+    position: static;
+    width: auto;
+    height: auto;
+    clip-path: none;
+  }
+}
+/* the tools say their names when there is room for eleven of them with the rest on one row */
+@container (min-width: 1600px) {
   .inkbar-tool {
-    padding: 0.25rem 0.6rem;
+    width: auto;
+    padding: 0 0.65rem;
+  }
+  .inkbar-lab {
+    display: inline;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .inkbar-color {
+  .inkbar-color > span {
     transition: none;
   }
 }
@@ -420,13 +558,4 @@
   background: #d1342b;
   color: #fff;
   font-weight: 600;
-}
-.inkbar-set {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-}
-.inkbar-aa {
-  font-weight: 700;
-  line-height: 1;
 }

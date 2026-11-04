@@ -200,5 +200,5 @@
 .oa-quote { display: flex; gap: 0.6rem; width: 100%; padding: 0.5rem 0.65rem; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface-2); color: var(--text); text-align: left; cursor: default; }
 .oa-signin { display: grid; gap: 0.6rem; justify-items: start; }
 .oa-form { position: sticky; bottom: 0; display: flex; gap: 0.6rem; align-items: flex-end; margin-top: auto; padding: 0.7rem 1.1rem 0.9rem; border-top: 1px solid var(--border); background: var(--surface); }
-.oa-input { flex: 1; min-height: 3rem; max-height: 9rem; resize: vertical; padding: 0.55rem 0.7rem; border: 1px solid var(--border-strong); border-radius: var(--radius-s); background: var(--bg); color: var(--text); font: inherit; }
+.oa-input { flex: 1; min-height: 3rem; max-height: 9rem; resize: none; padding: 0.55rem 0.7rem; border: 1px solid var(--border-strong); border-radius: var(--radius-s); background: var(--bg); color: var(--text); font: inherit; }
 .oa-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

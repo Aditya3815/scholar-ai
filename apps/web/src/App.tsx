@@ -3,7 +3,8 @@ import { SearchX, WifiOff } from "lucide-react";
 import { getThemePref } from "./lib/prefs";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Footer } from "./components/Footer";
-import { useConversing } from "./lib/chat";
+import { currentChatState, isPrivateChat, startNewChat, useConversing } from "./lib/chat";
+import { PRIVATE_LEAVE_WARNING, leaveWarning } from "./lib/leave";
 import { PaperPreview } from "./components/PaperPreview";
 import { OaAskSheet } from "./components/oa/OaAskSheet";
 import { ResultCard, SkeletonCard } from "./components/ResultCard";
@@ -185,7 +186,8 @@ export function App() {
   const empty = state.status === "done" && state.results.length === 0 && !allFailed;
   const filteredOut = state.results.length > 0 && results.length === 0;
 
-  const goHome = () => {
+  /** The Home screen as it is: the search is cleared, what was typed with it, and the page is at its top with the box ready. After "New chat" and after a chat is opened from the list. */
+  const showHome = () => {
     reset();
     setQuery("");
     setDraft(NO_DRAFT);
@@ -200,6 +202,23 @@ export function App() {
     // "back to the start": the top of the page, with the box ready to type in; focusing must not scroll, or it would carry the reader down again
     window.scrollTo(0, 0);
     window.setTimeout(() => (inputRef.current ?? homeRef.current)?.focus({ preventScroll: true }), 0);
+  };
+  /**
+   * The Home link, the logo and Home in the command palette: a NEW chat. From a conversation, or from any other page, the empty Home with a fresh chat ready (the conversation stays in the list of chats, as it does
+   * after "New chat"); on the empty Home already, nothing is made: the box takes the focus and the page goes to its top, and what was typed stays. Something that is not kept anywhere (a private chat with messages in
+   * it, an edit that was not sent) is asked about first: Home is pressed far more often than "New chat", and by slip.
+   */
+  const goHome = () => {
+    const s = currentChatState();
+    if (view === "search" && state.status === "idle" && s.active === null) {
+      window.scrollTo(0, 0);
+      window.setTimeout(() => (inputRef.current ?? homeRef.current)?.focus({ preventScroll: true }), 0);
+      return;
+    }
+    const warning = leaveWarning() ?? (s.active !== null && isPrivateChat(s) && conversing ? PRIVATE_LEAVE_WARNING : null);
+    if (warning && !window.confirm(warning)) return;
+    if (s.active !== null) startNewChat();
+    showHome();
   };
   useBaseCommands({ navigate, goHome, openSheet });
   /** The intro page's "Try it without signing in". */
@@ -342,7 +361,7 @@ export function App() {
   }
   return (
     <>
-      <Shell view={view === "search" ? "home" : view} onNavigate={navigate} onHome={goHome} title={view === "search" && idle ? "Home" : TITLES[view].replace(" · Sodhsetu", "")} focus={view === "papers" && !!route.docId} footer={view === "papers" || (view === "search" && conversing) ? null : <Footer />}>
+      <Shell view={view === "search" ? "home" : view} onNavigate={navigate} onHome={showHome} onHomeLink={goHome} title={view === "search" && idle ? "Home" : TITLES[view].replace(" · Sodhsetu", "")} focus={view === "papers" && !!route.docId} footer={view === "papers" || (view === "search" && conversing) ? null : <Footer />}>
         {noticeEl}
         {mainEl}
       </Shell>

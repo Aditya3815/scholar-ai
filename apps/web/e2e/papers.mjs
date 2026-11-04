@@ -547,7 +547,7 @@ try {
     return { input: reference, status: verified ? "verified" : "not_found", reason: verified ? "Matches a real record." : "No matching paper was found in Crossref.", confidence: 1, retracted: reference.includes("Ccc") || undefined, match: verified ? { doi: "10.1000/x", title: "A matched title", authors: ["A. Writer"], year: 2001, venue: "Journal" } : null, checks: verified ? { title: 1, author: true, year: true } : null };
   };
   await page.route("**/api/v1/references/verify", (route) => route.fulfill({ json: verdict(route.request().postDataJSON().reference) }));
-  await page.getByRole("button", { name: /^My (papers|Workspace)$/ }).first().click();
+  await page.getByRole("button", { name: /^(Back to )?My (papers|Workspace)$/ }).first().click();
   await page.locator(".dc").first().waitFor();
   const before = await page.locator(".dc").count();
   await page.locator('input[type="file"]').setInputFiles({ name: "structured_paper.pdf", mimeType: "application/pdf", buffer: structured });
@@ -652,7 +652,7 @@ try {
   await mp.close();
 
   console.log("delete");
-  await page.getByRole("button", { name: /^My (papers|Workspace)$/ }).first().click();
+  await page.getByRole("button", { name: /^(Back to )?My (papers|Workspace)$/ }).first().click();
   await page.locator(".dc").first().waitFor();
   await page.getByRole("button", { name: /^Delete Glaucoma screening/ }).click();
   const confirm = page.getByRole("dialog");

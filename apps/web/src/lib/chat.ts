@@ -83,6 +83,8 @@ const subscribe = (l: () => void) => {
   return () => listeners.delete(l);
 };
 export const useChatState = (): State => useSyncExternalStore(subscribe, () => state, () => state);
+/** The state as it is now, for an event handler that has to look at it without drawing again for every change of it. */
+export const currentChatState = (): State => state;
 
 const isConversing = () => !!state.active && (state.chats.get(state.active)?.length ?? 0) > 0;
 /** Whether this tab has a conversation on screen. A boolean snapshot: what uses it renders again only when it flips, not on every event of a streaming reply. */

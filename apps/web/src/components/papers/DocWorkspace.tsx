@@ -411,9 +411,9 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   return (
     <m.div className="dw" data-side={sideAway ? "closed" : "open"} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: easeOut }}>
       <div className="dw-head">
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>
-          <ArrowLeft size={15} aria-hidden="true" />
-          <span>{PAPERS_NAME}</span>
+        {/* a round arrow and nothing else: the paper's name is the first thing in the header, and the way back says where it goes to a screen reader and in a tooltip */}
+        <button type="button" className="icon-btn dw-back" aria-label={`Back to ${PAPERS_NAME}`} title={`Back to ${PAPERS_NAME}`} onClick={onBack}>
+          <ArrowLeft size={18} aria-hidden="true" />
         </button>
         <div className="dw-titles">
           <TitleEditor doc={doc} onChange={(d) => setLoad({ status: "ready", doc: d, history, info, scan })} />

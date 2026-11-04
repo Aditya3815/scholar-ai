@@ -20,7 +20,7 @@ import type { View } from "../lib/view";
 type Item = { id: View | "home"; label: string; href: string; Icon: typeof Home; count?: number; /** notices waiting (a saved paper was retracted) */ alerts?: number };
 
 /** The left rail: where you are, the tools that are not in the prompt box yet, and your account. */
-function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home"; onNavigate: (v: View) => void; onHome: () => void; onClose?: () => void }) {
+function RailContent({ view, onNavigate, onHome, onHomeLink, onClose }: { view: View | "home"; onNavigate: (v: View) => void; onHome: () => void; onHomeLink: () => void; onClose?: () => void }) {
   const { user } = useAuth();
   const saved = useLibrary().length;
   const notices = useLibraryAlerts().length;
@@ -56,7 +56,7 @@ function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home
           onClick={(e) => {
             if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
             e.preventDefault();
-            go(() => (id === "home" ? onHome() : onNavigate(id)))();
+            go(() => (id === "home" ? onHomeLink() : onNavigate(id)))();
           }}
         >
           {active && <m.span layoutId={`ws-pill-${onClose ? "d" : "s"}`} className="ws-link-pill" transition={spring} />}
@@ -83,7 +83,7 @@ function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home
         onClick={(e) => {
           if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
           e.preventDefault();
-          go(onHome)();
+          go(onHomeLink)();
         }}
       >
         <Logo />
@@ -176,14 +176,17 @@ function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home
 }
 
 /** `focus`: reading a paper. The rail and the menu bar are not shown, so the paper has the whole window (the paper's own header has the way back). */
-export function Shell({ view, onNavigate, onHome, title, children, footer, focus = false }: { view: View | "home"; onNavigate: (v: View) => void; onHome: () => void; title: string; children: ReactNode; footer: ReactNode; focus?: boolean }) {
+/**
+ * `onHome` shows the Home screen as it is (after "New chat" and after a chat is opened from the list); `onHomeLink` is the Home link and the logo: they start a new chat (App.tsx).
+ */
+export function Shell({ view, onNavigate, onHome, onHomeLink, title, children, footer, focus = false }: { view: View | "home"; onNavigate: (v: View) => void; onHome: () => void; onHomeLink: () => void; title: string; children: ReactNode; footer: ReactNode; focus?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="ws-shell" data-focus={focus}>
       <a className="skip-link" href="#main">Skip to content</a>
       {!focus && (
         <aside className="ws-rail" aria-label="Sodhsetu">
-          <RailContent view={view} onNavigate={onNavigate} onHome={onHome} />
+          <RailContent view={view} onNavigate={onNavigate} onHome={onHome} onHomeLink={onHomeLink} />
         </aside>
       )}
 
@@ -208,7 +211,7 @@ export function Shell({ view, onNavigate, onHome, title, children, footer, focus
                       <Dialog.Close className="icon-btn ws-drawer-close" aria-label="Close the menu">
                         <X size={18} aria-hidden="true" />
                       </Dialog.Close>
-                      <RailContent view={view} onNavigate={onNavigate} onHome={onHome} onClose={() => setOpen(false)} />
+                      <RailContent view={view} onNavigate={onNavigate} onHome={onHome} onHomeLink={onHomeLink} onClose={() => setOpen(false)} />
                     </m.div>
                   </Dialog.Content>
                 </Dialog.Portal>

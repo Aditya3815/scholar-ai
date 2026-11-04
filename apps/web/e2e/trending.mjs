@@ -462,34 +462,15 @@ try {
     await p.locator(".chat-turn").first().waitFor();
     same(chat.at(-1), { mode: "auto", message: VIA_AUTO[0] }, "a Hinglish chip goes through Auto, which writes the English words");
     await idle(p);
-    // small talk: chips with the switch's place and the busy state
+    // small talk, and a search with no paper: no example chips in a conversation (they are for the empty Home: docs/design/ui-polish-1.md); the way out of a wrong guess stays
     await pick(p, "Auto");
     await p.locator(".hm-input").fill("hello");
     await p.keyboard.press("Enter");
     await p.locator(".chat-talk").waitFor({ timeout: 15000 });
     await idle(p);
     const talk = p.locator(".chat-talk").last();
-    ok((await chipTexts(talk)).length === ALL.length && await talk.getByRole("group", { name: "Try" }).count() === 1, "under a reply to small talk the Try chips are the same, in a group named Try");
-    ok((await talk.locator(".hm-try").boundingBox()).width > 200, "(the label is on a line of its own)");
-    await p.locator(".hm-scope").click();
-    ok(await p.locator(".hm-scope").getAttribute("aria-pressed") === "true", "the Indian sources are switched on");
-    await talk.getByRole("button", { name: ENGLISH[0], exact: true }).click();
-    await until(() => chat.length === 3);
-    same(chat.at(-1), { mode: "search", message: ENGLISH[0], scope: "india" }, "a chip under small talk searches in the Indian sources when the switch is on (it did not)");
-    await idle(p);
-    // busy: the chips of the reply above wait while another reply is written
-    let release;
-    hold = new Promise((r) => { release = r; });
-    await p.locator(".hm-scope").click();
-    await p.locator(".hm-input").fill("hello");
-    await p.keyboard.press("Enter");
-    await p.waitForFunction(() => document.querySelector('.chat-turn[data-status="working"]'));
-    const oldTalk = p.locator(".chat-talk").first();
-    ok(await oldTalk.locator("button.chip-btn:disabled").count() === ALL.length, "while a reply is being written, the chips under the reply above are disabled (a message waits for the one before it)");
-    release();
-    hold = null;
-    await idle(p);
-    ok(await oldTalk.locator("button.chip-btn:disabled").count() === 0, "...and they work again when it is done");
+    ok((await chipTexts(talk)).length === 0 && await talk.getByRole("group", { name: "Try" }).count() === 0 && await talk.getByRole("button", { name: "Search for these words anyway" }).count() === 1, "under a reply to small talk there are no Try chips, and 'Search for these words anyway' stays");
+    ok(await p.getByRole("group", { name: "Try" }).count() === 0, "(and the Try group is not on the page while a conversation is open)");
     // a search with no paper
     await pick(p, "Search papers");
     await p.locator(".hm-input").fill("nothing at all");
@@ -498,14 +479,11 @@ try {
     await idle(p);
     const nothing = p.locator(".chat-turn").last();
     ok(/Nothing was found/.test(await nothing.locator(".chat-note[data-kind=nothing]").innerText()) && await nothing.locator(".result").count() === 0, "a finished search with no paper says so plainly, and shows no invented paper");
-    ok(await nothing.getByRole("group", { name: "Or try one of these" }).count() === 1 && (await chipTexts(nothing.getByRole("group", { name: "Or try one of these" }))).length === ALL.length, "...and offers the chips");
+    ok(await nothing.getByRole("group", { name: "Or try one of these" }).count() === 0 && await nothing.locator(".hm-starters").count() === 0, "...and does not offer the chips (they were offered here)");
     await p.waitForFunction(() => /No papers were found/.test(document.querySelector("[data-announcer]")?.textContent ?? ""), null, { timeout: 4000 }).catch(() => {});
     const told = (await p.locator("[data-announcer]").textContent()) ?? "";
-    ok(told.includes("No papers were found. You can change the words, or try one of the examples.") && !/Papers ready/.test(told), `...and a screen reader is told that nothing was found and the way on (it was told "Papers ready, 0 papers."): "${told.trim()}"`);
-    await nothing.getByRole("button", { name: ENGLISH[0], exact: true }).click();
-    await until(() => chat.length === 6 && chat.at(-1).message === ENGLISH[0]);
-    ok(true, "...and a click on one searches it");
-    await idle(p);
+    ok(told.includes("No papers were found. You can change the words and search again.") && !/Papers ready/.test(told) && !/example/.test(told), `...and a screen reader is told that nothing was found and the way on, which is no longer the examples (it was told "Papers ready, 0 papers."): "${told.trim()}"`);
+    ok(chat.length === 3, "(three messages were sent: the chip, the greeting and the search)");
     // a reply that ends while its cards are still counting their citations up must not leave the count at a wrong number (Stop right after the cards appear: the badges read 16, 13, 10, 6, 3 for 50, 40, 30, 20, 10)
     await pick(p, "Search papers");
     await p.locator(".hm-input").fill("slowly glaucoma");
@@ -695,13 +673,14 @@ try {
     await p.locator(".chat-turn").first().waitFor();
     await idle(p);
     await still(p);
-    const probe = () => p.evaluate(() => { const r = document.querySelector(".hm-box").getBoundingClientRect(); return [Math.round(r.top * 10), Math.round(r.height * 10), document.documentElement.scrollHeight, getComputedStyle(document.querySelector(".hm-box"), "::before").position, getComputedStyle(document.querySelector(".hm-box"), "::before").pointerEvents, getComputedStyle(document.querySelector(".hm-box"), "::after").position]; });
+    const probe = () => p.evaluate(() => { const r = document.querySelector(".hm-box").getBoundingClientRect(); return [Math.round(r.top * 10), Math.round(r.height * 10), document.documentElement.scrollHeight, getComputedStyle(document.querySelector(".hm-box"), "::before").content, getComputedStyle(document.querySelector(".hm-box"), "::after").content, getComputedStyle(document.querySelector(".hm-box")).boxShadow]; });
     const withFade = await probe();
-    const off = await p.addStyleTag({ content: ".hm-box::before, .hm-box::after { content: none !important; }" });
+    // the fade is two layers of the box's own shadow (the page's colour above the box and in the gap under it): switched off, the box and the page must not change
+    const off = await p.addStyleTag({ content: ".hm[data-chat] .hm-box, .hm[data-chat] .hm-box:focus-within { box-shadow: none !important; }" });
     const without = await probe();
     await off.evaluate((el) => el.remove());
     same(withFade.slice(0, 3), without.slice(0, 3), "with and without the fade the box and the page are the same size and in the same place");
-    ok(withFade[3] === "absolute" && withFade[4] === "none" && withFade[5] === "absolute", "the fade is out of the layout and lets a click through");
+    ok(/none|normal/.test(withFade[3]) && /none|normal/.test(withFade[4]) && /\d+px/.test(withFade[5]) && withFade[5].split("rgb").length > 3, `the fade is out of the layout (a shadow, no element over the box that could take a click or paint over its edge: ${withFade[3]}, ${withFade[4]}; ${withFade[5]})`);
     await ctx.close();
   }
 

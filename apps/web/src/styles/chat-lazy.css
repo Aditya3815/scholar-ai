@@ -1,0 +1,15 @@
+/* Styles that load with the conversation (the chunk of ChatView), not with the first screen (the first load has a size budget: apps/web/scripts/budget.mjs).
+   The arrow that takes the reader to the latest message of a long conversation: the box has an empty anchor for it (.hm-jump) and the button is drawn into that anchor. The anchor sits on the box's
+   top edge, centred; the button floats just above it, so it follows the box when the box grows with the text. */
+.hm-jump { position: absolute; inset: auto auto calc(100% + 0.9rem) 50%; z-index: 1; width: 0; height: 0; }
+.chat-jump { position: absolute; bottom: 0; left: -1.25rem; display: grid; place-items: center; width: 2.5rem; height: 2.5rem; padding: 0; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--surface); color: var(--text); box-shadow: var(--shadow-2); opacity: 0; visibility: hidden; transform: translateY(6px); transition: opacity 0.18s var(--ease), transform 0.18s var(--ease), visibility 0s linear 0.18s, background-color 0.15s; }
+.chat-jump[data-show="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.chat-jump:hover { background: var(--surface-2); }
+@media (prefers-reduced-motion: reduce) { .chat-jump { transition: none; transform: none; } }
+@media (forced-colors: active) { .chat-jump { border-color: ButtonText; } }
+@media print { .hm-jump { display: none; } }
+
+/* The room kept for the answer while the papers are being read (ChatView, `reserved`): the same card the words will be written in, three quiet bars, no movement. Its height is the live words' (shell.css). */
+.chat-live-wait { display: grid; align-content: start; gap: 0.75em; padding-top: 0.35em; }
+.chat-live-wait .sk { height: 0.7em; animation: none; background: var(--surface-2); }
+.chat-wait-hint { margin: 0 0 0.2em; color: var(--muted); font-size: 0.85em; line-height: 1.4; }
