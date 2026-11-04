@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, PRIVACY_VERSION, TRENDING_MAX_CHIPS, TRENDING_POOL_MAX_DAYS, YEAR_FILTER_SEARCH_LIMIT } from "@scholar/shared";
 import { QUERYABLE_SUBFIELDS, SUBFIELDS } from "@scholar/shared/src/subfield-policy";
-import { TREND, VERIFY } from "@scholar/shared/src/trending";
+import { TREND, VERIFY, toChip } from "@scholar/shared/src/trending";
+import { DEVICE_COPY_MAX_AGE_MS } from "@scholar/shared/src/trending-row";
 import { JOB_SPECS } from "./jobs";
 import { FOLLOW_UP_OUTCOMES } from "./outcomes";
 import { TRENDING_LIMITS } from "./trending/job";
@@ -194,6 +195,122 @@ describe("the Settings help text for chats", () => {
     expect(SETTINGS).toContain("When a search used them, the answer shows them, and you can remove them");
     expect(SETTINGS).toContain("A private chat does not use other chats and is not used");
     expect(SETTINGS).toContain("This choice is kept on this device, with your account number, so another person who signs in here starts with it off");
+  });
+});
+
+/**
+ * The Trending list's job (docs/design/chatview-and-trending.md, T3, T11 and T12; apps/api/src/trending) asks OpenAlex and arXiv for public counts and the product's own search about each phrase it
+ * may name. The privacy page says so in one bullet ("Your papers and ideas"), and the bullet is only true while the code is what it says: these tests read the page the way the ones above do, and then
+ * read the code. They are source reads on purpose: a change that makes the job ask someone else, or touch a person, has to come here and re-read the text, not only the words.
+ */
+const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+const JOB_FILES = ["job.ts", "scan.ts", "openalex.ts", "arxiv.ts", "sources.ts", "store.ts", "routes.ts"].map((f) => [f, stripComments(read(`./trending/${f}`))] as const);
+
+/**
+ * What the page's code for the Trending row may do on the network (T11: no click counter, no personalisation; the browser calls only our own API). The one thing it does is ask for the file, with no cookie.
+ * `networkUse` lists every way a file can send something, so that a counter added to a chip's handler, to the Why panel or to the Home page's fill logic has to come here and be read. The browser suite
+ * (`apps/web/e2e/trending.mjs`) watches the requests themselves; this reads the code that could make one.
+ */
+const TRENDING_WEB_FILES = (
+  [
+    ["lib/trending.ts", "../../web/src/lib/trending.ts"],
+    ["workspace/HomeChips.tsx", "../../web/src/workspace/HomeChips.tsx"],
+    ["workspace/HomePage.tsx", "../../web/src/workspace/HomePage.tsx"],
+    ["shared/trending-row.ts", "../../../packages/shared/src/trending-row.ts"],
+    ["shared/trending-client.ts", "../../../packages/shared/src/trending-client.ts"],
+  ] as const
+).map(([name, path]) => [name, stripComments(read(path))] as const);
+const networkUse = (src: string): string[] =>
+  [...src.matchAll(/\bfetch\(TRENDING_URL, \{ credentials: "omit"|\bfetch\(|\bsendBeacon|\bXMLHttpRequest|\bnew Image\(|\bnew Request\(|\bEventSource|\bWebSocket|\bkeepalive\b/g)].map((m) => m[0]);
+
+describe("the privacy page and the Trending list's job", () => {
+  it("says what the job asks, of whom, what it sends, where the words come from (OpenAlex's own keywords, which a model of OpenAlex's assigns), that our service uses no AI for the list, and that it is not about the reader", () => {
+    expect(PAGE).toContain(
+      "In the background, once a day (the counts from OpenAlex once a week), our server asks OpenAlex and arXiv for public counts of papers (how many papers carry a keyword in a recent period and how many in the same period a year earlier; on arXiv, how many submissions mention the phrase) to work out which topics are growing",
+    );
+    expect(PAGE).toContain(
+      "and searches OpenAlex, Semantic Scholar, Crossref, PubMed and DOAJ for each topic it might name (for the Indian list, OpenAlex and DOAJ only) to check that the topic finds real, recent papers",
+    );
+    // the words: OpenAlex's own keywords, which OpenAlex's indexing assigns to papers with a model that reads their titles and abstracts (https://help.openalex.org/data/keywords/, read 4 Nov 2026).
+    // The page may not say that no AI is involved in them: only that OUR service uses none, and changes none of them.
+    expect(PAGE).toContain(
+      "The topic words are OpenAlex's own keywords, never from you: OpenAlex assigns them to papers with an AI model of its own, which reads each paper's title and abstract. Our service uses no AI service for this list and does not write, translate or change a word of it",
+    );
+    expect(PAGE).not.toContain("no AI service reads or writes any of it");
+    expect(PAGE).not.toContain("The topic words come from OpenAlex's own list of keywords");
+    expect(PAGE).toContain("Nothing you wrote and nothing about you is part of these calls: they run on a schedule, whether or not anyone is using the service");
+    expect(PAGE).toContain("the sources can see our service's address and a contact address of ours, not you");
+    expect(PAGE).toContain("one public list, the same for everyone, kept without any link to a person; it does not use what you search or do");
+  });
+
+  it("says the same of the words in the Why panel of the Home row, where a visitor looks for the definition (the browser suite pins the rendered panel)", () => {
+    const panel = plain(read("../../web/src/workspace/HomeChips.tsx"));
+    expect(panel).toContain("The topic words are OpenAlex’s own keywords, which its indexing assigns to papers, with an AI model that reads each paper’s title and abstract; we use no AI for this list and do not change a word of it.");
+    // nothing on the page says the words are not model-assigned
+    expect(panel).not.toMatch(/never written by a model|no AI service reads or writes/);
+  });
+
+  it("says that the browser keeps a copy of the public list and uses it for no more than a day, that an older copy is removed when Home is next opened, and that the copy holds nothing about the person; the code does exactly that", () => {
+    expect(DEVICE_COPY_MAX_AGE_MS).toBe(24 * 3_600_000);
+    // not "keeps ... for up to a day": a copy that is not used any more stays until Home is drawn again (currentTrending removes it then), so the page says what is used and when the rest goes
+    expect(PAGE).toContain("To show it quickly, your browser keeps a copy of that public list and uses it for no more than a day (an older copy is removed the next time you open Home); the copy holds nothing about you");
+    expect(PAGE).not.toContain("keeps a copy of that public list for up to a day");
+    expect(stripComments(read("../../web/src/lib/trending.ts"))).toMatch(/if \(raw !== null && !copy\) write\(null\);/);
+    // what the copy is made of: the list's own fields and the time it was kept (deviceCopyOf), written under one key; nothing of the person goes into it
+    const client = stripComments(read("../../web/src/lib/trending.ts"));
+    expect(client.match(/localStorage\.setItem\(/g)?.length).toBe(1);
+    expect(client).toMatch(/write\(deviceCopyOf\(p, at\)\)/);
+    expect(client).not.toMatch(/\b(currentUser|user\.id|userId|scholar\.scope|scholar\.earlier)\b/);
+  });
+
+  it("is true that the words of a chip are the keyword's own: the chip's text is the candidate's text as it is, or the candidate is not a chip", () => {
+    const base = { id: "k", phrase: "x", subfield: 1, subfieldName: "s", field: "Computer Science", fieldId: 1, domain: "Physical Sciences", domainId: 1, policy: "allow" as const, a: 100, b: 40, bEstimated: false, ratio: 1, score: 2, total: 100 };
+    const asOf = "2026-11-04";
+    expect(toChip({ ...base, text: "retrieval-augmented generation" }, asOf)?.text).toBe("retrieval-augmented generation");
+    // text that is not tidy is refused, not tidied: nothing of ours rewrites a word
+    expect(toChip({ ...base, text: "retrieval-augmented  generation" }, asOf)).toBeNull();
+    expect(toChip({ ...base, text: " retrieval-augmented generation" }, asOf)).toBeNull();
+  });
+
+  it("the page's code for the Trending row asks our own address only, and has no other way of sending anything: no beacon, no request object, no image ping, no stream, no socket", () => {
+    for (const [name, src] of TRENDING_WEB_FILES) {
+      expect(networkUse(src), name).toEqual(name === "lib/trending.ts" ? ["fetch(TRENDING_URL, { credentials: \"omit\""] : []);
+    }
+    // the scanner itself: it sees each way of sending, so a file that gained one could not pass
+    for (const bad of ["navigator.sendBeacon('/api/v1/home/click', x)", "new XMLHttpRequest()", "new Image().src = '/c?x=1'", "new EventSource('/e')", "new WebSocket('wss://x')", "fetch('/api/v1/home/click', { method: 'POST' })", "await fetch(url)", "new Request('/x')", "navigator.sendBeacon(u)"]) {
+      expect(networkUse(bad), bad).not.toEqual([]);
+    }
+    expect(networkUse(stripComments("const fetched = 1; // fetch(x)\n/* navigator.sendBeacon(y) */"))).toEqual([]);
+  });
+
+  it("the server has one route under /home, a GET, and no way to write to the list or count a visit from it", () => {
+    const routes = stripComments(read("./trending/routes.ts"));
+    expect([...routes.matchAll(/\btrendingRoutes\.(\w+)\(/g)].map((m) => m[1])).toEqual(["get"]);
+    // (the file as it is, not with its comments taken out: a path such as "/api/*" would read as the start of a comment)
+    const index = read("./index.ts");
+    expect(index.match(/\/api\/v1\/home/g)?.length).toBe(1);
+    expect(index).toMatch(/app\.route\("\/api\/v1\/home", trendingRoutes\);/);
+  });
+
+  it("is true of the sources: the search asks five, the Indian scope two (Shodhganga is read through OpenAlex and never fetched itself), and the job adds only arXiv", () => {
+    const search = read("./search/index.ts");
+    expect(search).toMatch(/all: \[openalex, s2, crossref, pubmed, doajAll\]/);
+    expect(search).toMatch(/india: \[openalexIndia, doajIndia, shodhganga\]/);
+    const fetched = [...read("./search/india.ts").matchAll(/\bfetch\(\s*([^,)]*)/g)].map((m) => m[1]!);
+    expect(fetched.length).toBeGreaterThan(0);
+    for (const target of fetched) expect(target).toMatch(/DOAJ_API|https:\/\/api\.openalex\.org\//);
+    const hosts = new Set<string>();
+    for (const [, src] of JOB_FILES) for (const m of src.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)) hosts.add(m[1]!.toLowerCase());
+    expect([...hosts].sort()).toEqual(["api.openalex.org", "export.arxiv.org", "sodhsetu.in"]); // sodhsetu.in is only the address in arXiv's User-Agent
+  });
+
+  it("is true of the job and the route: nothing in them reads a person, a sign-in, a model or the database, and the route reads nothing of the request", () => {
+    for (const [name, src] of JOB_FILES) {
+      expect(src, name).not.toMatch(/from "\.\.\/(llm|auth|account|docs|library|idea|chat|litscan|admin|feedback)/);
+      expect(src, name).not.toMatch(/\b(currentUser|D1Database|cf-connecting-ip|userId|user_id|gatewayFromEnv)\b/);
+      expect(src, name).not.toMatch(/cookie/i);
+      expect(src, name).not.toMatch(/\bc\.req\b/);
+    }
   });
 });
 
