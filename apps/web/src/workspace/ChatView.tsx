@@ -1,19 +1,21 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileStack, Info, Lightbulb, ListChecks, Pencil, RefreshCw, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
-import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { ArrowDown, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileStack, Info, Lightbulb, ListChecks, Pencil, RefreshCw, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
+import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { GENERAL_LABEL, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MAX_VERSIONS, ROUTE_NAMES, answerCopy, busyReason, canTighten, citeParts, earlierUsed, editInfo, followUpNote, noticeOffersRetry, textAttrs, turnToShow, unfilteredWords, versionInfo, type AssistantMsg, type ChatMsg, type EditInfo, type IdeaMsg, type ChatNoAnswer, type Paper, type RouteMode, type UserMsg } from "@scholar/shared";
 import { SignInDialog } from "../components/SignInDialog";
 import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
 import { cancelTighten, editMessage, retryReply, showVersion, tightenReply, type EditResult } from "../lib/chat";
+import { fitField } from "../lib/autogrow";
 import { useCopy } from "../lib/copy";
-import { startersFor } from "./starters";
-import { TryChips } from "./HomeChips";
+import { EDIT_LEAVE_WARNING, registerLeaveGuard } from "../lib/leave";
 import { menuKeys } from "./menuKeys";
 import { Announcer, announce } from "./announcer";
 import { openPreview } from "../lib/preview";
 import { easeOut, spring } from "../lib/motion";
 import { PAPERS_NAME } from "../lib/workspace";
+import "../styles/chat-lazy.css";
 // the Idea Check workspace is a chunk of its own, fetched when an idea is checked here (the first load has a size budget)
 const IdeaWorkspace = lazy(() => import("../components/idea/IdeaPage").then((m) => ({ default: m.IdeaWorkspace })));
 
@@ -87,7 +89,7 @@ function Progress({ m: msg, signedIn }: { m: AssistantMsg; signedIn: boolean }) 
         return (
           <li key={s.id} data-state={state}>
             <span className="ask-step-dot" aria-hidden="true">{state === "now" ? <span className="pulse-dot" /> : state === "done" ? "✓" : null}</span>
-            <span>{s.label}{s.id === "read" && state === "now" ? <span className="chat-step-hint"> · about 10 to 20 seconds (it reads every abstract before it writes)</span> : null}</span>
+            <span>{s.label}</span>
           </li>
         );
       })}
@@ -362,11 +364,9 @@ const PaperList = memo(function PaperList({ msgId, papers, flashN, working }: { 
 
 /**
  * A finished search that found no paper (not a greeting, not another tool's offer, not a message that was too long, and not one whose year filter took every paper away: that has its own way out, the chip with
- * the X). It says so and offers the Try chips.
+ * the X). It says so. (It used to offer the Try chips as well: example searches have no place in a conversation, which the person is in the middle of; the empty Home offers them.)
  */
 const noPapers = (m: AssistantMsg): boolean => m.status === "done" && m.mode === "search" && m.papers.length === 0 && m.reason !== "small_talk" && m.reason !== "routed" && m.reason !== "too_long" && !m.notices.some((n) => n.kind === "years");
-/** A reply that shows the Try chips, and so the only kind that has to be told when another reply is being written (its chips are not pressed then): the others are not drawn again for it. */
-const showsChips = (m: AssistantMsg): boolean => m.status === "done" && (m.reason === "small_talk" || noPapers(m));
 
 /** What a reply is drawn from, as module constants: an object made in a render would be a new one every time, and a memoised child would be drawn again for it. */
 const REPLY_IN = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35, ease: easeOut } } as const;
@@ -377,12 +377,13 @@ const REPLY_IN = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }
  * being written, 1.8 to 2.4 s while a reply was; now 60 ms and 150 to 230 ms: e2e/chat-perf.mjs).
  * `flashN` is the number of this reply's paper that is being pointed at (0 for none).
  */
-const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN, chipsBusy, onCite, onRetry, onChange, onRefine, onOpenPage, onTry }: { msg: AssistantMsg; text: string; signedIn: boolean; flashN: number; chipsBusy: boolean; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onTry: (text: string) => void }) {
+const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN, onCite, onRetry, onChange, onRefine, onOpenPage }: { msg: AssistantMsg; text: string; signedIn: boolean; flashN: number; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void }) {
   const working = msg.status === "working";
   const byN = (n: number) => msg.papers[n - 1];
   const answer = msg.answer?.grounded ? msg.answer : null;
   const titleOf = (n: number) => byN(n)?.title ?? `paper ${n}`;
   const routed = msg.status === "done" && msg.reason === "routed" && msg.mode !== "search";
+  const reserved = working && signedIn && msg.mode === "search" && !msg.live && !answer && (msg.step === "read" || msg.step === "write");
   const quiet = useQuiet(msg);
   // A button of this reply was pressed (Search again, Try again, Use these exact words, the year chip's X, an earlier question taken away) and the reply began again in its place: the button was shown only
   // while the reply was not working, so it is gone from the page and the focus has dropped to the page's body (a keyboard user loses their place, a screen reader says nothing). The focus goes to the reply
@@ -397,7 +398,7 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
   // One polite message when the reply is ready (not the words one by one), through the conversation's one status line, and only for a reply that was being written here: one that is merely shown (a conversation opened again) says nothing.
   const was = useRef(working);
   useEffect(() => {
-    if (was.current && !working) announce(msg.status === "done" ? (msg.reason === "small_talk" ? "Reply ready." : routed ? "Understood. A tool can be opened." : msg.papers.length === 0 ? (noPapers(msg) ? "No papers were found. You can change the words, or try one of the examples." : "No papers were found.") : `${answer ? "Answer ready" : "Papers ready"}, ${msg.papers.length} ${msg.papers.length === 1 ? "paper" : "papers"}.`) : msg.status === "stopped" ? "Stopped." : msg.error ?? "This answer was interrupted.");
+    if (was.current && !working) announce(msg.status === "done" ? (msg.reason === "small_talk" ? "Reply ready." : routed ? "Understood. A tool can be opened." : msg.papers.length === 0 ? (noPapers(msg) ? "No papers were found. You can change the words and search again." : "No papers were found.") : `${answer ? "Answer ready" : "Papers ready"}, ${msg.papers.length} ${msg.papers.length === 1 ? "paper" : "papers"}.`) : msg.status === "stopped" ? "Stopped." : msg.error ?? "This answer was interrupted.");
     was.current = working;
   }, [working]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -427,8 +428,10 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
       {working && <Progress m={msg} signedIn={signedIn} />}
       {quiet && <p className="chat-quiet" role="status">Still working… this is taking longer than usual. You can press Stop and try again.</p>}
 
-      {/* ONE card from the first word to the checked answer: the words that are being written sit in the card that the answer will be in (the same element, so that it neither jumps nor fades in a second time) */}
-      {answer || (working && msg.live) ? (
+      {/* ONE card from the first word to the checked answer: the words that are being written sit in the card that the answer will be in (the same element, so that it neither jumps nor fades in a second time).
+          It is there, empty and quiet (three grey bars, no movement), from the moment the papers are being read: the first word used to put it in above the papers, and the papers that were on the screen were pushed down by
+          its whole height (about 190 px on a desktop, 280 px on a phone) after 10 to 20 seconds of waiting; the shift gate measured 0.196 for that alone. A person who is not signed in gets no written answer, so no room is kept for one. */}
+      {answer || (working && msg.live) || reserved ? (
         <m.div className={answer ? "chat-answer" : "chat-live-card"} initial={{ opacity: 0.4 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
           {answer ? (
             <>
@@ -456,8 +459,16 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
           </details>
           <Strict msg={msg} signedIn={signedIn} />
             </>
-          ) : (
+          ) : msg.live ? (
             <LiveText text={msg.live} writing={msg.step === "write"} />
+          ) : (
+            <div className="reading chat-text chat-live-wait">
+              {/* the hint stood in the list of steps, next to "Reading the papers", where it made the list three lines taller and took them away again at the first word (the card and the papers under it moved up by them) */}
+              {msg.step === "read" && <p className="chat-wait-hint">About 10 to 20 seconds: it reads every abstract before it writes.</p>}
+              <span className="sk sk-body" aria-hidden="true" />
+              <span className="sk sk-body" aria-hidden="true" />
+              <span className="sk sk-body sk-short" aria-hidden="true" />
+            </div>
           )}
         </m.div>
       ) : null}
@@ -477,12 +488,10 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
       <Background msg={msg} question={text} onRefine={onRefine} />
       {msg.status === "done" && msg.reason === "small_talk" && (
         <div className="chat-talk">
-          {/* the way out of a wrong guess comes FIRST: under eight chips, one to a line on a phone, it was a screen down and behind the box that sticks to the bottom of the window */}
+          {/* the way out of a wrong guess: the person's own words, searched as written. (No example searches here: they are for the empty Home.) */}
           <p className="chat-talk-any">
             Not small talk? <button type="button" className="link-btn" onClick={() => onRetry(msg.id, "anyway")}>Search for these words anyway</button>
           </p>
-          {/* a click sends the search in the place the switch under the box says (the page above knows it), and not while another reply is being written */}
-          <TryChips chips={startersFor(signedIn)} onPick={onTry} disabled={chipsBusy} />
         </div>
       )}
       {msg.status === "stopped" && <p className="chat-why" role="note">Stopped. The papers found so far are below.</p>}
@@ -510,13 +519,8 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
         </p>
       ))}
 
-      {/* a finished search that found no paper says so (the server's own line, or this one for a reply kept from before it had one) and offers the Try chips: a way on that is not an empty page */}
-      {noPapers(msg) && (
-        <div className="chat-talk">
-          {!msg.notices.some((n) => n.kind === "nothing") && <p className="chat-why" role="note">No papers were found for this.</p>}
-          <TryChips chips={startersFor(signedIn)} onPick={onTry} disabled={chipsBusy} label="Or try one of these" />
-        </div>
-      )}
+      {/* a finished search that found no paper says so (the server's own line, or this one for a reply kept from before it had one) */}
+      {noPapers(msg) && !msg.notices.some((n) => n.kind === "nothing") && <p className="chat-why" role="note">No papers were found for this.</p>}
 
       {working && msg.papers.length === 0 && !msg.papersFinal && msg.step !== "route" ? (
         <ul className="chat-papers" aria-hidden="true">
@@ -600,6 +604,10 @@ function Editor({ msg, n, info, busy, ideas, versions, onCancel, onSave }: { msg
   const box = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
   const length = text.length;
+  // an edit with changed words is not kept anywhere: the Home link asks before it takes the person away from it (lib/leave.ts)
+  const draft = useRef(text);
+  draft.current = text;
+  useEffect(() => registerLeaveGuard(() => (draft.current !== msg.text ? EDIT_LEAVE_WARNING : null)), [msg.text]);
   const over = length > info.limit;
 
   // in with the caret at the end, and the buttons clear of the box that sticks to the bottom of the window (the box's margin rule reaches an element with an id)
@@ -615,8 +623,7 @@ function Editor({ msg, n, info, busy, ideas, versions, onCancel, onSave }: { msg
     const el = field.current;
     if (!el) return;
     const y = window.scrollY;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 288)}px`;
+    fitField(el, 288);
     if (window.scrollY !== y) window.scrollTo(0, y);
   }, [text]);
 
@@ -782,9 +789,60 @@ const UserTurn = memo(function UserTurn({ msg, n, info, busy, held, ideas, editi
   );
 }, (a, b) => (Object.keys(sameUserTurn) as (keyof UserTurnProps)[]).every((k) => (sameUserTurn[k] as (x: unknown, y: unknown) => boolean)(a[k], b[k])));
 
-export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onRefine, onOpenPage, onIdeaAgain, onTry }: { messages: ChatMsg[]; signedIn: boolean; liveIdeas: ReadonlySet<string>; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onIdeaAgain: (id: string) => void; onTry: (text: string) => void }) {
+/**
+ * The round arrow just above the box that takes the reader to the latest message. It is shown only while the end of the conversation is out of view: an IntersectionObserver watches an empty element at the
+ * end of the list (no scroll listener, and nothing is drawn again while the page scrolls: the one piece of state flips when the end comes into view or goes out of it). The box sticks to the bottom of the window
+ * and covers the last of the page, so the window the observer watches ends where the box begins (and is made again when the box grows or shrinks with its text). The button is drawn into an anchor on the box's top
+ * edge (`slot`, made by the page), which is what keeps it clear of the box whatever the box's height. It is in no live region (nothing is announced when it comes and goes), and out of the tab order while it is
+ * hidden. A smooth scroll, or an instant one for a reader who asked for less motion. Pressed by the keyboard, the focus goes to the box (the arrow is about to go, and the focus must not fall to the page).
+ */
+function JumpToLatest({ slot, end }: { slot: HTMLElement; end: RefObject<HTMLElement | null> }) {
+  const [away, setAway] = useState(false);
+  useEffect(() => {
+    const target = end.current;
+    const box = slot.parentElement;
+    if (!target || !box || typeof IntersectionObserver !== "function") return;
+    let watcher: IntersectionObserver | null = null;
+    const watch = () => {
+      watcher?.disconnect();
+      const covered = Math.ceil(box.getBoundingClientRect().height + (parseFloat(getComputedStyle(box).bottom) || 0) + 2);
+      watcher = new IntersectionObserver(([e]) => setAway(!!e && !e.isIntersecting && e.boundingClientRect.top >= (e.rootBounds?.bottom ?? window.innerHeight)), { rootMargin: `0px 0px -${covered}px 0px` });
+      watcher.observe(target);
+    };
+    watch();
+    const resized = typeof ResizeObserver === "function" ? new ResizeObserver(watch) : null;
+    resized?.observe(box);
+    return () => {
+      watcher?.disconnect();
+      resized?.disconnect();
+    };
+  }, [slot, end]);
+  const go = (byKeyboard: boolean) => {
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const to = () => document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo({ top: to(), behavior: reduced ? "auto" : "smooth" });
+    // a reply that was skipped is drawn at its own height as the page goes by, and the end moves: once the scroll is over, it goes to where the end is now
+    const settle = () => {
+      if (Math.abs(to() - window.scrollY) > 4) window.scrollTo({ top: to(), behavior: "auto" });
+    };
+    if (!reduced) {
+      const timer = window.setTimeout(settle, 1500);
+      window.addEventListener("scrollend", () => { window.clearTimeout(timer); settle(); }, { once: true });
+    }
+    if (byKeyboard) slot.parentElement?.querySelector("textarea")?.focus({ preventScroll: true });
+  };
+  return createPortal(
+    <button type="button" className="chat-jump" data-show={away} aria-label="Scroll to latest message" title="Scroll to latest message" onClick={(e) => go(e.detail === 0)}>
+      <ArrowDown size={18} aria-hidden="true" />
+    </button>,
+    slot,
+  );
+}
+
+export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onRefine, onOpenPage, onIdeaAgain, jumpSlot = null }: { messages: ChatMsg[]; signedIn: boolean; liveIdeas: ReadonlySet<string>; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onIdeaAgain: (id: string) => void; /** the anchor on the box's top edge that the arrow to the latest message is drawn into (the page makes it) */ jumpSlot?: HTMLElement | null }) {
   const [flash, setFlash] = useState<{ msgId: string; n: number } | null>(null);
   const list = useRef<HTMLOListElement>(null);
+  const end = useRef<HTMLDivElement>(null);
   // The older replies of a long conversation are not drawn until they are near the window (content-visibility: auto, shell.css), and a reply that is not drawn is not in the accessibility tree either (measured:
   // no button in it, against 108 in a drawn one), so a screen reader cannot reach it. `everyReply` draws them all, on request; the control is there from three turns on, first in the conversation, and takes no
   // room on the page until it has the focus (a screen reader and the Tab key find it, a mouse never sees it).
@@ -804,11 +862,10 @@ export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onR
   // What the turns are given must not be new when nothing about it is: a turn is drawn again for a prop that is merely a new object or a new function, and a long conversation has twenty of them or more, each
   // of them thousands of nodes, which every word of the reply being written (and every key pressed in the box) would draw again. The functions of the page above are new for every render of it, so they are held
   // here and called through these, which never change; the rest are made once.
-  const parent = useRef({ onRetry, onChange, onRefine, onOpenPage, onTry });
+  const parent = useRef({ onRetry, onChange, onRefine, onOpenPage });
   useLayoutEffect(() => {
-    parent.current = { onRetry, onChange, onRefine, onOpenPage, onTry };
+    parent.current = { onRetry, onChange, onRefine, onOpenPage };
   });
-  const tryChip = useCallback((text: string) => parent.current.onTry(text), []);
   const retry = useCallback((id: string, as?: "search" | "anyway") => parent.current.onRetry(id, as), []);
   const change = useCallback<ChangeTool>((to, id, text) => parent.current.onChange(to, id, text), []);
   const refine = useCallback((text: string) => parent.current.onRefine(text), []);
@@ -916,12 +973,14 @@ export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onR
                   onAnchor={anchorAt}
                 />
               ) : (
-                <AssistantTurn msg={msg} text={before?.role === "user" ? before.text : msg.query} signedIn={signedIn} flashN={flash?.msgId === msg.id ? flash.n : 0} chipsBusy={busy !== null && showsChips(msg)} onCite={cite} onRetry={retry} onChange={change} onRefine={refine} onOpenPage={openPage} onTry={tryChip} />
+                <AssistantTurn msg={msg} text={before?.role === "user" ? before.text : msg.query} signedIn={signedIn} flashN={flash?.msgId === msg.id ? flash.n : 0} onCite={cite} onRetry={retry} onChange={change} onRefine={refine} onOpenPage={openPage} />
               )}
             </li>
           );
         })}
       </ol>
+      <div ref={end} aria-hidden="true" />
+      {jumpSlot && <JumpToLatest slot={jumpSlot} end={end} />}
       <Announcer />
     </div>
   );

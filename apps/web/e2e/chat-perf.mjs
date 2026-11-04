@@ -22,7 +22,7 @@ const BASE = process.argv[2] ?? "http://localhost:8788";
  * (open in 1.2 s, a key in 200 ms, a task of 150 ms) were measured in a bare page of plain cards; with the page's real cards, which are motion components with a menu each, a reply of five cards alone is a task of
  * about 150 to 250 ms at this speed, so those are not held.
  */
-const LIMIT = { mountMs: 10000, mountPaintShare: 0.35, keyIdleMs: 600, keyStreamMs: 1500, longTaskMs: 800, frameMs: 1500, relIdle: 3, relStream: 4, relLong: 3, relFrame: 3, slackMs: 100, cls: 0.1, phoneCls: 0.5, scrollJump: 40, heightDrift: 0.02, liveRegions: 1 };
+const LIMIT = { mountMs: 10000, mountPaintShare: 0.35, keyIdleMs: 600, keyStreamMs: 1500, longTaskMs: 800, frameMs: 1500, relIdle: 3, relStream: 4, relLong: 3, relFrame: 3, slackMs: 100, cls: 0.1, phoneCls: 0.35, lateJump: 50, scrollJump: 40, heightDrift: 0.02, liveRegions: 1 };
 const TURNS = 20;
 const CARDS = 20;
 const SLOW = 4;
@@ -102,6 +102,10 @@ function instruments({ expect }) {
   watch("event", (e) => { if (e.interactionId) P.events.push({ name: e.name, at: e.startTime, dur: e.duration, delay: e.processingStart - e.startTime }); }, { durationThreshold: 16 });
   const box = (r) => `${Math.round(r.y)}+${Math.round(r.height)}`;
   watch("layout-shift", (e) => P.shifts.push({ v: e.value, at: e.startTime, input: e.hadRecentInput, src: (e.sources ?? []).slice(0, 3).map((s) => `${name(s.node)} ${box(s.previousRect)} to ${box(s.currentRect)}`) }));
+  // the page moving of itself after the reply has been asked for: the one scroll to the new question comes in the first 300 ms; a later one of more than 300 px is the page jumping under the reader
+  P.jumps = [];
+  let lastY = scrollY;
+  window.addEventListener("scroll", () => { const y = scrollY; if (P.armed && P.sendAt && performance.now() - P.sendAt > 300 && Math.abs(y - lastY) > 300) P.jumps.push({ at: performance.now(), dy: Math.round(y - lastY) }); lastY = y; }, { passive: true });
   const mo = new MutationObserver(() => {
     const now = performance.now();
     if (!P.framedAt && document.querySelector(".chat-head")) P.framedAt = now;
@@ -237,10 +241,14 @@ async function widthsProbe(list) {
     if (!process.env.PERF_ONLY_WIDTHS && (width === 320 || width === 360)) {
       const rw = await streamReply(W.page, W.cdp);
       tell(rw);
-      // NOT the desktop's 0.1. Measured 4 Nov 2026 at 320 px: 0.000 in one run and 0.361 in the next (the live card's reserved room, 11 lines, pushes the papers under it once when the first word comes, and again when the
-      // checked answer takes its place); at 360 px 0.02 (what moves is below the window). A stream written for the purpose gave 1.37 on a phone with a node for each word and 0.47 once the words were one piece
-      // of text (section 7 of the plan). The line is what stops the per-word spans coming back; the reserved room is a known weak point (section 12), and the number is printed above.
+      // NOT the desktop's 0.1: on a phone the steps list (one line of progress is three lines at 320 px) and the checked answer's own height are a large part of the window. The line was 0.5 and the number swung from run to
+      // run (0.000, 0.28 to 0.36, once 0.966), for two reasons found on 5 Nov 2026 (docs/design/ui-polish-1.md): (1) the four letters this gate types while the reply is written made the page jump by 2,000 to 46,000 px in a
+      // long chat (the box measured its place in the document, which the scroll to the new question had changed by 230,000 px, and flew in from there: the page followed the caret), so the reply was off the screen and its
+      // shifts were not counted (0.000), or, when the jump came late, the old replies sliding into the window were (0.69 to 0.92); (2) the answer's card was put in above the papers at the first word, which pushed the papers
+      // on the screen down by its whole height (0.196). Both are fixed (a lateJump line holds the first; the card is there, empty and quiet, from the moment the papers are read). What is left is the Reading hint going
+      // from the steps list when writing begins and the steps list going when the answer is whole (0.085 and 0.087): 0.173 in every quiet run, at most about 0.26 on a loaded machine.
       ok(rw.cls <= LIMIT.phoneCls, `${width} px: layout shift while the reply is written is within ${LIMIT.phoneCls} (${num(rw.cls, 3)}; the desktop's line of ${LIMIT.cls} is not held on a phone: see the comment)`);
+      ok(rw.lateJump <= LIMIT.lateJump, `${width} px: a key pressed while the reply is written does not move the page (at most ${LIMIT.lateJump} px; it moved ${rw.lateJump} px in ${rw.jumps} jump(s))`);
     }
     await W.ctx.close();
   }
@@ -334,6 +342,7 @@ async function streamReply(page, cdp) {
     // every shift from 600 ms after the question to the end, whether or not the browser sets it aside as following a key: the words arriving, the checked answer taking their place, the steps going
     cls: within(s.shifts, settled, to + 300).reduce((a, x) => a + x.v, 0),
     shifts: within(s.shifts, settled, to + 300).filter((x) => x.v > 0.003).slice(0, 5),
+    lateJump: Math.max(0, ...(s.jumps ?? []).map((j) => Math.abs(j.dy))), jumps: (s.jumps ?? []).length,
     counters: { script: d("ScriptDuration"), layout: d("LayoutDuration"), layouts: after.LayoutCount - before.LayoutCount, style: d("RecalcStyleDuration"), styles: after.RecalcStyleCount - before.RecalcStyleCount, tasks: d("TaskDuration"), nodes: after.Nodes },
     loaf: within(s.loaf ?? [], from, to + 1000).sort((x, y) => y.dur - x.dur).slice(0, 2),
   };
@@ -341,7 +350,7 @@ async function streamReply(page, cdp) {
 function tell(r) {
   note(`the stream: ${num(r.ms)} ms from the question to the end (${r.liveAt === null ? "the live words were never drawn: the answer was whole before the page could draw them" : `the live words were drawn from ${num(r.liveAt)} ms`}); ${r.frames} frames, ${num(r.fps, 1)} a second, the slowest took ${num(r.worstFrame)} ms (95th percentile ${num(r.p95Frame)} ms)`);
   note(`pressing a key: ${num(r.keyIdle)} ms with nothing being written (${r.keyIdleEvents} events over 16 ms); ${num(r.keyStream)} ms during the stream (input delay up to ${num(r.keyDelay)} ms, ${r.keyStreamEvents} events)`);
-  note(`${r.longs} long tasks in the stream, the longest ${num(r.longest)} ms; layout shift ${num(r.cls, 3)} from 600 ms after the question to the end (${num(r.clsSend, 3)} in the question's own first 600 ms)`);
+  note(`${r.longs} long tasks in the stream, the longest ${num(r.longest)} ms; layout shift ${num(r.cls, 3)} from 600 ms after the question to the end (${num(r.clsSend, 3)} in the question's own first 600 ms); the page moved of itself by up to ${r.lateJump} px after the first 300 ms (${r.jumps} times)`);
   note(`the browser's counters over the stream: script ${num(r.counters.script)} ms, layout ${num(r.counters.layout)} ms (${r.counters.layouts} times), style ${num(r.counters.style)} ms (${r.counters.styles}), all tasks ${num(r.counters.tasks)} ms; ${r.counters.nodes} nodes`);
   for (const f of r.loaf) note(`  a long frame of ${num(f.dur)} ms: scripts ${num(f.script)} ms, style and layout ${num(f.render)} ms, painting from ${num(f.wait)} ms (${f.from})`);
   for (const sh of r.shifts) note(`  shift ${num(sh.v, 3)} at ${num(sh.at - r.from)} ms: ${sh.src.join(", ")}`);
@@ -392,6 +401,7 @@ try {
   ok(r.keyIdleEvents >= 3, `the browser's Event Timing saw the keys pressed with nothing being written (${r.keyIdleEvents} events over 16 ms of the 6 pressed; at least 3), so the line above is a measurement`);
   ok(r.keyStreamEvents >= 3, `...and the keys pressed while the reply is written (${r.keyStreamEvents} events of the 4 pressed; at least 3)`);
   ok(r.cls <= LIMIT.cls, `layout shift while the reply is written is within ${LIMIT.cls} (${num(r.cls, 3)})`);
+  ok(r.lateJump <= LIMIT.lateJump, `a key pressed while the reply is written does not move the page (at most ${LIMIT.lateJump} px; it moved ${r.lateJump} px in ${r.jumps} jump(s))`);
   ok(await D.page.locator('.chat-list > li:last-child .chat-turn[data-status="done"] .result').count() === 5 && await D.page.locator(".chat-list > li:last-child .chat-answer").count() === 1, "the stood-in reply is whole: its answer and its five papers");
   ok(await D.page.locator(".chat-list > li").count() === TURNS * 2 + 2, `and it is the 21st turn (${await D.page.locator(".chat-list > li").count()} items in the list)`);
   if (r.s.liveShape) ok(r.s.liveShape.spans === 0 && r.s.liveShape.texts === 1, `the words are one piece of text and not a node for each word (${r.s.liveShape.spans} word nodes, ${r.s.liveShape.texts} text node)`);

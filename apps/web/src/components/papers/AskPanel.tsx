@@ -1,8 +1,9 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowUp, BadgeCheck, Check, Copy, CornerDownRight, Highlighter, Loader2, RefreshCw, SearchX, ShieldCheck, Sparkles, Square, TriangleAlert } from "lucide-react";
-import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useRef, useState } from "react";
 import { MAX_QUESTION_CHARS, classifyAskSource, type Answer, type AskSource, type AskStage, type Citation, type DocNote, type DocumentInfo, type ScanInfo } from "@scholar/shared";
 import { ApiError, askDocumentStream, askHighlights } from "../../lib/documents";
+import { useGrowingField } from "../../lib/autogrow";
 import { useLegend } from "../../lib/legend";
 import { easeOut, spring, springPop } from "../../lib/motion";
 import { CountUp } from "../ResultCard";
@@ -267,13 +268,8 @@ export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoTo
   }, [history]);
   useEffect(() => () => abort.current?.abort(), []);
 
-  // Grow the box with the text (up to a limit).
-  useLayoutEffect(() => {
-    const el = input.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
-  }, [q]);
+  // Grow the box with the text (up to a limit); fitted again when the tab is opened (a box that is not shown has no width and was left too short for its own line, with a scroll bar) and when the fonts arrive.
+  useGrowingField(input, q, 150);
 
   // Follow the newest text, but only while the reader has not scrolled up to read something earlier.
   const onScroll = () => {

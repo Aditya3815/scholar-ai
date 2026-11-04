@@ -390,7 +390,8 @@
   min-height: 60vh;
   place-items: center;
 }
-.dw-head .btn {
+.dw-head .btn,
+.dw-back {
   flex: none;
   white-space: nowrap;
 }

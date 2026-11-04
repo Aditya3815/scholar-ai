@@ -4,15 +4,15 @@ import { yearRangeWords } from "@scholar/shared";
 import { chipCounts, rowFacts, rowWindows, type ShownChip, type TrendingRow } from "@scholar/shared/src/trending-row";
 
 /**
- * The Try chips: example searches the owner chose (starters.ts). A click sends one. The same row is under the box on Home, under a reply to small talk and under a search that found no paper; `disabled`
- * while a reply is being written (a second message waits for the first, so a click would do nothing). Its label is its group's name, so a screen reader says "Try" before the chips.
+ * The Try chips: example searches the owner chose (starters.ts). A click sends one. They are under the box on the empty Home only, not in a conversation (they were also under a reply to small talk and
+ * under a search that found no paper); `disabled` while a reply is being written. Its label is its group's name, so a screen reader says "Try" before the chips.
  */
-export function TryChips({ chips, onPick, disabled = false, label = "Try" }: { chips: readonly string[]; onPick: (text: string) => void; disabled?: boolean; label?: string }) {
+export function TryChips({ chips, onPick, disabled = false }: { chips: readonly string[]; onPick: (text: string) => void; disabled?: boolean }) {
   const id = useId();
   if (chips.length === 0) return null;
   return (
     <div className="hm-starters" role="group" aria-labelledby={`${id}-h`}>
-      <span className="hm-try" id={`${id}-h`}>{label}</span>
+      <span className="hm-try" id={`${id}-h`}>Try</span>
       {chips.map((s) => (
         <button key={s} type="button" className="chip-btn" disabled={disabled} onClick={() => onPick(s)}>{s}</button>
       ))}

@@ -3,6 +3,7 @@ import { ArrowUp, Bookmark, Check, ChevronDown, EyeOff, FileStack, Landmark, Lig
 import { Component, Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type Dispatch, type KeyboardEvent, type ReactNode, type RefObject, type SetStateAction } from "react";
 import { INDIA_SCOPE_HELP, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MIN_IDEA_CHARS, textAttrs, yearRangeWords, type MemoryEntry, type RouteMode, type SearchScope } from "@scholar/shared";
 import { useAuth } from "../lib/auth";
+import { useGrowingField } from "../lib/autogrow";
 import { reportError } from "../lib/monitoring";
 import { coverUrl, loadDocs, useDocs } from "../lib/documents";
 import { useLibrary } from "../lib/library";
@@ -287,13 +288,15 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
   const chat = useChatState();
   const messages = chat.active ? chat.chats.get(chat.active) ?? [] : [];
   const conversing = useConversing();
-  const glide = useMemo(() => ({}), [chat.chats, chat.active]);
   const busy = !!chat.active && chat.running.has(chat.active);
   const priv = isPrivateChat(chat);
   // A conversation that is being read from the browser's storage (a reload, or a chat opened from the rail) has its frame, the title and the box, from the first frame: the page does not draw the greeting for a
   // moment and then change into a conversation. Its messages come when they are read and the chunk of the conversation has arrived (a layout shift of 0.15 on a desktop that reloaded with a conversation in it, measured 3 Nov 2026).
   const resuming = !conversing && !!chat.active && !priv && !chat.chats.has(chat.active) && chat.index.some((e) => e.id === chat.active);
   const framed = conversing || resuming;
+  // the box's position is measured (and glides) only when the page changes between the empty Home and a conversation, not for every message and every word of a reply: the box sticks to the bottom of the window by itself, and
+  // the measurement took the box's place in the DOCUMENT, so a page that scrolled from the top of a long chat to its end to show the new question made the box fly in from tens of thousands of pixels away (the page followed the caret into it)
+  const glide = useMemo(() => ({}), [framed]);
   const from = continuedFrom(chat);
   const title = priv ? "Private chat" : chat.index.find((e) => e.id === chat.active)?.title ?? "New chat";
   const [problem, setProblem] = useState<string | null>(null);
@@ -305,6 +308,8 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
   // how the last fill is to leave the box: "pointer" (a finger or a mouse: on a touch screen no keyboard is raised) or "focus" (the keyboard pressed the chip, or Put back what I wrote: the person is typing)
   const fill = useRef<"pointer" | "focus">("pointer");
   const boxRef = useRef<HTMLFormElement>(null);
+  // the anchor on the box's top edge that the arrow to the latest message is drawn into (ChatView.tsx): a conversation has it
+  const [jumpSlot, setJumpSlot] = useState<HTMLElement | null>(null);
   // an emptied box has no filter, in the very render in which it is emptied (the state follows)
   const draft = useMemo(() => reconcileDraft(query, kept), [query, kept]);
   useEffect(() => {
@@ -332,12 +337,8 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
     if (status === "ready" && user) void loadDocs();
   }, [status, user?.id]);
 
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
-  }, [query, inputRef]);
+  // the box is as high as its text up to 220 px, then it scrolls (with no scroll bar of the browser's)
+  useGrowingField(inputRef, query, 220, true, true);
 
   const ready = query.trim().length >= (tool === "auto" || tool === "search" ? 2 : 1) && tool !== "paper";
   const send = () => {
@@ -476,12 +477,13 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
       {conversing && priv && <p className="chat-und" role="note">Private chat: it is not kept, and not used as memory. It is gone when you leave it.</p>}
       {resuming && <p className="sr-only" role="status">Loading the conversation…</p>}
       {conversing && (
-        <ChatViewSlot messages={messages} signedIn={!!user} onRetry={(rid, as) => void retryReply(rid, as)} liveIdeas={chat.liveIdeas} onOpenPage={openPage} onIdeaAgain={reviveIdea} onChange={changeMode} onRefine={(t) => { onQuery(t); window.setTimeout(() => inputRef.current?.focus(), 0); }} onTry={tryStarter} />
+        <ChatViewSlot jumpSlot={jumpSlot} messages={messages} signedIn={!!user} onRetry={(rid, as) => void retryReply(rid, as)} liveIdeas={chat.liveIdeas} onOpenPage={openPage} onIdeaAgain={reviveIdea} onChange={changeMode} onRefine={(t) => { onQuery(t); window.setTimeout(() => inputRef.current?.focus(), 0); }} />
       )}
 
       {/* the box's layout is measured when the conversation changes (the glide to the bottom, then as the answer grows the page) and not on every letter typed: measured on every render, which is the
           default, a long question typed after a search ended in React's limit of 50 nested updates ("Maximum update depth exceeded", error 185) */}
       <m.form ref={boxRef} className="hm-box" layout="position" layoutDependency={glide} transition={{ type: "spring", stiffness: 260, damping: 30 }} onSubmit={(e) => { e.preventDefault(); if (busy) stopReply(); else send(); }} {...(framed ? {} : rise(3))}>
+        {framed && <div ref={setJumpSlot} className="hm-jump" />}
         {(from || (priv && !conversing) || yearChip !== null || draft.undo) && (
           // what the next message is sent with, or not kept: always in view, each with its own button to take it away (the two choices of a chat replace each other; the year of a Trending chip is a third thing, and so is
           // the way back to the words a chip replaced)

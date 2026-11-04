@@ -89,6 +89,9 @@
 .hm-input { display: block; width: 100%; min-height: 3.6rem; max-height: 14rem; padding: 1rem 1.1rem 0.4rem; border: 0; background: transparent; resize: none; outline: none; line-height: 1.5; font: inherit; color: var(--text); }
 .hm-input::placeholder { color: var(--muted); opacity: 1; }
 .hm-input:disabled { cursor: not-allowed; }
+/* The boxes you write a message in grow with their text up to a limit and then scroll (wheel, touch, keyboard) with no scroll bar of the browser's (arrows and a dark track inside a rounded box), and no grip to drag */
+.hm-input, .ask-form textarea, .oa-input, .chat-edit-ta { scrollbar-width: none; }
+.hm-input::-webkit-scrollbar, .ask-form textarea::-webkit-scrollbar, .oa-input::-webkit-scrollbar, .chat-edit-ta::-webkit-scrollbar { display: none; }
 .hm-bar { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.6rem 0.6rem; }
 .hm-mode { white-space: nowrap; display: inline-flex; align-items: center; gap: 0.45rem; min-height: 2.25rem; padding: 0.3rem 0.8rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-weight: 600; font-size: 0.86rem; color: var(--text); }
 .hm-mode:hover { border-color: var(--accent); }
@@ -438,11 +441,13 @@ kbd {
 .hm[data-chat="true"] { justify-items: stretch; width: min(100%, 44rem); margin-inline: auto; padding-top: 0.5rem; text-align: left; }
 .hm[data-chat="true"] .hm-box { position: sticky; bottom: 0.55rem; z-index: 5; margin-top: 1rem; max-width: none; }
 .hm[data-chat="true"] .hm-fine { max-width: none; }
-/* The box sticks to the bottom of the window with the conversation scrolling under it, which showed the text of a card cut in half along its top edge and a strip of the next card under it. A soft fade above it,
-   and a strip of the page's own colour under it (the gap it keeps from the window's edge), are drawn by pseudo-elements that sit outside the layout, so nothing moves for them and a click goes through to the page.
-   Each is exactly as tall as the space the box keeps round it in the page's flow (1 rem above, 0.55 rem under: the margin of the box and of the line under it), so that where the box is not stuck to the window's edge it covers nothing. */
-.hm[data-chat="true"] .hm-box::before { content: ""; position: absolute; inset: auto 0 100% 0; height: 1rem; pointer-events: none; background: linear-gradient(to bottom, transparent, var(--bg)); }
-.hm[data-chat="true"] .hm-box::after { content: ""; position: absolute; inset: 100% 0 auto 0; height: 0.55rem; pointer-events: none; background: var(--bg); }
+/* The box sticks to the bottom of the window with the conversation scrolling under it, which showed the text of a card cut in half along its top edge and a strip of the next card under it. The page's own colour
+   is therefore two more layers of the box's own shadow, BELOW its ring and its shadow: one fading in over the 1 rem above the box and one 0.55 rem band under it (the gap it keeps from the window's edge). They are shadows
+   and not pseudo-elements because a pseudo-element is painted OVER the box's own shadow and border: the two strips of the release before covered the 1 px border at the box's lower edge, the lower half of its focus ring
+   and its shadow (e2e/polish-chat.mjs reads the pixels). Nothing moves for them, a click goes through, and where the box is not stuck to the window's edge they cover nothing but the page's own colour. The ring layer
+   is there (empty) when the box is not focused so that both states have the same layers and the ring fades in and out as it should. */
+.hm[data-chat="true"] .hm-box { box-shadow: 0 0 0 0 transparent, var(--shadow-2), 0 -1rem 0.5rem -0.5rem var(--bg), 0 0.55rem 0 0 var(--bg); }
+.hm[data-chat="true"] .hm-box:focus-within { box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow-2), 0 -1rem 0.5rem -0.5rem var(--bg), 0 0.55rem 0 0 var(--bg); }
 .chat-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; }
 .chat-title { margin: 0; min-width: 0; overflow: hidden; font-size: 1.15rem; text-overflow: ellipsis; white-space: nowrap; }
 .chat-head .btn { flex: none; white-space: nowrap; }
@@ -526,7 +531,6 @@ kbd {
 .chat-chip-x { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); }
 .chat-chip-x:hover { background: var(--border); color: var(--text); }
 .chat-quiet { margin: 0; color: var(--muted); font-size: 0.875rem; }
-.chat-step-hint { color: var(--muted); font-size: 0.85em; }
 .chat-change { display: inline-flex; align-items: center; gap: 0.15rem; }
 /* Auto took the message for another tool: it is offered here, never started */
 .chat-offer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); }
@@ -548,8 +552,8 @@ kbd {
 .cite-grp .cite-chip { margin-inline: 0.05rem 0; }
 /* The words of an answer that is being written: room is kept for the lines still to come (a short answer of about 120 words is six or seven lines here and twice that on a phone), so that the papers under it
    do not move down a line at a time. It is a minimum, not a size: a longer answer grows it, and the checked answer that replaces it is its own height. */
-.chat-live { min-height: calc(6 * 1.65em); }
-@media (max-width: 640px) { .chat-live { min-height: calc(11 * 1.65em); } }
+.chat-live, .chat-live-wait { min-height: calc(6 * 1.65em); }
+@media (max-width: 640px) { .chat-live, .chat-live-wait { min-height: calc(11 * 1.65em); } }
 .chat-evidence summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
 .chat-evidence ul { display: grid; gap: 0.4rem; margin: 0.5rem 0 0; padding: 0; list-style: none; }
 .chat-ev { display: flex; gap: 0.6rem; width: 100%; padding: 0.5rem 0.65rem; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface-2); color: var(--text); text-align: left; }
@@ -566,8 +570,6 @@ kbd {
 .chat-why { margin: 0; padding: 0.6rem 0.8rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-s); color: var(--muted); font-size: 0.9rem; }
 .chat-why-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
 .chat-talk { display: grid; gap: 0.5rem; }
-.chat-talk .hm-starters { justify-content: flex-start; margin-top: 0.5rem; }
-.chat-talk .hm-try { text-align: left; }
 .chat-talk-any { margin: 0; font-size: 0.86rem; color: var(--muted); }
 .chat-note { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.4rem; margin: 0; color: var(--warn); font-size: 0.875rem; }
 /* the words take the room beside the icon and wrap there (they used to wrap under it, which left the icon alone on a row above a sentence of two lines on a phone) */
@@ -631,7 +633,7 @@ kbd {
 }
 .chat-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
 .chat-edit { display: grid; gap: 0.5rem; align-self: stretch; }
-.chat-edit-ta { width: 100%; max-height: 18rem; padding: 0.6rem 0.75rem; border: 1px solid var(--muted); border-radius: var(--radius-s); background: var(--surface); color: var(--text); font: inherit; line-height: 1.5; resize: vertical; }
+.chat-edit-ta { width: 100%; max-height: 18rem; padding: 0.6rem 0.75rem; border: 1px solid var(--muted); border-radius: var(--radius-s); background: var(--surface); color: var(--text); font: inherit; line-height: 1.5; resize: none; }
 .chat-edit-hint { color: var(--muted); font-size: 0.8125rem; }
 .chat-edit-hint p { margin: 0; }
 @media (hover: none), (pointer: coarse) { .chat-edit-keys { display: none; } }

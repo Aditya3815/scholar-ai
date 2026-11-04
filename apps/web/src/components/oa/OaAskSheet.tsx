@@ -3,6 +3,7 @@ import { AnimatePresence, m } from "motion/react";
 import { ArrowUp, Check, Copy, CornerDownRight, FileStack, RefreshCw, SearchX, ShieldAlert, ShieldCheck, Square, TriangleAlert, X } from "lucide-react";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { MAX_QUESTION_CHARS, OA_UNREADABLE_TEXT, textAttrs, type Answer, type Citation, type OaPaperEvent } from "@scholar/shared";
+import { useGrowingField } from "../../lib/autogrow";
 import { askPaper, closeOaAsk, isAsking, keyOf, restoreFocus, stopAsking, useOaAsk, type OaTurn } from "../../lib/oa-ask";
 import { useAuth } from "../../lib/auth";
 import { easeOut, spring } from "../../lib/motion";
@@ -191,6 +192,8 @@ export function OaAskSheet({ onOpenPapers }: { onOpenPapers: () => void }) {
   const [q, setQ] = useState("");
   const id = useId();
   const end = useRef<HTMLDivElement>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
+  useGrowingField(field, q, 144, open && !!user);
   useEffect(() => setQ(""), [key]);
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end", behavior: "auto" });
@@ -265,6 +268,7 @@ export function OaAskSheet({ onOpenPapers }: { onOpenPapers: () => void }) {
                     <label className="sr-only" htmlFor={`${id}-q`}>Your question about this paper</label>
                     <textarea
                       id={`${id}-q`}
+                      ref={field}
                       className="oa-input"
                       rows={2}
                       maxLength={MAX_QUESTION_CHARS}

@@ -7,7 +7,6 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { build } from "esbuild";
 import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 
 const require = createRequire(import.meta.url);
@@ -19,13 +18,6 @@ let failures = 0;
 /** Thrown to leave the run early (CHAT_ONLY=actions runs only the message actions). */
 class Stop extends Error {}
 const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
-
-/** The Try chips as the page has them (starters.ts, bundled here: the owner edits that list, and what this suite holds the page to is how many a visitor who is not signed in is offered, not which words). */
-const STARTERS = await (async () => {
-  const out = await build({ stdin: { contents: 'export * from "./src/workspace/starters";', resolveDir: fileURLToPath(new URL("..", import.meta.url)), loader: "ts" }, bundle: true, format: "esm", platform: "node", write: false, logLevel: "silent" });
-  return import("data:text/javascript;base64," + Buffer.from(out.outputFiles[0].text).toString("base64"));
-})();
-const VISITOR_CHIPS = STARTERS.startersFor(false).length;
 
 const idp = await startFakeIdp(9911);
 idp.setUser({ sub: "chat-ui-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
@@ -911,7 +903,8 @@ try {
     }));
     const entries = async (p) => JSON.parse((await store(p)).raw ?? "[]");
     const goSettings = async (p = M) => { await p.locator(".ws-rail").getByRole("link", { name: "Settings" }).click(); await p.getByRole("heading", { name: "Chats" }).waitFor(); };
-    const goHome = async (p = M) => { await p.locator(".ws-rail").getByRole("link", { name: "Home", exact: true }).click(); await p.locator("#hm-h").waitFor(); };
+    // back to the Home screen and the conversation that was open when Settings was entered: the browser's own Back (the Home LINK starts a new chat, docs/design/ui-polish-1.md, and is tested in polish-chat.mjs)
+    const goHome = async (p = M) => { await p.goBack(); await p.locator("#hm-h").waitFor(); };
     const sw = (p = M) => p.getByRole("switch", { name: "Use my earlier chats", exact: true });
     /** The switch is pressed to the state asked for (a switch already there is left alone). */
     const setSwitch = async (on) => { if ((await sw().isChecked()) !== on) await sw().click(); await M.waitForFunction((on) => document.querySelector('input[role="switch"]')?.checked === on, on, { timeout: 5000 }); };
@@ -2163,17 +2156,18 @@ try {
   await ap.locator(".chat-talk").waitFor({ timeout: 20000 });
   const talkText = await talkTurn().innerText();
   ok(/Hello! I'm doing well, thank you\. This box finds research papers and answers from them/.test(talkText) && !/I understood this as/.test(talkText) && await talkTurn().locator(".result").count() === 0, "'Hey How are you?' in Auto: a greeting answered by the page, with no 'I understood this as Search papers' and no papers");
-  ok(await talkTurn().locator(".chat-talk .chip-btn").count() === VISITOR_CHIPS && await talkTurn().getByRole("button", { name: "Search for these words anyway" }).isVisible(), `...with example searches to click (${VISITOR_CHIPS}: the ones a visitor who is not signed in is offered, which are not the Hinglish ones: those need Auto's translation) and a way to search the words anyway`);
-  // the way out of a wrong guess is ABOVE the example searches: under eight chips, one to a line on a phone, it was a screen down and behind the box that sticks to the bottom of the window
-  ok(await talkTurn().evaluate((turn) => { const any = turn.querySelector(".chat-talk-any"); const chips = turn.querySelector(".chat-talk .hm-starters"); return !!any && !!chips && !!(any.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING) && any.getBoundingClientRect().bottom <= chips.getBoundingClientRect().top + 1; }), "...and the line 'Not small talk? Search for these words anyway' comes before the example searches, not after them");
+  ok(await talkTurn().locator(".chat-talk .chip-btn").count() === 0 && await talkTurn().locator(".chat-talk .hm-starters").count() === 0 && await talkTurn().getByRole("button", { name: "Search for these words anyway" }).isVisible(), "...with a way to search the words anyway, and no example searches: they are for the empty Home, not for the middle of a conversation (they stood under every reply to small talk before)");
+  // what is left under the reply is the way out of a wrong guess, and nothing else
+  ok(await talkTurn().evaluate((turn) => { const talk = turn.querySelector(".chat-talk"); return !!talk && talk.children.length === 1 && talk.firstElementChild.classList.contains("chat-talk-any"); }), "...and the line 'Not small talk? Search for these words anyway' is all that stands under it");
   await ap.waitForTimeout(900);
   await ap.evaluate(() => window.scrollTo(0, 0));
   await axe("small talk reply", ap);
   const turnsBefore = await ap.locator(".chat-turn").count();
-  await talkTurn().locator(".chat-talk .chip-btn").first().click();
+  await ap.locator(".hm-input").fill("graph neural networks");
+  await ap.keyboard.press("Enter");
   await ap.waitForFunction((n) => document.querySelectorAll(".chat-turn").length > n, turnsBefore, { timeout: 20000 });
   await talkDone();
-  ok(/graph neural networks/.test(await ap.locator(".chat-list").innerText()) && await talkTurn().locator(".result").count() > 0, "an example search sends that search at once");
+  ok(/graph neural networks/.test(await ap.locator(".chat-list").innerText()) && await talkTurn().locator(".result").count() > 0, "a search typed after the small talk is answered with papers");
   await ap.locator(".hm-input").fill("hello bhai kaise ho");
   await ap.keyboard.press("Enter");
   await ap.waitForFunction(() => /Namaste!/.test([...document.querySelectorAll(".chat-turn")].at(-1)?.textContent ?? ""), null, { timeout: 20000 });
@@ -2230,6 +2224,10 @@ try {
   await sp.waitForTimeout(500);
   ok(await scrollY(sp) === 0, `the logo brings the reader to the top of the page, not down it (${await scrollY(sp)})`);
   ok(await sp.evaluate(() => document.activeElement?.classList.contains("hm-input")), "...with the box ready to type in");
+  // the logo is the Home link: it started a new chat, and the conversation of this part of the suite is in the list of chats
+  await sp.locator(".ws-recent-open").first().click();
+  await sp.locator(".chat-turn").first().waitFor({ timeout: 10000 });
+  await sp.waitForTimeout(1000); // the box glides down to the bottom of the window when the conversation comes back
   // what the page rule was for: a focused button in the conversation must not end up behind the box (WCAG 2.4.11 Focus Not Obscured)
   await sp.evaluate(() => window.scrollTo(0, 0));
   await sp.locator(".chat-turn").last().locator(".result").last().getByRole("button").last().focus();
