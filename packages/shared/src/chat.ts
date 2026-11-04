@@ -53,7 +53,7 @@ export type ChatAnswer = {
 /** Why a message has papers but no written answer. */
 export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_grounded" | "quota" | "unavailable" | "stopped" | "routed" | "too_long" | "small_talk";
 
-export const NOTICE_KINDS = ["partial", "nothing", "retracted", "years"] as const;
+export const NOTICE_KINDS = ["partial", "nothing", "retracted", "years", "weak"] as const;
 export type NoticeKind = (typeof NOTICE_KINDS)[number];
 
 export type ChatEvent =
@@ -70,6 +70,8 @@ export type ChatEvent =
   /**
    * A plain line about the list. `partial`: a source did not answer (the one kind that has "Search again" beside it). `nothing`: no paper was found. `retracted`: a paper in the list was retracted.
    * `years`: what a year range did to the list ("Only 3 of the papers found are from 2020 or later", "No paper from 2030 was found"): asking again would give the same list, so it has no retry.
+   * `weak`: the list is weak, or something was left undone because the message could not be read well enough (`FOLLOWUP_UNREAD_NOTICE`: a follow-up whose router call failed was searched as written and
+   * no answer was written; docs/design/intent-and-state.md, 4.6). It has no retry either. The reducer keeps one notice of each kind, so a release that adds a second line of this kind must fold the two into one.
    * A page that does not know a kind shows its text as it is and offers nothing (an old tab meeting a newer server).
    */
   | { type: "notice"; kind: NoticeKind; text: string }
@@ -86,6 +88,8 @@ export type ChatEvent =
 /** The plain sentence shown when some of the places searched did not answer. No place is named. */
 export const PARTIAL_NOTICE = "Some of the places we search did not answer, so this list may be incomplete. Search again";
 export const NOTHING_NOTICE = "Nothing was found for that. Try fewer or different words.";
+/** A follow-up that the router could not read (its call failed): the words were searched on their own, the papers are shown, and no answer was written (the notice kind `weak`). */
+export const FOLLOWUP_UNREAD_NOTICE = "I could not tell what this refers to, so I searched your words on their own and wrote no answer.";
 
 /** A message that can be sent, as the browser checks it before sending and the server checks again: whitespace tidied, then 2 to 300 characters. Null if it cannot be sent. */
 export function cleanChatMessage(raw: unknown): string | null {

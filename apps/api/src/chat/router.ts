@@ -244,6 +244,14 @@ export type FollowUp = {
   check: FollowUpCheck;
 };
 
+/**
+ * Did the router's model call FAIL, as against a reply that came back and was read? Only `model_failed` says so: it is what `routeFollowUp` returns after the call threw (a timeout, a refusal, the
+ * day's allowance, no route) or came back with no JSON twice (a malformed reply, an empty one). Every other check is a reply that WAS read: the model was not sure (`doubt`), gave no valid mode
+ * (`unreadable`) or intent (`intent`), or gave words that the server's own checks refused (a restatement or a search that adds something, a year nobody wrote, a bleeding topic). In those the model did
+ * read the message, and the server did not trust the reading: they are not a failure of the call, and the follow-up failure policy (R5, docs/design/intent-and-state.md, 4.6) does not act on them.
+ */
+export const routerCallFailed = (f: FollowUp | null): boolean => f?.check === "model_failed";
+
 /** What the writer (and the background) is asked for a follow-up: see `FollowUp`. `message` is the person's own text, as the route has it. */
 export const askedOf = (f: FollowUp | null, message: string): string => (f ? (f.ask ?? (f.rewrote ? f.question : message)) : message);
 

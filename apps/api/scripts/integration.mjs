@@ -49,6 +49,9 @@ const vars = {
   CROSSREF_MAILTO: process.env.CROSSREF_MAILTO ?? "ci@example.com",
   // INTEGRATION_TRENDING=off (or =dark) starts the Worker with the variable TRENDING=off (or dark) (run it with --only="trending": scripts/trending-e2e.mjs then checks that switch instead of the others)
   ...(process.env.INTEGRATION_TRENDING ? { TRENDING: process.env.INTEGRATION_TRENDING } : {}),
+  // INTEGRATION_VARS="CHAT_COUNTERS:on,CHAT_FAILPOLICY:shadow" starts the Worker with those variables too (the gate flags of docs/design/intent-and-state.md are unset in wrangler.jsonc, so a default run tests them OFF);
+  // the suites read the same variable to know which position they are looking at (run it with --only="chat integration" to see the flags work on the real database)
+  ...Object.fromEntries((process.env.INTEGRATION_VARS ?? "").split(",").filter(Boolean).map((p) => [p.slice(0, p.indexOf(":")), p.slice(p.indexOf(":") + 1)])),
   // Only the browser smoke test searches; it needs the real provider keys (passed through from the environment).
   ...Object.fromEntries(["OPENALEX_API_KEY", "S2_API_KEY", "NCBI_API_KEY"].filter((k) => process.env[k]).map((k) => [k, process.env[k]])),
 };

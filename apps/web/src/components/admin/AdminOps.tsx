@@ -1,6 +1,6 @@
 import { CircleAlert, CircleCheck, DatabaseBackup, FolderSearch, UserX } from "lucide-react";
 import { useState } from "react";
-import { chatRefusalShare, type AnswerOutcomeRow, type IntegrityReport, type JobState, type JobStatus } from "@scholar/shared";
+import { chatRefusalShare, outcomeTotal, type AnswerOutcomeRow, type IntegrityReport, type JobState, type JobStatus } from "@scholar/shared";
 
 const JOB_NAME: Record<string, string> = { maintenance: "Daily clean-up", retraction_check: "Retraction re-check of saved papers" };
 const STATE_TEXT: Record<JobState, string> = {
@@ -17,6 +17,7 @@ const FEATURE_NAME: Record<string, string> = {
   oa_ask_abstract: "Ask this paper (from its abstract only)",
   doc_ask: "Questions about papers people uploaded",
   litscan: "Literature scan (each sub-question of each scan)",
+  chat_input: "What a first message in the prompt box looked like (a message can have several of these, and Share is of the messages counted; its words are never kept)",
 };
 const OUTCOME_TEXT: Record<string, string> = {
   answered: "Answered, every claim checked",
@@ -40,7 +41,47 @@ const OUTCOME_TEXT: Record<string, string> = {
   followup_not_grounded: "A follow-up: the model wrote an answer that our own check then refused",
   followup_rewrite_failed: "A follow-up whose restatement was not used, so it was searched as written (answered or refused)",
   followup_context_ignored: "A follow-up sent while the switch that ignores earlier turns was on (answered or refused)",
+  // CHAT_FAILPOLICY (apps/api/src/chat/routes.ts): the model that reads a follow-up could not be used at all
+  followup_unread: "A follow-up the model could not read: its words were searched on their own, the papers are shown and no answer was written",
+  followup_unread_shadow: "A follow-up the model could not read, counted while that rule is only being tried: the answer was written as before, so it is also counted under how it ended",
   other: "Something else",
+};
+
+/**
+ * The names of the shape of a message (apps/api/src/understand/input-shape.ts), one plain label each: what the first message of a question looked like, counted by name and never by its words. The
+ * four about topic words add up to the messages counted. The names that nothing counts yet have their label here so that the day one does, its row is read, not guessed.
+ */
+const INPUT_TEXT: Record<string, string> = {
+  frame: "Has request words around the topic (for example “can you search about”, “please”, “all papers”)",
+  frame_polite: "Has a politeness or a greeting (please, thanks, hello)",
+  frame_all: "Asks for “all papers” (the box shows 20)",
+  qty: "Asks for a number of papers (for example “top 5”)",
+  year: "Names a year or a range (for example “since 2019”)",
+  neg: "Ends with something to leave out (“but not …”, “without …”)",
+  order: "Reads like an order to the box (for example “ignore the instructions”)",
+  long: "Is longer than 300 characters",
+  first_person: "Speaks about the writer (I, my, we)",
+  subj0: "Has no topic word",
+  subj1: "Has one topic word",
+  subj2_6: "Has two to six topic words",
+  subj7p: "Has seven or more topic words",
+  id: "Holds a DOI, a PubMed number or an arXiv number",
+  lane_urgent: "Describes an urgent symptom",
+  lane_crisis: "Says that the writer may hurt themselves",
+  lane_decision: "Asks what the writer should take, a medicine or a dose",
+  lane_care: "Tells a health or distress story with a research question",
+  lane_notsearch: "Asks for something the box cannot do (writing, translating, the weather)",
+  cue_paper: "Points at a paper (for example “this paper”)",
+  cue_list: "Holds a list of references",
+  cue_paste: "Is a long text that was pasted",
+  ask_acronym: "Has an acronym that could mean two things",
+  ask_broad: "Names a whole field with nothing narrower",
+  spell_candidate: "Has a word that may be misspelt",
+  scrub: "Holds an e-mail address, a web address or a phone number",
+  one_source: "The papers found came from one source only",
+  tier_none: "No paper matched the words closely",
+  tier_few: "Only one or two papers matched the words closely",
+  anyway: "A search sent by pressing a “… anyway” button, after the page took the message for something else",
 };
 
 /**
@@ -65,7 +106,9 @@ export function AnswerOutcomes({ rows }: { rows: AnswerOutcomeRow[] }) {
           </p>
           {features.map((f) => {
             const own = rows.filter((r) => r.feature === f);
-            const total = own.reduce((sum, r) => sum + r.n, 0);
+            // the shape of messages has several names a message: its share is of the messages counted (outcomeTotal), not of the sum of the names
+            const total = outcomeTotal(f, own);
+            const words = f === "chat_input" ? INPUT_TEXT : OUTCOME_TEXT;
             return (
               <table className="admin-table" key={f}>
                 <caption>{FEATURE_NAME[f] ?? f}</caption>
@@ -75,9 +118,9 @@ export function AnswerOutcomes({ rows }: { rows: AnswerOutcomeRow[] }) {
                 <tbody>
                   {own.map((r) => (
                     <tr key={r.outcome}>
-                      <td>{OUTCOME_TEXT[r.outcome] ?? r.outcome}</td>
+                      <td>{words[r.outcome] ?? r.outcome}</td>
                       <td className="num">{r.n.toLocaleString("en-IN")}</td>
-                      <td className="num">{Math.round((r.n / total) * 100)}%</td>
+                      <td className="num">{total > 0 ? `${Math.round((r.n / total) * 100)}%` : ""}</td>
                     </tr>
                   ))}
                 </tbody>
