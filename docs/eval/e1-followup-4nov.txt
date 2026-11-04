@@ -1,0 +1,59 @@
+
+router follow-up eval (all): 113 messages in 307 s (the model read the turns for 96, the rules or the first-turn router settled 17, errors 0)
+  FAIL intent                                 82.3%  (limit 85.0%), 93 of 113 messages, 95% interval 74% to 88%
+  FAIL intent (Hinglish)                      78.8%  (limit 80.0%), 26 of 33 messages, 95% interval 62% to 89%
+  ok   intent (Hindi)                         84.6%  (limit 80.0%), 22 of 26 messages, 95% interval 66% to 94%
+  ok   false same papers                      3.8%  (limit at most 5.0%), 3 of 78 messages, 95% interval 1% to 11%
+  FAIL standalone question valid              89.6%  (limit 90.0%), 86 of 96 messages, 95% interval 82% to 94%
+  ok   what is searched has the words         85.9%  (limit 80.0%), 67 of 78 messages, 95% interval 76% to 92%
+  FAIL what the writer is asked has the words 70.5%  (limit 80.0%), 43 of 61 messages, 95% interval 58% to 80%
+  ok   year words kept out of the search words 100.0%  (limit 90.0%), 15 of 15 messages, 95% interval 80% to 100%
+  ok   topic bleed                            0.0%  (limit at most 5.0%), 0 of 22 messages, 95% interval 0% to 15%
+  ok   year range right                       88.2%  (limit 85.0%), 15 of 17 messages, 95% interval 66% to 97%
+  ok   year range made up                     0.0%  (limit at most 10.0%), 0 of 96 messages, 95% interval 0% to 4%
+  FAIL language asked for read                71.4%  (limit 90.0%), 5 of 7 messages, 95% interval 36% to 92%
+  FAIL searched in English (Hindi, Hinglish)  87.8%  (limit 90.0%), 36 of 41 messages, 95% interval 74% to 95%
+  ok   tokens per asked message               2108 (limit 2200), 100 messages
+  (the model's own topic bleed, before the server dropped the words: 0.0% of 22)
+  (tokens per asked message: mean 2108, 95th percentile 2915, 100 messages that reported them)
+
+class           n intent words years  lang bleed valid tokens
+refine         26    85%   85%     -     -     -   92%   2230
+same_papers    15    87%     -     -     -     -   93%   2346
+restyle        20    80%     -     -   71%     -   85%   2160
+year_filter    23    70%   83%   88%     -     -   87%   2286
+new_search     10   100%  100%     -     -    0%  100%   1349
+topic_switch   12   100%  100%     -     -    0%   67%   1310
+earlier_chat    7    57%   57%     -     -     -  100%   2328
+
+language        n intent words years  lang bleed valid tokens
+en             54    83%   84%   78%   50%    0%   88%   2212
+hinglish       33    79%   87%  100%  100%    0%   96%   2058
+hi             26    85%   89%  100%   50%    0%   86%   1985
+  (words: what is searched has the words the case needs; bleed is a rate that must stay low; the others are shares)
+
+wrong (22):
+  [en/refine] en-refine-5: intent new, words missing, question thrown away (model_failed): "does it work for women too" -> {"intent":"new","question":"does it work for women too","check":"model_failed"}
+  [en/restyle] en-restyle-2: intent new, question thrown away (doubt): "summarise that in two lines" -> {"intent":"new","question":"summarise that in two lines","check":"doubt"}
+  [en/same_papers] en-same-5: intent refine: "which studies used a control group" -> {"intent":"refine","question":"Which of the studies on yoga and blood pressure used a control group?","searchQuery":"yoga blood pressure control group","check":"ok"}
+  [en/year_filter] en-year-7: intent new, words missing, years wrong, question thrown away (model_failed): "limit to studies after 2018" -> {"intent":"new","question":"limit to studies after 2018","check":"model_failed"}
+  [en/topic_switch] en-topic-1: question thrown away (unreadable): "now tell me about CRISPR off-target effects" -> {"intent":"new","question":"now tell me about CRISPR off-target effects","check":"unreadable"}
+  [en/earlier_chat] en-earlier-1: intent new, words missing: "and in children?" -> {"intent":"new","question":"and in children?","check":"ok"}
+  [hinglish/restyle] hg-restyle-1: intent new: "isko simple words me samjhao" -> {"intent":"new","question":"isko simple words me samjhao","check":"ok"}
+  [hinglish/year_filter] hg-year-4: intent same_papers: "latest wale hi dikhao" -> {"intent":"same_papers","question":"latest wale hi dikhao","searchQuery":"effect of exercise on diabetes","check":"script"}
+  [hinglish/refine] hg-refine-5: intent new, words missing: "gaon me kya hota hai" -> {"intent":"new","question":"gaon me kya hota hai","searchQuery":"what happens in villages","check":"ok"}
+  [hinglish/topic_switch] hg-topic-2: searched without English words: "chodo, CRISPR ke off-target effects par papers do" -> {"intent":"new"}
+  [hinglish/earlier_chat] hg-earlier-1: intent new, words missing, searched without English words: "uske side effects kya hain" -> {"intent":"new","question":"uske side effects kya hain","check":"bleed"}
+  [hi/refine] hi-refine-3: intent new, words missing, question thrown away (unreadable), searched without English words: "महिलाओं में कैसा रहा" -> {"intent":"new","question":"महिलाओं में कैसा रहा","check":"unreadable"}
+  [hi/restyle] hi-restyle-2: intent new, language not read, question thrown away (model_failed): "अंग्रेज़ी में बताओ" -> {"intent":"new","question":"अंग्रेज़ी में बताओ","check":"model_failed"}
+  [hi/year_filter] hi-year-3: intent new, words missing, question thrown away (model_failed), searched without English words: "नवीनतम पेपर ही दिखाओ" -> {"intent":"new","question":"नवीनतम पेपर ही दिखाओ","check":"model_failed"}
+  [en/restyle] en-h-restyle-2: intent new, language not read, question thrown away (model_failed): "answer in Hinglish please" -> {"intent":"new","question":"answer in Hinglish please","check":"model_failed"}
+  [en/year_filter] en-h-year-1: intent new, words missing, years wrong: "nothing older than 2021" -> {"intent":"new","question":"nothing older than 2021","check":"ok"}
+  [en/year_filter] en-h-year-3: intent new, words missing, question thrown away (model_failed): "the newest studies" -> {"intent":"new","question":"the newest studies","check":"model_failed"}
+  [hinglish/year_filter] hg-h-year-2: intent same_papers: "sabse naye papers" -> {"intent":"same_papers","question":"sabse naye papers","searchQuery":"cash transfers child malnutrition","check":"ok"}
+  [hinglish/earlier_chat] hg-h-earlier-1: intent new, words missing, searched without English words: "uske baare me aur papers do" -> {"intent":"new","question":"uske baare me aur papers do","check":"bleed"}
+  [hi/year_filter] hi-h-year-2: intent same_papers: "सबसे नए अध्ययन" -> {"intent":"same_papers","question":"सबसे नए अध्ययन","searchQuery":"causes of groundwater depletion India","check":"empty"}
+  [en/refine] en-h2-refine: intent new, words missing: "does smoking status change the picture" -> {"intent":"new"}
+  [hinglish/same_papers] hg-h2-same: intent new, question thrown away (doubt): "kitne log shamil the study me" -> {"intent":"new","question":"kitne log shamil the study me","check":"doubt"}
+
+past the limit: intent, intent (Hinglish), standalone question valid, what the writer is asked has the words, language asked for read, searched in English (Hindi, Hinglish)
