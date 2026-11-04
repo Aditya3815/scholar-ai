@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MIN_SINCE_YEAR, NOTHING_NOTICE, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatContextInfo, type ChatEvent, type EarlierQuestion, type TightenResponse, type ChatNoAnswer, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
+import { FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MIN_SINCE_YEAR, NOTHING_NOTICE, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatContextInfo, type ChatEvent, type EarlierQuestion, type TightenResponse, type ChatNoAnswer, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
@@ -14,11 +14,13 @@ import { answerFromResults, pickEvidencePapers, type Picked } from "./answer";
 import { judgeAnswer, type JudgeReport } from "./support";
 import { readTighten } from "./tighten";
 import { answerGeneral } from "./general";
-import { askedOf, contextInfo, ownQuestions, routeContextOf, routeFollowUp, routeMessage, type FollowUp, type RouterContext } from "./router";
+import { askedOf, contextInfo, ownQuestions, routeContextOf, routeFollowUp, routeMessage, routerCallFailed, type FollowUp, type RouterContext } from "./router";
 import { errorKind, readEarlier, readHistory, stripInvisible, type ChatHistory, type Refusal } from "./history";
 import { stubChatStream, stubJudgeStream, stubSearchFor, stubStrictStream } from "./stub";
 import { stubRoute } from "./stub-route";
-import { FOLLOW_UP_OUTCOMES, countOutcome } from "../outcomes";
+import { FOLLOW_UP_OUTCOMES, UNREAD_OUTCOMES, countOutcome, countOutcomes } from "../outcomes";
+import { flagOf, type FlagPosition } from "../understand/flags";
+import { inputShape } from "../understand/input-shape";
 import { searchEnvFrom } from "../search/env";
 import { deny } from "../problem";
 
@@ -43,6 +45,16 @@ type Bindings = {
   CHAT_JUDGE?: string;
   /** "off" makes the chat ignore the earlier messages of a conversation altogether (`history` and `earlier` are neither read nor refused), as it was before there were any: a Worker variable, a rollback that needs no new code. */
   CHAT_CONTEXT?: string;
+  /**
+   * R3 (docs/design/intent-and-state.md, 4.4): "on" counts what a message in the prompt box looked like, by closed names and never any of its text (feature `chat_input`). Unset, "off" and "shadow" count
+   * nothing: a counter that counts is its own shadow, and nothing new may be stored before the privacy page says so. A gate flag: unset is off (understand/flags.ts).
+   */
+  CHAT_COUNTERS?: string;
+  /**
+   * R5 (4.6): "on" gives a follow-up whose router call FAILED the papers and no written answer, with a plain line; "shadow" only counts `followup_unread_shadow`; unset and "off" change nothing.
+   * A gate flag: unset is off.
+   */
+  CHAT_FAILPOLICY?: string;
 };
 type Env = { Bindings: Bindings };
 export const chatRoutes = new Hono<Env>();
@@ -53,6 +65,16 @@ chatRoutes.use("*", async (c, next) => {
 });
 
 const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+
+/**
+ * Where a gate flag of the understanding releases stands for this request (understand/flags.ts: unset is off, and an off flag reads nothing from KV). A value that is not exactly a position is off, and
+ * one line says WHICH FLAG held it (a constant name, never anything of a message): a typo must not turn behaviour on, and must not pass unseen either.
+ */
+async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY"): Promise<FlagPosition> {
+  const r = await flagOf(env, name);
+  if (r.badVariable) console.warn(JSON.stringify({ level: "warn", msg: "flag_bad_value", flag: name }));
+  return r.position;
+}
 
 /** How the judge did on one answer, for the logs: counts and times only, never a word of the question, the answer or an abstract. */
 const logJudged = (r: JudgeReport) =>
@@ -228,6 +250,24 @@ chatRoutes.post("/", async (c) => {
     let follow: FollowUp | null = null;
     // the day cannot pay for a model to read the earlier turns: the message is searched as written and no answer is written
     let poor = false;
+    // R3: whether exactly one provider contributed a paper to the list (known only once the search has answered)
+    let oneSource = false;
+    // R5: where the follow-up failure policy stands for this message; read only when the router call failed, and "off" for every other message
+    let failPolicy: FlagPosition = "off";
+    /**
+     * R3 (docs/design/intent-and-state.md, 4.4), once, as the message ends whatever the ending (so also a message that was left, or one that failed): with CHAT_COUNTERS=on the SHAPE of an Auto message
+     * that carries no earlier turns is counted by closed names, in one batch, with `one_source` once a list was found; a search chosen by hand counts only `anyway` when it carries it. Never any text of
+     * the message, and never anything when the flag is not exactly "on": the flag is read here, at the end, so that no message waits for it. A failure is swallowed (and logged without a word by countOutcomes).
+     */
+    const countMessage = async () => {
+      if (!anyway && !(auto && !carries)) return;
+      try {
+        if ((await gate(c.env, "CHAT_COUNTERS")) !== "on") return;
+        await countOutcomes(c.env.DB, "chat_input", anyway ? ["anyway"] : [...inputShape(text), ...(oneSource ? ["one_source"] : [])]);
+      } catch {
+        /* counting never gets in the way of an answer */
+      }
+    };
     const done = async (answered: boolean, reason?: ChatNoAnswer) => {
       const plain = outcome ?? (answered ? "answered" : (reason ?? "other"));
       // a message that carried turns is counted by name when it ends the way a question ends well or badly: as a follow-up, as one whose restatement was not used, or as one whose turns were ignored
@@ -296,6 +336,8 @@ chatRoutes.post("/", async (c) => {
       } else {
         route = { mode: "search", how: auto ? "rules" : "chosen", confidence: 1, language: ctx ? languageWithContext(text, ownQuestions(ctx)) : detectLanguage(text) };
       }
+      // R5 (4.6): the policy is looked up only for a follow-up whose router call FAILED (router.ts, routerCallFailed): for every other message the flag is not even read
+      if (routerCallFailed(follow)) failPolicy = await gate(c.env, "CHAT_FAILPOLICY");
       // a year range ("only after 2020", a Trending chip's `sinceYear`) is applied to the papers' own years before they are numbered, so that card numbers and marks stay true; the search asks for more, so that
       // what is left is not thin. It is the router's range and the chip's as one (`withSince`), and only a message that is searched has one: small talk and another tool's offer are not cut by anything.
       const own: YearRange | null = follow && (follow.yearFrom !== undefined || follow.yearTo !== undefined) ? { from: follow.yearFrom, to: follow.yearTo } : null;
@@ -338,20 +380,32 @@ chatRoutes.post("/", async (c) => {
         found = await runSearch(searchEnvFrom(c.env), query, years ? YEAR_FILTER_SEARCH_LIMIT : 20, { onSnapshot: interim }, scope);
       }
       if (s.gone) return;
+      if (auto && !carries) oneSource = new Set(found.results.flatMap((p) => p.sources)).size === 1;
       const beforeYears = found.results.length;
       if (years) found = { ...found, results: shape(found.results) };
       await send({ type: "papers", results: found.results, final: true });
       const complete = searchComplete(found);
       if (!complete) await send({ type: "notice", kind: "partial", text: PARTIAL_NOTICE });
+      // R5 (4.6): the router call failed, so the words were searched as they stand and nothing says what they refer to. With the policy on, the papers are all there is: no written answer, no judge, no
+      // background, the reason not_answered, its own outcome name and one plain line. In shadow the same follow-ups are only counted, and everything below goes on as it did.
+      const unread = failPolicy === "on";
+      if (failPolicy === "shadow") await countOutcome(c.env.DB, "chat", UNREAD_OUTCOMES.shadow);
+      const endUnread = async () => {
+        await send({ type: "notice", kind: "weak", text: FOLLOWUP_UNREAD_NOTICE });
+        outcome = UNREAD_OUTCOMES.unread;
+        return done(false, "not_answered");
+      };
       if (found.results.length === 0) {
         // a year range that took every paper away says so under its own kind (the browser must not take it for a source that did not answer); a search that found nothing at all is the ordinary notice
         await send(years && beforeYears > 0 ? { type: "notice", kind: "years", text: `No paper from ${rangeWords(years.from, years.to)} was found for this. Remove the year filter to see more.` } : { type: "notice", kind: "nothing", text: NOTHING_NOTICE });
+        if (unread) return void (await endUnread());
         if (user) await background(user.id, spoken, asked);
         return void (await done(false));
       }
       // a short list is said to be short, under the kind of its own: it is a different thing from a source that did not answer, and both are said
       if (years && found.results.length < YEAR_FILTER_FEW) await send({ type: "notice", kind: "years", text:`Only ${found.results.length} of the papers found ${found.results.length === 1 ? "is" : "are"} from ${rangeWords(years.from, years.to)}, so this list is short. Remove the year filter to see more.` });
       if (found.results.some((p) => p.retracted)) await send({ type: "notice", kind: "retracted", text: "At least one paper in this list has been retracted. It is marked, and it was not used for the answer." });
+      if (unread) return void (await endUnread());
       if (!user) return void (await done(false, "sign_in"));
       if (poor) return void (await done(false, "quota"));
       const picked = pickEvidencePapers(found.results);
@@ -387,6 +441,8 @@ chatRoutes.post("/", async (c) => {
     } catch (e) {
       console.error(JSON.stringify({ level: "error", msg: "chat_stream_failed", error: e instanceof Error ? e.name : "unknown" }));
       await send({ type: "error", code: "internal_error", title: "Something went wrong" });
+    } finally {
+      await countMessage();
     }
   });
 });

@@ -1,4 +1,8 @@
 import type { Complete } from "../docs/qa";
+import { AllProvidersFailedError, QuotaError } from "../llm";
+
+/** One failed attempt the way the gateway writes it down (gateway.ts): which provider, and the error's own text. */
+const failedWith = (error: string) => new AllProvidersFailedError([{ provider: "workersai", model: "stub", ok: false, ms: 1, error }]);
 
 /**
  * The router's model, offline (tests and the local end-to-end run only: QA_STUB=1 with ENABLE_DEV_ROUTES=1). It reads the message between the triple quotes and decides by words:
@@ -10,11 +14,20 @@ import type { Complete } from "../docs/qa";
  * papers again in another form; "newtopic" is a different topic; a year after "after", "since", "from" or "baad" is `year_from`, after "before" or "until" `year_to`, any other year both; anything else is a refinement, whose
  * standalone question and search words are the earlier topic and the message's words. "restatefail" makes the question carry a number nobody wrote (the server must refuse it), "bleedtopic" makes the search words of a new topic carry
  * the old topic's, "barereading" is a refinement whose question the model left as the message (only its search words are the earlier topic's).
+ *
+ * A call that FAILS, the five ways the follow-up failure policy (R5, docs/design/intent-and-state.md, 4.6) is tested with: "routertimeout" (the provider did not answer in time), "routermalformed" (a
+ * reply that is not JSON, every time it is asked: the router asks again once and fails again), "routerquota" (the day's allowance is used up), "routerrefused" (the provider says no) and "routerempty" (a
+ * reply with no text at all: the gateway answers it as it answers any text with no JSON in it, so at this edge it is the same error as a malformed reply, with the same two attempts). Each throws what the
+ * gateway throws (gateway.ts), so `routeFollowUp` sees what it sees in production. "boom" is any other failure.
  */
 export const stubRoute: Complete = async ({ user, label }) => {
   const blocks = [...user.matchAll(/"""\n([\s\S]*?)\n"""/g)];
   const text = blocks.at(-1)?.[1] ?? "";
   if (/\bboom\b/i.test(text)) throw new Error("the model failed");
+  if (/\broutertimeout\b/i.test(text)) throw failedWith("timeout");
+  if (/\brouter(?:malformed|empty)\b/i.test(text)) throw failedWith("no JSON in output");
+  if (/\brouterquota\b/i.test(text)) throw new QuotaError("daily AI quota reached (60000/60000 tokens); resets 00:00 UTC");
+  if (/\brouterrefused\b/i.test(text)) throw failedWith("HTTP 403: the request was refused");
   if (/\bgarbled\b/i.test(text)) return { model: "stub", json: { mode: "banana", confidence: 0.99, search_query: "" } };
   if (/\bunsure\b/i.test(text)) return { model: "stub", json: { mode: "idea", confidence: 0.3, search_query: "" } };
   if (/\b(?:idea|novel|naya)\b/i.test(text)) return { model: "stub", json: { mode: "idea", confidence: 0.9, search_query: "" } };

@@ -26,10 +26,22 @@ export const FOLLOW_UP_OUTCOMES = {
   contextIgnored: "followup_context_ignored",
 } as const;
 
+/**
+ * The two names of the follow-up failure policy (R5, docs/design/intent-and-state.md, 4.6), kept apart from the four above (those belong to the context release and are pinned as four). `followup_unread`
+ * (CHAT_FAILPOLICY=on) is a follow-up whose router call FAILED: the papers were shown and no answer was written, so it is neither answered nor refused, and the headline of /admin
+ * (`chatRefusalShare`) leaves it out on purpose. `followup_unread_shadow` (CHAT_FAILPOLICY=shadow) counts the same follow-ups while the answer is still written as before, so it is counted IN ADDITION to
+ * how that answer ended (a message of it is in two rows). Counts only, at most 40 characters each.
+ */
+export const UNREAD_OUTCOMES = {
+  unread: "followup_unread",
+  shadow: "followup_unread_shadow",
+} as const;
+
 const MAX_KEEP_DAYS = 90;
 export const OUTCOME_RETENTION_SQL = `DELETE FROM answer_outcomes WHERE day < date('now', '-${MAX_KEEP_DAYS} days')`;
 
-const COUNT_SQL = "INSERT INTO answer_outcomes (day, feature, outcome, n) VALUES (date('now'), ?1, ?2, 1) ON CONFLICT (day, feature, outcome) DO UPDATE SET n = n + 1";
+/** One count: the day, the feature and the name by the primary key. Exported so that scale.test.ts reads the plan of the very statement that runs. */
+export const COUNT_SQL = "INSERT INTO answer_outcomes (day, feature, outcome, n) VALUES (date('now'), ?1, ?2, 1) ON CONFLICT (day, feature, outcome) DO UPDATE SET n = n + 1";
 
 export async function countOutcome(db: D1Database, feature: OutcomeFeature, outcome: string): Promise<void> {
   try {
