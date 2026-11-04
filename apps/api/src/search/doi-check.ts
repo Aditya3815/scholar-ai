@@ -5,7 +5,7 @@ import { doiResolves } from "../references/lookup";
 import { tokenize } from "../references/match";
 import { cacheKey } from "./cache";
 import { crossrefHeaders } from "./crossref";
-import { normalizeTitle } from "./normalize";
+import { normalizeTitle, plainText } from "./normalize";
 
 /**
  * Citation integrity for search results. Indexes do contain DOIs that do not exist (spike/eval findings: bogus `10.63544/*`
@@ -109,7 +109,8 @@ export function applyDoiChecks(results: Paper[], checks: Record<string, DoiCheck
     if (!c) continue;
     let reason: Paper["doiStatus"] | null = null;
     if (c.status === "unresolvable") reason = "dropped_unresolvable";
-    else if (c.status === "registered" && c.title && containment(p.title, c.title) < 0.6) reason = "dropped_conflict";
+    // both as plain text: the record's title has been through plainText, Crossref's registered one (and the 7 days it is kept) is as Crossref sent it ("Gl&uuml;ck" against "Glück")
+    else if (c.status === "registered" && c.title && containment(plainText(p.title), plainText(c.title)) < 0.6) reason = "dropped_conflict";
 
     if (reason) {
       dropped++;

@@ -9,6 +9,11 @@ export type SearchEnv = {
   /** CORE (api.core.ac.uk): used by Idea Check only, and only when a key is set. */
   CORE_API_KEY?: string;
   CROSSREF_MAILTO: string;
+  /**
+   * "off" gives back the title, venue, authors and abstract of a provider as its adapter returned them: entities, tabs and line breaks left in (see plainText in normalize.ts). It does not reach the adapters' own
+   * stripJats: Crossref's abstract and DOAJ's title and abstract are cleaned while the response is read, before the cache, with the switch off too. Anything else, or nothing, is the fix.
+   */
+  SEARCH_PLAINTEXT?: string;
   /** Reserves a Semantic Scholar slot (1 req/s global). Resolves to ms to wait, or null if the queue is too long. Absent in tests/eval. */
   s2Gate?: (maxWaitMs: number) => Promise<number | null>;
 };
