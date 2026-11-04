@@ -2,7 +2,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
 import { Activity, Ban, BookOpenCheck, Bookmark, Check, FileStack, Home, Lightbulb, ListChecks, LogOut, Menu, MessageSquare, MessageSquarePlus, MoreHorizontal, Plus, Settings, TriangleAlert, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { RAIL_CHATS } from "@scholar/shared";
+import { RAIL_CHATS, textAttrs } from "@scholar/shared";
 import { signOut, useAuth } from "../lib/auth";
 import { useLibrary, useLibraryAlerts } from "../lib/library";
 import { useDocs } from "../lib/documents";
@@ -103,7 +103,7 @@ function RailContent({ view, onNavigate, onHome, onClose }: { view: View | "home
                   <li key={e.id}>
                     <button type="button" className="ws-link ws-recent-open" aria-current={view === "home" && chats.active === e.id ? "true" : undefined} onClick={go(() => { void openChat(e.id); onHome(); })}>
                       <MessageSquare size={15} aria-hidden="true" />
-                      <span className="ws-link-label">{e.title}</span>
+                      <span className="ws-link-label" {...textAttrs(e.title, true)}>{e.title}</span>
                     </button>
                     {user && (
                       // what a chat can be used for (docs/design/chat-actions-context.md, section 6): continued in a new chat, or left out of "Use my earlier chats". Only for a signed-in person: nobody else has either.

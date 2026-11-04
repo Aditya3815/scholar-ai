@@ -39,6 +39,11 @@ export const MAX_RESTATED_QUERY_WORDS = 12;
 /** The year range a person can ask for. */
 export const MIN_FILTER_YEAR = 1900;
 export const MAX_FILTER_YEAR = 2100;
+/**
+ * `sinceYear`, the optional body field of `POST /api/v1/chat` that a Trending chip sets ("from this year on", docs/design/chatview-and-trending.md, T9): a whole year from this one to the year the server is in,
+ * allowed in Auto and in a search chosen by hand, and applied like the router's year range. It is not context: nothing is read from earlier turns for it.
+ */
+export const MIN_SINCE_YEAR = 1990;
 /** The earlier answer a "same papers" follow-up may show the writer, as context and never as evidence (marks taken out). */
 export const MAX_SAME_PAPERS_ANSWER_CHARS = 1500;
 
@@ -85,7 +90,9 @@ export type ChatContextRequest = { history?: HistoryEntry[]; earlier?: EarlierQu
 
 /**
  * What the server tells the browser about the context it read, on the `understood` event (an old open tab ignores a field it does not know; a new event type would crash its reducer). It is
- * there only when a model read the earlier turns, and `earlier` counts the earlier-chat questions that were in what it read, so what is shown ("Used from your earlier chat") is what was used.
+ * there when a model read the earlier turns, and `earlier` counts the earlier-chat questions that were in what it read, so what is shown ("Used from your earlier chat") is what was used. It is also
+ * there, with `turns: 0`, `intent: "new"` and `rewrote: false` and nothing else but the year, when the only thing to say is the year range a Trending chip's `sinceYear` cut the papers to: a year
+ * chip is read from `yearFrom` and `yearTo` whichever of the two gave the range, and the range that is there is the range that was applied (the larger start of the router's and the chip's).
  */
 export type ChatContextInfo = {
   /** How many earlier turns (a question and its reply) the router read. */

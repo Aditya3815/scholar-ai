@@ -68,7 +68,19 @@ for (const file of [...scripts, ...styles, ...fonts]) {
 }
 // The heavy chunks are for people who open a paper, download a marked copy or watch a scan; they must never be part of the first load.
 for (const file of scripts) {
-  if (/\/(pdf|es|annotated-pdf|PdfViewer|IntroPage|rive|RivePiece|Setu|Reading|DropBox)-/.test(file)) { console.log(` FAIL  the first load has started to include ${file}`); failed = true; }
+  if (/\/(pdf|es|annotated-pdf|PdfViewer|IntroPage|rive|RivePiece|Setu|Reading|DropBox|litscan|litscan-review|LitscanPage)-/.test(file)) { console.log(` FAIL  the first load has started to include ${file}`); failed = true; }
+}
+// Pieces that are fetched only when they are wanted (docs/design/chatview-and-trending.md, C3). Each must stay a chunk of its own: when somebody imports it with a plain `import` from the
+// first screen, the bundler folds it back into the main script and the size limit above is spent again, with no other sign. The second list is of pages whose style sheet is imported by the page
+// itself (idea.css and admin.css were in the first load's style sheet for everybody until 3 Nov 2026); put back into src/main.tsx, they would be again.
+const OWN_CHUNK_SCRIPT = ["ChatView"];
+const OWN_CHUNK_STYLE = ["IdeaPage", "AdminPage"];
+for (const name of OWN_CHUNK_SCRIPT) {
+  if (!pick(new RegExp(`^${name}-.*\\.js$`)).length) { console.log(` FAIL  ${name} is no longer a chunk of its own: it is part of the first load again`); failed = true; }
+  if (scripts.some((file) => file.includes(`/${name}-`))) { console.log(` FAIL  the first load has started to include the ${name} chunk`); failed = true; }
+}
+for (const name of OWN_CHUNK_STYLE) {
+  if (!pick(new RegExp(`^${name}-.*\\.css$`)).length) { console.log(` FAIL  ${name} has no style sheet of its own: its rules are in the first load's style sheet again`); failed = true; }
 }
 // The CSS minifier (Lightning CSS, Vite 8) drops a standard property that is written before its -webkit- twin: Chrome and Edge then get no blur at all (seen 28 Oct 2026). Every
 // -webkit- property in the built style sheets must have its standard twin.

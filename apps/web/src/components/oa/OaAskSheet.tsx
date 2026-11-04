@@ -2,7 +2,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
 import { ArrowUp, Check, Copy, CornerDownRight, FileStack, RefreshCw, SearchX, ShieldAlert, ShieldCheck, Square, TriangleAlert, X } from "lucide-react";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
-import { MAX_QUESTION_CHARS, OA_UNREADABLE_TEXT, type Answer, type Citation, type OaPaperEvent } from "@scholar/shared";
+import { MAX_QUESTION_CHARS, OA_UNREADABLE_TEXT, textAttrs, type Answer, type Citation, type OaPaperEvent } from "@scholar/shared";
 import { askPaper, closeOaAsk, isAsking, keyOf, restoreFocus, stopAsking, useOaAsk, type OaTurn } from "../../lib/oa-ask";
 import { useAuth } from "../../lib/auth";
 import { easeOut, spring } from "../../lib/motion";
@@ -225,7 +225,7 @@ export function OaAskSheet({ onOpenPapers }: { onOpenPapers: () => void }) {
                   </div>
                 </header>
                 <div className="pv-scroll oa-scroll">
-                  <h2 className="oa-title">{paper.title}</h2>
+                  <h2 className="oa-title" {...textAttrs(paper.title)}>{paper.title}</h2>
                   {(paper.retracted || list.some((t) => t.paper?.retracted)) && (
                     <p className="retract" role="alert">
                       <ShieldAlert size={18} aria-hidden="true" />

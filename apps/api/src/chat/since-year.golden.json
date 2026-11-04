@@ -1,0 +1,757 @@
+{
+ "producedFrom": "POST /api/v1/chat of apps/api/src/chat/routes.ts at commit 24824e0f3c8c475fad96a60967d0be70543db55c (HEAD, 3 Nov 2026), identical to the working tree file, before sinceYear existed; the stand-in network and model (QA_STUB), the clock held at 2026-11-03T12:00:00Z; per request: status, event order, how it ended, SHA-256 of the stream with tookMs set to 0",
+ "entries": [
+  {
+   "name": "auto, a plain question",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6093,
+   "sha256": "79ca4d4dcb187f7ceb956d6770d0f9440a3ef2d6c98eb584c404450ba819eda6"
+  },
+  {
+   "name": "auto, nothing found",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "notice",
+    "step",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general",
+    "done"
+   ],
+   "end": "done:no:",
+   "bytes": 1700,
+   "sha256": "f0cdf24ed62f69891fa0d0995aa95ff1493b6db14dce170918337018b48567a1"
+  },
+  {
+   "name": "auto, a source down",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6242,
+   "sha256": "315a0d7e2619c3edd9ab36645653d62ac0e807dd6ed0728c20d833f0bae800b3"
+  },
+  {
+   "name": "auto, the papers do not answer",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "answer",
+    "step",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general",
+    "done"
+   ],
+   "end": "done:no:not_answered",
+   "bytes": 6864,
+   "sha256": "76f9cb765dc5074092a9936b14fee24d06a355083e746daff483b9e4ad742e7d"
+  },
+  {
+   "name": "auto, a made-up citation",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:no:not_grounded",
+   "bytes": 5782,
+   "sha256": "e797ce3d7f96cd07d4faac4b56aadaedf7f96bf4b20ea3a8f2e04a4251e3a175"
+  },
+  {
+   "name": "auto, the judge drops a claim",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6311,
+   "sha256": "612c4f7cfbb5d029bf86805bc1e870a22b87294c02953240a356276b69f9d89a"
+  },
+  {
+   "name": "auto, a long abstract",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6930,
+   "sha256": "b4dfe551a5b3023d94d88ace723ba1c19c0d55c50a682ad0137fde00e2f187e9"
+  },
+  {
+   "name": "auto, the open-access papers",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6072,
+   "sha256": "9dabe53eeaa806622d6014d75558a1d992d722cc697569207dc65922b329c1fa"
+  },
+  {
+   "name": "auto, a message the rules leave to the model",
+   "status": 200,
+   "types": [
+    "step",
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6162,
+   "sha256": "4baa72fac9c30cf8d2ffb0744e6ef33b42427952a0000dc6544115e3519a9af4"
+  },
+  {
+   "name": "auto, small talk",
+   "status": 200,
+   "types": [
+    "understood",
+    "general",
+    "done"
+   ],
+   "end": "done:no:small_talk",
+   "bytes": 434,
+   "sha256": "ad7e9a343aa75e3cec1f1b4dac861581d6241fb0aee37d895ff3d50b7b333129"
+  },
+  {
+   "name": "auto, another tool",
+   "status": 200,
+   "types": [
+    "step",
+    "understood",
+    "done"
+   ],
+   "end": "done:no:routed",
+   "bytes": 297,
+   "sha256": "716e475caa64f72d6b3c691e5da77c949af470c6d6fb8765c054c655210dc4e9"
+  },
+  {
+   "name": "auto, Indian scope",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 4248,
+   "sha256": "5103809a865975167e7cd2023ca62a3a607da2f0dbec003937ae689c0c292e80"
+  },
+  {
+   "name": "auto, not signed in",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "done"
+   ],
+   "end": "done:no:sign_in",
+   "bytes": 5434,
+   "sha256": "dc0ed04dd2d7e746dda3e550758e0218b02d3f9f034f9d3d5a80861d7da1e6f0"
+  },
+  {
+   "name": "auto, a message of 409 characters",
+   "status": 200,
+   "types": [
+    "step",
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6488,
+   "sha256": "a1b378b11eb80d8d8516ea222f116e16f3958b527dd7cf06cef042306f125a20"
+  },
+  {
+   "name": "auto, a message of 360 characters",
+   "status": 200,
+   "types": [
+    "step",
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6463,
+   "sha256": "6550e3bbb1da56e48c4529d9895a6c108a0b9c0d7dc427c02bf1f8fcd9521f8e"
+  },
+  {
+   "name": "search by hand",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6079,
+   "sha256": "a93a3897fbd8afab7b391db818ec1213aa59683a712435e5b221e2ec01b62b05"
+  },
+  {
+   "name": "search by hand, anyway",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6079,
+   "sha256": "80b9c9147042a47b11e37db148588d8b38a4e40349d6c6f7fee1647ddc7618a3"
+  },
+  {
+   "name": "search by hand, Indian scope",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 4248,
+   "sha256": "1effc7db57015f62d143725f8a99a74663006eca5a091392c982efef6653cec5"
+  },
+  {
+   "name": "search by hand, nothing found",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "notice",
+    "step",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general_token",
+    "general",
+    "done"
+   ],
+   "end": "done:no:",
+   "bytes": 1693,
+   "sha256": "064afd04dea1df0d46c851cd3db6947441ddce3aa08de8e5221e93dfdd26c7f8"
+  },
+  {
+   "name": "follow-up, only after 2022",
+   "status": 200,
+   "types": [
+    "step",
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 2605,
+   "sha256": "73acc9ea39b280291932abd7c2650826247bb0896d91742e1e717f5d5bfcb64e"
+  },
+  {
+   "name": "follow-up, only after 2020 (a short list)",
+   "status": 200,
+   "types": [
+    "step",
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 4788,
+   "sha256": "244cb02041e8fcb751cb166b1b6fac5b7dbc429fcafd8b331a41a966580abd57"
+  },
+  {
+   "name": "follow-up, the same papers",
+   "status": 200,
+   "types": [
+    "step",
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6502,
+   "sha256": "dbcf6289a3a0ff7061a3d210994e5eb48cd08cc345d2f10f77d08c540ff5f0dd"
+  },
+  {
+   "name": "follow-up, the same papers with the reply's range",
+   "status": 200,
+   "types": [
+    "step",
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 2795,
+   "sha256": "b9327a92892037c1c1e5616e67f1d02fb6fcb559e163faf08475db01a5376800"
+  },
+  {
+   "name": "follow-up, a new topic",
+   "status": 200,
+   "types": [
+    "step",
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6239,
+   "sha256": "b937f75f2ac043f1df6cdfd5d1c49ebfaaa283b4599990193186e76de11e9102"
+  },
+  {
+   "name": "follow-up, a message that stands alone",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6093,
+   "sha256": "79ca4d4dcb187f7ceb956d6770d0f9440a3ef2d6c98eb584c404450ba819eda6"
+  },
+  {
+   "name": "follow-up, earlier chats",
+   "status": 200,
+   "types": [
+    "step",
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6297,
+   "sha256": "f740621795d997323b97ce6a847d474e33d9a4483e4379af024fd2d3ca32573a"
+  },
+  {
+   "name": "follow-up, the switch is off",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6076,
+   "sha256": "5ae229414b12068ea6741417bba59e0b6b21bca2ab4a8fafa18de97abd1bf1bd"
+  },
+  {
+   "name": "follow-up, the day is used",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "done"
+   ],
+   "end": "done:no:quota",
+   "bytes": 5416,
+   "sha256": "1f4e783d9604ef7fa10cd4cbb1b26d586d1fe28039a4e9a6a380960aeff419de"
+  },
+  {
+   "name": "follow-up, not signed in",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "done"
+   ],
+   "end": "done:no:sign_in",
+   "bytes": 5417,
+   "sha256": "f53fc053274efd5db1a351379ba691f12daef888ecbff71778cbdf0c79b64ccb"
+  },
+  {
+   "name": "refused, a bad mode",
+   "status": 400,
+   "types": [
+    "json:invalid_mode"
+   ],
+   "end": "refused",
+   "bytes": 60,
+   "sha256": "ae2994f0dcfc52069165429412e29c4f448ebd7e1183d5bec24e8f2aa0860e46"
+  },
+  {
+   "name": "refused, a bad scope",
+   "status": 400,
+   "types": [
+    "json:invalid_scope"
+   ],
+   "end": "refused",
+   "bytes": 69,
+   "sha256": "1332357d4011d3c6239fd5ebd84b7e3c3c43f4b0b8228131f73e5c4fd61a8282"
+  },
+  {
+   "name": "refused, a flag with Auto",
+   "status": 400,
+   "types": [
+    "json:invalid_flag"
+   ],
+   "end": "refused",
+   "bytes": 62,
+   "sha256": "69fa8623dc66036f4f85dee887618b04b4761428eac25c81c8f7ed31e69e0fbf"
+  },
+  {
+   "name": "refused, a bad history",
+   "status": 400,
+   "types": [
+    "json:invalid_history"
+   ],
+   "end": "refused",
+   "bytes": 136,
+   "sha256": "3129f966439930cd8393defc69202b6299eba4353f6e7d1d9330bcf2ec3d5e3d"
+  },
+  {
+   "name": "refused, history with a search by hand",
+   "status": 400,
+   "types": [
+    "json:invalid_flag"
+   ],
+   "end": "refused",
+   "bytes": 62,
+   "sha256": "69fa8623dc66036f4f85dee887618b04b4761428eac25c81c8f7ed31e69e0fbf"
+  },
+  {
+   "name": "refused, a message that is too short",
+   "status": 400,
+   "types": [
+    "json:invalid_message"
+   ],
+   "end": "refused",
+   "bytes": 62,
+   "sha256": "c5f5572076042ec69e245ca0bdb516c0da12ac714d218e3e03d13becbca9ccf1"
+  },
+  {
+   "name": "refused, a body that is not JSON",
+   "status": 400,
+   "types": [
+    "json:invalid_mode"
+   ],
+   "end": "refused",
+   "bytes": 60,
+   "sha256": "ae2994f0dcfc52069165429412e29c4f448ebd7e1183d5bec24e8f2aa0860e46"
+  },
+  {
+   "name": "the judge switch is off",
+   "status": 200,
+   "types": [
+    "understood",
+    "step",
+    "papers",
+    "papers",
+    "notice",
+    "step",
+    "step",
+    "token",
+    "token",
+    "token",
+    "token",
+    "step",
+    "answer",
+    "done"
+   ],
+   "end": "done:answered:",
+   "bytes": 6052,
+   "sha256": "817470f84c4fa9ec36d65b141937dc8e4109abda7f2f117c19e6455ba0e36be9"
+  }
+ ]
+}

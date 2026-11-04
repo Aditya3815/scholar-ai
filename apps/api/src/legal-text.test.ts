@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, PRIVACY_VERSION } from "@scholar/shared";
+import { FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, PRIVACY_VERSION, TRENDING_MAX_CHIPS, TRENDING_POOL_MAX_DAYS, YEAR_FILTER_SEARCH_LIMIT } from "@scholar/shared";
+import { QUERYABLE_SUBFIELDS, SUBFIELDS } from "@scholar/shared/src/subfield-policy";
+import { TREND, VERIFY } from "@scholar/shared/src/trending";
+import { JOB_SPECS } from "./jobs";
 import { FOLLOW_UP_OUTCOMES } from "./outcomes";
+import { TRENDING_LIMITS } from "./trending/job";
+import { TRENDING_KEYS } from "./trending/store";
 
 /**
  * Pins the privacy text of 2 Nov 2026 (docs/design/chat-actions-context.md, section 7): the prompt box began to send earlier messages to the AI service, so what the page says is
@@ -196,7 +202,9 @@ describe("the Settings help text for chats", () => {
  * own constants are imported, so a change of a limit that leaves the runbook behind fails here.
  */
 const RUNBOOK = read("../../../docs/runbook.md");
-const CONTEXT_SECTION = RUNBOOK.slice(RUNBOOK.indexOf("## Context between messages, and Copy and Edit"), RUNBOOK.indexOf("## Staging"));
+// each section ends where the next begins, so that a sentence in one cannot stand in for a missing one in the other
+const CONTEXT_SECTION = RUNBOOK.slice(RUNBOOK.indexOf("## Context between messages, and Copy and Edit"), RUNBOOK.indexOf("## The Trending list"));
+const TRENDING_SECTION = RUNBOOK.slice(RUNBOOK.indexOf("## The Trending list"), RUNBOOK.indexOf("## Staging"));
 const JUDGE_SECTION = RUNBOOK.slice(RUNBOOK.indexOf("## The support judge"), RUNBOOK.indexOf("## The own domain"));
 
 describe("the runbook after the code", () => {
@@ -224,5 +232,116 @@ describe("the runbook after the code", () => {
       expect(section).toMatch(/replaced at the next deploy|replaces what was set by hand/);
       expect(section).toContain("env.staging.vars");
     }
+  });
+});
+
+/**
+ * The runbook's section on the Trending list is read on the day a wrong phrase is on the Home page, or the job has failed: the names, the limits and the counts in it must be the code's. The numbers the
+ * code keeps as constants are imported (`TRENDING_LIMITS`, `TREND`, `VERIFY`, the policy table); the two that it keeps private (`KV_OPS`, `PER_DOMAIN`) are read from its source.
+ */
+const JOB_SOURCE = read("./trending/job.ts");
+const privateNumber = (name: string): number => Number(new RegExp(`const ${name} = (\\d+);`).exec(JOB_SOURCE)?.[1]);
+const KV_OPS = privateNumber("KV_OPS");
+const PER_DOMAIN = privateNumber("PER_DOMAIN");
+const n = (x: number) => x.toLocaleString("en-US");
+
+describe("the runbook's section on the Trending list, after the code", () => {
+  it("has a section of its own, which the section before it does not borrow from", () => {
+    expect(TRENDING_SECTION.length).toBeGreaterThan(5000);
+    expect(RUNBOOK.indexOf("## The Trending list")).toBeGreaterThan(RUNBOOK.indexOf("## Context between messages, and Copy and Edit"));
+    expect(CONTEXT_SECTION).not.toContain("trending:v1");
+    expect(Number.isInteger(KV_OPS) && Number.isInteger(PER_DOMAIN)).toBe(true);
+  });
+
+  it("names the route, the keys, the variable, the job and its heartbeat as the code has them, and says what the page does with the list today", () => {
+    expect(TRENDING_SECTION).toContain("`GET /api/v1/home/trending`");
+    expect(TRENDING_SECTION).toContain("`Cache-Control: public, max-age=300`");
+    for (const key of [TRENDING_KEYS.file, TRENDING_KEYS.off, TRENDING_KEYS.pool, TRENDING_KEYS.scan, TRENDING_KEYS.deny]) expect(TRENDING_SECTION).toContain(`\`${key}\``);
+    expect(TRENDING_KEYS.batch("<day>", "<n>" as never)).toBe("trending:v1:scan:<day>:<n>");
+    expect(TRENDING_SECTION).toContain("`trending:v1:scan:<day>:<n>`");
+    expect(TRENDING_SECTION).toContain("`TRENDING`");
+    expect(TRENDING_SECTION).toContain("`--var TRENDING:off`");
+    expect(Object.keys(JOB_SPECS)).toContain("trending");
+    expect(read("./index.ts")).toMatch(/cron\("trending", \(\) => runTrendingFromEnv\(env, controller\.scheduledTime\)\)/);
+    expect(read("../migrations/0025_trending_job.sql")).toContain("INSERT INTO job_runs (name, last_ok_at) VALUES ('trending', datetime('now'))");
+    expect(TRENDING_SECTION).toContain("`0025_trending_job.sql`");
+  });
+
+  it("says the Home page reads the list, because it does: the page's client is the one place under apps/web/src that names the route, the Home page uses it, and the section says what keeps the first deploy dark", () => {
+    const webSrc = fileURLToPath(new URL("../../web/src/", import.meta.url));
+    // (the unit tests' type set has only readdirSync and readFileSync of node:fs: a path that cannot be listed is a file)
+    const walk = (path: string): string[] => {
+      let names: string[];
+      try {
+        names = readdirSync(path);
+      } catch {
+        return /\.(ts|tsx)$/.test(path) ? [path] : [];
+      }
+      return names.flatMap((name) => walk(join(path, name)));
+    };
+    const slash = (p: string) => p.split(String.fromCharCode(92)).join("/");
+    const naming = walk(webSrc).filter((f) => readFileSync(f, "utf8").includes("home/trending"));
+    expect(naming.map((f) => slash(f).slice(slash(webSrc).length))).toEqual(["lib/trending.ts"]);
+    expect(read("../../web/src/workspace/HomePage.tsx")).toMatch(/from "\.\.\/lib\/trending"/);
+    expect(read("../../web/src/workspace/HomePage.tsx")).toMatch(/askForTrending\(\)/);
+    // the runbook must not tell whoever reads it on a bad day that no visitor can see a list
+    expect(TRENDING_SECTION).not.toContain("does not read this list yet");
+    expect(TRENDING_SECTION).not.toContain("no visitor can see a list today");
+    expect(TRENDING_SECTION).not.toContain("protects nothing visible");
+    expect(TRENDING_SECTION).not.toContain("Today nothing shows it");
+    expect(TRENDING_SECTION).toContain("The Home page reads this list");
+    // ... and says how the launch is kept hidden: the variable the committed configuration sets, with the value it really has (read from the file, not typed here)
+    const committed = JSON.parse(
+      read("../wrangler.jsonc")
+        .split("\n")
+        .filter((l) => !/^\s*\/\//.test(l))
+        .join("\n"),
+    ) as { vars?: { TRENDING?: string } };
+    expect(["dark", "off"], "the committed TRENDING value").toContain(committed.vars?.TRENDING);
+    expect(TRENDING_SECTION).toContain(`\`"TRENDING": "${committed.vars?.TRENDING}"\``);
+    expect(TRENDING_SECTION).toContain("LAUNCH DARK");
+  });
+
+  it("states the limits of the run, the scan and the pool as the code has them", () => {
+    expect(TRENDING_SECTION).toContain(`${n(TRENDING_LIMITS.runCalls)} calls a run`);
+    expect(TRENDING_SECTION).toContain(`${n(TRENDING_LIMITS.scanCalls)} for one scan`);
+    expect(TRENDING_SECTION).toContain(`${KV_OPS} KV operations`);
+    expect(TRENDING_SECTION).toContain(`${TRENDING_LIMITS.wallMs / 60_000} minutes before no new work starts and ${TRENDING_LIMITS.hardStopMs / 60_000} before the searches stop`);
+    expect(TRENDING_SECTION).toContain(`a search counts as ${TRENDING_LIMITS.searchCost}`);
+    expect(TRENDING_SECTION).toContain(`one request every ${TRENDING_LIMITS.arxivGapMs / 1000} seconds`);
+    expect(TRENDING_SECTION).toContain(`${TRENDING_LIMITS.concurrency} at a time`);
+    expect(TRENDING_SECTION).toContain(`${TRENDING_LIMITS.batchSubfields} subfields`);
+    expect(TRENDING_SECTION).toContain(`${TRENDING_LIMITS.poolGlobal} phrases (${TRENDING_LIMITS.poolIndia} for India)`);
+    expect(TRENDING_SECTION).toContain(`under ${TRENDING_LIMITS.poolMin} phrases is refused`);
+    expect(TRENDING_SECTION).toContain(`${TRENDING_LIMITS.scanMaxAgeDays} days`);
+    expect(TRENDING_SECTION).toContain(`${TRENDING_LIMITS.poolEveryDays} days old`);
+  });
+
+  it("states the thresholds of the list as the code has them (windows, arXiv, hysteresis, caps, the file's life, the verifier)", () => {
+    expect(TRENDING_SECTION).toContain(`${TREND.windowDays} days that end ${TREND.endsDaysAgo} days before the day`);
+    expect(TRENDING_SECTION).toContain(`at least ${TREND.confirm.minGrowth} times and at least ${TREND.confirm.minRecent}`);
+    expect(TRENDING_SECTION).toContain(`${TREND.hysteresis.factor} times higher`);
+    expect(TRENDING_SECTION).toContain(`at most ${TRENDING_MAX_CHIPS}, one a field, four a domain`);
+    expect(PER_DOMAIN).toBe(4);
+    expect(TRENDING_SECTION).toContain(`only if ${TREND.minPublish} phrases are left`);
+    expect(TRENDING_SECTION).toContain(`generated plus ${TREND.validHours} hours`);
+    expect(TRENDING_SECTION).toContain(`${TRENDING_POOL_MAX_DAYS} days`);
+    expect(TRENDING_SECTION).toContain(`at least ${VERIFY.minResults} results, ${VERIFY.minAbstracts} with abstracts`);
+    expect(TRENDING_SECTION).toContain(`${YEAR_FILTER_SEARCH_LIMIT} results`);
+  });
+
+  it("states the policy table's counts and the scan's calls as the table has them", () => {
+    const allowed = SUBFIELDS.filter((s) => s.policy === "allow").length;
+    const calls = (QUERYABLE_SUBFIELDS.length + allowed) * 2;
+    expect(TRENDING_SECTION).toContain(`${QUERYABLE_SUBFIELDS.length} subfields that are not \`never\``);
+    expect(TRENDING_SECTION).toContain(`${allowed} allowed subfields`);
+    expect(TRENDING_SECTION).toContain(`: **${calls}**`);
+    expect(TRENDING_SECTION).toContain(`${Math.ceil(QUERYABLE_SUBFIELDS.length / TRENDING_LIMITS.batchSubfields)} batches`);
+  });
+
+  it("does not say the job asks a source it does not (Shodhganga is read through OpenAlex), and says what OpenAlex's key budget means for it", () => {
+    expect(TRENDING_SECTION).not.toContain("OpenAlex India, DOAJ and Shodhganga");
+    expect(TRENDING_SECTION).toContain("Shodhganga is read through OpenAlex");
+    expect(TRENDING_SECTION).toContain("shares the key's day");
   });
 });

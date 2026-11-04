@@ -26,11 +26,13 @@ import { rateLimit, type LimitEnv } from "./ratelimit";
 import { runMaintenance } from "./maintenance";
 import { recheckRetractions } from "./library/retraction";
 import { stubCrossrefFetch } from "./library/retraction-stub";
-import { readJobs, runJob } from "./jobs";
+import { readJobs, runJob, type JobName } from "./jobs";
 import type { S2Throttle } from "./s2-throttle";
 import { ApiGate, remoteGate } from "./gate/api-gate";
 import { installGates, withGate, GATES, type GateName } from "./gate";
 import { searchEnvFrom } from "./search/env";
+import { trendingRoutes } from "./trending/routes";
+import { runTrendingFromEnv } from "./trending/job";
 
 type Bindings = AuthEnv & LimitEnv & {
   S2_THROTTLE: DurableObjectNamespace<S2Throttle>;
@@ -62,6 +64,8 @@ type Bindings = AuthEnv & LimitEnv & {
   SENTRY_ENVIRONMENT?: string;
   /** "1" where the daily clean-up is scheduled (production): /api/v1/health/jobs then reports a job that did not run. Staging has no schedule and leaves it unset. */
   EXPECT_CRON?: string;
+  /** "off" switches the Home page's Trending list off, and its daily job (src/trending/routes.ts, job.ts): a Worker variable. The KV key trending:v1:off hides the list too, and leaves the job running. */
+  TRENDING?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings; Variables: { requestId: string } }>();
@@ -96,6 +100,8 @@ app.route("/api/v1/litscan", litscanRoutes);
 app.route("/api/v1/feedback", feedbackRoutes);
 app.route("/api/v1/admin", adminRoutes);
 app.route("/api/v1/monitoring", monitoringRoutes);
+// the Home page's Trending list: one public file, outside the search bucket of the rate limiter (src/trending/routes.ts)
+app.route("/api/v1/home", trendingRoutes);
 
 app.get("/api/v1/health", async (c) => {
   let db: HealthResponse["db"] = "ok";
@@ -261,6 +267,40 @@ app.post("/api/v1/dev/cache", async (c) => {
 });
 
 /**
+ * Local tests only: reads, writes, removes and lists the Trending list's own keys in KV (every key starts with `trending:v1`: src/trending/store.ts), to set and clear the kill switch, to age or break
+ * the file and to make the job's stand-ins fail (scripts/trending-e2e.mjs). A key of any other name is refused, so this cannot reach the public cache or anything else. Never in production
+ * (ENABLE_DEV_ROUTES is never set there).
+ */
+app.post("/api/v1/dev/kv", async (c) => {
+  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.json({ type: "not_found", title: "Not found" }, 404);
+  const kv = c.env.CACHE;
+  const b = (await c.req.json().catch(() => null)) as { op?: string; key?: string; value?: string; ttl?: number } | null;
+  const key = typeof b?.key === "string" && b.key.startsWith("trending:v1") && b.key.length <= 200 ? b.key : null;
+  if (!kv) return c.json({ type: "invalid", title: "No KV namespace is bound here" }, 400);
+  if (b?.op === "get" && key) return c.json({ ok: true, value: await kv.get(key) });
+  if (b?.op === "put" && key && typeof b.value === "string") {
+    await kv.put(key, b.value, { expirationTtl: Math.max(60, Math.ceil(b.ttl ?? 3600)) });
+    return c.json({ ok: true });
+  }
+  if (b?.op === "delete" && key) {
+    await kv.delete(key);
+    return c.json({ ok: true });
+  }
+  if (b?.op === "list") {
+    const keys: { name: string; expiration: number | null }[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const page = await kv.list({ prefix: "trending:v1", ...(cursor ? { cursor } : {}) });
+      keys.push(...page.keys.map((k) => ({ name: k.name, expiration: k.expiration ?? null })));
+      if (page.list_complete) break;
+      cursor = page.cursor;
+    }
+    return c.json({ ok: true, keys });
+  }
+  return c.json({ type: "invalid", title: "Send {op: get|put|delete|list, key (a name starting trending:v1), value, ttl}" }, 400);
+});
+
+/**
  * Local tests only: sends `n` calls through one lane at once, each holding it for `holdMs`, and reports when each started and the most that were in
  * flight together, so the limits of the real Durable Object can be checked (scripts/gate-e2e.mjs).
  */
@@ -317,10 +357,10 @@ export { LitscanRun } from "./litscan/workflow";
 
 export default {
   fetch: app.fetch,
-  async scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+  async scheduled(controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
     // the calls to Crossref take their turn in the shared lane, as they do in a request
     installGates(env.API_GATE ? remoteGate(env.API_GATE) : null);
-    const cron = <T,>(name: "maintenance" | "retraction_check", job: () => Promise<T>) =>
+    const cron = <T,>(name: JobName, job: () => Promise<T>) =>
       runJob(env.DB, name, job).then(
         (result) => console.log(JSON.stringify({ level: "info", msg: name, result })),
         (err) => {
@@ -328,14 +368,16 @@ export default {
           captureException(env, err, { route: `cron:${name}`, source: "cron", release: env.CF_VERSION_METADATA?.id, waitUntil: (p) => ctx.waitUntil(p) });
         },
       );
-    // independent of each other: a failing re-check must not stop the clean-up, and the other way round
-    ctx.waitUntil(
-      Promise.all([
-        cron("maintenance", () => runMaintenance(env.DB)),
-        cron("retraction_check", () =>
-          recheckRetractions(env.DB, { CROSSREF_MAILTO: env.CROSSREF_MAILTO, ...(env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? { fetch: stubCrossrefFetch } : {}) }),
-        ),
-      ]),
-    );
+    // independent of each other: a failing re-check must not stop the clean-up, and the other way round (and neither stops the Trending list)
+    // The handler AWAITS them: the runtime waits for the promise it returns for up to the 15 minutes a Cron Trigger may last, and the Trending job takes minutes. Work left to ctx.waitUntil
+    // after the handler has returned is documented only as work that "should settle before the invocation completes" (the 30 seconds are for a response that was sent). cron() never rejects.
+    await Promise.all([
+      cron("maintenance", () => runMaintenance(env.DB)),
+      cron("retraction_check", () =>
+        recheckRetractions(env.DB, { CROSSREF_MAILTO: env.CROSSREF_MAILTO, ...(env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? { fetch: stubCrossrefFetch } : {}) }),
+      ),
+      // the Home page's Trending list: its daily file and, on Mondays, the weekly scan it is made from (src/trending/job.ts); a failure leaves the last good file
+      cron("trending", () => runTrendingFromEnv(env, controller.scheduledTime)),
+    ]);
   },
 } satisfies ExportedHandler<Bindings>;

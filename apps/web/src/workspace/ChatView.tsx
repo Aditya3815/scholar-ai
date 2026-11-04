@@ -1,15 +1,16 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileStack, Info, Lightbulb, ListChecks, Pencil, RefreshCw, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
-import { Fragment, Suspense, lazy, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { GENERAL_LABEL, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MAX_VERSIONS, ROUTE_NAMES, answerCopy, busyReason, canTighten, earlierUsed, editInfo, followUpNote, noticeOffersRetry, turnToShow, unfilteredWords, versionInfo, type AssistantMsg, type ChatMsg, type EditInfo, type IdeaMsg, type ChatNoAnswer, type RouteMode, type UserMsg } from "@scholar/shared";
+import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { GENERAL_LABEL, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MAX_VERSIONS, ROUTE_NAMES, answerCopy, busyReason, canTighten, citeParts, earlierUsed, editInfo, followUpNote, noticeOffersRetry, textAttrs, turnToShow, unfilteredWords, versionInfo, type AssistantMsg, type ChatMsg, type EditInfo, type IdeaMsg, type ChatNoAnswer, type Paper, type RouteMode, type UserMsg } from "@scholar/shared";
 import { SignInDialog } from "../components/SignInDialog";
 import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
-import { StreamingText } from "../components/papers/AskPanel";
-import { cancelTighten, editMessage, retryReply, sendMessage, showVersion, tightenReply, type EditResult } from "../lib/chat";
+import { cancelTighten, editMessage, retryReply, showVersion, tightenReply, type EditResult } from "../lib/chat";
 import { useCopy } from "../lib/copy";
-import { STARTERS } from "./starters";
+import { startersFor } from "./starters";
+import { TryChips } from "./HomeChips";
 import { menuKeys } from "./menuKeys";
+import { Announcer, announce } from "./announcer";
 import { openPreview } from "../lib/preview";
 import { easeOut, spring } from "../lib/motion";
 import { PAPERS_NAME } from "../lib/workspace";
@@ -95,20 +96,43 @@ function Progress({ m: msg, signedIn }: { m: AssistantMsg; signedIn: boolean }) 
 }
 const msgDone = (msg: AssistantMsg, step: string) => msg.stepsDone.includes(step as never);
 
-/** The answer text with [n] marks as buttons that point at paper n of the list below. */
+/**
+ * The answer text with [n] marks as buttons that point at paper n of the list below. A mark is drawn together with the word before it and the stop after it (`citeParts`), as one piece that moves to the next
+ * line whole: a mark used to be left alone at the start of a line, with its full stop behind it. The language of the text is told to the browser and to a screen reader (`textAttrs`: Hindi is not read in an English voice).
+ */
 function AnswerText({ text, onCite, label }: { text: string; onCite: (n: number) => void; label: (n: number) => string }) {
   return (
-    <p className="reading chat-text">
-      {text.split(/(\[\d{1,2}\])/g).map((part, i) => {
-        const n = /^\[(\d{1,2})\]$/.exec(part)?.[1];
-        return n ? (
-          <button key={i} type="button" className="cite-chip" aria-label={label(Number(n))} onClick={() => onCite(Number(n))}>
-            {n}
-          </button>
+    <p className="reading chat-text" {...textAttrs(text)}>
+      {citeParts(text).map((part, i) =>
+        part.n === undefined ? (
+          <Fragment key={i}>{part.text}</Fragment>
         ) : (
-          <Fragment key={i}>{part}</Fragment>
-        );
-      })}
+          <span key={i} className="cite-grp">
+            {part.before}
+            {part.gap}
+            <button type="button" className="cite-chip" aria-label={label(part.n)} onClick={() => onCite(part.n)}>
+              {part.n}
+            </button>
+            {part.after}
+          </span>
+        ),
+      )}
+    </p>
+  );
+}
+
+/**
+ * The words of an answer, as they arrive: ONE piece of text that grows, in the type of the checked answer that will replace it (dimmed, with the caret: it is provisional, its marks are hidden, and a mark that is
+ * half arrived is not shown). The words used to be a span each, fading in; with the papers below them, every line that filled pushed twenty cards down and the browser counted each as a shift of its own: a
+ * stream of a hundred words measured 0.46 of layout shift on a desktop and 1.37 on a phone, against the line of 0.1; as one node with room kept for the lines to come (`.chat-live`) it is a fraction of that.
+ * (The Ask panel of a paper keeps its fading words, `StreamingText`: nothing is under them there.)
+ */
+function LiveText({ text, writing }: { text: string; writing: boolean }) {
+  const shown = text.replace(/\s*\[\d{1,2}\]/g, "").replace(/\s*\[\d{0,2}$/, "");
+  return (
+    <p className="reading chat-text ask-text-live chat-live" aria-hidden="true" {...textAttrs(shown)}>
+      {shown}
+      {writing && <span className="ask-caret" />}
     </p>
   );
 }
@@ -122,12 +146,12 @@ type ChangeTool = (to: RouteMode, replyId: string, text: string) => void;
 function Background({ msg, question, onRefine }: { msg: AssistantMsg; question: string; onRefine: (text: string) => void }) {
   const g = msg.general;
   const live = msg.generalLive ?? "";
-  if (g?.kind === "not_research" && g.text) return <p className="chat-why" role="note">{g.text}</p>;
+  if (g?.kind === "not_research" && g.text) return <p className="chat-why" role="note" {...textAttrs(g.text)}>{g.text}</p>;
   if (g?.kind !== "background" && !(msg.status === "working" && live)) return null;
   return (
     <section className="chat-general" aria-label={GENERAL_LABEL}>
       <p className="chat-general-label"><Info size={15} aria-hidden="true" /> <b>{GENERAL_LABEL}</b></p>
-      {g?.kind === "background" ? <p className="reading chat-text">{g.text}</p> : <StreamingText text={live} writing />}
+      {g?.kind === "background" ? <p className="reading chat-text" {...textAttrs(g.text)}>{g.text}</p> : <LiveText text={live} writing />}
       {g?.kind === "background" && (
         <p className="chat-general-note">
           No paper is cited here, so check it before you rely on it.{" "}
@@ -189,7 +213,7 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
       </p>
       {note?.question && (
         <p className="chat-und chat-searched chat-ctx">
-          Using your earlier question: <b lang={msg.language === "hi" ? "hi" : undefined}>{note.question}</b>
+          Using your earlier question: <b {...textAttrs(note.question, true)}>{note.question}</b>
           {note.exact && !working && (
             <>
               {" · "}
@@ -201,7 +225,7 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
       {msg.mode === "search" && used.map((q, i) => (
         // a question of another chat that a model read to understand this message (the chat chosen to continue from, or what "Use my earlier chats" found): always said, each with its own way to take it away
         <p key={i} className="chat-und chat-searched chat-earlier">
-          Used from your earlier chat: <b>{q.question}</b>
+          Used from your earlier chat: <b {...textAttrs(q.question, true)}>{q.question}</b>
           {!working && (
             <>
               {" · "}
@@ -223,7 +247,7 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
       )}
       {searchedAs && (
         <p className="chat-und chat-searched">
-          I searched for: <b>{searchedAs}</b>
+          I searched for: <b {...textAttrs(searchedAs, true)}>{searchedAs}</b>
         </p>
       )}
       {note?.years && (
@@ -290,22 +314,6 @@ function useBrief(ms: number): [boolean, () => void] {
   return [on, start];
 }
 
-/**
- * The words of one polite status line ("Message copied", "Version 2 of 3"). The line is always in the page, empty, because a line that arrives together with its words is not reliably read.
- * The same words said twice are not read again, so a new message empties the line first and writes it a moment later, and the line is emptied again after `keepMs`.
- */
-function useSaid(): [string, (words: string, keepMs?: number) => void] {
-  const [words, setWords] = useState("");
-  const timers = useRef<number[]>([]);
-  useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
-  const say = useCallback((next: string, keepMs = 4000) => {
-    timers.current.forEach((t) => window.clearTimeout(t));
-    setWords("");
-    timers.current = [window.setTimeout(() => setWords(next), 100), window.setTimeout(() => setWords(""), 100 + keepMs)];
-  }, []);
-  return [words, say];
-}
-
 const COULD_NOT_COPY = "Could not copy. Select the text and copy it.";
 
 /**
@@ -315,9 +323,8 @@ const COULD_NOT_COPY = "Could not copy. Select the text and copy it.";
 function ReplyActions({ msg, onRetry }: { msg: AssistantMsg; onRetry: (id: string) => void }) {
   const what = useMemo(() => answerCopy(msg), [msg]);
   const copy = useCopy();
-  const [said, say] = useSaid();
   useEffect(() => {
-    if (copy.tick > 0) say(copy.state === "copied" ? (what?.what === "papers" ? "Papers copied" : "Answer copied") : COULD_NOT_COPY, 1800);
+    if (copy.tick > 0) announce(copy.state === "copied" ? (what?.what === "papers" ? "Papers copied" : "Answer copied") : COULD_NOT_COPY, 1800);
   }, [copy.tick]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="chat-acts" role="group" aria-label="What to do with this reply">
@@ -332,12 +339,45 @@ function ReplyActions({ msg, onRetry }: { msg: AssistantMsg; onRetry: (id: strin
         <span>Search again</span>
       </button>
       {copy.state === "failed" && <span className="chat-act-note" role="note">{COULD_NOT_COPY}</span>}
-      <p className="sr-only" role="status" aria-live="polite">{said}</p>
     </div>
   );
 }
 
-function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, onRefine, onOpenPage }: { msg: AssistantMsg; text: string; signedIn: boolean; flash: { msgId: string; n: number } | null; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void }) {
+/**
+ * The papers of a reply. Memoised: a reply that is being written gets a new identity for every word, and its papers are the same ones for all of them, so the cards (each of them a good many nodes) are not drawn
+ * again for a word. `flashN` is the number of the card that is being pointed at now (0 for none), a number and not the flash object, so that only the reply that holds the card is touched when one is pointed at.
+ */
+const PaperList = memo(function PaperList({ msgId, papers, flashN, working }: { msgId: string; papers: Paper[]; flashN: number; working: boolean }) {
+  const preview = useCallback((paper: Paper) => openPreview(paper, papers), [papers]);
+  return (
+    <ol className="chat-papers" aria-label={`${papers.length} papers found`}>
+      <AnimatePresence initial={false}>
+        {papers.map((p, i) => (
+          <ResultCard key={p.id} paper={p} index={Math.min(i, 5)} onPreview={preview} anchor={{ id: `p-${msgId}-${i + 1}`, number: i + 1, flash: flashN === i + 1 }} settled={!working} />
+        ))}
+      </AnimatePresence>
+    </ol>
+  );
+});
+
+/**
+ * A finished search that found no paper (not a greeting, not another tool's offer, not a message that was too long, and not one whose year filter took every paper away: that has its own way out, the chip with
+ * the X). It says so and offers the Try chips.
+ */
+const noPapers = (m: AssistantMsg): boolean => m.status === "done" && m.mode === "search" && m.papers.length === 0 && m.reason !== "small_talk" && m.reason !== "routed" && m.reason !== "too_long" && !m.notices.some((n) => n.kind === "years");
+/** A reply that shows the Try chips, and so the only kind that has to be told when another reply is being written (its chips are not pressed then): the others are not drawn again for it. */
+const showsChips = (m: AssistantMsg): boolean => m.status === "done" && (m.reason === "small_talk" || noPapers(m));
+
+/** What a reply is drawn from, as module constants: an object made in a render would be a new one every time, and a memoised child would be drawn again for it. */
+const REPLY_IN = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35, ease: easeOut } } as const;
+
+/**
+ * One reply. Memoised (every prop is a value or a function that stays the same: `ChatView` makes sure of it): a conversation of twenty replies with twenty papers each is about twenty thousand nodes, and
+ * the reply being written changes for every word of it, so without this every word drew every earlier reply again (measured at a processor four times slower: 0.7 to 0.8 s to answer a key press with nothing
+ * being written, 1.8 to 2.4 s while a reply was; now 60 ms and 150 to 230 ms: e2e/chat-perf.mjs).
+ * `flashN` is the number of this reply's paper that is being pointed at (0 for none).
+ */
+const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN, chipsBusy, onCite, onRetry, onChange, onRefine, onOpenPage, onTry }: { msg: AssistantMsg; text: string; signedIn: boolean; flashN: number; chipsBusy: boolean; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onTry: (text: string) => void }) {
   const working = msg.status === "working";
   const byN = (n: number) => msg.papers[n - 1];
   const answer = msg.answer?.grounded ? msg.answer : null;
@@ -354,9 +394,15 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, 
     if (working && !wasWorking.current && (!document.activeElement || document.activeElement === document.body)) turn.current?.focus({ preventScroll: true });
     wasWorking.current = working;
   }, [working]);
-  const announce = working ? "" : msg.status === "done" ? (msg.reason === "small_talk" ? "Reply ready." : routed ? "Understood. A tool can be opened." : `${answer ? "Answer ready" : "Papers ready"}, ${msg.papers.length} ${msg.papers.length === 1 ? "paper" : "papers"}.`) : msg.status === "stopped" ? "Stopped." : msg.error ?? "This answer was interrupted.";
+  // One polite message when the reply is ready (not the words one by one), through the conversation's one status line, and only for a reply that was being written here: one that is merely shown (a conversation opened again) says nothing.
+  const was = useRef(working);
+  useEffect(() => {
+    if (was.current && !working) announce(msg.status === "done" ? (msg.reason === "small_talk" ? "Reply ready." : routed ? "Understood. A tool can be opened." : msg.papers.length === 0 ? (noPapers(msg) ? "No papers were found. You can change the words, or try one of the examples." : "No papers were found.") : `${answer ? "Answer ready" : "Papers ready"}, ${msg.papers.length} ${msg.papers.length === 1 ? "paper" : "papers"}.`) : msg.status === "stopped" ? "Stopped." : msg.error ?? "This answer was interrupted.");
+    was.current = working;
+  }, [working]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
+    <m.div {...REPLY_IN}>
     <div ref={turn} className="chat-turn" data-status={msg.status} role="group" aria-label={working ? "Reply, being written" : "Reply"} tabIndex={-1}>
       {/* while Auto is still reading the message the step list says so; the line comes once the tool is known (and not at all if the reply failed before that) */}
       {msg.understood !== false && msg.reason !== "small_talk" && <Understood msg={msg} text={text} working={working} onChange={onChange} onExact={() => onRetry(msg.id, "search")} onWords={(words) => void retryReply(msg.id, "search", words)} />}
@@ -381,8 +427,11 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, 
       {working && <Progress m={msg} signedIn={signedIn} />}
       {quiet && <p className="chat-quiet" role="status">Still working… this is taking longer than usual. You can press Stop and try again.</p>}
 
-      {answer ? (
-        <m.div className="chat-answer" initial={{ opacity: 0.4 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+      {/* ONE card from the first word to the checked answer: the words that are being written sit in the card that the answer will be in (the same element, so that it neither jumps nor fades in a second time) */}
+      {answer || (working && msg.live) ? (
+        <m.div className={answer ? "chat-answer" : "chat-live-card"} initial={{ opacity: 0.4 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+          {answer ? (
+            <>
           <span className="ask-status" data-tone={answer.checked === false ? "warn" : "ok"}>
             <ShieldCheck size={15} aria-hidden="true" /> {answer.strict ? "Each claim was read strictly against the sentences it cites" : answer.checked ? "Each claim was read against the sentences it cites" : answer.checked === false ? "Every mark points at a sentence of an abstract. The claims were not read against them this time" : "Every mark points at a sentence of an abstract"}
           </span>
@@ -397,8 +446,8 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, 
                   <button type="button" className="chat-ev" onClick={() => onCite(msg.id, n)}>
                     <span className="chat-ev-n">{n}</span>
                     <span>
-                      <span className="chat-ev-t">{titleOf(n)}{byN(n)?.year ? ` (${byN(n)!.year})` : ""}</span>
-                      {answer.citations.filter((c) => c.n === n).map((c) => <span key={c.sentenceNo} className="chat-ev-q">“{c.sentence}”</span>)}
+                      <span className="chat-ev-t" {...textAttrs(titleOf(n))}>{titleOf(n)}{byN(n)?.year ? ` (${byN(n)!.year})` : ""}</span>
+                      {answer.citations.filter((c) => c.n === n).map((c) => <span key={c.sentenceNo} className="chat-ev-q" {...textAttrs(c.sentence)}>“{c.sentence}”</span>)}
                     </span>
                   </button>
                 </li>
@@ -406,9 +455,11 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, 
             </ul>
           </details>
           <Strict msg={msg} signedIn={signedIn} />
+            </>
+          ) : (
+            <LiveText text={msg.live} writing={msg.step === "write"} />
+          )}
         </m.div>
-      ) : working && msg.live ? (
-        <StreamingText text={msg.live} writing={msg.step === "write"} />
       ) : null}
 
       {!working && !answer && msg.status === "done" && msg.reason && msg.reason !== "routed" && msg.reason !== "small_talk" && (
@@ -426,15 +477,12 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, 
       <Background msg={msg} question={text} onRefine={onRefine} />
       {msg.status === "done" && msg.reason === "small_talk" && (
         <div className="chat-talk">
-          <div className="hm-starters" role="group" aria-label="Example searches">
-            <span className="hm-try">Try</span>
-            {STARTERS.map((s) => (
-              <button key={s} type="button" className="chip-btn" onClick={() => sendMessage(s, "search")}>{s}</button>
-            ))}
-          </div>
+          {/* the way out of a wrong guess comes FIRST: under eight chips, one to a line on a phone, it was a screen down and behind the box that sticks to the bottom of the window */}
           <p className="chat-talk-any">
             Not small talk? <button type="button" className="link-btn" onClick={() => onRetry(msg.id, "anyway")}>Search for these words anyway</button>
           </p>
+          {/* a click sends the search in the place the switch under the box says (the page above knows it), and not while another reply is being written */}
+          <TryChips chips={startersFor(signedIn)} onPick={onTry} disabled={chipsBusy} />
         </div>
       )}
       {msg.status === "stopped" && <p className="chat-why" role="note">Stopped. The papers found so far are below.</p>}
@@ -462,26 +510,27 @@ function AssistantTurn({ msg, text, signedIn, flash, onCite, onRetry, onChange, 
         </p>
       ))}
 
+      {/* a finished search that found no paper says so (the server's own line, or this one for a reply kept from before it had one) and offers the Try chips: a way on that is not an empty page */}
+      {noPapers(msg) && (
+        <div className="chat-talk">
+          {!msg.notices.some((n) => n.kind === "nothing") && <p className="chat-why" role="note">No papers were found for this.</p>}
+          <TryChips chips={startersFor(signedIn)} onPick={onTry} disabled={chipsBusy} label="Or try one of these" />
+        </div>
+      )}
+
       {working && msg.papers.length === 0 && !msg.papersFinal && msg.step !== "route" ? (
         <ul className="chat-papers" aria-hidden="true">
           <SkeletonCard />
           <SkeletonCard />
         </ul>
       ) : msg.papers.length > 0 ? (
-        <ol className="chat-papers" aria-label={`${msg.papers.length} papers found`}>
-          <AnimatePresence initial={false}>
-            {msg.papers.map((p, i) => (
-              <ResultCard key={p.id} paper={p} index={Math.min(i, 5)} onPreview={(paper) => openPreview(paper, msg.papers)} anchor={{ id: `p-${msg.id}-${i + 1}`, number: i + 1, flash: flash?.msgId === msg.id && flash.n === i + 1 }} />
-            ))}
-          </AnimatePresence>
-        </ol>
+        <PaperList msgId={msg.id} papers={msg.papers} flashN={flashN} working={working} />
       ) : null}
 
-      {/* One polite message when the reply is ready: not the words one by one. */}
-      <p className="sr-only" role="status" aria-live="polite">{announce}</p>
     </div>
+    </m.div>
   );
-}
+});
 
 /**
  * Calls `onShown` once, when it first appears: placed beside something that loads late, inside the same Suspense, it appears when that does.
@@ -502,7 +551,7 @@ const SHOWN = 400;
  * An Idea Check in the conversation. While it runs here it is the Idea Check workspace itself: it reads the idea and proposes a search plan, which the person edits and approves
  * before anything is searched, then shows the closest papers and the comparison. After a reload only the idea's text is left (nothing about an idea is stored).
  */
-function IdeaTurn({ msg, live, last, onAgain }: { msg: IdeaMsg; live: boolean; last: boolean; onAgain: (id: string) => void }) {
+const IdeaTurn = memo(function IdeaTurn({ msg, live, last, onAgain }: { msg: IdeaMsg; live: boolean; last: boolean; onAgain: (id: string) => void }) {
   const section = useRef<HTMLElement>(null);
   return (
     <section ref={section} className="chat-idea" aria-label="Idea Check">
@@ -526,7 +575,7 @@ function IdeaTurn({ msg, live, last, onAgain }: { msg: IdeaMsg; live: boolean; l
       )}
     </section>
   );
-}
+});
 
 /** What the editor says when a save is refused. The text stays in the editor; this is the reason, in plain words. */
 function whyNot(r: Exclude<EditResult, "sent">, info: EditInfo, length: number, busy: "reply" | "strict" | null): string {
@@ -593,6 +642,7 @@ function Editor({ msg, n, info, busy, ideas, versions, onCancel, onSave }: { msg
         id={`${uid}-ta`}
         ref={field}
         className="chat-edit-ta"
+        dir="auto"
         rows={2}
         maxLength={20000}
         value={text}
@@ -631,12 +681,20 @@ const HELD = "Another message is being edited. Save it, or press Cancel, first."
  * not `disabled` while an answer is being written or another message is being edited (so that a draft is not lost), with the reason described: a disabled button that has the focus drops out of
  * the tab order. On a pointer that can hover the row is shown
  * by hovering the whole message or focusing a button with the keyboard, and stays shown for a moment after a copy; with more than one version it is always shown (a hidden pager looks like lost data).
- * One polite status line says what happened ("Message copied", "Version 2 of 3. The answers below are from this version.").
+ * What happened ("Message copied", "Version 2 of 3. The answers below are from this version.") is said through the conversation's one polite status line (`announce`).
  */
-function UserTurn({ msg, n, info, busy, held, ideas, editing, onEdit, onClose, onSent, onAnchor }: { msg: UserMsg; n: number; info: EditInfo | null; busy: "reply" | "strict" | null; held: boolean; ideas: number; editing: boolean; onEdit: () => void; onClose: () => void; onSent: () => void; onAnchor: (on: boolean) => void }) {
+type UserTurnProps = { msg: UserMsg; n: number; info: EditInfo | null; busy: "reply" | "strict" | null; held: boolean; ideas: number; editing: boolean; onEdit: (id: string) => void; onClose: () => void; onSent: (id: string) => void; onAnchor: (id: string, on: boolean) => void };
+/**
+ * When two sets of props of a message you sent are the same, one test for each prop (a type that has to name every prop: a prop added later without its test is an error here and not a message that
+ * stays as it was). `info` is made anew for every render (it holds the reply under the message, which changes for every word of it), and only what the row and the editor read of it is compared.
+ */
+const sameUserTurn: { [K in keyof UserTurnProps]: (a: UserTurnProps[K], b: UserTurnProps[K]) => boolean } = {
+  msg: Object.is, n: Object.is, busy: Object.is, held: Object.is, ideas: Object.is, editing: Object.is, onEdit: Object.is, onClose: Object.is, onSent: Object.is, onAnchor: Object.is,
+  info: (a, b) => a === b || (!!a && !!b && a.at === b.at && a.mode === b.mode && a.scope === b.scope && a.limit === b.limit && a.later === b.later),
+};
+const UserTurn = memo(function UserTurn({ msg, n, info, busy, held, ideas, editing, onEdit, onClose, onSent, onAnchor }: UserTurnProps) {
   const v = versionInfo(msg);
   const uid = useId();
-  const [said, say] = useSaid();
   const copy = useCopy();
   const [reopened, reopen] = useBrief(1800);
   const [refused, refuse] = useBrief(4000);
@@ -655,25 +713,25 @@ function UserTurn({ msg, n, info, busy, held, ideas, editing, onEdit, onClose, o
     wasEditing.current = editing;
   }, [editing, reopen]);
   useEffect(() => {
-    if (copy.tick > 0) say(copy.state === "copied" ? "Message copied" : COULD_NOT_COPY, 1800);
+    if (copy.tick > 0) announce(copy.state === "copied" ? "Message copied" : COULD_NOT_COPY, 1800);
   }, [copy.tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const why = busy ? WAIT[busy] : held ? HELD : null; // why the buttons that change the conversation do not act now
   // a press on one of them while it waits: the reason is said where the person looks (a line beside the buttons, for a while) and to a screen reader, not only described to it when the button has the focus
   const decline = () => {
     refuse();
-    say(why ?? "", 4000);
+    announce(why ?? "", 4000);
   };
   const go = (to: number) => {
-    onAnchor(true);
-    if (showVersion(msg.id, to) === "switched") say(`Version ${to + 1} of ${v.count}. The answers below are from this version.`);
-    else onAnchor(false);
+    onAnchor(msg.id, true);
+    if (showVersion(msg.id, to) === "switched") announce(`Version ${to + 1} of ${v.count}. The answers below are from this version.`);
+    else onAnchor(msg.id, false);
   };
   const save = (text: string): EditResult => {
     const r = editMessage(msg.id, text);
     if (r === "sent") {
-      onSent();
-      say("Message sent. A new answer is being written.");
+      onSent(msg.id);
+      announce("Message sent. A new answer is being written.");
     }
     return r;
   };
@@ -687,7 +745,9 @@ function UserTurn({ msg, n, info, busy, held, ideas, editing, onEdit, onClose, o
       ) : (
         <>
           <m.p className="chat-bubble" initial={seen.current ? false : { opacity: 0, y: 10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={spring}>
-            <Search size={13} aria-hidden="true" /> {msg.text.length > SHOWN ? `${msg.text.slice(0, SHOWN)}…` : msg.text}
+            {/* the icon and the words are two cells of a row: the icon stays beside the first line of a question that takes two (it used to be left alone on a row of its own above the words) */}
+            <Search size={13} aria-hidden="true" />
+            <span className="chat-bubble-t" {...textAttrs(msg.text, true)}>{msg.text.length > SHOWN ? `${msg.text.slice(0, SHOWN)}…` : msg.text}</span>
             {msg.text.length > SHOWN && <small className="chat-long"> {msg.text.length.toLocaleString("en-US")} characters, the start is shown</small>}
           </m.p>
           <div className="chat-u-actions" role="group" aria-label={`Your message ${n}`} data-hide={v.count > 1 ? "false" : "true"} data-pin={copy.state !== "idle" || reopened || (refused && !!why) ? "true" : "false"}>
@@ -707,7 +767,7 @@ function UserTurn({ msg, n, info, busy, held, ideas, editing, onEdit, onClose, o
               {copy.state === "copied" ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
             </button>
             {info && (
-              <button ref={editButton} type="button" className="chat-act" aria-label="Edit your message" title={why ?? "Edit your message"} aria-disabled={!!why} aria-describedby={wait} onClick={() => (why ? decline() : onEdit())}>
+              <button ref={editButton} type="button" className="chat-act" aria-label="Edit your message" title={why ?? "Edit your message"} aria-disabled={!!why} aria-describedby={wait} onClick={() => (why ? decline() : onEdit(msg.id))}>
                 <Pencil size={16} aria-hidden="true" />
               </button>
             )}
@@ -716,16 +776,20 @@ function UserTurn({ msg, n, info, busy, held, ideas, editing, onEdit, onClose, o
           </div>
         </>
       )}
-      <p className="sr-only" role="status" aria-live="polite">{said}</p>
       {/* described to the buttons by id, and not in the page's flow: with every message of a long conversation carrying it, a screen reader in browse mode would read the same sentence under each of them */}
       {why && <span id={waitId} hidden>{why}</span>}
     </>
   );
-}
+}, (a, b) => (Object.keys(sameUserTurn) as (keyof UserTurnProps)[]).every((k) => (sameUserTurn[k] as (x: unknown, y: unknown) => boolean)(a[k], b[k])));
 
-export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onRefine, onOpenPage, onIdeaAgain }: { messages: ChatMsg[]; signedIn: boolean; liveIdeas: ReadonlySet<string>; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onIdeaAgain: (id: string) => void }) {
+export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onRefine, onOpenPage, onIdeaAgain, onTry }: { messages: ChatMsg[]; signedIn: boolean; liveIdeas: ReadonlySet<string>; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onIdeaAgain: (id: string) => void; onTry: (text: string) => void }) {
   const [flash, setFlash] = useState<{ msgId: string; n: number } | null>(null);
   const list = useRef<HTMLOListElement>(null);
+  // The older replies of a long conversation are not drawn until they are near the window (content-visibility: auto, shell.css), and a reply that is not drawn is not in the accessibility tree either (measured:
+  // no button in it, against 108 in a drawn one), so a screen reader cannot reach it. `everyReply` draws them all, on request; the control is there from three turns on, first in the conversation, and takes no
+  // room on the page until it has the focus (a screen reader and the Tab key find it, a mouse never sees it).
+  const [everyReply, setEveryReply] = useState(false);
+  const drawNote = useRef<HTMLParagraphElement>(null);
   /** The message whose editor is open (one at a time), and the one whose edit was just sent. */
   const [editing, setEditing] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
@@ -733,9 +797,35 @@ export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onR
   const anchor = useRef<{ id: string; top: number } | null>(null);
   const shown = useRef<readonly ChatMsg[] | null>(null);
   const busy = busyReason(messages);
-  const rowOf = (id: string) => list.current?.querySelector<HTMLElement>(`[data-msg="${id}"]`) ?? null;
+  const rowOf = useCallback((id: string) => list.current?.querySelector<HTMLElement>(`[data-msg="${id}"]`) ?? null, []);
   /** The top of a message's row of buttons: the thing the reader pressed, which must stay where their pointer is (the bubble above it can be taller or shorter in another version). */
-  const buttonsTop = (id: string) => rowOf(id)?.querySelector(".chat-u-actions")?.getBoundingClientRect().top;
+  const buttonsTop = useCallback((id: string) => rowOf(id)?.querySelector(".chat-u-actions")?.getBoundingClientRect().top, [rowOf]);
+
+  // What the turns are given must not be new when nothing about it is: a turn is drawn again for a prop that is merely a new object or a new function, and a long conversation has twenty of them or more, each
+  // of them thousands of nodes, which every word of the reply being written (and every key pressed in the box) would draw again. The functions of the page above are new for every render of it, so they are held
+  // here and called through these, which never change; the rest are made once.
+  const parent = useRef({ onRetry, onChange, onRefine, onOpenPage, onTry });
+  useLayoutEffect(() => {
+    parent.current = { onRetry, onChange, onRefine, onOpenPage, onTry };
+  });
+  const tryChip = useCallback((text: string) => parent.current.onTry(text), []);
+  const retry = useCallback((id: string, as?: "search" | "anyway") => parent.current.onRetry(id, as), []);
+  const change = useCallback<ChangeTool>((to, id, text) => parent.current.onChange(to, id, text), []);
+  const refine = useCallback((text: string) => parent.current.onRefine(text), []);
+  const openPage = useCallback((to: "idea", text: string) => parent.current.onOpenPage(to, text), []);
+  const edit = useCallback((id: string) => setEditing(id), []);
+  const closeEditor = useCallback(() => setEditing(null), []);
+  const edited = useCallback((id: string) => {
+    setEditing(null);
+    setSent(id);
+  }, []);
+  const anchorAt = useCallback(
+    (id: string, on: boolean) => {
+      const top = on ? buttonsTop(id) : undefined;
+      anchor.current = top === undefined ? null : { id, top };
+    },
+    [buttonsTop],
+  );
 
   // another version of a message was brought back: the messages below it are others, and the page keeps the pager where it was (the browser cannot tell that it is the same thing)
   useLayoutEffect(() => {
@@ -776,45 +866,63 @@ export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onR
     window.setTimeout(() => setFlash((f) => (f?.msgId === msgId && f.n === n ? null : f)), 1800);
   }, []);
 
+  let asked = 0; // the number of the question, as the row's name says it ("Your message 3")
   return (
     <div className="chat">
-      <ol ref={list} className="chat-list" aria-label="Conversation">
+      {messages.length >= 6 && (
+        <p ref={drawNote} className="chat-drawall" tabIndex={-1}>
+          {everyReply ? (
+            "All replies are drawn."
+          ) : (
+            <>
+              Older replies are drawn as you scroll to them, so a screen reader or a search of the page may not find them until then.{" "}
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => {
+                  setEveryReply(true);
+                  announce("All replies are drawn.");
+                  window.setTimeout(() => drawNote.current?.focus(), 0);
+                }}
+              >
+                Draw all replies
+              </button>
+            </>
+          )}
+        </p>
+      )}
+      <ol ref={list} className="chat-list" aria-label="Conversation" data-all={everyReply || undefined}>
         {messages.map((msg, at) => {
           const before = messages[at - 1];
+          if (msg.role === "user") asked++;
           return (
             // the item is keyed by the message's id, which an edited message keeps: it is the same place whichever version is being read, so a focused pager button is not lost when another version comes in
-            <li key={msg.id} data-msg={msg.id} className={msg.role === "user" ? "chat-u" : msg.role === "idea" ? "chat-a chat-idea-li" : "chat-a"}>
+            // (--cv-n and --cv-a: what is known of a reply's height before it has been drawn, for the browser to skip it by: see `.chat-list > li.chat-a` in shell.css)
+            <li key={msg.id} data-msg={msg.id} className={msg.role === "user" ? "chat-u" : msg.role === "idea" ? "chat-a chat-idea-li" : "chat-a"} style={msg.role === "assistant" ? ({ "--cv-n": msg.papers.length, "--cv-a": msg.answer?.grounded ? 1 : 0 } as CSSProperties) : undefined}>
               {msg.role === "idea" ? (
                 <IdeaTurn msg={msg} live={liveIdeas.has(msg.id)} last={at === messages.length - 1} onAgain={onIdeaAgain} />
               ) : msg.role === "user" ? (
                 <UserTurn
                   msg={msg}
-                  n={messages.slice(0, at + 1).filter((x) => x.role === "user").length}
+                  n={asked}
                   info={editInfo(messages, msg.id)}
                   busy={busy}
                   held={editing !== null && editing !== msg.id}
                   ideas={editing === msg.id ? messages.slice(at + 1).filter((x) => x.role === "idea" && liveIdeas.has(x.id)).length : 0}
                   editing={editing === msg.id}
-                  onEdit={() => setEditing(msg.id)}
-                  onClose={() => setEditing(null)}
-                  onSent={() => {
-                    setEditing(null);
-                    setSent(msg.id);
-                  }}
-                  onAnchor={(on) => {
-                    const top = on ? buttonsTop(msg.id) : undefined;
-                    anchor.current = top === undefined ? null : { id: msg.id, top };
-                  }}
+                  onEdit={edit}
+                  onClose={closeEditor}
+                  onSent={edited}
+                  onAnchor={anchorAt}
                 />
               ) : (
-                <m.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }}>
-                  <AssistantTurn msg={msg} text={before?.role === "user" ? before.text : msg.query} signedIn={signedIn} flash={flash} onCite={cite} onRetry={onRetry} onChange={onChange} onRefine={onRefine} onOpenPage={onOpenPage} />
-                </m.div>
+                <AssistantTurn msg={msg} text={before?.role === "user" ? before.text : msg.query} signedIn={signedIn} flashN={flash?.msgId === msg.id ? flash.n : 0} chipsBusy={busy !== null && showsChips(msg)} onCite={cite} onRetry={retry} onChange={change} onRefine={refine} onOpenPage={openPage} onTry={tryChip} />
               )}
             </li>
           );
         })}
       </ol>
+      <Announcer />
     </div>
   );
 }

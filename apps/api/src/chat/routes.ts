@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, NOTHING_NOTICE, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatEvent, type EarlierQuestion, type TightenResponse, type ChatNoAnswer, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
+import { FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MIN_SINCE_YEAR, NOTHING_NOTICE, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatContextInfo, type ChatEvent, type EarlierQuestion, type TightenResponse, type ChatNoAnswer, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
@@ -140,6 +140,29 @@ async function canAfford(db: D1Database, subject: string): Promise<boolean> {
 /** "2020 or later", "2015 or earlier", "2019", "2018 to 2020": a year range in words, for the line that says how many papers it left. */
 const rangeWords = (from?: number, to?: number): string => (from !== undefined && to !== undefined ? (from === to ? `${from}` : `${from} to ${to}`) : from !== undefined ? `${from} or later` : `${to} or earlier`);
 
+type YearRange = { from?: number; to?: number };
+
+/**
+ * `sinceYear` of a request (docs/design/chatview-and-trending.md, T9): the year a Trending chip says "from this year on" about. The year itself when it is a whole number from `MIN_SINCE_YEAR` to
+ * `thisYear`, `undefined` when the request has none, `null` for anything else (a string, a fraction, `null`, a year out of range): that is a 400, nothing is repaired.
+ */
+function readSinceYear(raw: unknown, thisYear: number): number | undefined | null {
+  if (raw === undefined) return undefined;
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= MIN_SINCE_YEAR && raw <= thisYear ? raw : null;
+}
+
+/**
+ * The year range the papers are cut to: the router's own (a follow-up's "only after 2020") and the chip's `sinceYear` as one. The larger of the two starts; the router's end stays as it is. A chip that
+ * starts after the end the person's own words asked for ("papers before 2015") cannot be met together with it: the person's words win and the chip is dropped, so that the range that is shown is the range
+ * that was applied and is never one that holds no paper at all. Without a chip it is the router's range exactly as it was.
+ */
+function withSince(own: YearRange | null, since: number | undefined): YearRange | null {
+  if (since === undefined) return own;
+  if (!own) return { from: since };
+  if (own.to !== undefined && since > own.to) return own;
+  return { from: Math.max(own.from ?? since, since), to: own.to };
+}
+
 
 /**
  * One message, one stream. `mode: "search"` is the reader's own choice (the words are searched as written); `mode: "auto"` lets the router choose the tool (router.ts). For a
@@ -151,7 +174,7 @@ chatRoutes.post("/", async (c) => {
   if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
   const read = await readChatBody(c);
   if (read.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
-  const body = read.body as { mode?: unknown; message?: unknown; scope?: unknown; anyway?: unknown; history?: unknown; earlier?: unknown } | null;
+  const body = read.body as { mode?: unknown; message?: unknown; scope?: unknown; anyway?: unknown; history?: unknown; earlier?: unknown; sinceYear?: unknown } | null;
   if (!body || (body.mode !== "search" && body.mode !== "auto")) return deny(c, 400, "invalid_mode", "That mode is not available");
   // where a search looks: the regular sources, or only Indian ones when the reader turned that on (an unknown value is refused, not quietly widened)
   if (body.scope !== undefined && !isSearchScope(body.scope)) return deny(c, 400, "invalid_scope", "That search scope is not available");
@@ -159,6 +182,11 @@ chatRoutes.post("/", async (c) => {
   // "Search for it anyway": the reader says the words are to be searched as written, whatever they look like (only a search chosen by hand can carry it)
   if (body.anyway !== undefined && (body.anyway !== true || body.mode !== "search")) return deny(c, 400, "invalid_flag", "That option is not available");
   const anyway = body.anyway === true;
+  // `sinceYear`: a Trending chip's "from this year on" (T9). Allowed in Auto and in a search by hand (it is a filter on the papers, not words and not context, so it is neither refused with "anyway" nor
+  // ignored while CHAT_CONTEXT is "off"); applied below like the router's year filter. A request without it is what it always was.
+  const thisYear = new Date().getUTCFullYear();
+  const sinceYear = readSinceYear(body.sinceYear, thisYear);
+  if (sinceYear === null) return deny(c, 400, "invalid_since_year", "That year is not available", `sinceYear must be a whole year from ${MIN_SINCE_YEAR} to ${thisYear}.`);
   const auto = body.mode === "auto";
   // The earlier turns of the conversation (docs/design/chat-actions-context.md): for Auto only (a search chosen by hand is searched as written, so it refuses them as it refuses `anyway`), checked here
   // whoever sends them, read by a model only for a signed-in person, and not even looked at while CHAT_CONTEXT is "off" (a server that did not know the field would ignore it).
@@ -268,7 +296,17 @@ chatRoutes.post("/", async (c) => {
       } else {
         route = { mode: "search", how: auto ? "rules" : "chosen", confidence: 1, language: ctx ? languageWithContext(text, ownQuestions(ctx)) : detectLanguage(text) };
       }
-      await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}), ...(scope !== "all" && route.mode === "search" ? { scope } : {}), ...(follow && ctx ? { context: contextInfo(follow, ctx) } : {}) });
+      // a year range ("only after 2020", a Trending chip's `sinceYear`) is applied to the papers' own years before they are numbered, so that card numbers and marks stay true; the search asks for more, so that
+      // what is left is not thin. It is the router's range and the chip's as one (`withSince`), and only a message that is searched has one: small talk and another tool's offer are not cut by anything.
+      const own: YearRange | null = follow && (follow.yearFrom !== undefined || follow.yearTo !== undefined) ? { from: follow.yearFrom, to: follow.yearTo } : null;
+      const years = route.mode === "search" && !talk ? withSince(own, sinceYear) : own;
+      // what the page reads a year chip from is `context.yearFrom` and `yearTo`: the same fields whether the router or the chip gave the range, so that there is one chip for both. When the chip changed the
+      // range, the context says the range that is applied (and a reading that fell back says nothing of its own then, since the page hides the whole of a context that did: the filter must not be hidden with it).
+      const widened = years !== null && (years.from !== own?.from || years.to !== own?.to);
+      let context: ChatContextInfo | undefined;
+      if (follow && ctx) context = contextInfo(widened ? { ...follow, yearFrom: years.from, yearTo: years.to, fellBack: false } : follow, ctx);
+      else if (widened) context = { turns: 0, intent: "new", rewrote: false, ...(years.from === undefined ? {} : { yearFrom: years.from }), ...(years.to === undefined ? {} : { yearTo: years.to }) };
+      await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}), ...(scope !== "all" && route.mode === "search" ? { scope } : {}), ...(context ? { context } : {}) });
       // counts and short names only: how many turns were read and what came of them, never a word of them
       if (follow && ctx) console.log(JSON.stringify({ level: "info", msg: "chat_followup", turns: ctx.history.turns, earlier: ctx.earlier.length, mode: route.mode, intent: follow.intent, rewrote: follow.rewrote, fellBack: follow.fellBack, check: follow.check, years: follow.yearFrom !== undefined || follow.yearTo !== undefined }));
       if (talk) {
@@ -286,8 +324,6 @@ chatRoutes.post("/", async (c) => {
       // and the language the person asked for ("in Hindi") before the one the rules found
       const asked = askedOf(follow, text.replace(/\s+/g, " ").slice(0, 600));
       const spoken = follow?.answerLanguage ?? route.language;
-      // a year range ("only after 2020") is applied to the papers' own years before they are numbered, so that card numbers and marks stay true; the search asks for more, so that what is left is not thin
-      const years = follow && (follow.yearFrom !== undefined || follow.yearTo !== undefined) ? { from: follow.yearFrom, to: follow.yearTo } : null;
       const shape = (list: Paper[]): Paper[] => (years ? list.filter((p) => p.year !== null && (years.from === undefined || p.year >= years.from) && (years.to === undefined || p.year <= years.to)).slice(0, 20) : list);
 
       await send({ type: "step", step: "search" });

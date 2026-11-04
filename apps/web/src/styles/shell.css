@@ -44,7 +44,8 @@
 .ws-link[aria-current="page"] { color: var(--accent); }
 .ws-link > * { position: relative; z-index: 1; }
 .ws-link-pill { position: absolute !important; z-index: 0 !important; inset: 0; border-radius: 0.7rem; background: var(--accent-soft); }
-.ws-link-label { flex: 1; }
+/* a chat's name may hold a word of 30 letters (a chemical name): it breaks like any other text and does not make the rail wider than its column (the New chat box lost its right edge and the rail scrolled sideways) */
+.ws-link-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .ws-count { min-width: 1.4rem; padding: 0 0.4rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 0.76rem; text-align: center; font-variant-numeric: tabular-nums; }
 .ws-rail-foot { margin-top: auto; display: grid; gap: 0.5rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
 .ws-who { display: flex; align-items: center; gap: 0.6rem; padding: 0.3rem 0.4rem; }
@@ -64,8 +65,11 @@
 @media (max-width: 920px) {
   .ws-shell { grid-template-columns: minmax(0, 1fr); }
   .ws-rail { display: none; }
-  .ws-top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 0.7rem; min-height: 3.4rem; padding: 0.4rem 0.9rem; background: color-mix(in srgb, var(--bg) 82%, transparent); -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--border); }
+  .ws-top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 0.7rem; min-height: 3.4rem; padding: 0.4rem 0.9rem; background: var(--bg); border-bottom: 1px solid var(--border); }
   .ws-top-title { font-weight: 600; color: var(--muted); font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* the page brings the box into view when a Trending chip fills it (HomePage: scrollIntoView, nearest): the opaque bar above is sticky, which a browser does not allow for, so the box aligned to the window top
+     sat under it with its first row, the year filter, hidden. The margin is the bar (about 58 px) and a gap; the box is never above or under the bar when it was brought into view. */
+  .hm-box { scroll-margin-top: 5rem; }
 }
 
 /* ---------- pages inside the shell ---------- */
@@ -78,7 +82,7 @@
 .hm { position: relative; isolation: isolate; display: grid; justify-items: center; text-align: center; padding: clamp(1.5rem, 8vh, 4.5rem) 0 2rem; }
 .hm-greet { display: inline-flex; align-items: center; gap: 0.5rem; margin: 0 0 0.8rem; padding: 0.28rem 0.85rem; border: 1px solid var(--border); border-radius: 999px; background: color-mix(in srgb, var(--surface) 82%, transparent); font-size: 0.86rem; font-weight: 600; color: var(--muted); }
 .hm-greet i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
-.hm-title { font-size: clamp(2.2rem, 6vw, 3.9rem); line-height: 1.05; letter-spacing: -0.03em; text-wrap: balance; }
+.hm-title { font-family: var(--font-serif-fit); font-size: clamp(2.2rem, 6vw, 3.9rem); line-height: 1.05; letter-spacing: -0.03em; text-wrap: balance; }
 .hm-sub { margin: 0.9rem auto 0; max-width: 54ch; color: var(--muted); font-size: 1.04rem; }
 .hm-box { position: relative; width: 100%; max-width: 50rem; margin-top: 1.7rem; text-align: left; border: 1px solid var(--border-strong); border-radius: 1.3rem; background: var(--surface); box-shadow: var(--shadow-2); transition: border-color 0.2s, box-shadow 0.3s; }
 .hm-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow-2); }
@@ -86,12 +90,18 @@
 .hm-input::placeholder { color: var(--muted); opacity: 1; }
 .hm-input:disabled { cursor: not-allowed; }
 .hm-bar { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.6rem 0.6rem; }
-.hm-mode { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 2.25rem; padding: 0.3rem 0.8rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-weight: 600; font-size: 0.86rem; color: var(--text); }
+.hm-mode { white-space: nowrap; display: inline-flex; align-items: center; gap: 0.45rem; min-height: 2.25rem; padding: 0.3rem 0.8rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-weight: 600; font-size: 0.86rem; color: var(--text); }
 .hm-mode:hover { border-color: var(--accent); }
 /* the "Indian sources" switch: quiet when off, the accent when on */
 .hm-scope { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.25rem; padding: 0.3rem 0.75rem; border: 1px dashed var(--border-strong); border-radius: 999px; background: none; font-weight: 600; font-size: 0.82rem; color: var(--muted); transition: border-color 0.2s, background 0.2s, color 0.2s; }
 .hm-scope:hover { border-color: var(--accent); color: var(--text); }
 .hm-scope[aria-pressed="true"] { border-style: solid; border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+/* the tool's name is on one line, and on the narrowest phones (320 px: the least WCAG 1.4.10 asks the page to work at) the bar gives up some padding and the tool's icon (its name stays) so that the four things in it fit: the name used to wrap to two lines there and the box grew to 144 px of a 640 px window */
+@media (max-width: 360px) {
+  .hm-bar { gap: 0.3rem; padding-inline: 0.45rem; }
+  .hm-mode { gap: 0.3rem; padding-inline: 0.6rem; }
+  .hm-mode > svg:first-child { display: none; }
+}
 @media (max-width: 400px) {
   /* on a narrow phone the switch keeps its icon and its name for screen readers */
   .hm-scope span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -122,8 +132,24 @@
 .hm-stack { display: flex; margin-top: 0.2rem; }
 .hm-stack img { width: 1.9rem; height: 2.5rem; margin-left: -0.5rem; object-fit: cover; border-radius: 0.3rem; border: 1px solid var(--border-strong); box-shadow: var(--shadow-1); transform: rotate(var(--r, 0deg)); background: var(--surface-2); }
 .hm-stack img:first-child { margin-left: 0; }
-.hm-starters { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.5rem; margin-top: 1.4rem; }
-.hm-try { color: var(--muted); font-size: 0.86rem; }
+/* The chips under the box (docs/design/chatview-and-trending.md, T1, T9, C4): a row of Try chips, and when there is a fresh list a row of Trending chips with "Why these?". The label is on a line of its own, so that
+   on a phone it is not left alone beside the first chip; a chip that is longer than the line wraps its words (a Hinglish one does) and never has its end cut. */
+.hm-chips { display: grid; gap: 0.9rem; justify-items: center; width: 100%; max-width: 50rem; margin-top: 1.2rem; }
+.hm-starters { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.5rem; margin-top: 0; max-width: 100%; }
+.hm-try { flex-basis: 100%; text-align: center; color: var(--muted); font-size: 0.82rem; font-weight: 650; }
+.hm-starters .chip-btn { max-width: 100%; padding: 0.4rem 0.85rem; line-height: 1.3; text-align: center; overflow-wrap: anywhere; }
+.hm-tchip { display: inline-flex; max-width: 100%; }
+/* a Trending chip puts its words in the box instead of sending them: the small arrow says so, which colour alone would not */
+.chip-fill { display: inline-flex; align-items: center; gap: 0.4rem; }
+.chip-fill svg { flex: none; color: var(--muted); }
+.hm-why-btn { min-height: 36px; }
+.hm-why { width: 100%; max-width: 42rem; padding: 0.8rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); text-align: left; font-size: 0.875rem; }
+.hm-why p { margin: 0 0 0.6rem; }
+.hm-why ul { display: grid; gap: 0.3rem; margin: 0; padding-left: 1.1rem; color: var(--muted); }
+.hm-why li b { color: var(--text); }
+/* what the next message is sent with, above the text field: more than one of them may be there, side by side or one under the other */
+.hm-bar-top { flex-wrap: wrap; }
+.hm-putback { min-height: 32px; padding: 0 0.3rem; }
 
 @media (max-width: 760px) {
   .hm-cards { grid-template-columns: 1fr; }
@@ -407,17 +433,48 @@ kbd {
 .offline-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0 0 0.6rem; padding: 0.45rem 0.8rem; border: 1px solid var(--border-strong); border-radius: var(--radius-s); background: var(--surface-2); color: var(--text); font-size: 0.875rem; }
 
 /* ---------- Home as a conversation (W2): the box glides to the bottom, the answer and the papers above it ---------- */
-.hm[data-chat="true"] { justify-items: stretch; width: min(100%, 52rem); margin-inline: auto; padding-top: 0.5rem; text-align: left; }
-.hm[data-chat="true"] .hm-box { position: sticky; bottom: 0.8rem; z-index: 5; margin-top: 1rem; max-width: none; }
+/* The column a conversation is read in. It was 52 rem (832 px), with the answer's and the abstracts' text stopping at about 560 px (the reading measure, 66 characters, which is a setting of the reader's) in cards 830 px wide:
+   the right 40 percent of every card was empty. 44 rem leaves the text 83 percent of the card. (The reader's "wide" setting, 80 characters, now fills the card and is not wider than it.) */
+.hm[data-chat="true"] { justify-items: stretch; width: min(100%, 44rem); margin-inline: auto; padding-top: 0.5rem; text-align: left; }
+.hm[data-chat="true"] .hm-box { position: sticky; bottom: 0.55rem; z-index: 5; margin-top: 1rem; max-width: none; }
 .hm[data-chat="true"] .hm-fine { max-width: none; }
+/* The box sticks to the bottom of the window with the conversation scrolling under it, which showed the text of a card cut in half along its top edge and a strip of the next card under it. A soft fade above it,
+   and a strip of the page's own colour under it (the gap it keeps from the window's edge), are drawn by pseudo-elements that sit outside the layout, so nothing moves for them and a click goes through to the page.
+   Each is exactly as tall as the space the box keeps round it in the page's flow (1 rem above, 0.55 rem under: the margin of the box and of the line under it), so that where the box is not stuck to the window's edge it covers nothing. */
+.hm[data-chat="true"] .hm-box::before { content: ""; position: absolute; inset: auto 0 100% 0; height: 1rem; pointer-events: none; background: linear-gradient(to bottom, transparent, var(--bg)); }
+.hm[data-chat="true"] .hm-box::after { content: ""; position: absolute; inset: 100% 0 auto 0; height: 0.55rem; pointer-events: none; background: var(--bg); }
 .chat-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; }
-.chat-title { margin: 0; overflow: hidden; font-size: 1.15rem; text-overflow: ellipsis; white-space: nowrap; }
+.chat-title { margin: 0; min-width: 0; overflow: hidden; font-size: 1.15rem; text-overflow: ellipsis; white-space: nowrap; }
+.chat-head .btn { flex: none; white-space: nowrap; }
+/* On a phone the page scrolls to put the new question at the top, and the bar of the window and the title of the chat with its New chat button were out of reach above it (and the question was cut by the bar): the
+   title row now stays under the bar, and the places the page scrolls to keep clear of both. */
+@media (max-width: 920px) {
+  .hm[data-chat="true"] { --head-top: 3.4rem; --head-h: 2.9rem; }
+  .hm[data-chat="true"] .chat-head { position: sticky; top: var(--head-top); z-index: 6; min-height: var(--head-h); padding-block: 0.25rem; background: var(--bg); }
+  .chat-list > li { scroll-margin-top: calc(var(--head-top) + var(--head-h) + 0.6rem); }
+  /* what scrolls under the title row fades out at its edge instead of being cut through a line (outside the layout, like the box's) */
+  .hm[data-chat="true"] .chat-head::after { content: ""; position: absolute; inset: 100% 0 auto 0; height: 0.6rem; pointer-events: none; background: linear-gradient(to bottom, var(--bg), transparent); }
+}
+/* A SHORT window (a phone on its side; a desktop window at 300 or 400 percent zoom, which is 320 by 256 CSS pixels on a 1280 by 1024 screen: WCAG 1.4.10's own case). The bar of the window (58 px), the title row
+   (46 px) and the box (about 129 px) all stick, and together they left about 14 px of 256 for the conversation. In a window that is not tall the two bars at the top scroll away with the page (the box, which is what a
+   person writes in, stays), and the places the page scrolls to no longer keep clear of a title row that is not there. */
+@media (max-height: 520px) {
+  .ws-top { position: static; }
+  .hm[data-chat="true"] .chat-head { position: static; }
+  .hm[data-chat="true"] .chat-head::after { display: none; }
+  .chat-list > li { scroll-margin-top: 0.6rem; }
+}
 .chat-list { display: grid; gap: 1.4rem; margin: 0; padding: 0; list-style: none; }
+/* a reply sits close under its question (the question's row of buttons already gives it room), and the next question is further from the reply above it: a turn reads as a turn */
+.chat-list > li.chat-u + li { margin-top: -0.7rem; }
+.chat-list > li.chat-a + li.chat-u { margin-top: 0.6rem; }
 .chat-u { display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem; }
-.chat-bubble { display: inline-flex; align-items: baseline; gap: 0.45rem; max-width: 85%; margin: 0; padding: 0.55rem 0.9rem; border-radius: 1.1rem 1.1rem 0.3rem 1.1rem; background: var(--accent); color: var(--accent-fg); overflow-wrap: anywhere; }
-.chat-bubble { flex-wrap: wrap; white-space: pre-line; }
-.chat-bubble svg { flex: none; align-self: center; opacity: 0.8; }
-.chat-long { flex-basis: 100%; font-size: 0.75rem; opacity: 0.85; }
+/* two cells, the icon and the words (and the note of a long message on a row of its own): with the icon and the words as items of a wrapping row, a question of two lines left the icon alone on a row above them */
+.chat-bubble { display: inline-grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; column-gap: 0.45rem; max-width: 85%; margin: 0; padding: 0.55rem 0.9rem; border-radius: 1.1rem 1.1rem 0.3rem 1.1rem; background: var(--accent); color: var(--accent-fg); overflow-wrap: anywhere; }
+.chat-bubble { white-space: pre-line; }
+.chat-bubble svg { margin-top: 0.4em; opacity: 0.8; }
+@supports (margin-top: 1lh) { .chat-bubble svg { margin-top: calc((1lh - 13px) / 2); } }
+.chat-long { grid-column: 1 / -1; font-size: 0.75rem; opacity: 0.85; }
 .chat-turn { display: grid; gap: 0.8rem; }
 /* A grid's column is as wide as the widest thing in it unless it may shrink: one unbroken word (a DOI, a URL, a long title) of about 35 characters or more set the whole conversation wider than a 320 px
    window, and html and body clip sideways overflow (so no scroll bar showed it): the right-hand buttons (Copy, Edit, the pager, a chip's X) were cut off and out of reach even by keyboard. The column may
@@ -427,6 +484,38 @@ kbd {
    its widest line unwrapped. Without this the whole column stayed as wide as that line (703 px in a 320 px window) whatever the list inside it did. */
 .hm[data-chat="true"] { grid-template-columns: minmax(0, 1fr); }
 .chat { min-width: 0; }
+/* A long conversation (twenty replies of twenty papers is twenty thousand nodes): a reply that is far from the window is not laid out or painted until it comes near it (content-visibility: auto), which
+   is what keeps a key press, a word of the reply being written, and opening the chat from costing the whole page every time. Not the last four items of the list (the last two questions and their replies: the reply being
+   written, and the one before it, which is still on the screen when the next question is asked and would be skipped in the same frame that the page goes to the new question), and not an Idea Check. The browser remembers the height a reply last had (`auto`, which is why every reply is given a size and only some are skipped: a reply that is skipped for the first time
+   after it was drawn keeps the height it had, and the question under it does not move), and before it has been drawn it is given an estimate from what is known of it: the number of its papers (--cv-n)
+   and whether it has a written answer (--cv-a), set by ChatView, against the height of a card and of the rest of a reply at this width (measured on 3 Nov 2026 and again on 4 Nov 2026, after the cards and the column changed, against e2e/chat-perf.mjs's stored chat: it prints a turn and a card; e2e/chat-perf.mjs checks the page's height
+   from first to last, and it prints them). When a reply that was skipped is drawn at another height the browser moves the page by the difference (scroll anchoring) and nothing on screen
+   moves; the estimate matters for the scroll bar, and for a browser without scroll anchoring. Block size only, never the one-value shorthand: that one sets the width as well, and in a grid it widened every
+   skipped reply to 5,200 px. A skipped reply is painted clipped to itself, which would cut the glow of a card at its edge (the ring that marks a cited card, the shadow of one that is hovered): that is what
+   `overflow-clip-margin` gives back. Printing draws every reply. */
+/* Refitted at 15 widths on 4 Nov 2026 (e2e/chat-perf.mjs, PERF_ONLY_WIDTHS=1: a turn's real height, then paper = (turn - base - answer) / 20): the height of a card depends on how its title and abstract wrap, which
+   changes in steps with the width, so one value for a range of widths was 5 to 9 percent off at 340 to 365 px (the commonest phones), at 430 to 550 px and at 700 px. Chromium's scroll anchoring hides the
+   difference (nothing on screen moves), but the scroll bar changes size, and a browser without scroll anchoring would move the page by it for every reply drawn above the reader. */
+.chat-list { --cv-base: 150px; --cv-answer: 250px; --cv-paper: 366px; }
+@media (max-width: 740px) { .chat-list { --cv-base: 150px; --cv-answer: 250px; --cv-paper: 385px; } }
+@media (max-width: 650px) { .chat-list { --cv-base: 150px; --cv-answer: 265px; --cv-paper: 393px; } }
+@media (max-width: 550px) { .chat-list { --cv-base: 150px; --cv-answer: 265px; --cv-paper: 433px; } }
+@media (max-width: 420px) { .chat-list { --cv-base: 500px; --cv-answer: 360px; --cv-paper: 436px; } }
+@media (max-width: 380px) { .chat-list { --cv-paper: 452px; } }
+@media (max-width: 365px) { .chat-list { --cv-paper: 464px; } }
+@media (max-width: 350px) { .chat-list { --cv-paper: 471px; } }
+@media (max-width: 330px) { .chat-list { --cv-base: 400px; --cv-answer: 434px; --cv-paper: 530px; } }
+.chat-list > li.chat-a:not(.chat-idea-li) {
+  contain-intrinsic-block-size: auto calc(var(--cv-base) + var(--cv-a, 0) * var(--cv-answer) + var(--cv-n, 0) * var(--cv-paper));
+}
+.chat-list > li.chat-a:not(.chat-idea-li):not(:nth-last-child(-n + 4)) { content-visibility: auto; overflow-clip-margin: 24px; }
+/* "Draw all replies" (ChatView): a skipped reply is not in the accessibility tree, so a screen reader cannot reach it; this draws every reply, and is slower on a long conversation, which is why it is asked for. The
+   control takes no room until it has the focus, as a skip link does. */
+.chat-list[data-all] > li.chat-a:not(.chat-idea-li):not(:nth-last-child(-n + 4)) { content-visibility: visible; }
+.chat-drawall:not(:focus-within) { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.chat-drawall { margin: 0 0 0.6rem; padding: 0.5rem 0.8rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-s); color: var(--muted); font-size: 0.86rem; }
+.chat-drawall:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media print { .chat-list > li { content-visibility: visible !important; } }
 .chat-und, .chat-chip > span, .chat-why, .chat-note span, .chat-text, .chat-ev-t, .chat-ev-q, .chat .result-title, .chat .result-authors, .chat .abstract { min-width: 0; overflow-wrap: anywhere; }
 .chat-und { margin: 0; color: var(--muted); font-size: 0.875rem; }
 .chat-und b { color: var(--text); }
@@ -447,8 +536,20 @@ kbd {
 .chat-steps li { display: inline-flex; align-items: center; gap: 0.4rem; }
 .chat-steps li[data-state="now"] { color: var(--text); font-weight: 600; }
 .chat-steps li[data-state="done"] { color: var(--ok); }
-.chat-answer { display: grid; gap: 0.6rem; padding: 0.9rem 1.1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+/* The answer is one card from its first word to the checked answer (.chat-live-card is the same card while the words are still arriving), with the status line at its head, the text, the sentences behind it, and a footer. */
+.chat-answer, .chat-live-card { display: grid; gap: 0.6rem; padding: 0.9rem 1.1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+/* a status line that takes two lines on a phone has its icon beside the first, not halfway down */
+.chat-answer .ask-status { align-items: flex-start; line-height: 1.4; }
+.chat-answer .ask-status svg { flex: none; margin-top: 0.1em; }
 .chat-text { margin: 0; line-height: 1.65; }
+/* a mark, the word before it and the stop after it are one piece (citeParts): it goes to the next line whole, and the stop is not left behind. It is an inline block that may still break inside itself, for the one case where
+   the word is longer than the line (a 31-letter name at 320 px): that word breaks like any other. */
+.cite-grp { display: inline-block; max-width: 100%; }
+.cite-grp .cite-chip { margin-inline: 0.05rem 0; }
+/* The words of an answer that is being written: room is kept for the lines still to come (a short answer of about 120 words is six or seven lines here and twice that on a phone), so that the papers under it
+   do not move down a line at a time. It is a minimum, not a size: a longer answer grows it, and the checked answer that replaces it is its own height. */
+.chat-live { min-height: calc(6 * 1.65em); }
+@media (max-width: 640px) { .chat-live { min-height: calc(11 * 1.65em); } }
 .chat-evidence summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
 .chat-evidence ul { display: grid; gap: 0.4rem; margin: 0.5rem 0 0; padding: 0; list-style: none; }
 .chat-ev { display: flex; gap: 0.6rem; width: 100%; padding: 0.5rem 0.65rem; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface-2); color: var(--text); text-align: left; }
@@ -457,16 +558,21 @@ kbd {
 .chat-ev > span:last-child { display: grid; gap: 0.15rem; min-width: 0; }
 .chat-ev-t { font-weight: 600; font-size: 0.875rem; }
 .chat-ev-q { display: block; color: var(--muted); font-size: 0.85rem; font-style: italic; }
-.chat-strict { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0.6rem 0 0; font-size: 0.8125rem; color: var(--muted); }
-.chat-strict-h { flex: 1 1 14rem; min-width: 0; }
+/* the footer of the answer card: a hairline above it, so that it reads as the card's tools and not as more of the answer; what it says (and what it costs) is said in full and is described to the button */
+.chat-strict { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0.2rem 0 0; padding-top: 0.7rem; border-top: 1px solid var(--border); font-size: 0.8125rem; color: var(--muted); }
+.chat-strict-h { flex: 1 1 14rem; min-width: 0; font-size: 0.78rem; line-height: 1.45; }
 .chat-strict-err { flex: 1 1 100%; display: flex; align-items: center; gap: 0.35rem; margin: 0; color: var(--danger); }
 .chat-left-out { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.8125rem; }
 .chat-why { margin: 0; padding: 0.6rem 0.8rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-s); color: var(--muted); font-size: 0.9rem; }
 .chat-why-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
 .chat-talk { display: grid; gap: 0.5rem; }
 .chat-talk .hm-starters { justify-content: flex-start; margin-top: 0.5rem; }
+.chat-talk .hm-try { text-align: left; }
 .chat-talk-any { margin: 0; font-size: 0.86rem; color: var(--muted); }
-.chat-note { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0; color: var(--warn); font-size: 0.875rem; }
+.chat-note { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.4rem; margin: 0; color: var(--warn); font-size: 0.875rem; }
+/* the words take the room beside the icon and wrap there (they used to wrap under it, which left the icon alone on a row above a sentence of two lines on a phone) */
+.chat-note > svg { margin-top: 0.2em; }
+.chat-note > span { flex: 1 1 12rem; min-width: 0; }
 .chat-papers { display: grid; gap: 0.9rem; margin: 0; padding: 0; list-style: none; }
 .chat-end { height: 1px; }
 .result-no { display: inline-grid; place-items: center; min-width: 1.5rem; height: 1.5rem; padding: 0 0.3rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 0.78rem; font-weight: 700; }
@@ -559,3 +665,46 @@ kbd {
 .lib-alert-list { list-style: none; margin: 0 0 0.7rem; padding: 0; display: grid; gap: 0.45rem; }
 .lib-alert-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; justify-content: space-between; }
 .lib-alert-list .link-btn { text-align: left; font-weight: 600; }
+
+/* ---------- Paper cards in a conversation: a little less air (docs/design/chatview-and-trending.md, C6) ----------
+   Scoped to the conversation: the same card is used by Idea Check and the Library, which keep theirs. */
+.chat .result { padding: 1.1rem 1.25rem 0.9rem; }
+.chat .result-title { font-size: 1.22rem; }
+.chat .badges { margin-top: 0.65rem; }
+.chat .abstract-wrap { margin-top: 0.7rem; }
+.chat .result .actions { margin-top: 0.75rem; padding-top: 0.75rem; }
+@media (max-width: 520px) {
+  .chat .result { padding: 1rem 1rem 0.8rem; }
+  .chat .result-title { font-size: 1.12rem; }
+  .chat .result .actions { gap: 0.35rem; }
+}
+
+/* ---------- Script (C5) ----------
+   A line box of 1.3 clips Devanagari: the marks above and below a line need about 1.44 (measured on Noto Sans Devanagari at 16 px: ink up to 15 px above the baseline and 5.3 below, in a face with 14 and 7 of ascent and descent). */
+.result-title:lang(hi), .pv-title:lang(hi), .oa-title:lang(hi) { line-height: 1.5; }
+
+/* ---------- Forced colours (Windows High Contrast) and print (C5) ----------
+   Forced colours draws every colour from the system and draws no box-shadow and no background image, so whatever was shown by a shadow alone, or by a colour alone, is gone: the ring round a paper that an answer's
+   mark pointed at, the box's ring while it is being typed in, the question's bubble (an accent fill), the marks (a soft fill). Each gets a border or an outline, in system colours. Nothing else is touched: this is
+   not a second theme. */
+@media (forced-colors: active) {
+  .result[data-flash="true"] { animation: none; outline: 3px solid Highlight; outline-offset: 2px; }
+  .hm-box:focus-within { outline: 2px solid Highlight; outline-offset: 2px; }
+  .chat-bubble { border: 1px solid CanvasText; }
+  .cite-chip, .result-no, .chat-ev-n { border: 1px solid ButtonText; }
+}
+/* Print: the conversation and its papers, not the page's tools. Nothing that only works on a screen (the rail, the box, the buttons, the chips) is printed; a paper stays in one piece; the address a link goes to is printed
+   after its title, since a printed link cannot be followed. Every reply is drawn (the rule next to the list). */
+@media print {
+  /* Paper is white and a browser does not print backgrounds, so whatever the theme, a printout is dark text on white (light text meant for a dark page, and the white text of the question's bubble, would print as nothing),
+     and the title row that sticks to the top of a window under 920 px (an A4 page is 794) does not stick over the question under it. */
+  :root, :root[data-theme] { --bg: #fff !important; --surface: #fff !important; --surface-2: #f4f4f4 !important; --text: #000 !important; --muted: #333 !important; --border: #bbb !important; --border-strong: #888 !important; --accent: #1b2a8a !important; --accent-soft: #eceefb !important; --ok: #0b5c38 !important; --warn: #6b3d00 !important; --danger: #8a1c16 !important; color-scheme: light !important; }
+  .chat-bubble { background: none; color: var(--text); border: 1px solid var(--border-strong); }
+  .hm[data-chat="true"] .chat-head { position: static; }
+  .hm[data-chat="true"] .chat-head::after { display: none; }
+  .ws-rail, .ws-top, .skip-link, .hm-box, .hm-fine, .hm-problem, .chat-head .btn, .chat-u-actions, .chat-acts, .chat-strict, .chat-talk, .chat-drawall, .result .actions { display: none !important; }
+  .ws-shell { display: block; }
+  .hm[data-chat="true"] { width: auto; }
+  .result, .chat-answer, .chat-bubble { break-inside: avoid; box-shadow: none; }
+  .result-title a[href]::after { content: " (" attr(href) ")"; font: 400 0.7rem/1.3 var(--font-ui); overflow-wrap: anywhere; }
+}

@@ -1,0 +1,98 @@
+name: Trending (live)
+
+# Weekly check of the Home page's Trending row and its "Try" chips against the LIVE product (docs/design/chatview-and-trending.md, section 3, "Contract"). The published file
+# (GET /api/v1/home/trending) and the bundled Try chips are each searched with our own public search, and the run fails when the file is expired or too short, when a published phrase
+# no longer passes the verifier it passed before it was published (20 results, 10 with abstracts, 5 recent, none retracted: a paper can be retracted after), or when a Try chip finds
+# nothing or finds a retracted paper. The per-push CI gate cannot see any of it: it replays recordings and never calls the live site. About 40 searches, one every 2.5 seconds; no key and no
+# secret is needed. On Tuesday, after the weekly scan of Monday's 03:17 UTC run has had its time (the scan may go on into the next day's run).
+# A feed switched off by the owner (the KV flag or TRENDING=off: `disabled: true`) is not a failure.
+#
+# By hand, with the "list" box ticked, it also runs the whole Trending job against the real OpenAlex and arXiv (about 1,000 OpenAlex calls: the weekly scan, then the journals and countries of the
+# best candidates; about 30 to 90 minutes) and keeps the list it makes, the whole candidate pool with counts and the verifier's numbers, as the artifact "trending-list": the first human read of a
+# list before the row is switched on, for which the question is "would a researcher in this subfield call this current right now?". It needs the OpenAlex key (the keyless daily budget of $0.10 is
+# shared with everyone on an address and is smaller than one scan), and spends about a tenth of the key's day.
+on:
+  schedule:
+    - cron: "17 6 * * 2" # Tuesdays 06:17 UTC
+  workflow_dispatch:
+    inputs:
+      list:
+        description: "Also run the whole Trending job on the real OpenAlex and arXiv and keep the list (about 1,000 OpenAlex calls, 30 to 90 minutes)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      detail: ${{ steps.contract.outputs.detail }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - id: contract
+        run: node apps/api/scripts/trending-contract-live.mjs --out=trending-contract.json
+        env:
+          BASE_URL: https://sodhsetu.in
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: trending-contract
+          path: trending-contract.json
+          if-no-files-found: ignore
+
+  # Only when started by hand with the box ticked. Not part of the weekly check and not counted by the alert below.
+  list:
+    if: github.event_name == 'workflow_dispatch' && inputs.list
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # the product's own search is the deployed one (it has the shared Semantic Scholar lane and every key), asked at most once every 2.5 seconds
+      - run: node apps/api/scripts/trending-live.mjs --out=trending-live-out --max-runs=6 --search=https://sodhsetu.in
+        env:
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          TRENDING_MAILTO: ${{ secrets.CROSSREF_MAILTO }}
+      - if: always()
+        run: |
+          if [ -f trending-live-out/report.txt ]; then
+            { echo '## Trending list'; echo; echo '```'; cat trending-live-out/report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: trending-list
+          path: |
+            trending-live-out/list.json
+            trending-live-out/report.txt
+          if-no-files-found: ignore
+
+  # Opens (or updates) one issue per workflow when the weekly check above fails, so a failure reaches you by e-mail instead of waiting to be noticed, and closes it when the workflow passes
+  # again. Not for pull requests or other branches. See .github/scripts/workflow-alert.mjs.
+  alert:
+    needs: [contract]
+    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - run: node .github/scripts/workflow-alert.mjs auto
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEEDS: ${{ toJSON(needs) }}
+          ALERT_DETAIL: ${{ needs.contract.outputs.detail }}

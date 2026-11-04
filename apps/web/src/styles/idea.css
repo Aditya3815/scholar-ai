@@ -84,12 +84,6 @@
   margin-top: 1rem;
   font-size: 1rem;
 }
-.idea-opt {
-  color: var(--muted);
-  font-family: var(--font-ui);
-  font-size: 0.8125rem;
-  font-weight: 450;
-}
 .idea-q,
 .plan-kw input,
 .plan-add input {

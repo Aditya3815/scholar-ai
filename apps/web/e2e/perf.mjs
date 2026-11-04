@@ -9,6 +9,15 @@ import { chromium } from "playwright-core";
 const BASE = process.argv[2] ?? "http://localhost:8788";
 /** The lines (ms and layout-shift score). Measured on 27 Oct 2026 on a development machine: see docs/design/w6.md. */
 const LIMIT = { fcp: 4500, lcp: 5000, cls: 0.1 };
+/**
+ * A tighter line for the intro page on a phone, the first page every new visitor sees. It was 0.027 to 0.035 (4 Nov 2026, HEAD 24824e0) and rose to 0.060 when Georgia was made the stand-in of the serif everywhere:
+ * the stand-in was tuned to the headline of Home, and on the intro the swap to Source Serif then moved the film's heading. The stand-in is for the Home headline only now (tokens.css, `--font-serif-fit`) and the
+ * phone is back at 0.035; this line keeps it there (the whole-page line of 0.1 would have passed at 0.060).
+ * NOT held on a desktop: there the intro was 0.021 at HEAD and is 0.082 now, and it is 0.082 with no stand-in at all (measured: the three variants, global 0.067, Home only 0.082, none 0.082), so it is not the
+ * stand-in's doing. The page now paints (3.9 s) before the fonts have come (4.3 s, both are preloaded but the link is slow), where at HEAD they came before the first paint, and the swap moves the film's
+ * heading and the links beside the logo. It is inside the 0.1 line above, and is recorded in section 12 of the plan as not fixed.
+ */
+const INTRO_CLS = { "intro, phone": 0.05 };
 
 let failures = 0;
 const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
@@ -50,6 +59,7 @@ async function measure(label, path, viewport, mobile) {
   ok(m.fcp > 0 && m.fcp <= LIMIT.fcp, `${label}: first contentful paint within ${LIMIT.fcp} ms`);
   ok(m.lcp > 0 && m.lcp <= LIMIT.lcp, `${label}: largest contentful paint within ${LIMIT.lcp} ms`);
   ok(m.cls <= LIMIT.cls, `${label}: layout shift ${m.cls.toFixed(3)} is within ${LIMIT.cls}`);
+  if (INTRO_CLS[label]) ok(m.cls <= INTRO_CLS[label], `${label}: layout shift ${m.cls.toFixed(3)} is within ${INTRO_CLS[label]} (it was 0.027 to 0.035 before the serif's stand-in)`);
   await ctx.close();
 }
 

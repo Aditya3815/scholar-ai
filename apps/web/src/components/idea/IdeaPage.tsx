@@ -8,7 +8,7 @@ import { compareIdea, insightsIdea, isData, planIdea, reportFileName, searchIdea
 import { downloadText } from "../../lib/download";
 import { easeOut, stagger } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
-import { takeHandoff } from "../../lib/workspace";
+import { clearHandoff, readHandoff } from "../../lib/workspace";
 import { ProviderButtons } from "../ProviderButtons";
 import { PrivacyCard } from "../legal/PrivacyCard";
 import { IdeaInput } from "./IdeaInput";
@@ -16,6 +16,7 @@ import type { CompareRun } from "./Compare";
 import type { InsightsRun } from "./Insights";
 import { IdeaResults, type IdeaRun } from "./IdeaResults";
 import { PlanEditor, type PlanDraft } from "./PlanEditor";
+import "../../styles/idea.css";
 
 const rise = (i: number) => ({
   initial: { opacity: 0, y: 18 },
@@ -311,6 +312,7 @@ export function IdeaWorkspace({ initialText = "", autoPlan = false, embedded = f
 
 /** The Idea Check page: the same workspace, with its headline, and the text Home handed over (if any). */
 export function IdeaPage() {
-  const [initial] = useState(() => takeHandoff("idea"));
+  const [initial] = useState(() => readHandoff("idea"));
+  useEffect(() => clearHandoff("idea"), []);
   return <IdeaWorkspace initialText={initial} />;
 }

@@ -1,6 +1,6 @@
 import type { Paper, SearchScope } from "./index";
 import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatRequestMode, type ChatStep, type GeneralKind, type NoticeKind, type TightenRequest, type TightenResponse } from "./chat";
-import { MAX_FILTER_YEAR, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MIN_FILTER_YEAR, type ChatContextInfo, type EarlierQuestion, type HistoryEntry, type HistoryPaper } from "./chat-context";
+import { MAX_FILTER_YEAR, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MIN_FILTER_YEAR, MIN_SINCE_YEAR, type ChatContextInfo, type EarlierQuestion, type HistoryEntry, type HistoryPaper } from "./chat-context";
 import { MAX_AUTO_CHARS, type Lang, type RouteHow } from "./route";
 import { abstractRead } from "./sentences";
 
@@ -40,6 +40,8 @@ export type AssistantMsg = {
   earlierSet?: true;
   /** Where the search looked when it was not the regular sources ("india": only Indian sources, which the reader turned on). Kept so "Search again" looks in the same place. */
   scope?: SearchScope;
+  /** The year a Trending chip asked the papers to start from ("From 2025 on", `sinceYear` of the request). Kept like `scope`, so that "Search again" and an edit ask for the same thing; absent for any message that had none. */
+  sinceYear?: number;
   /** False while Auto is still reading the message (no `understood` event yet); absent in chats kept before Auto existed, which count as understood. */
   understood?: boolean;
   status: AssistantStatus;
@@ -74,10 +76,14 @@ const STEP_ORDER: ChatStep[] = ["route", "search", "read", "write", "check", "ge
 const happened = (m: AssistantMsg, s: ChatStep, now: ChatStep | null) => s !== "route" && s !== "general" ? true : m.step === s || m.stepsDone.includes(s) || now === s;
 
 /** A reply that has just been asked for. `auto` is whether the router will choose the tool (the reader left the choice to it); then the first step is understanding the message. */
-export const startAssistant = (id: string, query: string, at: number, auto = false, scope?: SearchScope): AssistantMsg => ({
+export const startAssistant = (id: string, query: string, at: number, auto = false, scope?: SearchScope, sinceYear?: number): AssistantMsg => ({
   id, role: "assistant", mode: "search", query, language: "en", auto, understood: !auto, how: auto ? "rules" : "chosen", confidence: 1, status: "working", step: auto ? "route" : "search", stepsDone: [], papers: [], papersFinal: false, notices: [], live: "", answer: null, generalLive: "", general: null, at,
   ...(scope && scope !== "all" ? { scope } : {}),
+  ...(isSinceYear(sinceYear) ? { sinceYear } : {}),
 });
+
+/** A year a request may carry as `sinceYear`: a whole number from 1990 (what the server reads) to 2100 (the server also holds it to this year, by its own clock: the page's chips are held to the device's). Anything else is not sent. */
+export const isSinceYear = (y: unknown): y is number => typeof y === "number" && Number.isInteger(y) && y >= MIN_SINCE_YEAR && y <= MAX_FILTER_YEAR;
 
 /** One event applied to a reply. Pure: the same events always give the same reply. Events that arrive after the reply has ended are ignored. */
 export function applyChatEvent(m: AssistantMsg, e: ChatEvent): AssistantMsg {
@@ -224,6 +230,8 @@ export type EditInfo = {
   mode: "search" | "auto";
   /** Where the search looked (the Indian sources stay on for a message that was searched there). */
   scope: SearchScope;
+  /** The year a Trending chip started the papers from, when it did (kept on the reply like the place); an edit asks for the same. */
+  sinceYear?: number;
   /** The longest the edited text may be: the box's own limit for that tool. */
   limit: number;
   /** How many messages come after the reply: the later turns an edit would put away. */
@@ -240,7 +248,7 @@ export function editInfo(msgs: readonly ChatMsg[], userId: string): EditInfo | n
   const reply = msgs[at + 1];
   if (!user || user.role !== "user" || reply?.role !== "assistant") return null;
   const auto = reply.auto === true;
-  return { at, reply, mode: auto ? "auto" : "search", scope: reply.scope ?? "all", limit: auto ? MAX_AUTO_CHARS : MAX_CHAT_CHARS, later: msgs.length - at - 2 };
+  return { at, reply, mode: auto ? "auto" : "search", scope: reply.scope ?? "all", ...(isSinceYear(reply.sinceYear) ? { sinceYear: reply.sinceYear } : {}), limit: auto ? MAX_AUTO_CHARS : MAX_CHAT_CHARS, later: msgs.length - at - 2 };
 }
 
 /**
@@ -468,7 +476,7 @@ export function contextBefore(msgs: readonly ChatMsg[], upTo: number): HistoryEn
  * goes by the same rule, after `history`. Only for a person who is signed in (`signedIn`, required so that no caller can forget it): the server ignores both for anybody else, but they would still have left
  * the device, and the privacy page says earlier questions are sent "when you are signed in".
  */
-export function chatRequestBody(o: { mode: ChatRequestMode; message: string; scope?: SearchScope; anyway?: boolean; history?: readonly HistoryEntry[]; earlier?: readonly EarlierQuestion[]; signedIn: boolean }): Record<string, unknown> {
+export function chatRequestBody(o: { mode: ChatRequestMode; message: string; scope?: SearchScope; anyway?: boolean; history?: readonly HistoryEntry[]; earlier?: readonly EarlierQuestion[]; sinceYear?: number | null; signedIn: boolean }): Record<string, unknown> {
   const auto = o.mode === "auto" && !o.anyway && o.signedIn;
   return {
     mode: o.mode,
@@ -477,6 +485,8 @@ export function chatRequestBody(o: { mode: ChatRequestMode; message: string; sco
     ...(o.anyway ? { anyway: true } : {}),
     ...(auto && o.history && o.history.length > 0 ? { history: o.history } : {}),
     ...(auto && o.earlier && o.earlier.length > 0 ? { earlier: o.earlier } : {}),
+    // `sinceYear` (a Trending chip's "From 2025 on") is last, for everybody and in both tools, but never with "anyway", and only when the server would read it: a request without it is what it was
+    ...(!o.anyway && isSinceYear(o.sinceYear) ? { sinceYear: o.sinceYear } : {}),
   };
 }
 

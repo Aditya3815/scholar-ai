@@ -29,6 +29,8 @@ delete cfg.triggers;
 // The own domain is a production route: kept in the test copy, `wrangler dev` takes the Worker's address from it, and the login's redirects then leave for the real domain.
 delete cfg.routes;
 delete cfg.workers_dev;
+// The committed launch state "TRENDING": "off" (wrangler.jsonc) hides the Home page's list from the route; the suites read the list, so the copy has no such line. INTEGRATION_TRENDING=dark or =off puts one back (below).
+if (cfg.vars) delete cfg.vars.TRENDING;
 // Keep the limiter bindings (so their wiring is exercised) but make them effectively unlimited: every request from the test
 // clients shares one IP, and the suites send far more than the production per-IP budget.
 for (const r of cfg.ratelimits ?? []) r.simple.limit = 1_000_000;
@@ -45,6 +47,8 @@ const vars = {
   SENTRY_DSN: "",
   DEV_IDP_URL: "http://localhost:9911", ORCID_BASE_URL: "http://localhost:9911/orcid", ENABLE_DEV_ROUTES: "1", QA_STUB: "1", SSE_KEEPALIVE_MS: "1000", OCR_PAGES_PER_DAY: "25",
   CROSSREF_MAILTO: process.env.CROSSREF_MAILTO ?? "ci@example.com",
+  // INTEGRATION_TRENDING=off (or =dark) starts the Worker with the variable TRENDING=off (or dark) (run it with --only="trending": scripts/trending-e2e.mjs then checks that switch instead of the others)
+  ...(process.env.INTEGRATION_TRENDING ? { TRENDING: process.env.INTEGRATION_TRENDING } : {}),
   // Only the browser smoke test searches; it needs the real provider keys (passed through from the environment).
   ...Object.fromEntries(["OPENALEX_API_KEY", "S2_API_KEY", "NCBI_API_KEY"].filter((k) => process.env[k]).map((k) => [k, process.env[k]])),
 };
@@ -112,6 +116,7 @@ try {
   ok = await run("documents integration", "scripts/docs-e2e.mjs") && ok;
   ok = await run("scanned papers integration", "scripts/scan-e2e.mjs") && ok;
   ok = await run("public cache integration", "scripts/cache-e2e.mjs") && ok;
+  ok = await run("trending list integration", "scripts/trending-e2e.mjs") && ok;
   ok = await run("shared lane integration", "scripts/gate-e2e.mjs") && ok;
   ok = await run("idea check integration", "scripts/idea-e2e.mjs") && ok;
   ok = await run("chat integration", "scripts/chat-e2e.mjs") && ok;
@@ -132,6 +137,9 @@ try {
     ok = await run("browser: the default look (W6)", "e2e/default.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: first paint and layout shift (W6)", "e2e/perf.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: chat (prompt box)", "e2e/chat.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: chat performance", "e2e/chat-perf.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: chat script and look (C5, C6)", "e2e/chat-look.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: trending", "e2e/trending.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: ask any paper", "e2e/oa.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: literature scan", "e2e/litscan.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: icon motion", "e2e/icons.mjs", [`http://localhost:${PORT}`], web) && ok;

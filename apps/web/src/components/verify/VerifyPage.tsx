@@ -2,7 +2,7 @@ import { AnimatePresence, m } from "motion/react";
 import { BadgeCheck, SearchCheck, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { easeOut, stagger } from "../../lib/motion";
-import { takeHandoff } from "../../lib/workspace";
+import { clearHandoff, readHandoff } from "../../lib/workspace";
 import { bucketOf, tally } from "../../lib/refStatus";
 import { useVerify } from "../../lib/verify";
 import { RefCard } from "./RefCard";
@@ -39,7 +39,8 @@ function readDraft(): string {
 
 export function VerifyPage() {
   const { state, start, recheck, stop, clear } = useVerify();
-  const [text, setText] = useState(() => takeHandoff("verify") || readDraft());
+  const [text, setText] = useState(() => readHandoff("verify") || readDraft());
+  useEffect(() => clearHandoff("verify"), []);
   const [filter, setFilter] = useState<Filter>("all");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);

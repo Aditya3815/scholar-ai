@@ -465,7 +465,7 @@ export type SendMode = "search" | "auto";
  * `scope` "india" searches only Indian sources (the reader's switch under the box); it applies when the message is a search. In Auto it goes with the last few finished searches of the conversation
  * (`contextBefore`), so that "only after 2020" can be understood; a search chosen by hand and the first message of a chat go with nothing.
  */
-export function sendMessage(raw: string, mode: SendMode = "search", scope: SearchScope = "all"): SendResult {
+export function sendMessage(raw: string, mode: SendMode = "search", scope: SearchScope = "all", sinceYear?: number | null): SendResult {
   const text = mode === "auto" ? cleanAutoMessage(raw) : cleanChatMessage(raw);
   if (!text) return "invalid";
   const open = state.active;
@@ -475,13 +475,13 @@ export function sendMessage(raw: string, mode: SendMode = "search", scope: Searc
   const recalled = recallEarlier(id, text, mode, false);
   const now = Date.now();
   const user: ChatMsg = { id: newId(), role: "user", text, at: now };
-  const reply = startAssistant(newId(), text.replace(/\s+/g, " ").slice(0, 300), now, mode === "auto", scope);
+  const reply = startAssistant(newId(), text.replace(/\s+/g, " ").slice(0, 300), now, mode === "auto", scope, sinceYear ?? undefined);
   const before = state.chats.get(id) ?? [];
   const history = mode === "auto" ? contextBefore(before, before.length) : [];
   setChat(id, [...before, user, reply]);
   touch(id, state.index.find((e) => e.id === id)?.title ?? chatTitle(text));
   persist(id, true);
-  void run(id, reply.id, text, mode, scope, false, history, recalled);
+  void run(id, reply.id, text, mode, scope, false, history, recalled, reply.sinceYear);
   return "sent";
 }
 
@@ -522,7 +522,9 @@ export function retryReply(assistantId: string, as?: "search" | "anyway", words?
   // it looks in the same place as before (the Indian sources stay on for a reply that was searched there)
   const scope = old.scope ?? "all";
   const fixed = earlier ?? (old.earlierSet ? (old.earlier ?? []) : undefined);
-  const first = startAssistant(assistantId, text.replace(/\s+/g, " ").slice(0, 300), Date.now(), mode === "auto", scope);
+  // the year a Trending chip started the papers from is asked for again with the same words (Search again, Use my exact words); not with other words (the year chip's X, "Use these exact words" under a follow-up), and not for "anyway" (small talk)
+  const since = words === undefined && as !== "anyway" ? old.sinceYear : undefined;
+  const first = startAssistant(assistantId, text.replace(/\s+/g, " ").slice(0, 300), Date.now(), mode === "auto", scope, since);
   const reply: AssistantMsg = fixed ? { ...first, earlierSet: true } : first;
   tightening.get(assistantId)?.abort();
   tightening.delete(assistantId);
@@ -530,7 +532,7 @@ export function retryReply(assistantId: string, as?: "search" | "anyway", words?
   persist(id, true);
   // with nothing left on the reply nothing is chosen for it; otherwise what is left is intersected with what is allowed now (decided when the request is made, from the list as it is then)
   const lean = fixed === undefined ? undefined : fixed.length === 0 ? [] : recallEarlier(id, text, mode, as === "anyway").then((now) => leftOfEarlier(now, fixed));
-  void run(id, assistantId, text, mode, scope, as === "anyway", mode === "auto" ? contextBefore(msgs, written === null ? at : at - 1) : [], lean);
+  void run(id, assistantId, text, mode, scope, as === "anyway", mode === "auto" ? contextBefore(msgs, written === null ? at : at - 1) : [], lean, first.sinceYear);
   return "sent";
 }
 
@@ -560,7 +562,7 @@ export function editMessage(userId: string, raw: string): EditResult {
   const text = info.mode === "auto" ? cleanAutoMessage(raw) : cleanChatMessage(raw);
   if (!text) return "invalid";
   if (text === (msgs[info.at] as UserMsg).text) return "unchanged";
-  const reply = startAssistant(newId(), text.replace(/\s+/g, " ").slice(0, 300), Date.now(), info.mode === "auto", info.scope);
+  const reply = startAssistant(newId(), text.replace(/\s+/g, " ").slice(0, 300), Date.now(), info.mode === "auto", info.scope, info.sinceYear);
   const next = editUserMessage(msgs, userId, text, reply);
   if (!next) return "unavailable";
   // chosen from the list as it is now, before the edit puts this conversation at the top of it (as for a new message)
@@ -573,7 +575,7 @@ export function editMessage(userId: string, raw: string): EditResult {
   setChat(id, next);
   touch(id, titleAfterEdit(msgs, userId, text, state.index.find((e) => e.id === id)?.title ?? chatTitle(text)));
   persist(id, true);
-  void run(id, reply.id, text, info.mode, info.scope, false, history, recalled);
+  void run(id, reply.id, text, info.mode, info.scope, false, history, recalled, reply.sinceYear);
   return "sent";
 }
 
@@ -612,7 +614,7 @@ export function stopReply() {
  * `lean` is what the message leans on in other chats (`recallEarlier`: the chat this one continues from, or what "Use my earlier chats" finds), chosen when the message was sent and still on its way (a promise), or
  * exactly what the person left on the reply (a list); without it, it is chosen now. It is ready before anything is sent, and the reply keeps what was sent so that it can say what it used.
  */
-async function run(chatId: string, assistantId: string, text: string, mode: SendMode, scope: SearchScope, anyway = false, history: HistoryEntry[] = [], lean?: Promise<EarlierQuestion[]> | EarlierQuestion[]) {
+async function run(chatId: string, assistantId: string, text: string, mode: SendMode, scope: SearchScope, anyway = false, history: HistoryEntry[] = [], lean?: Promise<EarlierQuestion[]> | EarlierQuestion[], sinceYear?: number) {
   const ctl = new AbortController();
   runs.set(chatId, { ctl, assistantId });
   set({ running: new Set(runs.keys()) });
@@ -639,7 +641,7 @@ async function run(chatId: string, assistantId: string, text: string, mode: Send
     const earlier = Array.isArray(lean) ? (mode === "auto" && !anyway && signedIn && !state.privateChats.has(chatId) ? lean : []) : await (lean ?? recallEarlier(chatId, text, mode, anyway));
     if (earlier.length > 0) patch((m) => ({ ...m, earlier }));
     const post = (turns: HistoryEntry[], other: EarlierQuestion[]) =>
-      fetch("/api/v1/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify(chatRequestBody({ signedIn, mode, message: text, scope, anyway, history: turns, earlier: other })), signal: ctl.signal });
+      fetch("/api/v1/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify(chatRequestBody({ signedIn, mode, message: text, scope, anyway, history: turns, earlier: other, sinceYear })), signal: ctl.signal });
     let res = await post(history, earlier);
     if (res.status === 400 && (history.length > 0 || earlier.length > 0) && ((await res.clone().json().catch(() => null)) as { type?: string } | null)?.type === "invalid_history") {
       console.warn("The earlier messages were not accepted, so this message was sent without them.");
