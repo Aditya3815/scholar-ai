@@ -457,6 +457,7 @@ const understandFiles = (): string[] => listModules(UNDERSTAND);
 const NO_FUNCTION_TO_CALL: Readonly<Record<string, string>> = {
   "hostile-messages.ts": "exports a list of messages and a canary string, no function",
   "lane-words.ts": "exports the phrase lists of the safety lane as data, no function (lane.ts, which reads them, is run here)",
+  "frame-words.ts": "exports the word lists of the request-frame cleaner (R8) as data, no function (frame.ts, which reads them, is run here through cleanRequest)",
 };
 const moduleOf = (file: string): Module => ({ label: `understand/${file}`, source: readFileSync(join(UNDERSTAND, file), "utf8"), dir: dirname(join(UNDERSTAND, file)) });
 /** A folder under node_modules/.cache (which git ignores, and which needs no Node type that this project does not declare) holding the given files; a name with a slash makes its folders. The caller removes it. */
@@ -918,8 +919,15 @@ describe("(4) the disclosure match: each privacy sentence is on the page exactly
   });
 });
 
-describe("(1) and (2) of 10.2, which wait for the reading of a message", () => {
-  // docs/design/intent-and-state.md, 10.2 (line 920), item list on line 922: the plan is the only place that says what each of these must prove
-  it.todo("(1) the string handed to runSearch equals the reading's topic or the message (plan line 922, item 1): waits for the reading, which R3 and R8 add (understand/ has none yet), so routes.ts has nothing to be compared with");
-  it.todo("(2) the words shown in understood.reading equal the string handed to runSearch (plan line 922, item 2): waits for the release that adds the understood.reading event, which none has yet");
+describe("(1) and (2) of 10.2, the reading of a message (added by R8)", () => {
+  // docs/design/intent-and-state.md, 10.2 (line 920), item list on line 922. R8 adds the reading, and both are proved by running the real handler with the stand-in network, which a source-reading file cannot do:
+  // chat/clean-route.test.ts, "the words searched are the Reading's topic or the message ... (the disclosure match, 1 and 2)". This pin only fails if that test is taken away or renamed.
+  const routeTest = readFileSync(fileURLToPath(new URL("./chat/clean-route.test.ts", import.meta.url)), "utf8");
+  it("(1) the string handed to runSearch equals the reading's topic or the message: pinned in chat/clean-route.test.ts by a recorder of every search", () => {
+    expect(routeTest).toContain("(the disclosure match, 1 and 2)");
+    expect(routeTest).toContain("what the indexes are asked is the reading's topic or the message");
+  });
+  it("(2) the words shown in understood.reading and as \"I searched for\" equal the string handed to runSearch: pinned in the same test", () => {
+    expect(routeTest).toContain("the words shown on the answer (\"I searched for\") are the words asked");
+  });
 });

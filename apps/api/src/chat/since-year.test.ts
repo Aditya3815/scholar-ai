@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyChatEvent, contextBefore, followUpNote, startAssistant, streamShapeProblems, type AssistantMsg, type ChatEvent } from "@scholar/shared";
 import type { StreamComplete } from "../docs/qa";
+import { CLEAN_CASES } from "./clean-cases";
 
 /**
  * `sinceYear` on POST /api/v1/chat (docs/design/chatview-and-trending.md, decision T9): an optional whole year, from 1990 to this year, that a Trending chip sets. The server applies it exactly like the
@@ -454,6 +455,9 @@ const DIFF: Case[] = [
   { name: "safety, self-harm, chosen by hand", body: byHand("I want to kill myself") },
   { name: "safety, help me, anyway", body: byHand("help me", { anyway: true }) },
   { name: "safety, self-harm, with turns before it", body: auto("I want to kill myself", { history: GLAUCOMA }) },
+  // R8 (docs/design/intent-and-state.md, 4.8): messages of the request-frame cleaner (clean-cases.ts), added to the list on 4 Nov 2026 and recorded by hand from the code BEFORE the cleaner existed (`alsoProducedFromR8`
+  // in the golden says which commit). With CHAT_CLEAN unset, off or shadow every one of them is answered as it always was; with CHAT_CLEAN on, the ones the cleaner changes are pinned in since-year.clean.golden.json.
+  ...CLEAN_CASES,
 ];
 
 const GOLDEN = fileURLToPath(new URL("./since-year.golden.json", import.meta.url));
@@ -514,6 +518,13 @@ describe("the gate flags leave the stream of every request of the list as the go
     { "CHAT_SAFETY=shadow with the counters on": { CHAT_SAFETY: "shadow", CHAT_COUNTERS: "on" } },
     { "every flag shadow": { CHAT_COUNTERS: "shadow", CHAT_FAILPOLICY: "shadow", CHAT_SAFETY: "shadow" } },
     { "a value that is not a position": { CHAT_SAFETY: "ON" } },
+    // R8 (4.8): off and shadow change nothing on the wire for ANY request of the list, the cleaner's own messages included (shadow only makes the Reading and, with CHAT_COUNTERS on, counts it)
+    { "CHAT_CLEAN=off": { CHAT_CLEAN: "off" } },
+    { "CHAT_CLEAN=shadow": { CHAT_CLEAN: "shadow" } },
+    { "CHAT_CLEAN=shadow with the counters on": { CHAT_CLEAN: "shadow", CHAT_COUNTERS: "on" } },
+    { "CHAT_CLEAN=shadow with the lane in shadow and the counters on": { CHAT_CLEAN: "shadow", CHAT_SAFETY: "shadow", CHAT_COUNTERS: "on" } },
+    { "a value of CHAT_CLEAN that is not a position": { CHAT_CLEAN: "ON" } },
+    { "every gate flag shadow, the cleaner too": { CHAT_COUNTERS: "shadow", CHAT_FAILPOLICY: "shadow", CHAT_SAFETY: "shadow", CHAT_CLEAN: "shadow" } },
   ];
   it("holds for all of them", async () => {
     const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
@@ -525,11 +536,11 @@ describe("the gate flags leave the stream of every request of the list as the go
     }
   }, 120_000);
 
-  it("CHAT_SAFETY=core and =on leave the 37 requests that are not about safety as the golden has them (the 17 of the lane are its own, and are looked at in lane-route.test.ts)", async () => {
+  it("CHAT_SAFETY=core and =on leave the 37 requests that are not about safety, and the cleaner's own messages (CHAT_CLEAN is not set), as the golden has them (the 17 of the lane are its own, and are looked at in lane-route.test.ts)", async () => {
     const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
     const others = DIFF.filter((c) => !c.name.startsWith("safety, "));
-    expect(others).toHaveLength(37);
-    const flagSets: Record<string, string>[] = [{ CHAT_SAFETY: "core" }, { CHAT_SAFETY: "on" }, { CHAT_SAFETY: "on", CHAT_COUNTERS: "on", CHAT_FAILPOLICY: "on" }];
+    expect(others).toHaveLength(37 + CLEAN_CASES.length);
+    const flagSets: Record<string, string>[] = [{ CHAT_SAFETY: "core" }, { CHAT_SAFETY: "on" }, { CHAT_SAFETY: "on", CHAT_COUNTERS: "on", CHAT_FAILPOLICY: "on" }, { CHAT_SAFETY: "on", CHAT_CLEAN: "shadow", CHAT_COUNTERS: "on" }];
     for (const flags of flagSets) {
       const now = await Promise.all(others.map((c) => wire({ ...c, opts: { ...c.opts, env: { ...c.opts?.env, ...flags } } })));
       const changed = now.filter((n) => JSON.stringify(n) !== JSON.stringify(golden.entries.find((e) => e.name === n.name))).map((n) => n.name);
@@ -554,4 +565,58 @@ describe("the gate flags leave the stream of every request of the list as the go
     const { outcomes } = await post(auto("effect of yoga on blood pressure"), { env: { CHAT_COUNTERS: "on" } });
     expect(outcomes.filter((o) => o.startsWith("batch:chat_input:")).length).toBeGreaterThan(0);
   });
+});
+
+/**
+ * R8, CHAT_CLEAN=on (docs/design/intent-and-state.md, 4.8): the stream changes ONLY for a message the cleaner changes. Every request of the list (the 54 of before and the 23 of clean-cases.ts) is run with the flag on:
+ * those the cleaner changes must be EXACTLY the ones pinned in since-year.clean.golden.json (a stream's every event, in its order, byte for byte), and every other request must be byte-identical to
+ * since-year.golden.json. The pinned file was recorded by hand from the code of this release (it has no earlier code to come from: the streams are new); what each of them says is looked at in
+ * clean-route.test.ts, so the hashes are not the only thing that holds them.
+ */
+const CLEAN_GOLDEN = fileURLToPath(new URL("./since-year.clean.golden.json", import.meta.url));
+describe("CHAT_CLEAN=on changes the stream only of the messages the cleaner changes", () => {
+  const withFlag = (c: Case, flags: Record<string, string>): Case => ({ ...c, opts: { ...c.opts, env: { ...c.opts?.env, ...flags } } });
+
+  it("exactly the pinned requests change, each to its pinned stream, and every other request is the base golden's", async () => {
+    const base = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
+    const pinned = JSON.parse(readFileSync(CLEAN_GOLDEN, "utf8")) as Golden;
+    const now = await Promise.all(DIFF.map((c) => wire(withFlag(c, { CHAT_CLEAN: "on" }))));
+    const changed = now.filter((n) => JSON.stringify(n) !== JSON.stringify(base.entries.find((e) => e.name === n.name))).map((n) => n.name);
+    expect(changed).toEqual(pinned.entries.map((e) => e.name));
+    for (const p of pinned.entries) expect(now.find((n) => n.name === p.name), p.name).toEqual(p);
+    // and the others, one by one, are the base golden's
+    const others = now.filter((n) => !changed.includes(n.name));
+    expect(others.length).toBe(DIFF.length - pinned.entries.length);
+    for (const n of others) expect(n, n.name).toEqual(base.entries.find((e) => e.name === n.name));
+  }, 180_000);
+
+  it("the check is not vacuous, and the messages that must not change are among those that do not: by hand, anyway, Hinglish, a typo message, a hyphenated word, a title in quotes, only a frame, a follow-up that leans on the turns, all 17 of the lane", async () => {
+    const pinned = JSON.parse(readFileSync(CLEAN_GOLDEN, "utf8")) as Golden;
+    const names = pinned.entries.map((e) => e.name);
+    expect(names).toContain("clean, the owner's message");
+    expect(names.length).toBeGreaterThanOrEqual(12);
+    for (const keep of ["clean, the owner's message, chosen by hand", "clean, a typo message with no frame", "clean, a hyphenated word that looks like a frame", "clean, a title in quotes", "clean, nothing but a frame", "clean, a Hinglish message", "clean, a follow-up that leans on the turns", "search by hand", "search by hand, anyway", "auto, a plain question", "auto, small talk", "auto, another tool", "follow-up, only after 2020 (a short list)", "auto, a message the rules leave to the model"]) {
+      expect(names, keep).not.toContain(keep);
+    }
+    expect(names.filter((n) => n.startsWith("safety, "))).toEqual([]);
+  });
+
+  it("the lane's flag at on does not change what the cleaner does to these messages, and the cleaner does not change what the lane does to the lane's own (a signed-in person's words are the model's)", async () => {
+    const lane = DIFF.filter((c) => c.name.startsWith("safety, "));
+    const clean = DIFF.filter((c) => c.name.startsWith("clean, "));
+    const laneOn = await Promise.all(lane.map((c) => wire(withFlag(c, { CHAT_SAFETY: "on" }))));
+    const both = await Promise.all(lane.map((c) => wire(withFlag(c, { CHAT_SAFETY: "on", CHAT_CLEAN: "on" }))));
+    expect(both.filter((b, i) => JSON.stringify(b) !== JSON.stringify(laneOn[i])).map((b) => b.name)).toEqual([]);
+    const cleanOn = await Promise.all(clean.map((c) => wire(withFlag(c, { CHAT_CLEAN: "on" }))));
+    const cleanAndLane = await Promise.all(clean.map((c) => wire(withFlag(c, { CHAT_CLEAN: "on", CHAT_SAFETY: "on" }))));
+    expect(cleanAndLane.filter((b, i) => JSON.stringify(b) !== JSON.stringify(cleanOn[i])).map((b) => b.name)).toEqual([]);
+  }, 180_000);
+
+  it("shadow with the counters on writes its count and still changes nothing, for every request of the list", async () => {
+    const base = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
+    const now = await Promise.all(DIFF.map((c) => wire(withFlag(c, { CHAT_CLEAN: "shadow", CHAT_COUNTERS: "on" }))));
+    expect(now.filter((n) => JSON.stringify(n) !== JSON.stringify(base.entries.find((e) => e.name === n.name))).map((n) => n.name)).toEqual([]);
+    const { outcomes } = await post(auto("Can you search about convoluton nueral netwrk all papers"), { env: { CHAT_CLEAN: "shadow", CHAT_COUNTERS: "on" } });
+    expect(outcomes.some((o) => o.endsWith(":would_clean"))).toBe(true);
+  }, 180_000);
 });

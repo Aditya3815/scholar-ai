@@ -150,6 +150,12 @@ export * from "./outcome-counts";
 export * from "./chat-copy";
 export * from "./chat-memory";
 export * from "./route";
+// the Reading of R8 (reading.ts) is exported as `MessageReading`: ocr.ts already has a `Reading` of its own
+export {
+  LEFT_OUT_LABEL, MAX_LEFT, MAX_LEFT_CHARS, MAX_LEFT_PERSON, MAX_NOTE_PHRASE, MAX_READING_CHARS, NOTE_KINDS, NO_TOPIC_TEXT,
+  findPhrase, isRomanNumeralI, noteText, quoted, readingIsQuiet, readingLines, restoreWords, tidyWords, withoutLeft,
+} from "./reading";
+export type { NoteKind, Reading as MessageReading, ReadingNote } from "./reading";
 export * from "./oa";
 export * from "./litscan";
 export * from "./litscan-review";

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MIN_SINCE_YEAR, NOTHING_NOTICE, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatContextInfo, type ChatEvent, type EarlierQuestion, type TightenResponse, type ChatNoAnswer, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
+import { FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MIN_SINCE_YEAR, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatContextInfo, type ChatEvent, type EarlierQuestion, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
@@ -23,6 +23,8 @@ import { flagOf, type FlagPosition } from "../understand/flags";
 import { NO_PLAN, planLane, safetyRead, type LanePlan } from "../understand/lane";
 import { noticeText, replyText } from "../understand/lane-text";
 import { inputShape } from "../understand/input-shape";
+import { readRequest, type RequestRead } from "../understand/frame";
+import { checkReading } from "../understand/reading-check";
 import { searchEnvFrom } from "../search/env";
 import { deny } from "../problem";
 
@@ -63,6 +65,12 @@ type Bindings = {
    * gets a line. "on": every tier. The numbers in the sentences are checked by a person first (lane-text.ts HELPLINE_CHECKED), and a test fails if the committed wrangler.jsonc sets this above "shadow" until they are.
    */
   CHAT_SAFETY?: string;
+  /**
+   * R8 (4.8): the request-frame cleaner. "on": an Auto message that is going to be searched is searched without the words that only make a request ("can you search about", "please", "all papers", "what is"),
+   * the page says what was left out and what the box could not do with it (`understood.reading`), and a health message that R4's lane reads as a decision or a care story is also searched without the words that say
+   * who the person is. "shadow": the same Reading is made and only counted (`would_clean`, and only with CHAT_COUNTERS "on"); nothing on the wire changes. Unset and "off" change nothing. A gate flag: unset is off.
+   */
+  CHAT_CLEAN?: string;
 };
 type Env = { Bindings: Bindings };
 export const chatRoutes = new Hono<Env>();
@@ -78,7 +86,7 @@ const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB 
  * Where a gate flag of the understanding releases stands for this request (understand/flags.ts: unset is off, and an off flag reads nothing from KV). A value that is not exactly a position is off, and
  * one line says WHICH FLAG held it (a constant name, never anything of a message): a typo must not turn behaviour on, and must not pass unseen either.
  */
-async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY"): Promise<FlagPosition> {
+async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY" | "CHAT_CLEAN"): Promise<FlagPosition> {
   // the safety lane is the one flag with a fourth position, `core`, between shadow and on
   const r = await flagOf(env, name, { allowCore: name === "CHAT_SAFETY" });
   if (r.badVariable) console.warn(JSON.stringify({ level: "warn", msg: "flag_bad_value", flag: name }));
@@ -266,6 +274,8 @@ chatRoutes.post("/", async (c) => {
     // R4 (4.5): what the safety lane does for this message (nothing, while its flag is off), and which of the two care lines it would show
     let lane: LanePlan = NO_PLAN;
     let careKind: "health" | "distress" | null = null;
+    // R8 (4.8): the name that is counted for what the cleaner did (`would_clean` in shadow, `clean_applied` on), null when it did nothing
+    let cleanName: string | null = null;
     /**
      * R3 (docs/design/intent-and-state.md, 4.4), once, as the message ends whatever the ending (so also a message that was left, or one that failed): with CHAT_COUNTERS=on the SHAPE of an Auto message
      * that carries no earlier turns is counted by closed names, in one batch, with `one_source` once a list was found; a search chosen by hand counts only `anyway` when it carries it. Never any text of
@@ -275,7 +285,7 @@ chatRoutes.post("/", async (c) => {
       if (!anyway && !(auto && !carries)) return;
       try {
         if ((await gate(c.env, "CHAT_COUNTERS")) !== "on") return;
-        await countOutcomes(c.env.DB, "chat_input", anyway ? ["anyway"] : [...lane.names, ...inputShape(text), ...(oneSource ? ["one_source"] : [])]);
+        await countOutcomes(c.env.DB, "chat_input", anyway ? ["anyway"] : [...lane.names, ...(cleanName ? [cleanName] : []), ...inputShape(text), ...(oneSource ? ["one_source"] : [])]);
       } catch {
         /* counting never gets in the way of an answer */
       }
@@ -371,6 +381,35 @@ chatRoutes.post("/", async (c) => {
       }
       // R5 (4.6): the policy is looked up only for a follow-up whose router call FAILED (router.ts, routerCallFailed): for every other message the flag is not even read
       if (routerCallFailed(follow)) failPolicy = await gate(c.env, "CHAT_FAILPOLICY");
+      // R8 (4.8): what the message is, and what is only a request in it. Auto only, after the route is settled and before what the page is told: a message that goes to the indexes with the words that only make a
+      // request left out carries them as `route.searchQuery`, which is what "I searched for" and "Use my exact words" already show. Never for a search chosen by hand, a follow-up that was read with its turns, a
+      // message whose search words a model wrote, or one the day could not pay a model for. The raw message still goes to the writer and the background (`asked`). A failure of the cleaner never stops a message.
+      let reading: Reading | null = null;
+      let nothingToSearch = false;
+      if (auto && !talk && route.mode === "search" && !route.searchQuery && !follow && !poor) {
+        const clean = await gate(c.env, "CHAT_CLEAN");
+        if (clean !== "off") {
+          let read: RequestRead | null = null;
+          try {
+            // the lane's two lines for a health message (decision, care), where it acts: the words that say who the person is stay out of what the indexes are sent
+            const person = lane.withhold || lane.notices.some((k) => k === "safety_decision" || k === "safety_care");
+            read = readRequest(text, route, { person });
+            if (read && !checkReading(read.reading, text)) read = null;
+          } catch {
+            read = null;
+          }
+          if (read) {
+            cleanName = clean === "on" ? "clean_applied" : "would_clean";
+            if (clean === "on") {
+              if (!read.searchable) nothingToSearch = true;
+              else {
+                reading = read.reading;
+                if (reading.topic !== text.replace(/\s+/g, " ").trim()) route = { ...route, searchQuery: reading.topic };
+              }
+            }
+          }
+        }
+      }
       // a year range ("only after 2020", a Trending chip's `sinceYear`) is applied to the papers' own years before they are numbered, so that card numbers and marks stay true; the search asks for more, so that
       // what is left is not thin. It is the router's range and the chip's as one (`withSince`), and only a message that is searched has one: small talk and another tool's offer are not cut by anything.
       const own: YearRange | null = follow && (follow.yearFrom !== undefined || follow.yearTo !== undefined) ? { from: follow.yearFrom, to: follow.yearTo } : null;
@@ -381,13 +420,19 @@ chatRoutes.post("/", async (c) => {
       let context: ChatContextInfo | undefined;
       if (follow && ctx) context = contextInfo(widened ? { ...follow, yearFrom: years.from, yearTo: years.to, fellBack: false } : follow, ctx);
       else if (widened) context = { turns: 0, intent: "new", rewrote: false, ...(years.from === undefined ? {} : { yearFrom: years.from }), ...(years.to === undefined ? {} : { yearTo: years.to }) };
-      await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}), ...(scope !== "all" && route.mode === "search" ? { scope } : {}), ...(context ? { context } : {}) });
+      await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}), ...(scope !== "all" && route.mode === "search" ? { scope } : {}), ...(context ? { context } : {}), ...(reading ? { reading } : {}) });
       // counts and short names only: how many turns were read and what came of them, never a word of them
       if (follow && ctx) console.log(JSON.stringify({ level: "info", msg: "chat_followup", turns: ctx.history.turns, earlier: ctx.earlier.length, mode: route.mode, intent: follow.intent, rewrote: follow.rewrote, fellBack: follow.fellBack, check: follow.check, years: follow.yearFrom !== undefined || follow.yearTo !== undefined }));
       // R4: the lines of the lane go right after what the message was understood as, above the answer and the papers (a search chosen by hand gets only these)
       if (lane.notices.length > 0) {
         const language = detectLanguage(text);
-        for (const kind of lane.notices) await send({ type: "notice", kind, text: noticeText(kind, language, { auto, careKind }) });
+        for (const kind of lane.notices) await send({ type: "notice", kind, text: noticeText(kind, language, { auto, careKind, searched: !nothingToSearch }) });
+      }
+      // R8: a health message whose personal words are all that it had to say: nothing is searched (a personal clause is never sent for lack of a better topic), and the page asks what to look up
+      if (nothingToSearch) {
+        outcome = "small_talk";
+        await send({ type: "general", kind: "not_research", text: NO_TOPIC_TEXT });
+        return void (await done(false, "small_talk"));
       }
       if (talk) {
         outcome = "small_talk";
@@ -403,7 +448,7 @@ chatRoutes.post("/", async (c) => {
       // what the answer is for and in what language: the standalone question of a follow-up (the message as written for any other message, so that it is answered in the person's language),
       // and the language the person asked for ("in Hindi") before the one the rules found
       const asked = askedOf(follow, text.replace(/\s+/g, " ").slice(0, 600));
-      const spoken = follow?.answerLanguage ?? route.language;
+      const spoken = follow?.answerLanguage ?? reading?.answerLanguage ?? route.language;
       const shape = (list: Paper[]): Paper[] => (years ? list.filter((p) => p.year !== null && (years.from === undefined || p.year >= years.from) && (years.to === undefined || p.year <= years.to)).slice(0, 20) : list);
 
       await send({ type: "step", step: "search" });
@@ -460,7 +505,7 @@ chatRoutes.post("/", async (c) => {
         // the question the answer is for is what the person wrote (so it is answered in their language), not the English words the indexes were asked; for a follow-up it is the standalone question,
         // and for the same papers only, the earlier answer goes with it as context the writer is told is not evidence. The judge is given neither (it reads claims and the abstracts they cite).
         // The debug log of what a model said is for the first message in development; a follow-up never uses it.
-        answer = await answerFromResults({ question: asked, language: spoken, languageAsked: !!follow?.answerLanguage, earlierAnswer: follow?.intent === "same_papers" ? (ctx?.history.lastAnswer ?? undefined) : undefined, picked, stream: streamFor(c.env, user.id, abort.signal), judge: c.env.CHAT_JUDGE === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: logJudged, emit: send, onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
+        answer = await answerFromResults({ question: asked, language: spoken, languageAsked: !!(follow?.answerLanguage ?? reading?.answerLanguage), earlierAnswer: follow?.intent === "same_papers" ? (ctx?.history.lastAnswer ?? undefined) : undefined, picked, stream: streamFor(c.env, user.id, abort.signal), judge: c.env.CHAT_JUDGE === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: logJudged, emit: send, onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
       } catch (e) {
         if (s.gone) return;
         if (e instanceof QuotaError) return void (await done(false, "quota"));
