@@ -85,7 +85,10 @@ test("the budget page names every scheduled workflow that holds the OpenAlex key
   assert.match(budget, /openalex-india/);
   assert.match(budget, /shodhganga/);
   assert.ok(src("search/index.ts").includes("india: [openalexIndia, doajIndia, shodhganga],"), "the India scope changed: recount row 3 of the budget page");
-  assert.ok(src("search/india.ts").includes("https://api.openalex.org/works") && /name: "openalex-india"/.test(src("search/india.ts")));
+  // the URLs the file writes in quotes or between back ticks (up to a "?" or a "${"), read as URLs: the host and the path are compared whole, not found as a piece of text
+  const indiaUrls = [...src("search/india.ts").matchAll(/["'`](https:\/\/[^"'`$?]+)/g)].map((m) => new URL(m[1]));
+  assert.ok(indiaUrls.some((u) => u.hostname === "api.openalex.org" && u.pathname === "/works"), "search/india.ts no longer asks api.openalex.org/works");
+  assert.ok(/name: "openalex-india"/.test(src("search/india.ts")));
 });
 
 test("the paths of the two case files are in apps/api/eval/data", () => {
