@@ -69,8 +69,13 @@ export function SearchResults({ query, onOpen }: { query: string; onOpen: (id: s
   const usable = words(q).length > 0;
 
   useEffect(() => {
-    if (!usable) return setState({ status: "idle" });
-    setState((s) => (s.status === "ready" ? s : { status: "loading" }));
+    // a setter is called only when it changes something: on every key (a new `{ status: "loading" }` each time) it left an update waiting after each key's render, and fifty keys with no frame between them ended
+    // in "Maximum update depth exceeded" (see HomePage.tsx). The list of the last words stays while the new ones are searched ("ready"); anything else becomes "loading" once.
+    if (!usable) {
+      if (state.status !== "idle") setState({ status: "idle" });
+      return;
+    }
+    if (state.status !== "ready" && state.status !== "loading") setState({ status: "loading" });
     const ctl = new AbortController();
     const t = window.setTimeout(() => {
       searchWorkspace(q, ctl.signal).then(
@@ -82,7 +87,7 @@ export function SearchResults({ query, onOpen }: { query: string; onOpen: (id: s
       window.clearTimeout(t);
       ctl.abort();
     };
-  }, [q, usable]);
+  }, [q, usable]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = (docId: string, page?: number, quote?: string) => {
     if (page) requestJump(docId, page, quote);

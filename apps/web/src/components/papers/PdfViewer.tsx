@@ -694,7 +694,10 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
 
   /* ---- find in the paper ---- */
   const hit = find.state.status === "idle" ? null : locate(find.state.hits, findIdx);
-  useEffect(() => setFindIdx(0), [find.query]);
+  // the first hit is the one shown again when the words change; the setter is called only when it changes something (on every key it left an update waiting after each key's render: see HomePage.tsx, "Maximum update depth exceeded")
+  useEffect(() => {
+    if (findIdx !== 0) setFindIdx(0);
+  }, [find.query]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!findOpen || !hit) return;
     layers.current.forEach((l, p) => p !== hit.page && clearHighlights(l));

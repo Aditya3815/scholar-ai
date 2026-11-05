@@ -37,7 +37,10 @@ export function PaletteBody({ open, onOpenChange }: { open: boolean; onOpenChang
     return [...extra.filter((c) => c.group !== "Search"), ...paletteRank(all, query), ...extra.filter((c) => c.group === "Search")].slice(0, 60);
   }, [open, providers, query]);
 
-  useEffect(() => setActive(0), [query]);
+  // the first result is the active one again when the words change; the setter is called only when it changes something (on every key it left an update waiting after each key's render: see HomePage.tsx, "Maximum update depth exceeded")
+  useEffect(() => {
+    if (active !== 0) setActive(0);
+  }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     list.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [active]);
