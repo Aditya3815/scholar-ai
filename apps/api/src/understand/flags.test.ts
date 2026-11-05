@@ -70,6 +70,21 @@ describe("the variable", () => {
     }
   });
 
+  // R9 (4.9): the relevance floor has a position of its own, `writer` (only the writer's gate acts: no reorder, no line), and like `core` it is taken only for the flag whose caller says it has one
+  it("takes writer only for a flag whose caller says it has one (the relevance floor), and for no other, and never together with core", async () => {
+    expect(await flagOf({ CHAT_FLOOR: "writer" }, "CHAT_FLOOR", { allowWriter: true })).toMatchObject({ position: "writer", variable: "writer", badVariable: false });
+    expect(await flagOf({ CHAT_FLOOR: "writer" }, "CHAT_FLOOR")).toMatchObject({ position: "off", badVariable: true });
+    expect(await flagOf({ CHAT_FLOOR: "writer" }, "CHAT_FLOOR", { allowWriter: false })).toMatchObject({ position: "off", badVariable: true });
+    expect(await flagOf({ CHAT_FLOOR: "writer" }, "CHAT_FLOOR", { allowCore: true })).toMatchObject({ position: "off", badVariable: true });
+    expect(await flagOf({ CHAT_FLOOR: "core" }, "CHAT_FLOOR", { allowWriter: true })).toMatchObject({ position: "off", badVariable: true });
+    for (const p of ["off", "shadow", "on"] as const) expect((await flagOf({ F: p }, "F", { allowWriter: true })).position).toBe(p);
+    // spelt exactly, as every position is
+    for (const v of ["Writer", "WRITER", " writer", "writer "]) expect(await flagOf({ CHAT_FLOOR: v }, "CHAT_FLOOR", { allowWriter: true })).toMatchObject({ position: "off", badVariable: true });
+    expect(positionOfVariable("writer", false, true)).toEqual({ position: "writer", bad: false });
+    expect(positionOfVariable("writer", false)).toEqual({ position: "off", bad: true });
+    expect(positionOfVariable("writer", true)).toEqual({ position: "off", bad: true });
+  });
+
   it("is read by one pure function that the disclosure test shares, so that 'on' means the same in the config check as in the Worker", () => {
     expect(positionOfVariable("on", false)).toEqual({ position: "on", bad: false });
     expect(positionOfVariable(undefined, false)).toEqual({ position: "off", bad: false });
@@ -119,6 +134,31 @@ describe("the KV override: it can only lower", () => {
       });
     }
   }
+
+  // with writer (the relevance floor): off < shadow < writer < on. Writer acts on the wire (it can skip a written answer), shadow does not, so a tripwire that wants the floor to stop acting goes to shadow or off
+  const WRITER: Record<string, Record<string, FlagPosition>> = {
+    off: { off: "off", shadow: "off", writer: "off", on: "off" },
+    shadow: { off: "off", shadow: "shadow", writer: "shadow", on: "shadow" },
+    writer: { off: "off", shadow: "shadow", writer: "writer", on: "writer" },
+    on: { off: "off", shadow: "shadow", writer: "writer", on: "on" },
+  };
+  for (const [variable, row] of Object.entries(WRITER)) {
+    for (const [override, expected] of Object.entries(row)) {
+      it(`writer allowed: variable ${variable} with override ${override} stands at ${expected}`, async () => {
+        const { kv } = fakeKv({ [flagKey("CHAT_FLOOR")]: override });
+        const r = await flagOf({ CHAT_FLOOR: variable, CACHE: kv }, "CHAT_FLOOR", { allowWriter: true, ...deps() });
+        expect(r.position).toBe(expected);
+        expect(r.badVariable).toBe(false);
+        expect(r.badOverride).toBe(false);
+      });
+    }
+  }
+
+  it("an override of writer on a flag that has no such position is ignored and reported as a bad override", async () => {
+    const { kv } = fakeKv({ [flagKey("CHAT_X")]: "writer" });
+    const r = await flagOf({ CHAT_X: "on", CACHE: kv }, "CHAT_X", deps());
+    expect(r).toMatchObject({ position: "on", override: null, badOverride: true });
+  });
 
   it("never raises: an override above the variable changes nothing, and it is still reported as what it was", async () => {
     const { kv } = fakeKv({ [flagKey("CHAT_X")]: "on" });

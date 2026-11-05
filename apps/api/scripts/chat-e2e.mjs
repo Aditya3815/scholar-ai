@@ -367,7 +367,7 @@ try {
   const shapeDelta = delta(shapeBefore, await countsOf("chat_input"));
   if (VARS.CHAT_COUNTERS === "on") {
     ok(viaA.res.status === 200 && viaVisitor.res.status === 200, "(both messages were taken)");
-    ok(Object.keys(shapeDelta).filter((k) => k !== "would_clean" && k !== "clean_applied").sort().join() === "frame,frame_all,frame_polite,one_source,subj2_6,year", `with CHAT_COUNTERS=on both messages are counted by their shape, a signed-in person's and a visitor's alike (${JSON.stringify(shapeDelta)})`);
+    ok(Object.keys(shapeDelta).filter((k) => k !== "would_clean" && k !== "clean_applied" && !/tier_/.test(k)).sort().join() === "frame,frame_all,frame_polite,one_source,subj2_6,year", `with CHAT_COUNTERS=on both messages are counted by their shape, a signed-in person's and a visitor's alike (${JSON.stringify(shapeDelta)})`);
     ok(Object.values(shapeDelta).every((n) => n === 2), "...each name once for each of the two messages, and exactly one of the four subject counts");
     const names = (await sqlRows("SELECT outcome FROM answer_outcomes WHERE feature = 'chat_input'")).map((r) => r.outcome);
     ok(names.every((n) => /^[a-z][a-z0-9_]{0,39}$/.test(n)) && !names.some((n) => /crispr|target|effects|papers|please/i.test(n)), "no name is a word of a message");
@@ -440,7 +440,7 @@ try {
   const laneDelta = delta(beforeLane, await countsOf("chat"));
   const inputDelta = delta(beforeInput, await countsOf("chat_input"));
   // (the names of the lane, not `would_clean` of the cleaner (R8), which has its own checks below)
-  const wouldNames = Object.keys(inputDelta).filter((n) => /^(would_|lane_)/.test(n) && n !== "would_clean");
+  const wouldNames = Object.keys(inputDelta).filter((n) => /^(would_|lane_)/.test(n) && n !== "would_clean" && !/tier_/.test(n));
   if (VARS.CHAT_COUNTERS === "on" && SAFETY === "shadow") ok(wouldNames.length > 0 && wouldNames.every((n) => n.startsWith("would_")) && !laneDelta.urgent && !laneDelta.safety, `shadow with the counters on counts what it would have done, by name, and nothing changed for the person (${wouldNames.join()})`);
   else if (VARS.CHAT_COUNTERS === "on" && (SAFETY === "core" || SAFETY === "on")) ok(inputDelta.lane_urgent >= 2 && inputDelta.lane_crisis >= 2 && inputDelta.lane_help >= 2 && laneDelta.urgent === 2 && laneDelta.safety === 4, `the lane counts what it did, by closed name, for a first message in Auto (${JSON.stringify({ ...inputDelta, ...laneDelta })})`);
   else ok(wouldNames.length === 0 && !laneDelta.urgent && !laneDelta.safety && !laneDelta.decision, `without CHAT_COUNTERS=on nothing new is stored by the lane: no would_*, no lane_*, no new ending (${JSON.stringify({ ...inputDelta, ...laneDelta })})`);
@@ -482,6 +482,62 @@ try {
     const strip = await chat(anon, "I take amlodipine for my blood pressure, can I also take ibuprofen for knee pain", { mode: "auto" });
     const us = strip.events.find((e) => e.type === "understood");
     ok(!/\b(I|my)\b/.test(us?.searchQuery ?? "I") && /amlodipine/.test(us?.searchQuery ?? "") && /ibuprofen/.test(us?.searchQuery ?? ""), `...and a personal clause is not in the words searched, the medicines are (${JSON.stringify(us?.searchQuery)})`);
+  }
+  // The relevance floor (R9, docs/design/intent-and-state.md, 4.9): CHAT_FLOOR is unset in wrangler.jsonc, so a default run looks at it OFF; INTEGRATION_VARS="CHAT_FLOOR:writer", ":shadow" or ":on" (with "CHAT_COUNTERS:on")
+  // starts the Worker with it, and scripts/integration.mjs then also sets QA_STUB_TOPIC=1 for writer and on, so that the stand-in search writes the words of every question into its records and the checks above (which ask about
+  // anything) meet a relevant list. The word "offtopic" keeps the stand-in's own glaucoma records: a list in which no paper matches those words. These checks look at what the floor does to such a list on the real Worker.
+  console.log("the relevance floor: off and shadow change nothing; writer asks no writer when no paper matches closely; on also says so and lists the closest first");
+  const FLOOR = VARS.CHAT_FLOOR ?? "unset";
+  const acts = FLOOR === "writer" || FLOOR === "on";
+  const NO_MATCH = "offtopic yoga and blood pressure";
+  const FEW_MATCH = "offtopic glaucoma screening";
+  const noClose = (words) => `No paper matches “${words}” closely. These are the nearest records and may be off topic. Check the spelling, or try fewer or different words.`;
+  const beforeFloorShape = await countsOf("chat_input");
+  const beforeFloorChat = await countsOf("chat");
+  const none = await chat(A, NO_MATCH, { mode: "auto" });
+  const noneVisitor = await chat(anon, NO_MATCH, { mode: "auto" });
+  const few = await chat(A, FEW_MATCH, { mode: "auto" });
+  const handNone = await chat(A, NO_MATCH, { mode: "search" });
+  const floorShape = delta(beforeFloorShape, await countsOf("chat_input"));
+  const floorChat = delta(beforeFloorChat, await countsOf("chat"));
+  const weakOf = (r) => r.events.filter((e) => e.type === "notice" && e.kind === "weak").map((e) => e.text);
+  const finalList = (r) => r.events.filter((e) => e.type === "papers" && e.final).at(-1)?.results.map((p) => p.doi) ?? [];
+  ok(none.events.filter((e) => e.type === "papers").at(-1)?.results.length === 5, `(the list of "${NO_MATCH}" has five records, none of them about its words)`);
+  if (acts) {
+    ok(!none.events.some((e) => e.type === "answer" || e.type === "token") && !/read|write|check/.test(stepsOf(none)) && none.events.at(-1).answered === false && none.events.at(-1).reason === "not_answered", `CHAT_FLOOR=${FLOOR}: with no paper that matches closely the writer is not asked (no answer, no read, write or check step), and the reply ends not_answered (steps: ${stepsOf(none)})`);
+    ok(stepsOf(none) === "search,general" && none.events.some((e) => e.type === "general" && e.kind === "background"), "...and the background from general knowledge, labelled, is what a signed-in person gets, as for a list with no abstracts");
+    ok(floorChat.floor_skipped === 1 && !floorChat.not_answered, `...counted as floor_skipped (the signed-in person's message only: the visitor's is counted as a visitor's, the hand-chosen search is answered) and not as not_answered (${JSON.stringify(floorChat)})`);
+    ok(noneVisitor.events.at(-1).reason === "not_answered" && !noneVisitor.events.some((e) => e.type === "general") && floorChat.sign_in >= 1, "a visitor is not asked to sign in for an answer that would not come, and is counted as a visitor always was");
+  } else {
+    ok(none.events.some((e) => e.type === "answer") && none.events.at(-1).answered === true && /read/.test(stepsOf(none)), `CHAT_FLOOR=${FLOOR}: the writer is asked as it always was, and the list is answered`);
+    ok(!floorChat.floor_skipped && noneVisitor.events.at(-1).reason === "sign_in", "...nothing of the floor is counted, and a visitor is asked to sign in as before");
+  }
+  ok(handNone.events.some((e) => e.type === "answer") && weakOf(handNone).length === 0 && handNone.events.at(-1).answered === true, "a search chosen by hand is searched, listed and answered as written, in every position");
+  ok(JSON.stringify(finalList(none)) === JSON.stringify(finalList(handNone)), "...and its papers are the same five in the same order (nothing is deleted or moved when no paper is strong)");
+  if (FLOOR === "on") {
+    ok(JSON.stringify(weakOf(none)) === JSON.stringify([noClose(NO_MATCH)]), "CHAT_FLOOR=on: one line says no paper matches the words closely, with the words in it, in the plan's sentence");
+    ok(weakOf(noneVisitor).length === 1, "...for a visitor too");
+    ok(weakOf(few).length === 1 && /^Only 2 of these papers match your words closely\. The others are weaker matches and are listed after them\.$/.test(weakOf(few)[0]), `...and with two strong papers a line says only two match closely (${JSON.stringify(weakOf(few))})`);
+    ok(finalList(few).slice(0, 2).join() === ["10.1000/glaucoma.1", "10.1000/glaucoma.4"].join() && few.events.some((e) => e.type === "answer"), "...the strong ones are listed first and the answer is written from them");
+  } else {
+    ok(weakOf(none).length === 0 && weakOf(noneVisitor).length === 0 && weakOf(few).length === 0, `CHAT_FLOOR=${FLOOR}: no line of the kind weak, and the papers are in the order the search gave them`);
+    ok(finalList(few).join() === ["10.1000/glaucoma.1", "10.1000/glaucoma.2", "10.1000/glaucoma.3", "", "10.1000/glaucoma.4"].join(), "...and the papers of the list with two strong ones are in the order the search gave them");
+  }
+  const tierNames = Object.keys(floorShape).filter((n) => /tier_/.test(n)).sort().join();
+  if (VARS.CHAT_COUNTERS === "on" && FLOOR === "shadow") ok(tierNames === "would_tier_few,would_tier_none" && floorShape.would_tier_none === 2 && floorShape.would_tier_few === 1, `shadow with the counters on counts what it would have done, by name (${JSON.stringify(floorShape)})`);
+  else if (VARS.CHAT_COUNTERS === "on" && FLOOR === "writer") ok(tierNames === "tier_none,would_tier_few" && floorShape.tier_none === 2 && floorShape.would_tier_few === 1, `writer with the counters on counts tier_none (it acted) and would_tier_few (it did not): ${JSON.stringify(floorShape)}`);
+  else if (VARS.CHAT_COUNTERS === "on" && FLOOR === "on") ok(tierNames === "tier_few,tier_none" && floorShape.tier_none === 2 && floorShape.tier_few === 1, `on with the counters on counts tier_none and tier_few (${JSON.stringify(floorShape)})`);
+  else ok(tierNames === "", `without CHAT_COUNTERS=on, or with the floor off, nothing new is stored by the floor in chat_input (${JSON.stringify(floorShape)})`);
+  const floorOnly = Object.fromEntries(Object.entries(floorChat).filter(([k]) => /floor/.test(k)));
+  ok(Object.keys(floorOnly).every((k) => k === "floor_skipped"), "the only new ending the floor stores is floor_skipped, and it is in the table of the prompt box (/admin reads the share of refused answers without it)");
+  // the owner's own message, with the cleaner on: its words are three, and (with the stand-in's own records) none of them is about it
+  const ownerFloor = await chat(A, `Can you search about offtopic ${OWNER_TOPIC} all papers`, { mode: "auto" });
+  if (CLEAN === "on" && FLOOR === "on") {
+    ok(JSON.stringify(weakOf(ownerFloor)) === JSON.stringify([noClose(`offtopic ${OWNER_TOPIC}`)]) && !ownerFloor.events.some((e) => e.type === "answer") && ownerFloor.events.find((e) => e.type === "papers" && e.final)?.results.length === 5, "CHAT_CLEAN=on with CHAT_FLOOR=on: the owner's message is searched as its words, no paper is strong, the line says so with the typed words, no answer is written and every paper is still listed");
+  } else if (CLEAN === "on" && FLOOR === "writer") {
+    ok(!ownerFloor.events.some((e) => e.type === "answer") && weakOf(ownerFloor).length === 0 && ownerFloor.events.at(-1).reason === "not_answered", "CHAT_CLEAN=on with CHAT_FLOOR=writer: the owner's message is read as its words, no paper is strong, the writer is not asked, and there is no line (writer only gates)");
+  } else if (acts) {
+    ok(ownerFloor.events.some((e) => e.type === "answer") && weakOf(ownerFloor).length === 0, `CHAT_FLOOR=${FLOOR} without the cleaner on: the message still has its request frame, which would be counted as topic words, so the page does not judge it and the writer is asked as ever`);
   }
   reportStreams(ok);
 } catch (e) {

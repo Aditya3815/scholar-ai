@@ -1,6 +1,6 @@
 /**
  * Gate flags of the understanding releases (docs/design/intent-and-state.md: P3, 4.0 and H0 item 1). Every new behaviour has one switch with three positions, `off` (today, byte for byte), `shadow`
- * (compute and count, change nothing on the wire) and `on`; the safety lane also has `core`, between `shadow` and `on`. The Worker variable says where a flag starts and it is **unset is off**:
+ * (compute and count, change nothing on the wire) and `on`; the safety lane also has `core`, between `shadow` and `on`, and the relevance floor has `writer` in the same place. The Worker variable says where a flag starts and it is **unset is off**:
  * the release commit sets `shadow` or `on` in the `vars` block of wrangler.jsonc. A value that is not exactly one of the positions (`ON`, `true`, an empty string) is off and reported as a bad value,
  * because a flag turns behaviour on and a typo must not; the case is strict on purpose.
  *
@@ -19,8 +19,11 @@
  * switch does for any present value, is not settled: off is not obviously the safe position for the safety lane, and it is the owner's call (docs/design/intent-and-state.md, 4.2 and 4.5).
  */
 
-/** In order, lowest first: an override can move a flag only to the left. */
-export const FLAG_POSITIONS = ["off", "shadow", "core", "on"] as const;
+/**
+ * In order, lowest first: an override can move a flag only to the left. `core` (the safety lane) and `writer` (the relevance floor, R9) are each the middle position of ONE flag and are never both
+ * allowed for it, so where they stand relative to each other is not used.
+ */
+export const FLAG_POSITIONS = ["off", "shadow", "core", "writer", "on"] as const;
 export type FlagPosition = (typeof FLAG_POSITIONS)[number];
 
 /** How long an isolate keeps what KV said about one flag, a read that failed included. A read at time t answers every call before t + 30 000 ms; at t + 30 000 the next call reads again. */
@@ -58,6 +61,8 @@ export const resetFlagCache = (): void => {
 export type FlagOptions = {
   /** The names whose caller says they have a `core` position (the safety lane): a caller writes one reader per flag, so that this is said once. */
   allowCore?: boolean;
+  /** The same for a `writer` position (the relevance floor, R9): only the writer's gate acts, with no reorder and no line; it stands between `shadow` and `on`. */
+  allowWriter?: boolean;
   /** For a test: the clock (milliseconds) and the cache. */
   now?: () => number;
   cache?: FlagCache;
@@ -79,17 +84,17 @@ export type FlagReading = {
 };
 
 /** The variable's reading, shared with the disclosure test (legal-match.test.ts) so that "on" in the committed config means what it means in the Worker. Unset (undefined or null) is off and not bad. */
-export function positionOfVariable(value: unknown, allowCore: boolean): { position: FlagPosition; bad: boolean } {
+export function positionOfVariable(value: unknown, allowCore: boolean, allowWriter = false): { position: FlagPosition; bad: boolean } {
   if (value === undefined || value === null) return { position: "off", bad: false };
-  if (value === "off" || value === "shadow" || value === "on" || (allowCore && value === "core")) return { position: value, bad: false };
+  if (value === "off" || value === "shadow" || value === "on" || (allowCore && value === "core") || (allowWriter && value === "writer")) return { position: value, bad: false };
   return { position: "off", bad: true };
 }
 
 const rank = (p: FlagPosition): number => FLAG_POSITIONS.indexOf(p);
 
-function overrideOf(text: unknown, allowCore: boolean): FlagPosition | null {
+function overrideOf(text: unknown, allowCore: boolean, allowWriter: boolean): FlagPosition | null {
   if (typeof text !== "string") return null;
-  const p = positionOfVariable(text.trim().toLowerCase(), allowCore);
+  const p = positionOfVariable(text.trim().toLowerCase(), allowCore, allowWriter);
   return p.bad ? null : p.position;
 }
 
@@ -122,8 +127,9 @@ function readOverride(kv: FlagKv, name: string, now: number, cache: FlagCache): 
 
 export async function flagOf<E extends object>(env: E & FlagEnv, name: string, options: FlagOptions = {}): Promise<FlagReading> {
   const allowCore = options.allowCore === true;
+  const allowWriter = options.allowWriter === true;
   const vars = (env ?? {}) as Record<string, unknown>; // Hono hands a route an undefined env when a test calls app.request without one (sse.ts reads it the same way)
-  const { position: variable, bad } = positionOfVariable(vars[name], allowCore);
+  const { position: variable, bad } = positionOfVariable(vars[name], allowCore, allowWriter);
   const reading: FlagReading = { position: variable, variable, badVariable: bad, override: null, badOverride: false, kvUnreadable: false };
   const kv = (vars as FlagEnv).CACHE;
   // Nothing can be lowered below off, so an off flag (every flag today) does not read KV.
@@ -131,7 +137,7 @@ export async function flagOf<E extends object>(env: E & FlagEnv, name: string, o
   const { text, unreadable } = await readOverride(kv, name, (options.now ?? Date.now)(), options.cache ?? isolateCacheOf(kv));
   reading.kvUnreadable = unreadable;
   if (text === null) return reading;
-  const override = overrideOf(text, allowCore);
+  const override = overrideOf(text, allowCore, allowWriter);
   if (override === null) {
     reading.badOverride = true;
     return reading;

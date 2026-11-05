@@ -37,6 +37,15 @@ export const UNREAD_OUTCOMES = {
   shadow: "followup_unread_shadow",
 } as const;
 
+/**
+ * The ending of the relevance floor (R9, docs/design/intent-and-state.md, 4.9), kept apart from the names above: a list in which no paper matched the words closely was not given to the writer. The reply says
+ * `not_answered` (the page shows no answer), but `chatRefusalShare` counts `not_answered` as a question the papers could have answered and the model said they could not, and here no model was asked, so
+ * the count has a name of its own and the headline of /admin does not move (the share leaves it out, as it leaves out `followup_unread`). Counts only, at most 40 characters.
+ */
+export const FLOOR_OUTCOMES = {
+  skipped: "floor_skipped",
+} as const;
+
 const MAX_KEEP_DAYS = 90;
 export const OUTCOME_RETENTION_SQL = `DELETE FROM answer_outcomes WHERE day < date('now', '-${MAX_KEEP_DAYS} days')`;
 

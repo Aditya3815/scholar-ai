@@ -48,6 +48,8 @@ const OUTCOME_TEXT: Record<string, string> = {
   // CHAT_FAILPOLICY (apps/api/src/chat/routes.ts): the model that reads a follow-up could not be used at all
   followup_unread: "A follow-up the model could not read: its words were searched on their own, the papers are shown and no answer was written",
   followup_unread_shadow: "A follow-up the model could not read, counted while that rule is only being tried: the answer was written as before, so it is also counted under how it ended",
+  // CHAT_FLOOR (apps/api/src/understand/tiers.ts): the papers were listed and the writer was not asked, because none of them matched the words closely
+  floor_skipped: "No paper matched the words closely, so no written answer was tried: the papers are shown with a line that says so",
   other: "Something else",
 };
 
@@ -82,6 +84,8 @@ const INPUT_TEXT: Record<string, string> = {
   would_care: "Read as a health or distress story with a research question, not yet acted on",
   would_clean: "Would have had words that only make a request left out of the search, not yet acted on (searched as written)",
   clean_applied: "Had words that only make a request left out of the search (the answer says what was left out)",
+  would_tier_none: "No paper matched the words closely, not yet acted on (the list was shown and answered as before)",
+  would_tier_few: "Only one or two papers matched the words closely, not yet acted on (the list was shown as before)",
   lane_notsearch: "Asks for something the box cannot do (writing, translating, the weather)",
   cue_paper: "Points at a paper (for example “this paper”)",
   cue_list: "Holds a list of references",

@@ -18,13 +18,15 @@ import { askedOf, contextInfo, ownQuestions, routeContextOf, routeFollowUp, rout
 import { errorKind, readEarlier, readHistory, stripInvisible, type ChatHistory, type Refusal } from "./history";
 import { stubChatStream, stubJudgeStream, stubSearchFor, stubStrictStream } from "./stub";
 import { stubRoute } from "./stub-route";
-import { FOLLOW_UP_OUTCOMES, UNREAD_OUTCOMES, countOutcome, countOutcomes } from "../outcomes";
+import { FLOOR_OUTCOMES, FOLLOW_UP_OUTCOMES, UNREAD_OUTCOMES, countOutcome, countOutcomes } from "../outcomes";
 import { flagOf, type FlagPosition } from "../understand/flags";
 import { NO_PLAN, planLane, safetyRead, type LanePlan } from "../understand/lane";
 import { noticeText, replyText } from "../understand/lane-text";
 import { inputShape } from "../understand/input-shape";
 import { readRequest, type RequestRead } from "../understand/frame";
 import { checkReading } from "../understand/reading-check";
+import { listState, tiererFor, type ListState, type TierCounts, type Tierer } from "../understand/tiers";
+import { fewNotice, noneCloseNotice } from "../understand/tiers-text";
 import { searchEnvFrom } from "../search/env";
 import { deny } from "../problem";
 
@@ -71,6 +73,15 @@ type Bindings = {
    * who the person is. "shadow": the same Reading is made and only counted (`would_clean`, and only with CHAT_COUNTERS "on"); nothing on the wire changes. Unset and "off" change nothing. A gate flag: unset is off.
    */
   CHAT_CLEAN?: string;
+  /**
+   * R9 (4.9): the relevance floor. Four positions. Unset, "off" or a value that is not one of them: nothing is read. "shadow": the list of an Auto message is read against the words that were searched and only counted
+   * (`would_tier_none`, `would_tier_few`, and only with CHAT_COUNTERS "on"); nothing on the wire changes. "writer": only the writer's gate acts: it reads the strong papers alone, and with none the writer is not asked
+   * (the reply ends not_answered, counted as floor_skipped); no reorder and no line. "on": the papers are listed strong, then medium, then weak (each in its old order), and a line says how few match closely.
+   * Only for words the page can judge (1 to 6 content stems) and never for a search chosen by hand. A gate flag: unset is off.
+   */
+  CHAT_FLOOR?: string;
+  /** Development only (with QA_STUB): the stand-in search writes the words of the question into its records, so that a list is about whatever was asked (stub.ts). The integration run sets it with CHAT_FLOOR. Never set in wrangler.jsonc. */
+  QA_STUB_TOPIC?: string;
 };
 type Env = { Bindings: Bindings };
 export const chatRoutes = new Hono<Env>();
@@ -86,9 +97,9 @@ const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB 
  * Where a gate flag of the understanding releases stands for this request (understand/flags.ts: unset is off, and an off flag reads nothing from KV). A value that is not exactly a position is off, and
  * one line says WHICH FLAG held it (a constant name, never anything of a message): a typo must not turn behaviour on, and must not pass unseen either.
  */
-async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY" | "CHAT_CLEAN"): Promise<FlagPosition> {
-  // the safety lane is the one flag with a fourth position, `core`, between shadow and on
-  const r = await flagOf(env, name, { allowCore: name === "CHAT_SAFETY" });
+async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY" | "CHAT_CLEAN" | "CHAT_FLOOR"): Promise<FlagPosition> {
+  // the safety lane has a fourth position, `core`, between shadow and on, and the relevance floor has `writer` in the same place
+  const r = await flagOf(env, name, { allowCore: name === "CHAT_SAFETY", allowWriter: name === "CHAT_FLOOR" });
   if (r.badVariable) console.warn(JSON.stringify({ level: "warn", msg: "flag_bad_value", flag: name }));
   return r.position;
 }
@@ -182,6 +193,19 @@ const rangeWords = (from?: number, to?: number): string => (from !== undefined &
 type YearRange = { from?: number; to?: number };
 
 /**
+ * R9: has the message a request frame ("can you search about", "please", "all papers") that the cleaner of R8 would take off? Where the cleaner is not on, the frame's words would be counted as topic words and a good list
+ * would look weak, so a message that has one is not judged ("interpret first, gate second", plan 4.9). A failure of the reading counts as a frame: the page then abstains.
+ */
+function hasFrameLeft(text: string, route: Route): boolean {
+  try {
+    const r = readRequest(text, route, {});
+    return !!r && (!r.searchable || r.reading.topic !== text.replace(/\s+/g, " ").trim());
+  } catch {
+    return true;
+  }
+}
+
+/**
  * `sinceYear` of a request (docs/design/chatview-and-trending.md, T9): the year a Trending chip says "from this year on" about. The year itself when it is a whole number from `MIN_SINCE_YEAR` to
  * `thisYear`, `undefined` when the request has none, `null` for anything else (a string, a fraction, `null`, a year out of range): that is a 400, nothing is repaired.
  */
@@ -269,6 +293,8 @@ chatRoutes.post("/", async (c) => {
     let poor = false;
     // R3: whether exactly one provider contributed a paper to the list (known only once the search has answered)
     let oneSource = false;
+    // R9 (4.9): the name that is counted for what the relevance floor made of the list (`tier_none` and `tier_few` for what it did, `would_tier_*` for what it only read), null when it said nothing
+    let tierName: string | null = null;
     // R5: where the follow-up failure policy stands for this message; read only when the router call failed, and "off" for every other message
     let failPolicy: FlagPosition = "off";
     // R4 (4.5): what the safety lane does for this message (nothing, while its flag is off), and which of the two care lines it would show
@@ -285,7 +311,7 @@ chatRoutes.post("/", async (c) => {
       if (!anyway && !(auto && !carries)) return;
       try {
         if ((await gate(c.env, "CHAT_COUNTERS")) !== "on") return;
-        await countOutcomes(c.env.DB, "chat_input", anyway ? ["anyway"] : [...lane.names, ...(cleanName ? [cleanName] : []), ...inputShape(text), ...(oneSource ? ["one_source"] : [])]);
+        await countOutcomes(c.env.DB, "chat_input", anyway ? ["anyway"] : [...lane.names, ...(cleanName ? [cleanName] : []), ...inputShape(text), ...(oneSource ? ["one_source"] : []), ...(tierName ? [tierName] : [])]);
       } catch {
         /* counting never gets in the way of an answer */
       }
@@ -449,7 +475,34 @@ chatRoutes.post("/", async (c) => {
       // and the language the person asked for ("in Hindi") before the one the rules found
       const asked = askedOf(follow, text.replace(/\s+/g, " ").slice(0, 600));
       const spoken = follow?.answerLanguage ?? reading?.answerLanguage ?? route.language;
-      const shape = (list: Paper[]): Paper[] => (years ? list.filter((p) => p.year !== null && (years.from === undefined || p.year >= years.from) && (years.to === undefined || p.year <= years.to)).slice(0, 20) : list);
+      // R9 (4.9): the relevance floor. Read only for an Auto message (a search chosen by hand is never judged: its exact words are what it searched), and only where the page can judge the words: a follow-up whose router call
+      // failed (or that the day could not pay a model for) was searched on words nobody read, a message that still has a request frame the cleaner is not on to take off would count the frame as topic, and more than six
+      // content words (or none, or a script the tokeniser cuts in the middle of a word) is a ramble the page does not claim to read (tiers.ts: the trust rule). Then the page abstains and the list is what it was.
+      // This is also what keeps the one notice kind `weak` with one line: the failure policy's line (R5) belongs to exactly the follow-ups that are never judged here.
+      let floor: FlagPosition = "off";
+      let tierer: Tierer | null = null;
+      if (auto) {
+        floor = await gate(c.env, "CHAT_FLOOR");
+        if (floor !== "off" && !poor && !follow?.fellBack) {
+          try {
+            if (!(!reading && !route.searchQuery && hasFrameLeft(text, route))) tierer = tiererFor(query);
+          } catch {
+            tierer = null;
+          }
+        }
+      }
+      // the lists are cut to the years, and (only with the floor on) listed strong, then medium, then weak, each in the order it had; the cut is made first, so the twenty are the same twenty with the floor off. A failure of the
+      // order makes the page abstain for the rest of the reply (the list stays as it was).
+      const shape = (list: Paper[]): Paper[] => {
+        const cut = years ? list.filter((p) => p.year !== null && (years.from === undefined || p.year >= years.from) && (years.to === undefined || p.year <= years.to)).slice(0, 20) : list;
+        if (floor !== "on" || !tierer) return cut;
+        try {
+          return tierer.order(cut);
+        } catch {
+          tierer = null;
+          return cut;
+        }
+      };
 
       await send({ type: "step", step: "search" });
       // while the sources answer, each list carries only the start of the abstracts; the final one below carries all of them (slimForInterim)
@@ -457,7 +510,7 @@ chatRoutes.post("/", async (c) => {
       let found: SearchResponse;
       if (stubbed(c.env)) {
         if (/\bstalled\b/i.test(query)) await new Promise((r) => setTimeout(r, 3500)); // a silent wait, to see the keep-alive line and the "still working" hint
-        found = stubSearchFor(query, scope);
+        found = stubSearchFor(query, scope, { topical: c.env.QA_STUB_TOPIC === "1" });
         if (found.results.length > 0) await interim(found);
       } else {
         found = await runSearch(searchEnvFrom(c.env), query, years ? YEAR_FILTER_SEARCH_LIMIT : 20, { onSnapshot: interim }, scope);
@@ -465,7 +518,7 @@ chatRoutes.post("/", async (c) => {
       if (s.gone) return;
       if (auto && !carries) oneSource = new Set(found.results.flatMap((p) => p.sources)).size === 1;
       const beforeYears = found.results.length;
-      if (years) found = { ...found, results: shape(found.results) };
+      if (years || (floor === "on" && tierer)) found = { ...found, results: shape(found.results) };
       await send({ type: "papers", results: found.results, final: true });
       const complete = searchComplete(found);
       if (!complete) await send({ type: "notice", kind: "partial", text: PARTIAL_NOTICE });
@@ -488,12 +541,42 @@ chatRoutes.post("/", async (c) => {
       // a short list is said to be short, under the kind of its own: it is a different thing from a source that did not answer, and both are said
       if (years && found.results.length < YEAR_FILTER_FEW) await send({ type: "notice", kind: "years", text:`Only ${found.results.length} of the papers found ${found.results.length === 1 ? "is" : "are"} from ${rangeWords(years.from, years.to)}, so this list is short. Remove the year filter to see more.` });
       if (found.results.some((p) => p.retracted)) await send({ type: "notice", kind: "retracted", text: "At least one paper in this list has been retracted. It is marked, and it was not used for the answer." });
+      // R9 (4.9): how the list reads against the words that were searched. Counted in every position but off; said (one line of the kind `weak`) only with the floor on; and the writer's gate below reads it for `writer` and `on`.
+      // The line is the failure policy's when both could be said: a follow-up that was not read is never judged, so there is nothing to choose between here and the kind has one line.
+      let counts: TierCounts | null = null;
+      let state: ListState | null = null;
+      if (tierer) {
+        try {
+          counts = tierer.counts(found.results);
+          state = listState(counts);
+        } catch {
+          counts = null;
+          state = null;
+          tierer = null;
+        }
+      }
+      if (counts && state === "none") tierName = floor === "shadow" ? "would_tier_none" : "tier_none";
+      else if (counts && state === "few") tierName = floor === "on" ? "tier_few" : "would_tier_few";
+      if (floor === "on" && !unread && counts && state === "none") await send({ type: "notice", kind: "weak", text: noneCloseNotice(query, route.language) });
+      else if (floor === "on" && !unread && counts && state === "few") await send({ type: "notice", kind: "weak", text: fewNotice(counts.strong, route.language) });
       if (unread) return void (await endUnread());
       // R4: a question about what the person should take: the papers of the topic are shown, and no answer is written (for a visitor too: signing in would not give one), and no background
       if (lane.withhold) return void (await done(false, "decision"));
-      if (!user) return void (await done(false, "sign_in"));
+      // R9: with `writer` or `on` the writer reads the strong papers only, and with none it is not asked at all (about 9,000 tokens kept): a written answer is never made over a list in which no paper matches the words closely
+      const gating = (floor === "writer" || floor === "on") && tierer !== null && counts !== null;
+      const floorSkips = gating && counts!.strong === 0;
+      if (!user) {
+        // a visitor is never given a written answer, and signing in would not give one here either, so the reply does not invite it; it is counted as a visitor's reply has always been counted
+        if (floorSkips) outcome = "sign_in";
+        return void (await done(false, floorSkips ? "not_answered" : "sign_in"));
+      }
       if (poor) return void (await done(false, "quota"));
-      const picked = pickEvidencePapers(found.results);
+      if (floorSkips) {
+        await background(user.id, spoken, asked);
+        outcome = FLOOR_OUTCOMES.skipped;
+        return void (await done(false, "not_answered"));
+      }
+      const picked = pickEvidencePapers(found.results, gating ? (p) => tierer!.tier(p) === "strong" : undefined);
       if (picked.length === 0) {
         await background(user.id, spoken, asked);
         return void (await done(false, "no_abstracts"));
