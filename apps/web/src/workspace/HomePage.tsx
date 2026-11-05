@@ -331,7 +331,12 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
     const t = window.setTimeout(warmChatView, 1500);
     return () => window.clearTimeout(t);
   }, []);
-  useEffect(() => setProblem(null), [query, tool]);
+  // A note of what is wrong with the text is taken away when the text or the tool changes. The setter is called only when there IS a note: called on every key (as it was, `setProblem(null)` with nothing to clear) it
+  // leaves an update waiting after each key's render (React does not skip it: the shortcut for "the same value" does not hold while the component has work pending), and React counts the renders that end with an
+  // update waiting: fifty keys that arrive with no frame between them (a held key after a long task, a tool that types for a person) ended in "Maximum update depth exceeded" (error 185) and the error page.
+  useEffect(() => {
+    if (problem !== null) setProblem(null);
+  }, [query, tool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (status === "ready" && user) void loadDocs();
