@@ -939,6 +939,136 @@ try {
     ok(await F.locator(".chat-turn").nth(2).locator(".chat-note[data-kind=weak]").count() === 0 && await F.locator(".chat-turn").nth(2).locator(".chat-answer").count() > 0, "a follow-up the Worker answers itself (the switch is off here) still has its answer and no such line");
     await cx.close();
   };
+  /* ============================ a list in which no paper matches the words closely ============================
+     (docs/design/intent-and-state.md, 4.9, R9.) CHAT_FLOOR is unset in the committed config (a gate flag: unset is off), so the Worker of this run does not judge a list. The streams it sends with the flag ON are sent to
+     the page by the test itself (apps/api/src/chat/routes-tiers.test.ts and the chat integration with INTEGRATION_VARS="CHAT_FLOOR:on" hold the Worker to them), and what is held to account HERE is the page: the line (the
+     notice kind "weak", whose text the server writes) is drawn once, in the words of the server, with no button; with no answer tried the generic line "the papers found do not seem to answer this" is not drawn beside it, and
+     with an answer that WAS tried and came back empty it is (the line of the kind weak then only says how few papers match); no card is held for an answer that is not coming (the server sends no "read" step, and the page
+     keeps a card for the written answer only from that step: a control on the real Worker shows the observer sees the card when it is there); the papers are all listed; and every part is read in the light, dark and reading themes at
+     1280 and 390 px. Runs in a context of its own, so it can be run alone: CHAT_ONLY=floor node e2e/chat.mjs <baseUrl>. */
+  const floor = async () => {
+    console.log("the relevance floor (R9): the line for a list with no close match and for one with two, no card held for an answer that is not coming, read in every theme at 1280 and 390 px");
+    const TOPIC = "convoluton nueral netwrk";
+    const NONE = "No paper matches “convoluton nueral netwrk” closely. These are the nearest records and may be off topic. Check the spelling, or try fewer or different words.";
+    const FEW = "Only 2 of these papers match your words closely. The others are weaker matches and are listed after them.";
+    const BG = "In general terms this is a well studied question, and the usual answer depends on the setting, the people involved and how the outcome is measured.";
+    const cx = await newCtx({ viewport: { width: 1280, height: 900 } });
+    const P = await cx.newPage();
+    watch(P);
+    const paper = (n, title, year) => ({ id: `doi:10.1000/fl.${n}`, doi: `10.1000/fl.${n}`, pmid: null, title, authors: ["A. Rao"], year, venue: "Journal of Tests", abstract: "We looked at one thing in a small group. The result was clear.", citationCount: 3, oaUrl: null, retracted: false, retractionSources: [], sources: ["crossref"], score: 1 });
+    const LIST = [paper(1, "ImageNet classification with deep convolutional neural networks", 2012), paper(2, "Going deeper with convolutions", 2015), paper(3, "Deep residual learning for image recognition", 2016), paper(4, "We can tell you all about 1-Formylpiperidine.", 1980), paper(5, "Neural network ensembles", 1990)];
+    const sse = (events) => events.map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
+    const head = (q) => [{ type: "understood", mode: "search", query: q, language: "en", auto: true, how: "rules", confidence: 1 }, { type: "step", step: "search" }, { type: "papers", results: LIST, final: true }];
+    const background = [{ type: "step", step: "general" }, { type: "general_token", text: BG }, { type: "general", kind: "background", text: BG }];
+    // CHAT_FLOOR=on, no paper strong: the line, the papers as they are, no writer (the steps are search and general), the background, not_answered
+    const none = (q) => [...head(q), { type: "notice", kind: "weak", text: NONE }, ...background, { type: "done", answered: false, reason: "not_answered", tookMs: 40 }];
+    // two strong papers and a writer that read them and said they do not answer: the answer event comes with no words, and the line of the kind weak is not the reason for that
+    const few = (q) => [...head(q), { type: "notice", kind: "weak", text: FEW }, { type: "step", step: "read" }, { type: "step", step: "write" }, { type: "step", step: "check" }, { type: "answer", answer: { text: "", citations: [], grounded: false } }, ...background, { type: "done", answered: false, reason: "not_answered", tookMs: 40 }];
+    // two strong papers and an answer
+    const fewAnswered = (q) => [...head(q), { type: "notice", kind: "weak", text: FEW }, { type: "step", step: "read" }, { type: "step", step: "write" }, { type: "step", step: "check" }, { type: "answer", answer: { text: "The first paper reports a clear result in a small group [1].", citations: [{ n: 1, paperId: LIST[0].id, sentenceNo: 2, sentence: "The result was clear." }], grounded: true, checked: true, leftOut: 0 } }, { type: "done", answered: true, tookMs: 40 }];
+    const CANNED = { "floor none": none, "floor few none": few, "floor few answered": fewAnswered };
+    await P.route("**/api/v1/chat", async (route) => {
+      const body = JSON.parse(route.request().postData() ?? "{}");
+      const make = CANNED[body.message] ?? null;
+      if (make && body.mode === "auto") return route.fulfill({ status: 200, contentType: "text/event-stream", body: sse(make(TOPIC)) });
+      return route.continue();
+    });
+    await P.goto(BASE + "/", { waitUntil: "networkidle" });
+    await P.locator(".in-head").getByRole("button", { name: /^Sign in$/ }).click();
+    await P.getByRole("button", { name: "Continue with Google" }).last().click();
+    await P.locator("#hm-h").waitFor({ timeout: 20000 });
+    // the card held for a written answer is `.chat-live-card`: a flag that says it was ever drawn, set by an observer that is there from before the first message
+    await P.evaluate(() => {
+      window.__card = false;
+      new MutationObserver(() => { if (document.querySelector(".chat-live-card")) window.__card = true; }).observe(document, { childList: true, subtree: true });
+    });
+    const sendP = async (text) => {
+      await P.waitForFunction(() => !document.querySelector('.chat-turn[data-status="working"]'), null, { timeout: 30000 });
+      await pick(P, "Auto");
+      await P.locator(".hm-input").fill(text);
+      await P.keyboard.press("Enter");
+    };
+
+    await sendP("floor none");
+    await doneN(P, 1);
+    const t1 = P.locator(".chat-turn").nth(0);
+    ok(await t1.locator(".result").count() === 5, "no paper is hidden: all five are listed");
+    const note = t1.locator(".chat-note[data-kind=weak]");
+    ok(await note.count() === 1 && (await note.innerText()).trim() === NONE, "the line of the kind weak is drawn once, in the words of the server, with the typed words in it");
+    ok(await note.locator("button").count() === 0, "...and it has no Search again of its own (the same words would be searched again)");
+    ok(await t1.locator(".chat-why").count() === 0, "nothing else says why there is no answer: the line that says the papers do not seem to answer it is not drawn beside it");
+    ok(await t1.locator(".chat-answer, .chat-live-card").count() === 0 && await t1.getByRole("button", { name: /Check strictly/ }).count() === 0, "no answer card, and no card held for one, is drawn");
+    ok(!(await P.evaluate(() => window.__card)), "...and none was drawn at any moment of the reply (the observer saw no card for an answer)");
+    ok(await t1.locator(".chat-general").count() === 1, "the labelled background from general knowledge is there, as for a list with no abstracts");
+    ok(await t1.locator(".sk").count() === 0, "no grey bars are left on the screen");
+    await P.screenshot({ path: `${OUT}floor-none.png` });
+    console.log("  readable in every theme, at 1280 and 390 px");
+    await P.mouse.move(5, 5);
+    for (const [width, height] of [[1280, 900], [390, 800]]) {
+      await P.setViewportSize({ width, height });
+      for (const theme of ["light", "dark", "read"]) {
+        await setTheme(P, theme);
+        await P.evaluate(() => window.scrollTo(0, 0));
+        await calm(P);
+        await faded(P);
+        await axe(`no paper matches closely, ${theme}, ${width}px`, P);
+        const c = await contrastOf(note.locator("span"));
+        ok(c >= 4.5, `in ${theme} at ${width} px: the line is ${c.toFixed(2)}:1 (4.5 at least)`);
+      }
+      ok(await noSideways(P), `at ${width} px the page does not scroll sideways`);
+    }
+    await setTheme(P, "light");
+    await P.setViewportSize({ width: 320, height: 800 });
+    await P.evaluate(() => window.scrollTo(0, 0));
+    await calm(P);
+    ok(await noSideways(P), "at 320 px the page does not scroll sideways");
+    await P.setViewportSize({ width: 1280, height: 900 });
+
+    console.log("  two strong papers: the line of the kind weak, the answer the writer made, and the reason the writer gave");
+    await sendP("floor few answered");
+    await doneN(P, 2);
+    const t2 = P.locator(".chat-turn").nth(1);
+    const note2 = t2.locator(".chat-note[data-kind=weak]");
+    ok(await note2.count() === 1 && (await note2.innerText()).trim() === FEW && await t2.locator(".chat-answer").count() === 1, "the line says only two match closely, and the answer is drawn under its own card");
+    await sendP("floor few none");
+    await doneN(P, 3);
+    const t3 = P.locator(".chat-turn").nth(2);
+    const note3 = t3.locator(".chat-note[data-kind=weak]");
+    ok(await note3.count() === 1 && (await note3.innerText()).trim() === FEW, "a list with two strong papers whose written answer came back empty shows the line of the kind weak");
+    ok(await t3.locator(".chat-why").count() === 1 && /do not seem to answer this directly/.test(await t3.locator(".chat-why").innerText()), "...and the generic line is drawn too: the writer DID read these papers and said they do not answer, which the line about how few match does not say");
+    for (const theme of ["light", "dark", "read"]) {
+      await setTheme(P, theme);
+      await P.evaluate(() => window.scrollTo(0, 0));
+      await calm(P);
+      await faded(P);
+      await axe(`two papers match closely, ${theme}`, P);
+    }
+    await setTheme(P, "light");
+
+    console.log("  the control: the observer does see the card held for an answer when the Worker sends the steps that hold it");
+    await P.evaluate(() => { window.__card = false; });
+    await sendP("glaucoma screening in India");
+    await doneN(P, 4);
+    ok(await P.evaluate(() => window.__card), "a reply the Worker writes an answer for did hold the card while it was read and written (so the observer above could have seen one)");
+
+    // the Worker of this run, when the floor is set for it (INTEGRATION_VARS="CHAT_FLOOR:on" or ":writer"): the real stream, with its own pacing, for a list in which nothing matches ("offtopic" keeps the stand-in's own records)
+    const vars = process.env.INTEGRATION_VARS ?? "";
+    const floorOn = /CHAT_FLOOR:on/.test(vars);
+    const floorWriter = /CHAT_FLOOR:writer/.test(vars);
+    if (floorOn || floorWriter) {
+      console.log("  on the real Worker, with CHAT_FLOOR=" + (floorOn ? "on" : "writer") + ": a list in which no paper matches the words");
+      await P.evaluate(() => { window.__card = false; });
+      await sendP("offtopic yoga and blood pressure");
+      await doneN(P, 5);
+      const t5 = P.locator(".chat-turn").nth(4);
+      ok(await t5.locator(".result").count() === 5 && await t5.locator(".chat-answer, .chat-live-card").count() === 0, "the five papers are listed, and no card for an answer is there");
+      ok(!(await P.evaluate(() => window.__card)), "...and none was held at any moment while the Worker was sending the reply (the page keeps that card only from the step that reads the abstracts, and the Worker sends none)");
+      ok(await t5.locator(".chat-general").count() === 1, "...the labelled background is what a signed-in person gets");
+      if (floorOn) ok(await t5.locator(".chat-note[data-kind=weak]").count() === 1 && /^No paper matches “offtopic yoga and blood pressure” closely./.test((await t5.locator(".chat-note[data-kind=weak]").innerText()).trim()) && await t5.locator(".chat-why").count() === 0, "on: the line names the typed words, and nothing else says why there is no answer");
+      else ok(await t5.locator(".chat-note[data-kind=weak]").count() === 0 && await t5.locator(".chat-why").count() === 1, "writer: no line of its own, and the generic line says the papers do not seem to answer it");
+    }
+    await cx.close();
+  };
   /* ============================ the safety lane ============================
      (docs/design/intent-and-state.md, 4.5, R4.) CHAT_SAFETY is unset in the committed config (a gate flag: unset is off), so the Worker of this run does not answer a message of the lane. The streams it sends with
      the flag at `core` or `on` are sent to the page by the test itself (apps/api/src/chat/lane-route.test.ts and the chat integration with INTEGRATION_VARS="CHAT_SAFETY:on" hold the Worker to them), and what is
@@ -2173,6 +2303,8 @@ try {
   if (only === "context") throw new Stop();
   if (!only || only === "failpolicy") await failpolicy();
   if (only === "failpolicy") throw new Stop();
+  if (!only || only === "floor") await floor();
+  if (only === "floor") throw new Stop();
   if (!only || only === "safety") await safety();
   if (only === "safety") throw new Stop();
   if (!only || only === "reading") await reading();

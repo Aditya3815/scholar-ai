@@ -461,10 +461,11 @@ const PaperList = memo(function PaperList({ msgId, papers, flashN, working }: { 
  */
 const noPapers = (m: AssistantMsg): boolean => m.status === "done" && m.mode === "search" && m.papers.length === 0 && m.reason !== "small_talk" && m.reason !== "routed" && m.reason !== "too_long" && m.reason !== "urgent" && m.reason !== "safety" && !m.notices.some((n) => n.kind === "years");
 /**
- * No answer was written because the message could not be read (the notice kind "weak", docs/design/intent-and-state.md, 4.6): the notice says why, in its own words, and the general line for the reason
- * "not_answered" ("the papers found do not seem to answer this") is not drawn beside it, since nobody checked the papers.
+ * No answer was tried because the message could not be read (the notice kind "weak", docs/design/intent-and-state.md, 4.6) or because no paper matched its words closely (4.9): the notice says why, in its own words,
+ * and the general line for the reason "not_answered" ("the papers found do not seem to answer this") is not drawn beside it, since nobody checked the papers. When the writer DID read the papers and said they do not
+ * answer (an `answer` event with no words comes first), a line of the same kind that only says how few papers match closely does not say that, so the general line stays.
  */
-const saidByNotice = (m: AssistantMsg): boolean => m.reason === "not_answered" && m.notices.some((n) => n.kind === "weak");
+const saidByNotice = (m: AssistantMsg): boolean => m.reason === "not_answered" && m.answer === null && m.notices.some((n) => n.kind === "weak");
 
 /** What a reply is drawn from, as module constants: an object made in a render would be a new one every time, and a memoised child would be drawn again for it. */
 const REPLY_IN = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35, ease: easeOut } } as const;

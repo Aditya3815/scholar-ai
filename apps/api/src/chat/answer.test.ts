@@ -35,6 +35,30 @@ describe("pickEvidencePapers", () => {
   });
 });
 
+describe("pickEvidencePapers, for the relevance floor (R9): only the papers that pass `keep`", () => {
+  it("skips the papers `keep` refuses, and a paper's number is still its place in the whole list, so the cards and the marks agree", () => {
+    const list = [paper(1), paper(2), paper(3), paper(4, { retracted: true }), paper(5), paper(6, { abstract: null })];
+    const strong = new Set([list[1]!.id, list[3]!.id, list[4]!.id, list[5]!.id]);
+    const picked = pickEvidencePapers(list, (p) => strong.has(p.id));
+    // 4 is retracted and 6 has no abstract: a strong paper is still not evidence for either reason
+    expect(picked.map((p) => p.n)).toEqual([2, 5]);
+    expect(picked.map((p) => p.paper)).toEqual([list[1], list[4]]);
+  });
+  it("with no `keep`, or one that keeps everything, it is what it was", () => {
+    const list = [paper(1), paper(2, { abstract: null }), paper(3, { retracted: true }), paper(4, { abstract: "too short" }), paper(5)];
+    expect(pickEvidencePapers(list, () => true)).toEqual(pickEvidencePapers(list));
+    expect(pickEvidencePapers(list, undefined)).toEqual(pickEvidencePapers(list));
+  });
+  it("a `keep` that refuses everything gives no paper, and the limits of eight and of the first twenty still hold for what it keeps", () => {
+    const many = Array.from({ length: 30 }, (_, i) => paper(i + 1));
+    expect(pickEvidencePapers(many, () => false)).toEqual([]);
+    expect(pickEvidencePapers(many, () => true)).toHaveLength(MAX_EVIDENCE_PAPERS);
+    // a kept paper beyond the first twenty is never read
+    const late = new Set([many[25]!.id]);
+    expect(pickEvidencePapers(many, (p) => late.has(p.id))).toEqual([]);
+  });
+});
+
 describe("buildChatPrompt", () => {
   it("numbers the papers by their place and the sentences of each abstract, and puts the question first", () => {
     const p = buildChatPrompt("what is the accuracy?", pickEvidencePapers([paper(1), paper(2, { abstract: null }), paper(3)]));

@@ -6,7 +6,11 @@ import { QuotaError } from "../llm";
 /**
  * Offline stand-ins for the search and the model, used ONLY by tests and the local end-to-end run (QA_STUB=1 with ENABLE_DEV_ROUTES=1, never production secrets).
  * Words in the question steer them: "nothing" finds no papers, "partial" makes one source fail, "unanswerable" makes the model say the papers do not answer,
- * "hallucinate" makes it cite a sentence that does not exist, "slowly" makes the answer take a few seconds (to press Stop), "longabstract" gives the first paper a long abstract, "stalled" keeps the stream silent for a few seconds. When the papers do not answer, the general background (chat_general) is steered by "gibberish", "greeting", "cites" and "marks". A follow-up's earlier answer (answer.ts) is a fenced block of prefixed lines that these words never steer by: the stand-in reads the first `Question:` line only, and the block just makes the plain answer say it was given.
+ * "hallucinate" makes it cite a sentence that does not exist, "slowly" makes the answer take a few seconds (to press Stop), "longabstract" gives the first paper a long abstract, "stalled" keeps the stream silent for a few seconds.
+ * The stand-in search gives the same five glaucoma records for any words. With QA_STUB_TOPIC=1 (the Worker's own variable, development only: it is read where the route calls the stand-in, and is never set in wrangler.jsonc) it also
+ * writes the words of the question into each record (the first sentence of the abstract, or the title of a record that has none), so that a list is about whatever was asked and the suites that ask about anything meet a
+ * relevant one when the relevance floor (CHAT_FLOOR, R9) is looking: the integration run sets it with that flag. "offtopic" in the question keeps the records as they are, so a test has a list that no words match. Without the variable the records
+ * are what they always were, byte for byte, which the differential check of since-year.test.ts pins. When the papers do not answer, the general background (chat_general) is steered by "gibberish", "greeting", "cites" and "marks". A follow-up's earlier answer (answer.ts) is a fenced block of prefixed lines that these words never steer by: the stand-in reads the first `Question:` line only, and the block just makes the plain answer say it was given.
  */
 const RECORDS = [
   { doi: "10.1000/glaucoma.1", title: "Deep learning for glaucoma screening from fundus photographs", year: 2021, venue: "Journal of Ophthalmic AI", abstract: "We trained a convolutional network on 12,000 fundus photographs to detect glaucoma. The model reached an AUC of 0.94 on a held-out set. Performance was lower for images with cataract." },
@@ -59,14 +63,22 @@ export function stubIndiaPapers(): Paper[] {
   ];
 }
 
-export function stubSearchFor(q: string, scope: SearchScope = "all"): SearchResponse {
+/** The words of a question written into the records (the first sentence of the abstract, or the title when there is no abstract): the stand-in's list is then about that question. */
+const echoWords = (q: string) => (p: Paper): Paper => {
+  const said = q.replace(/\s+/g, " ").trim().slice(0, 300);
+  if (!p.abstract) return { ...p, title: `${p.title} (${said})` };
+  return { ...p, abstract: p.abstract.replace(/\.(\s|$)/, (_m, tail: string) => ` (${said}).${tail}`) };
+};
+
+export function stubSearchFor(q: string, scope: SearchScope = "all", opts: { topical?: boolean } = {}): SearchResponse {
+  const topical = opts.topical === true && !/\bofftopic\b/i.test(q);
   if (scope === "india") {
-    const results = /\bnothing\b/i.test(q) ? [] : stubIndiaPapers();
+    const results = /\bnothing\b/i.test(q) ? [] : topical ? stubIndiaPapers().map(echoWords(q)) : stubIndiaPapers();
     const st = (n: number) => ({ ok: true, count: n, ms: 5, cached: false });
     return { query: q, results, providers: { "openalex-india": st(results.length ? 1 : 0), doaj: st(results.length ? 1 : 0), shodhganga: st(results.length ? 1 : 0) }, doiCheck: st(0), retractionCheck: st(0), tookMs: 12, scope } as SearchResponse;
   }
   const none = /\bnothing\b/i.test(q);
-  const results = none ? [] : /\boapapers\b/i.test(q) ? stubOaPapers() : stubPapers();
+  const results = none ? [] : (/\boapapers\b/i.test(q) ? stubOaPapers() : stubPapers()).map((p) => (topical ? echoWords(q)(p) : p));
   // "longabstract": the first paper has an abstract far longer than a folded card shows (to see the interim lists carry only its start)
   if (/\blongabstract\b/i.test(q) && results[0]?.abstract) results[0] = { ...results[0], abstract: `${results[0].abstract} ${"Further detail of the method and its limits is given in the full text of this stand-in paper. ".repeat(8)}`.trim() };
   const partial = /\bpartial\b/i.test(q);
