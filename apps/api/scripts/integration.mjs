@@ -149,6 +149,7 @@ try {
     ok = await run("browser: chat script and look (C5, C6)", "e2e/chat-look.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: chat polish (composer, edge, arrow, Home, no examples)", "e2e/polish-chat.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: typing in bursts (React update depth)", "e2e/typing-burst.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: new topic and the did-not-finish line", "e2e/new-topic.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: reader polish (back, drawing tools, question box)", "e2e/polish-reader.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: trending", "e2e/trending.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: ask any paper", "e2e/oa.mjs", [`http://localhost:${PORT}`], web) && ok;
