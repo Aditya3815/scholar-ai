@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { isSearchScope, type HealthResponse, type JobsHealthResponse } from "@scholar/shared";
-import { MAX_QUERY_LENGTH, runSearch } from "./search";
+import type { HealthResponse, JobsHealthResponse } from "@scholar/shared";
+import { INVALID_QUERY, searchService } from "./search/service";
 import { AllProvidersFailedError, NoRouteError, PolicyError, QuotaError, gatewayFromEnv, type LlmRequest } from "./llm";
 import { authRoutes } from "./auth/routes";
 import { currentUser } from "./auth/http";
@@ -30,7 +30,6 @@ import { readJobs, runJob, type JobName } from "./jobs";
 import type { S2Throttle } from "./s2-throttle";
 import { ApiGate, remoteGate } from "./gate/api-gate";
 import { installGates, withGate, GATES, type GateName } from "./gate";
-import { searchEnvFrom } from "./search/env";
 import { trendingRoutes } from "./trending/routes";
 import { runTrendingFromEnv } from "./trending/job";
 
@@ -142,26 +141,10 @@ app.get("/api/v1/health/jobs", async (c) => {
   }
 });
 
-function parseSearch(query: (k: string) => string | undefined) {
-  const q = (query("q") ?? "").trim();
-  const limit = Math.min(Math.max(Number(query("limit") ?? 20) || 20, 1), 40);
-  // where to look: the regular sources unless the reader chose the Indian ones (an unknown scope is refused, not quietly widened)
-  const rawScope = query("scope") ?? "all";
-  const scope = isSearchScope(rawScope) ? rawScope : "all";
-  const valid = q.length >= 2 && q.length <= MAX_QUERY_LENGTH && isSearchScope(rawScope);
-  return { q, limit, valid, scope };
-}
-
-const invalidQuery = {
-  type: "invalid_query",
-  title: "Invalid query",
-  detail: `q must be 2-${MAX_QUERY_LENGTH} characters; scope, when given, is "all" or "india"`,
-};
-
 app.get("/api/v1/search", async (c) => {
-  const { q, limit, valid, scope } = parseSearch((k) => c.req.query(k));
-  if (!valid) return c.json(invalidQuery, 400);
-  return c.json(await runSearch(searchEnvFrom(c.env), q, limit, {}, scope));
+  const read = searchService.read((k) => c.req.query(k));
+  if (!read.ok) return c.json(INVALID_QUERY, 400);
+  return c.json(await searchService.run(c.env, read.input));
 });
 
 /**
@@ -169,8 +152,9 @@ app.get("/api/v1/search", async (c) => {
  * UI pehle results ~1 s mein dikha sakti hai, sabse dheemi source ka wait kiye bina.
  */
 app.get("/api/v1/search/stream", (c) => {
-  const { q, limit, valid, scope } = parseSearch((k) => c.req.query(k));
-  if (!valid) return c.json(invalidQuery, 400);
+  const read = searchService.read((k) => c.req.query(k));
+  if (!read.ok) return c.json(INVALID_QUERY, 400);
+  const input = read.input;
 
   return streamSSE(c, async (stream) => {
     let closed = false;
@@ -181,7 +165,7 @@ app.get("/api/v1/search/stream", (c) => {
       if (!closed) await stream.writeSSE({ event, data: JSON.stringify(data) });
     };
     try {
-      const final = await runSearch(searchEnvFrom(c.env), q, limit, { onSnapshot: (s) => send("snapshot", s) }, scope);
+      const final = await searchService.run(c.env, input, { onSnapshot: (s) => send("snapshot", s) });
       await send("done", final);
     } catch (err) {
       console.error(err);
