@@ -16,7 +16,20 @@ export type UserVersion = { text: string; at: number; tail: ChatMsg[] };
  * `versions` and `ver` are there only once a message has been edited, and are optional so that a conversation kept before editing existed opens as it was (no migration, no new store, no new role).
  * `versions` has every version in the order it was made, `ver` the one being read; `text` and `at` are always those of that one.
  */
-export type UserMsg = { id: string; role: "user"; text: string; at: number; versions?: UserVersion[]; ver?: number };
+export type UserMsg = {
+  id: string;
+  role: "user";
+  text: string;
+  at: number;
+  versions?: UserVersion[];
+  ver?: number;
+  /**
+   * Set (to `true`) on the message that was sent right after the person pressed "New topic" (docs/design/intent-and-state.md, 4.19 R22): the conversation's context starts at this message, and the turns before it stay
+   * on the page and are simply not carried. Optional, so that a conversation kept before it existed opens as it was (no migration, no new store). It belongs to the message's place, as its id does: an edit and a version
+   * switch keep it on the message. Only `true` counts; anything else (a damaged record) is no marker.
+   */
+  newTopic?: true;
+};
 export type AssistantStatus = "working" | "done" | "stopped" | "error" | "interrupted";
 export type AssistantMsg = {
   id: string;
@@ -394,7 +407,7 @@ function citedPapers(a: AssistantMsg): HistoryPaper[] {
 }
 
 /** The checked answer's words, as one line without its marks (they point into a list that is not the next reply's), cut: only for the last reply. Nothing for a reply with no written, checked answer; never the words that were still arriving. */
-function answerWords(a: AssistantMsg): string | undefined {
+export function answerWords(a: AssistantMsg): string | undefined {
   const ans = a.answer;
   if (!ans || !ans.grounded || typeof ans.text !== "string") return undefined;
   const t = cutWhole(oneLine(ans.text).replace(/\s*\[\d{1,2}\]/g, "").trim(), MAX_HISTORY_ANSWER_CHARS).trim();
@@ -457,6 +470,91 @@ function finishedTurns(path: readonly ChatMsg[]): NonNullable<ReturnType<typeof 
   return turns;
 }
 
+/** A finished search of a conversation, as `historyTurn` reads it (exported for `scanTurns`). */
+export type FinishedTurn = NonNullable<ReturnType<typeof historyTurn>>;
+
+/** A reply that ended without finishing: the person pressed Stop, it failed, or it was found "working" in storage after its page was closed. A reply still being written is neither: it can still finish. */
+export const didNotFinish = (a: AssistantMsg): boolean => a.status === "stopped" || a.status === "error" || a.status === "interrupted";
+
+/**
+ * The finished searches of a path, oldest first (exactly the turns `finishedTurns` finds: same pairing, same `historyTurn`), and how many replies did not finish since the last of them, at most 2 (R19, docs/design/
+ * intent-and-state.md, 7.3: the fold's `unfinished`, "for the honest line only, never their content"). `last` is whether the path ends with such a reply, which is what makes the line "Your last message did not finish"
+ * true (R22). A record that cannot be read (damaged, kept by a build that wrote other fields) is skipped, not thrown on: sends less, never more. Pure; it does not change what `contextBefore` does.
+ */
+export function scanTurns(path: readonly ChatMsg[]): { turns: FinishedTurn[]; unfinished: 0 | 1 | 2; last: boolean } {
+  const turns: FinishedTurn[] = [];
+  let failed = 0;
+  let last = false;
+  for (let i = 0; i + 1 < path.length; i++) {
+    const u = path[i];
+    const a = path[i + 1];
+    if (u?.role !== "user" || a?.role !== "assistant") continue;
+    let t: FinishedTurn | null = null;
+    try {
+      t = historyTurn(u, a);
+    } catch {
+      t = null; // a record that is not a reply this build can read
+    }
+    if (t) {
+      turns.push(t);
+      failed = 0;
+    } else if (didNotFinish(a)) failed++;
+    last = !t && didNotFinish(a) && i + 2 === path.length;
+    i++;
+  }
+  return { turns, unfinished: Math.min(failed, 2) as 0 | 1 | 2, last };
+}
+
+/** A message that starts a new topic: a user message with the marker `newTopic: true` (R22). */
+const isTopicStart = (m: ChatMsg | undefined): boolean => m?.role === "user" && m.newTopic === true;
+
+/**
+ * Where the current topic of a path begins: the place of the last message that carries the marker, else 0. The marked message is the first message of the new topic (its own turn is the first turn that a later
+ * message leans on); what is before it stays on the page and is not carried. Pure; a path without a marker (every conversation kept before R22) starts at 0, so nothing is carried less than it was.
+ */
+export function topicStart(path: readonly ChatMsg[]): number {
+  for (let i = path.length - 1; i >= 0; i--) if (isTopicStart(path[i])) return i;
+  return 0;
+}
+
+/**
+ * Whether "New topic" has anything to stop: a finished search in the version of the conversation being read, from the last marker on. The control is shown only then (a chat with no finished search carries
+ * nothing). Pure and total: a list it cannot read is a chat with nothing to stop.
+ */
+export function canStartNewTopic(msgs: readonly ChatMsg[]): boolean {
+  try {
+    const path = activePath(msgs);
+    return scanTurns(path.slice(topicStart(path))).turns.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the reply just before the message at `upTo` did not finish (the person pressed Stop, it failed, or the page was closed under it): the one thing that makes "Your last message did not finish, so this
+ * follows the one before it" true of the reply to that message (R22). `upTo` is read as `contextBefore` reads it, so an edit and Search again are judged as of their own message; a marked message follows nothing.
+ * It says nothing about whether the page sent turns to lean on, nor whether the server used them: the caller asks both (`contextBefore` is not empty; `usesEarlierTurns`). Pure.
+ */
+export function lastReplyDidNotFinish(msgs: readonly ChatMsg[], upTo: number): boolean {
+  const end = Number.isInteger(upTo) ? Math.max(0, Math.min(upTo, msgs.length)) : 0;
+  if (isTopicStart(msgs[end])) return false;
+  try {
+    // (the marker does not change this: it is about the reply that stands last before the message, which either finished or did not, whatever came before the marker)
+    const s = scanTurns(activePath(msgs.slice(0, end)));
+    return s.unfinished > 0 && s.last;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the server leaned on the earlier turns for this reply: it read them (`turns` above 0), could use its reading, and took the message for a follow-up of them and not for a new subject. Only then does a
+ * reply "follow the one before it". Defensive about what came off the wire.
+ */
+export function usesEarlierTurns(c: ChatContextInfo | undefined): boolean {
+  return !!c && typeof c === "object" && typeof c.turns === "number" && c.turns > 0 && c.fellBack !== true && c.intent !== "new";
+}
+
 /**
  * What a conversation may say to ANOTHER one (docs/design/chat-actions-context.md, section 6): its finished searches as the person's own words, oldest first, each the question (2 to 300 characters,
  * nothing invisible in it) and the English words its search used when it had some. Never an answer, an Idea Check or the text echoed with one, a pasted list (a question over 300 characters), small talk,
@@ -475,7 +573,10 @@ export function askedTurns(msgs: readonly ChatMsg[]): EarlierQuestion[] {
  */
 export function contextBefore(msgs: readonly ChatMsg[], upTo: number): HistoryEntry[] {
   const end = Number.isInteger(upTo) ? Math.max(0, Math.min(upTo, msgs.length)) : 0;
-  const turns = finishedTurns(activePath(msgs.slice(0, end)));
+  // R22: the message that is being sent (or was sent: an edit, Search again) after "New topic" leans on nothing, and a later message leans on the turns from that message on and not on those before it
+  if (isTopicStart(msgs[end])) return [];
+  const path = activePath(msgs.slice(0, end));
+  const turns = finishedTurns(path.slice(topicStart(path)));
   const build = (kept: typeof turns): HistoryEntry[] =>
     kept.flatMap((t, i): HistoryEntry[] => {
       const text = i === kept.length - 1 ? answerWords(t.from) : undefined;

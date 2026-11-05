@@ -1,7 +1,7 @@
 import { m } from "motion/react";
-import { ArrowUp, Bookmark, Check, ChevronDown, EyeOff, FileStack, Landmark, Lightbulb, ListChecks, MessageSquare, MoreHorizontal, Plus, RefreshCw, Search, Sparkles, Square, TriangleAlert, X } from "lucide-react";
+import { ArrowUp, Bookmark, Check, ChevronDown, EyeOff, FileStack, Landmark, Lightbulb, ListChecks, MessageSquare, MoreHorizontal, Plus, RefreshCw, Search, SeparatorHorizontal, Sparkles, Square, TriangleAlert, X } from "lucide-react";
 import { Component, Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type Dispatch, type KeyboardEvent, type ReactNode, type RefObject, type SetStateAction } from "react";
-import { INDIA_SCOPE_HELP, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MIN_IDEA_CHARS, textAttrs, yearRangeWords, type MemoryEntry, type RouteMode, type SearchScope } from "@scholar/shared";
+import { INDIA_SCOPE_HELP, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MIN_IDEA_CHARS, canStartNewTopic, textAttrs, yearRangeWords, type MemoryEntry, type RouteMode, type SearchScope } from "@scholar/shared";
 import { useAuth } from "../lib/auth";
 import { useGrowingField } from "../lib/autogrow";
 import { reportError } from "../lib/monitoring";
@@ -12,7 +12,7 @@ import { PAPERS_NAME, putHandoff } from "../lib/workspace";
 import { Pop } from "../components/Pop";
 import { ContinueReading, RememberThis } from "./HomeExtras";
 import type { ChatView as ChatViewType } from "./ChatView";
-import { continueFromChat, continuedFrom, deleteChat, isPrivateChat, resumeChat, retryReply, reviveIdea, sendMessage, startIdeaCheck, startNewChat, startPrivateChat, stopContinuing, stopReply, useChatState, useConversing } from "../lib/chat";
+import { cancelNewTopic, continueFromChat, continuedFrom, deleteChat, isPrivateChat, resumeChat, retryReply, reviveIdea, sendMessage, startIdeaCheck, startNewChat, startNewTopic, startPrivateChat, stopContinuing, stopReply, topicPending, useChatState, useConversing } from "../lib/chat";
 import { startersFor, starterMode } from "./starters";
 import { menuKeys } from "./menuKeys";
 import { TrendingChips, TryChips } from "./HomeChips";
@@ -226,7 +226,7 @@ function ModeMenu({ tool, onChange }: { tool: Tool; onChange: (t: Tool) => void 
  * The box's other choices (docs/design/chat-actions-context.md, section 6), in a menu of their own: start a private chat (not kept, not used as memory), and, for a signed-in person, continue from an
  * earlier chat (a new chat that carries that chat's last three questions until the chip is removed). Both are plain buttons in a menu, so the keyboard reaches them with the arrow keys as in the tool menu.
  */
-function ChatMenu({ chats, signedIn, onContinue, onPrivate }: { chats: readonly MemoryEntry[]; signedIn: boolean; onContinue: (id: string) => void; onPrivate: () => void }) {
+function ChatMenu({ chats, signedIn, topic, onContinue, onPrivate, onTopic }: { chats: readonly MemoryEntry[]; signedIn: boolean; /** "New topic" can be pressed now */ topic: boolean; onContinue: (id: string) => void; onPrivate: () => void; onTopic: () => void }) {
   return (
     <Pop
       label="Chat options"
@@ -239,7 +239,14 @@ function ChatMenu({ chats, signedIn, onContinue, onPrivate }: { chats: readonly 
     >
       {(close) => (
         <div role="menu" aria-label="Chat options" className="hm-menu" onKeyDown={menuKeys}>
-          <button type="button" role="menuitem" className="hm-menu-item" autoFocus onClick={() => { onPrivate(); close(); }}>
+          {topic && (
+            // on a window as wide as the bar has room for its own button (the same choice) this item is not shown (topic.css): on a phone the bar has none to spare
+            <button type="button" role="menuitem" className="hm-menu-item hm-menu-topic" autoFocus onClick={() => { onTopic(); close(); }}>
+              <span className="hm-menu-ico"><SeparatorHorizontal size={16} aria-hidden="true" /></span>
+              <span className="hm-menu-txt"><b>New topic</b><small>Do not use the earlier messages of this chat for your next message. They stay on the page.</small></span>
+            </button>
+          )}
+          <button type="button" role="menuitem" className="hm-menu-item" autoFocus={!topic} onClick={() => { onPrivate(); close(); }}>
             <span className="hm-menu-ico"><EyeOff size={16} aria-hidden="true" /></span>
             <span className="hm-menu-txt"><b>Private chat</b><small>Not kept, and not used as memory. It is gone when you leave it.</small></span>
           </button>
@@ -290,6 +297,9 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
   const conversing = useConversing();
   const busy = !!chat.active && chat.running.has(chat.active);
   const priv = isPrivateChat(chat);
+  // "New topic" (R22): offered once the chat has a finished search (and not while a reply is being written, when the person is not choosing what to send next); pressed, it waits for the next message
+  const topicOn = topicPending(chat);
+  const topicReady = useMemo(() => conversing && !busy && !topicOn && canStartNewTopic(messages), [messages, conversing, busy, topicOn]);
   // A conversation that is being read from the browser's storage (a reload, or a chat opened from the rail) has its frame, the title and the box, from the first frame: the page does not draw the greeting for a
   // moment and then change into a conversation. Its messages come when they are read and the chunk of the conversation has arrived (a layout shift of 0.15 on a desktop that reloaded with a conversation in it, measured 3 Nov 2026).
   const resuming = !conversing && !!chat.active && !priv && !chat.chats.has(chat.active) && chat.index.some((e) => e.id === chat.active);
@@ -430,6 +440,17 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
     setDraft((d) => ({ ...d, since: null }));
     inputRef.current?.focus();
   };
+  /** "New topic": the earlier messages are not used for the next message. Said to a screen reader, and the box has the focus again (the button that was pressed is gone from the page: the chip is in its place). */
+  const pressNewTopic = () => {
+    if (!startNewTopic()) return;
+    announce("New topic: earlier messages will not be used");
+    inputRef.current?.focus();
+  };
+  const undoNewTopic = () => {
+    cancelNewTopic();
+    announce("Earlier messages will be used again");
+    inputRef.current?.focus();
+  };
   const putTextBack = () => {
     const r = putBack(draft);
     if (!r) return;
@@ -477,14 +498,14 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
       {conversing && priv && <p className="chat-und" role="note">Private chat: it is not kept, and not used as memory. It is gone when you leave it.</p>}
       {resuming && <p className="sr-only" role="status">Loading the conversation…</p>}
       {conversing && (
-        <ChatViewSlot jumpSlot={jumpSlot} messages={messages} signedIn={!!user} onRetry={(rid, as) => void retryReply(rid, as)} liveIdeas={chat.liveIdeas} onOpenPage={openPage} onIdeaAgain={reviveIdea} onChange={changeMode} onRefine={(t) => { onQuery(t); window.setTimeout(() => inputRef.current?.focus(), 0); }} onDelete={() => { if (chat.active) deleteChat(chat.active); }} />
+        <ChatViewSlot jumpSlot={jumpSlot} topicPending={topicOn} messages={messages} signedIn={!!user} onRetry={(rid, as) => void retryReply(rid, as)} liveIdeas={chat.liveIdeas} onOpenPage={openPage} onIdeaAgain={reviveIdea} onChange={changeMode} onRefine={(t) => { onQuery(t); window.setTimeout(() => inputRef.current?.focus(), 0); }} onDelete={() => { if (chat.active) deleteChat(chat.active); }} />
       )}
 
       {/* the box's layout is measured when the conversation changes (the glide to the bottom, then as the answer grows the page) and not on every letter typed: measured on every render, which is the
           default, a long question typed after a search ended in React's limit of 50 nested updates ("Maximum update depth exceeded", error 185) */}
       <m.form ref={boxRef} className="hm-box" layout="position" layoutDependency={glide} transition={{ type: "spring", stiffness: 260, damping: 30 }} onSubmit={(e) => { e.preventDefault(); if (busy) stopReply(); else send(); }} {...(framed ? {} : rise(3))}>
         {framed && <div ref={setJumpSlot} className="hm-jump" />}
-        {(from || (priv && !conversing) || yearChip !== null || draft.undo) && (
+        {(from || (priv && !conversing) || yearChip !== null || draft.undo || topicOn) && (
           // what the next message is sent with, or not kept: always in view, each with its own button to take it away (the two choices of a chat replace each other; the year of a Trending chip is a third thing, and so is
           // the way back to the words a chip replaced)
           <div className="hm-bar hm-bar-top">
@@ -492,6 +513,14 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
               <span className="chat-chip">
                 <span id={`${id}-chip`}>{from ? <>Continuing from: <b>{from.title}</b>{tool === "auto" ? "" : " (used in Auto only)"}</> : "Private chat: not kept, not used as memory"}</span>
                 <button type="button" className="chat-chip-x" aria-label={from ? `Stop continuing from ${from.title}` : "Make this a normal chat again"} onClick={() => { if (from) stopContinuing(); else startNewChat(); inputRef.current?.focus(); }}>
+                  <X size={14} aria-hidden="true" />
+                </button>
+              </span>
+            )}
+            {topicOn && (
+              <span className="chat-chip" data-kind="topic">
+                <span id={`${id}-topic`}>New topic: earlier messages will not be used</span>
+                <button type="button" className="chat-chip-x" aria-label="Keep using the earlier messages" onClick={undoNewTopic}>
                   <X size={14} aria-hidden="true" />
                 </button>
               </span>
@@ -523,22 +552,31 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
           onChange={(e) => onQuery(e.target.value)}
           onKeyDown={onKey}
           onFocus={warmChatView}
-          aria-describedby={[from || (priv && !conversing) ? `${id}-chip` : "", yearChip !== null ? `${id}-since` : "", `${id}-help`].filter(Boolean).join(" ")}
+          aria-describedby={[from || (priv && !conversing) ? `${id}-chip` : "", topicOn ? `${id}-topic` : "", yearChip !== null ? `${id}-since` : "", `${id}-help`].filter(Boolean).join(" ")}
           maxLength={20000}
         />
         <div className="hm-bar">
           <ModeMenu tool={tool} onChange={setTool} />
           <ChatMenu
             signedIn={!!user}
+            topic={topicReady}
             chats={chat.index.filter((e) => e.id !== chat.active)}
             // what was typed stays in the box: these two are a setting for the NEXT message (often the one just written, which is why the person chose "private" after typing it), not a start over
             onContinue={(sid) => { if (continueFromChat(sid)) window.setTimeout(() => inputRef.current?.focus(), 0); }}
             onPrivate={() => { startPrivateChat(); window.setTimeout(() => inputRef.current?.focus(), 0); }}
+            onTopic={pressNewTopic}
           />
           {scoped && (
             <button type="button" className="hm-scope" aria-pressed={scope === "india"} onClick={toggleScope} title={INDIA_SCOPE_HELP}>
               <Landmark size={15} aria-hidden="true" />
               <span>{INDIA_SCOPE_LABEL}</span>
+            </button>
+          )}
+          {topicReady && (
+            // the same choice as the first item of the menu above, with room for its name (a window of 600 px or more: shell.css); it is dressed like the switch beside it (shell.css), which is also a setting for the next message, but is a class of its own: the switch is found by `.hm-scope` in the browser suites
+            <button type="button" className="hm-topic" onClick={pressNewTopic} title="Do not use the earlier messages of this chat for your next message">
+              <SeparatorHorizontal size={15} aria-hidden="true" />
+              <span>New topic</span>
             </button>
           )}
           <m.button type="submit" className="hm-send" data-busy={busy} aria-label={busy ? "Stop answering" : tool === "paper" ? `Open ${PAPERS_NAME}` : `${current.name}: send`} disabled={!busy && tool !== "paper" && !ready} whileTap={{ scale: 0.92 }} transition={springPop}>

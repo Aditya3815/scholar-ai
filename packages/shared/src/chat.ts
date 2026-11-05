@@ -65,7 +65,7 @@ export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_gr
 export const SAFETY_NOTICE_KINDS = ["safety_crisis", "safety_urgent", "safety_decision", "safety_care"] as const;
 export type SafetyNoticeKind = (typeof SAFETY_NOTICE_KINDS)[number];
 
-export const NOTICE_KINDS = ["partial", "nothing", "retracted", "years", "weak", ...SAFETY_NOTICE_KINDS] as const;
+export const NOTICE_KINDS = ["partial", "nothing", "retracted", "years", "weak", "unfinished", ...SAFETY_NOTICE_KINDS] as const;
 export type NoticeKind = (typeof NOTICE_KINDS)[number];
 
 export type ChatEvent =
@@ -103,6 +103,15 @@ export const PARTIAL_NOTICE = "Some of the places we search did not answer, so t
 export const NOTHING_NOTICE = "Nothing was found for that. Try fewer or different words.";
 /** A follow-up that the router could not read (its call failed): the words were searched on their own, the papers are shown, and no answer was written (the notice kind `weak`). */
 export const FOLLOWUP_UNREAD_NOTICE = "I could not tell what this refers to, so I searched your words on their own and wrote no answer.";
+
+/**
+ * The line of the notice kind `unfinished` (R22, docs/design/intent-and-state.md, 5.4, S-DID-NOT-FINISH). The page adds it to the reply to a message that was read as a follow-up of the turns before it when the reply right
+ * before the message did not finish (a stopped, failed or interrupted reply is never carried, so the follow-up leans on the search before it): the person is told, and not left to find out. The server never
+ * sends this kind; the page makes the line itself, from what it knows (the history it sent and what the server said it read). English, and Hinglish for a message in Hinglish: the plan has no Hindi sentence for it yet.
+ */
+export const DID_NOT_FINISH_NOTICE = "Your last message did not finish, so this follows the one before it.";
+export const DID_NOT_FINISH_NOTICE_HINGLISH = "Aapka pichhla message poora nahi hua, isliye ye usse pehle ke message ke hisaab se hai.";
+export const didNotFinishText = (language: Lang): string => (language === "hinglish" ? DID_NOT_FINISH_NOTICE_HINGLISH : DID_NOT_FINISH_NOTICE);
 
 /** A message that can be sent, as the browser checks it before sending and the server checks again: whitespace tidied, then 2 to 300 characters. Null if it cannot be sent. */
 export function cleanChatMessage(raw: unknown): string | null {
