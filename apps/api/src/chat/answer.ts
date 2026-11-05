@@ -63,11 +63,14 @@ export const CHAT_SCHEMA = {
 
 export type Picked = { n: number; paper: Paper };
 
-/** The papers the model reads: the first of the list that have an abstract to read and are not retracted (a retracted paper is never evidence). `n` is the place in the list, from 1. */
-export function pickEvidencePapers(results: readonly Paper[]): Picked[] {
+/**
+ * The papers the model reads: the first of the list that have an abstract to read and are not retracted (a retracted paper is never evidence). `n` is the place in the list, from 1.
+ * `keep` (the relevance floor, R9: docs/design/intent-and-state.md, 4.9) narrows that to the papers it says yes to, the strong ones; a paper's number is still its place in the WHOLE list, so the cards and the marks agree.
+ */
+export function pickEvidencePapers(results: readonly Paper[], keep?: (paper: Paper) => boolean): Picked[] {
   const out: Picked[] = [];
   results.slice(0, 20).forEach((paper, i) => {
-    if (out.length >= MAX_EVIDENCE_PAPERS || paper.retracted || !paper.abstract || paper.abstract.trim().length < MIN_ABSTRACT_CHARS) return;
+    if (out.length >= MAX_EVIDENCE_PAPERS || paper.retracted || !paper.abstract || paper.abstract.trim().length < MIN_ABSTRACT_CHARS || (keep && !keep(paper))) return;
     out.push({ n: i + 1, paper });
   });
   return out;

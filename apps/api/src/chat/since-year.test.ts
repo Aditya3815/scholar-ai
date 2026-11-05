@@ -525,6 +525,14 @@ describe("the gate flags leave the stream of every request of the list as the go
     { "CHAT_CLEAN=shadow with the lane in shadow and the counters on": { CHAT_CLEAN: "shadow", CHAT_SAFETY: "shadow", CHAT_COUNTERS: "on" } },
     { "a value of CHAT_CLEAN that is not a position": { CHAT_CLEAN: "ON" } },
     { "every gate flag shadow, the cleaner too": { CHAT_COUNTERS: "shadow", CHAT_FAILPOLICY: "shadow", CHAT_SAFETY: "shadow", CHAT_CLEAN: "shadow" } },
+    // R9 (4.9): off and shadow change nothing on the wire for ANY request of the list (shadow only reads the list against the words and, with CHAT_COUNTERS on, counts what it would have done); "writer" and "on" are tested below
+    { "CHAT_FLOOR=off": { CHAT_FLOOR: "off" } },
+    { "CHAT_FLOOR=shadow": { CHAT_FLOOR: "shadow" } },
+    { "CHAT_FLOOR=shadow with the counters on": { CHAT_FLOOR: "shadow", CHAT_COUNTERS: "on" } },
+    { "CHAT_FLOOR=shadow with the cleaner in shadow and the counters on": { CHAT_FLOOR: "shadow", CHAT_CLEAN: "shadow", CHAT_COUNTERS: "on" } },
+    { "a value of CHAT_FLOOR that is not a position": { CHAT_FLOOR: "ON" } },
+    { "core is not a position of the floor": { CHAT_FLOOR: "core" } },
+    { "every gate flag shadow, the floor too": { CHAT_COUNTERS: "shadow", CHAT_FAILPOLICY: "shadow", CHAT_SAFETY: "shadow", CHAT_CLEAN: "shadow", CHAT_FLOOR: "shadow" } },
   ];
   it("holds for all of them", async () => {
     const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
@@ -534,7 +542,7 @@ describe("the gate flags leave the stream of every request of the list as the go
       const changed = now.filter((n, i) => JSON.stringify(n) !== JSON.stringify(golden.entries[i])).map((n) => n.name);
       expect(changed, label).toEqual([]);
     }
-  }, 120_000);
+  }, 300_000);
 
   it("CHAT_SAFETY=core and =on leave the 37 requests that are not about safety, and the cleaner's own messages (CHAT_CLEAN is not set), as the golden has them (the 17 of the lane are its own, and are looked at in lane-route.test.ts)", async () => {
     const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
@@ -619,4 +627,62 @@ describe("CHAT_CLEAN=on changes the stream only of the messages the cleaner chan
     const { outcomes } = await post(auto("Can you search about convoluton nueral netwrk all papers"), { env: { CHAT_CLEAN: "shadow", CHAT_COUNTERS: "on" } });
     expect(outcomes.some((o) => o.endsWith(":would_clean"))).toBe(true);
   }, 180_000);
+});
+
+/**
+ * R9, CHAT_FLOOR=writer and =on (docs/design/intent-and-state.md, 4.9): the stream changes ONLY for a request whose list the floor acts on. Every request of the list is run in each position: those that change must be EXACTLY
+ * the ones pinned in since-year.floor.golden.json (a stream's every event, in its order, byte for byte), and every other request must be what the same flags WITHOUT the floor give (the base golden, or for the cleaner's own
+ * requests with CHAT_CLEAN on, the clean golden). The pinned file was recorded by hand from the code of this release (its streams are new: there is no earlier code to record them from); what each of them says is looked at in
+ * routes-tiers.test.ts, so the hashes are not the only thing that holds them. The stand-in search gives the same five glaucoma records for any words, so a request is changed when its words are not about glaucoma (no strong
+ * paper: the writer is not asked) or are (one or two strong papers: a line, and in `on` another order).
+ */
+const FLOOR_GOLDEN = fileURLToPath(new URL("./since-year.floor.golden.json", import.meta.url));
+type FloorPosition = "writer" | "on" | "on with the cleaner";
+type FloorGolden = { producedFrom: string; positions: Record<FloorPosition, Golden["entries"]> };
+describe("CHAT_FLOOR=writer and =on change the stream only of the requests whose list the floor acts on", () => {
+  const withFlag = (c: Case, flags: Record<string, string>): Case => ({ ...c, opts: { ...c.opts, env: { ...c.opts?.env, ...flags } } });
+  const POSITIONS: Record<FloorPosition, { flags: Record<string, string>; reference: "base" | "clean" }> = {
+    writer: { flags: { CHAT_FLOOR: "writer" }, reference: "base" },
+    on: { flags: { CHAT_FLOOR: "on" }, reference: "base" },
+    "on with the cleaner": { flags: { CHAT_FLOOR: "on", CHAT_CLEAN: "on" }, reference: "clean" },
+  };
+
+  for (const position of Object.keys(POSITIONS) as FloorPosition[]) {
+    const { flags, reference } = POSITIONS[position];
+    it(`${position}: exactly the pinned requests change, each to its pinned stream, and every other request is what it is without the floor`, async () => {
+      const base = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
+      const clean = JSON.parse(readFileSync(CLEAN_GOLDEN, "utf8")) as Golden;
+      const pinned = (JSON.parse(readFileSync(FLOOR_GOLDEN, "utf8")) as FloorGolden).positions[position];
+      const without = (name: string) => (reference === "clean" ? clean.entries.find((e) => e.name === name) : undefined) ?? base.entries.find((e) => e.name === name);
+      const now = await Promise.all(DIFF.map((c) => wire(withFlag(c, flags))));
+      const changed = now.filter((n) => JSON.stringify(n) !== JSON.stringify(without(n.name))).map((n) => n.name);
+      expect(changed).toEqual(pinned.map((e) => e.name));
+      for (const p of pinned) expect(now.find((n) => n.name === p.name), p.name).toEqual(p);
+      for (const n of now.filter((x) => !changed.includes(x.name))) expect(n, n.name).toEqual(without(n.name));
+    }, 300_000);
+  }
+
+  it("the check is not vacuous, and the requests the floor must not touch are not among those that change: a search chosen by hand, small talk, another tool, nothing found, a refusal", () => {
+    const floor = JSON.parse(readFileSync(FLOOR_GOLDEN, "utf8")) as FloorGolden;
+    for (const position of Object.keys(floor.positions) as FloorPosition[]) {
+      const names = floor.positions[position].map((e) => e.name);
+      expect(names.length, position).toBeGreaterThanOrEqual(6);
+      expect(names, position).toContain("auto, a plain question");
+      for (const keep of ["search by hand", "search by hand, anyway", "search by hand, Indian scope", "search by hand, nothing found", "auto, small talk", "auto, another tool", "auto, nothing found", "refused, a bad mode", "refused, a body that is not JSON", "clean, the owner's message, chosen by hand"]) {
+        expect(names, `${position}: ${keep}`).not.toContain(keep);
+      }
+    }
+    // with the cleaner on, the owner's message is among the requests that change: its words are three, and no paper of the stand-in's list is about them
+    expect(floor.positions["on with the cleaner"].map((e) => e.name)).toContain("clean, the owner's message");
+    // without it his message has eight content stems and is not judged
+    expect(floor.positions.on.map((e) => e.name)).not.toContain("clean, the owner's message");
+  });
+
+  it("shadow with the counters on writes its count and still changes nothing, for every request of the list", async () => {
+    const base = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
+    const now = await Promise.all(DIFF.map((c) => wire(withFlag(c, { CHAT_FLOOR: "shadow", CHAT_COUNTERS: "on" }))));
+    expect(now.filter((n) => JSON.stringify(n) !== JSON.stringify(base.entries.find((e) => e.name === n.name))).map((n) => n.name)).toEqual([]);
+    const { outcomes } = await post(auto("effect of yoga on blood pressure"), { env: { CHAT_FLOOR: "shadow", CHAT_COUNTERS: "on" } });
+    expect(outcomes.some((o) => o.endsWith(":would_tier_none"))).toBe(true);
+  }, 300_000);
 });

@@ -23,6 +23,9 @@ export const INPUT_SHAPE_NAMES = [
   "lane_help", "would_urgent", "would_crisis", "would_help", "would_decision", "would_care",
   // R8 (4.8): what the request-frame cleaner did to an Auto message (`clean_applied`: CHAT_CLEAN on) or would have done (`would_clean`: shadow). Counted by the route, not given by `inputShape`.
   "would_clean", "clean_applied",
+  // R9 (4.9): what the relevance floor would have done to a list while it only reads it (`would_tier_*`: shadow, and the state that the `writer` position does not act on); `tier_none` and `tier_few` are what it did.
+  // Counted by the route, not given by `inputShape`.
+  "would_tier_none", "would_tier_few",
 ] as const;
 export type InputShapeName = (typeof INPUT_SHAPE_NAMES)[number];
 /** The four counts of subject words: exactly one of them is given to every text, so together they are the number of messages counted (and countOutcomes always keeps it, past the cap of names). */

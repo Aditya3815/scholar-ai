@@ -41,6 +41,8 @@ const wrangler = (args, opts = {}) => spawnSync("npx", ["wrangler", ...args], { 
 rmSync(`${api}${STATE}`, { recursive: true, force: true });
 if (wrangler(["d1", "migrations", "apply", "scholar-db", "--local", "--config", CONFIG, "--persist-to", STATE]).status !== 0) process.exit(1);
 
+// INTEGRATION_VARS="NAME:value,NAME:value", read once: the Worker gets them, and the floor's stand-in switch above follows CHAT_FLOOR
+const integrationVars = Object.fromEntries((process.env.INTEGRATION_VARS ?? "").split(",").filter(Boolean).map((p) => [p.slice(0, p.indexOf(":")), p.slice(p.indexOf(":") + 1)]));
 const vars = {
   GOOGLE_CLIENT_ID: "dev", GOOGLE_CLIENT_SECRET: "dev-secret", ORCID_CLIENT_ID: "dev", ORCID_CLIENT_SECRET: "dev-secret",
   // .dev.vars is read by `wrangler dev` too: the tests must never report to the real Sentry project, so its address is blanked here.
@@ -51,7 +53,10 @@ const vars = {
   ...(process.env.INTEGRATION_TRENDING ? { TRENDING: process.env.INTEGRATION_TRENDING } : {}),
   // INTEGRATION_VARS="CHAT_COUNTERS:on,CHAT_FAILPOLICY:shadow" starts the Worker with those variables too (the gate flags of docs/design/intent-and-state.md are unset in wrangler.jsonc, so a default run tests them OFF);
   // the suites read the same variable to know which position they are looking at (run it with --only="chat integration" to see the flags work on the real database)
-  ...Object.fromEntries((process.env.INTEGRATION_VARS ?? "").split(",").filter(Boolean).map((p) => [p.slice(0, p.indexOf(":")), p.slice(p.indexOf(":") + 1)])),
+  ...integrationVars,
+  // R9 (CHAT_FLOOR=writer or on): the stand-in search then writes the words of every question into its records (src/chat/stub.ts), so that the suites, which ask about anything, meet a relevant list and not the stand-in's five glaucoma
+  // records for every question; the word "offtopic" in a question keeps those records, which is how the floor's own checks get a list in which no paper matches. Without the floor acting the stand-in is what it always was.
+  ...(["writer", "on"].includes(integrationVars.CHAT_FLOOR) ? { QA_STUB_TOPIC: "1" } : {}),
   // Only the browser smoke test searches; it needs the real provider keys (passed through from the environment).
   ...Object.fromEntries(["OPENALEX_API_KEY", "S2_API_KEY", "NCBI_API_KEY"].filter((k) => process.env[k]).map((k) => [k, process.env[k]])),
 };

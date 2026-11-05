@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { outcomeTotal } from "@scholar/shared";
-import { FOLLOW_UP_OUTCOMES, OUTCOME_FEATURES, UNREAD_OUTCOMES } from "./outcomes";
+import { FLOOR_OUTCOMES, FOLLOW_UP_OUTCOMES, OUTCOME_FEATURES, UNREAD_OUTCOMES } from "./outcomes";
 import { INPUT_SHAPE_NAMES, SUBJECT_NAMES } from "./understand/input-shape";
 
 /**
@@ -59,6 +59,17 @@ describe("the labels of /admin", () => {
     }
     expect(OUTCOME_TEXT.followup_unread).toMatch(/no answer was written/);
     expect(OUTCOME_TEXT.followup_unread_shadow).toMatch(/answer was written as before/);
+  });
+
+  it("the relevance floor's own ending (the writer was not asked because no paper matched closely) has a plain label that says so, and the names of what it would have done say they are not yet acted on", () => {
+    expect(OUTCOME_TEXT[FLOOR_OUTCOMES.skipped], "no label for floor_skipped").toBeTypeOf("string");
+    plainly(OUTCOME_TEXT[FLOOR_OUTCOMES.skipped]!);
+    expect(OUTCOME_TEXT.floor_skipped).toMatch(/no written answer|no answer was written/i);
+    expect(OUTCOME_TEXT.floor_skipped).toMatch(/closely/);
+    for (const name of ["would_tier_none", "would_tier_few"]) {
+      expect(INPUT_TEXT[name], name).toMatch(/not yet acted on/);
+      expect(INPUT_TEXT[name], name).not.toBe(INPUT_TEXT[name.replace("would_", "")]);
+    }
   });
 
   it("the three endings of the safety lane (urgent, safety, decision: the reasons of ChatNoAnswer) have a plain label of their own in the table of the prompt box, and so does what it would have done (would_*)", () => {
