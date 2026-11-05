@@ -19,6 +19,8 @@ import "../styles/chat-lazy.css";
 // the safety lane's card and lines (R4) and the reading lines (R8): in this lazy chunk, and not in the first-load style sheet
 import "../styles/safety.css";
 import "../styles/reading.css";
+// the line where the topic changes (R22) and the line "did not finish"
+import "../styles/topic.css";
 // the Idea Check workspace is a chunk of its own, fetched when an idea is checked here (the first load has a size budget)
 const IdeaWorkspace = lazy(() => import("../components/idea/IdeaPage").then((m) => ({ default: m.IdeaWorkspace })));
 
@@ -275,6 +277,7 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
   const others = TOOL_ROWS.filter((t) => t.id !== msg.mode);
   const note = msg.mode === "search" ? followUpNote(msg) : null;
   const used = earlierUsed(msg);
+  const unfinished = msg.mode === "search" ? msg.notices.find((n) => n.kind === "unfinished") : undefined;
   // the person's own words are not searched on their own when the line above them is the question they were read as: a follow-up's words mean nothing alone
   const exact = msg.mode === "search" && !!msg.searchQuery && !working && text.length <= MAX_CHAT_CHARS && !note?.question;
   const unfiltered = note?.years ? unfilteredWords(msg, text) : null;
@@ -305,6 +308,12 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
           )}
         </Pop>
       </p>
+      {unfinished && (
+        // R22 (S-DID-NOT-FINISH): the reply right before this message did not finish, so this follows the search before it. The page made the line (the notice kind "unfinished"), when the server said it read the earlier turns
+        <p className="chat-und chat-searched chat-unfinished" role="note">
+          <Info size={13} aria-hidden="true" /> <span>{unfinished.text}</span>
+        </p>
+      )}
       {note?.question && (
         <p className="chat-und chat-searched chat-ctx">
           Using your earlier question: <b {...textAttrs(note.question, true)}>{note.question}</b>
@@ -621,7 +630,7 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
       {/* a finished search has its own row of actions (not a greeting, and not the offer of another tool, which has its own buttons) */}
       {msg.status === "done" && !routed && msg.reason !== "small_talk" && msg.reason !== "too_long" && !lane && <ReplyActions msg={msg} onRetry={onRetry} />}
 
-      {msg.notices.filter((n) => !isSafetyKind(n.kind)).map((n) => (
+      {msg.notices.filter((n) => !isSafetyKind(n.kind) && n.kind !== "unfinished").map((n) => (
         <p key={n.kind} className="chat-note" data-kind={n.kind} role="note">
           <TriangleAlert size={14} aria-hidden="true" />
           <span>{n.text}</span>
@@ -902,6 +911,19 @@ const UserTurn = memo(function UserTurn({ msg, n, info, busy, held, ideas, editi
 }, (a, b) => (Object.keys(sameUserTurn) as (keyof UserTurnProps)[]).every((k) => (sameUserTurn[k] as (x: unknown, y: unknown) => boolean)(a[k], b[k])));
 
 /**
+ * The line where the topic changes (R22): the person pressed "New topic" before the message under it, so what is above is not used for what is below. Quiet, thin, and drawn in the conversation where the person
+ * can see what is carried and what is not. `pending`: the person has pressed it and not yet sent the next message, so the line is at the end of the conversation; once the message is sent the line is
+ * above it, on the message itself (it is kept with the message and is there when the chat is opened again). A separator with a name: a screen reader says where the topic changed.
+ */
+function TopicDivider({ pending = false }: { pending?: boolean }) {
+  return (
+    <div className="chat-topic" role="separator" data-pending={pending ? "true" : undefined} aria-label={pending ? "New topic: the next message will not use the earlier messages" : "New topic: the earlier messages are not used from here"}>
+      <span aria-hidden="true">New topic</span>
+    </div>
+  );
+}
+
+/**
  * The round arrow just above the box that takes the reader to the latest message. It is shown only while the end of the conversation is out of view: an IntersectionObserver watches an empty element at the
  * end of the list (no scroll listener, and nothing is drawn again while the page scrolls: the one piece of state flips when the end comes into view or goes out of it). The box sticks to the bottom of the window
  * and covers the last of the page, so the window the observer watches ends where the box begins (and is made again when the box grows or shrinks with its text). The button is drawn into an anchor on the box's top
@@ -951,7 +973,7 @@ function JumpToLatest({ slot, end }: { slot: HTMLElement; end: RefObject<HTMLEle
   );
 }
 
-export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onRefine, onOpenPage, onIdeaAgain, onDelete, jumpSlot = null }: { messages: ChatMsg[]; signedIn: boolean; liveIdeas: ReadonlySet<string>; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onIdeaAgain: (id: string) => void; onDelete: () => void; /** the anchor on the box's top edge that the arrow to the latest message is drawn into (the page makes it) */ jumpSlot?: HTMLElement | null }) {
+export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onRefine, onOpenPage, onIdeaAgain, onDelete, jumpSlot = null, topicPending = false }: { messages: ChatMsg[]; signedIn: boolean; liveIdeas: ReadonlySet<string>; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onIdeaAgain: (id: string) => void; onDelete: () => void; /** the anchor on the box's top edge that the arrow to the latest message is drawn into (the page makes it) */ jumpSlot?: HTMLElement | null; /** "New topic" was pressed and the next message is not sent yet: the line where the topic changes is at the end */ topicPending?: boolean }) {
   const [flash, setFlash] = useState<{ msgId: string; n: number } | null>(null);
   const list = useRef<HTMLOListElement>(null);
   const end = useRef<HTMLDivElement>(null);
@@ -1072,6 +1094,8 @@ export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onR
               {msg.role === "idea" ? (
                 <IdeaTurn msg={msg} live={liveIdeas.has(msg.id)} last={at === messages.length - 1} onAgain={onIdeaAgain} />
               ) : msg.role === "user" ? (
+                <>
+                {msg.newTopic === true && <TopicDivider />}
                 <UserTurn
                   msg={msg}
                   n={asked}
@@ -1085,6 +1109,7 @@ export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onR
                   onSent={edited}
                   onAnchor={anchorAt}
                 />
+                </>
               ) : (
                 <AssistantTurn msg={msg} text={before?.role === "user" ? before.text : msg.query} signedIn={signedIn} flashN={flash?.msgId === msg.id ? flash.n : 0} onCite={cite} onRetry={retry} onChange={change} onRefine={refine} onOpenPage={openPage} onDelete={deleteChat} />
               )}
@@ -1092,6 +1117,7 @@ export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onR
           );
         })}
       </ol>
+      {topicPending && <TopicDivider pending />}
       <div ref={end} aria-hidden="true" />
       {jumpSlot && <JumpToLatest slot={jumpSlot} end={end} />}
       <Announcer />

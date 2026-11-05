@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import {
-  applyChatEvent, applyTighten, busyReason, chatRequestBody, chatTitle, citedPaperIds, cleanAutoMessage, cleanChatMessage, contextBefore, earlierFor, editInfo, editUserMessage, failTighten, goneFromIndex, interruptMessages, keywordsFor, leavesNoTrace, leftOfEarlier, MAX_CHAT_CHARS, MAX_IDEA_CHARS, MIN_IDEA_CHARS, ownedBy,
-  parseIndex, releaseRun, retryText, startAssistant, startTighten, stopAssistant, switchVersion, tightenRequestFor, titleAfterEdit, touchIndex, trimMessagesForStorage, withHeld,
+  applyChatEvent, applyTighten, busyReason, canStartNewTopic, chatRequestBody, chatTitle, citedPaperIds, cleanAutoMessage, cleanChatMessage, contextBefore, didNotFinishText, earlierFor, editInfo, editUserMessage, failTighten, goneFromIndex, interruptMessages, keywordsFor, lastReplyDidNotFinish, leavesNoTrace, leftOfEarlier, MAX_CHAT_CHARS, MAX_IDEA_CHARS, MIN_IDEA_CHARS, ownedBy,
+  parseIndex, releaseRun, retryText, startAssistant, startTighten, stopAssistant, switchVersion, tightenRequestFor, titleAfterEdit, touchIndex, trimMessagesForStorage, usesEarlierTurns, withHeld,
   type AssistantMsg, type ChatEvent, type ChatMsg, type EarlierQuestion, type HistoryEntry, type IdeaMsg, type MemoryEntry, type SearchScope, type TightenResponse, type UserMsg,
 } from "@scholar/shared";
 import { idbClear, idbDelete, idbGet, idbRead, idbSwap } from "./idb";
@@ -28,8 +28,10 @@ type Entry = MemoryEntry;
  * `liveIdeas`: the Idea Checks of the conversations open in this tab that are running here (their plan and papers are in the page, not kept); one that is not in the set was kept from an earlier visit and shows "run it again".
  * `from`: the chats that are continuing from another (by chat id; `NEW_CHAT` for the one that does not exist yet): the last three questions of that other chat go with every message of this one until the chip is removed.
  * `privateChats`: conversations that are not kept and not used (they have no place in the list and no record; `pendingPrivate`: the next new chat will be one). Both are of this page only and are not stored.
+ * `newTopic`: the conversations in which the person pressed "New topic" and has not yet sent the next message (R22, docs/design/intent-and-state.md, 4.19): that message is marked and goes out with no earlier turn. By chat id; kept in this tab's
+ * sessionStorage (`TOPIC_KEY`), which is not a store of chats (ids only): a reload must not bring the earlier messages back for the next message after the person said not to use them.
  */
-type State = { index: Entry[]; active: string | null; chats: ReadonlyMap<string, ChatMsg[]>; running: ReadonlySet<string>; liveIdeas: ReadonlySet<string>; kept: boolean; from: ReadonlyMap<string, ContinuedFrom>; privateChats: ReadonlySet<string>; pendingPrivate: boolean };
+type State = { index: Entry[]; active: string | null; chats: ReadonlyMap<string, ChatMsg[]>; running: ReadonlySet<string>; liveIdeas: ReadonlySet<string>; kept: boolean; from: ReadonlyMap<string, ContinuedFrom>; privateChats: ReadonlySet<string>; pendingPrivate: boolean; newTopic: ReadonlySet<string> };
 /** The chat a conversation is continuing from: its id (to read its questions when a message is sent) and its title (for the chip). */
 export type ContinuedFrom = { source: string; title: string };
 /** The key of `from` for the conversation that does not exist yet (one is created by its first message). */
@@ -65,7 +67,25 @@ const readActive = (): string | null => {
   }
 };
 
-let state: State = { index: typeof localStorage === "undefined" ? [] : readIndex(), active: typeof sessionStorage === "undefined" ? null : readActive(), chats: new Map(), running: new Set(), liveIdeas: new Set(), kept: true, from: new Map(), privateChats: new Set(), pendingPrivate: false };
+const TOPIC_KEY = "scholar.chat.topic";
+const readNewTopic = (): Set<string> => {
+  try {
+    const v: unknown = JSON.parse(sessionStorage.getItem(TOPIC_KEY) ?? "[]");
+    return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, MAX_CHATS) : []);
+  } catch {
+    return new Set();
+  }
+};
+const keepNewTopic = (ids: ReadonlySet<string>) => {
+  try {
+    if (ids.size > 0) sessionStorage.setItem(TOPIC_KEY, JSON.stringify([...ids]));
+    else sessionStorage.removeItem(TOPIC_KEY);
+  } catch {
+    /* the press is then not remembered across a reload: it still holds for this visit */
+  }
+};
+
+let state: State = { index: typeof localStorage === "undefined" ? [] : readIndex(), active: typeof sessionStorage === "undefined" ? null : readActive(), chats: new Map(), running: new Set(), liveIdeas: new Set(), kept: true, from: new Map(), privateChats: new Set(), pendingPrivate: false, newTopic: typeof sessionStorage === "undefined" ? new Set() : readNewTopic() };
 const listeners = new Set<() => void>();
 const set = (next: Partial<State>) => {
   state = { ...state, ...next };
@@ -267,7 +287,9 @@ function forget(ids: readonly string[], fromStorage: boolean) {
     chats: new Map([...state.chats].filter(([id]) => !gone.has(id))),
     from: new Map([...state.from].filter(([id, f]) => !gone.has(id) && !gone.has(f.source))),
     privateChats: new Set([...state.privateChats].filter((id) => !gone.has(id))),
+    newTopic: new Set([...state.newTopic].filter((id) => !gone.has(id))),
   });
+  keepNewTopic(state.newTopic);
   if (state.active && gone.has(state.active)) setActive(null);
 }
 
@@ -387,6 +409,33 @@ export function stopContinuing() {
   set({ from: new Map([...state.from].filter(([id]) => id !== (state.active ?? NEW_CHAT))) });
 }
 
+/**
+ * "New topic" (R22, docs/design/intent-and-state.md, 4.19, 7.2 and 7.7): the person stops this chat's earlier messages from being used for the next message, without leaving the chat. The next message is marked (`newTopic`)
+ * and goes out with no earlier turn; the earlier messages stay on the page and in the record and are simply not carried. Only in a chat that has a finished search (`canStartNewTopic`) and not twice. True when it was set.
+ * D1 stands: context stays automatic inside a chat, and this is the per-chat way to stop it; there is no switch for "never use earlier messages".
+ */
+export function startNewTopic(): boolean {
+  const id = state.active;
+  const msgs = id ? state.chats.get(id) : undefined;
+  if (!id || !msgs || state.newTopic.has(id) || !canStartNewTopic(msgs)) return false;
+  setNewTopic(new Set(state.newTopic).add(id));
+  return true;
+}
+
+/** The chip's remove button: the earlier messages of this chat are used again for the next message. */
+export function cancelNewTopic() {
+  const id = state.active;
+  if (id && state.newTopic.has(id)) setNewTopic(new Set([...state.newTopic].filter((x) => x !== id)));
+}
+
+/** Whether the conversation on screen has "New topic" pressed and waiting for its next message. */
+export const topicPending = (s: State): boolean => !!s.active && s.newTopic.has(s.active);
+
+function setNewTopic(ids: ReadonlySet<string>) {
+  set({ newTopic: ids });
+  keepNewTopic(ids);
+}
+
 /** The chat this one is continuing from, for the chip (undefined when it is not continuing from any). */
 export const continuedFrom = (s: State): ContinuedFrom | undefined => s.from.get(s.active ?? NEW_CHAT);
 /** Whether the conversation on screen (or the one about to start) is private: not kept, not used, and gone when it is left. */
@@ -445,8 +494,11 @@ export function startIdeaCheck(raw: string, opts: { echo?: boolean } = {}): "sen
   const id = chatForMessage();
   const now = Date.now();
   const idea: IdeaMsg = { id: newId(), role: "idea", text, at: now + 1 };
-  const user: ChatMsg[] = opts.echo ? [{ id: newId(), role: "user", text, at: now }] : [];
+  // the text echoed with an Idea Check is the message sent next, so it takes the marker of "New topic" when it is pressed
+  const marked = opts.echo === true && state.newTopic.has(id);
+  const user: ChatMsg[] = opts.echo ? [{ id: newId(), role: "user", text, at: now, ...(marked ? { newTopic: true as const } : {}) }] : [];
   setChat(id, [...(state.chats.get(id) ?? []), ...user, idea]);
+  if (marked) setNewTopic(new Set([...state.newTopic].filter((x) => x !== id)));
   set({ liveIdeas: new Set(state.liveIdeas).add(idea.id) });
   touch(id, state.index.find((e) => e.id === id)?.title ?? chatTitle(text));
   persist(id, true);
@@ -476,14 +528,19 @@ export function sendMessage(raw: string, mode: SendMode = "search", scope: Searc
   // what it may lean on in other chats is chosen from the list as the person saw it when they pressed Send, so before this conversation is put at the top of it (a new chat would push the sixth chat out of the six that are listed)
   const recalled = recallEarlier(id, text, mode, false);
   const now = Date.now();
-  const user: ChatMsg = { id: newId(), role: "user", text, at: now };
+  // "New topic" was pressed in this chat: this message carries the marker, whatever tool it is sent in, and leans on nothing (R22)
+  const marked = state.newTopic.has(id);
+  const user: UserMsg = { id: newId(), role: "user", text, at: now, ...(marked ? { newTopic: true as const } : {}) };
   const reply = startAssistant(newId(), text.replace(/\s+/g, " ").slice(0, 300), now, mode === "auto", scope, sinceYear ?? undefined);
   const before = state.chats.get(id) ?? [];
-  const history = mode === "auto" ? contextBefore(before, before.length) : [];
+  const history = mode === "auto" ? contextBefore([...before, user], before.length) : [];
+  // the line "did not finish": only when there are turns to lean on, and the reply right before this message is the one that did not finish
+  const unfinished = history.length > 0 && lastReplyDidNotFinish(before, before.length);
   setChat(id, [...before, user, reply]);
+  if (marked) setNewTopic(new Set([...state.newTopic].filter((x) => x !== id)));
   touch(id, state.index.find((e) => e.id === id)?.title ?? chatTitle(text));
   persist(id, true);
-  void run(id, reply.id, text, mode, scope, false, history, recalled, reply.sinceYear);
+  void run(id, reply.id, text, mode, scope, false, history, recalled, reply.sinceYear, unfinished);
   return "sent";
 }
 
@@ -534,7 +591,9 @@ export function retryReply(assistantId: string, as?: "search" | "anyway", words?
   persist(id, true);
   // with nothing left on the reply nothing is chosen for it; otherwise what is left is intersected with what is allowed now (decided when the request is made, from the list as it is then)
   const lean = fixed === undefined ? undefined : fixed.length === 0 ? [] : recallEarlier(id, text, mode, as === "anyway").then((now) => leftOfEarlier(now, fixed));
-  void run(id, assistantId, text, mode, scope, as === "anyway", mode === "auto" ? contextBefore(msgs, written === null ? at : at - 1) : [], lean, first.sinceYear);
+  const upTo = written === null ? at : at - 1;
+  const history = mode === "auto" ? contextBefore(msgs, upTo) : [];
+  void run(id, assistantId, text, mode, scope, as === "anyway", history, lean, first.sinceYear, history.length > 0 && lastReplyDidNotFinish(msgs, upTo));
   return "sent";
 }
 
@@ -571,13 +630,14 @@ export function editMessage(userId: string, raw: string): EditResult {
   const recalled = recallEarlier(id, text, info.mode, false);
   // the turns before the edited message are not changed by the edit (everything from it on is put away): they are the context it is sent with, and nothing at or after it ever is
   const history = info.mode === "auto" ? contextBefore(msgs, info.at) : [];
+  const unfinished = history.length > 0 && lastReplyDidNotFinish(msgs, info.at);
   const away = msgs.slice(info.at + 1);
   for (const m of away) tightening.get(m.id)?.abort(); // none is running (refused above); a check that began in this very turn is stopped
   dropLiveIdeas(away);
   setChat(id, next);
   touch(id, titleAfterEdit(msgs, userId, text, state.index.find((e) => e.id === id)?.title ?? chatTitle(text)));
   persist(id, true);
-  void run(id, reply.id, text, info.mode, info.scope, false, history, recalled, reply.sinceYear);
+  void run(id, reply.id, text, info.mode, info.scope, false, history, recalled, reply.sinceYear, unfinished);
   return "sent";
 }
 
@@ -615,14 +675,17 @@ export function stopReply() {
  * is good, so in that one case it is sent again, once, without them (it is read as a first message; nothing more is sent than was).
  * `lean` is what the message leans on in other chats (`recallEarlier`: the chat this one continues from, or what "Use my earlier chats" finds), chosen when the message was sent and still on its way (a promise), or
  * exactly what the person left on the reply (a list); without it, it is chosen now. It is ready before anything is sent, and the reply keeps what was sent so that it can say what it used.
+ * `unfinished`: the reply right before this message did not finish, so the turns it leans on are those before it (R22): when the server then says it read them and took the message for a follow-up of them, the reply
+ * gets the line `didNotFinishText` (the notice kind "unfinished", made here and never sent by the server). Said only for a reply that was sent with turns, so never for a visitor, a search chosen by hand or a first message.
  */
-async function run(chatId: string, assistantId: string, text: string, mode: SendMode, scope: SearchScope, anyway = false, history: HistoryEntry[] = [], lean?: Promise<EarlierQuestion[]> | EarlierQuestion[], sinceYear?: number) {
+async function run(chatId: string, assistantId: string, text: string, mode: SendMode, scope: SearchScope, anyway = false, history: HistoryEntry[] = [], lean?: Promise<EarlierQuestion[]> | EarlierQuestion[], sinceYear?: number, unfinished = false) {
   const ctl = new AbortController();
   runs.set(chatId, { ctl, assistantId });
   set({ running: new Set(runs.keys()) });
   // earlier messages and questions of other chats leave the device only for a person who is known to be signed in (the server ignores them for anybody else; they must not be sent at all). Not yet known is not signed in.
   const signedIn = typeof owner === "string";
   if (!signedIn) history = [];
+  const mayNote = unfinished && history.length > 0;
   const patch = (fn: (m: AssistantMsg) => AssistantMsg) => {
     const msgs = state.chats.get(chatId);
     if (msgs) changeReply(chatId, msgs, (m) => (m.id === assistantId && m.role === "assistant" ? fn(m) : m));
@@ -658,6 +721,8 @@ async function run(chatId: string, assistantId: string, text: string, mode: Send
       res,
       (e) => {
         queue.push(e);
+        // the reply followed the search before the one that did not finish: it says so (the reducer keeps one notice of a kind, and this kind is the page's own)
+        if (mayNote && e.type === "understood" && usesEarlierTurns(e.context)) queue.push({ type: "notice", kind: "unfinished", text: didNotFinishText(e.language) });
         if (!raf) raf = requestAnimationFrame(flush);
       },
       ctl.signal,
@@ -806,7 +871,8 @@ export async function clearChats(): Promise<void> {
   for (const r of runs.values()) r.ctl.abort();
   for (const t of tightening.values()) t.abort();
   for (const t of timers.values()) window.clearTimeout(t);
-  set({ index: [], chats: new Map(), liveIdeas: new Set(), kept: true, from: new Map(), privateChats: new Set(), pendingPrivate: false });
+  set({ index: [], chats: new Map(), liveIdeas: new Set(), kept: true, from: new Map(), privateChats: new Set(), pendingPrivate: false, newTopic: new Set() });
+  keepNewTopic(state.newTopic);
   revs.clear();
   synced.clear();
   try {

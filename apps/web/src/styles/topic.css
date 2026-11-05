@@ -1,0 +1,20 @@
+/*
+ * "New topic" and the line "did not finish" (R22, docs/design/intent-and-state.md, 4.19 and 5.4): the thin line in the conversation where the topic changed, the same choice as the first item of the box's menu on a
+ * window too narrow for its own button, and the one line that says a reply followed the search before a message that did not finish. Quiet, in the muted colour of the lines about what a reply was read as (`.chat-und`).
+ * Imported by ChatView, a lazy chunk of its own, so none of it is in the first-load style sheet. (The chip in the box and the button in its bar use classes that are already there: `.chat-chip`, `.hm-scope`.)
+ */
+
+/* The line where the topic changes: a name between two hairlines, no movement. On the message that came after "New topic", above its bubble; pending (the next message is not sent yet), at the end of the conversation. */
+.chat-topic { align-self: stretch; display: flex; align-items: center; gap: 0.75rem; margin: 0.5rem 0 1rem; color: var(--muted); font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.02em; }
+.chat-topic::before, .chat-topic::after { content: ""; flex: 1 1 auto; height: 0; border-top: 1px solid var(--border-strong); }
+.chat-topic[data-pending="true"] { margin: 1.1rem 0 0.2rem; }
+
+/* the line "did not finish": its icon sits on the text's first line */
+.chat-unfinished svg { flex: none; vertical-align: -2px; }
+
+/* the box's bar has a button of its own from 600 px (shell.css hides it under that); from 600 px the menu does not need to repeat it */
+@media (min-width: 600px) { .hm-menu-topic { display: none; } }
+
+@media (forced-colors: active) { .chat-topic::before, .chat-topic::after { border-color: CanvasText; } }
+/* a printed conversation shows where a topic changed, not the unsent press of a button */
+@media print { .chat-topic[data-pending="true"] { display: none; } }
