@@ -56,7 +56,7 @@ afterEach(() => vi.restoreAllMocks());
  */
 function routerOn(provider: LlmProvider | null, quota = false) {
   const config: GatewayConfig = {
-    routes: Object.fromEntries(["classify", "summarize_public", "qa", "review", "verify"].map((t) => [t, { public: [{ provider: "workersai", model: "m" }], private: [{ provider: "workersai", model: "m" }] }])) as GatewayConfig["routes"],
+    routes: Object.fromEntries(["classify", "summarize_public", "qa", "review", "verify", "understand"].map((t) => [t, { public: [{ provider: "workersai", model: "m" }], private: [{ provider: "workersai", model: "m" }] }])) as GatewayConfig["routes"],
     dailyTokenQuota: 1000,
     perCallTimeoutMs: 5000,
     publicCacheTtlSeconds: 60,
