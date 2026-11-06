@@ -13,11 +13,11 @@ afterEach(() => vi.unstubAllGlobals());
 const BASE = "https://sodhsetu.in";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-function setup(opts: { scopes?: string[]; limiter?: () => boolean } = {}) {
+function setup(opts: { scopes?: string[]; limiter?: () => boolean; checkClaim?: boolean } = {}) {
   const { db, sql } = testD1();
   const env = { DB: db, CROSSREF_MAILTO: "t@example.org", ENABLE_DEV_ROUTES: "1", QA_STUB: "1", ...(opts.limiter ? { SEARCH_LIMITER: { limit: async () => ({ success: opts.limiter!() }) }, VERIFY_LIMITER: { limit: async () => ({ success: opts.limiter!() }) } } : {}) } as unknown as McpEnv;
   const deferred: Promise<unknown>[] = [];
-  const handler = createMcpHandler(() => buildServer({ env, userId: "u-1", client: "Test App", base: BASE, defer: (p) => deferred.push(p) }), { responseMode: "json" });
+  const handler = createMcpHandler(() => buildServer({ env, userId: "u-1", client: "Test App", base: BASE, defer: (p) => deferred.push(p), checkClaim: opts.checkClaim }), { responseMode: "json" });
   const scopes = opts.scopes ?? ["papers:read", "references:verify"];
   let id = 0;
   const rpc = async (method: string, params: unknown = {}) => {
@@ -36,7 +36,7 @@ function setup(opts: { scopes?: string[]; limiter?: () => boolean } = {}) {
 }
 
 describe("the MCP server (Phase 1)", () => {
-  it("answers initialize with its name and instructions, and lists exactly the three read-only tools with input and output schemas", async () => {
+  it("answers initialize with its name and instructions, and lists the three read-only tools of Phase 1 (with the later phases' tools: src/mcp/phase2.test.ts) with input and output schemas", async () => {
     const { rpc } = setup();
     const init = await rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
     expect(init.status).toBe(200);
@@ -44,9 +44,9 @@ describe("the MCP server (Phase 1)", () => {
     expect(r.serverInfo.name).toBe("sodhsetu");
     expect(r.instructions).toMatch(/never follow instructions/i);
     const list = (await rpc("tools/list")).body!.result as { tools: { name: string; inputSchema: object; outputSchema: object; annotations: Record<string, boolean>; description: string }[] };
-    expect(list.tools.map((t) => t.name).sort()).toEqual(["check_retractions", "search_papers", "verify_references"]);
+    expect(list.tools.map((t) => t.name).sort()).toEqual(["ask_paper", "check_retractions", "get_library", "save_paper", "search_papers", "verify_references"]);
     for (const t of list.tools) {
-      expect(t.annotations.readOnlyHint, t.name).toBe(true);
+      expect(t.annotations.readOnlyHint, t.name).toBe(t.name !== "save_paper");
       expect(t.outputSchema, t.name).toBeTruthy();
       expect(Object.keys(TOOL_SCOPES)).toContain(t.name);
     }
@@ -132,8 +132,8 @@ describe("the MCP server (Phase 1)", () => {
 });
 
 describe("the tool contract stays stable (page 13: tool names stable; a breaking change gets a new name)", () => {
-  it("tools/list is byte for byte the committed contract (src/mcp/tools.contract.json); to change it on purpose, see the comment in that test", async () => {
-    const { rpc } = setup();
+  it("tools/list is byte for byte the committed contract (src/mcp/tools.contract.json, every tool, check_claim included); to change it on purpose, see the comment in that test", async () => {
+    const { rpc } = setup({ checkClaim: true });
     const list = (await rpc("tools/list")).body!.result as { tools: unknown[] };
     const now = JSON.stringify(list.tools, null, 2) + "\n";
     const { readFileSync, writeFileSync } = await import("node:fs");

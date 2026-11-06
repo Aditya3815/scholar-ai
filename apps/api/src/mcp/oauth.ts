@@ -5,7 +5,7 @@ import { randomToken } from "../auth/oauth";
 import { configuredProviders, type AuthEnv } from "../auth/providers";
 import type { SessionUser } from "../auth/users";
 import { mcpAllowedFor, mcpMode, type McpFlagEnv } from "./flag";
-import { GRANTABLE, SCOPES, baseUrlOf, grantedScopes, type McpProps, type Scope } from "./scopes";
+import { DEFAULT_SCOPES, GRANTABLE, SCOPES, baseUrlOf, grantedScopes, type McpProps, type Scope } from "./scopes";
 import { closedBetaPage, consentPage, errorPage, signInPage } from "./pages";
 
 /**
@@ -20,7 +20,7 @@ import { closedBetaPage, consentPage, errorPage, signInPage } from "./pages";
  */
 
 export type McpOAuthEnv = AuthEnv & McpFlagEnv & { DB: D1Database; OAUTH_KV: KVNamespace };
-export { GRANTABLE, SCOPES, baseUrlOf, grantedScopes, type McpProps, type Scope };
+export { DEFAULT_SCOPES, GRANTABLE, SCOPES, baseUrlOf, grantedScopes, type McpProps, type Scope };
 
 /** The provider's options for one address of the Worker. `apiHandler` is the MCP server (src/mcp/server.ts), passed in so that this file does not import it. */
 export function oauthOptions(base: string, apiHandler: OAuthProviderOptions<McpOAuthEnv>["apiHandler"], defaultHandler: OAuthProviderOptions<McpOAuthEnv>["defaultHandler"]): OAuthProviderOptions<McpOAuthEnv> {
@@ -33,7 +33,7 @@ export function oauthOptions(base: string, apiHandler: OAuthProviderOptions<McpO
     clientRegistrationEndpoint: `${base}/oauth/register`,
     scopesSupported: Object.keys(SCOPES),
     // the scopes a client should ask for first (named in the 401 challenge); a tool that needs one the token lacks asks for it then (step-up)
-    requiredScopes: [...GRANTABLE],
+    requiredScopes: [...DEFAULT_SCOPES],
     resourceMetadata: { resource: `${base}/mcp`, authorization_servers: [base], resource_name: "Sodhsetu" },
     accessTokenTTL: 3600,
     // a grant lives as long as the app keeps using it, and ends after 30 days without use

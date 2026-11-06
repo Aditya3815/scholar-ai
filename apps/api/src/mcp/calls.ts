@@ -8,6 +8,10 @@ export const MCP_CALLS_PER_DAY = 300;
 
 export type CallOutcome = "ok" | "invalid" | "error" | "quota" | "rate_limited";
 
+/** Every tool name the server has. A row names one of these (anything else is written as "unknown"), so the admin page's table is a closed list. */
+export const MCP_TOOLS = ["search_papers", "verify_references", "check_retractions", "ask_paper", "get_library", "save_paper", "check_claim"] as const;
+export type McpTool = (typeof MCP_TOOLS)[number];
+
 const today = () => new Date().toISOString().slice(0, 10);
 
 /** Counts one call against the account's day; false when the day's calls are used up (nothing is counted then). */
@@ -20,7 +24,7 @@ export async function takeCall(db: D1Database, userId: string, max = MCP_CALLS_P
 export async function logCall(db: D1Database, row: { tool: string; client: string; ms: number; outcome: CallOutcome }): Promise<void> {
   await db
     .prepare("INSERT INTO mcp_calls (tool, client, duration_ms, outcome) VALUES (?1, ?2, ?3, ?4)")
-    .bind(row.tool, row.client.slice(0, 60) || "unknown", Math.max(0, Math.round(row.ms)), row.outcome)
+    .bind((MCP_TOOLS as readonly string[]).includes(row.tool) ? row.tool : "unknown", row.client.slice(0, 60) || "unknown", Math.max(0, Math.round(row.ms)), row.outcome)
     .run()
     .catch((e) => console.warn(JSON.stringify({ level: "warn", msg: "mcp_call_log_failed", error: e instanceof Error ? e.name : "unknown" })));
 }

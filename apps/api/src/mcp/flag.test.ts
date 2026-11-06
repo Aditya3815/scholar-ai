@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { MCP_PATHS, betaUsers, isMcpPath, mcpAllowedFor, mcpMode } from "./flag";
+import { MCP_PATHS, betaUsers, checkClaimAllowedFor, isMcpPath, mcpAllowedFor, mcpMode } from "./flag";
 import { positionOfVariable } from "../understand/flags";
 
 const kv = (value: string | null) => ({ get: async () => value }) as unknown as KVNamespace;
@@ -35,6 +35,19 @@ describe("the MCP switch", () => {
   it("the shared reader knows beta only for a flag that asks for it", () => {
     expect(positionOfVariable("beta", false)).toEqual({ position: "off", bad: true });
     expect(positionOfVariable("beta", false, false, true)).toEqual({ position: "beta", bad: false });
+  });
+});
+
+describe("the switch of check_claim (MCP_CHECK_CLAIM)", () => {
+  it("is off unless exactly beta or on; beta lets in only MCP_BETA_USERS; the KV key can only lower it", async () => {
+    expect(await checkClaimAllowedFor({}, "u-1")).toBe(false);
+    for (const v of ["ON", "true", "", "shadow"]) expect(await checkClaimAllowedFor({ MCP_CHECK_CLAIM: v }, "u-1"), v).toBe(false);
+    const beta = { MCP_CHECK_CLAIM: "beta", MCP_BETA_USERS: "u-1 u-2" };
+    expect(await checkClaimAllowedFor(beta, "u-2")).toBe(true);
+    expect(await checkClaimAllowedFor(beta, "u-9")).toBe(false);
+    expect(await checkClaimAllowedFor({ MCP_CHECK_CLAIM: "on" }, "u-9")).toBe(true);
+    expect(await checkClaimAllowedFor({ MCP_CHECK_CLAIM: "on", CACHE: kv("off") } as never, "u-9")).toBe(false);
+    expect(await checkClaimAllowedFor({ MCP_CHECK_CLAIM: "beta", MCP_BETA_USERS: "u-1", CACHE: kv("on") } as never, "u-9")).toBe(false);
   });
 });
 

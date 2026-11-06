@@ -67,7 +67,7 @@ ${site}<p class="muted">After you answer, you go back to <code>${esc(hostOf(a.re
 <input type="hidden" name="handle" value="${esc(a.handle)}">
 <div class="row"><button class="secondary" type="submit" name="decision" value="deny">Cancel</button><button class="primary" type="submit" name="decision" value="allow">Allow</button></div>
 </form>
-<p class="fine">What the app sends (a search, a list of references, DOIs) is checked the same way as on the website. Sodhsetu keeps counts of what was used, never what was sent. You can disconnect the app at any time in Settings, under Connected apps.</p>`,
+<p class="fine">What the app sends (a search, a list of references, DOIs, a question about a paper) is handled the same way as on the website. Sodhsetu keeps counts of what was used, never what was sent. You can disconnect the app at any time in Settings, under Connected apps.</p>`,
   );
 }
 

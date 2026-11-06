@@ -72,6 +72,8 @@ type Bindings = AuthEnv & LimitEnv & {
   /** The MCP server (src/mcp/flag.ts): "off" (unset), "beta" (the accounts in MCP_BETA_USERS) or "on". */
   MCP?: string;
   MCP_BETA_USERS?: string;
+  /** The MCP tool check_claim alone (src/mcp/flag.ts): "off" (unset), "beta" (the accounts in MCP_BETA_USERS) or "on". */
+  MCP_CHECK_CLAIM?: string;
   /** Clients, grants and tokens of the MCP server's OAuth (src/mcp/oauth.ts): a namespace of its own (wrangler.jsonc); without it the server is off. */
   OAUTH_KV?: KVNamespace;
   PUBLIC_BASE_URL?: string;

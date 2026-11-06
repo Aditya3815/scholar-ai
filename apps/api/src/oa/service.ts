@@ -94,7 +94,7 @@ const EVERYONE = "*";
  *   stage, sources, delta, answer -> as for a question about a paper of your own, every claim tied to a quote that was checked against the text.
  * A paper new to the shared index counts against the person's day (`userId`). Nothing about the person is added to the index, and nothing is stored here.
  */
-export async function askOpenAccess(env: OaEnv, a: { userId: string; ref: OaRef; key: string; question: string; clientAbstract: string; embed: NonNullable<ReturnType<typeof embedderFor>>; abort: AbortController }, s: AskSession): Promise<void> {
+export async function askOpenAccess(env: OaEnv, a: { userId: string; ref: OaRef; key: string; question: string; clientAbstract: string; embed: NonNullable<ReturnType<typeof embedderFor>>; abort: AbortController; /** How long to wait for a reading that is going (default OA_WAIT_MS; the MCP tool waits less, since an app gives up sooner than the page). */ waitMs?: number }, s: AskSession): Promise<void> {
   const { send } = s;
   const db = env.DB;
   const { ref, key, question, clientAbstract, embed, abort } = a;
@@ -141,7 +141,7 @@ export async function askOpenAccess(env: OaEnv, a: { userId: string; ref: OaRef;
     // wait for it, telling how far it has got
     let last = "";
     let peak = 0; // the progress of a reading never goes back, whatever the row says next (a reading that fails keeps the point it had reached)
-    const deadline = Date.now() + OA_WAIT_MS;
+    const deadline = Date.now() + (a.waitMs ?? OA_WAIT_MS);
     while (isWorking(row) && !s.gone) {
       const state = `${row!.status}:${row!.done_chunks}`;
       if (state !== last) {
@@ -194,27 +194,41 @@ async function ask(env: OaEnv, s: AskSession, a: AskArgs): Promise<void> {
  * The full text cannot be read (not open access, blocked, scanned, too long ...): the question is answered from the abstract alone, and the screen says so. The abstract is
  * what the services give for the DOI or arXiv number; if they give none, the one the browser sent (the card shows it) is used. With neither there is nothing to answer from.
  */
-async function answerFromAbstract(env: OaEnv, s: AskSession, a: { key: string; ref: OaRef; reason: OaReason; title?: string | null; clientAbstract: string; question: string; embed: AskArgs["embed"]; subject: string; abort: AbortController; notice?: "daily_cap" }): Promise<void> {
+/**
+ * The title and abstract the services give for a DOI or an arXiv number: Europe PMC first (biomedical papers), then OpenAlex (most fields), then arXiv. `found` says whether any of them
+ * knew the paper at all. Lookups that fail say nothing; never throws. Used by the answer from an abstract below and by the MCP tool check_claim.
+ */
+export async function abstractFor(env: Pick<OaEnv, "ENABLE_DEV_ROUTES" | "QA_STUB" | "CROSSREF_MAILTO" | "OPENALEX_API_KEY">, ref: OaRef): Promise<{ title: string | null; abstract: string; found: boolean }> {
   const deps = sourceDepsFor(env as never);
-  let title = a.title ?? null;
+  let title: string | null = null;
   let abstract = "";
-  if (a.ref.doi) {
-    const rec = await lookupByDoi(a.ref.doi, deps).catch(() => null);
+  let found = false;
+  if (ref.doi) {
+    const rec = await lookupByDoi(ref.doi, deps).catch(() => null);
+    found ||= !!rec;
     abstract = rec?.abstract ?? "";
-    title = title ?? rec?.title ?? null;
+    title = rec?.title ?? null;
   }
-  if (!abstract && a.ref.doi) {
+  if (!abstract && ref.doi) {
     // Europe PMC knows the abstracts of biomedical papers only; OpenAlex knows most fields
-    const rec = await lookupOpenAlexAbstract(a.ref.doi, deps).catch(() => null);
+    const rec = await lookupOpenAlexAbstract(ref.doi, deps).catch(() => null);
+    found ||= !!rec;
     abstract = rec?.abstract ?? "";
     title = title ?? rec?.title ?? null;
   }
-  if (!abstract && a.ref.arxivId) {
-    const meta = await fetchArxivMeta(a.ref.arxivId, deps).catch(() => null);
+  if (!abstract && ref.arxivId) {
+    const meta = await fetchArxivMeta(ref.arxivId, deps).catch(() => null);
+    found ||= !!meta;
     abstract = meta?.abstract ?? "";
     title = title ?? meta?.title ?? null;
   }
-  abstract = abstract || a.clientAbstract;
+  return { title, abstract, found };
+}
+
+async function answerFromAbstract(env: OaEnv, s: AskSession, a: { key: string; ref: OaRef; reason: OaReason; title?: string | null; clientAbstract: string; question: string; embed: AskArgs["embed"]; subject: string; abort: AbortController; notice?: "daily_cap" }): Promise<void> {
+  const looked = await abstractFor(env, a.ref);
+  const title = a.title ?? looked.title;
+  const abstract = looked.abstract || a.clientAbstract;
   if (abstract.length < 40) {
     return void (await s.send({ type: "error", code: "no_text", title: "There is nothing to read for this paper", detail: `${OA_UNREADABLE_TEXT[a.reason]} No abstract could be found either, so there is nothing to answer from. If you have the PDF, add it to My Workspace and ask there.` }));
   }
@@ -224,4 +238,4 @@ async function answerFromAbstract(env: OaEnv, s: AskSession, a: { key: string; r
   await ask(env, s, { basis: "abstract", chunks, question: a.question, embed: a.embed, subject: a.subject, abort: a.abort });
 }
 
-export const oaService = { ask: askOpenAccess, readRef, progressOf };
+export const oaService = { ask: askOpenAccess, readRef, progressOf, abstractFor };

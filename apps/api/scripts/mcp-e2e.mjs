@@ -1,5 +1,5 @@
 // The MCP server (src/mcp) end to end: real Worker + local D1 + local KV + the fake identity provider. An app registers itself, sends a person through Sodhsetu's sign-in and consent with PKCE, gets a
-// token, and calls the tools over the real MCP protocol; the person sees it under Connected apps and disconnects it. With INTEGRATION_MCP=off (a second run, --only="MCP server integration") every
+// token, and calls the tools over the real MCP protocol (Phase 1, then ask_paper, the library tools with a second app that asks for the library, and check_claim); the person sees it under Connected apps and disconnects it. With INTEGRATION_MCP=off (a second run, --only="MCP server integration") every
 // path of the server answers 404, as before it existed.
 import crypto from "node:crypto";
 import { startFakeIdp } from "./fake-idp.mjs";
@@ -104,7 +104,7 @@ try {
   const init = await mcp(t.access_token, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "e2e", version: "1" } });
   ok(init.res.status === 200 && init.body?.result?.serverInfo?.name === "sodhsetu", "initialize: the server says who it is");
   const list = await mcp(t.access_token, "tools/list", {}, 2);
-  ok(JSON.stringify((list.body?.result?.tools ?? []).map((x) => x.name).sort()) === JSON.stringify(["check_retractions", "search_papers", "verify_references"]), "tools/list: the three Phase 1 tools");
+  ok(JSON.stringify((list.body?.result?.tools ?? []).map((x) => x.name).sort()) === JSON.stringify(["ask_paper", "check_claim", "check_retractions", "get_library", "save_paper", "search_papers", "verify_references"]), "tools/list: the seven tools (check_claim with its own switch on in this run)");
   const ret = await mcp(t.access_token, "tools/call", { name: "check_retractions", arguments: { text: "doi = {10.5555/retracted-e2e}, 10.5555/clear-e2e" } }, 3);
   const s = ret.body?.result?.structuredContent;
   ok(s?.summary?.retracted === 1 && s?.summary?.not_retracted === 1 && s.items[0].notices[0]?.doi === "10.5555/retracted-e2e-notice", "check_retractions finds the retracted DOI and its notice");
@@ -114,9 +114,40 @@ try {
   ok(rows[0].length === 2 && rows[0].every((r) => Object.keys(r).sort().join() === "at,client,duration_ms,outcome,tool" && r.client === "Test MCP App"), "each call is counted: tool, app, time, outcome, and nothing else");
   ok(!JSON.stringify(rows).includes("10.5555"), "...and nothing of what was sent");
 
+  console.log("Phase 2 and 3: ask_paper, the library, check_claim");
+  const call = async (tk, name, args, id) => (await mcp(tk, "tools/call", { name, arguments: args }, id)).body?.result;
+  const full = await call(t.access_token, "ask_paper", { doi: "10.5555/oa.xml", question: "How many adults were enrolled in the study?" }, 10);
+  ok(full?.structuredContent?.status === "answered" && full.structuredContent.paper.basis === "full_text" && full.structuredContent.quotes.length > 0 && full.structuredContent.quotes.every((q) => q.quote && (q.section || q.page !== null)), "ask_paper reads an open-access paper and answers with checked quotes, each with its section or page");
+  const closed = await call(t.access_token, "ask_paper", { doi: "10.5555/oa.closed", question: "What does this paper report?" }, 11);
+  ok(closed?.structuredContent?.status === "answered" && closed.structuredContent.paper.basis === "abstract" && !!closed.structuredContent.paper.why_not_full_text && /abstract only/.test(closed.content[0].text), "a paper behind a paywall is answered from its abstract, and the answer says so");
+  const noLib = await mcp(t.access_token, "tools/call", { name: "get_library", arguments: {} }, 12);
+  ok(noLib.res.status === 403 && /library:read/.test(noLib.res.headers.get("www-authenticate") ?? ""), "get_library with a Phase 1 token: a step-up challenge for library:read");
+  const claim = await call(t.access_token, "check_claim", { claim: "Drip lines cut the water a farm uses by about a third.", dois: ["10.5555/oa.alexabs"] }, 13);
+  ok(claim?.structuredContent?.verdict === "supported" && claim.structuredContent.evidence[0]?.sentences[0] === "Farms with drip lines used about a third less water than farms that flooded their fields.", "check_claim: supported, with the abstract's own sentence as the evidence");
+  const notClaim = await call(t.access_token, "check_claim", { claim: "Drip lines are an invented cure for every drought.", dois: ["10.5555/oa.alexabs"] }, 14);
+  ok(notClaim?.structuredContent?.verdict === "not_supported" && notClaim.structuredContent.evidence.length === 0, "...and not_supported, with no evidence, for a claim the abstract does not make");
+
+  const lib = await authorize(P, { scope: "papers:read references:verify library:read library:write", clientName: "Library App" });
+  ok(/See the papers saved in your Sodhsetu library/.test(lib.consent.html) && /Save papers to your Sodhsetu library/.test(lib.consent.html) && !/Not available yet/.test(lib.consent.html), "an app that asks for the library: the consent page names both library permissions");
+  const lt = await (await token({ grant_type: "authorization_code", code: lib.loc.searchParams.get("code"), redirect_uri: REDIRECT, client_id: lib.client.client_id, code_verifier: lib.verifier, resource: `${APP}/mcp` })).json();
+  ok(/library:read/.test(lt.scope) && /library:write/.test(lt.scope), "...and its token carries them");
+  const empty = await call(lt.access_token, "get_library", {}, 20);
+  ok(empty?.structuredContent?.total === 0 && empty.structuredContent.papers.length === 0, "get_library: an empty library");
+  const unconfirmed = await call(lt.access_token, "save_paper", { doi: "10.1000/glaucoma.2" }, 21);
+  ok(unconfirmed?.structuredContent?.saved === false && /Ask the person/.test(unconfirmed.content[0].text), "save_paper without the person's yes saves nothing");
+  const saved = await call(lt.access_token, "save_paper", { doi: "10.1000/glaucoma.2", confirm: true }, 22);
+  ok(saved?.structuredContent?.saved === true && saved.structuredContent.paper?.title === "Smartphone-based retinal imaging in rural clinics", "save_paper with confirm: Sodhsetu looks the paper up itself and saves it");
+  const one = await call(lt.access_token, "get_library", {}, 23);
+  ok(one?.structuredContent?.total === 1 && one.structuredContent.papers[0].doi === "10.1000/glaucoma.2", "get_library lists it");
+  const web = await (await P.api("/api/v1/library")).json();
+  ok(web.items?.length === 1 && web.items[0].doi === "10.1000/glaucoma.2", "...and so does the person's Library on the website");
+  const rows2 = await sql(["SELECT tool, outcome FROM mcp_calls ORDER BY rowid"]);
+  ok(["ask_paper", "check_claim", "get_library", "save_paper"].every((x) => rows2[0].some((r) => r.tool === x && r.outcome === "ok")), "each new tool's calls are counted too");
+  ok(!JSON.stringify(rows2).includes("enrolled") && !JSON.stringify(rows2).includes("Drip"), "...never with the question or the claim");
+
   console.log("Connected apps");
   const apps = await (await P.api("/api/v1/connected-apps")).json();
-  ok(apps.mode === "on" && apps.apps.length >= 1 && apps.apps.every((a) => a.name === "Test MCP App"), "Settings lists the connected app");
+  ok(apps.mode === "on" && apps.apps.some((a) => a.name === "Test MCP App") && apps.apps.some((a) => a.name === "Library App") && apps.apps.every((a) => ["Test MCP App", "Library App"].includes(a.name)), "Settings lists the connected apps");
   const other = createClient(APP);
   idp.setUser({ sub: "mcp-other", email: "other@example.edu", email_verified: true, name: "Other Person" });
   await other.follow(`${APP}/api/v1/auth/google/start`);
@@ -137,8 +168,8 @@ try {
   ok(cross.status === 403, "a consent posted from another site is refused");
   const stale = await P.send(`${APP}/oauth/authorize`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: APP }, body: form({ handle: "y".repeat(32), decision: "allow" }) });
   ok(stale.status === 400, "a consent with an unknown handle is refused");
-  const libOnly = await authorize(P, { scope: "library:write" });
-  ok(/Not available yet/.test(libOnly.consent.html) && libOnly.loc?.searchParams.get("error") === "invalid_scope", "an app asking only for a scope this release cannot grant gets invalid_scope");
+  const unknownOnly = await authorize(P, { scope: "admin:everything" });
+  ok(/Not available yet/.test(unknownOnly.consent.html) && unknownOnly.loc?.searchParams.get("error") === "invalid_scope", "an app asking only for a scope Sodhsetu does not have gets invalid_scope");
 
   console.log("the admin page");
   ok((await P.api("/api/v1/admin/mcp")).status === 404, "the MCP counts are for admins only");

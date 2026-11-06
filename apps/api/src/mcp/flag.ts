@@ -26,6 +26,16 @@ export const betaUsers = (env: McpFlagEnv | undefined): string[] => (env?.MCP_BE
 export const mcpAllowedFor = (mode: McpMode, env: McpFlagEnv | undefined, userId: string): boolean => mode === "on" || (mode === "beta" && betaUsers(env).includes(userId));
 
 /**
+ * The switch of the tool check_claim alone (page 10: Phase 3, "judge ka naya use, eval ke baad"): `MCP_CHECK_CLAIM` is `off`, `beta` or `on`, unset is off, read the same way (the KV key
+ * `flag:MCP_CHECK_CLAIM` can only lower it). The tool is listed only for an account the MCP server itself lets in AND this switch lets in: `beta` means the accounts of MCP_BETA_USERS, `on`
+ * everyone the server lets in. With it off the tool is not listed and cannot be called (src/mcp/phase2.test.ts); the contract test holds every tool's schema, this one's included.
+ */
+export async function checkClaimAllowedFor(env: McpFlagEnv & { MCP_CHECK_CLAIM?: string }, userId: string): Promise<boolean> {
+  const r = await flagOf(env, "MCP_CHECK_CLAIM", { allowBeta: true });
+  return r.position === "on" || (r.position === "beta" && betaUsers(env).includes(userId));
+}
+
+/**
  * The paths the MCP server owns. Only these reach it; every other path of the Worker is served exactly as before. The Worker's static assets answer everything but /api/* unless wrangler.jsonc's
  * `run_worker_first` names a path, so these patterns are listed there too (and a test holds the two lists together).
  */

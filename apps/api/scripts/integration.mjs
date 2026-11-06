@@ -55,6 +55,8 @@ const vars = {
   // INTEGRATION_TRENDING=off (or =dark) starts the Worker with the variable TRENDING=off (or dark) (run it with --only="trending": scripts/trending-e2e.mjs then checks that switch instead of the others)
   ...(process.env.INTEGRATION_TRENDING ? { TRENDING: process.env.INTEGRATION_TRENDING } : {}),
   MCP: process.env.INTEGRATION_MCP ?? "on",
+  // check_claim has a switch of its own (src/mcp/flag.ts), off in production: on here, so that scripts/mcp-e2e.mjs reaches the tool (it follows MCP: off with the server off)
+  MCP_CHECK_CLAIM: process.env.INTEGRATION_MCP === "off" ? "off" : "on",
   // INTEGRATION_VARS="CHAT_COUNTERS:on,CHAT_FAILPOLICY:shadow" starts the Worker with those variables too (the gate flags of docs/design/intent-and-state.md are unset in wrangler.jsonc, so a default run tests them OFF);
   // the suites read the same variable to know which position they are looking at (run it with --only="chat integration" to see the flags work on the real database)
   ...integrationVars,
