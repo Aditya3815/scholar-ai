@@ -1,5 +1,6 @@
 import { deleteDocument } from "../docs/routes";
 import { captureException, type SentryEnv } from "../monitoring/sentry";
+import { revokeAllApps } from "../mcp/apps";
 
 /**
  * Deleting an account, and keeping a deletion from being undone by a database restore.
@@ -14,7 +15,7 @@ export const TOMBSTONE_PREFIX = "tombstones/";
 const ID = /^[A-Za-z0-9-]{8,64}$/;
 const tombstoneKey = (userId: string) => `${TOMBSTONE_PREFIX}${userId}`;
 
-type Env = { DB: D1Database; FILES: R2Bucket } & SentryEnv;
+type Env = { DB: D1Database; FILES: R2Bucket; OAUTH_KV?: KVNamespace; PUBLIC_BASE_URL?: string } & SentryEnv;
 
 /** Erases the account's papers (files and rows), library, reports, sessions and sign-in links, in that order, then the account itself. */
 export async function eraseAccount(env: Env, userId: string, opts: { tombstone?: boolean } = {}): Promise<void> {
@@ -27,6 +28,9 @@ export async function eraseAccount(env: Env, userId: string, opts: { tombstone?:
       captureException(env, err, { route: "account:erase", tags: { step: "tombstone" } });
     }
   }
+  // the AI apps the account connected (src/mcp): their grants and tokens go first, so that no app can use the account while the rest is being erased. A failure is reported and does not stop the
+  // erasure: a token left behind names an account that no longer exists, and the MCP server answers nothing for it.
+  await revokeAllApps(env, userId).catch((err) => captureException(env, err, { route: "account:erase", tags: { step: "mcp_grants" } }));
   const db = env.DB;
   const owned = await db.prepare("SELECT id FROM documents WHERE user_id = ?1").bind(userId).all<{ id: string }>();
   for (const d of owned.results) await deleteDocument(env, userId, d.id);
@@ -42,6 +46,7 @@ export async function eraseAccount(env: Env, userId: string, opts: { tombstone?:
     db.prepare("DELETE FROM feedback WHERE user_id = ?1").bind(userId),
     db.prepare("DELETE FROM idempotency_keys WHERE user_id = ?1").bind(userId),
     db.prepare("DELETE FROM oa_daily WHERE user_id = ?1").bind(userId),
+    db.prepare("DELETE FROM mcp_daily WHERE user_id = ?1").bind(userId),
     db.prepare("DELETE FROM sessions WHERE user_id = ?1").bind(userId),
     db.prepare("DELETE FROM oauth_states WHERE link_user_id = ?1").bind(userId),
     db.prepare("DELETE FROM identities WHERE user_id = ?1").bind(userId),

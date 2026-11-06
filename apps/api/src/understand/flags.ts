@@ -20,10 +20,10 @@
  */
 
 /**
- * In order, lowest first: an override can move a flag only to the left. `core` (the safety lane) and `writer` (the relevance floor, R9) are each the middle position of ONE flag and are never both
- * allowed for it, so where they stand relative to each other is not used.
+ * In order, lowest first: an override can move a flag only to the left. `core` (the safety lane), `writer` (the relevance floor, R9) and `beta` (the MCP server: on for an allowlist of accounts) are each
+ * the middle position of ONE flag and are never allowed together for one, so where they stand relative to each other is not used.
  */
-export const FLAG_POSITIONS = ["off", "shadow", "core", "writer", "on"] as const;
+export const FLAG_POSITIONS = ["off", "shadow", "beta", "core", "writer", "on"] as const;
 export type FlagPosition = (typeof FLAG_POSITIONS)[number];
 
 /** How long an isolate keeps what KV said about one flag, a read that failed included. A read at time t answers every call before t + 30 000 ms; at t + 30 000 the next call reads again. */
@@ -63,6 +63,8 @@ export type FlagOptions = {
   allowCore?: boolean;
   /** The same for a `writer` position (the relevance floor, R9): only the writer's gate acts, with no reorder and no line; it stands between `shadow` and `on`. */
   allowWriter?: boolean;
+  /** The same for a `beta` position (the MCP server, src/mcp/flag.ts: on only for the accounts on an allowlist); it stands between `shadow` and `on`. */
+  allowBeta?: boolean;
   /** For a test: the clock (milliseconds) and the cache. */
   now?: () => number;
   cache?: FlagCache;
@@ -84,17 +86,17 @@ export type FlagReading = {
 };
 
 /** The variable's reading, shared with the disclosure test (legal-match.test.ts) so that "on" in the committed config means what it means in the Worker. Unset (undefined or null) is off and not bad. */
-export function positionOfVariable(value: unknown, allowCore: boolean, allowWriter = false): { position: FlagPosition; bad: boolean } {
+export function positionOfVariable(value: unknown, allowCore: boolean, allowWriter = false, allowBeta = false): { position: FlagPosition; bad: boolean } {
   if (value === undefined || value === null) return { position: "off", bad: false };
-  if (value === "off" || value === "shadow" || value === "on" || (allowCore && value === "core") || (allowWriter && value === "writer")) return { position: value, bad: false };
+  if (value === "off" || value === "shadow" || value === "on" || (allowCore && value === "core") || (allowWriter && value === "writer") || (allowBeta && value === "beta")) return { position: value, bad: false };
   return { position: "off", bad: true };
 }
 
 const rank = (p: FlagPosition): number => FLAG_POSITIONS.indexOf(p);
 
-function overrideOf(text: unknown, allowCore: boolean, allowWriter: boolean): FlagPosition | null {
+function overrideOf(text: unknown, allowCore: boolean, allowWriter: boolean, allowBeta: boolean): FlagPosition | null {
   if (typeof text !== "string") return null;
-  const p = positionOfVariable(text.trim().toLowerCase(), allowCore, allowWriter);
+  const p = positionOfVariable(text.trim().toLowerCase(), allowCore, allowWriter, allowBeta);
   return p.bad ? null : p.position;
 }
 
@@ -128,8 +130,9 @@ function readOverride(kv: FlagKv, name: string, now: number, cache: FlagCache): 
 export async function flagOf<E extends object>(env: E & FlagEnv, name: string, options: FlagOptions = {}): Promise<FlagReading> {
   const allowCore = options.allowCore === true;
   const allowWriter = options.allowWriter === true;
+  const allowBeta = options.allowBeta === true;
   const vars = (env ?? {}) as Record<string, unknown>; // Hono hands a route an undefined env when a test calls app.request without one (sse.ts reads it the same way)
-  const { position: variable, bad } = positionOfVariable(vars[name], allowCore, allowWriter);
+  const { position: variable, bad } = positionOfVariable(vars[name], allowCore, allowWriter, allowBeta);
   const reading: FlagReading = { position: variable, variable, badVariable: bad, override: null, badOverride: false, kvUnreadable: false };
   const kv = (vars as FlagEnv).CACHE;
   // Nothing can be lowered below off, so an off flag (every flag today) does not read KV.
@@ -137,7 +140,7 @@ export async function flagOf<E extends object>(env: E & FlagEnv, name: string, o
   const { text, unreadable } = await readOverride(kv, name, (options.now ?? Date.now)(), options.cache ?? isolateCacheOf(kv));
   reading.kvUnreadable = unreadable;
   if (text === null) return reading;
-  const override = overrideOf(text, allowCore, allowWriter);
+  const override = overrideOf(text, allowCore, allowWriter, allowBeta);
   if (override === null) {
     reading.badOverride = true;
     return reading;

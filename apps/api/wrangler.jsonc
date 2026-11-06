@@ -11,7 +11,7 @@
   "assets": {
     "directory": "../web/dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/api/*", "/mcp", "/oauth/*", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/*"]
   },
   "d1_databases": [
     {
@@ -33,6 +33,10 @@
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "scholar-files" }],
   // Public lookups (search results, DOI and retraction checks, reference lookups) are cached here, not in the database: docs/spikes/R6-kv-cache.md.
   // Only public data is ever put in this namespace.
+  // The MCP server (src/mcp) keeps its OAuth clients, grants and tokens in a namespace of its own, bound as OAUTH_KV (the name is fixed by @cloudflare/workers-oauth-provider): not in CACHE,
+  // which holds only public data. Until that binding exists the server stays off whatever MCP says. To turn it on: `npx wrangler kv namespace create OAUTH_KV`, then add
+  //   { "binding": "OAUTH_KV", "id": "<the id it prints>" }
+  // to this list (and the same for staging below, from `npx wrangler kv namespace create OAUTH_KV --env staging`), then set "MCP" in vars (docs/runbook.md, "MCP server").
   "kv_namespaces": [{ "binding": "CACHE", "id": "2e43e4d46b59423cafeecd08c383dba0" }],
   "ai": { "binding": "AI" },
   "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }, { "name": "API_GATE", "class_name": "ApiGate" }] },
@@ -66,7 +70,7 @@
       "assets": {
         "directory": "../web/dist",
         "not_found_handling": "single-page-application",
-        "run_worker_first": ["/api/*"]
+        "run_worker_first": ["/api/*", "/mcp", "/oauth/*", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/*"]
       },
       "d1_databases": [
         {

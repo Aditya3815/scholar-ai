@@ -10,8 +10,10 @@ import { eraseAccount } from "../account/erase";
 import { findAccount, parseAccountRef } from "./accounts";
 import { captureException, parseDsn, sendEvent, type SentryEnv } from "../monitoring/sentry";
 import { deny } from "../problem";
+import { readMcpAdmin } from "../mcp/calls";
+import { mcpMode } from "../mcp/flag";
 
-type Env = { Bindings: SentryEnv & { DB: D1Database; FILES: R2Bucket } };
+type Env = { Bindings: SentryEnv & { DB: D1Database; FILES: R2Bucket; CACHE?: KVNamespace; MCP?: string } };
 export const adminRoutes = new Hono<Env>();
 
 adminRoutes.use("*", async (c, next) => {
@@ -66,6 +68,12 @@ adminRoutes.get("/overview", async (c) => {
     jobs,
   };
   return c.json(body);
+});
+
+/** The MCP server (src/mcp): the switch, and the last seven days of tool calls by tool, outcome and app. Counts only: never a query, a reference or a DOI. */
+adminRoutes.get("/mcp", async (c) => {
+  if (!(await admin(c))) return deny(c, 404, "not_found", "Not found");
+  return c.json({ mode: await mcpMode(c.env), ...(await readMcpAdmin(c.env.DB)) });
 });
 
 /**

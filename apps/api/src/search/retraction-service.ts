@@ -45,24 +45,34 @@ export async function checkRetractions(env: RetractionServiceEnv, given: string[
   }
   if (dois.length === 0) return { checked: [], invalid };
   const crossref = { CROSSREF_MAILTO: env.CROSSREF_MAILTO, ...fetchFor(env) };
-  let retracted: Set<string> | null = null;
-  try {
-    retracted = (await retractedDois(cacheStore(env), dois, crossref, AbortSignal.timeout(timeoutMs))).retracted;
-  } catch {
-    retracted = null;
+  const store = cacheStore(env);
+  // Crossref takes the DOIs as one filter in the address: 40 at a time, as the nightly re-check does (src/library/retraction.ts); a batch that fails leaves only its own DOIs unknown
+  const known = new Map<string, boolean>();
+  for (let i = 0; i < dois.length; i += RETRACTION_BATCH) {
+    const batch = dois.slice(i, i + RETRACTION_BATCH);
+    try {
+      const { retracted } = await retractedDois(store, batch, crossref, AbortSignal.timeout(timeoutMs));
+      for (const d of batch) if (!d.includes(",")) known.set(d, retracted.has(d));
+    } catch {
+      /* this batch stays unknown */
+    }
   }
+  const retracted = dois.filter((d) => known.get(d) === true);
   let notices = new Map<string, string[]>();
-  if (retracted && retracted.size > 0) {
-    notices = await findRetractionNotices([...retracted], crossref, AbortSignal.timeout(timeoutMs)).catch(() => new Map<string, string[]>());
+  if (retracted.length > 0) {
+    notices = await findRetractionNotices(retracted.slice(0, RETRACTION_BATCH), crossref, AbortSignal.timeout(timeoutMs)).catch(() => new Map<string, string[]>());
   }
   return {
     checked: dois.map((doi) => ({
       doi,
-      status: retracted === null || doi.includes(",") ? "unknown" : retracted.has(doi) ? "retracted" : "not_retracted",
+      status: !known.has(doi) ? "unknown" : known.get(doi) ? "retracted" : "not_retracted",
       notices: notices.get(doi) ?? [],
     })),
     invalid,
   };
 }
+
+/** How many DOIs go to Crossref in one call. */
+export const RETRACTION_BATCH = 40;
 
 export const retractionService = { check: checkRetractions, isRetracted };

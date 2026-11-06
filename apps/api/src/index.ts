@@ -32,6 +32,10 @@ import { ApiGate, remoteGate } from "./gate/api-gate";
 import { installGates, withGate, GATES, type GateName } from "./gate";
 import { trendingRoutes } from "./trending/routes";
 import { runTrendingFromEnv } from "./trending/job";
+import { isMcpPath, mcpMode } from "./mcp/flag";
+import { baseUrlOf } from "./mcp/scopes";
+import { mcpApiHandler, type McpEnv } from "./mcp/server";
+import { connectedAppsRoutes } from "./mcp/apps";
 
 type Bindings = AuthEnv & LimitEnv & {
   S2_THROTTLE: DurableObjectNamespace<S2Throttle>;
@@ -65,6 +69,12 @@ type Bindings = AuthEnv & LimitEnv & {
   EXPECT_CRON?: string;
   /** "off" switches the Home page's Trending list off, and its daily job (src/trending/routes.ts, job.ts): a Worker variable. The KV key trending:v1:off hides the list too, and leaves the job running. */
   TRENDING?: string;
+  /** The MCP server (src/mcp/flag.ts): "off" (unset), "beta" (the accounts in MCP_BETA_USERS) or "on". */
+  MCP?: string;
+  MCP_BETA_USERS?: string;
+  /** Clients, grants and tokens of the MCP server's OAuth (src/mcp/oauth.ts): a namespace of its own (wrangler.jsonc); without it the server is off. */
+  OAUTH_KV?: KVNamespace;
+  PUBLIC_BASE_URL?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings; Variables: { requestId: string } }>();
@@ -101,6 +111,8 @@ app.route("/api/v1/admin", adminRoutes);
 app.route("/api/v1/monitoring", monitoringRoutes);
 // the Home page's Trending list: one public file, outside the search bucket of the rate limiter (src/trending/routes.ts)
 app.route("/api/v1/home", trendingRoutes);
+// the apps a person connected through the MCP server, and the button that disconnects one (Settings, Connected apps; 404 while the server is off)
+app.route("/api/v1/connected-apps", connectedAppsRoutes);
 
 app.get("/api/v1/health", async (c) => {
   let db: HealthResponse["db"] = "ok";
@@ -339,8 +351,21 @@ export { ApiGate } from "./gate/api-gate";
 export { OaIngest } from "./oa/workflow";
 export { LitscanRun } from "./litscan/workflow";
 
+/**
+ * The MCP server and its OAuth endpoints (src/mcp) own a few paths of their own (MCP_PATHS); everything else goes to the app as before. With the switch off those paths go to the app too, which has no
+ * route for them: they answer 404 exactly as they did before the server existed.
+ */
+async function fetchWorker(request: Request, env: Bindings, ctx: ExecutionContext): Promise<Response> {
+  if (!isMcpPath(new URL(request.url).pathname) || (await mcpMode(env)) === "off") return app.fetch(request, env, ctx);
+  // the MCP tools call Crossref through the same shared lanes as every /api request
+  installGates(env.API_GATE ? remoteGate(env.API_GATE) : null);
+  // loaded only here: the OAuth library imports the Workers runtime, and nothing else of the Worker needs it
+  const { oauthPages, providerFor } = await import("./mcp/oauth");
+  return providerFor(baseUrlOf(env, request), mcpApiHandler as never, { fetch: (r, e, x) => oauthPages.fetch(r, e, x) }).fetch(request, env as unknown as McpEnv, ctx);
+}
+
 export default {
-  fetch: app.fetch,
+  fetch: fetchWorker,
   async scheduled(controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
     // the calls to Crossref take their turn in the shared lane, as they do in a request
     installGates(env.API_GATE ? remoteGate(env.API_GATE) : null);

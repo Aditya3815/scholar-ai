@@ -5,6 +5,7 @@ import { FEEDBACK_PROBLEMS, type AdminFeedback, type AdminOverview } from "@scho
 import { useAuth } from "../../lib/auth";
 import { easeOut, stagger } from "../../lib/motion";
 import { DataChecks, EraseAccount, AnswerOutcomes, Jobs } from "./AdminOps";
+import { McpPanel } from "./AdminMcp";
 import "../../styles/admin.css";
 
 const rise = (i: number) => ({ initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.45, ease: easeOut, delay: 0.05 + stagger(i, 0.06) } });
@@ -224,6 +225,8 @@ export function AdminPage() {
       <AnswerOutcomes rows={data.answers} />
 
       <Jobs jobs={data.jobs} />
+
+      <McpPanel />
 
       <ErrorReporting />
 

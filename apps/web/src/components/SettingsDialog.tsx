@@ -8,6 +8,7 @@ import { clearOfflineData } from "../lib/offline";
 import { clearChats, useChatState } from "../lib/chat";
 import { setEarlierChats, useEarlierChats } from "../lib/memory";
 import { OfflineSettings } from "./OfflineSettings";
+import { ConnectedAppsSettings } from "./ConnectedApps";
 
 /**
  * The three sections of the account settings (details, a copy of your data, erasing the account: DPDP access, portability, erasure).
@@ -119,6 +120,8 @@ export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: 
       </section>
 
       <OfflineSettings idPrefix={idPrefix} />
+
+      <ConnectedAppsSettings idPrefix={idPrefix} />
 
       <section className="settings-sec" aria-labelledby={`${idPrefix}-data`}>
         <h3 id={`${idPrefix}-data`} className="settings-h">Your data</h3>
