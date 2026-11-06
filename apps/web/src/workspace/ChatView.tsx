@@ -12,6 +12,7 @@ import { useCopy } from "../lib/copy";
 import { EDIT_LEAVE_WARNING, registerLeaveGuard } from "../lib/leave";
 import { menuKeys } from "./menuKeys";
 import { Announcer, announce } from "./announcer";
+import { ThinkBlock } from "./ThinkBlock";
 import { openPreview } from "../lib/preview";
 import { easeOut, spring } from "../lib/motion";
 import { PAPERS_NAME } from "../lib/workspace";
@@ -265,6 +266,41 @@ function ReadingLines({ reading, text, working, onWords }: { reading: MessageRea
  * remove button (`followUpNote`); a follow-up that was left as it was says nothing more. A search made from other words than the bubble above it (the question as written, the topic without its years) shows them.
  * `onWords` searches words as written, as a search chosen by hand: the earlier turns cannot be leaned on there, which is why it is given the words that stand alone.
  */
+function ChangeMenu({ msg, text, working, onChange }: { msg: AssistantMsg; text: string; working: boolean; onChange: ChangeTool }) {
+  const others = TOOL_ROWS.filter((t) => t.id !== msg.mode);
+  return (
+    <Pop
+      label="Use another tool for this"
+      align="start"
+      trigger={() => (
+        <button type="button" className="link-btn chat-change">
+          Change <ChevronDown size={12} aria-hidden="true" />
+        </button>
+      )}
+    >
+      {(close) => (
+        <div className="chat-change-menu" role="menu" aria-label="Use another tool for this" onKeyDown={menuKeys}>
+          {others.map((t) => (
+            <button key={t.id} type="button" role="menuitem" className="hm-menu-item" disabled={working} onClick={() => { close(); onChange(t.id, msg.id, text); }}>
+              <span className="hm-menu-ico"><t.Icon size={16} aria-hidden="true" /></span>
+              <span className="hm-menu-txt"><b>{t.name}</b><small>{t.hint}</small></span>
+            </button>
+          ))}
+        </div>
+      )}
+    </Pop>
+  );
+}
+
+/** Whether "Use my exact words" is offered for a reply: Auto searched other words than the person's, and those words are not a follow-up's (whose own words mean nothing alone). */
+const exactOffered = (msg: AssistantMsg, text: string, working: boolean): boolean => {
+  const note = msg.mode === "search" ? followUpNote(msg) : null;
+  return msg.mode === "search" && !!msg.searchQuery && !working && text.length <= MAX_CHAT_CHARS && !note?.question;
+};
+
+/** A reply that has the Thinking block's lines (M2): the block says what was understood and searched, so the first line and "I searched for" are not said twice. */
+const hasThink = (msg: AssistantMsg): boolean => Array.isArray(msg.think) && msg.think.length > 0;
+
 function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: AssistantMsg; text: string; working: boolean; onChange: ChangeTool; onExact: () => void; onWords: (words: string) => void }) {
   const line =
     msg.how === "chosen" ? (
@@ -274,39 +310,22 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
     ) : (
       <>I understood this as <b>{ROUTE_NAMES[msg.mode]}</b>.</>
     );
-  const others = TOOL_ROWS.filter((t) => t.id !== msg.mode);
   const note = msg.mode === "search" ? followUpNote(msg) : null;
   const unfinished = msg.mode === "search" ? msg.notices.find((n) => n.kind === "unfinished") : undefined;
   // the person's own words are not searched on their own when the line above them is the question they were read as: a follow-up's words mean nothing alone
-  const exact = msg.mode === "search" && !!msg.searchQuery && !working && text.length <= MAX_CHAT_CHARS && !note?.question;
+  const exact = exactOffered(msg, text, working);
+  const thinking = hasThink(msg);
   const unfiltered = note?.years ? unfilteredWords(msg, text) : null;
   const tidy = (s: string) => s.replace(/\s+/g, " ").trim();
   const searchedAs = msg.how === "chosen" && msg.query.trim() !== "" && tidy(msg.query) !== tidy(text).slice(0, 300) ? msg.query : null;
   return (
     <>
-      <p className="chat-und">
-        {line}{" "}
-        <Pop
-          label="Use another tool for this"
-          align="start"
-          trigger={() => (
-            <button type="button" className="link-btn chat-change">
-              Change <ChevronDown size={12} aria-hidden="true" />
-            </button>
-          )}
-        >
-          {(close) => (
-            <div className="chat-change-menu" role="menu" aria-label="Use another tool for this" onKeyDown={menuKeys}>
-              {others.map((t) => (
-                <button key={t.id} type="button" role="menuitem" className="hm-menu-item" disabled={working} onClick={() => { close(); onChange(t.id, msg.id, text); }}>
-                  <span className="hm-menu-ico"><t.Icon size={16} aria-hidden="true" /></span>
-                  <span className="hm-menu-txt"><b>{t.name}</b><small>{t.hint}</small></span>
-                </button>
-              ))}
-            </div>
-          )}
-        </Pop>
-      </p>
+      {!thinking && (
+        <p className="chat-und">
+          {line}{" "}
+          <ChangeMenu msg={msg} text={text} working={working} onChange={onChange} />
+        </p>
+      )}
       {unfinished && (
         // R22 (S-DID-NOT-FINISH): the reply right before this message did not finish, so this follows the search before it. The page made the line (the notice kind "unfinished"), when the server said it read the earlier turns
         <p className="chat-und chat-searched chat-unfinished" role="note">
@@ -324,7 +343,7 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
           )}
         </p>
       )}
-      {msg.mode === "search" && msg.searchQuery && (
+      {!thinking && msg.mode === "search" && msg.searchQuery && (
         <p className="chat-und chat-searched">
           I searched for: <b lang="en">{msg.searchQuery}</b>
           {exact && (
@@ -335,7 +354,7 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
           )}
         </p>
       )}
-      {searchedAs && (
+      {!thinking && searchedAs && (
         <p className="chat-und chat-searched">
           I searched for: <b {...textAttrs(searchedAs, true)}>{searchedAs}</b>
         </p>
@@ -512,6 +531,29 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
     <m.div {...REPLY_IN}>
     <div ref={turn} className="chat-turn" data-status={msg.status} role="group" aria-label={working ? "Reply, being written" : "Reply"} tabIndex={-1}>
       {/* while Auto is still reading the message the step list says so; the line comes once the tool is known (and not at all if the reply failed before that) */}
+      {/* M2: the Thinking block, only for a reply whose server sent its lines (CHAT_THINK on); it carries the understood line's controls */}
+      {hasThink(msg) && !lane && (
+        <ThinkBlock
+          msg={msg}
+          working={working}
+          actions={(l) => (
+            <>
+              {l.actions?.includes("change") && (
+                <>
+                  {" · "}
+                  <ChangeMenu msg={msg} text={text} working={working} onChange={onChange} />
+                </>
+              )}
+              {l.actions?.includes("exact_words") && exactOffered(msg, text, working) && (
+                <>
+                  {" · "}
+                  <button type="button" className="link-btn" onClick={() => onRetry(msg.id, "search")}>Use my exact words</button>
+                </>
+              )}
+            </>
+          )}
+        />
+      )}
       {msg.understood !== false && msg.reason !== "small_talk" && !lane && <Understood msg={msg} text={text} working={working} onChange={onChange} onExact={() => onRetry(msg.id, "search")} onWords={(words) => void retryReply(msg.id, "search", words)} />}
 
       <SafetyLines msg={msg} />
@@ -533,7 +575,7 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
         </div>
       )}
 
-      {working && <Progress m={msg} signedIn={signedIn} />}
+      {working && !hasThink(msg) && <Progress m={msg} signedIn={signedIn} />}
       {quiet && <p className="chat-quiet" role="status">Still working… this is taking longer than usual. You can press Stop and try again.</p>}
 
       {/* ONE card from the first word to the checked answer: the words that are being written sit in the card that the answer will be in (the same element, so that it neither jumps nor fades in a second time).

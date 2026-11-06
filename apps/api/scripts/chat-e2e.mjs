@@ -7,6 +7,11 @@ import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
 const APP = process.env.APP ?? "http://localhost:8788";
 let failures = 0;
 const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
+// M2: the Thinking block's lines (`think` events) come only with CHAT_THINK "on" (INTEGRATION_VARS="CHAT_THINK:on" sets it for this run). Every stream of this suite is read with them taken out, so with the
+// flag on every check below still holds only if the lines are purely ADDED; and each line is checked as it comes: every number it states (outside its “ ” quotes) is one of its counts.
+const THINK_ON = /(^|,)CHAT_THINK:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "");
+const thinkSeen = [];
+const thinkHonest = (t) => { const have = new Set(Object.values(t.counts ?? {})); return [...String(t.text).replace(/“[^”]*”/g, "“”").matchAll(/\d[\d,]*(?:\.\d+)?/g)].every((m) => have.has(Number(m[0].replace(/,/g, "")))); };
 
 const idp = await startFakeIdp(9911);
 const login = async (sub, email, name) => {
@@ -38,7 +43,9 @@ async function chat(client, message, { mode = "search", origin = APP, stopAfter,
         const block = buf.slice(0, i);
         buf = buf.slice(i + 2);
         const data = block.split("\n").find((l) => l.startsWith("data:"));
-        if (data) events.push(JSON.parse(data.slice(5)));
+        const e = data ? JSON.parse(data.slice(5)) : null;
+        if (e?.type === "think") thinkSeen.push(e);
+        else if (e) events.push(e);
         if ((stopAfter && events.length >= stopAfter) || (stopWhen && stopWhen(events.at(-1)))) { ctl.abort(); return { res, events }; }
       }
     }
@@ -550,5 +557,7 @@ try {
 } finally {
   idp.close();
   console.log(failures ? `\n${failures} FAILED` : "\nall chat checks passed");
+  if (THINK_ON) ok(thinkSeen.length > 20 && thinkSeen.every(thinkHonest), `CHAT_THINK on: ${thinkSeen.length} think lines over this suite's streams, every number of each is one of its counts${thinkSeen.filter((t) => !thinkHonest(t)).slice(0, 2).map((t) => ` (NOT: ${t.text})`).join("")}`);
+  else ok(thinkSeen.length === 0, "CHAT_THINK not on: no think event in any stream");
   process.exit(failures ? 1 : 0);
 }

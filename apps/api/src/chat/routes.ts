@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MIN_SINCE_YEAR, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
+import { FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MIN_SINCE_YEAR, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
@@ -27,6 +27,7 @@ import { readRequest, type RequestRead } from "../understand/frame";
 import { checkReading } from "../understand/reading-check";
 import { listState, tiererFor, type ListState, type TierCounts, type Tierer } from "../understand/tiers";
 import { fewNotice, noneCloseNotice } from "../understand/tiers-text";
+import { checked as thinkChecked, found as thinkFound, notSure as thinkNotSure, reading as thinkReading, searchCounts, searched as thinkSearched, understoodChat, understoodSearch, understoodTool, writing as thinkWriting } from "./think";
 import { searchEnvFrom } from "../search/env";
 import { deny } from "../problem";
 
@@ -80,6 +81,12 @@ type Bindings = {
    * Only for words the page can judge (1 to 6 content stems) and never for a search chosen by hand. A gate flag: unset is off.
    */
   CHAT_FLOOR?: string;
+  /**
+   * M2 (design PDF "Sodhsetu understanding, follow-ups and MCP", "Thinking dikhana"): "on" adds `think` events, status lines built from the real counts of each stage (chat/think.ts), which the page shows as the
+   * Thinking block. Unset, "off" and any other value send none, and the stream is byte for byte what it was. A gate flag: unset is off, and a KV override can only lower it. Turn it on only after a build that
+   * knows the event has been live for a day: an older open tab's reducer had no place for an event it did not know.
+   */
+  CHAT_THINK?: string;
   /** Development only (with QA_STUB): the stand-in search writes the words of the question into its records, so that a list is about whatever was asked (stub.ts). The integration run sets it with CHAT_FLOOR. Never set in wrangler.jsonc. */
   QA_STUB_TOPIC?: string;
 };
@@ -97,7 +104,7 @@ const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB 
  * Where a gate flag of the understanding releases stands for this request (understand/flags.ts: unset is off, and an off flag reads nothing from KV). A value that is not exactly a position is off, and
  * one line says WHICH FLAG held it (a constant name, never anything of a message): a typo must not turn behaviour on, and must not pass unseen either.
  */
-async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY" | "CHAT_CLEAN" | "CHAT_FLOOR"): Promise<FlagPosition> {
+async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY" | "CHAT_CLEAN" | "CHAT_FLOOR" | "CHAT_THINK"): Promise<FlagPosition> {
   // the safety lane has a fourth position, `core`, between shadow and on, and the relevance floor has `writer` in the same place
   const r = await flagOf(env, name, { allowCore: name === "CHAT_SAFETY", allowWriter: name === "CHAT_FLOOR" });
   if (r.badVariable) console.warn(JSON.stringify({ level: "warn", msg: "flag_bad_value", flag: name }));
@@ -281,6 +288,11 @@ chatRoutes.post("/", async (c) => {
   const abort = new AbortController();
   return sseStream<ChatEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (s) => {
     const send = s.send;
+    // M2: the Thinking block's lines, only with CHAT_THINK "on" (with it off nothing below sends one, and the stream is what it was). A line is never logged: it goes to the page and nowhere else.
+    const thinkOn = (await gate(c.env, "CHAT_THINK")) === "on";
+    const think = async (line: ThinkLine | null) => {
+      if (thinkOn && line && !s.gone) await send({ type: "think", ...line });
+    };
     // how this question went is counted once, as it ends (counts only, src/outcomes.ts): what the papers did, or what stopped it
     let outcome: string | null = null;
     // what the router made of a message that was read with turns before it (null for any other message)
@@ -339,6 +351,7 @@ chatRoutes.post("/", async (c) => {
       if (s.gone) return;
       try {
         await send({ type: "step", step: "general" });
+        await think(thinkWriting(language, true));
         const g = await answerGeneral({
           question,
           language,
@@ -458,14 +471,21 @@ chatRoutes.post("/", async (c) => {
       }
       if (talk) {
         outcome = "small_talk";
+        await think(understoodChat(route.language));
         await send({ type: "general", kind: "not_research", text: smallTalkReply(text, route.language, rctx) });
         return void (await done(false, "small_talk"));
       }
       // another tool: nothing runs here; the browser offers to open it
-      if (route.mode !== "search") return void (await done(false, "routed"));
+      if (route.mode !== "search") {
+        await think(understoodTool(route.language, route.mode));
+        return void (await done(false, "routed"));
+      }
       // what the indexes are asked: the model's English words, or the message as written (at most 300 characters)
       const query = route.searchQuery ?? text.replace(/\s+/g, " ");
       if (query.length > 300) return void (await done(false, "too_long"));
+      // M2: what is looked for (a follow-up's restated question, which a model may have written, else the words searched), with the page's own controls: Change, and the exact words when other words were searched
+      if (route.how === "fallback") await think(thinkNotSure(route.language));
+      await think(understoodSearch(route.language, follow?.rewrote && follow.question ? follow.question : query, route.searchQuery ? ["change", "exact_words"] : ["change"]));
 
       // what the answer is for and in what language: the standalone question of a follow-up (the message as written for any other message, so that it is answered in the person's language),
       // and the language the person asked for ("in Hindi") before the one the rules found
@@ -501,8 +521,13 @@ chatRoutes.post("/", async (c) => {
       };
 
       await send({ type: "step", step: "search" });
-      // while the sources answer, each list carries only the start of the abstracts; the final one below carries all of them (slimForInterim)
-      const interim = (r: SearchResponse | SearchSnapshot) => send({ type: "papers", results: slimForInterim(shape(r.results)), final: false });
+      await think(thinkSearched(route.language, query));
+      // while the sources answer, each list carries only the start of the abstracts; the final one below carries all of them (slimForInterim). With CHAT_THINK on, a line says how many sources have answered so far.
+      const interim = async (r: SearchResponse | SearchSnapshot) => {
+        const shaped = shape(r.results);
+        await send({ type: "papers", results: slimForInterim(shaped), final: false });
+        await think(thinkFound(route.language, searchCounts(r.providers, shaped.length, shaped.filter((p) => p.retracted).length), false));
+      };
       let found: SearchResponse;
       if (stubbed(c.env)) {
         if (/\bstalled\b/i.test(query)) await new Promise((r) => setTimeout(r, 3500)); // a silent wait, to see the keep-alive line and the "still working" hint
@@ -516,6 +541,7 @@ chatRoutes.post("/", async (c) => {
       const beforeYears = found.results.length;
       if (years || (floor === "on" && tierer)) found = { ...found, results: shape(found.results) };
       await send({ type: "papers", results: found.results, final: true });
+      await think(thinkFound(route.language, searchCounts(found.providers, found.results.length, found.results.filter((p) => p.retracted).length), true));
       const complete = searchComplete(found);
       if (!complete) await send({ type: "notice", kind: "partial", text: PARTIAL_NOTICE });
       // R5 (4.6): the router call failed, so the words were searched as they stand and nothing says what they refer to. With the policy on, the papers are all there is: no written answer, no judge, no
@@ -579,12 +605,15 @@ chatRoutes.post("/", async (c) => {
       }
 
       await send({ type: "step", step: "read" });
+      await think(thinkReading(spoken, picked.length));
+      // M2: the judge's counts, for the line that says how many claims were read against their sentences (only when it gave verdicts)
+      let judged: JudgeReport | null = null;
       let answer;
       try {
         // the question the answer is for is what the person wrote (so it is answered in their language), not the English words the indexes were asked; for a follow-up it is the standalone question,
         // and for the same papers only, the earlier answer goes with it as context the writer is told is not evidence. The judge is given neither (it reads claims and the abstracts they cite).
         // The debug log of what a model said is for the first message in development; a follow-up never uses it.
-        answer = await answerFromResults({ question: asked, language: spoken, languageAsked: !!(follow?.answerLanguage ?? reading?.answerLanguage), earlierAnswer: follow?.intent === "same_papers" ? (ctx?.history.lastAnswer ?? undefined) : undefined, picked, stream: streamFor(c.env, user.id, abort.signal), judge: c.env.CHAT_JUDGE === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: logJudged, emit: send, onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
+        answer = await answerFromResults({ question: asked, language: spoken, languageAsked: !!(follow?.answerLanguage ?? reading?.answerLanguage), earlierAnswer: follow?.intent === "same_papers" ? (ctx?.history.lastAnswer ?? undefined) : undefined, picked, stream: streamFor(c.env, user.id, abort.signal), judge: c.env.CHAT_JUDGE === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: (r) => { judged = r; logJudged(r); }, emit: async (e) => { await send(e); if (e.type === "step" && e.step === "write") await think(thinkWriting(spoken)); }, onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
       } catch (e) {
         if (s.gone) return;
         if (e instanceof QuotaError) return void (await done(false, "quota"));
@@ -599,6 +628,9 @@ chatRoutes.post("/", async (c) => {
       // the judge's reading already said "check" (answerFromResults); an answer that was not judged says it now
       if (answer.checked === undefined) await send({ type: "step", step: "check" });
       await send({ type: "answer", answer: { text: answer.text, citations: answer.citations, grounded: answer.grounded, ...(answer.checked === undefined ? {} : { checked: answer.checked, leftOut: answer.leftOut ?? 0, rewritten: answer.rewritten ?? 0 }) } });
+      const report = judged as JudgeReport | null;
+      const claims = report && !report.error ? Object.values(report.counts ?? {}).reduce((n, v) => n + (Number.isFinite(v) ? v : 0), 0) : 0;
+      if (answer.checked === true && claims > 0) await think(thinkChecked(spoken, { claims, leftOut: answer.leftOut ?? 0, rewritten: answer.rewritten ?? 0 }));
       // papers first: only when they do not answer, and the model itself says so (not when an answer was written and could not be checked), a labelled background follows
       if (!answer.grounded && !answer.enough) await background(user.id, spoken, asked);
       await done(answer.grounded, answer.grounded ? undefined : answer.enough ? "not_grounded" : "not_answered");

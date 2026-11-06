@@ -151,6 +151,9 @@ export * from "./chat-fold";
 export * from "./outcome-counts";
 export * from "./chat-copy";
 export * from "./chat-memory";
+// the turn ledger and the Thinking block (design PDF "Sodhsetu understanding, follow-ups and MCP", M2)
+export * from "./ledger";
+export * from "./think";
 export * from "./route";
 // the Reading of R8 (reading.ts) is exported as `MessageReading`: ocr.ts already has a `Reading` of its own
 export {

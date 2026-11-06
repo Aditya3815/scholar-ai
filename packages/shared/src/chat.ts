@@ -1,5 +1,6 @@
 import type { Paper, SearchScope } from "./index";
 import type { ChatContextInfo } from "./chat-context";
+import type { ThinkLine } from "./think";
 import type { Lang, RouteHow, RouteMode as ChatMode } from "./route";
 import { ABSTRACT_READ_CHARS } from "./sentences";
 import type { Reading } from "./reading";
@@ -96,7 +97,12 @@ export type ChatEvent =
   /** The general background, final: `text` is empty unless `kind` is "background" or "not_research". */
   | { type: "general"; kind: GeneralKind; text: string }
   | { type: "done"; answered: boolean; reason?: ChatNoAnswer; tookMs: number }
-  | { type: "error"; code: string; title: string; detail?: string };
+  | { type: "error"; code: string; title: string; detail?: string }
+  /**
+   * One line of the Thinking block (M2, think.ts): what a stage did, from its real counts. Sent only while CHAT_THINK is "on"; the same `id` again replaces the line. A reducer that does not know an event
+   * keeps the reply as it was (`applyChatEvent`'s default), so a page always survives a newer server.
+   */
+  | ({ type: "think" } & ThinkLine);
 
 /** The plain sentence shown when some of the places searched did not answer. No place is named. */
 export const PARTIAL_NOTICE = "Some of the places we search did not answer, so this list may be incomplete. Search again";

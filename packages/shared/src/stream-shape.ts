@@ -41,6 +41,8 @@ const CHAT: Record<ChatEvent["type"], EventKind> = {
   general: "result",
   done: "end",
   error: "end",
+  // a line of the Thinking block (M2): what a stage did, in counts and template words, never the words of an answer
+  think: "meta",
 };
 
 const ASK: Record<OaAskEvent["type"], EventKind> = {

@@ -4,6 +4,7 @@ import { MAX_FILTER_YEAR, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTO
 import { MAX_AUTO_CHARS, type Lang, type RouteHow } from "./route";
 import { abstractRead } from "./sentences";
 import type { Reading } from "./reading";
+import { withThinkLine, type ThinkLine } from "./think";
 
 /* The conversation as the browser keeps it: a reply is built event by event while it streams, and kept as it is when it is done. All of it is pure, so it is tested without a browser. */
 
@@ -71,6 +72,8 @@ export type AssistantMsg = {
   reason?: ChatNoAnswer;
   error?: string;
   tookMs?: number;
+  /** The lines of the Thinking block (M2: `think` events, only while the server's CHAT_THINK is on); absent for a reply that had none, and in replies kept before it existed. Kept with the reply. */
+  think?: ThinkLine[];
   at: number;
 };
 /**
@@ -121,6 +124,11 @@ export function applyChatEvent(m: AssistantMsg, e: ChatEvent): AssistantMsg {
       return { ...m, status: "done", step: null, stepsDone: STEP_ORDER.filter((s) => happened(m, s, null)), live: "", generalLive: "", tookMs: e.tookMs, reason: e.reason, papersFinal: true };
     case "error":
       return { ...m, status: "error", step: null, live: "", generalLive: "", error: e.title };
+    case "think":
+      return { ...m, think: withThinkLine(m.think, e) };
+    default:
+      // an event this build does not know (a newer server): the reply is kept as it is
+      return m;
   }
 }
 

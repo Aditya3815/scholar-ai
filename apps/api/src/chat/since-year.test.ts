@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { applyChatEvent, contextBefore, followUpNote, startAssistant, streamShapeProblems, type AssistantMsg, type ChatEvent } from "@scholar/shared";
+import { THINK_KINDS, applyChatEvent, contextBefore, followUpNote, startAssistant, streamShapeProblems, thinkIsHonest, type AssistantMsg, type ChatEvent } from "@scholar/shared";
 import type { StreamComplete } from "../docs/qa";
 import { CLEAN_CASES } from "./clean-cases";
 
@@ -701,4 +701,117 @@ describe("`earlier` from an old tab is ignored, not read and not refused", () =>
       expect({ ...withIt, name: "" }, JSON.stringify(env)).toEqual({ ...without, name: "" });
     }
   }, 120_000);
+});
+
+/**
+ * M2 (design PDF "Sodhsetu understanding, follow-ups and MCP", "Thinking dikhana"): CHAT_THINK. Unset, "off" and any other value send no `think` event, and every request of the list streams the golden, byte for byte
+ * (the tests above run with it unset; here it is set to "off", "shadow" and a typo). With "on" the lines are ADDED and nothing else changes: the stream with every `think` block taken out is the stream without the
+ * flag, byte for byte, for every request of the list, with the cleaner and the floor too. Every line is honest (each number in its text is one of its counts), says only what happened (a reading line only where the
+ * reader ran, a checked line only where an answer was checked), and the lines of each request are pinned in since-year.think.golden.json (recorded by hand from this release: they are new).
+ */
+const THINK_GOLDEN = fileURLToPath(new URL("./since-year.think.golden.json", import.meta.url));
+describe("CHAT_THINK: the Thinking block's lines", () => {
+  const withFlag = (c: Case, flags: Record<string, string>): Case => ({ ...c, opts: { ...c.opts, env: { ...c.opts?.env, ...flags } } });
+  const blocks = (text: string) => text.replace(/"tookMs":\d+/g, '"tookMs":0').split("\n\n");
+  const isThink = (block: string) => block.split("\n").some((l) => l.startsWith("data:") && (JSON.parse(l.slice(5)) as { type?: string }).type === "think");
+  const withoutThink = (text: string) => blocks(text).filter((b) => !isThink(b)).join("\n\n");
+  const thinkOf = (text: string) => eventsOf(text).filter((e): e is Extract<ChatEvent, { type: "think" }> => e.type === "think");
+
+  it("off, shadow and a value that is not a position send nothing: the golden, byte for byte", async () => {
+    const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
+    for (const value of ["off", "shadow", "On", "true"]) {
+      const now = await Promise.all(DIFF.map((c) => wire(withFlag(c, { CHAT_THINK: value }))));
+      expect(now.filter((n, i) => JSON.stringify(n) !== JSON.stringify(golden.entries[i])).map((n) => n.name), value).toEqual([]);
+    }
+  }, 300_000);
+
+  for (const [label, flags] of [["alone", {}], ["with the cleaner on", { CHAT_CLEAN: "on" }], ["with the floor on", { CHAT_FLOOR: "on" }], ["with the counters on", { CHAT_COUNTERS: "on" }]] as [string, Record<string, string>][]) {
+    it(`on, ${label}: the lines are only added: without them every stream is the one without the flag, byte for byte`, async () => {
+      for (const c of DIFF) {
+        const off = await post(c.body, withFlag(c, flags).opts);
+        const on = await post(c.body, withFlag(c, { ...flags, CHAT_THINK: "on" }).opts);
+        expect(on.res.status, c.name).toBe(off.res.status);
+        expect(withoutThink(on.text), c.name).toBe(blocks(off.text).join("\n\n"));
+        if (label === "with the counters on") expect(on.outcomes, c.name).toEqual(off.outcomes);
+      }
+    }, 300_000);
+  }
+
+  it("every line of every request is honest, says only what happened, and comes where its stage is", async () => {
+    let lines = 0;
+    for (const c of DIFF) {
+      for (const flags of [{}, { CHAT_CLEAN: "on" }, { CHAT_FLOOR: "on" }] as Record<string, string>[]) {
+        const { text } = await post(c.body, withFlag(c, { ...flags, CHAT_THINK: "on" }).opts);
+        const ev = eventsOf(text);
+        const think = thinkOf(text);
+        lines += think.length;
+        for (const t of think) {
+          expect(THINK_KINDS, c.name).toContain(t.kind);
+          expect(thinkIsHonest(t), `${c.name}: ${t.text} ${JSON.stringify(t.counts)}`).toBe(true);
+          for (const a of t.actions ?? []) expect(["change", "exact_words"], c.name).toContain(a);
+          if (t.kind !== "understood") expect(t.actions ?? [], c.name).toEqual([]);
+        }
+        const at = (pred: (e: ChatEvent) => boolean) => ev.findIndex(pred);
+        const stepAt = (s: string) => at((e) => e.type === "step" && e.step === s);
+        // "reading" only where the reader ran, after its step; "writing" only after the writer's or the background's step; "checked" only for a checked answer, after it
+        const reading = at((e) => e.type === "think" && e.kind === "reading");
+        expect(reading >= 0, c.name).toBe(stepAt("read") >= 0);
+        if (reading >= 0) expect(reading, c.name).toBeGreaterThan(stepAt("read"));
+        const answer = ev.find((e) => e.type === "answer") as Extract<ChatEvent, { type: "answer" }> | undefined;
+        const checked = at((e) => e.type === "think" && e.kind === "checked");
+        if (checked >= 0) {
+          expect(answer?.answer.checked, c.name).toBe(true);
+          expect(checked, c.name).toBeGreaterThan(at((e) => e.type === "answer"));
+        }
+        for (const w of think.filter((t) => t.kind === "writing")) expect(stepAt(w.id === "background" ? "general" : "write"), `${c.name}: ${w.id}`).toBeGreaterThanOrEqual(0);
+        // a search's lines: what was searched comes after the search step, and the last word on what was found is the final list's
+        const found = think.filter((t) => t.kind === "found");
+        if (found.length) {
+          const finalList = ev.filter((e) => e.type === "papers" && e.final).at(-1) as Extract<ChatEvent, { type: "papers" }>;
+          expect(found.at(-1)!.counts?.kept, c.name).toBe(finalList.results.length);
+          expect(found.at(-1)!.counts?.retracted ?? 0, c.name).toBe(finalList.results.filter((p) => p.retracted).length);
+        }
+        // nothing for the safety lane's own replies (their words leave no trace) or a refused request
+        if (ev.some((e) => e.type === "done" && (e.reason === "urgent" || e.reason === "safety"))) expect(think, c.name).toEqual([]);
+      }
+    }
+    expect(lines).toBeGreaterThan(100);
+  }, 300_000);
+
+  it("no line is written to a log", async () => {
+    const said: string[] = [];
+    const spies = (["log", "info", "warn", "error"] as const).map((k) => vi.spyOn(console, k).mockImplementation((...args: unknown[]) => void said.push(args.map(String).join(" "))));
+    try {
+      const texts: string[] = [];
+      for (const c of DIFF) {
+        const { text } = await post(c.body, withFlag(c, { CHAT_THINK: "on" }).opts);
+        for (const t of thinkOf(text)) texts.push(t.text);
+      }
+      expect(texts.length).toBeGreaterThan(50);
+      const logged = said.join("\n");
+      for (const t of new Set(texts)) expect(logged.includes(t), t).toBe(false);
+      expect(logged).not.toMatch(/"type":"think"|looking for papers on|sources answered/);
+    } finally {
+      for (const s of spies) s.mockRestore();
+    }
+  }, 300_000);
+
+  it("the lines of every request are the pinned ones (since-year.think.golden.json)", async () => {
+    const pinned = JSON.parse(readFileSync(THINK_GOLDEN, "utf8")) as { entries: { name: string; think: unknown[] }[] };
+    const now = await Promise.all(DIFF.map(async (c) => ({ name: c.name, think: thinkOf((await post(c.body, withFlag(c, { CHAT_THINK: "on" }).opts)).text).map((t) => ({ id: t.id, kind: t.kind, text: t.text, ...(t.counts ? { counts: t.counts } : {}), ...(t.actions ? { actions: t.actions } : {}) })) })));
+    expect(now).toEqual(pinned.entries);
+    // what it pins is real: a search with an answer has the full set, small talk its one line, another tool its one line
+    const of = (name: string) => pinned.entries.find((e) => e.name === name)!.think as { kind: string }[];
+    expect(of("auto, a plain question").map((t) => t.kind)).toEqual(expect.arrayContaining(["understood", "searched", "found", "reading", "writing", "checked"]));
+    expect(of("auto, small talk").map((t) => t.kind)).toEqual(["understood"]);
+    expect(of("auto, another tool").map((t) => t.kind)).toEqual(["understood"]);
+  }, 300_000);
+});
+
+describe.runIf(process.env.RERECORD_THINK === "1")("rerecord the think golden (by hand, never in CI)", () => {
+  it("writes since-year.think.golden.json", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const entries = await Promise.all(DIFF.map(async (c) => ({ name: c.name, think: (eventsOf((await post(c.body, { ...c.opts, env: { ...c.opts?.env, CHAT_THINK: "on" } })).text).filter((e) => e.type === "think") as Extract<ChatEvent, { type: "think" }>[]).map((t) => ({ id: t.id, kind: t.kind, text: t.text, ...(t.counts ? { counts: t.counts } : {}), ...(t.actions ? { actions: t.actions } : {}) })) })));
+    writeFileSync(THINK_GOLDEN, JSON.stringify({ producedFrom: "POST /api/v1/chat of apps/api/src/chat/routes.ts with CHAT_THINK=on, the stand-in network and model (QA_STUB), the clock held at 2026-11-03T12:00:00Z, for every request of the differential list of since-year.test.ts: the think lines of each, in order. Recorded by hand on 6 Nov 2026 from the working tree of branch und-m2 (M2 of the design PDF \"Sodhsetu understanding, follow-ups and MCP\"): the lines are new, so there is no earlier code to record them from; what they say is read in think.test.ts and in the test that reads every line above.", entries }, null, 1) + "\n");
+  }, 300_000);
 });

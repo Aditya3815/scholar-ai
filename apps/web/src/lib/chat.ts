@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react";
 import {
-  applyChatEvent, applyTighten, busyReason, canStartNewTopic, chatRequestBody, chatTitle, citedPaperIds, cleanAutoMessage, cleanChatMessage, contextBefore, didNotFinishText, editInfo, editUserMessage, failTighten, goneFromIndex, interruptMessages, lastReplyDidNotFinish, leavesNoTrace, MAX_CHAT_CHARS, MAX_IDEA_CHARS, MIN_IDEA_CHARS, ownedBy,
+  applyChatEvent, applyTighten, buildLedger, busyReason, canStartNewTopic, chatRequestBody, chatTitle, citedPaperIds, cleanAutoMessage, cleanChatMessage, contextBefore, didNotFinishText, editInfo, editUserMessage, failTighten, goneFromIndex, interruptMessages, lastReplyDidNotFinish, leavesNoTrace, MAX_CHAT_CHARS, MAX_IDEA_CHARS, MIN_IDEA_CHARS, ownedBy,
   parseIndex, releaseRun, retryText, startAssistant, startTighten, stopAssistant, switchVersion, tightenRequestFor, titleAfterEdit, touchIndex, trimMessagesForStorage, usesEarlierTurns, withHeld,
-  type AssistantMsg, type ChatEvent, type ChatMsg, type HistoryEntry, type IdeaMsg, type MemoryEntry, type SearchScope, type TightenResponse, type UserMsg,
+  type AssistantMsg, type ChatEvent, type ChatMsg, type HistoryEntry, type IdeaMsg, type LedgerTurn, type MemoryEntry, type SearchScope, type TightenResponse, type UserMsg,
 } from "@scholar/shared";
 import { idbClear, idbDelete, idbRead, idbSwap } from "./idb";
 import { showNotice } from "./notice";
@@ -179,7 +179,8 @@ async function write(id: string) {
     if (!msgs || synced.get(id) === msgs) return;
     // the replies in the versions of an edited message are cut for keeping too (a version is stored inside its message, so deleting the chat deletes them)
     const kept = trimMessagesForStorage(msgs);
-    const r = await idbSwap(id, (rev) => ({ id, messages: kept, rev }), revs.get(id) ?? 0, "chats");
+    // the turn ledger (M2) is kept with the chat: built from these same messages, so it is what they say, from the last "New topic" on, along the versions being read
+    const r = await idbSwap(id, (rev) => ({ id, messages: kept, rev, ledger: buildLedger(kept) }), revs.get(id) ?? 0, "chats");
     if (r.status === "saved") {
       revs.set(id, r.rev);
       synced.set(id, msgs);
@@ -397,6 +398,12 @@ export function cancelNewTopic() {
   const id = state.active;
   if (id && state.newTopic.has(id)) setNewTopic(new Set([...state.newTopic].filter((x) => x !== id)));
 }
+
+/**
+ * The turn ledger of a conversation this page holds (M2): built from its messages as they are now. A private chat's ledger exists only here, in memory, and is gone with the chat; a kept chat's is also written
+ * with its record. Nothing of it is sent yet (M4 will send part of it, `ledgerForSend`).
+ */
+export const chatLedger = (id: string): LedgerTurn[] => buildLedger(state.chats.get(id) ?? []);
 
 /** Whether the conversation on screen has "New topic" pressed and waiting for its next message. */
 export const topicPending = (s: State): boolean => !!s.active && s.newTopic.has(s.active);
