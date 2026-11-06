@@ -376,11 +376,9 @@ describe("the body of POST /api/v1/chat", () => {
     expect(json(h)).toBe(copy);
   });
 
-  it("a person who is not signed in sends no earlier turns and no earlier-chat questions at all: the server ignores them, but they would still have left the device", () => {
-    const earlier = [{ question: "diabetes in children" }];
+  it("a person who is not signed in sends no earlier turns at all: the server ignores them, but they would still have left the device", () => {
     expect(JSON.stringify(chatRequestBody({ signedIn: false, mode: "auto", message: "only after 2020", history: h }))).toBe('{"mode":"auto","message":"only after 2020"}');
-    expect(JSON.stringify(chatRequestBody({ signedIn: false, mode: "auto", message: "only after 2020", scope: "india", history: h, earlier }))).toBe('{"mode":"auto","message":"only after 2020","scope":"india"}');
-    expect(chatRequestBody({ signedIn: false, mode: "auto", message: "x y", earlier })).not.toHaveProperty("earlier");
+    expect(JSON.stringify(chatRequestBody({ signedIn: false, mode: "auto", message: "only after 2020", scope: "india", history: h }))).toBe('{"mode":"auto","message":"only after 2020","scope":"india"}');
   });
 });
 
@@ -422,7 +420,7 @@ describe("followUpNote: what the reply says about the earlier turns a model read
   it("says nothing for a message no model read (no context), and for one that was read and not rewritten with no years", () => {
     expect(followUpNote(reply("a1"))).toBeNull();
     expect(followUpNote(withContext({ turns: 1, intent: "new", rewrote: false }))).toBeNull();
-    expect(followUpNote(withContext({ turns: 2, intent: "refine", rewrote: false, earlier: 1 }))).toBeNull();
+    expect(followUpNote(withContext({ turns: 2, intent: "refine", rewrote: false }))).toBeNull();
   });
 
   it("says nothing when the model's reading could not be used: the reply already says it was not sure, and nothing was applied", () => {

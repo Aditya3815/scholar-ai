@@ -587,7 +587,6 @@
    "name": "follow-up, earlier chats",
    "status": 200,
    "types": [
-    "step",
     "understood",
     "step",
     "papers",
@@ -604,8 +603,8 @@
     "done"
    ],
    "end": "done:answered:",
-   "bytes": 6297,
-   "sha256": "f740621795d997323b97ce6a847d474e33d9a4483e4379af024fd2d3ca32573a"
+   "bytes": 6077,
+   "sha256": "290df7bae9d20626e0f703b3d0876a23e2bff0257d0fa29088d7c501a5a83092"
   },
   {
    "name": "follow-up, the switch is off",
@@ -1649,5 +1648,6 @@
   }
  ],
  "alsoProducedFrom": "The 17 entries whose names start with \"safety, \" were added on 4 Nov 2026 (R4, docs/design/intent-and-state.md, 4.5) and recorded by hand by running the 17 added requests of since-year.test.ts through POST /api/v1/chat of apps/api/src/chat/routes.ts at commit 86394ceb07a56ca8481848145f518d4e3a90db66 (HEAD, 4 Nov 2026, the file unchanged), before the safety lane existed: with CHAT_SAFETY unset, off or shadow every one of them must still be answered this way. The first 37 entries are unchanged.",
- "alsoProducedFromR8": "The 23 entries whose names start with \"clean, \" were added on 4 Nov 2026 (R8, docs/design/intent-and-state.md, 4.8) and recorded by hand by running the requests of clean-cases.ts through POST /api/v1/chat of apps/api/src/chat/routes.ts at commit 64c52fc8377e2da9108583942c5fdeaf710aa51b (HEAD, 4 Nov 2026, branch intent-phase1, routes.ts unchanged), before the request-frame cleaner existed: with CHAT_CLEAN unset, off or shadow every one of them must still be answered this way. The earlier 54 entries are unchanged."
+ "alsoProducedFromR8": "The 23 entries whose names start with \"clean, \" were added on 4 Nov 2026 (R8, docs/design/intent-and-state.md, 4.8) and recorded by hand by running the requests of clean-cases.ts through POST /api/v1/chat of apps/api/src/chat/routes.ts at commit 64c52fc8377e2da9108583942c5fdeaf710aa51b (HEAD, 4 Nov 2026, branch intent-phase1, routes.ts unchanged), before the request-frame cleaner existed: with CHAT_CLEAN unset, off or shadow every one of them must still be answered this way. The earlier 54 entries are unchanged.",
+ "alsoProducedFromM1": "The entry \"follow-up, earlier chats\" was recorded again on 6 Nov 2026, when the earlier-chats feature was removed (design PDF \"Sodhsetu understanding, follow-ups and MCP\", M1): the server now ignores `earlier` unread, so the request is answered exactly as the same message with no `earlier` (since-year.test.ts checks that the two streams are the same, byte for byte). Every other entry is unchanged."
 }

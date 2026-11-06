@@ -595,20 +595,13 @@ kbd {
 .ws-recent li:hover .ws-recent-x, .ws-recent-x:focus-visible { opacity: 1; }
 @media (hover: none) { .ws-recent-x { opacity: 1; } }
 .ws-recent-x:hover { background: var(--border); color: var(--text); }
-/* chat to chat: the small menu beside a chat of the rail, the box's own menu (its list of chats scrolls), and popovers above the drawer */
-.ws-recent-more { right: 1.9rem; }
-.ws-recent-more[aria-expanded="true"] { opacity: 1; }
-.ws-recent li:has(.ws-recent-more) .ws-recent-open { padding-right: 3.9rem; }
-/* A finger is larger than two 26 px buttons side by side, and one of them deletes the chat at once with no way back: on touch each is 40 px, with 8 px between them, and Delete stays the farthest from the title. */
+/* A finger is larger than a 26 px button, and Delete removes the chat at once with no way back: on touch it is 40 px, with room between it and the title. */
 @media (pointer: coarse), (hover: none) {
   .ws-recent li { min-height: 44px; }
   .ws-recent-x { width: 40px; height: 40px; }
-  .ws-recent-more { right: calc(0.3rem + 48px); }
   .ws-recent li .ws-recent-open { padding-right: calc(0.3rem + 48px + 8px); }
-  .ws-recent li:has(.ws-recent-more) .ws-recent-open { padding-right: calc(0.3rem + 96px + 8px); }
 }
 .hm-more { width: 2.25rem; height: 2.25rem; color: var(--muted); }
-.hm-menu-list { display: grid; gap: 2px; max-height: 40vh; overflow-y: auto; }
 .pop { z-index: 80; }
 @media (max-width: 640px) { .chat-bubble { max-width: 95%; } .hm[data-chat="true"] .hm-box { bottom: 0.4rem; } }
 /* ---------- Message actions (docs/design/chat-actions-context.md): Copy, Edit and the version pager under a question, Copy the answer and Search again under a reply ----------

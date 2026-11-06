@@ -18,7 +18,7 @@
 //   node scripts/router-eval.mjs --followup [--set=tuned|holdout|holdout2|all] [--gate] [--show]     (the default set here is all, not tuned)
 //
 // The same, for a message that comes with the turns before it (docs/design/chat-actions-context.md, section 9): the labelled follow-ups of router-followup-cases.mjs, in English, Hindi and Hinglish
-// (new search, refinement, the same papers, restyle, year filter, topic switch, earlier-chat reference), sent as `{ message, history, earlier }` to the same development route, which then answers
+// (new search, refinement, the same papers, restyle, year filter, topic switch), sent as `{ message, history }` to the same development route, which then answers
 // with `followUp` (what the server made of the model's reading) and `usage`. It prints the gates below and a table per class and per language. It spends the real model: about 1,500 tokens a message
 // that needs the turns, so each 20 messages use their own throwaway account here too. The 203-message list above is NOT run by it, and must stay at its present result.
 import { startFakeIdp } from "./fake-idp.mjs";
@@ -173,7 +173,7 @@ async function followUpMain() {
     const c = cases[i];
     const A = await clientFor(i);
     for (let attempt = 0; attempt < 3; attempt++) {
-      const res = await A.send(`${APP}/api/v1/chat/route`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/json" }, body: JSON.stringify({ message: c.message, history: c.history, ...(c.earlier.length > 0 ? { earlier: c.earlier } : {}) }) });
+      const res = await A.send(`${APP}/api/v1/chat/route`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/json" }, body: JSON.stringify({ message: c.message, history: c.history }) });
       if (res.ok) return await res.json();
       if (res.status === 429) await new Promise((r) => setTimeout(r, 5000));
       else throw new Error(`HTTP ${res.status} for: ${c.message.slice(0, 60)}`);

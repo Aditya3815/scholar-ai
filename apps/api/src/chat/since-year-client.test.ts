@@ -16,7 +16,6 @@ describe("the body of POST /api/v1/chat with a year", () => {
     expect(body({ mode: "auto", sinceYear: 2025 })).toBe('{"mode":"auto","message":"retrieval-augmented generation","sinceYear":2025}');
     expect(body({ scope: "india", sinceYear: 2024 })).toBe('{"mode":"search","message":"retrieval-augmented generation","scope":"india","sinceYear":2024}');
     expect(body({ mode: "auto", scope: "india", history: h, sinceYear: 2024 })).toBe(`{"mode":"auto","message":"retrieval-augmented generation","scope":"india","history":${JSON.stringify(h)},"sinceYear":2024}`);
-    expect(body({ mode: "auto", earlier: [{ question: "diabetes in children" }], sinceYear: 2024 })).toBe('{"mode":"auto","message":"retrieval-augmented generation","earlier":[{"question":"diabetes in children"}],"sinceYear":2024}');
   });
 
   it("without a year, or with none that is usable, the body is byte for byte what it was", () => {

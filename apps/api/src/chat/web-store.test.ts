@@ -110,17 +110,16 @@ const understood = (over: Record<string, unknown> = {}) => ({ type: "understood"
 const finish = (papers: Paper[] = [paper("p1")], extra: unknown[] = []) => sse([understood(), { type: "papers", results: papers, final: true }, ...extra, { type: "done", answered: false, reason: "not_answered", tookMs: 1 }]);
 
 type Lib = {
-  useChatState: () => { index: { id: string; title: string; updatedAt: number; owner?: string; kw?: string }[]; active: string | null; chats: ReadonlyMap<string, ChatMsg[]>; running: ReadonlySet<string>; from: ReadonlyMap<string, { source: string; title: string }>; privateChats: ReadonlySet<string>; pendingPrivate: boolean; kept: boolean };
+  useChatState: () => { index: { id: string; title: string; updatedAt: number; owner?: string; kw?: string }[]; active: string | null; chats: ReadonlyMap<string, ChatMsg[]>; running: ReadonlySet<string>; privateChats: ReadonlySet<string>; pendingPrivate: boolean; kept: boolean };
   setChatOwner: (o: string | null) => void;
   sendMessage: (text: string, mode?: "search" | "auto", scope?: "all" | "india") => string;
-  retryReply: (id: string, as?: "search" | "anyway", words?: string, earlier?: { question: string; searchQuery?: string }[]) => string;
+  retryReply: (id: string, as?: "search" | "anyway", words?: string) => string;
   editMessage: (id: string, text: string) => string;
   tightenReply: (id: string) => Promise<void>;
   openChat: (id: string) => Promise<void>;
   resumeChat: () => void;
   startNewChat: () => void;
   startPrivateChat: () => void;
-  continueFromChat: (id: string) => boolean;
   deleteChat: (id: string) => void;
   clearChats: () => Promise<void>;
   beginWipe: () => void;
@@ -233,11 +232,10 @@ describe("a session that ends does not delete anybody's chats", () => {
     expect(t.st().index.map((e) => e.id)).not.toContain("mine");
   });
 
-  it("a held chat is never offered to continue from, and nothing of it is sent, while nobody is signed in", async () => {
-    seed("mine", "diabetes in children", [user("u", "diabetes in children"), reply("a")], { owner: "u1", kw: "diabetes children" });
+  it("nothing of a held chat is sent while nobody is signed in", async () => {
+    seed("mine", "diabetes in children", [user("u", "diabetes in children"), reply("a")], { owner: "u1" });
     const t = await openTab();
     t.lib.setChatOwner(null);
-    expect(t.lib.continueFromChat("mine")).toBe(false);
     t.lib.sendMessage("and in children?", "auto");
     await idle(t);
     expect(JSON.stringify(chatBodies())).not.toContain("diabetes");
@@ -411,7 +409,7 @@ describe("a read of a chat that fails", () => {
   const four = (): ChatMsg[] => [user("u1", "cardiovascular metformin"), reply("a1"), user("u2", "type 2 diabetes"), reply("a2")];
 
   it("does not open it as an empty chat, says so, and the next send in another chat cannot overwrite it", async () => {
-    seed("c1", "cardiovascular metformin", four(), { owner: "u", kw: "cardiovascular metformin diabetes" }, 3);
+    seed("c1", "cardiovascular metformin", four(), { owner: "u" }, 3);
     const t = await openTab();
     t.lib.setChatOwner("u");
     fake.failReads = 1;
@@ -424,7 +422,7 @@ describe("a read of a chat that fails", () => {
     const rec = stored<{ messages: ChatMsg[]; rev: number }>("c1")!;
     expect(rec.messages).toHaveLength(4);
     expect(rec.rev).toBe(3);
-    expect(listed().find((e) => e.id === "c1")).toMatchObject({ kw: "cardiovascular metformin diabetes" });
+    expect(listed().find((e) => e.id === "c1")).toMatchObject({ title: "cardiovascular metformin", owner: "u" });
   });
 
   it("the next open tries again and gets the chat", async () => {
@@ -576,77 +574,62 @@ describe("a choice made for the next chat", () => {
     expect(listed()).toHaveLength(1);
   });
 
-  it("'continuing from' does not survive opening another chat either", async () => {
+  it("a private choice for the next chat does not reach a chat opened from the list, and a message there carries no other chat", async () => {
     seed("x", "diabetes in children", [user("u", "diabetes in children"), reply("a")], { owner: "u" });
     seed("y", "asthma in children", [user("u2", "asthma in children"), reply("b")], { owner: "u" });
     const t = await openTab();
     t.lib.setChatOwner("u");
-    expect(t.lib.continueFromChat("x")).toBe(true);
-    expect(t.st().from.size).toBe(1);
+    t.lib.startPrivateChat();
     await t.lib.openChat("y");
-    expect(t.st().from.size).toBe(0);
+    expect(t.st().pendingPrivate).toBe(false);
     t.lib.deleteChat("y");
     t.lib.sendMessage("and in men?", "auto");
     await idle(t);
     expect(chatBodies().every((b) => !("earlier" in b))).toBe(true);
+    expect(JSON.stringify(chatBodies())).not.toContain("diabetes");
   });
 });
 
-/* ================================================================ Search again after Remove */
+/* ================================================================ the removed earlier-chats feature (6 Nov 2026, design PDF M1) */
 
-describe("what an answer is asked again with from other chats", () => {
-  const withTwoEarlier = async () => {
-    seed("s1", "diabetes in children", [user("a", "diabetes in children"), reply("b", { query: "diabetes in children" })], { owner: "u", kw: "diabetes children" });
-    seed("s2", "asthma in children", [user("c", "asthma in children"), reply("d", { query: "asthma in children" })], { owner: "u", kw: "asthma children" });
+describe("what the removed earlier-chats feature left in the browser", () => {
+  const leftovers = () => {
+    seed("s1", "diabetes in children", [user("a", "diabetes in children"), reply("b", { query: "diabetes in children" })], { owner: "u", kw: "diabetes children KWCANARY", nomem: true });
+    seed("s2", "asthma in children", [user("c", "asthma in children"), reply("d", { query: "asthma in children", earlier: [{ question: "EARLIERCANARY" }] } as Partial<AssistantMsg>)], { owner: "u", kw: "asthma children KWCANARY" });
     local.setItem("scholar.earlier", "u");
+  };
+
+  it("is taken out when the page loads: the switch's key, and the words and the mark on each entry of the list", async () => {
+    leftovers();
+    await openTab();
+    expect(local.getItem("scholar.earlier")).toBeNull();
+    expect(JSON.stringify(listed())).not.toMatch(/KWCANARY|nomem|"kw"/);
+    expect(listed().map((e) => e.id).sort()).toEqual(["s1", "s2"]);
+  });
+
+  it("a follow-up in a new chat, with the old switch's key still set before the load, carries nothing of another chat", async () => {
+    leftovers();
     const t = await openTab();
     t.lib.setChatOwner("u");
     net.chat = () => finish([paper("p1")], []);
     t.lib.startNewChat();
     t.lib.sendMessage("and in children?", "auto");
     await idle(t);
-    const first = chatBodies()[0]!;
-    expect((first.earlier as unknown[]).length).toBe(2);
-    const replyId = () => (t.st().chats.get(t.st().active!)!.find((m) => m.role === "assistant") as AssistantMsg).id;
-    return { t, replyId, first };
-  };
-
-  it("after Remove, Search again with the switch turned off sends nothing of other chats", async () => {
-    const { t, replyId } = await withTwoEarlier();
-    t.lib.retryReply(replyId(), undefined, undefined, [{ question: "asthma in children" }]);
-    await idle(t);
-    expect((chatBodies()[1]!.earlier as unknown[]).length).toBe(1);
-    local.removeItem("scholar.earlier"); // the person turned the switch off in Settings
-    t.lib.retryReply(replyId());
-    await idle(t);
-    expect(chatBodies()[2]).not.toHaveProperty("earlier");
+    const body = chatBodies()[0]!;
+    expect(body).not.toHaveProperty("earlier");
+    expect(JSON.stringify(body)).not.toMatch(/diabetes|asthma|CANARY/);
   });
 
-  it("after Remove, pressing Remove again with the switch off sends nothing either", async () => {
-    const { t, replyId } = await withTwoEarlier();
-    local.removeItem("scholar.earlier");
-    t.lib.retryReply(replyId(), undefined, undefined, [{ question: "asthma in children" }]);
+  it("a reply kept with questions of other chats loses them when its chat is saved again, and Search again sends none of them", async () => {
+    leftovers();
+    const t = await openTab();
+    t.lib.setChatOwner("u");
+    await t.lib.openChat("s2");
+    net.chat = () => finish([paper("p1")], []);
+    t.lib.retryReply("d");
     await idle(t);
-    expect(chatBodies()[1]).not.toHaveProperty("earlier");
-  });
-
-  it("after Remove, Search again with the switch on sends only what is left, never the one that was removed", async () => {
-    const { t, replyId } = await withTwoEarlier();
-    t.lib.retryReply(replyId(), undefined, undefined, [{ question: "asthma in children" }]);
-    await idle(t);
-    t.lib.retryReply(replyId());
-    await idle(t);
-    expect(chatBodies()[2]!.earlier).toEqual([{ question: "asthma in children" }]);
-  });
-
-  it("after Remove, Search again when the chat the question came from is gone sends nothing of it", async () => {
-    const { t, replyId } = await withTwoEarlier();
-    t.lib.retryReply(replyId(), undefined, undefined, [{ question: "asthma in children" }]);
-    await idle(t);
-    t.lib.deleteChat("s2");
-    t.lib.retryReply(replyId());
-    await idle(t);
-    expect(chatBodies()[2]).not.toHaveProperty("earlier");
-    expect(JSON.stringify(chatBodies()[2])).not.toContain("asthma");
+    await new Promise((r) => setTimeout(r, 20));
+    expect(JSON.stringify(chatBodies())).not.toContain("EARLIERCANARY");
+    expect(JSON.stringify(stored("s2"))).not.toContain("EARLIERCANARY");
   });
 });

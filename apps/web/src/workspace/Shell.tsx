@@ -1,17 +1,15 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
-import { Activity, Ban, BookOpenCheck, Bookmark, Check, FileStack, Home, Lightbulb, ListChecks, LogOut, Menu, MessageSquare, MessageSquarePlus, MoreHorizontal, Plus, Settings, TriangleAlert, X } from "lucide-react";
+import { Activity, BookOpenCheck, Bookmark, FileStack, Home, Lightbulb, ListChecks, LogOut, Menu, MessageSquare, Plus, Settings, TriangleAlert, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { RAIL_CHATS, textAttrs } from "@scholar/shared";
 import { signOut, useAuth } from "../lib/auth";
 import { useLibrary, useLibraryAlerts } from "../lib/library";
 import { useDocs } from "../lib/documents";
-import { continueFromChat, deleteChat, openChat, setMemoryLeftOut, startNewChat, useChatState } from "../lib/chat";
+import { deleteChat, openChat, startNewChat, useChatState } from "../lib/chat";
 import { easeOut, spring } from "../lib/motion";
-import { menuKeys } from "./menuKeys";
 import { warmSettings } from "./Pages";
 import { Logo } from "../components/Logo";
-import { Pop } from "../components/Pop";
 import { SignInDialog } from "../components/SignInDialog";
 import { ThemeSwitch } from "../components/ThemeSwitch";
 import { PAPERS_NAME } from "../lib/workspace";
@@ -105,32 +103,6 @@ function RailContent({ view, onNavigate, onHome, onHomeLink, onClose }: { view: 
                       <MessageSquare size={15} aria-hidden="true" />
                       <span className="ws-link-label" {...textAttrs(e.title, true)}>{e.title}</span>
                     </button>
-                    {user && (
-                      // what a chat can be used for (docs/design/chat-actions-context.md, section 6): continued in a new chat, or left out of "Use my earlier chats". Only for a signed-in person: nobody else has either.
-                      <Pop
-                        label={`More for the chat ${e.title}`}
-                        align="end"
-                        trigger={(open) => (
-                          <button type="button" className="ws-recent-x ws-recent-more" aria-label={`More for the chat ${e.title}`} title="More" aria-haspopup="menu" aria-expanded={open}>
-                            <MoreHorizontal size={14} aria-hidden="true" />
-                          </button>
-                        )}
-                      >
-                        {(close) => (
-                          <div role="menu" aria-label={`More for the chat ${e.title}`} className="hm-menu" onKeyDown={menuKeys}>
-                            <button type="button" role="menuitem" className="hm-menu-item" autoFocus onClick={() => { close(); if (continueFromChat(e.id)) go(onHome)(); }}>
-                              <span className="hm-menu-ico"><MessageSquarePlus size={16} aria-hidden="true" /></span>
-                              <span className="hm-menu-txt"><b>Continue in a new chat</b><small>Its last three questions go with every message, until you press the X on the label above the box.</small></span>
-                            </button>
-                            <button type="button" role="menuitemcheckbox" aria-checked={e.nomem === true} className="hm-menu-item" onClick={() => setMemoryLeftOut(e.id, e.nomem !== true)}>
-                              <span className="hm-menu-ico"><Ban size={16} aria-hidden="true" /></span>
-                              <span className="hm-menu-txt"><b>Do not use this chat as memory</b><small>Only matters when &ldquo;Use my earlier chats&rdquo; is on in Settings.</small></span>
-                              <Check size={16} className="hm-tick" aria-hidden="true" />
-                            </button>
-                          </div>
-                        )}
-                      </Pop>
-                    )}
                     <button type="button" className="ws-recent-x" aria-label={`Delete the chat ${e.title}`} title="Delete this chat" onClick={() => deleteChat(e.id)}>
                       <X size={13} aria-hidden="true" />
                     </button>

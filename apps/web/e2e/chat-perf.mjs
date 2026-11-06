@@ -85,7 +85,7 @@ function buildChat(owner, turns = TURNS) {
     });
   }
   const id = "perfchat00000000001";
-  return { entry: { id, title: TOPICS[0], updatedAt: Date.now(), owner, kw: "glaucoma screening" }, record: { id, messages, rev: 1 } };
+  return { entry: { id, title: TOPICS[0], updatedAt: Date.now(), owner }, record: { id, messages, rev: 1 } };
 }
 
 /* ---------------------------------------------------------------- what runs in the page */

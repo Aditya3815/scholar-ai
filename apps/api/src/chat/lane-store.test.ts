@@ -107,10 +107,10 @@ const understood = (over: Record<string, unknown> = {}) => ({ type: "understood"
 const finish = (papers: Paper[] = [paper("p1")], extra: unknown[] = []) => sse([understood(), { type: "papers", results: papers, final: true }, ...extra, { type: "done", answered: false, reason: "not_answered", tookMs: 1 }]);
 
 type Lib = {
-  useChatState: () => { index: { id: string; title: string; updatedAt: number; owner?: string; kw?: string }[]; active: string | null; chats: ReadonlyMap<string, ChatMsg[]>; running: ReadonlySet<string>; from: ReadonlyMap<string, { source: string; title: string }>; privateChats: ReadonlySet<string>; pendingPrivate: boolean; kept: boolean };
+  useChatState: () => { index: { id: string; title: string; updatedAt: number; owner?: string; kw?: string }[]; active: string | null; chats: ReadonlyMap<string, ChatMsg[]>; running: ReadonlySet<string>; privateChats: ReadonlySet<string>; pendingPrivate: boolean; kept: boolean };
   setChatOwner: (o: string | null) => void;
   sendMessage: (text: string, mode?: "search" | "auto", scope?: "all" | "india") => string;
-  retryReply: (id: string, as?: "search" | "anyway", words?: string, earlier?: { question: string; searchQuery?: string }[]) => string;
+  retryReply: (id: string, as?: "search" | "anyway", words?: string) => string;
   editMessage: (id: string, text: string) => string;
   tightenReply: (id: string) => Promise<void>;
   openChat: (id: string) => Promise<void>;
@@ -235,8 +235,8 @@ describe("a chat of one message pair that ends urgent or safety leaves no trace 
   });
 });
 
-describe("in a longer chat the title stays and the words are left out of the words the chat is found by", () => {
-  it("the chat keeps its record and its place in the list, with the title it had; `kw` has the earlier words and not these", async () => {
+describe("in a longer chat the title stays and the words are kept nowhere in the list", () => {
+  it("the chat keeps its record and its place in the list, with the title it had; the list holds no words of the message (and no `kw` at all since the earlier-chats feature was removed)", async () => {
     const t = await openTab();
     t.lib.setChatOwner("u1");
     t.lib.sendMessage("glaucoma screening in rural India", "search");
@@ -249,8 +249,7 @@ describe("in a longer chat the title stays and the words are left out of the wor
     await quiet();
     const entry = t.st().index.find((e) => e.id === id)!;
     expect(entry.title).toBe(title);
-    expect(entry.kw ?? "").toMatch(/glaucoma/);
-    expect(entry.kw ?? "").not.toMatch(/wheezing|zebrafish/);
+    expect(entry.kw).toBeUndefined();
     expect(JSON.stringify(listed())).not.toMatch(/wheezing|zebrafish/);
     expect(stored(id)).toBeDefined();
     expect(t.st().privateChats.has(id)).toBe(false);

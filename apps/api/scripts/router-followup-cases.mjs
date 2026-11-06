@@ -1,14 +1,13 @@
 // The labelled follow-ups the router is measured on when a message comes with the turns before it (docs/design/chat-actions-context.md, sections 5 and 9): what a person types after an answer,
 // in English, Hindi (Devanagari) and Hinglish (Hindi in Roman letters), and what it means. `node scripts/router-eval.mjs --followup` runs them with the REAL model through the development route.
 //
-// Each case: { id, lang, cls, history, earlier, message, want }.
+// Each case: { id, lang, cls, history, message, want }.
 //   cls: refine        the same subject, something changed or added ("and in children?")
 //        same_papers   about the papers or the answer on the screen ("tell me more about paper 2")
 //        restyle       the same answer in another form or language ("explain that simpler", "in Hindi")
 //        year_filter   a range of years ("only after 2020"; also "recent ones", which names no year: no filter is right)
 //        new_search    a new question that happens to follow an answer: it must be searched with its own words
 //        topic_switch  the NEGATIVE: a different topic; the old topic's words must not come along (mustNotContain)
-//        earlier_chat  the first message of a new chat that was started from an earlier chat (`earlier`, no `history`)
 //   want.intent       "new" | "refine" | "same_papers", or a list of the ones that are all right
 //   want.yearFrom / yearTo   a number, or a list of the numbers that are all right ("after 2020" is 2020 or 2021); absent means NO year range is right
 //   want.answerLanguage      "en" | "hi" | "hinglish" when the person asks for a language; absent means none asked
@@ -75,9 +74,8 @@ const STROKE = {
   old: ["stroke", "स्ट्रोक", "rehabilitation", "पुनर्वास"],
 };
 
-const c = (id, lang, cls, conv, message, want, earlier = []) => ({ id, lang, cls, history: conv.history, earlier, message, want: { ...(cls === "topic_switch" ? { mustNotContain: conv.old } : {}), ...(cls === "new_search" && conv.old ? { mustNotContain: conv.old } : {}), ...want } });
-/** a first message of a chat that was started from an earlier chat: no turns, only that chat's questions */
-const e = (id, lang, message, earlierQuestions, want) => ({ id, lang, cls: "earlier_chat", history: [], earlier: earlierQuestions, message, want });
+const c = (id, lang, cls, conv, message, want) => ({ id, lang, cls, history: conv.history, message, want: { ...(cls === "topic_switch" ? { mustNotContain: conv.old } : {}), ...(cls === "new_search" && conv.old ? { mustNotContain: conv.old } : {}), ...want } });
+// (the class `earlier_chat`, a first message of a chat started from an earlier chat, was removed with that feature on 6 Nov 2026: design PDF M1)
 
 const R = "refine";
 const S = "same_papers";
@@ -128,8 +126,6 @@ export const TUNED = [
   c("hg-year-6", "hinglish", "year_filter", CROP_INSURANCE, "2015 ke baad chhape hue papers dikhao", { intent: R, yearFrom: [2015, 2016], mustContain: [["bima", "insurance"]] }),
   c("hi-refine-5", "hi", "refine", STROKE, "ग्रामीण इलाकों में नतीजे कैसे रहे", { intent: R, mustContain: [["rural", "ग्रामीण"], ["stroke", "स्ट्रोक", "rehab", "पुनर्वास"]] }),
   c("en-new-3", "en", "new_search", ASTHMA, "role of the microbiome in treating childhood obesity", { intent: N, mustContain: [["microbiome"], ["obesity"]] }),
-  e("en-earlier-1", "en", "and in children?", [{ question: "effect of yoga on blood pressure", searchQuery: "yoga blood pressure" }], { intent: R, mustContain: [["yoga"], ["children", "child", "pediatric", "paediatric"]] }),
-  e("en-earlier-2", "en", "what about its side effects", [{ question: "does tulsi improve immunity", searchQuery: "tulsi immunity" }, { question: "sleep and memory in teenagers" }], { intent: R, mustContain: [["tulsi"], ["side effect", "adverse"]] }),
 
   /* Hinglish */
   c("hg-refine-1", "hinglish", "refine", DIABETES, "aur bachon me?", { intent: R, mustContain: [["bachon", "bachche", "children", "child"], ["diabet"]] }),
@@ -152,7 +148,6 @@ export const TUNED = [
   c("hg-topic-2", "hinglish", "topic_switch", DIABETES, "chodo, CRISPR ke off-target effects par papers do", { intent: N, mustContain: [["crispr"]] }),
   c("hg-new-1", "hinglish", "new_search", DIABETES, "dengue vaccine", { intent: N, mustContain: [["dengue"]] }),
   c("hg-new-2", "hinglish", "new_search", DIABETES, "India me TB ki drug resistance par latest studies", { intent: N, mustContain: [["tb", "tubercul"]] }),
-  e("hg-earlier-1", "hinglish", "uske side effects kya hain", [{ question: "yoga ka blood pressure par asar", searchQuery: "effect of yoga on blood pressure" }], { intent: R, mustContain: [["yoga"], ["side effect", "adverse"]] }),
 
   /* Hindi, Devanagari */
   c("hi-refine-1", "hi", "refine", TB, "और बच्चों में?", { intent: R, mustContain: [["बच्चों", "बच्चे", "children", "child"], ["tubercul", "तपेदिक", "tb"]] }),
@@ -169,7 +164,6 @@ export const TUNED = [
   c("hi-topic-1", "hi", "topic_switch", TB, "अब मलेरिया के टीके के बारे में बताओ", { intent: N, mustContain: [["malaria", "मलेरिया"]] }),
   c("hi-topic-2", "hi", "topic_switch", TB, "छोड़ो, कृत्रिम बुद्धिमत्ता से भाषा अनुवाद पर शोध दिखाओ", { intent: N, mustContain: [["translation", "अनुवाद", "language"]] }),
   c("hi-new-1", "hi", "new_search", TB, "मधुमेह में व्यायाम का प्रभाव", { intent: N, mustContain: [["diabet", "मधुमेह"]] }),
-  e("hi-earlier-1", "hi", "और बच्चों में?", [{ question: "मधुमेह में व्यायाम का प्रभाव", searchQuery: "exercise diabetes" }], { intent: R, mustContain: [["exercise", "diabet", "मधुमेह", "व्यायाम"], ["बच्चों", "बच्चे", "children", "child"]] }),
 ];
 
 /* ------------------------------------------------------------ the honest list: other subjects, other words, written before any tuning */
@@ -190,7 +184,6 @@ export const HOLDOUT = [
   c("en-h-topic-1", "en", "topic_switch", GUT, "completely different: how do vaccines train the immune system", { intent: N, mustContain: [["vaccine"]] }),
   c("en-h-topic-2", "en", "topic_switch", RESNET, "forget that, what is known about air pollution and asthma in Delhi", { intent: N, mustContain: [["asthma"]] }),
   c("en-h-new-1", "en", "new_search", RESNET, "blockchain for land records", { intent: N, mustContain: [["blockchain"]] }),
-  e("en-h-earlier-1", "en", "any trials in India?", [{ question: "gut bacteria and depression", searchQuery: "gut microbiome depression" }], { intent: R, mustContain: [["india"], ["gut", "microbio", "depression"]] }),
 
   /* Hinglish */
   c("hg-h-refine-1", "hinglish", "refine", MALNUTRITION, "aur ladkiyon me?", { intent: R, mustContain: [["ladkiyon", "girls", "girl", "female"], ["cash transfer", "malnutrition", "nutrition"]] }),
@@ -202,7 +195,6 @@ export const HOLDOUT = [
   c("hg-h-topic-1", "hinglish", "topic_switch", MALNUTRITION, "ab quantum computing ke baare me batao", { intent: N, mustContain: [["quantum"]] }),
   c("hg-h-topic-2", "hinglish", "topic_switch", MALNUTRITION, "achha, ab tulsi ka immunity par asar", { intent: N, mustContain: [["tulsi"], ["immun"]] }),
   c("hg-h-new-1", "hinglish", "new_search", MALNUTRITION, "land records ke liye blockchain", { intent: N, mustContain: [["blockchain"]] }),
-  e("hg-h-earlier-1", "hinglish", "uske baare me aur papers do", [{ question: "gut bacteria ka mental health se kya connection hai", searchQuery: "gut microbiome mental health" }], { intent: R, mustContain: [["gut", "microbio"]] }),
 
   /* Hindi, Devanagari */
   c("hi-h-refine-1", "hi", "refine", GROUNDWATER, "और पंजाब में?", { intent: R, mustContain: [["punjab", "पंजाब"], ["groundwater", "भूजल", "water"]] }),
@@ -213,7 +205,6 @@ export const HOLDOUT = [
   c("hi-h-year-2", "hi", "year_filter", GROUNDWATER, "सबसे नए अध्ययन", { intent: R, mustContain: [["groundwater", "भूजल", "water"]] }),
   c("hi-h-topic-1", "hi", "topic_switch", GROUNDWATER, "अब कैंसर की जांच के बारे में बताओ", { intent: N, mustContain: [["cancer", "कैंसर"]] }),
   c("hi-h-new-1", "hi", "new_search", GROUNDWATER, "बच्चों में कुपोषण कम करने के उपाय", { intent: N, mustContain: [["malnutrition", "कुपोषण", "nutrition"]] }),
-  e("hi-h-earlier-1", "hi", "इसके दुष्प्रभाव क्या हैं", [{ question: "तुलसी का रोग प्रतिरोधक क्षमता पर असर", searchQuery: "tulsi immunity" }], { intent: R, mustContain: [["tulsi", "तुलसी"], ["side effect", "adverse", "दुष्प्रभाव"]] }),
 ];
 
 /* ------------------------------------------------------------ the second hold-out, written again: five cases nobody tuned on */
@@ -242,5 +233,5 @@ export const HOLDOUT2 = [
   c("en-h2-new", "en", "new_search", STATINS, "how do wearable sensors detect atrial fibrillation", { intent: N, mustContain: [["wearable"], ["fibrillation"]] }),
 ];
 
-export const CLASSES = ["refine", "same_papers", "restyle", "year_filter", "new_search", "topic_switch", "earlier_chat"];
+export const CLASSES = ["refine", "same_papers", "restyle", "year_filter", "new_search", "topic_switch"];
 export const LANGS = ["en", "hinglish", "hi"];

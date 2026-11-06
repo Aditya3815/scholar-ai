@@ -73,7 +73,7 @@ async function store(page, id, messages) {
     await new Promise((res) => { const tx = db.transaction("chats", "readwrite"); tx.objectStore("chats").put({ id, messages, rev: 1 }, id); tx.oncomplete = () => res(); });
     db.close();
     const index = JSON.parse(localStorage.getItem("scholar.chats.v1") ?? "[]").filter((e) => e.id !== id);
-    index.unshift({ id, title: messages[0].text, updatedAt: Date.now(), kw: messages.filter((m) => m.role === "user").map((m) => m.text).join(" ").slice(0, 80) });
+    index.unshift({ id, title: messages[0].text, updatedAt: Date.now() });
     localStorage.setItem("scholar.chats.v1", JSON.stringify(index));
     sessionStorage.setItem("scholar.chat.active", id);
   }, { id, messages });

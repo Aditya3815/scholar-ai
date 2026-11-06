@@ -686,3 +686,19 @@ describe("CHAT_FLOOR=writer and =on change the stream only of the requests whose
     expect(outcomes.some((o) => o.endsWith(":would_tier_none"))).toBe(true);
   }, 300_000);
 });
+
+/**
+ * M1 (6 Nov 2026, design PDF "Sodhsetu understanding, follow-ups and MCP"): the earlier-chats feature was removed, and a tab opened before that may still send `earlier`. It is ignored unread: the request
+ * of the list that carries it is answered byte for byte as the same message without it, in every position of the flags.
+ */
+describe("`earlier` from an old tab is ignored, not read and not refused", () => {
+  it("the request that carries it streams exactly what the same message without it streams", async () => {
+    const c = DIFF.find((x) => x.name === "follow-up, earlier chats")!;
+    expect(JSON.stringify(c.body)).toContain("earlier");
+    for (const env of [{}, { CHAT_CLEAN: "on" }, { CHAT_FLOOR: "on" }, { CHAT_FLOOR: "writer", CHAT_COUNTERS: "on" }] as Record<string, string>[]) {
+      const withIt = await wire({ ...c, opts: { ...c.opts, env: { ...c.opts?.env, ...env } } });
+      const without = await wire({ ...c, body: { mode: "auto", message: "and in children?" }, opts: { ...c.opts, env: { ...c.opts?.env, ...env } } });
+      expect({ ...withIt, name: "" }, JSON.stringify(env)).toEqual({ ...without, name: "" });
+    }
+  }, 120_000);
+});

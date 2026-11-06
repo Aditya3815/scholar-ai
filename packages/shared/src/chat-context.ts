@@ -27,12 +27,6 @@ export const MAX_HISTORY_CHARS = 3000;
  */
 export const MAX_CHAT_BODY_BYTES = 80 * 1024;
 
-/** Earlier chats (section 6): at most three questions of the person's own, chosen on the device, read by the router only. */
-export const MAX_EARLIER_ENTRIES = 3;
-export const MAX_EARLIER_QUESTION_CHARS = 200;
-export const MAX_EARLIER_QUERY_CHARS = 200;
-export const MAX_EARLIER_CHARS = 800;
-
 /** What the router may write back, and the most of it that is believed. */
 export const MAX_RESTATED_QUESTION_CHARS = 200;
 export const MAX_RESTATED_QUERY_WORDS = 12;
@@ -82,15 +76,15 @@ export type HistoryEntry =
   | { role: "user"; text: string }
   | { role: "assistant"; searchQuery?: string; language?: Lang; papers?: HistoryPaper[]; text?: string; yearFrom?: number; yearTo?: number };
 
-/** One question from an earlier chat, with the search words it used. Never an answer, an idea or a list. */
-export type EarlierQuestion = { question: string; searchQuery?: string };
-
-/** The optional fields of `POST /api/v1/chat` that carry context. Only with `mode: "auto"`. */
-export type ChatContextRequest = { history?: HistoryEntry[]; earlier?: EarlierQuestion[] };
+/**
+ * The optional field of `POST /api/v1/chat` that carries context. Only with `mode: "auto"`. Nothing of another chat is ever sent (the earlier-chats feature was removed on 6 Nov 2026: design PDF
+ * "Sodhsetu understanding, follow-ups and MCP", M1); a body from an old open tab that still has `earlier` is answered as if it had not (the server never reads it).
+ */
+export type ChatContextRequest = { history?: HistoryEntry[] };
 
 /**
  * What the server tells the browser about the context it read, on the `understood` event (an old open tab ignores a field it does not know; a new event type would crash its reducer). It is
- * there when a model read the earlier turns, and `earlier` counts the earlier-chat questions that were in what it read, so what is shown ("Used from your earlier chat") is what was used. It is also
+ * there when a model read the earlier turns. It is also
  * there, with `turns: 0`, `intent: "new"` and `rewrote: false` and nothing else but the year, when the only thing to say is the year range a Trending chip's `sinceYear` cut the papers to: a year
  * chip is read from `yearFrom` and `yearTo` whichever of the two gave the range, and the range that is there is the range that was applied (the larger start of the router's and the chip's).
  */
@@ -105,8 +99,6 @@ export type ChatContextInfo = {
   /** A year range the person asked for ("only after 2020"), applied to the papers before they are numbered. */
   yearFrom?: number;
   yearTo?: number;
-  /** How many questions of earlier chats the router read. */
-  earlier?: number;
   /** True when the router's reading could not be used (it was not valid, or it failed): the words were searched as they were written. */
   fellBack?: true;
 };

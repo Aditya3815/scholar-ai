@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { NOTICE_KINDS, SAFETY_NOTICE_KINDS, applyChatEvent, askedTurns, contextBefore, keywordsFor, leavesNoTrace, startAssistant, type AssistantMsg, type ChatEvent, type ChatMsg } from "@scholar/shared";
+import { NOTICE_KINDS, SAFETY_NOTICE_KINDS, applyChatEvent, askedTurns, contextBefore, leavesNoTrace, startAssistant, type AssistantMsg, type ChatEvent, type ChatMsg } from "@scholar/shared";
 
 /**
  * The shared half of R4 (docs/design/intent-and-state.md, 4.5 and H0 items 5 and 6): the new reasons and notice kinds, the rule that no lane reply ever rides along as context (a symptom or crisis
- * message must not be sent with the next message, or kept in the words an earlier chat is found by), what an old open tab does with a kind or a reason it does not know, and the predicate the page's
+ * message must not be sent with the next message), what an old open tab does with a kind or a reason it does not know, and the predicate the page's
  * store uses to decide that a chat must leave no trace.
  */
 const user = (id: string, text: string, at = 1): ChatMsg => ({ id, role: "user", text, at });
@@ -61,11 +61,10 @@ describe("a lane reply never rides along as context (historyTurn)", () => {
     ["a search chosen by hand that carries the crisis line", reply("a4", { mode: "search", searchQuery: "q", notices: [notice("safety_crisis")] })],
     ["a search chosen by hand that carries the urgent line", reply("a5", { mode: "search", searchQuery: "q", notices: [notice("safety_urgent")] })],
   ];
-  it.each(CASES)("%s: no turn is made of it, so nothing is sent with the next message and nothing is kept in the words of the chat", (_name, a) => {
+  it.each(CASES)("%s: no turn is made of it, so nothing is sent with the next message", (_name, a) => {
     const path = withReply(a);
     expect(contextBefore(path, path.length)).toEqual([]);
     expect(askedTurns(path)).toEqual([]);
-    expect(keywordsFor(path)).toBe("");
   });
 
   it("an ordinary turn still is one, and so is one that carries only the lines for a decision or a care (those are health questions, not a danger)", () => {
@@ -73,11 +72,11 @@ describe("a lane reply never rides along as context (historyTurn)", () => {
     expect(contextBefore(path, path.length)).toHaveLength(4);
   });
 
-  it("in a longer chat the words of the message that was a danger are left out of the words the chat is found by, and the others stay", () => {
+  it("in a longer chat the message that was a danger is left out of the turns, and the others stay", () => {
     const path: ChatMsg[] = [user("u0", "glaucoma screening in rural India"), { ...NORMAL, searchQuery: "glaucoma screening rural India" }, user("u1", "my wife has severe wheezing right now zebrafish"), reply("a1", { reason: "urgent", general: { kind: "not_research", text: "x" } })];
-    const kw = keywordsFor(path);
-    expect(kw).toMatch(/glaucoma/);
-    expect(kw).not.toMatch(/wheezing|zebrafish/);
+    const turns = JSON.stringify(askedTurns(path));
+    expect(turns).toMatch(/glaucoma/);
+    expect(turns).not.toMatch(/wheezing|zebrafish/);
   });
 });
 

@@ -5,7 +5,7 @@ import type { StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, createGateway, type GatewayConfig } from "../llm";
 import type { Ledger, LlmProvider, ProviderResponse } from "../llm";
 import { FOLLOW_UP_OUTCOMES, UNREAD_OUTCOMES } from "../outcomes";
-import { readEarlier, readHistory } from "./history";
+import { readHistory } from "./history";
 import { routeFollowUp, routerCallFailed, ROUTER_CONTEXT_SCHEMA, ROUTER_CONTEXT_SYSTEM, type FollowUpCheck, type RouterContext } from "./router";
 
 /**
@@ -44,7 +44,7 @@ const must = <T extends { ok: boolean }>(r: T): Extract<T, { ok: true }> => {
 const u = (text: string) => ({ role: "user", text });
 const a = (extra: Record<string, unknown> = {}) => ({ role: "assistant", ...extra });
 const GLAUCOMA = [u("glaucoma screening in rural India"), a({ searchQuery: "glaucoma screening rural India", papers: [{ n: 1, title: "Deep learning for glaucoma screening from fundus photographs", year: 2021 }], text: "Screening found glaucoma early [1]." })];
-const ctxOf = (history: unknown, earlier: unknown = []): RouterContext => ({ history: must(readHistory(history)).history, earlier: must(readEarlier(earlier)).earlier });
+const ctxOf = (history: unknown): RouterContext => ({ history: must(readHistory(history)).history });
 
 afterEach(() => vi.restoreAllMocks());
 

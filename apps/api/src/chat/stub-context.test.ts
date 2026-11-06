@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { detectLanguage } from "@scholar/shared";
-import { readEarlier, readHistory } from "./history";
+import { readHistory } from "./history";
 import { buildChatPrompt, pickEvidencePapers } from "./answer";
 import { routeFollowUp, routerContextPrompt, routerPrompt, type RouterContext } from "./router";
 import { stubChatStream, stubPapers } from "./stub";
@@ -8,11 +8,10 @@ import { stubRoute } from "./stub-route";
 
 const u = (text: string) => ({ role: "user", text });
 const a = (extra: Record<string, unknown> = {}) => ({ role: "assistant", ...extra });
-const ctxOf = (history: unknown, earlier: unknown = []): RouterContext => {
+const ctxOf = (history: unknown): RouterContext => {
   const h = readHistory(history);
-  const e = readEarlier(earlier);
-  if (!h.ok || !e.ok) throw new Error("bad test input");
-  return { history: h.history, earlier: e.earlier };
+  if (!h.ok) throw new Error("bad test input");
+  return { history: h.history };
 };
 const GLAUCOMA = [u("glaucoma screening in rural India"), a({ searchQuery: "glaucoma screening rural India", text: "Screening found glaucoma early [1]." })];
 const ask = async (text: string, ctx: RouterContext) => (await stubRoute({ system: "", user: routerContextPrompt(text, ctx), schema: {}, maxTokens: 1, label: "chat_route_ctx" })).json as Record<string, unknown>;
@@ -35,10 +34,6 @@ describe("the router stand-in, for a follow-up", () => {
   it("a new topic is the message, and its search words have none of the old topic unless the test asks for it", async () => {
     expect(await ask("newtopic CRISPR effects", ctxOf(GLAUCOMA))).toMatchObject({ intent: "new", question: "newtopic CRISPR effects", search_query: "translated: newtopic CRISPR effects" });
     expect(String((await ask("newtopic bleedtopic CRISPR", ctxOf(GLAUCOMA))).search_query)).toMatch(/glaucoma/);
-  });
-
-  it("falls back to the questions of an earlier chat when this one has no turns yet", async () => {
-    expect(await ask("and in children?", ctxOf([], [{ question: "yoga and blood pressure", searchQuery: "yoga blood pressure" }]))).toMatchObject({ intent: "refine", question: "yoga blood pressure and in children?" });
   });
 
   it("Hindi in Devanagari is not joined to an English topic", async () => {

@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { MAX_RESTATED_QUESTION_CHARS, detectLanguage, offlineRoute } from "@scholar/shared";
 import { AllProvidersFailedError } from "../llm";
-import { readEarlier, readHistory } from "./history";
+import { readHistory } from "./history";
 import { ROUTER_CONTEXT_SCHEMA, ROUTER_CONTEXT_SYSTEM, ROUTER_SCHEMA, ROUTER_SYSTEM, askedOf, contextInfo, parseFollowUp, routeFollowUp, routeMessage, routerContextPrompt, routerPrompt, type RouterContext } from "./router";
 
 const must = <T>(r: { ok: true } & T | { ok: false; detail: string }): T => {
   if (!r.ok) throw new Error(r.detail);
   return r;
 };
-const ctxOf = (history: unknown, earlier: unknown = []): RouterContext => ({ history: must(readHistory(history)).history, earlier: must(readEarlier(earlier)).earlier });
+const ctxOf = (history: unknown): RouterContext => ({ history: must(readHistory(history)).history });
 const u = (text: string) => ({ role: "user", text });
 const a = (extra: Record<string, unknown> = {}) => ({ role: "assistant", ...extra });
 const YOGA = [u("effect of yoga on blood pressure"), a({ searchQuery: "yoga blood pressure", papers: [{ n: 1, title: "Yoga and hypertension in Kerala", year: 2021 }, { n: 2, title: "A trial of pranayama", year: 2019 }], text: "Yoga lowered blood pressure [1]. CANARY-ANSWER-TEXT" })];
@@ -48,7 +48,9 @@ describe("the first-turn router is untouched", () => {
     expect(added).toMatch(/simpler, shorter, longer, bullet points/);
     expect(added).toMatch(/never the person's uploaded papers/);
     // a group, a place, a design, an outcome or recency is a refinement, also when the message says "only": the first real run took them for the same papers
-    expect(added).toMatch(/refine when it keeps the subject \(of the earlier turns, or of a question from the person's other chats\) and asks to look for something in it: a group of people .*a place .*recency .*a design .*an outcome .*also with "only"/);
+    expect(added).toMatch(/refine when it keeps the subject of the earlier turns and asks to look for something in it: a group of people .*a place .*recency .*a design .*an outcome .*also with "only"/);
+    // the questions of other chats are gone from what the model is told (the earlier-chats feature was removed on 6 Nov 2026)
+    expect(added).not.toMatch(/other chats|EARLIER_CHATS/);
     expect(added).toMatch(/Rewording the answer is never refine or new; a group, place, design, outcome or recency is never same_papers/);
     expect(added).toMatch(/never a year, "after", "before", "since" or "papers"/);
     expect(added).toMatch(/Roman letters stay Roman/);
@@ -104,21 +106,16 @@ describe("routerContextPrompt: the earlier turns before the message, which stays
     expect(long.split("\n").at(-2)!.length).toBeLessThanOrEqual(1500);
   });
 
-  it("questions of earlier chats are a second block of their own, with their own label and prefix, before the message", () => {
-    const p = routerContextPrompt("aur bachon me?", ctxOf(HINGLISH, [{ question: "yoga ka asar", searchQuery: "yoga effect" }, { question: "sleep and memory" }]));
-    const lines = p.split("\n");
-    const open = lines.indexOf("<<<EARLIER_CHATS");
-    expect(open).toBeGreaterThan(lines.indexOf("EARLIER_TURNS>>>"));
-    expect(lines[open + 1]).toBe('C1 {"question":"yoga ka asar","search":"yoga effect"}');
-    expect(lines[open + 2]).toBe('C2 {"question":"sleep and memory"}');
-    expect(lines[open + 3]).toBe("EARLIER_CHATS>>>");
-    expect(lines.slice(-4)).toEqual(["Message:", '"""', "aur bachon me?", '"""']);
-    expect(routerContextPrompt("aur bachon me?", ctxOf(HINGLISH))).not.toContain("EARLIER_CHATS");
+  it("has no block for other chats (the earlier-chats feature was removed): the turns of this chat, then the message", () => {
+    const p = routerContextPrompt("aur bachon me?", ctxOf(HINGLISH));
+    expect(p).not.toContain("EARLIER_CHATS");
+    expect(p).not.toMatch(/^C\d+ /m);
+    expect(p.split("\n").slice(-4)).toEqual(["Message:", '"""', "aur bachon me?", '"""']);
   });
 });
 
 describe("parseFollowUp: only enums and numbers act, and the words are checked", () => {
-  const parse = (raw: unknown, text: string, history: unknown = YOGA, earlier: unknown = []) => parseFollowUp(raw, text, detectLanguage(text), ctxOf(history, earlier));
+  const parse = (raw: unknown, text: string, history: unknown = YOGA) => parseFollowUp(raw, text, detectLanguage(text), ctxOf(history));
 
   it("a refinement: the standalone question, the English search words, the intent", () => {
     const { route, followUp } = parse(said({ intent: "refine", question: "What is the effect of yoga on blood pressure in children?", search_query: "yoga blood pressure children" }), "and in children?");
@@ -248,9 +245,9 @@ describe("parseFollowUp: only enums and numbers act, and the words are checked",
 });
 
 describe("contextInfo: what the browser is told", () => {
-  it("counts the turns and the earlier-chat questions the model read, and carries the question and years only when they matter", () => {
-    const ctx = ctxOf(YOGA, [{ question: "sleep and memory" }, { question: "diabetes and exercise" }]);
-    expect(contextInfo({ intent: "refine", question: "Effect of yoga on blood pressure after 2020", rewrote: true, fellBack: false, yearFrom: 2021, check: "ok" }, ctx)).toEqual({ turns: 1, intent: "refine", rewrote: true, question: "Effect of yoga on blood pressure after 2020", yearFrom: 2021, earlier: 2 });
+  it("counts the turns the model read, and carries the question and years only when they matter", () => {
+    const ctx = ctxOf(YOGA);
+    expect(contextInfo({ intent: "refine", question: "Effect of yoga on blood pressure after 2020", rewrote: true, fellBack: false, yearFrom: 2021, check: "ok" }, ctx)).toEqual({ turns: 1, intent: "refine", rewrote: true, question: "Effect of yoga on blood pressure after 2020", yearFrom: 2021 });
     expect(contextInfo({ intent: "new", question: "x y", rewrote: false, fellBack: false, check: "ok" }, ctxOf(YOGA))).toEqual({ turns: 1, intent: "new", rewrote: false });
     expect(contextInfo({ intent: "new", question: "x y", rewrote: false, fellBack: true, check: "numbers" }, ctxOf(YOGA))).toEqual({ turns: 1, intent: "new", rewrote: false, fellBack: true });
   });
@@ -271,22 +268,18 @@ describe("routeFollowUp", () => {
     expect(m.calls).toHaveLength(0);
   });
 
-  it("the language of the answer is taken from this conversation's own questions, not from the questions of OTHER chats: 'kids?' in an English chat stays English though an earlier chat was Hinglish", async () => {
+  it("the language of the answer is taken from this conversation's own questions: 'kids?' in an English chat stays English, in a Hinglish chat it is Hinglish", async () => {
     const reading = said({ intent: "refine", question: "yoga and blood pressure in kids", search_query: "yoga blood pressure kids" });
-    const english = await routeFollowUp("kids?", recorder(reading).complete, ctxOf(YOGA, [{ question: "diabetes me exercise ka kya asar hota hai" }]));
+    const english = await routeFollowUp("kids?", recorder(reading).complete, ctxOf(YOGA));
     expect(english.route.language).toBe("en");
-    // ...in a chat whose own questions are Hinglish the same message takes that chat's language
     const hinglish = await routeFollowUp("kids?", recorder(reading).complete, ctxOf(HINGLISH));
     expect(hinglish.route.language).toBe("hinglish");
-    // a chat that only continues from an earlier Hinglish chat has no question of its own to take a language from
-    const onlyEarlier = await routeFollowUp("kids?", recorder(reading).complete, ctxOf([], [{ question: "diabetes me exercise ka kya asar hota hai" }]));
-    expect(onlyEarlier.route.language).toBe("en");
   });
 
   it("a message in Hinglish that stands alone goes to the first-turn router exactly as it always did: its prompt, its system text, its label, none of the earlier turns", async () => {
     const m = recorder({ mode: "search", confidence: 0.95, search_query: "effect of yoga on blood pressure" });
     const text = "yoga ka blood pressure par kya effect hota hai";
-    const r = await routeFollowUp(text, m.complete, ctxOf(YOGA, [{ question: "sleep and memory" }]));
+    const r = await routeFollowUp(text, m.complete, ctxOf(YOGA));
     expect(r.followUp).toBeNull();
     expect(r.route).toMatchObject({ mode: "search", how: "model", searchQuery: "effect of yoga on blood pressure" });
     expect(m.calls).toHaveLength(1);
@@ -296,7 +289,7 @@ describe("routeFollowUp", () => {
 
   it("a message that leans on the earlier turns is read with them: one call, its own label, the context prompt and schema", async () => {
     const m = recorder(said({ intent: "refine", question: "What is the effect of yoga on blood pressure in children?", search_query: "yoga blood pressure children" }));
-    const ctx = ctxOf(YOGA, [{ question: "sleep and memory" }]);
+    const ctx = ctxOf(YOGA);
     const r = await routeFollowUp("and in children?", m.complete, ctx);
     expect(m.calls).toHaveLength(1);
     expect(m.calls[0]).toMatchObject({ system: ROUTER_CONTEXT_SYSTEM, user: routerContextPrompt("and in children?", ctx), label: "chat_route_ctx" });
@@ -375,7 +368,7 @@ describe("routeFollowUp", () => {
 describe("parseFollowUp: a reading that is mostly right is not thrown away for one part of it", () => {
   const TB = [u("भारत में तपेदिक दवा प्रतिरोध पर अध्ययन"), a({ searchQuery: "drug resistant tuberculosis India", language: "hi", papers: [{ n: 1, title: "Drug-resistant tuberculosis in India: a national survey", year: 2020 }, { n: 2, title: "Treatment outcomes of multidrug-resistant TB in Delhi", year: 2017 }], text: "भारत में तपेदिक के मामले कई राज्यों में दर्ज हुए हैं [1]।" })];
   const GROUNDWATER = [u("भूजल स्तर गिरने के कारणों पर शोध पत्र"), a({ searchQuery: "causes of groundwater depletion India", language: "hi", papers: [{ n: 1, title: "Groundwater depletion in northwest India from satellite data", year: 2019 }] })];
-  const parse = (raw: unknown, text: string, language: "en" | "hi" | "hinglish", history: unknown, earlier: unknown = []) => parseFollowUp(raw, text, language, ctxOf(history, earlier));
+  const parse = (raw: unknown, text: string, language: "en" | "hi" | "hinglish", history: unknown) => parseFollowUp(raw, text, language, ctxOf(history));
 
   describe("a translation (Hindi, Hinglish) is not refused for sharing English words with the earlier turns", () => {
     it("a new topic that shares 'treatment', 'India' and 'children' with the old one is a new topic, and its English words are searched (they were refused as the old topic coming along)", () => {

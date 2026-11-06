@@ -96,14 +96,14 @@ beforeEach(() => {
 });
 
 describe("the request: what is accepted and what is refused", () => {
-  it("history and earlier are for Auto only: a hand-chosen search refuses them, as it refuses `anyway`", async () => {
-    for (const extra of [{ history: GLAUCOMA }, { history: [] }, { earlier: [{ question: "glaucoma and sleep" }] }, { earlier: [] }]) {
+  it("history is for Auto only: a hand-chosen search refuses it, as it refuses `anyway`", async () => {
+    for (const extra of [{ history: GLAUCOMA }, { history: [] }]) {
       const r = await post({ mode: "search", message: "glaucoma screening", ...extra });
       expect(r.res.status).toBe(400);
       expect(r.json()).toMatchObject({ type: "invalid_flag" });
     }
     // absent and null are not there
-    expect((await post({ mode: "search", message: "glaucoma screening", history: null, earlier: null })).res.status).toBe(200);
+    expect((await post({ mode: "search", message: "glaucoma screening", history: null })).res.status).toBe(200);
   });
 
   it("a wrong role, order or type is `invalid_history`, and nothing is repaired or run", async () => {
@@ -127,11 +127,14 @@ describe("the request: what is accepted and what is refused", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("earlier is checked the same way", async () => {
-    for (const earlier of ["x", [{ question: 5 }], [{}], [null]]) {
-      const r = await post(auto("only after 2020", { earlier }));
-      expect(r.res.status).toBe(400);
-      expect(r.json()).toMatchObject({ type: "invalid_history" });
+  it("`earlier` (questions of other chats, a feature removed on 6 Nov 2026) is ignored unread, whatever its shape, in Auto and in a hand-chosen search: an old open tab's message is answered, never refused", async () => {
+    for (const earlier of ["x", [{ question: 5 }], [{}], [null], [{ question: "CANARY-EARLIER-CHAT glaucoma and sleep" }], []]) {
+      for (const mode of ["auto", "search"] as const) {
+        calls.length = 0;
+        const r = await post({ mode, message: "glaucoma screening", earlier });
+        expect(r.res.status, `${mode} ${JSON.stringify(earlier)}`).toBe(200);
+        expect(JSON.stringify(calls)).not.toContain("CANARY-EARLIER-CHAT");
+      }
     }
   });
 
@@ -324,11 +327,10 @@ describe("a follow-up that the model reads", () => {
     expect(r.ev.some((e) => e.type === "papers")).toBe(false);
   });
 
-  it("questions of earlier chats go to the router and say how many were read; a new chat with no turns uses them", async () => {
+  it("questions of earlier chats no longer reach any model: a new chat that sends them is a first message, read with no context", async () => {
     const r = await run(auto("and in children?", { earlier: [{ question: "yoga and blood pressure", searchQuery: "yoga blood pressure" }, { question: "sleep and memory" }] }));
-    expect(r.understood.context).toMatchObject({ turns: 0, intent: "refine", rewrote: true, earlier: 2, question: "yoga blood pressure and in children?" });
-    expect(callsOf("router")[0]!.user).toMatch(/C1 \{"question":"yoga and blood pressure","search":"yoga blood pressure"\}/);
-    for (const w of callsOf("writer")) expect(`${w.system}${w.user.replace(/^Question: .*$/m, "")}`).not.toMatch(/EARLIER_CHATS|yoga and blood pressure/);
+    expect(r.understood.context).toBeUndefined();
+    expect(JSON.stringify(calls)).not.toMatch(/EARLIER_CHATS|yoga and blood pressure|sleep and memory/);
   });
 
   it("a message that stands alone is settled by the rules even with turns before it: no model reads the turns, nothing of them is sent, and the words are as written", async () => {
@@ -362,13 +364,14 @@ describe("what a model is given, stage by stage: the earlier turns reach the rou
 
   it("the router is given the turns, their search words and titles, not the words of the earlier answer; the judge never; the background gets the standalone question only", async () => {
     await run(auto("explain that simpler", { history: HISTORY, earlier: [{ question: "CANARY-EARLIER-CHAT sleep" }] }));
+    // `earlier` from an old tab reaches no model (the earlier-chats feature was removed on 6 Nov 2026)
+    expect(JSON.stringify(calls)).not.toContain("CANARY-EARLIER-CHAT");
     const router = callsOf("router");
     expect(router).toHaveLength(1);
     expect(router[0]!.label).toBe("chat_route_ctx");
     expect(router[0]!.user).toContain("CANARY-HISTORY-USER");
     expect(router[0]!.user).toContain("canary-history-search");
     expect(router[0]!.user).toContain("CANARY-HISTORY-TITLE");
-    expect(router[0]!.user).toContain("CANARY-EARLIER-CHAT");
     expect(router[0]!.user).not.toContain("CANARY-ANSWER");
     // the judge read the answer, and nothing of the conversation
     const judge = callsOf("judge");

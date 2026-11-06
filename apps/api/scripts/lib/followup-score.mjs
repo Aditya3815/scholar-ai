@@ -1,5 +1,5 @@
 // Scoring of the router's answers to follow-ups against the labelled cases of ../router-followup-cases.mjs (docs/design/chat-actions-context.md, section 9). Pure: it reads a case and the answer
-// of the development route (`POST /api/v1/chat/route` with `history`/`earlier`: the route, `followUp` and `usage`) and says what was right. `router-eval.mjs --followup` prints it; the unit test
+// of the development route (`POST /api/v1/chat/route` with `history`: the route, `followUp` and `usage`) and says what was right. `router-eval.mjs --followup` prints it; the unit test
 // of the same name pins it, including that a made-up wrong answer is scored as wrong.
 //
 // What is measured, on what the SERVER made of the model's reading (restate.ts has already refused a restatement that adds a number, a name or a "not"; the answer is what a person would get):

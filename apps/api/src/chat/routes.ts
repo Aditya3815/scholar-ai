@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MIN_SINCE_YEAR, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatContextInfo, type ChatEvent, type EarlierQuestion, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
+import { FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MIN_SINCE_YEAR, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
@@ -15,7 +15,7 @@ import { judgeAnswer, type JudgeReport } from "./support";
 import { readTighten } from "./tighten";
 import { answerGeneral } from "./general";
 import { askedOf, contextInfo, ownQuestions, routeContextOf, routeFollowUp, routeMessage, routerCallFailed, type FollowUp, type RouterContext } from "./router";
-import { errorKind, readEarlier, readHistory, stripInvisible, type ChatHistory, type Refusal } from "./history";
+import { errorKind, readHistory, stripInvisible, type ChatHistory } from "./history";
 import { stubChatStream, stubJudgeStream, stubSearchFor, stubStrictStream } from "./stub";
 import { stubRoute } from "./stub-route";
 import { FLOOR_OUTCOMES, FOLLOW_UP_OUTCOMES, UNREAD_OUTCOMES, countOutcome, countOutcomes } from "../outcomes";
@@ -49,7 +49,7 @@ type Bindings = {
   LLM_REASONING?: string;
   /** "off" switches the support judge off (answers are then shown as the old check leaves them): a Worker variable, for a day when its model is down or its cost must stop. */
   CHAT_JUDGE?: string;
-  /** "off" makes the chat ignore the earlier messages of a conversation altogether (`history` and `earlier` are neither read nor refused), as it was before there were any: a Worker variable, a rollback that needs no new code. */
+  /** "off" makes the chat ignore the earlier messages of a conversation altogether (`history` is neither read nor refused), as it was before there were any: a Worker variable, a rollback that needs no new code. */
   CHAT_CONTEXT?: string;
   /**
    * R3 (docs/design/intent-and-state.md, 4.4): "on" counts what a message in the prompt box looked like, by closed names and never any of its text (feature `chat_input`). Unset, "off" and "shadow" count
@@ -237,7 +237,7 @@ chatRoutes.post("/", async (c) => {
   if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
   const read = await readChatBody(c);
   if (read.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
-  const body = read.body as { mode?: unknown; message?: unknown; scope?: unknown; anyway?: unknown; history?: unknown; earlier?: unknown; sinceYear?: unknown } | null;
+  const body = read.body as { mode?: unknown; message?: unknown; scope?: unknown; anyway?: unknown; history?: unknown; sinceYear?: unknown } | null;
   if (!body || (body.mode !== "search" && body.mode !== "auto")) return deny(c, 400, "invalid_mode", "That mode is not available");
   // where a search looks: the regular sources, or only Indian ones when the reader turned that on (an unknown value is refused, not quietly widened)
   if (body.scope !== undefined && !isSearchScope(body.scope)) return deny(c, 400, "invalid_scope", "That search scope is not available");
@@ -253,29 +253,25 @@ chatRoutes.post("/", async (c) => {
   const auto = body.mode === "auto";
   // The earlier turns of the conversation (docs/design/chat-actions-context.md): for Auto only (a search chosen by hand is searched as written, so it refuses them as it refuses `anyway`), checked here
   // whoever sends them, read by a model only for a signed-in person, and not even looked at while CHAT_CONTEXT is "off" (a server that did not know the field would ignore it).
+  // `earlier` (questions of OTHER chats) is never read: that feature was removed on 6 Nov 2026 (design PDF "Sodhsetu understanding, follow-ups and MCP", M1). A tab opened before the release may still send
+  // it; it is ignored, not refused, so that tab's messages are answered as a message without it, and nothing of it reaches a model or a log.
   const contextOn = c.env.CHAT_CONTEXT !== "off";
-  const carries = (body.history !== undefined && body.history !== null) || (body.earlier !== undefined && body.earlier !== null);
+  const carries = body.history !== undefined && body.history !== null;
   if (carries && contextOn && !auto) return deny(c, 400, "invalid_flag", "That option is not available");
   let history: ChatHistory | null = null;
-  let earlier: EarlierQuestion[] = [];
   if (carries && contextOn) {
     const h = readHistory(body.history);
-    const e = readEarlier(body.earlier);
-    const refusal: Refusal | null = !h.ok ? h : !e.ok ? e : null;
-    if (refusal) {
+    if (!h.ok) {
       // a count, so that abuse shows in the logs; never a word of what was sent
       console.warn(JSON.stringify({ level: "warn", msg: "chat_history_refused" }));
-      return deny(c, 400, "invalid_history", "The earlier messages could not be used", refusal.detail);
+      return deny(c, 400, "invalid_history", "The earlier messages could not be used", h.detail);
     }
-    if (h.ok && e.ok) {
-      history = h.history;
-      earlier = e.earlier;
-    }
+    history = h.history;
   }
   const cleaned = auto ? cleanAutoMessage(body.message) : cleanChatMessage(body.message);
   if (!cleaned) return deny(c, 400, "invalid_message", auto ? "Write something, at most 20,000 characters" : "Write 2 to 300 characters");
   const user = await currentUser(c);
-  const ctx: RouterContext | null = auto && user && history && (history.turns > 0 || earlier.length > 0) ? { history, earlier } : null;
+  const ctx: RouterContext | null = auto && user && history && history.turns > 0 ? { history } : null;
   // read with turns before it, the message loses its invisible characters too (they hide an instruction from a person's eyes and not from a model's)
   const text = ctx ? cleanAutoMessage(stripInvisible(cleaned)) : cleaned;
   if (!text) return deny(c, 400, "invalid_message", "Write something, at most 20,000 characters");
@@ -448,7 +444,7 @@ chatRoutes.post("/", async (c) => {
       else if (widened) context = { turns: 0, intent: "new", rewrote: false, ...(years.from === undefined ? {} : { yearFrom: years.from }), ...(years.to === undefined ? {} : { yearTo: years.to }) };
       await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}), ...(scope !== "all" && route.mode === "search" ? { scope } : {}), ...(context ? { context } : {}), ...(reading ? { reading } : {}) });
       // counts and short names only: how many turns were read and what came of them, never a word of them
-      if (follow && ctx) console.log(JSON.stringify({ level: "info", msg: "chat_followup", turns: ctx.history.turns, earlier: ctx.earlier.length, mode: route.mode, intent: follow.intent, rewrote: follow.rewrote, fellBack: follow.fellBack, check: follow.check, years: follow.yearFrom !== undefined || follow.yearTo !== undefined }));
+      if (follow && ctx) console.log(JSON.stringify({ level: "info", msg: "chat_followup", turns: ctx.history.turns, mode: route.mode, intent: follow.intent, rewrote: follow.rewrote, fellBack: follow.fellBack, check: follow.check, years: follow.yearFrom !== undefined || follow.yearTo !== undefined }));
       // R4: the lines of the lane go right after what the message was understood as, above the answer and the papers (a search chosen by hand gets only these)
       if (lane.notices.length > 0) {
         const language = detectLanguage(text);
@@ -617,7 +613,7 @@ chatRoutes.post("/", async (c) => {
 
 /**
  * Development only (ENABLE_DEV_ROUTES=1; the deployed Workers do not set it, so this is a plain 404 there): the router's choice for one message, with the real model and no
- * search, so `scripts/router-eval.mjs` can measure the router over a labelled list without spending the search sources. With `history` and/or `earlier` (as the stream reads them) it reads
+ * search, so `scripts/router-eval.mjs` can measure the router over a labelled list without spending the search sources. With `history` (as the stream reads it) it reads
  * the message as a follow-up would be read and answers with the route plus `followUp` (what the checks made of the model's reading: intent, standalone question, search words, years, and the
  * reason if they did not pass) and `usage` (what the calls cost), so that `--followup` can score them. Without them the answer is the route and nothing more, as it always was.
  */
@@ -626,16 +622,14 @@ chatRoutes.post("/route", async (c) => {
   if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
   const read = await readChatBody(c);
   if (read.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
-  const body = read.body as { message?: unknown; history?: unknown; earlier?: unknown } | null;
+  const body = read.body as { message?: unknown; history?: unknown } | null;
   const text = cleanAutoMessage(body?.message);
   if (!text) return deny(c, 400, "invalid_message", "Write something, at most 20,000 characters");
   const user = await currentUser(c);
-  const carries = (body?.history !== undefined && body.history !== null) || (body?.earlier !== undefined && body.earlier !== null);
+  const carries = body?.history !== undefined && body.history !== null;
   if (!carries) return c.json(await routeMessage(text, user ? routeCompleteFor(c.env, user.id) : null));
   const h = readHistory(body?.history);
-  const e = readEarlier(body?.earlier);
-  const refusal: Refusal | null = !h.ok ? h : !e.ok ? e : null;
-  if (refusal || !h.ok || !e.ok) return deny(c, 400, "invalid_history", "The earlier messages could not be used", refusal?.detail);
+  if (!h.ok) return deny(c, 400, "invalid_history", "The earlier messages could not be used", h.detail);
   const usage = { calls: 0, tokensIn: 0, tokensOut: 0 };
   const complete = user
     ? routeCompleteFor(c.env, user.id, (u) => {
@@ -644,7 +638,7 @@ chatRoutes.post("/route", async (c) => {
         usage.tokensOut += u.tokensOut ?? 0;
       })
     : null;
-  const routed = await routeFollowUp(cleanAutoMessage(stripInvisible(text)) ?? text, complete, { history: h.history, earlier: e.earlier });
+  const routed = await routeFollowUp(cleanAutoMessage(stripInvisible(text)) ?? text, complete, { history: h.history });
   return c.json({ ...routed.route, followUp: routed.followUp, usage });
 });
 

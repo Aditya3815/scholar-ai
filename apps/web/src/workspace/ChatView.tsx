@@ -2,7 +2,7 @@ import { AnimatePresence, m } from "motion/react";
 import { ArrowDown, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileStack, Info, Lightbulb, ListChecks, Pencil, Plus, RefreshCw, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { GENERAL_LABEL, INDIA_SCOPE_LABEL, LEFT_OUT_LABEL, MAX_CHAT_CHARS, MAX_VERSIONS, ROUTE_NAMES, SAFETY_NOTICE_KINDS, answerCopy, busyReason, canTighten, citeParts, earlierUsed, editInfo, followUpNote, noticeOffersRetry, quoted, readingLines, restoreWords, textAttrs, turnToShow, unfilteredWords, versionInfo, type AssistantMsg, type MessageReading, type ChatMsg, type EditInfo, type IdeaMsg, type ChatNoAnswer, type Paper, type RouteMode, type UserMsg } from "@scholar/shared";
+import { GENERAL_LABEL, INDIA_SCOPE_LABEL, LEFT_OUT_LABEL, MAX_CHAT_CHARS, MAX_VERSIONS, ROUTE_NAMES, SAFETY_NOTICE_KINDS, answerCopy, busyReason, canTighten, citeParts, editInfo, followUpNote, noticeOffersRetry, quoted, readingLines, restoreWords, textAttrs, turnToShow, unfilteredWords, versionInfo, type AssistantMsg, type MessageReading, type ChatMsg, type EditInfo, type IdeaMsg, type ChatNoAnswer, type Paper, type RouteMode, type UserMsg } from "@scholar/shared";
 import { SignInDialog } from "../components/SignInDialog";
 import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
@@ -276,7 +276,6 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
     );
   const others = TOOL_ROWS.filter((t) => t.id !== msg.mode);
   const note = msg.mode === "search" ? followUpNote(msg) : null;
-  const used = earlierUsed(msg);
   const unfinished = msg.mode === "search" ? msg.notices.find((n) => n.kind === "unfinished") : undefined;
   // the person's own words are not searched on their own when the line above them is the question they were read as: a follow-up's words mean nothing alone
   const exact = msg.mode === "search" && !!msg.searchQuery && !working && text.length <= MAX_CHAT_CHARS && !note?.question;
@@ -325,18 +324,6 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
           )}
         </p>
       )}
-      {msg.mode === "search" && used.map((q, i) => (
-        // a question of another chat that a model read to understand this message (the chat chosen to continue from, or what "Use my earlier chats" found): always said, each with its own way to take it away
-        <p key={i} className="chat-und chat-searched chat-earlier">
-          Used from your earlier chat: <b {...textAttrs(q.question, true)}>{q.question}</b>
-          {!working && (
-            <>
-              {" · "}
-              <button type="button" className="link-btn" aria-label={`Do not use it and search again: remove the earlier question “${q.question}”`} onClick={() => void retryReply(msg.id, undefined, undefined, (msg.earlier ?? []).filter((x) => x !== q))}>Do not use it and search again</button>
-            </>
-          )}
-        </p>
-      ))}
       {msg.mode === "search" && msg.searchQuery && (
         <p className="chat-und chat-searched">
           I searched for: <b lang="en">{msg.searchQuery}</b>

@@ -1,11 +1,10 @@
 import { useSyncExternalStore } from "react";
 import {
-  applyChatEvent, applyTighten, busyReason, canStartNewTopic, chatRequestBody, chatTitle, citedPaperIds, cleanAutoMessage, cleanChatMessage, contextBefore, didNotFinishText, earlierFor, editInfo, editUserMessage, failTighten, goneFromIndex, interruptMessages, keywordsFor, lastReplyDidNotFinish, leavesNoTrace, leftOfEarlier, MAX_CHAT_CHARS, MAX_IDEA_CHARS, MIN_IDEA_CHARS, ownedBy,
+  applyChatEvent, applyTighten, busyReason, canStartNewTopic, chatRequestBody, chatTitle, citedPaperIds, cleanAutoMessage, cleanChatMessage, contextBefore, didNotFinishText, editInfo, editUserMessage, failTighten, goneFromIndex, interruptMessages, lastReplyDidNotFinish, leavesNoTrace, MAX_CHAT_CHARS, MAX_IDEA_CHARS, MIN_IDEA_CHARS, ownedBy,
   parseIndex, releaseRun, retryText, startAssistant, startTighten, stopAssistant, switchVersion, tightenRequestFor, titleAfterEdit, touchIndex, trimMessagesForStorage, usesEarlierTurns, withHeld,
-  type AssistantMsg, type ChatEvent, type ChatMsg, type EarlierQuestion, type HistoryEntry, type IdeaMsg, type MemoryEntry, type SearchScope, type TightenResponse, type UserMsg,
+  type AssistantMsg, type ChatEvent, type ChatMsg, type HistoryEntry, type IdeaMsg, type MemoryEntry, type SearchScope, type TightenResponse, type UserMsg,
 } from "@scholar/shared";
-import { idbClear, idbDelete, idbGet, idbRead, idbSwap } from "./idb";
-import { earlierChatsOn } from "./memory";
+import { idbClear, idbDelete, idbRead, idbSwap } from "./idb";
 import { showNotice } from "./notice";
 import { readSse } from "./sse";
 
@@ -16,9 +15,9 @@ import { readSse } from "./sse";
  *
  * Whose they are (docs/design/chat-actions-context.md, section 6): each entry of the list is stamped with the id of the signed-in person who made the chat (`owner`), and a chat of ANOTHER signed-in person is
  * ignored and removed as soon as the page knows who is here (`setChatOwner`, from `refreshAuth`): that is the shared-computer protection. A session that merely RUNS OUT (the cookie lasts 30 days and is
- * never renewed) is not that: while nobody is signed in the owned chats are neither shown nor drawn on, but they are KEPT, and come back when the same person signs in; only an explicit sign-out (`beginWipe`,
- * `clearChats`) and "Delete all" remove them without another person to compare with. An entry also keeps `kw`, a few words of the person's own questions by which another chat can be found, and `nomem`,
- * "do not use this chat as memory".
+ * never renewed) is not that: while nobody is signed in the owned chats are neither shown nor used, but they are KEPT, and come back when the same person signs in; only an explicit sign-out (`beginWipe`,
+ * `clearChats`) and "Delete all" remove them without another person to compare with. A message leans only on its own chat: nothing of another chat is ever sent (the earlier-chats feature, with its
+ * words on each entry and its "do not use as memory" mark, was removed on 6 Nov 2026; `parseIndex` drops what it left in the list).
  *
  * Two tabs: the list is written back whole from what is stored NOW (what this page cannot see is kept: `writeIndex`), and each record carries a revision, so a tab that was left behind cannot write its old
  * copy over what another tab saved (`write`, `idbSwap`): it takes the other copy up and says so.
@@ -26,19 +25,16 @@ import { readSse } from "./sse";
 type Entry = MemoryEntry;
 /**
  * `liveIdeas`: the Idea Checks of the conversations open in this tab that are running here (their plan and papers are in the page, not kept); one that is not in the set was kept from an earlier visit and shows "run it again".
- * `from`: the chats that are continuing from another (by chat id; `NEW_CHAT` for the one that does not exist yet): the last three questions of that other chat go with every message of this one until the chip is removed.
  * `privateChats`: conversations that are not kept and not used (they have no place in the list and no record; `pendingPrivate`: the next new chat will be one). Both are of this page only and are not stored.
  * `newTopic`: the conversations in which the person pressed "New topic" and has not yet sent the next message (R22, docs/design/intent-and-state.md, 4.19): that message is marked and goes out with no earlier turn. By chat id; kept in this tab's
  * sessionStorage (`TOPIC_KEY`), which is not a store of chats (ids only): a reload must not bring the earlier messages back for the next message after the person said not to use them.
  */
-type State = { index: Entry[]; active: string | null; chats: ReadonlyMap<string, ChatMsg[]>; running: ReadonlySet<string>; liveIdeas: ReadonlySet<string>; kept: boolean; from: ReadonlyMap<string, ContinuedFrom>; privateChats: ReadonlySet<string>; pendingPrivate: boolean; newTopic: ReadonlySet<string> };
-/** The chat a conversation is continuing from: its id (to read its questions when a message is sent) and its title (for the chip). */
-export type ContinuedFrom = { source: string; title: string };
-/** The key of `from` for the conversation that does not exist yet (one is created by its first message). */
-const NEW_CHAT = "";
+type State = { index: Entry[]; active: string | null; chats: ReadonlyMap<string, ChatMsg[]>; running: ReadonlySet<string>; liveIdeas: ReadonlySet<string>; kept: boolean; privateChats: ReadonlySet<string>; pendingPrivate: boolean; newTopic: ReadonlySet<string> };
 
 const INDEX_KEY = "scholar.chats.v1";
 const ACTIVE_KEY = "scholar.chat.active";
+/** The device's choice of the removed "Use my earlier chats" switch (it held the account id of the person who turned it on): taken out of the browser once, when this file loads. */
+const RETIRED_EARLIER_KEY = "scholar.earlier";
 /** Set when a sign-out begins and removed when its clearing of the chats is done: a page that finds it set finishes the job (the tab was closed part way). */
 const WIPE_KEY = "scholar.wipe";
 const MAX_CHATS = 30;
@@ -85,7 +81,7 @@ const keepNewTopic = (ids: ReadonlySet<string>) => {
   }
 };
 
-let state: State = { index: typeof localStorage === "undefined" ? [] : readIndex(), active: typeof sessionStorage === "undefined" ? null : readActive(), chats: new Map(), running: new Set(), liveIdeas: new Set(), kept: true, from: new Map(), privateChats: new Set(), pendingPrivate: false, newTopic: typeof sessionStorage === "undefined" ? new Set() : readNewTopic() };
+let state: State = { index: typeof localStorage === "undefined" ? [] : readIndex(), active: typeof sessionStorage === "undefined" ? null : readActive(), chats: new Map(), running: new Set(), liveIdeas: new Set(), kept: true, privateChats: new Set(), pendingPrivate: false, newTopic: typeof sessionStorage === "undefined" ? new Set() : readNewTopic() };
 const listeners = new Set<() => void>();
 const set = (next: Partial<State>) => {
   state = { ...state, ...next };
@@ -231,22 +227,19 @@ function takeUp(id: string, kept: ChatMsg[]) {
 }
 /**
  * What the entry of a conversation says besides its title, as of now: who it belongs to (the person signed in; a chat kept before chats had an owner, or by a visitor, is adopted by the first signed-in person
- * who touches or opens it) and the words it is found by (from the person's own questions, never an answer: `keywordsFor`; none when it has nothing to be found by, which takes the field away).
+ * who touches or opens it).
  */
-const entryFacts = (id: string): Partial<Entry> => {
-  const msgs = state.chats.get(id);
-  return { ...(typeof owner === "string" ? { owner } : {}), ...(msgs ? { kw: keywordsFor(msgs) || undefined } : {}) };
-};
+const entryFacts = (): Partial<Entry> => (typeof owner === "string" ? { owner } : {});
 const touch = (id: string, title?: string) => {
   // a private conversation is not kept: it has no entry
   if (state.privateChats.has(id)) return;
   // the old entry is spread, not rebuilt from three fields: what an entry has gained must survive the conversation being touched
-  const { kept, dropped } = touchIndex(state.index, id, title, Date.now(), MAX_CHATS, entryFacts(id));
+  const { kept, dropped } = touchIndex(state.index, id, title, Date.now(), MAX_CHATS, entryFacts());
   for (const d of dropped) void idbDelete(d.id, "chats");
   set({ index: kept });
   writeIndex(kept);
 };
-/** A change to an entry that is not a reason to bring the conversation to the top of the list (another version of a message was brought back, a chat was left out of memory). */
+/** A change to an entry that is not a reason to bring the conversation to the top of the list (an owner is stamped on it). */
 function patchEntry(id: string, patch: Partial<Entry>) {
   if (!state.index.some((e) => e.id === id)) return;
   const index = state.index.map((e) => (e.id === id ? { ...e, ...patch } : e));
@@ -268,7 +261,7 @@ function setActive(id: string | null) {
 }
 
 /**
- * Let go of conversations this page holds: stop what is running in them, forget what waits to be saved, take them out of memory, drop a chip that points at them or from them. `fromStorage`: also delete their
+ * Let go of conversations this page holds: stop what is running in them, forget what waits to be saved, take them out of memory. `fromStorage`: also delete their
  * records (this tab is the one that took them out of the list; when another tab did, it has deleted them already, and a second delete could meet a chat that was made since).
  */
 function forget(ids: readonly string[], fromStorage: boolean) {
@@ -285,7 +278,6 @@ function forget(ids: readonly string[], fromStorage: boolean) {
   }
   set({
     chats: new Map([...state.chats].filter(([id]) => !gone.has(id))),
-    from: new Map([...state.from].filter(([id, f]) => !gone.has(id) && !gone.has(f.source))),
     privateChats: new Set([...state.privateChats].filter((id) => !gone.has(id))),
     newTopic: new Set([...state.newTopic].filter((id) => !gone.has(id))),
   });
@@ -296,7 +288,7 @@ function forget(ids: readonly string[], fromStorage: boolean) {
 /**
  * The page now knows who is here (`null`: nobody is signed in). Called by `refreshAuth` with a real answer only. The list is read from storage and divided by `ownedBy`:
  * - the chats of ANOTHER signed-in person are removed (from the list, from the browser's storage and from this page's memory): somebody else is at this browser;
- * - while nobody is signed in the chats of any person are held: gone from the page (not shown, not drawn on, not saved back) but left in storage, and back when the same person signs in. A cookie that ran out
+ * - while nobody is signed in the chats of any person are held: gone from the page (not shown, not used, not saved back) but left in storage, and back when the same person signs in. A cookie that ran out
  *   must not delete a person's chats (before chats had an owner, expiry kept them); only an explicit sign-out does that;
  * - the one the person is looking at, if it has no owner yet, becomes theirs.
  */
@@ -350,14 +342,14 @@ if (typeof window !== "undefined") {
 
 /**
  * Open a conversation (reading it from the browser's storage the first time; one this page already holds is looked at again against what is kept, in case another tab saved it since). What was chosen for
- * the NEXT new chat (a private chat, a chat to continue from) is dropped: it was for a chat that does not exist yet, and would otherwise come back, to be applied to a later chat, when the one opened
+ * the NEXT new chat (a private chat) is dropped: it was for a chat that does not exist yet, and would otherwise come back, to be applied to a later chat, when the one opened
  * here is deleted. A read that FAILS (the browser said no, not "there is no such record") opens nothing: an empty chat in its place would be written back by the next message and delete what is kept.
  */
 export async function openChat(id: string): Promise<void> {
   const before = state.active;
   setActive(id);
-  if (state.pendingPrivate || state.from.has(NEW_CHAT)) set({ from: new Map([...state.from].filter(([k]) => k !== NEW_CHAT)), pendingPrivate: false });
-  // opening a chat kept before chats had an owner (or made by a visitor) makes it the signed-in person's own: from then on it may be drawn on as memory, which no chat of unknown owner ever is
+  if (state.pendingPrivate) set({ pendingPrivate: false });
+  // opening a chat kept before chats had an owner (or made by a visitor) makes it the signed-in person's own
   const entry = state.index.find((e) => e.id === id);
   if (entry && entry.owner === undefined && typeof owner === "string") patchEntry(id, { owner });
   if (state.chats.has(id)) {
@@ -379,34 +371,12 @@ export async function openChat(id: string): Promise<void> {
     setChat(id, msgs);
     synced.set(id, msgs);
   }
-  // a chat kept before its words were kept with it gets them the first time it is read (the list is built when a chat is saved; none is read just to build it)
-  const words = entry && entry.kw === undefined ? keywordsFor(msgs) : "";
-  if (words) patchEntry(id, { kw: words });
 }
 
-/** A new, empty conversation: it is created when its first message is sent. A chip or a private choice made for the one that did not exist yet is dropped with it. */
+/** A new, empty conversation: it is created when its first message is sent. A private choice made for the one that did not exist yet is dropped with it. */
 export function startNewChat() {
-  set({ from: new Map([...state.from].filter(([id]) => id !== NEW_CHAT)), pendingPrivate: false });
+  if (state.pendingPrivate) set({ pendingPrivate: false });
   setActive(null);
-}
-
-/**
- * "Continue from an earlier chat": a new conversation that carries the last three questions of that chat (and the English words they searched with, never an answer, an Idea Check or a pasted list) with every
- * message sent in it, in Auto, until the chip is removed. Only for a signed-in person, whose chat it is (or one kept before chats had an owner, which choosing it makes theirs), and only when this browser keeps
- * the chats. The chip lives in this page only: after a reload the conversation is as any other, which sends less, never more. False when it could not be started.
- */
-export function continueFromChat(sourceId: string): boolean {
-  const e = state.index.find((x) => x.id === sourceId);
-  if (!e || typeof owner !== "string" || !state.kept || (e.owner !== undefined && e.owner !== owner)) return false;
-  startNewChat();
-  if (e.owner === undefined) patchEntry(e.id, { owner });
-  set({ from: new Map(state.from).set(NEW_CHAT, { source: e.id, title: e.title }) });
-  return true;
-}
-
-/** The chip's remove button: this conversation stops carrying questions of the other chat. */
-export function stopContinuing() {
-  set({ from: new Map([...state.from].filter(([id]) => id !== (state.active ?? NEW_CHAT))) });
 }
 
 /**
@@ -436,38 +406,24 @@ function setNewTopic(ids: ReadonlySet<string>) {
   keepNewTopic(ids);
 }
 
-/** The chat this one is continuing from, for the chip (undefined when it is not continuing from any). */
-export const continuedFrom = (s: State): ContinuedFrom | undefined => s.from.get(s.active ?? NEW_CHAT);
 /** Whether the conversation on screen (or the one about to start) is private: not kept, not used, and gone when it is left. */
 export const isPrivateChat = (s: State): boolean => (s.active ? s.privateChats.has(s.active) : s.pendingPrivate);
 
-/** A new conversation that is not kept: it is not saved, has no place in the list, draws on no other chat and is drawn on by none, and is gone when it is left or the page is closed. */
+/** A new conversation that is not kept: it is not saved, has no place in the list, and is gone when it is left or the page is closed. */
 export function startPrivateChat() {
   startNewChat();
   set({ pendingPrivate: true });
 }
 
-/** "Do not use this chat as memory" (and its undoing): a chat the person left out is never drawn on by the switch "Use my earlier chats". It does not stop them continuing from it by choosing it. */
-export function setMemoryLeftOut(id: string, leftOut: boolean) {
-  patchEntry(id, { nomem: leftOut ? true : undefined });
-}
-
 /**
- * The conversation a new message goes to: the open one, or a new one made now (a conversation is created by its first message). A new one takes on what was chosen for it before it existed: the chat it is
- * to continue from, and being private.
+ * The conversation a new message goes to: the open one, or a new one made now (a conversation is created by its first message). A new one takes on what was chosen for it before it existed: being private.
  */
 function chatForMessage(): string {
   const open = state.active;
   if (open && (state.index.some((e) => e.id === open) || state.privateChats.has(open))) return open;
   const id = newId();
   setActive(id);
-  const from = state.from.get(NEW_CHAT);
-  if (from || state.pendingPrivate) {
-    const map = new Map(state.from);
-    map.delete(NEW_CHAT);
-    if (from) map.set(id, from);
-    set({ from: map, ...(state.pendingPrivate ? { privateChats: new Set(state.privateChats).add(id), pendingPrivate: false } : {}) });
-  }
+  if (state.pendingPrivate) set({ privateChats: new Set(state.privateChats).add(id), pendingPrivate: false });
   return id;
 }
 
@@ -525,8 +481,6 @@ export function sendMessage(raw: string, mode: SendMode = "search", scope: Searc
   const open = state.active;
   if (open && (runs.has(open) || (state.index.some((e) => e.id === open) && !state.chats.has(open)))) return "busy"; // answering, or still being opened
   const id = chatForMessage();
-  // what it may lean on in other chats is chosen from the list as the person saw it when they pressed Send, so before this conversation is put at the top of it (a new chat would push the sixth chat out of the six that are listed)
-  const recalled = recallEarlier(id, text, mode, false);
   const now = Date.now();
   // "New topic" was pressed in this chat: this message carries the marker, whatever tool it is sent in, and leans on nothing (R22)
   const marked = state.newTopic.has(id);
@@ -540,7 +494,7 @@ export function sendMessage(raw: string, mode: SendMode = "search", scope: Searc
   if (marked) setNewTopic(new Set([...state.newTopic].filter((x) => x !== id)));
   touch(id, state.index.find((e) => e.id === id)?.title ?? chatTitle(text));
   persist(id, true);
-  void run(id, reply.id, text, mode, scope, false, history, recalled, reply.sinceYear, unfinished);
+  void run(id, reply.id, text, mode, scope, false, history, reply.sinceYear, unfinished);
   return "sent";
 }
 
@@ -557,13 +511,9 @@ function askedFor(msgs: ChatMsg[], at: number): string | null {
  * A reply that is asked again in Auto goes with the turns that came before ITS question (`contextBefore`: not the later ones), which is what makes a follow-up's own words mean something again.
  * A search as written has no earlier turns to lean on, so for one whose own words cannot stand alone ("only after 2020") `words` is what to search instead: the standalone question, or the topic
  * without its year range. It is used only with `as: "search"`. What is asked again is decided by `retryText`: a search that was made from such words asks THEM again, not the bubble above it.
- * `earlier` is what the reply is asked again with from other chats, when the person has chosen it: the questions that are left after they took one away on the reply ("Remove"), possibly none. A reply they
- * did that to keeps that choice for every later "Search again" (`earlierSet`); any other reply is sent with what its conversation chooses now (the chip, the switch). What was LEFT is only ever a limit,
- * never a permission: it is sent only as far as the switch, the chip and the chats allow it now (`leftOfEarlier`), so a question stored on the reply is not sent after the switch was turned off or the
- * chat it came from was deleted, and one the person removed never comes back.
  * A strict check that is running on the reply is stopped first: the reply is about to be replaced by another under the same id, and the check's answer must not be bound to its papers.
  */
-export function retryReply(assistantId: string, as?: "search" | "anyway", words?: string, earlier?: EarlierQuestion[]): SendResult {
+export function retryReply(assistantId: string, as?: "search" | "anyway", words?: string): SendResult {
   const id = state.active;
   if (!id || runs.has(id)) return "busy";
   const msgs = state.chats.get(id);
@@ -580,20 +530,16 @@ export function retryReply(assistantId: string, as?: "search" | "anyway", words?
   }
   // it looks in the same place as before (the Indian sources stay on for a reply that was searched there)
   const scope = old.scope ?? "all";
-  const fixed = earlier ?? (old.earlierSet ? (old.earlier ?? []) : undefined);
   // the year a Trending chip started the papers from is asked for again with the same words (Search again, Use my exact words); not with other words (the year chip's X, "Use these exact words" under a follow-up), and not for "anyway" (small talk)
   const since = words === undefined && as !== "anyway" ? old.sinceYear : undefined;
-  const first = startAssistant(assistantId, text.replace(/\s+/g, " ").slice(0, 300), Date.now(), mode === "auto", scope, since);
-  const reply: AssistantMsg = fixed ? { ...first, earlierSet: true } : first;
+  const reply = startAssistant(assistantId, text.replace(/\s+/g, " ").slice(0, 300), Date.now(), mode === "auto", scope, since);
   tightening.get(assistantId)?.abort();
   tightening.delete(assistantId);
   setChat(id, msgs.map((m, i) => (i === at ? reply : m)));
   persist(id, true);
-  // with nothing left on the reply nothing is chosen for it; otherwise what is left is intersected with what is allowed now (decided when the request is made, from the list as it is then)
-  const lean = fixed === undefined ? undefined : fixed.length === 0 ? [] : recallEarlier(id, text, mode, as === "anyway").then((now) => leftOfEarlier(now, fixed));
   const upTo = written === null ? at : at - 1;
   const history = mode === "auto" ? contextBefore(msgs, upTo) : [];
-  void run(id, assistantId, text, mode, scope, as === "anyway", history, lean, first.sinceYear, history.length > 0 && lastReplyDidNotFinish(msgs, upTo));
+  void run(id, assistantId, text, mode, scope, as === "anyway", history, reply.sinceYear, history.length > 0 && lastReplyDidNotFinish(msgs, upTo));
   return "sent";
 }
 
@@ -626,8 +572,6 @@ export function editMessage(userId: string, raw: string): EditResult {
   const reply = startAssistant(newId(), text.replace(/\s+/g, " ").slice(0, 300), Date.now(), info.mode === "auto", info.scope, info.sinceYear);
   const next = editUserMessage(msgs, userId, text, reply);
   if (!next) return "unavailable";
-  // chosen from the list as it is now, before the edit puts this conversation at the top of it (as for a new message)
-  const recalled = recallEarlier(id, text, info.mode, false);
   // the turns before the edited message are not changed by the edit (everything from it on is put away): they are the context it is sent with, and nothing at or after it ever is
   const history = info.mode === "auto" ? contextBefore(msgs, info.at) : [];
   const unfinished = history.length > 0 && lastReplyDidNotFinish(msgs, info.at);
@@ -637,7 +581,7 @@ export function editMessage(userId: string, raw: string): EditResult {
   setChat(id, next);
   touch(id, titleAfterEdit(msgs, userId, text, state.index.find((e) => e.id === id)?.title ?? chatTitle(text)));
   persist(id, true);
-  void run(id, reply.id, text, info.mode, info.scope, false, history, recalled, reply.sinceYear, unfinished);
+  void run(id, reply.id, text, info.mode, info.scope, false, history, reply.sinceYear, unfinished);
   return "sent";
 }
 
@@ -657,8 +601,6 @@ export function showVersion(userId: string, to: number): "switched" | "busy" | "
   const current = state.index.find((e) => e.id === id)?.title;
   const title = current === undefined ? undefined : titleAfterEdit(msgs, userId, shown.text, current);
   if (title !== undefined && title !== current) touch(id, title);
-  // the words the chat is found by are those of the version being read: the ones that were put away are not kept in them
-  else patchEntry(id, { kw: keywordsFor(next) || undefined });
   persist(id, true);
   return "switched";
 }
@@ -673,16 +615,14 @@ export function stopReply() {
  * Write one reply. `history` is what the message may lean on (`contextBefore`, only in Auto; empty means nothing is sent, and the body is what it was before there was any). The server reads it
  * strictly and refuses a body it could not have been sent (400 `invalid_history`), which would end every follow-up of the conversation in an error the person cannot mend: the message itself
  * is good, so in that one case it is sent again, once, without them (it is read as a first message; nothing more is sent than was).
- * `lean` is what the message leans on in other chats (`recallEarlier`: the chat this one continues from, or what "Use my earlier chats" finds), chosen when the message was sent and still on its way (a promise), or
- * exactly what the person left on the reply (a list); without it, it is chosen now. It is ready before anything is sent, and the reply keeps what was sent so that it can say what it used.
  * `unfinished`: the reply right before this message did not finish, so the turns it leans on are those before it (R22): when the server then says it read them and took the message for a follow-up of them, the reply
  * gets the line `didNotFinishText` (the notice kind "unfinished", made here and never sent by the server). Said only for a reply that was sent with turns, so never for a visitor, a search chosen by hand or a first message.
  */
-async function run(chatId: string, assistantId: string, text: string, mode: SendMode, scope: SearchScope, anyway = false, history: HistoryEntry[] = [], lean?: Promise<EarlierQuestion[]> | EarlierQuestion[], sinceYear?: number, unfinished = false) {
+async function run(chatId: string, assistantId: string, text: string, mode: SendMode, scope: SearchScope, anyway = false, history: HistoryEntry[] = [], sinceYear?: number, unfinished = false) {
   const ctl = new AbortController();
   runs.set(chatId, { ctl, assistantId });
   set({ running: new Set(runs.keys()) });
-  // earlier messages and questions of other chats leave the device only for a person who is known to be signed in (the server ignores them for anybody else; they must not be sent at all). Not yet known is not signed in.
+  // earlier messages leave the device only for a person who is known to be signed in (the server ignores them for anybody else; they must not be sent at all). Not yet known is not signed in.
   const signedIn = typeof owner === "string";
   if (!signedIn) history = [];
   const mayNote = unfinished && history.length > 0;
@@ -703,15 +643,12 @@ async function run(chatId: string, assistantId: string, text: string, mode: Send
     }
   };
   try {
-    const earlier = Array.isArray(lean) ? (mode === "auto" && !anyway && signedIn && !state.privateChats.has(chatId) ? lean : []) : await (lean ?? recallEarlier(chatId, text, mode, anyway));
-    if (earlier.length > 0) patch((m) => ({ ...m, earlier }));
-    const post = (turns: HistoryEntry[], other: EarlierQuestion[]) =>
-      fetch("/api/v1/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify(chatRequestBody({ signedIn, mode, message: text, scope, anyway, history: turns, earlier: other, sinceYear })), signal: ctl.signal });
-    let res = await post(history, earlier);
-    if (res.status === 400 && (history.length > 0 || earlier.length > 0) && ((await res.clone().json().catch(() => null)) as { type?: string } | null)?.type === "invalid_history") {
+    const post = (turns: HistoryEntry[]) =>
+      fetch("/api/v1/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify(chatRequestBody({ signedIn, mode, message: text, scope, anyway, history: turns, sinceYear })), signal: ctl.signal });
+    let res = await post(history);
+    if (res.status === 400 && history.length > 0 && ((await res.clone().json().catch(() => null)) as { type?: string } | null)?.type === "invalid_history") {
       console.warn("The earlier messages were not accepted, so this message was sent without them.");
-      patch((m) => ({ ...m, earlier: undefined }));
-      res = await post([], []);
+      res = await post([]);
     }
     if (!res.ok) {
       const j = (await res.json().catch(() => null)) as { title?: string; detail?: string } | null;
@@ -780,33 +717,6 @@ async function leaveNoTrace(id: string) {
   await idbDelete(id, "chats");
 }
 
-/**
- * The questions of other chats a message is sent with, or none (the usual answer): the chat the conversation is continuing from, or what the switch "Use my earlier chats" finds on this device. Decided by
- * `earlierFor` (docs/design/chat-actions-context.md, section 6) from the list as it is in storage NOW and not from what this page holds in memory, and with the chats' own records, so that a chat another tab
- * deleted, or one that is no longer this person's, cannot be used. A chat that was to be continued from and is gone loses its chip.
- * Everything it depends on is read when it is called, which is when the message is sent: what was in the list then is what is chosen from.
- */
-function recallEarlier(chatId: string, text: string, mode: SendMode, anyway: boolean): Promise<EarlierQuestion[]> {
-  const index = readIndex();
-  const from = state.from.get(chatId);
-  const source = from && index.some((e) => e.id === from.source) ? from : null;
-  if (from && !source) set({ from: new Map([...state.from].filter(([id]) => id !== chatId)) });
-  return earlierFor({
-    message: text,
-    mode,
-    anyway,
-    owner,
-    kept: state.kept,
-    on: earlierChatsOn(owner),
-    isPrivate: state.privateChats.has(chatId),
-    from: source,
-    index,
-    currentId: chatId,
-    now: Date.now(),
-    load: async (id) => state.chats.get(id) ?? (await idbGet<{ messages: ChatMsg[] }>(id, "chats"))?.messages ?? null,
-  });
-}
-
 /** The strict checks that are running (by reply), so that Cancel, deleting the chat and signing out can stop them. */
 const tightening = new Map<string, AbortController>();
 
@@ -855,7 +765,7 @@ export function cancelTighten(assistantId: string) {
   tightening.get(assistantId)?.abort();
 }
 
-/** A conversation goes, with its entry in the list (and the words that find it, which are part of the entry), its record, anything running in it and a chip that points at it or from it. */
+/** A conversation goes, with its entry in the list, its record and anything running in it. */
 export function deleteChat(id: string) {
   const index = state.index.filter((e) => e.id !== id);
   set({ index });
@@ -864,14 +774,13 @@ export function deleteChat(id: string) {
 }
 
 /**
- * Every conversation goes: at sign-out (a shared computer must not show the last person's questions) and from Settings. The list goes with its owners and its words, and so do the chips and the private
- * conversations of this page. The choice "Use my earlier chats" is a preference of the device and stays (like the one for Indian sources): it controls what is read from chats, and there are none.
+ * Every conversation goes: at sign-out (a shared computer must not show the last person's questions) and from Settings. The list goes with its owners, and so do the private conversations of this page.
  */
 export async function clearChats(): Promise<void> {
   for (const r of runs.values()) r.ctl.abort();
   for (const t of tightening.values()) t.abort();
   for (const t of timers.values()) window.clearTimeout(t);
-  set({ index: [], chats: new Map(), liveIdeas: new Set(), kept: true, from: new Map(), privateChats: new Set(), pendingPrivate: false, newTopic: new Set() });
+  set({ index: [], chats: new Map(), liveIdeas: new Set(), kept: true, privateChats: new Set(), pendingPrivate: false, newTopic: new Set() });
   keepNewTopic(state.newTopic);
   revs.clear();
   synced.clear();
@@ -895,4 +804,16 @@ try {
   if (typeof localStorage !== "undefined" && localStorage.getItem(WIPE_KEY) !== null) void clearChats();
 } catch {
   /* storage blocked */
+}
+
+// The removed "Use my earlier chats" switch: its stored choice (the account id of the person who had turned it on) is taken out of this browser once. The words (`kw`) and the "do not use as memory" mark
+// (`nomem`) it kept on the entries of the list are dropped by `parseIndex`; a list that still has them is written back now, so they do not wait for the next message to leave the browser.
+try {
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem(RETIRED_EARLIER_KEY);
+    const raw = localStorage.getItem(INDEX_KEY);
+    if (raw !== null && /"(?:kw|nomem)"\s*:/.test(raw)) storeIndex(readStored());
+  }
+} catch {
+  /* storage blocked: there is then nothing kept to remove */
 }
