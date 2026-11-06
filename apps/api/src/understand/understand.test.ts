@@ -35,6 +35,8 @@ describe("understandTurn: the guards come first", () => {
     const complete = vi.fn(fixed(reading()));
     expect((await turn("HY", complete)).understanding).toMatchObject({ intent: "chat" });
     expect((await turn("HY", complete)).source).toBe("greeting");
+    expect((await turn("thanks bhai", complete)).understanding?.language).toBe("hinglish");
+    expect((await turn("thank you", complete)).understanding?.language).toBe("en");
     expect((await turn("10.1038/nature14539", complete)).understanding).toMatchObject({ intent: "search", search: { queries: ["10.1038/nature14539"] } });
     expect((await turn("hello", complete, [], { mode: "search" })).guard).toMatchObject({ kind: "chosen", mode: "search" });
     expect(complete).not.toHaveBeenCalled();
@@ -143,7 +145,26 @@ describe("checkReading", () => {
   it("takes the language from the rules unless the message asks for another one", () => {
     expect(checkReading(reading({ language: "en" }), input("LoRA se medical VQA par kaam dikhao")).value.language).toBe("hinglish");
     expect(checkReading(reading({ language: "hi", intent: "ask_results", search: null }), input("Hindi mein batao", SEARCHED)).value.language).toBe("hi");
-    expect(checkReading(reading({ language: "hinglish" }), input("papers on dengue in Delhi")).value.language).toBe("en");
+    // Roman-letter Hindi the word list misses: the model's Hinglish stands; a Hindi answer to an English first message does not
+    expect(checkReading(reading({ language: "hinglish" }), input("India me TB drug resistance par studies")).value.language).toBe("hinglish");
+    expect(checkReading(reading({ language: "hi" }), input("papers on dengue in Delhi")).value.language).toBe("en");
+    expect(checkReading(reading({ language: "en" }), input("मधुमेह में योग के लाभ")).value.language).toBe("hi");
+    // two Roman-Hindi signs make an English reading Hinglish
+    expect(checkReading(reading({ language: "en" }), input("drone se dawai chhidakna kheti me")).value.language).toBe("hinglish");
+    expect(checkReading(reading({ language: "hinglish" }), input("COPD in women using chulha")).value.language).toBe("en");
+  });
+
+  it("a request for the last answer in another language is ask_results in that language", () => {
+    for (const [m, l] of [["ab Hindi mein", "hi"], ["in Hinglish", "hinglish"], ["Hindi mein batao", "hi"], ["now in English please", "en"], ["हिंदी में बताओ", "hi"]] as const) {
+      const r = checkReading(reading({ intent: "chat", search: null, language: l }), input(m, SEARCHED));
+      expect(r.value.intent, m).toBe("ask_results");
+      expect(r.value.language, m).toBe(l);
+      expect(r.corrections, m).toContain("language_switch");
+    }
+    // with nothing answered yet it is not a follow-up
+    expect(checkReading(reading({ intent: "chat", search: null }), input("in Hinglish")).value.intent).toBe("chat");
+    // a message with a topic is not a language switch
+    expect(checkReading(reading(), input("Hindi literature in colonial India", SEARCHED)).value.intent).toBe("search");
   });
 
   it("drops a refers_to the ledger does not hold", () => {

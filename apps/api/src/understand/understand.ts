@@ -1,7 +1,7 @@
 import { detectLanguage, offlineRoute, type Route } from "@scholar/shared";
 import type { Complete } from "../docs/qa";
 import { chatReplyLeaks } from "./chat-reply";
-import { isGreeting } from "./greeting";
+import { isGreeting, romanHindiSigns } from "./greeting";
 import { guards, scrubQueries, NO_SCRUB, type GuardDecision, type GuardInput, type Scrub } from "./guards";
 import { capLedger, renderLedger, type LedgerTurn } from "./ledger-input";
 import { parseUnderstanding, UNDERSTAND_SCHEMA, type ParseFailure, type UnderstandIntent, type UnderstandLanguage, type Understanding } from "./understanding";
@@ -118,7 +118,8 @@ export type Correction =
   | "no_results_to_ask"
   | "no_search_to_refine"
   | "low_confidence_clarify"
-  | "chat_greeting_kept";
+  | "chat_greeting_kept"
+  | "language_switch";
 
 export type UnderstandDeps = {
   /** The private model (task `understand`), or null: a visitor past their cap, or no model at all. */
@@ -137,6 +138,9 @@ const HINDI_ASK = /\b(?:hindi|hindhi)\b|हिंदी|हिन्दी/i;
 const HINGLISH_ASK = /\bhinglish\b/i;
 /** "that paper", "is paper", "us study", "wo wala": one paper meant without a number. */
 const THAT_ONE = /\b(?:that|this|the same)\s+(?:paper|study|article|one|work)\b|\b(?:is|us|wo|woh|ye|yeh|isi|usi)\s+(?:paper|study|article|wale|wala|wali)\b|इस\s+(?:पेपर|अध्ययन|लेख)|उस\s+(?:पेपर|अध्ययन|लेख)/i;
+
+/** A message that only asks for the last answer in another language ("Hindi mein batao", "in Hinglish", "ab English me"). */
+const LANGUAGE_ONLY = /^(?:(?:ab|now|please|pls|plz|ok|accha)\s+)?(?:(?:in|answer in|reply in|explain in|say it in)\s+)?(?:hindi|hinglish|english|angrezi)(?:\s+(?:mein|me|main|please|pls|batao|bataiye|samjhao|bolo|likho|karo))*\s*[?.!]*$|^(?:हिंदी|हिन्दी|अंग्रेज़ी|अंग्रेजी)\s+में(?:\s+(?:बताओ|बताइए|समझाओ))?\s*[?।]*$/i;
 
 const yearsIn = (s: string): number[] => (s.match(/\b(?:1[89]|20|21)\d{2}\b/g) ?? []).map(Number);
 
@@ -162,17 +166,30 @@ export function checkReading(u: Understanding, input: UnderstandInput, scrub: Sc
   const message = input.message;
   const ledger = input.ledger;
 
-  // the language: found by rules, as ever; the model may change it only when the message asks for another one, or when a short follow-up continues a Hindi or Hinglish chat
+  // the language. A message that asks for one gets it (the model's reading of "Hindi mein batao" stands). Otherwise the rules settle what they are sure of (Devanagari is Hindi, Roman Hindi
+  // words they know are Hinglish); where the rules say English, the model may say Hinglish (Roman-letter Hindi that the word list misses: "India me TB drug resistance par studies"), and Hindi only
+  // for a short follow-up in a chat that was Hindi or Hinglish.
   const rules = detectLanguage(message);
   const asked = HINDI_ASK.test(message) ? "hi" : HINGLISH_ASK.test(message) ? "hinglish" : ENGLISH_ASK.test(message) ? "en" : null;
   const ruleLang: UnderstandLanguage = rules === "hi" || rules === "hinglish" ? rules : "en";
   if (asked === null && v.language !== ruleLang) {
     const chatIsIndic = ledger.slice(-2).some((t) => ["hi", "hinglish"].includes(detectLanguage(t.user)));
-    const keep = ruleLang === "en" && v.language !== "en" && chatIsIndic && message.trim().split(/\s+/).length < 5;
+    const latin = !/[ऀ-ॿ]/.test(message);
+    const signs = romanHindiSigns(message);
+    const keep = ruleLang === "en" && ((v.language === "hinglish" && latin && signs >= 1) || (v.language === "hi" && chatIsIndic && message.trim().split(/\s+/).length < 5));
     if (!keep) {
-      v.language = ruleLang;
-      corrections.push("language_rules");
+      v.language = ruleLang === "en" && signs >= 2 ? "hinglish" : ruleLang;
+      if (v.language !== u.language) corrections.push("language_rules");
     }
+  } else if (asked === null && ruleLang === "en" && v.language === "en" && romanHindiSigns(message) >= 2) {
+    v.language = "hinglish";
+    corrections.push("language_rules");
+  }
+
+  // "Hindi mein batao" after an answer is that answer again in Hindi: never small talk, never a new search
+  if (LANGUAGE_ONLY.test(message.trim()) && ledger.some((t) => t.reply) && v.intent !== "ask_results") {
+    v = { ...v, intent: "ask_results", search: null, tool: null, clarify: null, refers_to: v.refers_to };
+    corrections.push("language_switch");
   }
 
   // a reading about earlier papers or an earlier search needs them in THIS chat's ledger
@@ -286,19 +303,24 @@ function reasonOf(e: unknown): FallbackReason {
 
 /* ---------------------------------------------------------------- one turn */
 
+/** The language of a message the guards settled: the rules, with the Roman-Hindi signs for a short Hinglish greeting ("thanks bhai", "Hlo bhai"). */
+function guardLanguage(text: string): UnderstandLanguage {
+  const l = detectLanguage(text);
+  if (l === "hi" || l === "hinglish") return l;
+  return romanHindiSigns(text) >= 2 ? "hinglish" : "en";
+}
+
 function fromGuard(g: GuardDecision, ms: number): UnderstandDecision {
   const none = { source: "guard" as const, guard: g, confirm: false, fallback: null, corrections: [] as Correction[], invalid: [] as ParseFailure[], model: null, ms };
   if (g.kind === "identifier") {
-    const l = detectLanguage(g.text);
-    const language: UnderstandLanguage = l === "hi" || l === "hinglish" ? l : "en";
+    const language: UnderstandLanguage = "en";
     return { ...none, understanding: { intent: "search", language, status: STATUS_TEXT[language].search, standalone: g.text, search: { queries: [g.text], year_from: null, year_to: null, indian_sources: null }, refers_to: null, tool: null, clarify: null, confidence: 1 } };
   }
   if (g.kind === "reference_list") {
     return { ...none, understanding: { intent: "offer_tool", language: "en", status: STATUS_TEXT.en.offer_tool, standalone: "", search: null, refers_to: null, tool: "verify", clarify: null, confidence: 1 } };
   }
   if (g.kind === "greeting") {
-    const l = detectLanguage(g.text);
-    const language: UnderstandLanguage = l === "hi" || l === "hinglish" ? l : "en";
+    const language = guardLanguage(g.text);
     return { ...none, source: "greeting", understanding: { intent: "chat", language, status: STATUS_TEXT[language].chat, standalone: "", search: null, refers_to: null, tool: null, clarify: null, confidence: 1 } };
   }
   return { ...none, understanding: null };

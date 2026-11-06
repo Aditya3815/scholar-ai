@@ -110,3 +110,24 @@ export function greetingKind(text: string): GreetingKind {
   if (/\b(?:how are|kaise|kaisa|kaisi|haal|batao|badhiya|whats up|sup|chal raha|chal rahe)\b|कैसे|हाल|बताओ|बढ़िया/.test(n)) return "how_are_you";
   return "hello";
 }
+
+/**
+ * Signs that a Roman-letter message is Hinglish which `detectLanguage` leaves out on purpose because each alone is also English or a name ("me", "par", "se"): counted here, two of them together
+ * (or one with a Hinglish greeting word) are a sign the person writes Hinglish. "show me papers" has one; "drone se dawai chhidakna kheti me" has three; "Hlo bhai" has a Hinglish social word.
+ */
+const ROMAN_HINDI_SIGNS = new Set(
+  (
+    "me mein par se ke ka ki ko aur ya ne hai hain tha kaam karne karna karo wale wala wali liye baare bhi sirf gaon kheti nadi bachon bacho bachche mahila kisan dawai " +
+    "bhai yaar dost ji shukriya dhanyavad namaste namaskar kaise kaisa haal batao badhiya accha theek bhejo dikhao chahiye"
+  ).split(" "),
+);
+const HINGLISH_SOCIAL = new Set("bhai yaar dost ji shukriya dhanyavad namaste namaskar kaise kaisa haal batao badhiya accha theek".split(" "));
+
+/** How many distinct Hinglish signs a Roman-letter message has (0 for one with Devanagari: the rules settle that one). */
+export function romanHindiSigns(text: string): number {
+  if (/[ऀ-ॿ]/.test(text)) return 0;
+  const words = new Set(normaliseGreeting(text).split(" "));
+  let n = 0;
+  for (const w of words) if (ROMAN_HINDI_SIGNS.has(w)) n += HINGLISH_SOCIAL.has(w) ? 2 : 1;
+  return n;
+}

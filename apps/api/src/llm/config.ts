@@ -2,10 +2,16 @@ import type { GatewayConfig } from "./gateway";
 import type { ModelRef } from "./types";
 
 /**
- * The Understand step's models, first to last. Set from the recorded eval (apps/api/eval/understand.eval.ts, docs/eval/understand/REPORT.md), not from the design's guess: see that report for the
- * accuracy and latency of each model measured on the same sets.
+ * The Understand step's models, first to last. Set from the recorded eval (apps/api/eval/understand.eval.ts, docs/eval/understand/GUIDE.md, "Results", 6 Nov 2026), not from the design's guess: of five
+ * models measured on the same 300 messages and 121 conversation turns, Qwen3 30B A3B was the only one above both intent gates (96.7% single, 94.2% multi-turn; gpt-oss-120b 95.7% / 76.9%,
+ * Llama 3.3 70B 96.3% / 83.5%, Mistral Small 3.1 94.7% / 97.5% with 48 failed calls of 444, gpt-oss-20b 79.7% / 51.2%, the design's suggestion, which often answered with an intent that is
+ * not one). gpt-oss-120b is the
+ * fallback: already benchmarked for the private lane, and second-best on the single messages. No model met the latency budget through wrangler's proxy; shadow measures it in the Worker.
  */
-export const UNDERSTAND_CHAIN: ModelRef[] = [{ provider: "workersai", model: "@cf/openai/gpt-oss-120b" }];
+export const UNDERSTAND_CHAIN: ModelRef[] = [
+  { provider: "workersai", model: "@cf/qwen/qwen3-30b-a3b-fp8" },
+  { provider: "workersai", model: "@cf/openai/gpt-oss-120b" },
+];
 
 /**
  * Routing table: task x sensitivity -> ordered fallback chain.

@@ -52,7 +52,7 @@ FALLBACK_NOTICE, CONFIRM_TEXT: Record<"en"|"hi"|"hinglish", string>
 6. **Thinking block.** The `understood` think line is `understanding.status`, labelled "I understood". It is the only model-written line.
 7. **R11.** Pass R11's scrub as `scrub` once R11 is on main.
 
-## Known gaps, measured (see REPORT.md)
+## Known gaps, measured (see the results in docs/eval/understand/GUIDE.md)
 
 - **Latency.** Recorded through wrangler's remote proxy from a laptop (about 0.35 to 1 s of round trip of its own), no model tried meets p50 under 1.2 s or p95 under 2.5 s. The in-Worker number must come from shadow.
 - **Labels.** The sets are a development set written by the builder. A second labeller and a hold-out written by others are still needed.

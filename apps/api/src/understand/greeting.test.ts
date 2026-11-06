@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { greetingKind, isGreeting, normaliseGreeting } from "./greeting";
+import { greetingKind, isGreeting, normaliseGreeting, romanHindiSigns } from "./greeting";
 
 describe("isGreeting: the whole message is social", () => {
   const yes = [
@@ -49,5 +49,22 @@ describe("greetingKind", () => {
     expect(greetingKind("tum kya kar sakte ho?")).toBe("about");
     expect(greetingKind("आप कौन हैं")).toBe("about");
     expect(greetingKind("धन्यवाद")).toBe("thanks");
+  });
+});
+
+describe("romanHindiSigns", () => {
+  it("counts the Roman-letter Hindi that the language rules leave out", () => {
+    expect(romanHindiSigns("drone se dawai chhidakna kheti me")).toBeGreaterThanOrEqual(2);
+    expect(romanHindiSigns("urban flooding Mumbai par kaam")).toBeGreaterThanOrEqual(2);
+    expect(romanHindiSigns("Hlo bhai")).toBeGreaterThanOrEqual(2);
+    expect(romanHindiSigns("thanks bhai")).toBeGreaterThanOrEqual(2);
+  });
+  it("finds at most one in English", () => {
+    expect(romanHindiSigns("show me papers on malaria")).toBeLessThan(2);
+    expect(romanHindiSigns("COPD in women using chulha")).toBe(0);
+    expect(romanHindiSigns("papers on dengue in Delhi")).toBe(0);
+  });
+  it("leaves Devanagari to the rules", () => {
+    expect(romanHindiSigns("मधुमेह में योग के लाभ")).toBe(0);
   });
 });
