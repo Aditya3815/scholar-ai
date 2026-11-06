@@ -1,4 +1,11 @@
 import type { GatewayConfig } from "./gateway";
+import type { ModelRef } from "./types";
+
+/**
+ * The Understand step's models, first to last. Set from the recorded eval (apps/api/eval/understand.eval.ts, docs/eval/understand/REPORT.md), not from the design's guess: see that report for the
+ * accuracy and latency of each model measured on the same sets.
+ */
+export const UNDERSTAND_CHAIN: ModelRef[] = [{ provider: "workersai", model: "@cf/openai/gpt-oss-120b" }];
 
 /**
  * Routing table: task x sensitivity -> ordered fallback chain.
@@ -48,6 +55,12 @@ export const DEFAULT_CONFIG: GatewayConfig = {
     review: {
       public: [{ provider: "workersai", model: "@cf/openai/gpt-oss-120b" }],
       private: [{ provider: "workersai", model: "@cf/openai/gpt-oss-120b" }],
+    },
+    // The Understand step (understand/understand.ts; design of 6 Nov 2026): reads the person's own message and this chat's ledger, so PRIVATE, and Workers AI only in both chains (never the public
+    // Gemini lane, also for a visitor). UNDERSTAND_CHAIN above says which models and why.
+    understand: {
+      public: UNDERSTAND_CHAIN,
+      private: UNDERSTAND_CHAIN,
     },
   },
   // Free Workers AI is 10k neurons/day for the whole account, so per-user quota stays small until paid.

@@ -7,7 +7,7 @@
  */
 export type Sensitivity = "public" | "private";
 
-export type TaskKind = "classify" | "summarize_public" | "qa" | "review" | "verify";
+export type TaskKind = "classify" | "summarize_public" | "qa" | "review" | "verify" | "understand";
 
 export type JsonSchema = Record<string, unknown>;
 
