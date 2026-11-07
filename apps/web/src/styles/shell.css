@@ -581,6 +581,8 @@ kbd {
 .chat-talk { display: grid; gap: 0.5rem; }
 .chat-talk-any { margin: 0; font-size: 0.86rem; color: var(--muted); }
 .chat-note { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.4rem; margin: 0; color: var(--warn); font-size: 0.875rem; }
+/* M5: the line that says an answer came from papers already in the chat is information, not a warning */
+.chat-note[data-kind="abstracts"] { color: var(--muted); }
 /* the words take the room beside the icon and wrap there (they used to wrap under it, which left the icon alone on a row above a sentence of two lines on a phone) */
 .chat-note > svg { margin-top: 0.2em; }
 .chat-note > span { flex: 1 1 12rem; min-width: 0; }

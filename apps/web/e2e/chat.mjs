@@ -19,6 +19,12 @@ let failures = 0;
 class Stop extends Error {}
 const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
+// M5: this suite holds the page over the RULES' path (the router's follow-up context, "too long for a search", the body of a follow-up): with CHAT_UNDERSTAND "on" the Understand step decides instead, and the
+// page over the step is held by e2e/understand.mjs (and the Worker by src/chat/understand-route.test.ts). A run with it on says so and checks nothing here; with it off or in shadow everything runs.
+if (/(^|,)CHAT_UNDERSTAND:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "")) {
+  console.log("  ok   skipped: CHAT_UNDERSTAND is on, so the Understand step decides and the rules' path this suite holds is not taken (e2e/understand.mjs holds the step)");
+  process.exit(0);
+}
 const idp = await startFakeIdp(9911);
 idp.setUser({ sub: "chat-ui-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
 const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });

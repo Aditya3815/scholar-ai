@@ -13,6 +13,13 @@ const THINK_ON = /(^|,)CHAT_THINK:on(,|$)/.test(process.env.INTEGRATION_VARS ?? 
 const thinkSeen = [];
 const thinkHonest = (t) => { const have = new Set(Object.values(t.counts ?? {})); return [...String(t.text).replace(/“[^”]*”/g, "“”").matchAll(/\d[\d,]*(?:\.\d+)?/g)].every((m) => have.has(Number(m[0].replace(/,/g, "")))); };
 
+// M5: this suite holds the RULES' path (the router, the page's own small talk, the follow-up context, the cleaner): with CHAT_UNDERSTAND "on" the Understand step decides instead, and what it does is held by
+// src/chat/understand-route.test.ts, since-year.understand.golden.json and e2e/understand.mjs. So a run with it on says so and checks nothing here (shadow changes nothing on the wire and runs it all).
+if (/(^|,)CHAT_UNDERSTAND:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "")) {
+  console.log("  ok   skipped: CHAT_UNDERSTAND is on, so the Understand step decides and the rules' path of this suite is not taken (its own suites hold it)");
+  process.exit(0);
+}
+
 const idp = await startFakeIdp(9911);
 const login = async (sub, email, name) => {
   idp.setUser({ sub, email, email_verified: true, name });

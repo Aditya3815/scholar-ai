@@ -202,7 +202,8 @@ try {
         for (const [name, text] of STEPS) {
           await real(page, text);
           const turn = lastTurn(page);
-          const t = await turn.innerText();
+          // (with the Thinking block folded its lines are hidden, so the words are read from the reply's whole text)
+          const t = (await turn.evaluate((el) => el.textContent ?? "")).replace(/\s+/g, " ");
           if (SHOTS && SHOT.has(name)) {
             await turn.scrollIntoViewIfNeeded();
             await sleep(300);

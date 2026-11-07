@@ -195,7 +195,9 @@ try {
     ok(rec.ledger[0].reply === "Low-rank adaptation works for medical VQA.", "...with the start of the answer, without its marks");
     const second = await ask(page, "only after 2022", PLAIN);
     const body = await second.sent();
-    ok(!("ledger" in body) && Object.keys(body).join() === "mode,message,history", `the next message is sent as before: no ledger leaves the browser (${Object.keys(body).join()})`);
+    // M4: the ledger goes only while the Understand step reads it (CHAT_UNDERSTAND shadow or on for this run); otherwise the body is what it was
+    if (/(^|,)CHAT_UNDERSTAND:(shadow|on)(,|$)/.test(process.env.INTEGRATION_VARS ?? "")) ok(Object.keys(body).join() === "mode,message,history,ledger" && body.ledger.length === 1 && body.ledger[0].papers.length === 5, `with the Understand step reading it, the ledger goes with the next message (${Object.keys(body).join()})`);
+    else ok(!("ledger" in body) && Object.keys(body).join() === "mode,message,history", `the next message is sent as before: no ledger leaves the browser (${Object.keys(body).join()})`);
     await ctx.close();
   }
 

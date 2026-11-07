@@ -716,7 +716,7 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
 
       {msg.notices.filter((n) => !isSafetyKind(n.kind) && n.kind !== "unfinished").map((n) => (
         <p key={n.kind} className="chat-note" data-kind={n.kind} role="note">
-          <TriangleAlert size={14} aria-hidden="true" />
+          {n.kind === "abstracts" ? <Info size={14} aria-hidden="true" /> : <TriangleAlert size={14} aria-hidden="true" />}
           <span>{n.text}</span>
           {noticeOffersRetry(msg, n) && (
             <button type="button" className="link-btn" onClick={() => onRetry(msg.id)}>Search again</button>
