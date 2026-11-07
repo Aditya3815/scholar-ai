@@ -1,5 +1,5 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowDown, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileStack, Info, Lightbulb, ListChecks, Pencil, Plus, RefreshCw, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileStack, Info, Lightbulb, ListChecks, MessageCircle, Pencil, Plus, RefreshCw, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { GENERAL_LABEL, INDIA_SCOPE_LABEL, LEFT_OUT_LABEL, MAX_CHAT_CHARS, MAX_VERSIONS, ROUTE_NAMES, SAFETY_NOTICE_KINDS, answerCopy, busyReason, canTighten, citeParts, editInfo, followUpNote, noticeOffersRetry, quoted, readingLines, restoreWords, textAttrs, turnToShow, unfilteredWords, versionInfo, type AssistantMsg, type MessageReading, type ChatMsg, type EditInfo, type IdeaMsg, type ChatNoAnswer, type Paper, type RouteMode, type UserMsg } from "@scholar/shared";
@@ -895,16 +895,18 @@ const HELD = "Another message is being edited. Save it, or press Cancel, first."
  * by hovering the whole message or focusing a button with the keyboard, and stays shown for a moment after a copy; with more than one version it is always shown (a hidden pager looks like lost data).
  * What happened ("Message copied", "Version 2 of 3. The answers below are from this version.") is said through the conversation's one polite status line (`announce`).
  */
-type UserTurnProps = { msg: UserMsg; n: number; info: EditInfo | null; busy: "reply" | "strict" | null; held: boolean; ideas: number; editing: boolean; onEdit: (id: string) => void; onClose: () => void; onSent: (id: string) => void; onAnchor: (id: string, on: boolean) => void };
+/** A reply that is a conversation and not a search: the page or the Understand step answered a greeting or a chat message, or the safety lane answered. Nothing was searched for it. */
+const isTalk = (r: ChatMsg | undefined): boolean => r?.role === "assistant" && r.status === "done" && (r.reason === "small_talk" || r.general?.kind === "not_research") && r.papers.length === 0;
+type UserTurnProps = { msg: UserMsg; n: number; /** the reply under it is a conversation (a greeting, a chat answer, a safety reply): nothing was searched, so the bubble carries no magnifier */ talk: boolean; info: EditInfo | null; busy: "reply" | "strict" | null; held: boolean; ideas: number; editing: boolean; onEdit: (id: string) => void; onClose: () => void; onSent: (id: string) => void; onAnchor: (id: string, on: boolean) => void };
 /**
  * When two sets of props of a message you sent are the same, one test for each prop (a type that has to name every prop: a prop added later without its test is an error here and not a message that
  * stays as it was). `info` is made anew for every render (it holds the reply under the message, which changes for every word of it), and only what the row and the editor read of it is compared.
  */
 const sameUserTurn: { [K in keyof UserTurnProps]: (a: UserTurnProps[K], b: UserTurnProps[K]) => boolean } = {
-  msg: Object.is, n: Object.is, busy: Object.is, held: Object.is, ideas: Object.is, editing: Object.is, onEdit: Object.is, onClose: Object.is, onSent: Object.is, onAnchor: Object.is,
+  msg: Object.is, n: Object.is, talk: Object.is, busy: Object.is, held: Object.is, ideas: Object.is, editing: Object.is, onEdit: Object.is, onClose: Object.is, onSent: Object.is, onAnchor: Object.is,
   info: (a, b) => a === b || (!!a && !!b && a.at === b.at && a.mode === b.mode && a.scope === b.scope && a.limit === b.limit && a.later === b.later),
 };
-const UserTurn = memo(function UserTurn({ msg, n, info, busy, held, ideas, editing, onEdit, onClose, onSent, onAnchor }: UserTurnProps) {
+const UserTurn = memo(function UserTurn({ msg, n, talk, info, busy, held, ideas, editing, onEdit, onClose, onSent, onAnchor }: UserTurnProps) {
   const v = versionInfo(msg);
   const uid = useId();
   const copy = useCopy();
@@ -958,7 +960,7 @@ const UserTurn = memo(function UserTurn({ msg, n, info, busy, held, ideas, editi
         <>
           <m.p className="chat-bubble" initial={seen.current ? false : { opacity: 0, y: 10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={spring}>
             {/* the icon and the words are two cells of a row: the icon stays beside the first line of a question that takes two (it used to be left alone on a row of its own above the words) */}
-            <Search size={13} aria-hidden="true" />
+            {talk ? <MessageCircle size={13} aria-hidden="true" /> : <Search size={13} aria-hidden="true" />}
             <span className="chat-bubble-t" {...textAttrs(msg.text, true)}>{msg.text.length > SHOWN ? `${msg.text.slice(0, SHOWN)}…` : msg.text}</span>
             {msg.text.length > SHOWN && <small className="chat-long"> {msg.text.length.toLocaleString("en-US")} characters, the start is shown</small>}
           </m.p>
@@ -1183,6 +1185,7 @@ export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onR
                 <UserTurn
                   msg={msg}
                   n={asked}
+                  talk={isTalk(messages[at + 1])}
                   info={editInfo(messages, msg.id)}
                   busy={busy}
                   held={editing !== null && editing !== msg.id}

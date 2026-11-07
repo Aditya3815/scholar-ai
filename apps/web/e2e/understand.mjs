@@ -19,6 +19,8 @@ const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 const BASE = process.argv[2] ?? "http://localhost:8788";
 const VARS = Object.fromEntries((process.env.INTEGRATION_VARS ?? "").split(",").filter(Boolean).map((p) => [p.slice(0, p.indexOf(":")), p.slice(p.indexOf(":") + 1)]));
 const ON = VARS.CHAT_UNDERSTAND === "on";
+// in shadow the step runs beside the rules and needs the ledger to measure follow-ups, so the server asks for it there too (docs/design/understand-wiring.md)
+const SHADOW = VARS.CHAT_UNDERSTAND === "shadow";
 const SHOTS = process.env.SHOTS_DIR ?? "";
 const TAG = process.env.SHOTS_TAG ?? (ON ? "after" : "before");
 let failures = 0;
@@ -116,8 +118,8 @@ try {
   {
     const { ctx, page } = await signedIn(1280);
     const cfg = await page.evaluate(() => fetch("/api/v1/chat/config", { credentials: "same-origin" }).then((r) => r.json()));
-    if (!ON) ok(cfg.ledger === false, `with CHAT_UNDERSTAND off the server says not to send the ledger (${JSON.stringify(cfg)})`);
-    else ok(cfg.ledger === true, `with CHAT_UNDERSTAND on the server asks for the ledger (${JSON.stringify(cfg)})`);
+    if (!ON && !SHADOW) ok(cfg.ledger === false, `with CHAT_UNDERSTAND off the server says not to send the ledger (${JSON.stringify(cfg)})`);
+    else ok(cfg.ledger === true, `with CHAT_UNDERSTAND ${ON ? "on" : "in shadow"} the server asks for the ledger (${JSON.stringify(cfg)})`);
 
     await fake(page, "solar dryers undunsure", [U({ intent: "search", statusLine: "You want papers on solar dryers", confirm: true, searchQuery: "solar dryers" }), { type: "papers", results: [PAPER(1, 2021)], final: true }, { type: "done", answered: false, reason: "sign_in", tookMs: 900 }]);
     const t1 = await lastTurn(page).innerText();
@@ -168,13 +170,23 @@ try {
     await ctx.close();
   }
 
-  if (!ON) {
+  if (!ON && !SHADOW) {
     console.log("with the switch off: no ledger leaves the browser (the real Worker)");
     const { ctx, page } = await signedIn(1280);
     await real(page, "glaucoma screening in rural India");
     await real(page, "only after 2020");
     const body = await lastSent(page);
     ok(body && !("ledger" in body), `the follow-up is sent with no ledger (${body ? Object.keys(body).join() : "nothing sent"})`);
+    await ctx.close();
+  }
+  if (SHADOW) {
+    console.log("in shadow: the ledger goes with a follow-up, and the rules still decide (the real Worker)");
+    const { ctx, page } = await signedIn(1280);
+    await real(page, "glaucoma screening in rural India");
+    await real(page, "only after 2020");
+    const body = await lastSent(page);
+    ok(Array.isArray(body?.ledger) && body.ledger.length >= 1, `the follow-up is sent with the ledger (${body?.ledger?.length ?? 0} turns)`);
+    ok(!/I could not understand this well/.test(await lastTurn(page).innerText()), "...and the reply is the rules' reply, with no line from the step");
     await ctx.close();
   }
 
@@ -214,6 +226,11 @@ try {
           const sent = await lastSent(page);
           if (name === "greeting" || name === "hy" || name === "thanks") ok(cards === 0 && (await turn.getAttribute("data-status")) === "done", `${text}: answered with no search (${t.replace(/\s+/g, " ").slice(0, 80)})`);
           if (name === "search") ok(cards > 0, `${text}: papers listed (${cards})`);
+          // the bubble of the message: a magnifier only when it was searched
+          const bubble = page.locator(".chat-u .chat-bubble").last();
+          const mag = await bubble.locator("svg.lucide-search").count();
+          if (name === "greeting" || name === "hy" || name === "thanks") ok(mag === 0 && (await bubble.locator("svg.lucide-message-circle").count()) === 1, `${text}: the message bubble shows a conversation mark, not the search magnifier`);
+          if (name === "search" || name === "newtopic") ok(mag === 1, `${text}: the message bubble keeps the search magnifier`);
           if (name === "refine") {
             ok(/Papers from 2020 or later/.test(t), "sirf 2020 ke baad: the year chip");
             ok(Array.isArray(sent?.ledger) && sent.ledger.length >= 1, `...and the ledger was sent with it (${sent?.ledger?.length ?? 0} turns)`);
