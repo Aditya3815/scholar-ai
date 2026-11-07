@@ -168,3 +168,8 @@ export * from "./docx";
 export * from "./litscan-docx";
 export * from "./trending-client";
 export * from "./script";
+
+/** An AI app a person connected to Sodhsetu through the MCP server (Settings, Connected apps; apps/api/src/mcp/apps.ts). */
+export type ConnectedApp = { id: string; name: string; scopes: string[]; connectedAt: string };
+/** GET /api/v1/connected-apps: the switch's position ("beta" or "on"; the route is 404 when it is off) and the apps. */
+export type ConnectedApps = { mode: "beta" | "on"; apps: ConnectedApp[] };

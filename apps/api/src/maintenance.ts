@@ -21,6 +21,9 @@ export const MAINTENANCE_JOBS: { name: string; sql: string }[] = [
   { name: "idempotency_keys", sql: "DELETE FROM idempotency_keys WHERE created_at < datetime('now', '-1 day')" },
   // How many new papers a person brought into the shared index on a day: only today matters; a few weeks stay for a look at use.
   { name: "oa_daily", sql: "DELETE FROM oa_daily WHERE day < date('now', '-35 days')" },
+  // The MCP server (src/mcp): its calls (counts, never what was sent) and each account's daily count, a few weeks of each.
+  { name: "mcp_calls", sql: "DELETE FROM mcp_calls WHERE at < datetime('now', '-35 days')" },
+  { name: "mcp_daily", sql: "DELETE FROM mcp_daily WHERE day < date('now', '-35 days')" },
   // How answers went: a few weeks are enough to see a trend (src/outcomes.ts).
   { name: "answer_outcomes", sql: OUTCOME_RETENTION_SQL },
   // A literature scan is kept for a day (its expires_at), then its events and the scan go; the daily counter for a few weeks.

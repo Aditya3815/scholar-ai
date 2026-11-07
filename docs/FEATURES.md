@@ -1,4 +1,4 @@
-# Sodhsetu: every feature and how it behaves (branch `und-m4`, 7 Nov 2026: what is live on main `dbae530`, plus M1, M2 and M4/M5 of the understanding plan, which are NOT live yet)
+# Sodhsetu: every feature and how it behaves (branch `understand-mcp`, 7 Nov 2026: what is live on main `dbae530`, plus M1 to M8 of the plan "Sodhsetu understanding, follow-ups and MCP", which are NOT live yet)
 
 How the system is built: [ARCHITECTURE.md](ARCHITECTURE.md). Each section below says what a person does, what they see, and the
 rules the feature keeps. "Signed in" means signed in with Google or ORCID; a visitor can use most features without the AI parts.
@@ -150,17 +150,42 @@ switched on only after the owner reads a first real list.
 - **Sign in** with Google or ORCID (no password stored). The first upload, Idea Check or literature scan asks you to read the
   privacy note.
 - **Settings:** Account (sign out), Home screen, Chats (delete all chats), Your data (export everything as
-  a file, delete account), theme (Light, Dark, Read), text size, offline reading.
+  a file, delete account), theme (Light, Dark, Read), text size, offline reading, and **Connected apps** (the AI apps you allowed
+  to use Sodhsetu, each with Disconnect; shown only while the MCP server lets your account in).
 - **Report a problem** on any answer (30 a day), with exactly what the page says it sends.
 - **Command palette** (Ctrl+K) and a list of keyboard shortcuts (?).
 - **Pages:** How we verify, Privacy, Terms.
 - **First visit:** a short intro film that plays at every window size.
 
+## 10a. Sodhsetu inside AI apps (MCP server, built, switched off)
+
+A researcher writing with Claude, ChatGPT, Cursor or VS Code adds `https://sodhsetu.in/mcp` as a connector. The app sends them to
+Sodhsetu, they sign in with Google or ORCID as on the website, and a consent page names the app and what it may do (Allow or
+Deny). After that the app can ask Sodhsetu, by itself, to:
+
+- **search_papers:** find 1 to 20 real papers (query up to 300 characters, years, Indian sources), each with its DOI checked,
+  retractions marked and a link to the paper on Sodhsetu;
+- **verify_references:** check up to 60 references: verified, mismatch (with the fields that differ), not found or not
+  checkable, with the note that "not found" is not proof the work does not exist;
+- **check_retractions:** say which DOIs are retracted, with the notice;
+- **ask_paper:** ask one paper (by DOI or arXiv id) a question: an answer with a checked quote and its section or page; from the
+  abstract when the paper is not open access, and it says so;
+- **get_library / save_paper:** read your saved papers, and save one only after you said yes (only for an app that asked for
+  library access, and the consent page says so);
+- **check_claim** (behind its own switch): say whether up to five papers' abstracts support a claim: supported, partly, not
+  supported or cannot check, with the sentence that shows it.
+
+The tools never write paragraphs or run Idea Check or a literature scan, and nothing works without sign-in. Limits: 300 tool calls
+a day per account plus the website's per-minute limits; ask_paper and check_claim use the daily AI allowance and ask_paper the 20
+new papers a day. Only counts are kept (which tool, which app, how long, whether it worked), never what the app sent. Disconnect an
+app any time in Settings, Connected apps. **Off in production** (`MCP` unset): it needs the `OAUTH_KV` namespace, its privacy
+sentence read, and then `MCP=beta` for a list of accounts.
+
 ## 11. Admin (`/admin`, admins only)
 
 Usage and cost (tokens per call, the daily allowance), how answers ended, cache hits, scheduled jobs and their heartbeats,
-integrity checks, feedback, erase an account, re-apply deletions after a restore, send a test error to monitoring. Numbers
-only: no text of anyone's questions.
+integrity checks, feedback, erase an account, re-apply deletions after a restore, send a test error to monitoring, the Understand step's counts (calls, intents, fallbacks, latency, shadow agreement) and the
+AI apps (MCP server) panel (tool calls by tool and app, outcomes, time). Numbers only: no text of anyone's questions.
 
 ## 12. Limits at a glance
 
@@ -175,6 +200,8 @@ only: no text of anyone's questions.
 | Literature scans | 4 a day, kept 24 hours |
 | Reports | 30 a day |
 | Rate limits per address | search 60/min, reference checks 120/min, asks 20/min, other API 240/min |
+| AI apps (MCP), when on | 300 tool calls a day per account; up to 20 papers per search, 60 references per check, 5 DOIs per claim |
+| The Understand step for a visitor, when on | 40 a day per address |
 
 ## 13. Built but switched off (waiting for a decision or a privacy sentence)
 
@@ -189,6 +216,8 @@ only: no text of anyone's questions.
 | The Thinking block (M2, `CHAT_THINK`): lines from the real counts of each stage ("Searched for ...", "5 sources answered with 47 records ...", "Reading 3 abstracts", "1 claim read ...: 1 kept"), open while working, folded into "Thought for 14 s · 1 search · 5 papers" | goes on only a day after the build is live (old tabs) |
 | The Understand step (M4/M5, `CHAT_UNDERSTAND` shadow then on): one private model call decides what a message is: conversation (a short reply, no search, no citation), a new search, a change to the last search ("sirf 2020 ke baad", a year chip), a question about the papers above ("dusre paper ka dataset kya hai?", answered from those papers' abstracts, looked up again by DOI, no new search), another tool (a card, the literature scan included), or one question back with choices and "Search anyway". Greetings, DOIs and reference lists are settled without a model; when the model cannot be used the rules decide and the reply says so | needs its privacy sentence (the ledger is sent from shadow on), then 1-2 weeks of shadow counts |
 | The Understand step for visitors (`CHAT_UNDERSTAND_VISITORS`): 40 readings a day per address, then the rules and "Sign in for more" | needs its own privacy sentence |
+| The MCP server for AI apps (section 10a; `MCP` off/beta/on, `MCP_BETA_USERS`) | needs the `OAUTH_KV` namespace, its privacy sentence read, then a beta for listed accounts |
+| The `check_claim` tool (`MCP_CHECK_CLAIM`) | its eval passes (no unsupported claim called supported), but 12 of 210 live calls failed to cannot_check; the owner decides |
 
 Being built (not on `main`): a "Did you mean: ..." spelling chip (R12) and leaving e-mail addresses, links and phone numbers out
 of what is searched (R11).

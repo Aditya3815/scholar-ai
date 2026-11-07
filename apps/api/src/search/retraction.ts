@@ -5,7 +5,7 @@ import { getMany, type CacheStore } from "../cache/store";
 import { cacheKey } from "./cache";
 type RetractionEnv = { CROSSREF_MAILTO: string; fetch?: typeof fetch };
 
-type NoticeItem = { "update-to"?: { DOI?: string; type?: string }[] };
+type NoticeItem = { DOI?: string; "update-to"?: { DOI?: string; type?: string }[] };
 
 /**
  * Ek Crossref call mein sab DOIs ka retraction check (Retraction Watch data Crossref mein hai).
@@ -19,9 +19,14 @@ export async function findRetracted(
   /** How long a call may wait for its turn in the shared Crossref lane: a search has little time, a background job can wait longer. */
   gateWaitMs = SEARCH_GATE_WAIT_MS,
 ): Promise<string[]> {
+  return [...(await findRetractionNotices(dois, env, signal, gateWaitMs)).keys()];
+}
+
+/** The same one call as `findRetracted`, keeping which notice retracted each DOI: retracted DOI -> the DOIs of its retraction notices (usually one). */
+export async function findRetractionNotices(dois: string[], env: RetractionEnv, signal: AbortSignal, gateWaitMs = SEARCH_GATE_WAIT_MS): Promise<Map<string, string[]>> {
   // DOI mein comma ho toh filter syntax toot jaata hai; aise rare DOIs skip (unknown rahenge).
   const usable = [...new Set(dois)].filter((d) => !d.includes(","));
-  if (usable.length === 0) return [];
+  if (usable.length === 0) return new Map();
 
   const filter = [...usable.map((d) => `updates:${d}`), "update-type:retraction"].join(",");
   const params = new URLSearchParams({
@@ -34,14 +39,19 @@ export async function findRetracted(
   if (!res.ok) throw new Error(`Crossref retraction HTTP ${res.status}`);
   const body = (await res.json()) as { message?: { items?: NoticeItem[] } };
 
-  const retracted = new Set<string>();
+  const retracted = new Map<string, string[]>();
   for (const notice of body.message?.items ?? []) {
     for (const u of notice["update-to"] ?? []) {
       const doi = normalizeDoi(u.DOI);
-      if (doi && u.type === "retraction" && usable.includes(doi)) retracted.add(doi);
+      if (doi && u.type === "retraction" && usable.includes(doi)) {
+        const by = normalizeDoi(notice.DOI);
+        const list = retracted.get(doi) ?? [];
+        if (by && !list.includes(by)) list.push(by);
+        retracted.set(doi, list);
+      }
     }
   }
-  return [...retracted];
+  return retracted;
 }
 
 /** A retraction can be announced at any time, so what was found is kept for a day. */

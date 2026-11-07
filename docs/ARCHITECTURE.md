@@ -1,4 +1,4 @@
-# Sodhsetu: architecture (branch `und-m4`, 7 Nov 2026: live main `dbae530` plus M1, M2 and M4/M5 of the understanding plan, which are NOT live yet)
+# Sodhsetu: architecture (branch `understand-mcp`, 7 Nov 2026: live main `dbae530` plus M1 to M8 of the plan "Sodhsetu understanding, follow-ups and MCP", which are NOT live yet)
 
 Sodhsetu (formerly Scholar AI), https://sodhsetu.in, is a research assistant for scholars: it finds real papers, checks
 references, tests an idea against the literature, reads a person's own papers, and writes short answers in which every claim is
@@ -8,13 +8,14 @@ tied to a sentence of a paper. This page says how the system is built. What each
 ## 1. The shape in one picture
 
 ```
- Browser (React app, served by the same Worker)
+ Browser (React app, served by the same Worker)        AI apps (Claude, ChatGPT, Cursor): /mcp, OAuth 2.1
    |  same-origin fetch / SSE streams, one session cookie
    v
  Cloudflare Worker "scholar" (Hono)  ---- sodhsetu.in (custom domain)
    |-- D1  scholar-db         accounts, library, papers, notes, scans, counts, jobs
    |-- R2  scholar-files      uploaded PDFs, covers, open-access paper files
    |-- KV  CACHE              public search cache, Trending file, kill switches
+   |-- KV  OAUTH_KV           the MCP server's OAuth clients, grants, tokens (to be created; without it MCP is off)
    |-- Workers AI (AI)        the private model lane (text never leaves Cloudflare)
    |-- Durable Objects        S2_THROTTLE (Semantic Scholar pacing), API_GATE (shared lanes: Crossref, CORE, DOAJ, arXiv)
    |-- Workflows              OA_INGEST (read an open-access paper), LITSCAN (run a literature scan)
@@ -33,7 +34,7 @@ A second copy, `scholar-staging`, has its own database, bucket, KV, queue and li
 
 | Path | What |
 |---|---|
-| `apps/api` | The Worker: Hono routes, search, chat, documents, jobs. Tests: vitest (`src/**/*.test.ts`), the eval (`eval/`), integration and browser runners (`scripts/integration.mjs`). D1 migrations in `migrations/` (0001 to 0025). Config: `wrangler.jsonc`. |
+| `apps/api` | The Worker: Hono routes, search, chat, documents, jobs. Tests: vitest (`src/**/*.test.ts`), the eval (`eval/`), integration and browser runners (`scripts/integration.mjs`). D1 migrations in `migrations/` (0001 to 0027). Config: `wrangler.jsonc`. |
 | `apps/web` | React 19 + Vite + TypeScript. Pages in `src/workspace` and `src/components`, styles in `src/styles` (three themes: Light, Dark, Read), Playwright suites in `e2e/`, the size budget in `scripts/budget.mjs`. |
 | `packages/shared` | Types and pure logic used by both sides: chat state and reducer, the router's rules, reference parsing, Trending, the Reading, the state fold, limits. |
 | `docs/` | Runbook, roadmap, how we work, design notes (`docs/design`), spikes, eval data and gates (`docs/eval`), ADRs. |
@@ -63,11 +64,20 @@ and the scheduled handler.
 | `/api/v1/admin` | `admin/` | overview, integrity, erase account, re-apply deletions, monitoring test (admins only). |
 | `/api/v1/monitoring` | `monitoring/` | browser error reports to Sentry. |
 | `/api/v1/health`, `/health/jobs` | `index.ts`, `jobs.ts` | liveness and migrated database; the scheduled jobs' heartbeats (503 if one failed or is late). |
+| `/api/v1/chat/config` | `chat/` | tells the page whether to send the turn ledger (only while `CHAT_UNDERSTAND` reads it). |
+| `/api/v1/connected-apps` | `mcp/apps.ts` | Settings, Connected apps: the AI apps a person allowed, and disconnect. |
+| `/mcp`, `/oauth/*`, `/.well-known/oauth-*` | `mcp/` | the MCP server and its OAuth 2.1 endpoints (section 3.6). With `MCP` off these paths answer 404 as before. |
 | `/api/v1/dev/*` | `index.ts` | development only (`ENABLE_DEV_ROUTES=1`): stand-ins for tests. Never on in production. |
 
 Other server folders: `llm/` (the model gateway), `cache/` (KV cache and its meter), `gate/` (shared lanes), `ocr/`,
 `understand/` (the understanding releases, see 6), `trending/`, `jobs.ts` and `maintenance.ts` (cron work), `ratelimit.ts`,
-`idempotency.ts` (a retried upload or report is not stored twice), `sse.ts`, `outcomes.ts` (counts of how answers ended).
+`idempotency.ts` (a retried upload or report is not stored twice), `sse.ts`, `outcomes.ts` (counts of how answers ended), `mcp/`
+(the MCP server, 3.6).
+
+**Service layer (M6).** The work behind the routes is in plain functions that the web routes, the chat and the MCP tools all
+call, never one another over HTTP: `search/service.ts` (`searchService.run`), `references/service.ts` (`referenceService.verify`),
+`search/retraction-service.ts` (`retractionService.check`), `oa/service.ts` (`oaService.ask`), `library/service.ts`, and the strict
+claim reading in `chat/claim-check.ts`. A request is checked against the same rules whichever door it came in by.
 
 ### 3.1 Search (`search/`)
 
@@ -141,6 +151,28 @@ The server keeps **no chat**: chats live in the browser (IndexedDB), and the jud
 The scheduled handler awaits its three jobs; each writes a heartbeat (`job_runs`) read by `/api/v1/health/jobs`, the admin page
 and the hourly Watchdog workflow (which opens a GitHub issue on failure).
 
+### 3.6 The MCP server (`mcp/`, M7 and M8)
+
+`https://sodhsetu.in/mcp`: a remote MCP server (Streamable HTTP) in the same Worker, built on `@modelcontextprotocol/server` 2.3.1
+(its stateless `createMcpHandler`, a fresh server per request, no Durable Object) and `@cloudflare/workers-oauth-provider` 1.2.4
+(loaded only on the MCP paths). Sodhsetu is the OAuth 2.1 authorization server (PKCE, dynamic client registration); a person signs
+in with the website's own Google or ORCID sign-in and allows the app on a consent page. Scopes: `papers:read`, `references:verify`
+(the default), `library:read`, `library:write` (only when an app asks). Tokens last an hour; a grant ends after 30 days unused.
+
+| Tool | Scope | What |
+|---|---|---|
+| `search_papers` | papers:read | the five-source search, 1 to 20 papers, DOIs checked, retractions marked |
+| `verify_references` | references:verify | up to 60 references: verified / mismatch / not_found / not_checkable with differences |
+| `check_retractions` | papers:read | which DOIs are retracted, with the notice |
+| `ask_paper` | papers:read | Ask this paper by DOI or arXiv id: answer, checked quote, section or page; abstract only when not open access, said so |
+| `get_library`, `save_paper` | library:read / library:write | the person's library; a save only with the person's yes |
+| `check_claim` | papers:read | a claim against the abstracts of up to five DOIs: supported / partly / not_supported / cannot_check, with the evidence sentence. Behind its own switch `MCP_CHECK_CLAIM` |
+
+Every tool has a strict input schema, returns structured JSON plus a short text summary (under about 8,000 tokens, `next_cursor` for
+more) and says in its description that abstracts are third-party data. Limits: 300 tool calls per account a day plus the website's
+per-minute limiters; `ask_paper` and `check_claim` count against the daily AI allowance. Counts only in `mcp_calls` (tool, app,
+time, outcome). Switch `MCP`: off (unset) / beta (the ids in `MCP_BETA_USERS`) / on.
+
 ## 4. The web app (apps/web)
 
 - One React app served by the Worker. Pages: `/` and `/home` (Home with the prompt box and the conversation), `/papers`
@@ -151,19 +183,21 @@ and the hourly Watchdog workflow (which opens a GitHub issue on failure).
   pages, Rive animations. **Size budget** (CI fails above it): first-load script 250 KB gzip (now about 244), first-load style
   sheet 26 KB gzip (about 24), fonts 185 KB, PDF reader 66 KB.
 - State: chats in IndexedDB (`scholar`/`chats`) with an index in localStorage, owned by the signed-in account; settings and theme
-  in localStorage; offline papers (if switched on) in the browser's storage.
+  in localStorage; offline papers (if switched on) in the browser's storage. Settings has **Connected apps** (the MCP apps a person
+  allowed), shown only while `MCP` lets the account in.
 - The browser calls only its own API (the CSP forbids other origins), streams answers by SSE, and reports errors through the API.
 - Accessibility: axe in every browser suite, contrast checked for the three themes, one polite status line for screen readers,
   keyboard paths tested.
 
-## 5. Data (D1, migrations 0001 to 0025; 0027 on this branch)
+## 5. Data (D1, migrations 0001 to 0025; 0026 and 0027 on this branch)
 
 Accounts and sessions (hashed), OAuth states, privacy acknowledgements; the library and its retraction alerts
 (`paper_retraction` holds no person); documents, their passages, notes, ink, reading progress and scans; open-access papers and
 passages (shared, no person); literature scans (24 hours) and share tokens; feedback (one year); model usage (counts, 90 days);
 cache statistics; idempotency keys (one day); `job_runs`; `answer_outcomes` (counts of how answers ended, 90 days; feature
 `chat_understand` holds the Understand step's counts); `understand_visitors` (0027: a visitor's Understand calls of a day under a
-one-way code of the day and the address, two days). Chats are not in D1 (the browser keeps them, with each chat's turn ledger). Backups and erasure: `docs/runbook.md`.
+one-way code of the day and the address, two days); `mcp_calls` and `mcp_daily` (0026: counts of MCP tool calls, 35 days, and
+the daily quota). The MCP server's OAuth clients, grants and tokens are in KV `OAUTH_KV`, not D1; erasing an account revokes them. Chats are not in D1 (the browser keeps them, with each chat's turn ledger). Backups and erasure: `docs/runbook.md`.
 
 ## 6. The understanding work (`apps/api/src/understand`, plan `docs/design/intent-and-state.md`)
 
@@ -185,6 +219,9 @@ tests). Turning one on needs its privacy sentence read first.
 | M2 | `CHAT_THINK` | the Thinking block: `think` events from real counts; the turn ledger kept in the browser |
 | M4/M5 | `CHAT_UNDERSTAND` (off/shadow/on) | the Understand step decides what a message is (above); needs its privacy sentence from shadow on |
 | M5 | `CHAT_UNDERSTAND_VISITORS` | the step for visitors too, 40 a day per address |
+| M6 | none | the service layer (no change a person sees) |
+| M7/M8 | `MCP` (off/beta/on), `MCP_BETA_USERS` | the MCP server for AI apps; also needs the `OAUTH_KV` namespace |
+| M8 | `MCP_CHECK_CLAIM` (off/beta/on) | the `check_claim` tool |
 
 ## 7. Privacy and safety by construction
 

@@ -289,7 +289,7 @@ async function touchedBy(load: () => Promise<Record<string, unknown>> | Record<s
   return { touched: [...touched], ran: [...ran] };
 }
 
-type FlagSentence = { flag: string; sentence: string; /** the positions of the flag at which the sentence must be on the page (`shadow` too for a flag whose shadow already sends or keeps something new) */ at: readonly ("shadow" | "core" | "on")[] };
+type FlagSentence = { flag: string; sentence: string; /** the positions of the flag at which the sentence must be on the page (`shadow` too for a flag whose shadow already sends or keeps something new) */ at: readonly ("shadow" | "core" | "beta" | "on")[] };
 type AlwaysOn = { sentence: string; /** the code that makes it true now that no flag guards it: a file of the repository and a piece of text that must be in it */ codePath: { file: string; contains: string } };
 type Disclosure = {
   page: string;
@@ -367,7 +367,7 @@ function disclosureProblems(i: Disclosure): string[] {
     const unpinned = unpinnable(row.flag, sentence);
     if (unpinned) problems.push(unpinned);
     const value = i.vars[row.flag];
-    const { position } = positionOfVariable(value, row.at.includes("core"));
+    const { position } = positionOfVariable(value, row.at.includes("core"), false, row.at.includes("beta"));
     const flagOn = (row.at as readonly string[]).includes(position);
     const present = page.includes(sentence);
     const needs = `needs ${row.at.join(" or ")}; vars has ${value === undefined ? "nothing" : JSON.stringify(value)}`;
@@ -396,8 +396,8 @@ function disclosureProblems(i: Disclosure): string[] {
   }
   const decided = new Set([...i.flagSentences.map((f) => f.flag), ...Object.keys(i.noSentence)]);
   for (const [name, value] of Object.entries(i.vars)) {
-    const { position, bad } = positionOfVariable(value, true);
-    if (!bad && (position === "on" || position === "core") && !decided.has(name)) {
+    const { position, bad } = positionOfVariable(value, true, true, true);
+    if (!bad && (position === "on" || position === "core" || position === "beta") && !decided.has(name)) {
       problems.push(`${name}: the committed vars has it at ${position}, and there is no row for it: add one to FLAG_SENTENCES (the sentence the page gets) or to FLAGS_WITHOUT_SENTENCE (why it needs none)`);
     }
   }
@@ -455,6 +455,14 @@ const FLAG_SENTENCES: readonly FlagSentence[] = [
     sentence:
       "Even when you are not signed in, a message you write in Auto is sent to the AI model run by Cloudflare (Workers AI) so that it can be understood; it is not kept and not used for training. To limit how often this happens, we count these messages for the day under a one-way code made from your internet address and the date, which is deleted after two days.",
     at: ["on"],
+  },
+  // The MCP server (src/mcp, docs "Sodhsetu understanding, follow-ups and MCP (design)", page 13). The sentence is written and waits for the owner's read: the commit that sets "MCP" to "beta"
+  // or "on" in wrangler.jsonc puts it on the privacy page (under "What we send where") with the next PRIVACY_VERSION, and this row then holds the two together.
+  {
+    flag: "MCP",
+    at: ["beta", "on"],
+    sentence:
+      "If you connect an AI app (such as Claude or ChatGPT) to your Sodhsetu account, what it sends to Sodhsetu's tools (a search, a list of references, DOIs, a question about a paper, a claim to check) is handled exactly as on this website: a search goes to the public indexes named above, references are checked at Crossref and OpenAlex and DOIs at Crossref, a question about a paper or a claim to check is sent with the paper's text to the AI model run by Cloudflare (Workers AI) and counts against your daily AI allowance, a verdict (never your text) is kept for up to a day, and we keep only counts: which tool was used, by which app, how long it took and whether it worked. An app you allow to use your library can see the papers you saved and save a paper you agreed to save. What the app does with the answers is up to that app and its own privacy terms. You can disconnect an app at any time in Settings, under Connected apps.",
   },
 ];
 /** Flags that are on in the committed config and need no sentence on the page, each with the reason (nothing new is sent, kept or shown that the page does not already say). Empty until a release has one. */

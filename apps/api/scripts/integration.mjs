@@ -31,6 +31,9 @@ delete cfg.routes;
 delete cfg.workers_dev;
 // The committed launch state "TRENDING": "off" (wrangler.jsonc) hides the Home page's list from the route; the suites read the list, so the copy has no such line. INTEGRATION_TRENDING=dark or =off puts one back (below).
 if (cfg.vars) delete cfg.vars.TRENDING;
+// The MCP server (src/mcp) needs a KV namespace of its own, which production does not have until the owner creates it (wrangler.jsonc): the test copy gets a local one, and the switch on
+// (INTEGRATION_MCP=off leaves it off, to see the paths answer 404 as before), so that scripts/mcp-e2e.mjs can go through the whole OAuth and MCP exchange.
+cfg.kv_namespaces = [...(cfg.kv_namespaces ?? []), { binding: "OAUTH_KV", id: "oauth-kv-local" }];
 // Keep the limiter bindings (so their wiring is exercised) but make them effectively unlimited: every request from the test
 // clients shares one IP, and the suites send far more than the production per-IP budget.
 for (const r of cfg.ratelimits ?? []) r.simple.limit = 1_000_000;
@@ -51,6 +54,9 @@ const vars = {
   CROSSREF_MAILTO: process.env.CROSSREF_MAILTO ?? "ci@example.com",
   // INTEGRATION_TRENDING=off (or =dark) starts the Worker with the variable TRENDING=off (or dark) (run it with --only="trending": scripts/trending-e2e.mjs then checks that switch instead of the others)
   ...(process.env.INTEGRATION_TRENDING ? { TRENDING: process.env.INTEGRATION_TRENDING } : {}),
+  MCP: process.env.INTEGRATION_MCP ?? "on",
+  // check_claim has a switch of its own (src/mcp/flag.ts), off in production: on here, so that scripts/mcp-e2e.mjs reaches the tool (it follows MCP: off with the server off)
+  MCP_CHECK_CLAIM: process.env.INTEGRATION_MCP === "off" ? "off" : "on",
   // INTEGRATION_VARS="CHAT_COUNTERS:on,CHAT_FAILPOLICY:shadow" starts the Worker with those variables too (the gate flags of docs/design/intent-and-state.md are unset in wrangler.jsonc, so a default run tests them OFF);
   // the suites read the same variable to know which position they are looking at (run it with --only="chat integration" to see the flags work on the real database)
   ...integrationVars,
@@ -131,6 +137,7 @@ try {
   ok = await run("open-access papers integration", "scripts/oa-e2e.mjs") && ok;
   ok = await run("literature scan integration", "scripts/litscan-e2e.mjs") && ok;
   ok = await run("feedback integration", "scripts/feedback-e2e.mjs") && ok;
+  ok = await run("MCP server integration", "scripts/mcp-e2e.mjs") && ok;
   if (withBrowser) {
     ok = await run("browser: smoke + axe", "e2e/smoke.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: auth", "e2e/auth.mjs", [`http://localhost:${PORT}`], web) && ok;
@@ -162,6 +169,7 @@ try {
     ok = await run("browser: annotated PDF", "e2e/annotated.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: offline reading", "e2e/offline.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: parked features", "e2e/parked.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: AI apps (MCP consent and Connected apps)", "e2e/mcp.mjs", [`http://localhost:${PORT}`], web) && ok;
     // Only when asked for (needs real PDFs, live Crossref/OpenAlex and a few minutes): REAL_PDFS=<folder> [REAL_VERIFY=1]
     if (process.env.REAL_PDFS) ok = await run("browser: real papers", "e2e/real-papers.mjs", [process.env.REAL_PDFS, `http://localhost:${PORT}`, ...(process.env.REAL_VERIFY ? ["--verify"] : [])], web) && ok;
   }

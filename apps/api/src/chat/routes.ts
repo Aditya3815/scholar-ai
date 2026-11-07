@@ -6,7 +6,7 @@ import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
 import { DEFAULT_CONFIG } from "../llm/config";
 import { d1Ledger } from "../llm/d1";
-import { runSearch } from "../search";
+import { searchService } from "../search/service";
 import { sseStream } from "../sse";
 import type { S2Throttle } from "../s2-throttle";
 import { searchComplete } from "./complete";
@@ -714,7 +714,7 @@ chatRoutes.post("/", async (c) => {
           found = stubSearchFor(query, where, { topical: c.env.QA_STUB_TOPIC === "1" });
           if (found.results.length > 0) await interim(found);
         } else {
-          found = await runSearch(searchEnvFrom(c.env), query, years ? YEAR_FILTER_SEARCH_LIMIT : 20, { onSnapshot: interim }, where);
+          found = await searchService.run(c.env, { q: query, limit: years ? YEAR_FILTER_SEARCH_LIMIT : 20, scope: where }, { onSnapshot: interim });
         }
       }
       if (s.gone) return;
