@@ -30,6 +30,40 @@ export function understoodTool(l: Lang, mode: RouteMode): ThinkLine | null {
   const t = { en: `${name}: it is offered below, not started`, hinglish: `${name}: neeche offer kiya hai, shuru nahi kiya`, hi: `${name}: नीचे सुझाया है, शुरू नहीं किया` }[lang(l)];
   return line("understood", "understood", t, undefined, ["change"]);
 }
+/**
+ * M5: what the Understand step understood, in its own words (`status`: the one line a model writes, checked on the server: no citation, no link, nothing of a paper). Inside “ ” quotes, so that a year in it
+ * ("after 2020") is the model's words and not a number the line states. The page puts "I understood:" before it.
+ */
+export function understoodModel(status: string, actions: ThinkAction[]): ThinkLine | null {
+  return line("understood", "understood", q(status), undefined, actions);
+}
+/** M5: the reading was only between 0.45 and 0.75 sure, or the rules decided: the question the design asks prominently, with Change. */
+export function confirmLine(l: Lang): ThinkLine | null {
+  const t = { en: "Did you want this?", hinglish: "Aapko ye chahiye tha?", hi: "क्या आपको यही चाहिए था?" }[lang(l)];
+  return line("confirm", "note", t, undefined, ["change"]);
+}
+/** M5: the model could not be used (it did not answer in time, its reading was not valid twice, every model was down), so the rules decided. A visitor past the day's free readings is told to sign in. */
+export function fellBack(l: Lang, visitorCap = false): ThinkLine | null {
+  const t = visitorCap
+    ? { en: "Today's free understanding is used up, so the rules decided. Sign in for more", hinglish: "Aaj ki free samajh khatam ho gayi, isliye rules ne tay kiya. Aur ke liye sign in karein", hi: "आज की मुफ़्त समझ ख़त्म हो गई, इसलिए नियमों ने तय किया। और के लिए साइन इन करें" }[lang(l)]
+    : { en: "I could not understand this well, so I searched for papers", hinglish: "Main theek se samajh nahi paaya, isliye papers dhundhe", hi: "मैं ठीक से समझ नहीं पाया, इसलिए पेपर खोजे" }[lang(l)];
+  return line("unsure", "note", t, undefined, ["change"]);
+}
+/** M5: a question about papers already in the chat: no new search; how many of them were found again by their DOI and are read now (their abstracts). */
+export function fromEarlier(l: Lang, papers: number): ThinkLine | null {
+  const t = {
+    en: `No new search: using ${papers} ${papers === 1 ? "paper" : "papers"} from earlier in this chat, looked up again by DOI`,
+    hinglish: `Naya search nahi: is chat ke ${papers} papers, DOI se dobara dekhe`,
+    hi: `नई खोज नहीं: इस चैट के ${papers} शोध-पत्र, DOI से दोबारा देखे`,
+  }[lang(l)];
+  return line("earlier", "note", t, { papers });
+}
+/** M5: one question back to the person instead of a guess (the choices are below the block). */
+export function asking(l: Lang): ThinkLine | null {
+  const t = { en: "Asking you one question before searching", hinglish: "Search se pehle aapse ek sawaal", hi: "खोजने से पहले आपसे एक सवाल" }[lang(l)];
+  return line("asking", "note", t);
+}
+
 /** The rules could not tell, so the safe default ran: said plainly, with Change. */
 export function notSure(l: Lang): ThinkLine | null {
   const t = { en: "I was not sure what you wanted, so I searched for papers", hinglish: "Main theek se samajh nahi paaya, isliye papers dhundhe", hi: "मैं ठीक से समझ नहीं पाया, इसलिए शोध-पत्र खोजे" }[lang(l)];

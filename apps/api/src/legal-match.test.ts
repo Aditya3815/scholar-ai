@@ -289,7 +289,7 @@ async function touchedBy(load: () => Promise<Record<string, unknown>> | Record<s
   return { touched: [...touched], ran: [...ran] };
 }
 
-type FlagSentence = { flag: string; sentence: string; /** the positions of the flag at which the sentence must be on the page */ at: readonly ("core" | "on")[] };
+type FlagSentence = { flag: string; sentence: string; /** the positions of the flag at which the sentence must be on the page (`shadow` too for a flag whose shadow already sends or keeps something new) */ at: readonly ("shadow" | "core" | "on")[] };
 type AlwaysOn = { sentence: string; /** the code that makes it true now that no flag guards it: a file of the repository and a piece of text that must be in it */ codePath: { file: string; contains: string } };
 type Disclosure = {
   page: string;
@@ -440,7 +440,23 @@ function readVars(text: string): Record<string, unknown> {
 // ---- end of the checks ----
 
 /** One row per privacy sentence of a release: a literal run of the page's source text (as plain text, in one line), stopping before any {expression} (see (4) in the header). Empty until the first release writes its text (10.1). */
-const FLAG_SENTENCES: readonly FlagSentence[] = [];
+const FLAG_SENTENCES: readonly FlagSentence[] = [
+  // M4/M5 (design PDF "Sodhsetu understanding, follow-ups and MCP"): with CHAT_UNDERSTAND at shadow or on, the page sends the turn ledger (replies and paper titles leave the browser) and counts are kept, so the
+  // sentence is needed from shadow on. Written on 6 Nov 2026 and NOT on the page yet: it waits for the owner's read, and the privacy version moves with it.
+  {
+    flag: "CHAT_UNDERSTAND",
+    sentence:
+      "When you write in Auto, your browser also sends a short record of the earlier turns of the same chat (your earlier messages, the first 300 characters of each reply and the titles of the papers it listed), so that a message like “the second paper” or “only after 2020” can be understood. It goes only to the AI model run by Cloudflare (Workers AI), it is not kept, nothing from another chat is ever in it, and of how a message was understood we keep only counts, never your words.",
+    at: ["shadow", "on"],
+  },
+  // M5: a visitor's Auto message is read by the private model too, with a daily cap kept under a one-way code of the day and the address (migration 0027). Waits for the owner's read.
+  {
+    flag: "CHAT_UNDERSTAND_VISITORS",
+    sentence:
+      "Even when you are not signed in, a message you write in Auto is sent to the AI model run by Cloudflare (Workers AI) so that it can be understood; it is not kept and not used for training. To limit how often this happens, we count these messages for the day under a one-way code made from your internet address and the date, which is deleted after two days.",
+    at: ["on"],
+  },
+];
 /** Flags that are on in the committed config and need no sentence on the page, each with the reason (nothing new is sent, kept or shown that the page does not already say). Empty until a release has one. */
 const FLAGS_WITHOUT_SENTENCE: Readonly<Record<string, string>> = {};
 /** Rows that have lost their flag after 14 clean days on: the sentence and the code that makes it true. Releases with no flag (R6b, T1) start here. */

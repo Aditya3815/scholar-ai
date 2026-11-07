@@ -537,6 +537,13 @@ kbd {
 /* Auto took the message for another tool: it is offered here, never started */
 .chat-offer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); }
 .chat-offer p { flex: 1 1 16rem; margin: 0; }
+/* M5: one question back (the Understand step's clarify): its choices as chips, "Search anyway" as a link; and the prominent "Did you want this?" line */
+.chat-clarify { display: grid; gap: 0.5rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); }
+.chat-clarify-q { margin: 0; font-weight: 600; }
+.chat-clarify-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.chat-clarify-chip { padding: 0 0.8rem; cursor: pointer; text-align: start; }
+.chat-clarify-chip:hover { border-color: var(--accent); }
+.chat-confirm b { color: var(--text); }
 .chat-change-menu { display: grid; gap: 2px; min-width: min(19rem, 80vw); }
 .chat-steps { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; margin: 0; padding: 0; list-style: none; font-size: 0.875rem; color: var(--muted); }
 .chat-steps li { display: inline-flex; align-items: center; gap: 0.4rem; }

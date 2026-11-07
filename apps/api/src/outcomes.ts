@@ -1,5 +1,6 @@
 import type { AnswerOutcomeRow } from "@scholar/shared";
 import { INPUT_SHAPE_NAMES, SUBJECT_NAMES } from "./understand/input-shape";
+import { UNDERSTAND_COUNTER_NAMES } from "./understand/understand-counters";
 
 /**
  * How answers went, as counts (migration 0019). One increment per answered question, never any text or person: the counts say how often the model wrote an answer that our own check then
@@ -9,7 +10,7 @@ import { INPUT_SHAPE_NAMES, SUBJECT_NAMES } from "./understand/input-shape";
  * `chat_input` is not about an answer: it counts what a message in the prompt box looked like (a polite frame, a year, an id: the closed names of src/understand/input-shape.ts), one count for each
  * name a message has (docs/design/intent-and-state.md, 4.4). Names only, never any of the text. The headline of /admin reads feature `chat` alone, so it does not move.
  */
-export const OUTCOME_FEATURES = ["chat", "oa_ask", "oa_ask_abstract", "doc_ask", "litscan", "chat_input"] as const;
+export const OUTCOME_FEATURES = ["chat", "oa_ask", "oa_ask_abstract", "doc_ask", "litscan", "chat_input", "chat_understand"] as const;
 export type OutcomeFeature = (typeof OUTCOME_FEATURES)[number];
 
 /**
@@ -64,6 +65,8 @@ export async function countOutcome(db: D1Database, feature: OutcomeFeature, outc
 export const MAX_OUTCOME_NAMES = 8;
 
 const SHAPE_NAMES: ReadonlySet<string> = new Set(INPUT_SHAPE_NAMES);
+/** `chat_understand` (M4/M5, CHAT_UNDERSTAND shadow or on): the Understand step's closed counter names (understand/understand-counters.ts), never text. */
+const UNDERSTAND_NAMES: ReadonlySet<string> = new Set(UNDERSTAND_COUNTER_NAMES);
 const SUBJECT: ReadonlySet<string> = new Set(SUBJECT_NAMES);
 
 /**
@@ -86,6 +89,11 @@ export async function countOutcomes(db: D1Database, feature: OutcomeFeature, nam
       const rejected = kept.length - others.length - Math.min(subjects.length, 1);
       if (rejected > 0) console.warn(JSON.stringify({ level: "warn", msg: "outcome_names_rejected", feature, rejected }));
       kept = [...subjects.slice(0, 1), ...others];
+    }
+    if (feature === "chat_understand") {
+      const closed = kept.filter((n) => UNDERSTAND_NAMES.has(n));
+      if (closed.length < kept.length) console.warn(JSON.stringify({ level: "warn", msg: "outcome_names_rejected", feature, rejected: kept.length - closed.length }));
+      kept = closed;
     }
     if (kept.length > MAX_OUTCOME_NAMES) console.warn(JSON.stringify({ level: "warn", msg: "outcome_names_dropped", feature, dropped: kept.length - MAX_OUTCOME_NAMES }));
     if (kept.length === 0) return;

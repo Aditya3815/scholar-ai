@@ -26,6 +26,8 @@ export const MAINTENANCE_JOBS: { name: string; sql: string }[] = [
   // A literature scan is kept for a day (its expires_at), then its events and the scan go; the daily counter for a few weeks.
   ...LITSCAN_PURGE_SQL.map((sql, i) => ({ name: ["litscan_shares", "litscan_events", "litscans", "litscan_daily"][i]!, sql })),
   { name: "audit_log", sql: "DELETE FROM audit_log WHERE ts < datetime('now', '-365 days')" },
+  // A visitor's Understand calls of a day (M5, migration 0027): only today's count matters, and a day's codes go two days later.
+  { name: "understand_visitors", sql: "DELETE FROM understand_visitors WHERE day < date('now', '-2 days')" },
 ];
 
 /** Every purge is `DELETE FROM <table> WHERE <what is past its date>`; this is the same purge taking at most `?1` rows (through their row number), so one night never holds the database for long. */

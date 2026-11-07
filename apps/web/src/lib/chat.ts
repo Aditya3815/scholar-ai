@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react";
 import {
   applyChatEvent, applyTighten, buildLedger, busyReason, canStartNewTopic, chatRequestBody, chatTitle, citedPaperIds, cleanAutoMessage, cleanChatMessage, contextBefore, didNotFinishText, editInfo, editUserMessage, failTighten, goneFromIndex, interruptMessages, lastReplyDidNotFinish, leavesNoTrace, MAX_CHAT_CHARS, MAX_IDEA_CHARS, MIN_IDEA_CHARS, ownedBy,
-  parseIndex, releaseRun, retryText, startAssistant, startTighten, stopAssistant, switchVersion, tightenRequestFor, titleAfterEdit, touchIndex, trimMessagesForStorage, usesEarlierTurns, withHeld,
-  type AssistantMsg, type ChatEvent, type ChatMsg, type HistoryEntry, type IdeaMsg, type LedgerTurn, type MemoryEntry, type SearchScope, type TightenResponse, type UserMsg,
+  ledgerBefore, ledgerForSend, parseIndex, releaseRun, retryText, startAssistant, startTighten, stopAssistant, switchVersion, tightenRequestFor, titleAfterEdit, touchIndex, trimMessagesForStorage, usesEarlierTurns, withHeld,
+  type AssistantMsg, type ChatConfig, type ChatEvent, type ChatMsg, type HistoryEntry, type IdeaMsg, type LedgerTurn, type MemoryEntry, type SearchScope, type TightenResponse, type UserMsg,
 } from "@scholar/shared";
 import { idbClear, idbDelete, idbRead, idbSwap } from "./idb";
 import { showNotice } from "./notice";
@@ -497,11 +497,13 @@ export function sendMessage(raw: string, mode: SendMode = "search", scope: Searc
   const history = mode === "auto" ? contextBefore([...before, user], before.length) : [];
   // the line "did not finish": only when there are turns to lean on, and the reply right before this message is the one that did not finish
   const unfinished = history.length > 0 && lastReplyDidNotFinish(before, before.length);
+  // M4: the turn ledger of this chat up to the message (none after "New topic"); it is sent only if the server says the Understand step reads it (`run`)
+  const ledger = mode === "auto" ? ledgerBefore([...before, user], before.length) : [];
   setChat(id, [...before, user, reply]);
   if (marked) setNewTopic(new Set([...state.newTopic].filter((x) => x !== id)));
   touch(id, state.index.find((e) => e.id === id)?.title ?? chatTitle(text));
   persist(id, true);
-  void run(id, reply.id, text, mode, scope, false, history, reply.sinceYear, unfinished);
+  void run(id, reply.id, text, mode, scope, false, history, reply.sinceYear, unfinished, ledger);
   return "sent";
 }
 
@@ -546,7 +548,8 @@ export function retryReply(assistantId: string, as?: "search" | "anyway", words?
   persist(id, true);
   const upTo = written === null ? at : at - 1;
   const history = mode === "auto" ? contextBefore(msgs, upTo) : [];
-  void run(id, assistantId, text, mode, scope, as === "anyway", history, reply.sinceYear, history.length > 0 && lastReplyDidNotFinish(msgs, upTo));
+  const ledger = mode === "auto" && as !== "anyway" ? ledgerBefore(msgs, upTo) : [];
+  void run(id, assistantId, text, mode, scope, as === "anyway", history, reply.sinceYear, history.length > 0 && lastReplyDidNotFinish(msgs, upTo), ledger);
   return "sent";
 }
 
@@ -582,13 +585,14 @@ export function editMessage(userId: string, raw: string): EditResult {
   // the turns before the edited message are not changed by the edit (everything from it on is put away): they are the context it is sent with, and nothing at or after it ever is
   const history = info.mode === "auto" ? contextBefore(msgs, info.at) : [];
   const unfinished = history.length > 0 && lastReplyDidNotFinish(msgs, info.at);
+  const ledger = info.mode === "auto" ? ledgerBefore(msgs, info.at) : [];
   const away = msgs.slice(info.at + 1);
   for (const m of away) tightening.get(m.id)?.abort(); // none is running (refused above); a check that began in this very turn is stopped
   dropLiveIdeas(away);
   setChat(id, next);
   touch(id, titleAfterEdit(msgs, userId, text, state.index.find((e) => e.id === id)?.title ?? chatTitle(text)));
   persist(id, true);
-  void run(id, reply.id, text, info.mode, info.scope, false, history, reply.sinceYear, unfinished);
+  void run(id, reply.id, text, info.mode, info.scope, false, history, reply.sinceYear, unfinished, ledger);
   return "sent";
 }
 
@@ -619,13 +623,33 @@ export function stopReply() {
 }
 
 /**
+ * M4: whether the server wants the turn ledger with a message (GET /api/v1/chat/config: only while the Understand step reads it for this person). Asked once and kept for five minutes per person (signed in or
+ * not); while it is not known yet the page waits at most 1.5 s, and a page that could not ask sends no ledger: nothing leaves the browser unless the server said it is read.
+ */
+const CONFIG_MS = 5 * 60_000;
+let chatConfig: { who: string; at: number; value: ChatConfig } | null = null;
+async function ledgerWanted(signedIn: boolean): Promise<boolean> {
+  const who = signedIn && typeof owner === "string" ? owner : "visitor";
+  if (chatConfig && chatConfig.who === who && Date.now() - chatConfig.at < CONFIG_MS) return chatConfig.value.ledger;
+  try {
+    const res = await fetch("/api/v1/chat/config", { credentials: "same-origin", signal: AbortSignal.timeout(1500) });
+    const j = res.ok ? ((await res.json()) as Partial<ChatConfig>) : null;
+    const value: ChatConfig = { ledger: j?.ledger === true };
+    chatConfig = { who, at: Date.now(), value };
+    return value.ledger;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Write one reply. `history` is what the message may lean on (`contextBefore`, only in Auto; empty means nothing is sent, and the body is what it was before there was any). The server reads it
  * strictly and refuses a body it could not have been sent (400 `invalid_history`), which would end every follow-up of the conversation in an error the person cannot mend: the message itself
  * is good, so in that one case it is sent again, once, without them (it is read as a first message; nothing more is sent than was).
  * `unfinished`: the reply right before this message did not finish, so the turns it leans on are those before it (R22): when the server then says it read them and took the message for a follow-up of them, the reply
  * gets the line `didNotFinishText` (the notice kind "unfinished", made here and never sent by the server). Said only for a reply that was sent with turns, so never for a visitor, a search chosen by hand or a first message.
  */
-async function run(chatId: string, assistantId: string, text: string, mode: SendMode, scope: SearchScope, anyway = false, history: HistoryEntry[] = [], sinceYear?: number, unfinished = false) {
+async function run(chatId: string, assistantId: string, text: string, mode: SendMode, scope: SearchScope, anyway = false, history: HistoryEntry[] = [], sinceYear?: number, unfinished = false, ledgerTurns: LedgerTurn[] = []) {
   const ctl = new AbortController();
   runs.set(chatId, { ctl, assistantId });
   set({ running: new Set(runs.keys()) });
@@ -650,12 +674,18 @@ async function run(chatId: string, assistantId: string, text: string, mode: Send
     }
   };
   try {
-    const post = (turns: HistoryEntry[]) =>
-      fetch("/api/v1/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify(chatRequestBody({ signedIn, mode, message: text, scope, anyway, history: turns, sinceYear })), signal: ctl.signal });
-    let res = await post(history);
-    if (res.status === 400 && history.length > 0 && ((await res.clone().json().catch(() => null)) as { type?: string } | null)?.type === "invalid_history") {
+    // M4: the turn ledger goes only when the server said the Understand step reads it (GET /chat/config), and only in Auto; a page that could not ask sends none
+    const ledger = mode === "auto" && !anyway && ledgerTurns.length > 0 && (await ledgerWanted(signedIn)) ? ledgerForSend(ledgerTurns, { signedIn }) : [];
+    const post = (turns: HistoryEntry[], led: readonly unknown[]) =>
+      fetch("/api/v1/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify(chatRequestBody({ signedIn, mode, message: text, scope, anyway, history: turns, sinceYear, ledger: led })), signal: ctl.signal });
+    let res = await post(history, ledger);
+    const refused = res.status === 400 ? ((await res.clone().json().catch(() => null)) as { type?: string } | null)?.type : undefined;
+    if (refused === "invalid_history" && history.length > 0) {
       console.warn("The earlier messages were not accepted, so this message was sent without them.");
-      res = await post([]);
+      res = await post([], []);
+    } else if (refused === "invalid_ledger" && ledger.length > 0) {
+      console.warn("The record of this chat was not accepted, so this message was sent without it.");
+      res = await post(history, []);
     }
     if (!res.ok) {
       const j = (await res.json().catch(() => null)) as { title?: string; detail?: string } | null;

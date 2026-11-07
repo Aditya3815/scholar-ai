@@ -815,3 +815,42 @@ describe.runIf(process.env.RERECORD_THINK === "1")("rerecord the think golden (b
     writeFileSync(THINK_GOLDEN, JSON.stringify({ producedFrom: "POST /api/v1/chat of apps/api/src/chat/routes.ts with CHAT_THINK=on, the stand-in network and model (QA_STUB), the clock held at 2026-11-03T12:00:00Z, for every request of the differential list of since-year.test.ts: the think lines of each, in order. Recorded by hand on 6 Nov 2026 from the working tree of branch und-m2 (M2 of the design PDF \"Sodhsetu understanding, follow-ups and MCP\"): the lines are new, so there is no earlier code to record them from; what they say is read in think.test.ts and in the test that reads every line above.", entries }, null, 1) + "\n");
   }, 300_000);
 });
+
+/**
+ * M4/M5 (design PDF "Sodhsetu understanding, follow-ups and MCP", page 13): CHAT_UNDERSTAND. Unset, "off", a value that is not a position, and "shadow" (the step runs on the response's waitUntil and only counts)
+ * leave every request of the list the golden's, byte for byte; so does CHAT_UNDERSTAND_VISITORS on its own (it only widens what CHAT_UNDERSTAND does). With "on" the step decides: the streams of the
+ * requests it reads are new and pinned in since-year.understand.golden.json (recorded by hand from this release: there is no earlier code to record them from; what each intent does is read in
+ * understand-route.test.ts), and the requests it cannot reach (a search chosen by hand, a refused body) stay the golden's.
+ */
+const UNDERSTAND_GOLDEN = fileURLToPath(new URL("./since-year.understand.golden.json", import.meta.url));
+describe("CHAT_UNDERSTAND: off and shadow change nothing on the wire; on is pinned", () => {
+  const withFlag = (c: Case, flags: Record<string, string>): Case => ({ ...c, opts: { ...c.opts, env: { ...c.opts?.env, ...flags } } });
+  it("off, a value that is not a position, shadow (with and without the Thinking block's lines compared to their own golden), and the visitors' switch alone: the golden, byte for byte", async () => {
+    const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
+    for (const flags of [{ CHAT_UNDERSTAND: "off" }, { CHAT_UNDERSTAND: "ON" }, { CHAT_UNDERSTAND: "shadow" }, { CHAT_UNDERSTAND: "shadow", CHAT_UNDERSTAND_VISITORS: "on" }, { CHAT_UNDERSTAND_VISITORS: "on" }] as Record<string, string>[]) {
+      const now = await Promise.all(DIFF.map((c) => wire(withFlag(c, flags))));
+      expect(now.filter((n, i) => JSON.stringify(n) !== JSON.stringify(golden.entries[i])).map((n) => n.name), JSON.stringify(flags)).toEqual([]);
+    }
+  }, 300_000);
+
+  it("on: every request is the pinned stream, and the ones the step cannot reach are the base golden's", async () => {
+    const base = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
+    const pinned = JSON.parse(readFileSync(UNDERSTAND_GOLDEN, "utf8")) as Golden;
+    const now = await Promise.all(DIFF.map((c) => wire(withFlag(c, { CHAT_UNDERSTAND: "on" }))));
+    expect(pinned.entries.map((e) => e.name)).toEqual(DIFF.map((c) => c.name));
+    expect(now.filter((n, i) => JSON.stringify(n) !== JSON.stringify(pinned.entries[i])).map((n) => n.name)).toEqual([]);
+    const unreachable = DIFF.filter((c) => c.name.startsWith("search by hand") || c.name.startsWith("refused") || c.name.includes("chosen by hand") || c.name.endsWith(", anyway") || c.name.includes("not signed in"));
+    expect(unreachable.length).toBeGreaterThanOrEqual(12);
+    for (const c of unreachable) expect(pinned.entries.find((e) => e.name === c.name), c.name).toEqual(base.entries.find((e) => e.name === c.name));
+    // and it is not the base golden over all: the step really decided the others
+    expect(pinned.entries.filter((e, i) => JSON.stringify(e) !== JSON.stringify(base.entries[i])).length).toBeGreaterThanOrEqual(20);
+  }, 300_000);
+});
+
+describe.runIf(process.env.RERECORD_UNDERSTAND === "1")("rerecord the understand golden (by hand, never in CI)", () => {
+  it("writes since-year.understand.golden.json", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const entries = await Promise.all(DIFF.map((c) => wire({ ...c, opts: { ...c.opts, env: { ...c.opts?.env, CHAT_UNDERSTAND: "on" } } })));
+    writeFileSync(UNDERSTAND_GOLDEN, JSON.stringify({ producedFrom: "POST /api/v1/chat of apps/api/src/chat/routes.ts with CHAT_UNDERSTAND=on, the stand-in network, router, writer, judge and Understand model (QA_STUB; understand-wire.ts stubUnderstand), the clock held at 2026-11-03T12:00:00Z, for every request of the differential list of since-year.test.ts: status, event types, ending, bytes and SHA-256 of each stream. Recorded by hand on 6 Nov 2026 from the working tree of branch und-m4 (M4/M5 of the design PDF \"Sodhsetu understanding, follow-ups and MCP\"): the streams are new, so there is no earlier code to record them from; what each intent does is read in understand-route.test.ts.", entries }, null, 1) + "\n");
+  }, 300_000);
+});

@@ -18,8 +18,56 @@ const FEATURE_NAME: Record<string, string> = {
   doc_ask: "Questions about papers people uploaded",
   litscan: "Literature scan (each sub-question of each scan)",
   chat_input: "What a first message in the prompt box looked like (a message can have several of these, and Share is of the messages counted; its words are never kept)",
+  chat_understand: "The Understand step, in shadow or on (a message can have several of these, and Share is of the messages it read; its words are never kept)",
+};
+/** M4/M5: the Understand step's counts (apps/api/src/understand/understand-counters.ts): who decided, the intent, the agreement with the rules in shadow, the time it took, why the rules took over. Names only. */
+const UNDERSTAND_TEXT: Record<string, string> = {
+  und_turn: "Messages the step read (the share of every other row is of these)",
+  und_src_guard: "Settled by a fixed check before any model (a DOI, a reference list, a tool chosen by hand)",
+  und_src_greeting: "A greeting, answered without any model",
+  und_src_model: "Read by the model",
+  und_src_fallback: "The model could not be used, so the rules decided",
+  und_fb_timeout: "The rules decided: the model did not answer in time",
+  und_fb_invalid: "The rules decided: the model's reading was not valid twice",
+  und_fb_down: "The rules decided: every model was down",
+  und_fb_quota: "The rules decided: the day's AI allowance was used",
+  und_fb_no_model: "The rules decided: no model for this person (a visitor past the day's cap)",
+  und_int_chat: "Taken as conversation (no search)",
+  und_int_search: "Taken as a new search",
+  und_int_refine_search: "Taken as a change to the last search",
+  und_int_ask_results: "Taken as a question about papers already in the chat",
+  und_int_ask_paper: "Taken as a question about an uploaded paper",
+  und_int_offer_tool: "Taken as work for another tool (offered as a card)",
+  und_int_clarify: "Answered with one question back",
+  und_conf_high: "The model was sure (0.75 or more)",
+  und_conf_mid: "The model was fairly sure (0.45 to 0.75)",
+  und_conf_low: "The model was unsure (under 0.45)",
+  und_confirm: "Shown with “Did you want this?”",
+  und_ms_lt500: "Took under half a second",
+  und_ms_lt1200: "Took half a second to 1.2 seconds",
+  und_ms_lt2500: "Took 1.2 to 2.5 seconds",
+  und_ms_lt5000: "Took 2.5 to 5 seconds",
+  und_ms_ge5000: "Took 5 seconds or more",
+  und_agree: "Shadow: the model and the rules agreed on the intent",
+  und_disagree: "Shadow: the model and the rules did not agree on the intent",
+  und_fix_years_dropped: "A check dropped years the person did not say",
+  und_fix_india_dropped: "A check dropped an Indian sources choice the person did not make",
+  und_fix_language_rules: "A check corrected the language of the reply",
+  und_fix_status_template: "A check replaced the model's status line with a fixed one",
+  und_fix_refers_to_dropped: "A check dropped a pointer to a turn or paper that does not exist",
+  und_fix_that_paper_resolved: "A check worked out which paper “that paper” meant",
+  und_fix_that_paper_clarify: "A check asked which paper “that paper” meant",
+  und_fix_no_results_to_ask: "A question about earlier papers with none in the chat: searched instead",
+  und_fix_no_search_to_refine: "A change to a search with none in the chat: searched instead",
+  und_fix_low_confidence_clarify: "Too unsure for a costly action: asked a question instead",
+  und_fix_chat_greeting_kept: "The model asked a question about a greeting: answered as conversation",
+  und_fix_language_switch: "Messages like “Hindi mein batao”: the last answer again in that language",
+  und_retry: "The model was asked a second time after an invalid reading",
+  und_chat_leak: "A conversation reply that cited something was thrown away, and the message searched",
+  und_change: "The person pressed Change on the step's reading",
 };
 const OUTCOME_TEXT: Record<string, string> = {
+  clarify: "Answered with one question back before searching (the Understand step)",
   answered: "Answered, every claim checked",
   not_in_paper: "The paper does not contain it (it said so)",
   unverified: "Found, but a quote did not check out (shown with a warning)",
@@ -124,7 +172,7 @@ export function AnswerOutcomes({ rows }: { rows: AnswerOutcomeRow[] }) {
             const own = rows.filter((r) => r.feature === f);
             // the shape of messages has several names a message: its share is of the messages counted (outcomeTotal), not of the sum of the names
             const total = outcomeTotal(f, own);
-            const words = f === "chat_input" ? INPUT_TEXT : OUTCOME_TEXT;
+            const words = f === "chat_input" ? INPUT_TEXT : f === "chat_understand" ? UNDERSTAND_TEXT : OUTCOME_TEXT;
             return (
               <table className="admin-table" key={f}>
                 <caption>{FEATURE_NAME[f] ?? f}</caption>

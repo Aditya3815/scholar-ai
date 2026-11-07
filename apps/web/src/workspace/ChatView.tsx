@@ -6,7 +6,7 @@ import { GENERAL_LABEL, INDIA_SCOPE_LABEL, LEFT_OUT_LABEL, MAX_CHAT_CHARS, MAX_V
 import { SignInDialog } from "../components/SignInDialog";
 import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
-import { cancelTighten, editMessage, retryReply, showVersion, tightenReply, type EditResult } from "../lib/chat";
+import { cancelTighten, editMessage, retryReply, sendMessage, showVersion, tightenReply, type EditResult } from "../lib/chat";
 import { fitField } from "../lib/autogrow";
 import { useCopy } from "../lib/copy";
 import { EDIT_LEAVE_WARNING, registerLeaveGuard } from "../lib/leave";
@@ -40,6 +40,8 @@ const WHY: Record<ChatNoAnswer, string> = {
   urgent: "",
   safety: "",
   decision: "",
+  // M5: a question back, with its choices (`Clarify`): nothing to say here
+  clarify: "",
   too_long: `This is too long for a search (${MAX_CHAT_CHARS} characters at most). Choose Check references or Idea Check, or write a shorter question.`,
 };
 
@@ -56,6 +58,31 @@ const OFFER: Record<Exclude<RouteMode, "search">, { text: string; open: string }
   idea: { text: "This looks like an idea to test against the literature. Idea Check starts only when you ask for it, and searches only after you have seen and approved the search plan.", open: "Open the Idea Check page" },
   paper: { text: "This looks like a question about one of your own papers.", open: `Open ${PAPERS_NAME}` },
 };
+/** M5: the literature scan has no mode of the box; the Understand step offers it as a card of its own (never started). */
+const LITSCAN_OFFER = { text: "This looks like a request for a literature review. The literature scan writes one, with an evidence table, after you approve its plan.", open: "Open Literature scan" };
+
+/**
+ * M5: one question back instead of a guess (the Understand step's `clarify`): the question, its 2 or 3 choices and "Search anyway". A choice sends the message again with the choice beside it (in Auto, so the step
+ * reads both); "Search anyway" searches the words as written. Only on a finished reply.
+ */
+function Clarify({ msg, text, onRetry }: { msg: AssistantMsg; text: string; onRetry: (id: string, as?: "search" | "anyway") => void }) {
+  const c = msg.clarify;
+  if (!c || msg.status !== "done" || msg.reason !== "clarify") return null;
+  const question = text.replace(/\s+/g, " ").trim();
+  return (
+    <div className="chat-clarify" role="group" aria-label="A question before searching">
+      <p className="chat-clarify-q" {...textAttrs(c.question)}>{c.question}</p>
+      <span className="chat-clarify-choices">
+        {c.choices.map((choice) => (
+          <button key={choice} type="button" className="chat-chip chat-clarify-chip" onClick={() => sendMessage(`${question} (${choice})`.slice(0, 600), "auto", msg.scope ?? "all")} {...textAttrs(choice)}>
+            {choice}
+          </button>
+        ))}
+        <button type="button" className="link-btn" onClick={() => onRetry(msg.id, "search")}>Search anyway</button>
+      </span>
+    </div>
+  );
+}
 
 /** After this long without a single event from the server (the model can think for 9 to 12 s before its first word), the reply says it is still working. A test can shorten it with sessionStorage "scholar.quiet.ms". */
 const quietMs = () => {
@@ -305,6 +332,14 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
   const line =
     msg.how === "chosen" ? (
       <>Searching papers, as you chose.</>
+    ) : msg.fallback ? (
+      // M5: the Understand step could not be used, so the rules decided
+      <>I could not understand this well, so I searched for papers.</>
+    ) : msg.statusLine ? (
+      // M5: what the Understand step understood, in its own words (checked on the server: no citation, no link)
+      <>
+        I understood: <b {...textAttrs(msg.statusLine, true)}>{msg.statusLine}</b>.
+      </>
     ) : msg.how === "fallback" ? (
       <>{msg.reason === "too_long" ? "I was not sure what to do with this." : "I was not sure what you wanted, so I searched for papers."}</>
     ) : (
@@ -324,6 +359,12 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
         <p className="chat-und">
           {line}{" "}
           <ChangeMenu msg={msg} text={text} working={working} onChange={onChange} />
+        </p>
+      )}
+      {/* M5: a reading the step was only fairly sure of (or one the rules made because it could not): the design's question, prominently, with Change. With the Thinking block, it is a line of the block. */}
+      {!thinking && msg.confirm && !working && (
+        <p className="chat-und chat-confirm" role="note">
+          <b>Did you want this?</b> <ChangeMenu msg={msg} text={text} working={working} onChange={onChange} />
         </p>
       )}
       {unfinished && (
@@ -474,7 +515,7 @@ const PaperList = memo(function PaperList({ msgId, papers, flashN, working }: { 
  * A finished search that found no paper (not a greeting, not another tool's offer, not a message that was too long, and not one whose year filter took every paper away: that has its own way out, the chip with
  * the X). It says so. (It used to offer the Try chips as well: example searches have no place in a conversation, which the person is in the middle of; the empty Home offers them.)
  */
-const noPapers = (m: AssistantMsg): boolean => m.status === "done" && m.mode === "search" && m.papers.length === 0 && m.reason !== "small_talk" && m.reason !== "routed" && m.reason !== "too_long" && m.reason !== "urgent" && m.reason !== "safety" && !m.notices.some((n) => n.kind === "years");
+const noPapers = (m: AssistantMsg): boolean => m.status === "done" && m.mode === "search" && m.papers.length === 0 && m.reason !== "small_talk" && m.reason !== "routed" && m.reason !== "clarify" && m.reason !== "too_long" && m.reason !== "urgent" && m.reason !== "safety" && !m.notices.some((n) => n.kind === "years");
 /**
  * No answer was tried because the message could not be read (the notice kind "weak", docs/design/intent-and-state.md, 4.6) or because no paper matched its words closely (4.9): the notice says why, in its own words,
  * and the general line for the reason "not_answered" ("the papers found do not seem to answer this") is not drawn beside it, since nobody checked the papers. When the writer DID read the papers and said they do not
@@ -491,12 +532,14 @@ const REPLY_IN = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }
  * being written, 1.8 to 2.4 s while a reply was; now 60 ms and 150 to 230 ms: e2e/chat-perf.mjs).
  * `flashN` is the number of this reply's paper that is being pointed at (0 for none).
  */
-const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN, onCite, onRetry, onChange, onRefine, onOpenPage, onDelete }: { msg: AssistantMsg; text: string; signedIn: boolean; flashN: number; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onDelete: () => void }) {
+const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN, onCite, onRetry, onChange, onRefine, onOpenPage, onDelete }: { msg: AssistantMsg; text: string; signedIn: boolean; flashN: number; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea" | "litscan", text: string) => void; onDelete: () => void }) {
   const working = msg.status === "working";
   const byN = (n: number) => msg.papers[n - 1];
   const answer = msg.answer?.grounded ? msg.answer : null;
   const titleOf = (n: number) => byN(n)?.title ?? `paper ${n}`;
   const routed = msg.status === "done" && msg.reason === "routed" && msg.mode !== "search";
+  // M5: the literature scan offered by the Understand step (a search-mode reply that ends "routed" with `offer`)
+  const litscan = msg.status === "done" && msg.reason === "routed" && msg.offer === "litscan";
   const reserved = working && signedIn && msg.mode === "search" && !msg.live && !answer && (msg.step === "read" || msg.step === "write");
   const lane = isLaneReply(msg);
   const quiet = useQuiet(msg);
@@ -514,7 +557,7 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
   const was = useRef(working);
   useEffect(() => {
     // (the safety lane's card has an announcement of its own, below)
-    if (was.current && !working && !isLaneReply(msg)) announce(msg.status === "done" ? (msg.reason === "small_talk" ? "Reply ready." : routed ? "Understood. A tool can be opened." : msg.papers.length === 0 ? (noPapers(msg) ? "No papers were found. You can change the words and search again." : "No papers were found.") : `${answer ? "Answer ready" : "Papers ready"}, ${msg.papers.length} ${msg.papers.length === 1 ? "paper" : "papers"}.`) : msg.status === "stopped" ? "Stopped." : msg.error ?? "This answer was interrupted.");
+    if (was.current && !working && !isLaneReply(msg)) announce(msg.status === "done" ? (msg.reason === "small_talk" ? "Reply ready." : msg.reason === "clarify" ? "A question for you before searching." : routed || litscan ? "Understood. A tool can be opened." : msg.papers.length === 0 ? (noPapers(msg) ? "No papers were found. You can change the words and search again." : "No papers were found.") : `${answer ? "Answer ready" : "Papers ready"}, ${msg.papers.length} ${msg.papers.length === 1 ? "paper" : "papers"}.`) : msg.status === "stopped" ? "Stopped." : msg.error ?? "This answer was interrupted.");
     was.current = working;
   }, [working]); // eslint-disable-line react-hooks/exhaustive-deps
   // The safety lane's card says its first sentence, once, and keeps it in the line for a long while (a person reading in distress is not reading the line at a glance). It is the reply that most needs to be
@@ -557,6 +600,18 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
       {msg.understood !== false && msg.reason !== "small_talk" && !lane && <Understood msg={msg} text={text} working={working} onChange={onChange} onExact={() => onRetry(msg.id, "search")} onWords={(words) => void retryReply(msg.id, "search", words)} />}
 
       <SafetyLines msg={msg} />
+      <Clarify msg={msg} text={text} onRetry={onRetry} />
+      {litscan && (
+        <div className="chat-offer" role="group" aria-label="Open the tool">
+          <p>{LITSCAN_OFFER.text}</p>
+          <span className="chat-offer-actions">
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => onOpenPage("litscan", text)}>
+              <span>{LITSCAN_OFFER.open}</span>
+              <ArrowRight size={15} aria-hidden="true" />
+            </button>
+          </span>
+        </div>
+      )}
 
       {routed && msg.mode !== "search" && (
         <div className="chat-offer" role="group" aria-label="Open the tool">
@@ -623,7 +678,7 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
         </m.div>
       ) : null}
 
-      {!working && !answer && msg.status === "done" && msg.reason && msg.reason !== "routed" && msg.reason !== "small_talk" && msg.reason !== "urgent" && msg.reason !== "safety" && msg.reason !== "decision" && !saidByNotice(msg) && (
+      {!working && !answer && msg.status === "done" && msg.reason && msg.reason !== "routed" && msg.reason !== "small_talk" && msg.reason !== "clarify" && msg.reason !== "urgent" && msg.reason !== "safety" && msg.reason !== "decision" && !saidByNotice(msg) && (
         <p className="chat-why" role="note">
           {msg.reason === "sign_in" ? (
             <span className="chat-why-row">
@@ -657,7 +712,7 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
       )}
 
       {/* a finished search has its own row of actions (not a greeting, and not the offer of another tool, which has its own buttons) */}
-      {msg.status === "done" && !routed && msg.reason !== "small_talk" && msg.reason !== "too_long" && !lane && <ReplyActions msg={msg} onRetry={onRetry} />}
+      {msg.status === "done" && !routed && !litscan && msg.reason !== "small_talk" && msg.reason !== "clarify" && msg.reason !== "too_long" && !lane && <ReplyActions msg={msg} onRetry={onRetry} />}
 
       {msg.notices.filter((n) => !isSafetyKind(n.kind) && n.kind !== "unfinished").map((n) => (
         <p key={n.kind} className="chat-note" data-kind={n.kind} role="note">
@@ -1002,7 +1057,7 @@ function JumpToLatest({ slot, end }: { slot: HTMLElement; end: RefObject<HTMLEle
   );
 }
 
-export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onRefine, onOpenPage, onIdeaAgain, onDelete, jumpSlot = null, topicPending = false }: { messages: ChatMsg[]; signedIn: boolean; liveIdeas: ReadonlySet<string>; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea", text: string) => void; onIdeaAgain: (id: string) => void; onDelete: () => void; /** the anchor on the box's top edge that the arrow to the latest message is drawn into (the page makes it) */ jumpSlot?: HTMLElement | null; /** "New topic" was pressed and the next message is not sent yet: the line where the topic changes is at the end */ topicPending?: boolean }) {
+export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onRefine, onOpenPage, onIdeaAgain, onDelete, jumpSlot = null, topicPending = false }: { messages: ChatMsg[]; signedIn: boolean; liveIdeas: ReadonlySet<string>; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea" | "litscan", text: string) => void; onIdeaAgain: (id: string) => void; onDelete: () => void; /** the anchor on the box's top edge that the arrow to the latest message is drawn into (the page makes it) */ jumpSlot?: HTMLElement | null; /** "New topic" was pressed and the next message is not sent yet: the line where the topic changes is at the end */ topicPending?: boolean }) {
   const [flash, setFlash] = useState<{ msgId: string; n: number } | null>(null);
   const list = useRef<HTMLOListElement>(null);
   const end = useRef<HTMLDivElement>(null);
@@ -1033,7 +1088,7 @@ export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onR
   const retry = useCallback((id: string, as?: "search" | "anyway") => parent.current.onRetry(id, as), []);
   const change = useCallback<ChangeTool>((to, id, text) => parent.current.onChange(to, id, text), []);
   const refine = useCallback((text: string) => parent.current.onRefine(text), []);
-  const openPage = useCallback((to: "idea", text: string) => parent.current.onOpenPage(to, text), []);
+  const openPage = useCallback((to: "idea" | "litscan", text: string) => parent.current.onOpenPage(to, text), []);
   const edit = useCallback((id: string) => setEditing(id), []);
   const closeEditor = useCallback(() => setEditing(null), []);
   const edited = useCallback((id: string) => {

@@ -260,7 +260,7 @@ function ChatMenu({ topic, onPrivate, onTopic }: { /** "New topic" can be presse
  * The home screen: one prompt box. With Auto the router chooses the tool from what you write; with the menu or the pills you choose it yourself.
  * A search is answered in this screen (the conversation below the box); the other tools open on their own page with your text.
  */
-export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPaper, inputRef }: { query: string; onQuery: (v: string) => void; /** what belongs to the text in the box besides the text (the Trending chip's year filter, the words it replaced): kept by the page above, next to `query`, so that both outlive this screen */ kept: Draft; setDraft: Dispatch<SetStateAction<Draft>>; onOpenTool: (t: "verify" | "idea" | "papers") => void; onOpenPaper: (id: string) => void; inputRef: RefObject<HTMLTextAreaElement | null> }) {
+export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPaper, inputRef }: { query: string; onQuery: (v: string) => void; /** what belongs to the text in the box besides the text (the Trending chip's year filter, the words it replaced): kept by the page above, next to `query`, so that both outlive this screen */ kept: Draft; setDraft: Dispatch<SetStateAction<Draft>>; onOpenTool: (t: "verify" | "idea" | "papers" | "litscan") => void; onOpenPaper: (id: string) => void; inputRef: RefObject<HTMLTextAreaElement | null> }) {
   const { user, status } = useAuth();
   const docs = useDocs();
   const saved = useLibrary().length;
@@ -375,7 +375,9 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
     onOpenTool(to);
   };
   /** The same text on the tool's own page (the offer card's second button). */
-  const openPage = (to: "idea", text: string) => {
+  const openPage = (to: "idea" | "litscan", text: string) => {
+    // M5: the literature scan opens on its own page (its topic is written there: it has no hand-off)
+    if (to === "litscan") return onOpenTool("litscan");
     putHandoff(to, text);
     onOpenTool(to);
   };

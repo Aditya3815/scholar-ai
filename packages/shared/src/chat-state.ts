@@ -1,5 +1,5 @@
 import type { Paper, SearchScope } from "./index";
-import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatRequestMode, type ChatStep, type GeneralKind, type NoticeKind, type TightenRequest, type TightenResponse } from "./chat";
+import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatRequestMode, type ChatStep, type GeneralKind, type NoticeKind, type TightenRequest, type TightenResponse, type UnderstoodByModel } from "./chat";
 import { MAX_FILTER_YEAR, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MIN_FILTER_YEAR, MIN_SINCE_YEAR, type ChatContextInfo, type HistoryEntry, type HistoryPaper } from "./chat-context";
 import { MAX_AUTO_CHARS, type Lang, type RouteHow } from "./route";
 import { abstractRead } from "./sentences";
@@ -75,7 +75,7 @@ export type AssistantMsg = {
   /** The lines of the Thinking block (M2: `think` events, only while the server's CHAT_THINK is on); absent for a reply that had none, and in replies kept before it existed. Kept with the reply. */
   think?: ThinkLine[];
   at: number;
-};
+} & UnderstoodByModel;
 /**
  * An Idea Check started in the conversation (W5). Only the idea's text is kept: the plan, the papers and the report are not (nothing about an idea is stored), so a conversation
  * opened later shows this as "run it again". The workspace itself lives in the page while the conversation is open.
@@ -97,12 +97,36 @@ export const startAssistant = (id: string, query: string, at: number, auto = fal
 /** A year a request may carry as `sinceYear`: a whole number from 1990 (what the server reads) to 2100 (the server also holds it to this year, by its own clock: the page's chips are held to the device's). Anything else is not sent. */
 export const isSinceYear = (y: unknown): y is number => typeof y === "number" && Number.isInteger(y) && y >= MIN_SINCE_YEAR && y <= MAX_FILTER_YEAR;
 
+const UND_INTENTS = new Set(["chat", "search", "refine_search", "ask_results", "ask_paper", "offer_tool", "clarify"]);
+/**
+ * The Understand step's fields of an `understood` event, as a reply keeps them: defensive about what came off the wire (a field of the wrong shape is dropped, never repaired), and nothing at all for an event
+ * that has none.
+ */
+export function understoodByModel(e: Partial<UnderstoodByModel>): UnderstoodByModel {
+  const out: UnderstoodByModel = {};
+  if (typeof e.intent === "string" && UND_INTENTS.has(e.intent)) out.intent = e.intent;
+  if (typeof e.statusLine === "string" && e.statusLine.trim()) out.statusLine = oneLine(e.statusLine).slice(0, 200);
+  if (e.confirm === true) out.confirm = true;
+  if (e.fallback === true) out.fallback = true;
+  const c = e.clarify;
+  if (c && typeof c === "object" && typeof c.question === "string" && Array.isArray(c.choices)) {
+    const choices = c.choices.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => oneLine(x).slice(0, 80)).slice(0, 3);
+    if (c.question.trim() && choices.length >= 2) out.clarify = { question: oneLine(c.question).slice(0, 200), choices };
+  }
+  if (e.offer === "litscan") out.offer = "litscan";
+  return out;
+}
+
 /** One event applied to a reply. Pure: the same events always give the same reply. Events that arrive after the reply has ended are ignored. */
 export function applyChatEvent(m: AssistantMsg, e: ChatEvent): AssistantMsg {
   if (m.status !== "working") return m;
   switch (e.type) {
     case "understood":
-      return { ...m, understood: true, query: e.query, mode: e.mode, language: e.language, auto: e.auto, how: e.how, confidence: e.confidence, searchQuery: e.searchQuery, ...(e.context ? { context: e.context } : {}), ...(e.reading ? { reading: e.reading } : {}) };
+      return {
+        ...m, understood: true, query: e.query, mode: e.mode, language: e.language, auto: e.auto, how: e.how, confidence: e.confidence, searchQuery: e.searchQuery, ...(e.context ? { context: e.context } : {}), ...(e.reading ? { reading: e.reading } : {}),
+        // M5: what the Understand step said, only when it decided (each field is absent otherwise, so a reply the rules decided is what it always was)
+        ...understoodByModel(e),
+      };
     case "step": {
       const at = STEP_ORDER.indexOf(e.step);
       // "route" is only a step when the router really had to look (a message sent to Auto that the rules could not settle)
@@ -603,7 +627,7 @@ export function contextBefore(msgs: readonly ChatMsg[], upTo: number): HistoryEn
  * person who is signed in (`signedIn`, required so that no caller can forget it): the server ignores the turns for anybody else, but they would still have left the device, and the privacy page says earlier
  * questions are sent "when you are signed in".
  */
-export function chatRequestBody(o: { mode: ChatRequestMode; message: string; scope?: SearchScope; anyway?: boolean; history?: readonly HistoryEntry[]; sinceYear?: number | null; signedIn: boolean }): Record<string, unknown> {
+export function chatRequestBody(o: { mode: ChatRequestMode; message: string; scope?: SearchScope; anyway?: boolean; history?: readonly HistoryEntry[]; sinceYear?: number | null; signedIn: boolean; ledger?: readonly unknown[] }): Record<string, unknown> {
   const auto = o.mode === "auto" && !o.anyway && o.signedIn;
   return {
     mode: o.mode,
@@ -613,6 +637,9 @@ export function chatRequestBody(o: { mode: ChatRequestMode; message: string; sco
     ...(auto && o.history && o.history.length > 0 ? { history: o.history } : {}),
     // `sinceYear` (a Trending chip's "From 2025 on") is last, for everybody and in both tools, but never with "anyway", and only when the server would read it: a request without it is what it was
     ...(!o.anyway && isSinceYear(o.sinceYear) ? { sinceYear: o.sinceYear } : {}),
+    // M4 (design PDF, "Follow-ups: sirf usi chat se"): the turn ledger of THIS chat, only in Auto (never with "anyway"), and only when the caller was told by the server that the Understand step reads it
+    // (GET /api/v1/chat/config, `ledger`); a caller that was not told passes none, and the body is what it was
+    ...(o.mode === "auto" && !o.anyway && o.ledger && o.ledger.length > 0 ? { ledger: o.ledger } : {}),
   };
 }
 

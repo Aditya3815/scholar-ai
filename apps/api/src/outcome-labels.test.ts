@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { outcomeTotal } from "@scholar/shared";
 import { FLOOR_OUTCOMES, FOLLOW_UP_OUTCOMES, OUTCOME_FEATURES, UNREAD_OUTCOMES } from "./outcomes";
 import { INPUT_SHAPE_NAMES, SUBJECT_NAMES } from "./understand/input-shape";
+import { UNDERSTAND_COUNTER_NAMES } from "./understand/understand-counters";
 
 /**
  * /admin tells the owner what the counts are (apps/web/src/components/admin/AdminOps.tsx). The page is a React file this workspace does not render, so this reads it as source, as legal-text.test.ts
@@ -31,6 +32,7 @@ function table(name: string): Record<string, string> {
 const OUTCOME_TEXT = table("OUTCOME_TEXT");
 const INPUT_TEXT = table("INPUT_TEXT");
 const FEATURE_NAME = table("FEATURE_NAME");
+const UNDERSTAND_TEXT = table("UNDERSTAND_TEXT");
 
 const plainly = (label: string) => {
   expect(label.trim(), label).toBe(label);
@@ -87,7 +89,18 @@ describe("the labels of /admin", () => {
   });
 
   it("the page reads the labels of the shape of messages from their own table, so that a name of one feature can never take the words of another's", () => {
-    expect(SOURCE).toMatch(/f === "chat_input" \? INPUT_TEXT : OUTCOME_TEXT/);
+    expect(SOURCE).toMatch(/f === "chat_input" \? INPUT_TEXT : f === "chat_understand" \? UNDERSTAND_TEXT : OUTCOME_TEXT/);
+  });
+
+  it("M4/M5: every counter name of the Understand step has one plain label of its own, there is none for a name the list does not have, and the share of the step is of the messages it read", () => {
+    for (const name of UNDERSTAND_COUNTER_NAMES) {
+      expect(UNDERSTAND_TEXT[name], `no label for ${name}`).toBeTypeOf("string");
+      plainly(UNDERSTAND_TEXT[name]!);
+    }
+    expect(Object.keys(UNDERSTAND_TEXT).sort()).toEqual([...UNDERSTAND_COUNTER_NAMES].sort());
+    expect(new Set(Object.values(UNDERSTAND_TEXT)).size).toBe(UNDERSTAND_COUNTER_NAMES.length);
+    expect(outcomeTotal("chat_understand", [{ outcome: "und_turn", n: 40 }, { outcome: "und_src_model", n: 30 }, { outcome: "und_agree", n: 25 }])).toBe(40);
+    expect(OUTCOME_TEXT.clarify).toMatch(/one question back/);
   });
 });
 

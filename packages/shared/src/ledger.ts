@@ -42,6 +42,8 @@ const isLane = (a: AssistantMsg): boolean => a.reason === "urgent" || a.reason =
 
 /** What the server said a reply was, read as an intent of the ledger (no model: these are the fields the reply already has). */
 export function intentOf(a: AssistantMsg): LedgerIntent {
+  // M5: when the Understand step decided, the server said which intent acted (`understood.intent`): that is the turn's intent
+  if (typeof a.intent === "string" && (LEDGER_INTENTS as readonly string[]).includes(a.intent)) return a.intent;
   if (a.reason === "small_talk") return "chat";
   if (a.mode === "paper") return "ask_paper";
   if (a.mode !== "search") return "offer_tool";

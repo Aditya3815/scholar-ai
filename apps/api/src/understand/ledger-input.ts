@@ -21,6 +21,11 @@ export type LedgerTurn = {
   reply: string | null;
   /** The numbered top papers of a search turn (at most 10); empty for other turns. */
   papers: LedgerPaper[];
+  /**
+   * An older turn as the browser sends it once the six latest are sent whole (`ledgerForSend` in packages/shared: only `turn` and `standalone`). It has no words of the person's and no reply here (`user` is
+   * empty, `reply` null) and the model is shown only its standalone question.
+   */
+  short?: true;
 };
 
 export const LEDGER_MAX_TURNS_SENT = 40;
@@ -36,6 +41,8 @@ export const LEDGER_AUTHOR_CHARS = 60;
 export const LEDGER_MAX_CHARS = 12_000;
 
 const OPENALEX_ID = /^W\d{1,12}$/;
+/** A paper id as the search makes it (search/merge.ts: `doi:`, `pmid:` or `t:` and a key). Only an id: it is never shown, and a paper is resolved again by its DOI before it is used. */
+const SEARCH_ID = /^(?:doi:10\.\d{4,9}\/[^\s"<>]{1,200}|pmid:\d{1,12}|t:[\p{L}\p{N} _.:-]{1,200})$/u;
 const DOI = /^10\.\d{4,9}\/[^\s"<>]{1,200}$/;
 
 export type LedgerRead = { ok: true; turns: LedgerTurn[] } | { ok: false; detail: string };
@@ -50,7 +57,7 @@ function readPaper(v: unknown): LedgerPaper | string {
   if (!title) return "a paper has no title";
   let id: string | null = null;
   if (p.id !== undefined && p.id !== null) {
-    if (typeof p.id !== "string" || !OPENALEX_ID.test(p.id)) return "a paper id is not an OpenAlex work id";
+    if (typeof p.id !== "string" || !(OPENALEX_ID.test(p.id) || SEARCH_ID.test(p.id))) return "a paper id is not one the search makes";
     id = p.id;
   }
   let doi: string | null = null;
@@ -82,6 +89,13 @@ export function readLedger(raw: unknown): LedgerRead {
     const t = v as Record<string, unknown>;
     if (typeof t.turn !== "number" || !Number.isInteger(t.turn) || t.turn <= last || t.turn > 10_000) return { ok: false, detail: "turn numbers do not rise" };
     last = t.turn;
+    // an older turn, sent as its standalone question only: nothing else may be in it
+    if (t.user === undefined && t.reply === undefined && t.papers === undefined && t.intent === undefined) {
+      const standalone = str(t.standalone, LEDGER_STANDALONE_CHARS);
+      if (!standalone) return { ok: false, detail: "an older turn has no standalone question" };
+      turns.push({ turn: t.turn, user: "", intent: null, standalone, reply: null, papers: [], short: true });
+      continue;
+    }
     const user = str(t.user, LEDGER_USER_CHARS);
     if (user === null) return { ok: false, detail: "a turn has no message" };
     let intent: UnderstandIntent | null = null;
@@ -121,7 +135,7 @@ export type LedgerView = { turn: LedgerTurn; full: boolean };
  */
 export function capLedger(turns: readonly LedgerTurn[], options: { visitor?: boolean } = {}): LedgerView[] {
   const kept = options.visitor ? turns.slice(-LEDGER_VISITOR_TURNS) : turns.slice();
-  const views: LedgerView[] = kept.map((turn, i) => ({ turn, full: i >= kept.length - LEDGER_FULL_TURNS }));
+  const views: LedgerView[] = kept.map((turn, i) => ({ turn, full: !turn.short && i >= kept.length - LEDGER_FULL_TURNS }));
   // an older turn with no standalone question has nothing to show
   const shown = views.filter((v) => v.full || v.turn.standalone);
   while (shown.length > 1 && renderLedger(shown).length > LEDGER_MAX_CHARS) shown.shift();

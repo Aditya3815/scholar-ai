@@ -53,7 +53,7 @@ test("the numbers the plan counts with are the ones in the product's code", () =
   assert.ok(query.includes(`export const MAX_VARIANTS = ${MAX_VARIANTS};`));
   // the request sites of each source
   const sites = (file, re) => (src(`search/${file}`).match(re) ?? []).length;
-  assert.equal(sites("openalex.ts", /await fetch\(`https:\/\/api\.openalex\.org\/works/g), 3, "openalex.ts: the regular search is one of three sites (the others are Idea Check's)");
+  assert.equal(sites("openalex.ts", /await fetch\(`https:\/\/api\.openalex\.org\/works/g), 4, "openalex.ts: the regular search is one of four sites (two are Idea Check's; one looks papers up by DOI for the Understand step's questions about earlier papers, M5, outside the regular search)");
   assert.equal(sites("s2.ts", /return fetch\(url/g), 1);
   assert.equal(sites("crossref.ts", /crossrefFetch\(fetch/g), 1);
   assert.equal(sites("pubmed.ts", /await fetch\(/g), 2, "PubMed: esearch, then esummary");
@@ -71,7 +71,7 @@ test("the price, the Semantic Scholar pace and the message limit are read from w
   assert.equal(OPENALEX_DAY_CALLS, 10_000);
   const routes = src("chat/routes.ts");
   assert.ok(routes.includes(String.raw`text.replace(/\s+/g, " ")`), "the chat route no longer sends the message with its spaces collapsed");
-  assert.ok(routes.includes("if (query.length > 300) return void (await done(false, \"too_long\"));"), "the chat route's limit changed");
+  assert.ok(routes.includes("if (query.length > 300 && !preset) return void (await done(false, \"too_long\"));"), "the chat route's limit changed");
 });
 
 test("the budget page names every scheduled workflow that holds the OpenAlex key, and counts the Trending daily file for both of its lists", () => {
