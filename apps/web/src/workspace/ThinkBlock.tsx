@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { textAttrs, thinkSummary, type AssistantMsg, type ChatStep, type ThinkLine } from "@scholar/shared";
-import { announce } from "./announcer";
+import { announce, forget } from "./announcer";
 import "../styles/think.css";
 
 /**
@@ -13,6 +13,8 @@ import "../styles/think.css";
  * - A screen reader hears the stage when it changes, once (the conversation's one polite status line), never each line.
  */
 const STAGES: Partial<Record<ChatStep, string>> = { route: "Understanding", search: "Searching", read: "Reading the papers", write: "Writing", check: "Checking each claim", general: "Writing background" };
+/** The key of the stage words in the conversation's status line: a newer stage replaces one that still waits. */
+const STAGE_KEY = "think-stage";
 const ORDER: ChatStep[] = ["route", "search", "read", "write", "check", "general"];
 
 function ThinkBar({ msg }: { msg: AssistantMsg }) {
@@ -36,6 +38,8 @@ export function ThinkBlock({ msg, working, actions }: { msg: AssistantMsg; worki
   const was = useRef(working);
   useEffect(() => {
     if (!was.current && working) setChosen(null);
+    // a reply that finished: its stage words that still wait are not said (the reply's own "Answer ready" follows)
+    if (was.current && !working) forget(STAGE_KEY);
     was.current = working;
   }, [working]);
   // the stage, said once when it changes (not each line)
@@ -44,7 +48,7 @@ export function ThinkBlock({ msg, working, actions }: { msg: AssistantMsg; worki
     if (!working || !msg.step || said.current === msg.step) return;
     said.current = msg.step;
     const words = STAGES[msg.step];
-    if (words) announce(`${words}…`);
+    if (words) announce(`${words}…`, 4000, STAGE_KEY);
   }, [working, msg.step]);
   if (lines.length === 0) return null;
   const head = working ? "Thinking" : thinkSummary({ tookMs: msg.tookMs, lines, papers: msg.papers.length });
