@@ -327,10 +327,13 @@ describe("on: each intent", () => {
     const r = await run(auto("ab diffusion models for MRI"), { env: ON });
     expect(r.outcomes).toEqual(expect.arrayContaining(["chat_understand:und_turn", "chat_understand:und_src_model", "chat_understand:und_int_search"]));
   });
-  it("every stream of the position is well formed", async () => {
-    for (const body of [auto("HY"), auto("ab diffusion models for MRI"), auto("dusre paper ka dataset kya hai?", { ledger: LEDGER }), auto("undclarify x y"), auto("undtimeout glaucoma")]) {
+  it("every stream of the position is well formed, and every Thinking line in it is honest", async () => {
+    for (const body of [auto("HY"), auto("ab diffusion models for MRI"), auto("dusre paper ka dataset kya hai?", { ledger: LEDGER }), auto("sirf 2020 ke baad", { ledger: LEDGER }), auto("undclarify x y"), auto("undtimeout glaucoma"), auto("undunsure glaucoma"), auto("mujhe e-waste par literature review chahiye")]) {
       const r = await run(body, { env: ON_THINK });
       expect(streamShapeProblems("chat", r.ev), JSON.stringify(body)).toEqual([]);
+      // the Thinking block's lines stay honest with the step deciding: every number a line states is one of its counts (the step's own words are inside “ ” quotes)
+      for (const l of r.think) expect(thinkIsHonest(l), `${JSON.stringify(body)}: ${l.text}`).toBe(true);
+      expect(r.think.length, JSON.stringify(body)).toBeGreaterThan(0);
     }
   });
 });
