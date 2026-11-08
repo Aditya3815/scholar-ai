@@ -31,9 +31,9 @@ delete cfg.routes;
 delete cfg.workers_dev;
 // The committed launch state "TRENDING": "off" (wrangler.jsonc) hides the Home page's list from the route; the suites read the list, so the copy has no such line. INTEGRATION_TRENDING=dark or =off puts one back (below).
 if (cfg.vars) delete cfg.vars.TRENDING;
-// The MCP server (src/mcp) needs a KV namespace of its own, which production does not have until the owner creates it (wrangler.jsonc): the test copy gets a local one, and the switch on
+// The MCP server (src/mcp) needs a KV namespace of its own (OAUTH_KV in wrangler.jsonc): the test copy swaps in a local one, never the real namespace's id, and the switch on
 // (INTEGRATION_MCP=off leaves it off, to see the paths answer 404 as before), so that scripts/mcp-e2e.mjs can go through the whole OAuth and MCP exchange.
-cfg.kv_namespaces = [...(cfg.kv_namespaces ?? []), { binding: "OAUTH_KV", id: "oauth-kv-local" }];
+cfg.kv_namespaces = [...(cfg.kv_namespaces ?? []).filter((k) => k.binding !== "OAUTH_KV"), { binding: "OAUTH_KV", id: "oauth-kv-local" }];
 // Keep the limiter bindings (so their wiring is exercised) but make them effectively unlimited: every request from the test
 // clients shares one IP, and the suites send far more than the production per-IP budget.
 for (const r of cfg.ratelimits ?? []) r.simple.limit = 1_000_000;

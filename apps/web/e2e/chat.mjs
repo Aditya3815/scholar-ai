@@ -823,7 +823,7 @@ try {
     await focusOnReply(C, 3);
     await turnDone(3);
     ok(posted.length === 1 && posted[0].body.mode === "search" && posted[0].body.message === standalone && Object.keys(posted[0].body).join() === "mode,message" && /children/.test(standalone), "it searches the question the reply says it was read as (the person's own 'and in children?' means nothing alone), and sends no history");
-    ok(await turnN(3).locator(".chat-ctx").count() === 0 && new RegExp("I searched for:\\s*" + standalone.replace(/[?]/g, "\\?")).test(await searchedFor(turnN(3))), "and the reply says what it searched");
+    ok(await turnN(3).locator(".chat-ctx").count() === 0 && new RegExp("I searched for:\\s*" + standalone.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(await searchedFor(turnN(3))), "and the reply says what it searched");
 
     console.log("  a search chosen by hand sends no history, even in a chat that has some");
     posted.length = 0;

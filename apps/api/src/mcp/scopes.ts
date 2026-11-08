@@ -23,7 +23,13 @@ export const DEFAULT_SCOPES: readonly Scope[] = ["papers:read", "references:veri
 export type McpProps = { userId: string; client: string };
 
 /** The public address of this deployment: PUBLIC_BASE_URL when set (production: https://sodhsetu.in), otherwise the address the request came to (a local run). */
-export const baseUrlOf = (env: { PUBLIC_BASE_URL?: string }, request: Request): string => (env.PUBLIC_BASE_URL ?? new URL(request.url).origin).replace(/\/+$/, "");
+export const baseUrlOf = (env: { PUBLIC_BASE_URL?: string }, request: Request): string => {
+  const base = env.PUBLIC_BASE_URL ?? new URL(request.url).origin;
+  // Trailing slashes are cut by a loop, not a regex: /\/+$/ is slow on a long run of '/' (CodeQL js/polynomial-redos).
+  let end = base.length;
+  while (end > 0 && base.charCodeAt(end - 1) === 47) end--;
+  return base.slice(0, end);
+};
 
 /** The scopes to grant: what was asked for and can be granted; Phase 1's two (DEFAULT_SCOPES) when the app named none. */
 export function grantedScopes(requested: string[]): Scope[] {

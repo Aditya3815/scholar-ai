@@ -15,7 +15,7 @@ tied to a sentence of a paper. This page says how the system is built. What each
    |-- D1  scholar-db         accounts, library, papers, notes, scans, counts, jobs
    |-- R2  scholar-files      uploaded PDFs, covers, open-access paper files
    |-- KV  CACHE              public search cache, Trending file, kill switches
-   |-- KV  OAUTH_KV           the MCP server's OAuth clients, grants, tokens (to be created; without it MCP is off)
+   |-- KV  OAUTH_KV           the MCP server's OAuth clients, grants, tokens (bound 9 Nov; MCP is off until its switch)
    |-- Workers AI (AI)        the private model lane (text never leaves Cloudflare)
    |-- Durable Objects        S2_THROTTLE (Semantic Scholar pacing), API_GATE (shared lanes: Crossref, CORE, DOAJ, arXiv)
    |-- Workflows              OA_INGEST (read an open-access paper), LITSCAN (run a literature scan)

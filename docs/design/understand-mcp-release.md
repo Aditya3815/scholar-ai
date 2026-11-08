@@ -121,11 +121,7 @@ Put each sentence you approve on the privacy page under "What we send where", an
 
 ## Step 5. MCP beta
 
-1. Create the OAuth namespace:
-   - `npx wrangler kv namespace create OAUTH_KV`
-   - for staging, the same with `--env staging`
-
-   Add `{ "binding": "OAUTH_KV", "id": "<id>" }` to `kv_namespaces` in `apps/api/wrangler.jsonc`; the comment there marks the place. Without this binding MCP stays off whatever the switch says.
+1. ~~Create the OAuth namespace.~~ **Done on 9 Nov 2026** (production and staging). It is bound as `OAUTH_KV` in `apps/api/wrangler.jsonc` and merged with this branch. The binding alone turns nothing on: MCP stays off until the `MCP` switch is set.
 2. Put the MCP sentence on the page with the next `PRIVACY_VERSION`.
 3. Find your account id at `/api/v1/auth/me` (`user.id`) while signed in. Set `"MCP": "beta"` and `"MCP_BETA_USERS": "<your id>"`, and push.
 4. Try it:
