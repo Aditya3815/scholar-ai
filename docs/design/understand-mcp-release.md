@@ -153,7 +153,3 @@ Put each sentence you approve on the privacy page under "What we send where", an
 - The literature-scan card opens the page empty: the topic is not handed over yet.
 - No real app has tried MCP's own "Save this paper?" question (elicitation); `confirm: true` is the path apps use today.
 - `docs/FEATURES.md` and `docs/ARCHITECTURE.md` on this branch describe M1 to M8. Update them again after each switch goes on.
-- With `CHAT_THINK=on`, the chat browser suite (`e2e/chat.mjs`) stops at its first click on Change. With the block on, the "I
-  understood" line and its Change sit inside the folded Thinking block, by design. The suite is written for the switch off, which
-  is how it runs in CI. Before `CHAT_THINK` is set on for good, either teach it to open the block or let it skip those checks,
-  as it does with `CHAT_UNDERSTAND=on`.
