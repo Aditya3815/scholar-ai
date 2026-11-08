@@ -27,7 +27,7 @@ import { readRequest, type RequestRead } from "../understand/frame";
 import { checkReading } from "../understand/reading-check";
 import { listState, tiererFor, type ListState, type TierCounts, type Tierer } from "../understand/tiers";
 import { fewNotice, noneCloseNotice } from "../understand/tiers-text";
-import { asking as thinkAsking, checked as thinkChecked, confirmLine as thinkConfirm, fellBack as thinkFellBack, found as thinkFound, fromEarlier as thinkFromEarlier, notSure as thinkNotSure, reading as thinkReading, searchCounts, searched as thinkSearched, understoodChat, understoodModel, understoodSearch, understoodTool, writing as thinkWriting } from "./think";
+import { asking as thinkAsking, checked as thinkChecked, chosenSearch as thinkChosen, confirmLine as thinkConfirm, fellBack as thinkFellBack, found as thinkFound, fromEarlier as thinkFromEarlier, notSure as thinkNotSure, reading as thinkReading, searchCounts, searched as thinkSearched, understoodChat, understoodModel, understoodSearch, understoodTool, writing as thinkWriting } from "./think";
 import { understandTurn, type UnderstandDecision } from "../understand/understand";
 import { guards } from "../understand/guards";
 import { greetingKind } from "../understand/greeting";
@@ -657,6 +657,8 @@ chatRoutes.post("/", async (c) => {
       // M5: the rules decided because the model could not be used (or a visitor's free readings of the day are used): said, with Change
       if (und?.source === "fallback") await think(thinkFellBack(route.language, visitorCapped));
       if (u) await think(understoodModel(u.status, route.searchQuery ? ["change", "exact_words"] : ["change"]));
+      // a search chosen by hand: nothing was understood, so no "I understood" line (the page without the block says "Searching papers, as you chose." too)
+      else if (route.how === "chosen") await think(thinkChosen(route.language));
       else await think(understoodSearch(route.language, follow?.rewrote && follow.question ? follow.question : query, route.searchQuery ? ["change", "exact_words"] : ["change"]));
       if (und?.confirm && u) await think(thinkConfirm(route.language));
 

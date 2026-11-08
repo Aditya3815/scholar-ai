@@ -811,9 +811,9 @@
    "name": "search by hand",
    "think": [
     {
-     "id": "understood",
-     "kind": "understood",
-     "text": "you are looking for papers on “glaucoma screening”",
+     "id": "chosen",
+     "kind": "note",
+     "text": "Searching papers, as you chose",
      "actions": [
       "change"
      ]
@@ -876,9 +876,9 @@
    "name": "search by hand, anyway",
    "think": [
     {
-     "id": "understood",
-     "kind": "understood",
-     "text": "you are looking for papers on “hello there friend”",
+     "id": "chosen",
+     "kind": "note",
+     "text": "Searching papers, as you chose",
      "actions": [
       "change"
      ]
@@ -941,9 +941,9 @@
    "name": "search by hand, Indian scope",
    "think": [
     {
-     "id": "understood",
-     "kind": "understood",
-     "text": "you are looking for papers on “glaucoma screening”",
+     "id": "chosen",
+     "kind": "note",
+     "text": "Searching papers, as you chose",
      "actions": [
       "change"
      ]
@@ -1005,9 +1005,9 @@
    "name": "search by hand, nothing found",
    "think": [
     {
-     "id": "understood",
-     "kind": "understood",
-     "text": "you are looking for papers on “nothing about glaucoma”",
+     "id": "chosen",
+     "kind": "note",
+     "text": "Searching papers, as you chose",
      "actions": [
       "change"
      ]
@@ -2533,9 +2533,9 @@
    "name": "safety, self-harm, chosen by hand",
    "think": [
     {
-     "id": "understood",
-     "kind": "understood",
-     "text": "you are looking for papers on “I want to kill myself”",
+     "id": "chosen",
+     "kind": "note",
+     "text": "Searching papers, as you chose",
      "actions": [
       "change"
      ]
@@ -2598,9 +2598,9 @@
    "name": "safety, help me, anyway",
    "think": [
     {
-     "id": "understood",
-     "kind": "understood",
-     "text": "you are looking for papers on “help me”",
+     "id": "chosen",
+     "kind": "note",
+     "text": "Searching papers, as you chose",
      "actions": [
       "change"
      ]
@@ -2837,9 +2837,9 @@
    "name": "clean, the owner's message, chosen by hand",
    "think": [
     {
-     "id": "understood",
-     "kind": "understood",
-     "text": "you are looking for papers on “Can you search about convoluton nueral netwrk all papers”",
+     "id": "chosen",
+     "kind": "note",
+     "text": "Searching papers, as you chose",
      "actions": [
       "change"
      ]

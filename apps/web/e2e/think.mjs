@@ -87,6 +87,16 @@ const SEARCH = [
   { type: "done", answered: true, tookMs: 14200 },
 ];
 const PLAIN = SEARCH.filter((e) => e.type !== "think");
+/** A search chosen by hand (Search papers): nothing was understood, so the block's first line says it was chosen (a note with Change), as the server sends it (src/chat/think.ts, chosenSearch). */
+const CHOSEN = [
+  { type: "understood", mode: "search", query: "glaucoma screening", language: "en", auto: false, how: "chosen", confidence: 1 },
+  T("chosen", "note", "Searching papers, as you chose", null, ["change"]),
+  { type: "step", step: "search" },
+  T("searched", "searched", "Searched for “glaucoma screening”", { queries: 1 }),
+  { type: "papers", results: PAPERS, final: true },
+  T("found", "found", "5 of 5 sources answered with 47 records; duplicates joined, 5 papers listed; 1 retracted, marked", { answered: 5, sources: 5, records: 47, kept: 5, retracted: 1 }),
+  { type: "done", answered: false, reason: "sign_in", tookMs: 1200 },
+];
 const GREETING = [
   { type: "understood", mode: "search", query: "hy", language: "en", auto: true, how: "rules", confidence: 1 },
   T("understood", "understood", "a conversation, so nothing was searched", null, ["change"]),
@@ -210,6 +220,19 @@ try {
     ok(await page.locator(".think-lines li").first().getByRole("button", { name: /Change/ }).count() === 1, "...with Change, so a search can still be asked for");
     ok((await page.locator(".think-head").innerText()).trim().startsWith("Thought for 1 s"), "its folded line has no search and no papers in it");
     for (const theme of ["light", "dark"]) { await setTheme(page, theme); await axe(`1280 ${theme}: a greeting's block`, page); }
+    await ctx.close();
+  }
+
+  console.log("a search chosen by hand: it says it was chosen, never 'I understood', with Change");
+  {
+    const { ctx, page } = await signedIn(1280);
+    await ask(page, "glaucoma screening", CHOSEN);
+    if ((await page.locator(".think-head").getAttribute("aria-expanded")) !== "true") await page.locator(".think-head").click();
+    const first = page.locator(".think-lines li").first();
+    ok(/^Searching papers, as you chose/.test((await first.innerText()).trim()) && await page.locator(".think-label").count() === 0, "the first line says the search was chosen, and no line is labelled 'I understood'");
+    ok(await first.getByRole("button", { name: /Change/ }).count() === 1 && await first.getByRole("button", { name: "Use my exact words" }).count() === 0, "...with Change, as the line without the block has (and no 'Use my exact words': the words are the words written)");
+    ok(await page.locator(".chat-turn").getByText(/Searching papers, as you chose\./).count() === 0, "(the line without the block is not said twice)");
+    for (const theme of ["light", "dark"]) { await setTheme(page, theme); await axe(`1280 ${theme}: a search chosen by hand`, page); }
     await ctx.close();
   }
 

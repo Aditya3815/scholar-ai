@@ -19,6 +19,14 @@ export function understoodSearch(l: Lang, about: string, actions: ThinkAction[])
   const t = { en: `you are looking for papers on ${q(about)}`, hinglish: `aap ${q(about)} par papers dhundh rahe ho`, hi: `आप ${q(about)} पर शोध-पत्र खोज रहे हैं` }[lang(l)];
   return line("understood", "understood", t, undefined, actions);
 }
+/**
+ * A search the person chose by hand (Search papers, "Use my exact words", "Search for these words anyway", a year chip taken off): nothing was understood, the words are searched as written, so the line says
+ * so as the page without the block does ("Searching papers, as you chose."), with no "I understood" label (a note) and with Change, as that line has.
+ */
+export function chosenSearch(l: Lang): ThinkLine | null {
+  const t = { en: "Searching papers, as you chose", hinglish: "Aapke chune hisaab se papers dhundh raha hoon", hi: "आपके चुनने के हिसाब से शोध-पत्र खोज रहा हूँ" }[lang(l)];
+  return line("chosen", "note", t, undefined, ["change"]);
+}
 /** A greeting, thanks or a question about the box: understood as conversation, and so nothing was searched. */
 export function understoodChat(l: Lang): ThinkLine | null {
   const t = { en: "a conversation, so nothing was searched", hinglish: "baat-cheet, isliye search nahi kiya", hi: "बातचीत, इसलिए कुछ नहीं खोजा" }[lang(l)];

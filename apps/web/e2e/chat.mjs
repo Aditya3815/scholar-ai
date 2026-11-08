@@ -40,6 +40,9 @@ const thinkLine = async (scope, kind) => {
 };
 /** What a reply says it searched, as the line reads without the block ("I searched for: <words>"); with CHAT_THINK on it is made from the block's line ("Searched for “<words>”", or its Hindi or Hinglish words). */
 const searchedFor = async (scope, nth = 0) => (THINK ? (await thinkLine(scope, "searched")).replace(/^\s*(?:Searched for|Search kiya:|खोजा:)\s*“([\s\S]*)”\s*$/, "I searched for: $1") : scope.locator(".chat-searched").nth(nth).innerText());
+/** A search chosen by hand says so in the block, in the language of the message, and is never "understood" (src/chat/think.ts, chosenSearch). */
+const CHOSEN_LINE = /^(?:Searching papers, as you chose|Aapke chune hisaab se papers dhundh raha hoon|आपके चुनने के हिसाब से शोध-पत्र खोज रहा हूँ)/;
+const saysChosen = async (scope) => CHOSEN_LINE.test((await thinkLine(scope, "note")).trim()) && (await thinkLine(scope, "understood")) === "";
 const idp = await startFakeIdp(9911);
 idp.setUser({ sub: "chat-ui-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
 const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
@@ -792,7 +795,7 @@ try {
     await turnDone(1);
     ok((await focusedReply(C)) === "Reply" && await C.evaluate(() => document.activeElement !== document.body), "the focus is still on that reply when it is ready (its name has lost 'being written'), and a screen reader hears 'Reply'");
     ok(posted.length === 1 && posted[0].raw === `{"mode":"search","message":"${Q1}"}`, `removing the chip (with the keyboard) searches the words the indexes were asked, as a search chosen by hand, and sends no history (${posted[0]?.raw})`);
-    ok(await t2e.locator(".result").count() === 5 && await t2e.locator(".chat-chip, .chat-ctx").count() === 0 && (THINK ? (await thinkLine(t2e, "understood")).includes(`“${Q1}”`) : /Searching papers, as you chose/.test(await t2e.innerText())) && new RegExp(`I searched for:\\s*${Q1}$`).test(await searchedFor(t2e)), "the list is whole again (five papers), there is no chip, and the reply says what was searched, since it is not what the bubble above says");
+    ok(await t2e.locator(".result").count() === 5 && await t2e.locator(".chat-chip, .chat-ctx").count() === 0 && (THINK ? await saysChosen(t2e) : /Searching papers, as you chose/.test(await t2e.innerText())) && new RegExp(`I searched for:\\s*${Q1}$`).test(await searchedFor(t2e)), "the list is whole again (five papers), there is no chip, and the reply says what was searched, since it is not what the bubble above says");
 
     posted.length = 0;
     await t2e.getByRole("button", { name: "Search again", exact: true }).click();
@@ -2091,7 +2094,7 @@ try {
   const boxAfter = await page.locator(".hm-box").boundingBox();
   ok(boxAfter.y > boxBefore.y - 5 && boxAfter.y + boxAfter.height <= 900, `the box has glided to the bottom of the window (from y ${Math.round(boxBefore.y)} to ${Math.round(boxAfter.y)})`);
   ok(await page.locator(".hm-title").count() === 0 && await page.locator(".chat-title").isVisible(), "the headline gives way to the conversation's title");
-  ok(THINK ? (await thinkLine(turns().first(), "understood")).includes("“glaucoma screening”") && (await searchedFor(turns().first())) === "I searched for: glaucoma screening" : /Searching papers, as you chose/.test(await turns().first().innerText()), "a search chosen by hand says so above the answer");
+  ok(THINK ? (await saysChosen(turns().first())) && (await searchedFor(turns().first())) === "I searched for: glaucoma screening" : /Searching papers, as you chose/.test(await turns().first().innerText()), "a search chosen by hand says so above the answer");
   ok(await page.locator(".chat-turn .result").count() === 5, "the five papers are listed");
   ok((await page.locator(".chat-turn .result-no").allInnerTexts()).join() === "1,2,3,4,5", "numbered 1 to 5, as the marks in the answer are");
   const answer = page.locator(".chat-answer");
@@ -2373,7 +2376,7 @@ try {
   ok((THINK || await lastTurn().locator(".chat-searched b").getAttribute("lang") === "en") && await lastTurn().locator(".result").count() === 5, "(marked as English for a screen reader) and the papers are there");
   await openThink(lastTurn());
   await lastTurn().getByRole("button", { name: "Use my exact words" }).click();
-  await page.waitForFunction((think) => (think ? /(?:Searched for|Search kiya:) “diabetes me exercise/ : /Searching papers, as you chose/).test(document.querySelectorAll(".chat-turn")[1]?.textContent ?? ""), THINK, { timeout: 30000 });
+  await page.waitForFunction((think) => (think ? /Searching papers, as you chose|Aapke chune hisaab se papers dhundh raha hoon/ : /Searching papers, as you chose/).test(document.querySelectorAll(".chat-turn")[1]?.textContent ?? ""), THINK, { timeout: 30000 });
   await page.waitForFunction(() => document.querySelectorAll('.chat-turn[data-status="done"]').length === 2, null, { timeout: 30000 });
   ok(await page.locator(".chat-bubble").count() === 2 && await lastTurn().locator(".chat-searched").count() === 0, "'Use my exact words' searches them as written, in the same place, with no new message");
 
@@ -2403,7 +2406,7 @@ try {
   await lastTurn().locator(".chat-change").click();
   ok((await page.getByRole("menuitem").allInnerTexts()).filter((t) => /Search papers|Check references|Ask a paper|Idea Check/.test(t)).length === 3, "Change lists the other three tools, not the one chosen");
   await page.getByRole("menuitem", { name: /Search papers/ }).click();
-  await page.waitForFunction((think) => (think ? /(?:Searched for|Search kiya:) “my idea about using bees/ : /Searching papers, as you chose/).test([...document.querySelectorAll(".chat-turn")].at(-1)?.textContent ?? "") && document.querySelectorAll(".chat-turn .result").length > 10, THINK, { timeout: 30000 });
+  await page.waitForFunction((think) => (think ? /Searching papers, as you chose|Aapke chune hisaab se papers dhundh raha hoon/ : /Searching papers, as you chose/).test([...document.querySelectorAll(".chat-turn")].at(-1)?.textContent ?? "") && document.querySelectorAll(".chat-turn .result").length > 10, THINK, { timeout: 30000 });
   ok(await lastTurn().locator(".chat-offer").count() === 0, "Change to Search papers searches the exact words in place and the offer goes");
 
   await sendAuto("my uploaded paper, what does it say about methods");
@@ -2543,7 +2546,7 @@ try {
   ok(/Namaste! Main theek hu, shukriya\. Ye box research papers dhundta hai/.test(await talkTurn().innerText()), "a Hinglish greeting gets a Hinglish reply");
   await talkTurn().getByRole("button", { name: "Search for these words anyway" }).click();
   await talkDone();
-  ok((THINK ? /^I searched for: hello bhai kaise ho$/.test(await searchedFor(talkTurn())) : /Searching papers, as you chose/.test(await talkTurn().innerText())) && await talkTurn().locator(".chat-talk").count() === 0 && !/Namaste!/.test(await talkTurn().innerText()), "'Search for these words anyway' searches them as written, in the same place");
+  ok((THINK ? (await saysChosen(talkTurn())) && /^I searched for: hello bhai kaise ho$/.test(await searchedFor(talkTurn())) : /Searching papers, as you chose/.test(await talkTurn().innerText())) && await talkTurn().locator(".chat-talk").count() === 0 && !/Namaste!/.test(await talkTurn().innerText()), "'Search for these words anyway' searches them as written, in the same place");
   await anon.close();
 
   console.log("the page does not move under the reader");

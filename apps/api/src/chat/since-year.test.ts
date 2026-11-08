@@ -749,7 +749,14 @@ describe("CHAT_THINK: the Thinking block's lines", () => {
           expect(THINK_KINDS, c.name).toContain(t.kind);
           expect(thinkIsHonest(t), `${c.name}: ${t.text} ${JSON.stringify(t.counts)}`).toBe(true);
           for (const a of t.actions ?? []) expect(["change", "exact_words"], c.name).toContain(a);
-          if (t.kind !== "understood") expect(t.actions ?? [], c.name).toEqual([]);
+          // a line's controls are on the line that says what was understood, or (a search chosen by hand, where nothing was understood) on the line that says it was chosen: Change, as the page without the block has
+          if (t.kind !== "understood") expect(t.actions ?? [], c.name).toEqual(t.id === "chosen" ? ["change"] : []);
+        }
+        // a search chosen by hand is never said to be "understood": it says it was chosen, before the words it searched
+        if ((c.body as { mode?: string }).mode === "search") {
+          expect(think.some((t) => t.kind === "understood"), c.name).toBe(false);
+          const searchedAt = think.findIndex((t) => t.kind === "searched");
+          if (searchedAt >= 0) expect(think.findIndex((t) => t.id === "chosen"), c.name).toBe(0);
         }
         const at = (pred: (e: ChatEvent) => boolean) => ev.findIndex(pred);
         const stepAt = (s: string) => at((e) => e.type === "step" && e.step === s);
