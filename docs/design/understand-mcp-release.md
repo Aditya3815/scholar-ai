@@ -153,3 +153,7 @@ Put each sentence you approve on the privacy page under "What we send where", an
 - The literature-scan card opens the page empty: the topic is not handed over yet.
 - No real app has tried MCP's own "Save this paper?" question (elicitation); `confirm: true` is the path apps use today.
 - `docs/FEATURES.md` and `docs/ARCHITECTURE.md` on this branch describe M1 to M8. Update them again after each switch goes on.
+- Before step 2 (`CHAT_THINK=on` for good), look into the two-tab check in `e2e/chat.mjs` ("a tab brought back to the front
+  takes up what the other tab saved", 8 s wait). On 8 Nov it timed out in 3 of 7 runs with `CHAT_THINK=on` and in none with it
+  off. The check reads no Thinking-block lines, but the rate suggests the saved chat may be slower to reach the other tab when
+  its replies carry the lines.
