@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { ABSTRACTS_NOTICE, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MIN_SINCE_YEAR, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
+import { ABSTRACTS_NOTICE, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MAX_OA_ABSTRACT_CHARS, MIN_SINCE_YEAR, type AskStreamEvent, type ChatRetraction, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
@@ -18,7 +18,7 @@ import { askedOf, contextInfo, ownQuestions, routeContextOf, routeFollowUp, rout
 import { errorKind, readHistory, stripInvisible, type ChatHistory } from "./history";
 import { stubChatStream, stubJudgeStream, stubSearchFor, stubStrictStream } from "./stub";
 import { stubRoute } from "./stub-route";
-import { FLOOR_OUTCOMES, FOLLOW_UP_OUTCOMES, UNREAD_OUTCOMES, countOutcome, countOutcomes } from "../outcomes";
+import { FLOOR_OUTCOMES, FOLLOW_UP_OUTCOMES, UNREAD_OUTCOMES, askOutcome, countOutcome, countOutcomes } from "../outcomes";
 import { flagOf, type FlagPosition } from "../understand/flags";
 import { NO_PLAN, planLane, safetyRead, type LanePlan } from "../understand/lane";
 import { noticeText, replyText } from "../understand/lane-text";
@@ -38,6 +38,15 @@ import type { Understanding } from "../understand/understanding";
 import { chatReplyCompleteFor, resolveLedgerPapers, stubChatReply, stubUnderstand, takeVisitorCall, understandCompleteFor } from "./understand-wire";
 import { searchEnvFrom } from "../search/env";
 import { deny } from "../problem";
+import { modeOfPlan, pickDoc, planTool, relayAsk, runVerify, tallyOf, type ToolDeps, type ToolPlan } from "./tools";
+import { stubVerify } from "./tools-stub";
+import { toolAnswered as thinkToolAnswered, toolAsking as thinkToolAsking, toolChecked as thinkToolChecked, toolChecking as thinkToolChecking, toolRetractions as thinkToolRetractions, toolRetractionsDone as thinkToolRetractionsDone, understoodToolRun } from "./think";
+import { referenceService } from "../references/service";
+import { retractionService } from "../search/retraction-service";
+import { oaService } from "../oa/service";
+import { describeAskError, embedderFor, streamFor as docStreamFor } from "../docs/routes";
+import { answerQuestionStream, type StoredChunk } from "../docs/qa";
+import { decodeVec } from "../docs/vector";
 
 type Bindings = {
   DB: D1Database;
@@ -106,6 +115,18 @@ type Bindings = {
   CHAT_UNDERSTAND_VISITORS?: string;
   /** Development only (with QA_STUB): the stand-in search writes the words of the question into its records, so that a list is about whatever was asked (stub.ts). The integration run sets it with CHAT_FLOOR. Never set in wrangler.jsonc. */
   QA_STUB_TOPIC?: string;
+  /**
+   * Tools run in the reply (docs/design/chat-tools.md, the owner's request of 9 Nov 2026): "on" runs Check references on a pasted list, a retraction check on DOIs that ask about one, "Ask this paper" on a
+   * question about one paper of the chat, and the person's own paper's ask, in the reply itself (Idea Check and the literature scan stay a card). Unset, "off" and any other value: the card, as before, and the stream
+   * is byte for byte what it was. Auto only: a search chosen by hand never runs a tool. A gate flag: unset is off, a KV override can only lower it. Its privacy sentence (legal-match.test.ts) must be on the page first.
+   */
+  CHAT_TOOLS?: string;
+  /** What the tools run on (the Worker has them; the chat's own code above does not need them). */
+  OA_INGEST?: unknown;
+  FILES?: unknown;
+  API_GATE?: unknown;
+  VERIFY_LIMITER?: Pick<RateLimit, "limit">;
+  ASK_LIMITER?: Pick<RateLimit, "limit">;
 };
 type Env = { Bindings: Bindings };
 export const chatRoutes = new Hono<Env>();
@@ -121,7 +142,7 @@ const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB 
  * Where a gate flag of the understanding releases stands for this request (understand/flags.ts: unset is off, and an off flag reads nothing from KV). A value that is not exactly a position is off, and
  * one line says WHICH FLAG held it (a constant name, never anything of a message): a typo must not turn behaviour on, and must not pass unseen either.
  */
-async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY" | "CHAT_CLEAN" | "CHAT_FLOOR" | "CHAT_THINK" | "CHAT_UNDERSTAND" | "CHAT_UNDERSTAND_VISITORS"): Promise<FlagPosition> {
+async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY" | "CHAT_CLEAN" | "CHAT_FLOOR" | "CHAT_THINK" | "CHAT_UNDERSTAND" | "CHAT_UNDERSTAND_VISITORS" | "CHAT_TOOLS"): Promise<FlagPosition> {
   // the safety lane has a fourth position, `core`, between shadow and on, and the relevance floor has `writer` in the same place
   const r = await flagOf(env, name, { allowCore: name === "CHAT_SAFETY", allowWriter: name === "CHAT_FLOOR" });
   if (r.badVariable) console.warn(JSON.stringify({ level: "warn", msg: "flag_bad_value", flag: name }));
@@ -426,6 +447,96 @@ chatRoutes.post("/", async (c) => {
         await send({ type: "general", kind: "unsure", text: "" }); // clears any words that were already shown
       }
     };
+    /**
+     * CHAT_TOOLS (docs/design/chat-tools.md): one tool, run in the reply, by the same service functions the tool's own page calls. Its result goes out as `tool*` events (never as a written chat answer), its
+     * lines in the Thinking block say what it did from its own counts, and the reply ends `tool`. A tool that fails says so in its own place and never shows a made-up result.
+     */
+    const runPlan = async (plan: ToolPlan, doc: { id: string; title: string } | null, language: Route["language"]) => {
+      const ip = c.req.header("cf-connecting-ip") ?? "unknown";
+      const allowed = (b?: Pick<RateLimit, "limit">) => async () => !b || (await b.limit({ key: ip }).then((r) => r.success, () => true));
+      const env = c.env as never;
+      const deps: ToolDeps = {
+        verify: stubbed(c.env) ? stubVerify : async (t) => (await referenceService.verify(env, t)).result,
+        verifyAllowed: allowed(c.env.VERIFY_LIMITER),
+        retractions: async (dois) => {
+          const r = await retractionService.check(env, dois);
+          return { checked: r.checked, invalid: r.invalid };
+        },
+        askPaper: async (a, sendAsk) => {
+          const embed = embedderFor(env);
+          if (!embed) return void (await sendAsk({ type: "error", code: "ai_unavailable", title: "Answering is unavailable right now" }));
+          await oaService.ask(env, { userId: user!.id, ref: a.ref, key: a.key, question: a.question, clientAbstract: a.clientAbstract, embed, abort }, { get gone() { return s.gone; }, send: sendAsk } as never);
+        },
+        askDoc: async (docId, question, sendAsk) => {
+          const embed = embedderFor(env);
+          const stream = docStreamFor(env, user!.id, abort.signal);
+          if (!embed || !stream) return void (await sendAsk({ type: "error", code: "ai_unavailable", title: "Answering is unavailable right now" }));
+          try {
+            const rows = await c.env.DB.prepare("SELECT idx, page, text, embedding FROM doc_chunks WHERE doc_id = ?1 ORDER BY idx").bind(docId).all<{ idx: number; page: number; text: string; embedding: string | null }>();
+            const chunks: StoredChunk[] = (rows.results ?? []).map((r) => ({ idx: r.idx, page: r.page, text: r.text, embedding: r.embedding ? decodeVec(r.embedding) : null }));
+            const id = [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("");
+            const answer = await answerQuestionStream({ question, chunks, embed, stream, meta: { id, createdAt: Date.now() }, emit: sendAsk });
+            if (s.gone) return;
+            // kept with the paper's own questions, as a question asked on the paper's page is (the privacy page says so)
+            await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, docId, question, JSON.stringify(answer)).run();
+            await countOutcome(c.env.DB, "doc_ask", askOutcome(answer));
+            await sendAsk({ type: "answer", answer });
+          } catch (e) {
+            if (s.gone) return;
+            const d = describeAskError(e);
+            if (!d) console.error(JSON.stringify({ level: "error", msg: "chat_tool_ask_doc_failed", error: e instanceof Error ? e.name : "unknown" }));
+            await sendAsk({ type: "error", code: d?.code ?? "internal_error", title: d?.title ?? "Something went wrong", ...(d?.detail ? { detail: d.detail } : {}) });
+          }
+        },
+        askAllowed: allowed(c.env.ASK_LIMITER),
+        gone: () => s.gone,
+      };
+      const kind = plan.kind;
+      await think(understoodToolRun(language, kind));
+      await think(thinkConfirm(language));
+      outcome = `tool_${kind}`;
+      if (plan.kind === "verify") {
+        await send({ type: "tool", tool: "verify", total: plan.refs.length, skipped: plan.skipped });
+        await think(thinkToolChecking(language, plan.refs.length, plan.skipped));
+        const items = await runVerify(plan.refs, deps, send);
+        if (s.gone) return;
+        await think(thinkToolChecked(language, tallyOf(items)));
+      } else if (plan.kind === "retractions") {
+        await send({ type: "tool", tool: "retractions", dois: plan.dois.length });
+        await think(thinkToolRetractions(language, plan.dois.length));
+        let r: { checked: ChatRetraction[]; invalid: string[] };
+        try {
+          r = await deps.retractions(plan.dois);
+        } catch {
+          // a check that could not run says "unknown" for every DOI, never "not retracted"
+          r = { checked: plan.dois.map((doi) => ({ doi, status: "unknown" as const, notices: [] })), invalid: [] };
+        }
+        if (s.gone) return;
+        await send({ type: "tool_retractions", checked: r.checked, invalid: r.invalid });
+        await think(thinkToolRetractionsDone(language, { retracted: r.checked.filter((x) => x.status === "retracted").length, clear: r.checked.filter((x) => x.status === "not_retracted").length, unknown: r.checked.filter((x) => x.status === "unknown").length }));
+      } else {
+        const own = plan.kind === "ask_doc";
+        const paper = plan.kind === "ask_paper" ? { title: plan.paper.title, ...(plan.ref.doi ? { doi: plan.ref.doi } : {}), ...(plan.ref.arxivId ? { arxivId: plan.ref.arxivId } : {}) } : { title: doc?.title ?? null };
+        // the paper the question is about is shown as its card, as the papers of a search are
+        if (plan.kind === "ask_paper") await send({ type: "papers", results: [plan.paper], final: true });
+        await send({ type: "tool", tool: plan.kind, paper, question: plan.question });
+        await think(thinkToolAsking(language, paper.title, own));
+        let end: Awaited<ReturnType<typeof relayAsk>>;
+        if (!(await deps.askAllowed())) {
+          end = await relayAsk(async (e) => e({ type: "error", code: "rate_limited", title: "Too many questions just now", detail: "Please wait a minute and try again." }), send);
+        } else if (plan.kind === "ask_paper") {
+          const p = plan;
+          end = await relayAsk((e) => deps.askPaper({ ref: p.ref, key: p.key, question: p.question, clientAbstract: (p.paper.abstract ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_OA_ABSTRACT_CHARS) }, e), send);
+        } else {
+          const q = plan.question;
+          end = await relayAsk((e) => deps.askDoc(doc!.id, q, e as (x: AskStreamEvent) => Promise<void>), send);
+        }
+        if (s.gone) return;
+        await think(thinkToolAnswered(language, end.answer ? { quotes: end.answer.citations.length, found: end.answer.found, verified: end.answer.verified } : null));
+        if (!end.answer) outcome = `tool_${kind}_failed`;
+      }
+      return void (await done(false, "tool"));
+    };
 
     try {
       let route: Route;
@@ -560,6 +671,24 @@ chatRoutes.post("/", async (c) => {
       }
       // R5 (4.6): the policy is looked up only for a follow-up whose router call FAILED (router.ts, routerCallFailed): for every other message the flag is not even read
       if (routerCallFailed(follow)) failPolicy = await gate(c.env, "CHAT_FAILPOLICY");
+      // CHAT_TOOLS (docs/design/chat-tools.md): a tool that is cheap and safe to run is run in the reply instead of being offered (Idea Check and the literature scan stay a card). Auto only, never for a
+      // conversation reply, a question back or a search chosen by hand; the switch is not even read otherwise. A failure here keeps the card (or the search) as it was.
+      let plan: ToolPlan | null = null;
+      let planDoc: { id: string; title: string } | null = null;
+      if (auto && !talk && route.how !== "chosen" && u?.intent !== "clarify" && !(u?.intent === "offer_tool" && u.tool === "litscan") && (await gate(c.env, "CHAT_TOOLS")) === "on") {
+        try {
+          plan = planTool({ text, mode: route.mode, intent: u?.intent ?? null, preset, question: u?.standalone || text, signedIn: !!user });
+          if (plan?.kind === "ask_doc") {
+            const docs = await c.env.DB.prepare("SELECT id, title FROM documents WHERE user_id = ?1 AND status = 'ready' ORDER BY created_at DESC LIMIT 50").bind(user!.id).all<{ id: string; title: string }>();
+            planDoc = pickDoc(plan.question, docs.results ?? []);
+            if (!planDoc) plan = null;
+          }
+        } catch {
+          plan = null;
+        }
+        if (s.gone) return;
+        if (plan) route = { mode: modeOfPlan(plan), how: route.how, confidence: route.confidence, language: route.language };
+      }
       // R8 (4.8): what the message is, and what is only a request in it. Auto only, after the route is settled and before what the page is told: a message that goes to the indexes with the words that only make a
       // request left out carries them as `route.searchQuery`, which is what "I searched for" and "Use my exact words" already show. Never for a search chosen by hand, a follow-up that was read with its turns, a
       // message whose search words a model wrote, or one the day could not pay a model for. The raw message still goes to the writer and the background (`asked`). A failure of the cleaner never stops a message.
@@ -610,6 +739,8 @@ chatRoutes.post("/", async (c) => {
         // M5: what the Understand step said (only when it decided, or when it could not and the rules did)
         ...(u ? { intent: u.intent, statusLine: u.status, ...(und?.confirm ? { confirm: true as const } : {}), ...(u.clarify ? { clarify: u.clarify } : {}), ...(u.intent === "offer_tool" && u.tool === "litscan" ? { offer: "litscan" as const } : {}) } : {}),
         ...(und?.source === "fallback" ? { fallback: true as const, confirm: true as const } : {}),
+        // CHAT_TOOLS: a tool that runs by itself always asks "Did you want this? Change"
+        ...(plan ? { confirm: true as const } : {}),
       });
       // counts and short names only: how many turns were read and what came of them, never a word of them
       if (follow && ctx) console.log(JSON.stringify({ level: "info", msg: "chat_followup", turns: ctx.history.turns, mode: route.mode, intent: follow.intent, rewrote: follow.rewrote, fellBack: follow.fellBack, check: follow.check, years: follow.yearFrom !== undefined || follow.yearTo !== undefined }));
@@ -643,6 +774,8 @@ chatRoutes.post("/", async (c) => {
         await think(understoodModel(u.status, ["change"]));
         return void (await done(false, "routed"));
       }
+      // CHAT_TOOLS: the tool runs here, in the reply
+      if (plan) return void (await runPlan(plan, planDoc, route.language));
       // another tool: nothing runs here; the browser offers to open it
       if (route.mode !== "search") {
         await think(u ? understoodModel(u.status, ["change"]) : understoodTool(route.language, route.mode));

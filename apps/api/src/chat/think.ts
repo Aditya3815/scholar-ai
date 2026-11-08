@@ -72,6 +72,77 @@ export function asking(l: Lang): ThinkLine | null {
   return line("asking", "note", t);
 }
 
+/* ---------------------------------------------------------------- tools run in the reply (CHAT_TOOLS, chat/tools.ts) */
+
+const TOOL_NAMES = {
+  verify: { en: "Check references", hinglish: "Check references", hi: "संदर्भ जाँच" },
+  retractions: { en: "Check retractions", hinglish: "Retraction check", hi: "वापसी (retraction) जाँच" },
+  ask_paper: { en: "Ask this paper", hinglish: "Ask this paper", hi: "इस शोध-पत्र से पूछें" },
+  ask_doc: { en: "Ask your paper", hinglish: "Aapke paper se poochna", hi: "आपके शोध-पत्र से पूछना" },
+} as const;
+export type ToolName = keyof typeof TOOL_NAMES;
+
+/** What the message was understood as when a tool runs in the reply: the tool's name, and that it runs here (not offered). With Change, as every understood line has. */
+export function understoodToolRun(l: Lang, tool: ToolName): ThinkLine | null {
+  const k = lang(l);
+  const name = TOOL_NAMES[tool][k];
+  const t = { en: `${name}, run here`, hinglish: `${name}, yahin chala raha hoon`, hi: `${name}, यहीं चला रहा हूँ` }[k];
+  return line("understood", "understood", t, undefined, ["change"]);
+}
+/** A list of references is checked: how many, and where (no AI). How many were left out over the limit, when any were. */
+export function toolChecking(l: Lang, references: number, skipped: number): ThinkLine | null {
+  const k = lang(l);
+  const over = skipped > 0 ? { en: ` (${skipped} over the limit left out)`, hinglish: ` (${skipped} limit se zyada, chhod diye)`, hi: ` (${skipped} सीमा से ज़्यादा, छोड़े)` }[k] : "";
+  const t = { en: `Checking ${references} ${references === 1 ? "reference" : "references"} at Crossref and OpenAlex${over}`, hinglish: `${references} references Crossref aur OpenAlex par check kar raha hoon${over}`, hi: `${references} संदर्भ Crossref और OpenAlex पर जाँच रहा हूँ${over}` }[k];
+  return line("tool", "note", t, { references, ...(skipped > 0 ? { skipped } : {}) });
+}
+/** What the check came to: the buckets of the Check references page, each only when it has any. */
+export function toolChecked(l: Lang, c: { verified: number; mismatch: number; notFound: number; unchecked: number }): ThinkLine | null {
+  const k = lang(l);
+  const all = c.verified + c.mismatch + c.notFound + c.unchecked;
+  const parts = [
+    c.verified > 0 ? { en: `${c.verified} verified`, hinglish: `${c.verified} verified`, hi: `${c.verified} सत्यापित` }[k] : "",
+    c.mismatch > 0 ? { en: `${c.mismatch} with details that differ`, hinglish: `${c.mismatch} mein details alag`, hi: `${c.mismatch} में विवरण अलग` }[k] : "",
+    c.notFound > 0 ? { en: `${c.notFound} not found`, hinglish: `${c.notFound} nahi mile`, hi: `${c.notFound} नहीं मिले` }[k] : "",
+    c.unchecked > 0 ? { en: `${c.unchecked} could not be checked`, hinglish: `${c.unchecked} check nahi ho paaye`, hi: `${c.unchecked} जाँचे नहीं जा सके` }[k] : "",
+  ].filter(Boolean);
+  const t = { en: `${all} checked: ${parts.join(", ")}`, hinglish: `${all} check kiye: ${parts.join(", ")}`, hi: `${all} जाँचे: ${parts.join(", ")}` }[k];
+  return line("tool_result", "note", t, { checked: all, verified: c.verified, mismatch: c.mismatch, notFound: c.notFound, unchecked: c.unchecked });
+}
+/** DOIs are looked up for retractions at Crossref (its data carries the Retraction Watch database). */
+export function toolRetractions(l: Lang, dois: number): ThinkLine | null {
+  const t = { en: `Checking ${dois} ${dois === 1 ? "DOI" : "DOIs"} for retractions at Crossref`, hinglish: `${dois} DOI ka retraction Crossref par check kar raha hoon`, hi: `${dois} DOI की वापसी (retraction) Crossref पर जाँच रहा हूँ` }[lang(l)];
+  return line("tool", "note", t, { dois });
+}
+export function toolRetractionsDone(l: Lang, c: { retracted: number; clear: number; unknown: number }): ThinkLine | null {
+  const k = lang(l);
+  const parts = [
+    { en: `${c.retracted} retracted`, hinglish: `${c.retracted} retracted`, hi: `${c.retracted} वापस लिए गए` }[k],
+    c.clear > 0 ? { en: `${c.clear} not retracted`, hinglish: `${c.clear} retracted nahi`, hi: `${c.clear} वापस नहीं लिए गए` }[k] : "",
+    c.unknown > 0 ? { en: `${c.unknown} could not be checked`, hinglish: `${c.unknown} check nahi ho paaye`, hi: `${c.unknown} जाँचे नहीं जा सके` }[k] : "",
+  ].filter(Boolean);
+  return line("tool_result", "note", parts.join(", "), { retracted: c.retracted, clear: c.clear, unknown: c.unknown });
+}
+/** One paper is read to answer: its full text where it can be read (or, for the person's own paper, its pages). The title goes inside quotes, so a year in it is not a number the line states. */
+export function toolAsking(l: Lang, title: string | null, own: boolean): ThinkLine | null {
+  const k = lang(l);
+  const what = title ? q(title) : own ? { en: "your paper", hinglish: "aapka paper", hi: "आपका शोध-पत्र" }[k] : { en: "the paper", hinglish: "paper", hi: "शोध-पत्र" }[k];
+  const t = own
+    ? { en: `Reading ${what} to answer`, hinglish: `Jawab ke liye ${what} padh raha hoon`, hi: `जवाब के लिए ${what} पढ़ रहा हूँ` }[k]
+    : { en: `Reading the full text of ${what} where it can be read, to answer`, hinglish: `Jawab ke liye ${what} ka full text padh raha hoon (jahan mil sake)`, hi: `जवाब के लिए ${what} का पूरा पाठ पढ़ रहा हूँ (जहाँ मिल सके)` }[k];
+  return line("tool", "reading", t);
+}
+/** How the paper's answer ended: how many quotes it rests on (each checked word for word), or that the paper does not say, or that it could not be answered. */
+export function toolAnswered(l: Lang, a: { quotes: number; found: boolean; verified: boolean } | null): ThinkLine | null {
+  const k = lang(l);
+  if (!a) return line("tool_result", "note", { en: "No answer could be made this time", hinglish: "Is baar jawab nahi ban paaya", hi: "इस बार जवाब नहीं बन पाया" }[k]);
+  if (!a.found) return line("tool_result", "checked", { en: "The paper does not answer this, so nothing was made up", hinglish: "Paper iska jawab nahi deta, isliye kuch nahi banaya", hi: "शोध-पत्र इसका जवाब नहीं देता, इसलिए कुछ नहीं बनाया" }[k]);
+  const t = a.verified
+    ? { en: `${a.quotes} ${a.quotes === 1 ? "quote" : "quotes"}, each found word for word in the text`, hinglish: `${a.quotes} quotes, har ek text mein shabd-ba-shabd mila`, hi: `${a.quotes} उद्धरण, हर एक पाठ में शब्दशः मिला` }[k]
+    : { en: `${a.quotes} ${a.quotes === 1 ? "quote" : "quotes"}; not every one was found in the text`, hinglish: `${a.quotes} quotes; har ek text mein nahi mila`, hi: `${a.quotes} उद्धरण; हर एक पाठ में नहीं मिला` }[k];
+  return line("tool_result", "checked", t, { quotes: a.quotes });
+}
+
 /** The rules could not tell, so the safe default ran: said plainly, with Change. */
 export function notSure(l: Lang): ThinkLine | null {
   const t = { en: "I was not sure what you wanted, so I searched for papers", hinglish: "Main theek se samajh nahi paaya, isliye papers dhundhe", hi: "मैं ठीक से समझ नहीं पाया, इसलिए शोध-पत्र खोजे" }[lang(l)];

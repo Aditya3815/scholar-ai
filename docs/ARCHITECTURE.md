@@ -77,7 +77,9 @@ Other server folders: `llm/` (the model gateway), `cache/` (KV cache and its met
 **Service layer (M6).** The work behind the routes is in plain functions that the web routes, the chat and the MCP tools all
 call, never one another over HTTP: `search/service.ts` (`searchService.run`), `references/service.ts` (`referenceService.verify`),
 `search/retraction-service.ts` (`retractionService.check`), `oa/service.ts` (`oaService.ask`), `library/service.ts`, and the strict
-claim reading in `chat/claim-check.ts`. A request is checked against the same rules whichever door it came in by.
+claim reading in `chat/claim-check.ts`. A request is checked against the same rules whichever door it came in by. With
+`CHAT_TOOLS` on, the chat route calls the same functions to run a tool in the reply (`chat/tools.ts`: which tool, by rules and by
+what the router or the Understand step decided; the results go out as `tool`, `tool_ref`, `tool_retractions` and `tool_ask` events).
 
 ### 3.1 Search (`search/`)
 
@@ -222,6 +224,7 @@ tests). Turning one on needs its privacy sentence read first.
 | M6 | none | the service layer (no change a person sees) |
 | M7/M8 | `MCP` (off/beta/on), `MCP_BETA_USERS` | the MCP server for AI apps; also needs the `OAUTH_KV` namespace |
 | M8 | `MCP_CHECK_CLAIM` (off/beta/on) | the `check_claim` tool |
+| Chat tools (9 Nov) | `CHAT_TOOLS` (off/on) | the cheap tools run in the reply instead of a card: a pasted list checked at Crossref and OpenAlex, DOIs that ask about retraction, a question about one result (Ask this paper) or one of your own papers; Idea Check and the literature scan stay a card (`chat/tools.ts`, `docs/design/chat-tools.md`) |
 
 ## 7. Privacy and safety by construction
 

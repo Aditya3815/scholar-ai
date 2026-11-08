@@ -62,6 +62,21 @@ turns (your words, the first 300 characters of each reply, the first ten papers 
 New topic cuts it, an edit drops the turns after the edited message, a private chat keeps it only in memory. It is sent only while
 the Understand step reads it (below).
 
+**Tools in the reply (built, switched off: `CHAT_TOOLS`).** The owner's rule: a cheap tool runs by itself, an expensive one still
+asks. With the switch on, Auto runs these in the reply instead of offering a card, and says "I understood this as ... · Did you want
+this? Change":
+- a pasted list of references (three or more, or one or two that each look like a reference): each gets the Check references
+  page's verdict as it arrives, with a line that adds them up (verified, details differ, not found, could not be checked) and
+  "Open on the Check references page"; no AI, a visitor too;
+- DOIs with a word that asks about retraction ("is 10.x retracted?", "retract hua kya", "वापस लिया"): each DOI is said retracted
+  (with its notice), not retracted, or could not be checked, from Crossref's data;
+- a question about one paper of the chat ("the second paper's method", with the Understand step on): that paper's card, then
+  Ask this paper's answer from its full text (or its abstract, said so), every quote checked; signed in, 20 new papers a day;
+- a question about one of your own papers: answered from it as on its page, and kept with that paper's questions (the paper
+  must be the only one, or named by its title; otherwise the card stays).
+Idea Check and the literature scan stay a card. A search chosen by hand never runs a tool. A tool that fails says so in its place
+and never shows a made-up result. The Thinking block says what ran, from its counts.
+
 **Chats.** Kept only in your browser (the thirty latest), tied to your account; listed in the left rail; deleted with the chat,
 "Delete all", sign-out or a different person signing in; held out of sight if your session only expires. **Private chat**
 (box menu): not kept, gone when you leave it.
@@ -218,6 +233,7 @@ AI apps (MCP server) panel (tool calls by tool and app, outcomes, time). Numbers
 | The Understand step for visitors (`CHAT_UNDERSTAND_VISITORS`): 40 readings a day per address, then the rules and "Sign in for more" | needs its own privacy sentence |
 | The MCP server for AI apps (section 10a; `MCP` off/beta/on, `MCP_BETA_USERS`) | needs the `OAUTH_KV` namespace, its privacy sentence read, then a beta for listed accounts |
 | The `check_claim` tool (`MCP_CHECK_CLAIM`) | its eval passes (no unsupported claim called supported), but 12 of 210 live calls failed to cannot_check; the owner decides |
+| Tools run in the reply (`CHAT_TOOLS`, section 1, "Tools in the reply") | its privacy sentence waits for the owner's read |
 
 Being built (not on `main`): a "Did you mean: ..." spelling chip (R12) and leaving e-mail addresses, links and phone numbers out
 of what is searched (R11).

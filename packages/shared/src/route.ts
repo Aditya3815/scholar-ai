@@ -88,10 +88,13 @@ const ARXIV = /^(?:arxiv:\s*)?\d{4}\.\d{4,5}(?:v\d+)?$|^https?:\/\/arxiv\.org\/(
 export function looksLikeReferenceList(text: string): boolean {
   const entries = splitReferences(text);
   if (entries.length < 3) return false;
-  const good = entries.filter(
-    (e) => e.length >= 30 && /\b(?:1[89]|20)\d{2}\b/.test(e) && (/\p{Lu}[\p{L}'’-]+,?\s+\p{Lu}\./u.test(e) || /\bet al\b/i.test(e) || /doi\.org|\b10\.\d{4,9}\//i.test(e) || /[“"][^”"]{8,}[”"]/.test(e)),
-  );
+  const good = entries.filter(looksLikeReference);
   return good.length >= 3 && good.length >= entries.length * 0.6;
+}
+
+/** One entry that has the look of a reference: 30 characters or more, a year, and the look of authors, "et al", a DOI or a title in quotes. */
+export function looksLikeReference(e: string): boolean {
+  return e.length >= 30 && /\b(?:1[89]|20)\d{2}\b/.test(e) && (/\p{Lu}[\p{L}'’-]+,?\s+\p{Lu}\./u.test(e) || /\bet al\b/i.test(e) || /doi\.org|\b10\.\d{4,9}\//i.test(e) || /[“"][^”"]{8,}[”"]/.test(e));
 }
 
 /** Words that suggest another tool without being sure of it (they may be the topic: "novelty detection", "reference checking tools"); the model decides. */

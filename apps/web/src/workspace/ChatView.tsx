@@ -24,6 +24,10 @@ import "../styles/reading.css";
 import "../styles/topic.css";
 // the Idea Check workspace is a chunk of its own, fetched when an idea is checked here (the first load has a size budget)
 const IdeaWorkspace = lazy(() => import("../components/idea/IdeaPage").then((m) => ({ default: m.IdeaWorkspace })));
+// a tool that ran in the reply (CHAT_TOOLS): a chunk of its own, fetched only for a reply that has one
+const ChatTool = lazy(() => import("./ChatTool"));
+/** The name a reply's tool goes by in "I understood this as …" (a retraction check runs under Check references, a question about a result under Ask a paper: their own names are clearer). */
+const TOOL_RAN: Record<NonNullable<AssistantMsg["tool"]>["kind"], string> = { verify: ROUTE_NAMES.verify, retractions: "Check retractions", ask_paper: "Ask this paper", ask_doc: ROUTE_NAMES.paper };
 
 /** What is said when a reply has papers but no written answer. Plain words, and never a sentence the model could not back. */
 const WHY: Record<ChatNoAnswer, string> = {
@@ -42,6 +46,8 @@ const WHY: Record<ChatNoAnswer, string> = {
   decision: "",
   // M5: a question back, with its choices (`Clarify`): nothing to say here
   clarify: "",
+  // CHAT_TOOLS: the tool's own result is the reply (ChatTool)
+  tool: "",
   too_long: `This is too long for a search (${MAX_CHAT_CHARS} characters at most). Choose Check references or Idea Check, or write a shorter question.`,
 };
 
@@ -343,7 +349,7 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
     ) : msg.how === "fallback" ? (
       <>{msg.reason === "too_long" ? "I was not sure what to do with this." : "I was not sure what you wanted, so I searched for papers."}</>
     ) : (
-      <>I understood this as <b>{ROUTE_NAMES[msg.mode]}</b>.</>
+      <>I understood this as <b>{msg.tool ? TOOL_RAN[msg.tool.kind] : ROUTE_NAMES[msg.mode]}</b>.</>
     );
   const note = msg.mode === "search" ? followUpNote(msg) : null;
   const unfinished = msg.mode === "search" ? msg.notices.find((n) => n.kind === "unfinished") : undefined;
@@ -557,7 +563,7 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
   const was = useRef(working);
   useEffect(() => {
     // (the safety lane's card has an announcement of its own, below)
-    if (was.current && !working && !isLaneReply(msg)) announce(msg.status === "done" ? (msg.reason === "small_talk" ? "Reply ready." : msg.reason === "clarify" ? "A question for you before searching." : routed || litscan ? "Understood. A tool can be opened." : msg.papers.length === 0 ? (noPapers(msg) ? "No papers were found. You can change the words and search again." : "No papers were found.") : `${answer ? "Answer ready" : "Papers ready"}, ${msg.papers.length} ${msg.papers.length === 1 ? "paper" : "papers"}.`) : msg.status === "stopped" ? "Stopped." : msg.error ?? "This answer was interrupted.");
+    if (was.current && !working && !isLaneReply(msg)) announce(msg.status === "done" ? (msg.reason === "small_talk" ? "Reply ready." : msg.reason === "tool" ? "The tool's result is ready." : msg.reason === "clarify" ? "A question for you before searching." : routed || litscan ? "Understood. A tool can be opened." : msg.papers.length === 0 ? (noPapers(msg) ? "No papers were found. You can change the words and search again." : "No papers were found.") : `${answer ? "Answer ready" : "Papers ready"}, ${msg.papers.length} ${msg.papers.length === 1 ? "paper" : "papers"}.`) : msg.status === "stopped" ? "Stopped." : msg.error ?? "This answer was interrupted.");
     was.current = working;
   }, [working]); // eslint-disable-line react-hooks/exhaustive-deps
   // The safety lane's card says its first sentence, once, and keeps it in the line for a long while (a person reading in distress is not reading the line at a glance). It is the reply that most needs to be
@@ -630,7 +636,14 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
         </div>
       )}
 
-      {working && !hasThink(msg) && <Progress m={msg} signedIn={signedIn} />}
+      {/* CHAT_TOOLS: the tool that ran in this reply, with its own cards and its own progress line */}
+      {msg.tool && (
+        <Suspense fallback={<p className="chat-tool-head" role="status">Loading…</p>}>
+          <ChatTool msg={msg} onOpen={(to) => onChange(to, msg.id, text)} />
+        </Suspense>
+      )}
+
+      {working && !hasThink(msg) && !msg.tool && <Progress m={msg} signedIn={signedIn} />}
       {quiet && <p className="chat-quiet" role="status">Still working… this is taking longer than usual. You can press Stop and try again.</p>}
 
       {/* ONE card from the first word to the checked answer: the words that are being written sit in the card that the answer will be in (the same element, so that it neither jumps nor fades in a second time).
@@ -678,7 +691,7 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
         </m.div>
       ) : null}
 
-      {!working && !answer && msg.status === "done" && msg.reason && msg.reason !== "routed" && msg.reason !== "small_talk" && msg.reason !== "clarify" && msg.reason !== "urgent" && msg.reason !== "safety" && msg.reason !== "decision" && !saidByNotice(msg) && (
+      {!working && !answer && msg.status === "done" && msg.reason && msg.reason !== "routed" && msg.reason !== "small_talk" && msg.reason !== "clarify" && msg.reason !== "urgent" && msg.reason !== "safety" && msg.reason !== "decision" && msg.reason !== "tool" && !saidByNotice(msg) && (
         <p className="chat-why" role="note">
           {msg.reason === "sign_in" ? (
             <span className="chat-why-row">
@@ -712,7 +725,7 @@ const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN,
       )}
 
       {/* a finished search has its own row of actions (not a greeting, and not the offer of another tool, which has its own buttons) */}
-      {msg.status === "done" && !routed && !litscan && msg.reason !== "small_talk" && msg.reason !== "clarify" && msg.reason !== "too_long" && !lane && <ReplyActions msg={msg} onRetry={onRetry} />}
+      {msg.status === "done" && !routed && !litscan && msg.reason !== "small_talk" && msg.reason !== "clarify" && msg.reason !== "too_long" && msg.reason !== "tool" && !lane && <ReplyActions msg={msg} onRetry={onRetry} />}
 
       {msg.notices.filter((n) => !isSafetyKind(n.kind) && n.kind !== "unfinished").map((n) => (
         <p key={n.kind} className="chat-note" data-kind={n.kind} role="note">

@@ -138,6 +138,8 @@ try {
   ok = await run("literature scan integration", "scripts/litscan-e2e.mjs") && ok;
   ok = await run("feedback integration", "scripts/feedback-e2e.mjs") && ok;
   ok = await run("MCP server integration", "scripts/mcp-e2e.mjs") && ok;
+  // CHAT_TOOLS (docs/design/chat-tools.md): unset here, so the suite checks that a list is still offered; INTEGRATION_VARS="CHAT_TOOLS:on" (--only="chat tools") checks the tools run in the reply
+  ok = await run("chat tools integration", "scripts/chat-tools-e2e.mjs") && ok;
   if (withBrowser) {
     ok = await run("browser: smoke + axe", "e2e/smoke.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: auth", "e2e/auth.mjs", [`http://localhost:${PORT}`], web) && ok;
@@ -159,6 +161,7 @@ try {
     ok = await run("browser: new topic and the did-not-finish line", "e2e/new-topic.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: the Thinking block and the turn ledger", "e2e/think.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: the Understand step (what the page draws; the design's examples when CHAT_UNDERSTAND is on)", "e2e/understand.mjs", [`http://localhost:${PORT}`], web) && ok;
+  ok = await run("browser: chat tools (what the page draws for a tool run in the reply)", "e2e/chat-tools.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: reader polish (back, drawing tools, question box)", "e2e/polish-reader.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: trending", "e2e/trending.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: ask any paper", "e2e/oa.mjs", [`http://localhost:${PORT}`], web) && ok;

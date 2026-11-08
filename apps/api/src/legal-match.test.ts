@@ -456,6 +456,14 @@ const FLAG_SENTENCES: readonly FlagSentence[] = [
       "Even when you are not signed in, a message you write in Auto is sent to the AI model run by Cloudflare (Workers AI) so that it can be understood; it is not kept and not used for training. To limit how often this happens, we count these messages for the day under a one-way code made from your internet address and the date, which is deleted after two days.",
     at: ["on"],
   },
+  // CHAT_TOOLS (docs/design/chat-tools.md, the owner's request of 9 Nov 2026): tools run in the reply. Written on 9 Nov 2026 and NOT on the page yet: it waits for the owner's read, and the privacy version
+  // moves with it (the commit that sets "CHAT_TOOLS": "on" puts it under "Your papers and ideas").
+  {
+    flag: "CHAT_TOOLS",
+    at: ["on"],
+    sentence:
+      "In Auto, when your message is a list of references, DOIs with a question about retraction, or a question about one paper of the conversation or one of your own papers, the tool runs in the reply itself instead of being offered: references are checked at Crossref and OpenAlex and DOIs at Crossref, exactly as on Check references; a question about a paper of the conversation is answered as Ask this paper answers it (only when you are signed in, and it counts against your daily AI allowance and the papers read for you each day); and a question about one of your own papers is answered as on that paper's page and kept with that paper's questions. Idea Check and the literature scan still start only when you choose them. A verdict (never your text) is kept for up to a day, and of the conversation we keep only counts of which tool ran.",
+  },
   // The MCP server (src/mcp, docs "Sodhsetu understanding, follow-ups and MCP (design)", page 13). The sentence is written and waits for the owner's read: the commit that sets "MCP" to "beta"
   // or "on" in wrangler.jsonc puts it on the privacy page (under "What we send where") with the next PRIVACY_VERSION, and this row then holds the two together.
   {

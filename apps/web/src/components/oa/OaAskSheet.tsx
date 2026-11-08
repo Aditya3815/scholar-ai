@@ -15,7 +15,7 @@ const SUGGESTIONS = ["What is the main finding?", "How was the study done?", "Wh
 
 const LICENSE: Record<string, string> = { cc0: "CC0", "cc-by": "CC BY", "cc-by-sa": "CC BY-SA", "cc-by-nc": "CC BY-NC", "cc-by-nd": "CC BY-ND", "cc-by-nc-sa": "CC BY-NC-SA", "cc-by-nc-nd": "CC BY-NC-ND" };
 
-const STAGE_SAY: Record<string, string> = {
+export const STAGE_SAY: Record<string, string> = {
   retrieving: "Finding the right passages",
   thinking: "Thinking it through",
   writing: "Writing the answer",
@@ -33,7 +33,7 @@ const placeOf = (c: Citation) => (c.section ? c.section : `p. ${c.page}`);
 const chipOf = (c: Citation) => (c.section ? `§ ${c.section.split(" > ")[0]!.slice(0, 14)}` : `p.${c.page}`);
 
 /** What the answer is made from, said plainly. */
-function Basis({ paper, onPapers }: { paper: OaPaperEvent; onPapers: () => void }) {
+export function Basis({ paper, onPapers }: { paper: OaPaperEvent; onPapers: () => void }) {
   if (paper.source === "abstract") {
     return (
       <p className="oa-basis" data-kind="abstract" role="note">
@@ -56,7 +56,7 @@ function Basis({ paper, onPapers }: { paper: OaPaperEvent; onPapers: () => void 
 }
 
 /** The first time a paper is asked it is read for everyone; this is how far that has got. */
-function Reading({ turn }: { turn: OaTurn }) {
+export function Reading({ turn }: { turn: OaTurn }) {
   const i = turn.ingest;
   if (!i || i.status === "ready" || i.status === "unreadable" || i.status === "failed") return null;
   const pct = Math.round(i.progress * 100);
@@ -88,7 +88,7 @@ function CopyButton({ answer }: { answer: Answer }) {
   );
 }
 
-function AnswerCard({ turn }: { turn: OaTurn }) {
+export function AnswerCard({ turn }: { turn: OaTurn }) {
   const a = turn.answer!;
   const prefix = `oa-${turn.id}`;
   const [flash, setFlash] = useState<number | null>(null);
@@ -145,7 +145,7 @@ function AnswerCard({ turn }: { turn: OaTurn }) {
   );
 }
 
-const ERROR_HELP: Record<string, string> = {
+export const ERROR_HELP: Record<string, string> = {
   still_reading: "It keeps going without you.",
   quota: "It comes back tomorrow.",
 };

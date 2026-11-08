@@ -43,6 +43,12 @@ const CHAT: Record<ChatEvent["type"], EventKind> = {
   error: "end",
   // a line of the Thinking block (M2): what a stage did, in counts and template words, never the words of an answer
   think: "meta",
+  // a tool run in the reply (CHAT_TOOLS, chat-tools.ts): what it will do, then what it produced. `tool_ask` carries one event of the "Ask this paper" stream as it is: the events it carries follow the
+  // ask stream's own rule (the endpoint tests unwrap them and check them as that stream).
+  tool: "meta",
+  tool_ref: "result",
+  tool_retractions: "result",
+  tool_ask: "result",
 };
 
 const ASK: Record<OaAskEvent["type"], EventKind> = {

@@ -4,6 +4,7 @@ import type { ThinkLine } from "./think";
 import type { Lang, RouteHow, RouteMode as ChatMode } from "./route";
 import { ABSTRACT_READ_CHARS } from "./sentences";
 import type { Reading } from "./reading";
+import type { ChatToolEvent } from "./chat-tools";
 
 /**
  * The prompt box of the new home (W2): what the browser sends to `POST /api/v1/chat` and what comes back as server-sent events.
@@ -57,7 +58,7 @@ export type ChatAnswer = {
  * (`urgent`), or one that says the person may hurt themselves or plainly asks for help (`safety`), with a fixed text and no search; they carry no papers. `decision` is a message that asks what the person
  * should take: the papers of the topic are shown, and no answer is written, because the papers are about the topic and not about the person's case.
  */
-export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_grounded" | "quota" | "unavailable" | "stopped" | "routed" | "too_long" | "small_talk" | "urgent" | "safety" | "decision" | "clarify";
+export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_grounded" | "quota" | "unavailable" | "stopped" | "routed" | "too_long" | "small_talk" | "urgent" | "safety" | "decision" | "clarify" | "tool";
 
 /**
  * M4/M5 (design PDF "Sodhsetu understanding, follow-ups and MCP", pages 3 to 6): what the Understand step said about a message, when IT decided (CHAT_UNDERSTAND "on"). Optional fields of the `understood`
@@ -131,7 +132,9 @@ export type ChatEvent =
    * One line of the Thinking block (M2, think.ts): what a stage did, from its real counts. Sent only while CHAT_THINK is "on"; the same `id` again replaces the line. A reducer that does not know an event
    * keeps the reply as it was (`applyChatEvent`'s default), so a page always survives a newer server.
    */
-  | ({ type: "think" } & ThinkLine);
+  | ({ type: "think" } & ThinkLine)
+  /** A tool run in the reply (CHAT_TOOLS "on", chat-tools.ts): sent only with the switch on; a page that does not know these events keeps the reply as it was. */
+  | ChatToolEvent;
 
 /** The plain sentence shown when some of the places searched did not answer. No place is named. */
 export const PARTIAL_NOTICE = "Some of the places we search did not answer, so this list may be incomplete. Search again";
