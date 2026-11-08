@@ -146,6 +146,8 @@ export * from "./stream-shape";
 export * from "./chat";
 export * from "./chat-context";
 export * from "./chat-state";
+// tools run in the reply (CHAT_TOOLS)
+export * from "./chat-tools";
 // the pure fold of a chat (R19): built beside `contextBefore`, and not used by the page or the server yet
 export * from "./chat-fold";
 export * from "./outcome-counts";

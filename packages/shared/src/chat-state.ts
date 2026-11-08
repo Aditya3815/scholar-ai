@@ -5,6 +5,7 @@ import { MAX_AUTO_CHARS, type Lang, type RouteHow } from "./route";
 import { abstractRead } from "./sentences";
 import type { Reading } from "./reading";
 import { withThinkLine, type ThinkLine } from "./think";
+import { applyToolEvent, toolForStorage, type ChatToolResult } from "./chat-tools";
 
 /* The conversation as the browser keeps it: a reply is built event by event while it streams, and kept as it is when it is done. All of it is pure, so it is tested without a browser. */
 
@@ -74,6 +75,8 @@ export type AssistantMsg = {
   tookMs?: number;
   /** The lines of the Thinking block (M2: `think` events, only while the server's CHAT_THINK is on); absent for a reply that had none, and in replies kept before it existed. Kept with the reply. */
   think?: ThinkLine[];
+  /** A tool that ran in the reply (CHAT_TOOLS "on": the verdicts of a pasted list, retractions, the answer about one paper); absent for every other reply. Kept with the reply. */
+  tool?: ChatToolResult;
   at: number;
 } & UnderstoodByModel;
 /**
@@ -150,6 +153,13 @@ export function applyChatEvent(m: AssistantMsg, e: ChatEvent): AssistantMsg {
       return { ...m, status: "error", step: null, live: "", generalLive: "", error: e.title };
     case "think":
       return { ...m, think: withThinkLine(m.think, e) };
+    case "tool":
+    case "tool_ref":
+    case "tool_retractions":
+    case "tool_ask": {
+      const tool = applyToolEvent(m.tool, e);
+      return tool === m.tool ? m : { ...m, ...(tool ? { tool } : {}) };
+    }
     default:
       // an event this build does not know (a newer server): the reply is kept as it is
       return m;
@@ -169,6 +179,7 @@ export const trimForStorage = (m: AssistantMsg): AssistantMsg => {
     live: "",
     generalLive: "",
     papers: m.papers.map((p) => (p.abstract && p.abstract.length > 600 ? { ...p, abstract: `${p.abstract.slice(0, 600).replace(/\s+\S*$/, "")}…` } : p)),
+    ...(m.tool ? { tool: toolForStorage(m.tool) } : {}),
   };
   // the questions of other chats a reply kept before 6 Nov 2026 (the removed earlier-chats feature) are not kept again
   delete kept.earlier;

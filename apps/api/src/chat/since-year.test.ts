@@ -861,3 +861,35 @@ describe.runIf(process.env.RERECORD_UNDERSTAND === "1")("rerecord the understand
     writeFileSync(UNDERSTAND_GOLDEN, JSON.stringify({ producedFrom: "POST /api/v1/chat of apps/api/src/chat/routes.ts with CHAT_UNDERSTAND=on, the stand-in network, router, writer, judge and Understand model (QA_STUB; understand-wire.ts stubUnderstand), the clock held at 2026-11-03T12:00:00Z, for every request of the differential list of since-year.test.ts: status, event types, ending, bytes and SHA-256 of each stream. Recorded by hand on 6 Nov 2026 from the working tree of branch und-m4 (M4/M5 of the design PDF \"Sodhsetu understanding, follow-ups and MCP\"): the streams are new, so there is no earlier code to record them from; what each intent does is read in understand-route.test.ts.", entries }, null, 1) + "\n");
   }, 300_000);
 });
+
+/**
+ * CHAT_TOOLS (docs/design/chat-tools.md, the owner's request of 9 Nov 2026): tools run in the reply. Unset, "off", "shadow" and a value that is not a position leave every request of the list the golden's, byte for
+ * byte. With "on" the requests of this list change only where a tool really runs, and those are pinned here by name: none of the list's requests is a pasted list of references, a retraction question, a question
+ * about one result with the Understand step on, or a question about the person's own paper (the fake database has no paper), so with the step off NOTHING changes, and with it on only the requests pinned below
+ * differ from the understand golden. What each tool does is read in tools-route.test.ts.
+ */
+describe("CHAT_TOOLS: off changes nothing on the wire; on changes only the requests where a tool runs", () => {
+  const withFlag = (c: Case, flags: Record<string, string>): Case => ({ ...c, opts: { ...c.opts, env: { ...c.opts?.env, ...flags } } });
+  it("unset is the golden (the tests above), and off, shadow and a typo are too, byte for byte", async () => {
+    const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
+    for (const value of ["off", "shadow", "On", "true"]) {
+      const now = await Promise.all(DIFF.map((c) => wire(withFlag(c, { CHAT_TOOLS: value }))));
+      expect(now.filter((n, i) => JSON.stringify(n) !== JSON.stringify(golden.entries[i])).map((n) => n.name), value).toEqual([]);
+    }
+  }, 300_000);
+
+  it("on, with the rules and the router deciding: no request of the list runs a tool, so every one is the golden's", async () => {
+    const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Golden;
+    const now = await Promise.all(DIFF.map((c) => wire(withFlag(c, { CHAT_TOOLS: "on" }))));
+    expect(now.filter((n, i) => JSON.stringify(n) !== JSON.stringify(golden.entries[i])).map((n) => n.name)).toEqual(TOOLS_ON_CHANGES);
+  }, 300_000);
+
+  it("on, with the Understand step on too: only the pinned requests differ from the understand golden", async () => {
+    const pinned = JSON.parse(readFileSync(UNDERSTAND_GOLDEN, "utf8")) as Golden;
+    const now = await Promise.all(DIFF.map((c) => wire(withFlag(c, { CHAT_UNDERSTAND: "on", CHAT_TOOLS: "on" }))));
+    expect(now.filter((n, i) => JSON.stringify(n) !== JSON.stringify(pinned.entries[i])).map((n) => n.name)).toEqual(TOOLS_UNDERSTAND_CHANGES);
+  }, 300_000);
+});
+/** The requests of the list whose stream CHAT_TOOLS=on changes (with the rules deciding, and with the Understand step deciding). */
+const TOOLS_ON_CHANGES: string[] = [];
+const TOOLS_UNDERSTAND_CHANGES: string[] = [];

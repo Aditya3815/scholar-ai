@@ -1,0 +1,22 @@
+/* A tool that ran in the reply (CHAT_TOOLS, workspace/ChatTool.tsx): in the tool's own lazy chunk, not in the first-load style sheet. The cards inside are the tool pages' own (verify.css, papers.css). */
+.chat-tool { display: grid; gap: 0.6rem; margin: 0.4rem 0 0.2rem; }
+.chat-tool-head { margin: 0; line-height: 1.5; }
+.chat-tool-n[data-tone="ok"] { color: var(--ok); }
+.chat-tool-n[data-tone="warn"] { color: var(--warn); }
+.chat-tool-n[data-tone="bad"] { color: var(--danger); }
+.chat-tool-n[data-tone="muted"] { color: var(--muted); }
+.chat-tool-note { display: flex; gap: 0.4rem; align-items: flex-start; margin: 0; color: var(--muted); font-size: 0.9em; line-height: 1.45; }
+.chat-tool-note[data-tone="bad"] { color: var(--danger); }
+.chat-tool-refs { margin: 0; padding: 0; list-style: none; }
+.chat-tool-more { display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; align-items: center; margin: 0; }
+.chat-tool-why { color: var(--muted); font-size: 0.85em; line-height: 1.45; }
+.chat-tool-dois { display: grid; gap: 0.35rem; margin: 0; padding: 0; list-style: none; }
+.chat-tool-doi { display: flex; flex-wrap: wrap; gap: 0.25rem 0.6rem; align-items: center; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); overflow-wrap: anywhere; }
+.chat-tool-doi > svg { flex: none; color: var(--muted); }
+.chat-tool-doi[data-status="retracted"] { border-color: var(--danger); background: var(--danger-soft); }
+.chat-tool-doi[data-status="retracted"] > svg, .chat-tool-doi[data-status="retracted"] .chat-tool-doi-says { color: var(--danger); font-weight: 600; }
+.chat-tool-doi[data-status="not_retracted"] > svg { color: var(--ok); }
+.chat-tool-doi-id { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.9em; }
+.chat-tool-doi-says { color: var(--muted); font-size: 0.9em; }
+.chat-tool-doi-notice { flex-basis: 100%; font-size: 0.85em; color: var(--muted); }
+.chat-tool-doi-notice a + a { margin-left: 0.5rem; }
