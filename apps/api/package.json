@@ -24,7 +24,7 @@
     "@modelcontextprotocol/server": "2.3.1",
     "@scholar/shared": "*",
     "hono": "^4.13.13",
-    "unpdf": "1.9.1",
+    "unpdf": "2.1.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
