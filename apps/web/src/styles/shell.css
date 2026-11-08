@@ -537,6 +537,13 @@ kbd {
 /* Auto took the message for another tool: it is offered here, never started */
 .chat-offer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); }
 .chat-offer p { flex: 1 1 16rem; margin: 0; }
+/* M5: one question back (the Understand step's clarify): its choices as chips, "Search anyway" as a link; and the prominent "Did you want this?" line */
+.chat-clarify { display: grid; gap: 0.5rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); }
+.chat-clarify-q { margin: 0; font-weight: 600; }
+.chat-clarify-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.chat-clarify-chip { padding: 0 0.8rem; cursor: pointer; text-align: start; }
+.chat-clarify-chip:hover { border-color: var(--accent); }
+.chat-confirm b { color: var(--text); }
 .chat-change-menu { display: grid; gap: 2px; min-width: min(19rem, 80vw); }
 .chat-steps { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; margin: 0; padding: 0; list-style: none; font-size: 0.875rem; color: var(--muted); }
 .chat-steps li { display: inline-flex; align-items: center; gap: 0.4rem; }
@@ -574,6 +581,8 @@ kbd {
 .chat-talk { display: grid; gap: 0.5rem; }
 .chat-talk-any { margin: 0; font-size: 0.86rem; color: var(--muted); }
 .chat-note { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.4rem; margin: 0; color: var(--warn); font-size: 0.875rem; }
+/* M5: the line that says an answer came from papers already in the chat is information, not a warning */
+.chat-note[data-kind="abstracts"] { color: var(--muted); }
 /* the words take the room beside the icon and wrap there (they used to wrap under it, which left the icon alone on a row above a sentence of two lines on a phone) */
 .chat-note > svg { margin-top: 0.2em; }
 .chat-note > span { flex: 1 1 12rem; min-width: 0; }
@@ -595,20 +604,13 @@ kbd {
 .ws-recent li:hover .ws-recent-x, .ws-recent-x:focus-visible { opacity: 1; }
 @media (hover: none) { .ws-recent-x { opacity: 1; } }
 .ws-recent-x:hover { background: var(--border); color: var(--text); }
-/* chat to chat: the small menu beside a chat of the rail, the box's own menu (its list of chats scrolls), and popovers above the drawer */
-.ws-recent-more { right: 1.9rem; }
-.ws-recent-more[aria-expanded="true"] { opacity: 1; }
-.ws-recent li:has(.ws-recent-more) .ws-recent-open { padding-right: 3.9rem; }
-/* A finger is larger than two 26 px buttons side by side, and one of them deletes the chat at once with no way back: on touch each is 40 px, with 8 px between them, and Delete stays the farthest from the title. */
+/* A finger is larger than a 26 px button, and Delete removes the chat at once with no way back: on touch it is 40 px, with room between it and the title. */
 @media (pointer: coarse), (hover: none) {
   .ws-recent li { min-height: 44px; }
   .ws-recent-x { width: 40px; height: 40px; }
-  .ws-recent-more { right: calc(0.3rem + 48px); }
   .ws-recent li .ws-recent-open { padding-right: calc(0.3rem + 48px + 8px); }
-  .ws-recent li:has(.ws-recent-more) .ws-recent-open { padding-right: calc(0.3rem + 96px + 8px); }
 }
 .hm-more { width: 2.25rem; height: 2.25rem; color: var(--muted); }
-.hm-menu-list { display: grid; gap: 2px; max-height: 40vh; overflow-y: auto; }
 .pop { z-index: 80; }
 @media (max-width: 640px) { .chat-bubble { max-width: 95%; } .hm[data-chat="true"] .hm-box { bottom: 0.4rem; } }
 /* ---------- Message actions (docs/design/chat-actions-context.md): Copy, Edit and the version pager under a question, Copy the answer and Search again under a reply ----------

@@ -1,8 +1,4 @@
 import {
-  MAX_EARLIER_CHARS,
-  MAX_EARLIER_ENTRIES,
-  MAX_EARLIER_QUERY_CHARS,
-  MAX_EARLIER_QUESTION_CHARS,
   MAX_FILTER_YEAR,
   MAX_HISTORY_ANSWER_CHARS,
   MAX_HISTORY_CHARS,
@@ -11,7 +7,6 @@ import {
   MAX_HISTORY_TITLE_CHARS,
   MIN_FILTER_YEAR,
   cleanChatMessage,
-  type EarlierQuestion,
   type HistoryEntry,
   type HistoryPaper,
   type Lang,
@@ -244,34 +239,5 @@ export function readHistory(raw: unknown): { ok: true; history: ChatHistory } | 
     return read(raw);
   } catch {
     return bad("The earlier messages could not be read.");
-  }
-}
-
-function readEarlierList(raw: unknown): { ok: true; earlier: EarlierQuestion[] } | Refusal {
-  if (absent(raw)) return { ok: true, earlier: [] };
-  if (!Array.isArray(raw)) return bad("The earlier questions must be a list.");
-  const all: EarlierQuestion[] = [];
-  for (let i = 0; i < raw.length; i++) {
-    const e: unknown = raw[i];
-    if (!isObject(e)) return bad(`Earlier question ${i + 1} is not an object.`);
-    const question = typeof e.question === "string" ? cutChars(flat(e.question), MAX_EARLIER_QUESTION_CHARS) : "";
-    if (question.length < 2 || !hasWord(question)) return bad(`Earlier question ${i + 1} needs some words.`);
-    if (!absent(e.searchQuery) && typeof e.searchQuery !== "string") return bad(`The search words of earlier question ${i + 1} must be text.`);
-    const searchQuery = typeof e.searchQuery === "string" ? cutChars(flat(e.searchQuery), MAX_EARLIER_QUERY_CHARS) : "";
-    all.push({ question, ...(searchQuery && hasWord(searchQuery) ? { searchQuery } : {}) });
-  }
-  // the best come first (the browser chose them): the last whole entries go until the count and the total fit
-  const earlier = all.slice(0, MAX_EARLIER_ENTRIES);
-  const size = (xs: readonly EarlierQuestion[]) => xs.reduce((n, x) => n + x.question.length + (x.searchQuery?.length ?? 0), 0);
-  while (earlier.length > 1 && size(earlier) > MAX_EARLIER_CHARS) earlier.pop();
-  return { ok: true, earlier };
-}
-
-/** The questions of earlier chats (section 6) as a list, or the plain reason they are not one. Absent, null and empty are none. Never throws. */
-export function readEarlier(raw: unknown): { ok: true; earlier: EarlierQuestion[] } | Refusal {
-  try {
-    return readEarlierList(raw);
-  } catch {
-    return bad("The earlier questions could not be read.");
   }
 }

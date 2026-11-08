@@ -151,6 +151,9 @@ export * from "./chat-fold";
 export * from "./outcome-counts";
 export * from "./chat-copy";
 export * from "./chat-memory";
+// the turn ledger and the Thinking block (design PDF "Sodhsetu understanding, follow-ups and MCP", M2)
+export * from "./ledger";
+export * from "./think";
 export * from "./route";
 // the Reading of R8 (reading.ts) is exported as `MessageReading`: ocr.ts already has a `Reading` of its own
 export {
@@ -165,3 +168,8 @@ export * from "./docx";
 export * from "./litscan-docx";
 export * from "./trending-client";
 export * from "./script";
+
+/** An AI app a person connected to Sodhsetu through the MCP server (Settings, Connected apps; apps/api/src/mcp/apps.ts). */
+export type ConnectedApp = { id: string; name: string; scopes: string[]; connectedAt: string };
+/** GET /api/v1/connected-apps: the switch's position ("beta" or "on"; the route is 404 when it is off) and the apps. */
+export type ConnectedApps = { mode: "beta" | "on"; apps: ConnectedApp[] };

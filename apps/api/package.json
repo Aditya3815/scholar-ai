@@ -20,9 +20,12 @@
     "deploy:staging": "npm run db:migrate:staging && wrangler deploy --env staging"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.2.4",
+    "@modelcontextprotocol/server": "2.3.1",
     "@scholar/shared": "*",
     "hono": "^4.13.13",
-    "unpdf": "1.9.1"
+    "unpdf": "1.9.1",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261024.1",

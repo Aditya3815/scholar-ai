@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { cleanAutoMessage, needsContext } from "@scholar/shared";
-import { readEarlier, readHistory } from "./history";
+import { readHistory } from "./history";
 import { chatRoutes } from "./routes";
 // the labelled follow-ups, and their scoring: scripts that the real-model eval runs (scripts/router-eval.mjs --followup); pinned here without a model
 // @ts-expect-error a script, not a typed module
@@ -11,7 +11,7 @@ import { CLASSES, HOLDOUT, HOLDOUT2, LANGS, TUNED } from "../../scripts/router-f
 import { evaluate, formatReport, scoreCase, searchedText, summarize, table, wilson } from "../../scripts/lib/followup-score.mjs";
 
 type Want = { intent: string | string[]; yearFrom?: number | number[]; yearTo?: number | number[]; answerLanguage?: string; mustContain?: (string | string[])[]; mustNotContain?: string[] };
-type Case = { id: string; lang: string; cls: string; history: unknown[]; earlier: { question: string; searchQuery?: string }[]; message: string; want: Want };
+type Case = { id: string; lang: string; cls: string; history: unknown[]; message: string; want: Want };
 const ALL: Case[] = [...TUNED, ...HOLDOUT, ...HOLDOUT2];
 const list = <T>(v: T | T[] | undefined): T[] => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
 const LIMITS = { intent: 0.85, intentHinglish: 0.8, intentHindi: 0.8, falseSamePapers: 0.05, valid: 0.9, content: 0.8, ask: 0.8, yearWords: 0.9, bleed: 0.05, years: 0.85, falseYear: 0.1, language: 0.9, translated: 0.9, tokens: 2200 };
@@ -35,18 +35,13 @@ describe("the follow-up cases", () => {
       expect(cleanAutoMessage(c.message), c.id).not.toBeNull();
       const h = readHistory(c.history);
       expect(h.ok, `${c.id}: ${h.ok ? "" : h.detail}`).toBe(true);
-      const e = readEarlier(c.earlier);
-      expect(e.ok, `${c.id}: ${e.ok ? "" : e.detail}`).toBe(true);
-      if (h.ok && e.ok) {
+      if (h.ok) {
         // the server keeps every entry of a case: nothing here is cut, so what is measured is what was written
         expect(h.history.entries.length, c.id).toBe(c.history.length);
         expect(h.history.dropped, c.id).toBe(0);
-        expect(e.earlier.length, c.id).toBe(c.earlier.length);
-        if (c.cls === "earlier_chat") expect(h.history.turns + e.earlier.length, c.id).toBeGreaterThan(0);
       }
       for (const i of list(c.want.intent)) expect(["new", "refine", "same_papers"], c.id).toContain(i);
-      if (c.cls === "earlier_chat") expect(c.history, c.id).toEqual([]);
-      else expect(c.history.length, c.id).toBeGreaterThan(0);
+      expect(c.history.length, c.id).toBeGreaterThan(0);
       if (c.cls === "topic_switch") expect(list(c.want.mustNotContain).length, c.id).toBeGreaterThan(0);
     }
   });
@@ -62,7 +57,7 @@ describe("the follow-up cases", () => {
   });
 
   it("a follow-up of the tuned list is one that cannot stand alone (the rules hand it to the model); in the hold-out list a few natural ones are not, and that share is part of the honest number", () => {
-    const leans = (c: Case) => ["refine", "same_papers", "restyle", "year_filter", "earlier_chat"].includes(c.cls);
+    const leans = (c: Case) => ["refine", "same_papers", "restyle", "year_filter"].includes(c.cls);
     for (const c of (TUNED as Case[]).filter(leans)) expect(needsContext(c.message), `${c.id}: ${c.message}`).toBe(true);
     const hold = (HOLDOUT as Case[]).filter(leans);
     const reached = hold.filter((c) => needsContext(c.message)).length / hold.length;
@@ -267,7 +262,7 @@ describe("every case goes through the real route, with the stand-in for the mode
   const sessionRow = { id: "user-1", name: "Test", email: "t@example.org", orcid: null, avatar_url: null, role: "scholar", privacy_ack: null, stale: 0, providers: "google" };
   const db = { prepare: () => ({ bind: () => ({ first: async () => sessionRow, run: async () => ({}), all: async () => ({ results: [] }) }) }) };
   const ask = async (c: Case) => {
-    const body = { message: c.message, history: c.history, ...(c.earlier.length > 0 ? { earlier: c.earlier } : {}) };
+    const body = { message: c.message, history: c.history };
     const res = await chatRoutes.request("http://localhost/route", { method: "POST", headers: { "content-type": "application/json", origin: "http://localhost", cookie: `sid=${"t".repeat(40)}` }, body: JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org" });
     return { status: res.status, json: (await res.json()) as Record<string, unknown> };
   };

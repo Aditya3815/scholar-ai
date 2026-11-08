@@ -10,7 +10,7 @@ const failedWith = (error: string) => new AllProvidersFailedError([{ provider: "
  * "garbled" an invalid one, "boom" a failure; anything else is a search, whose English query is the first words behind "translated:".
  *
  * It reads the LAST triple-quoted block (the message: a follow-up prompt has the earlier turns before it, as one line each, and the message is always last, in its own block). For a follow-up (the call labelled
- * `chat_route_ctx`) it reads the earlier turns from their prefixed lines (`H1 {...}`, `C1 {...}`) and answers from the CURRENT message only: "simpler", "shorter", "hindi", "hinglish", "english" or "explain" ask for the same
+ * `chat_route_ctx`) it reads the earlier turns from their prefixed lines (`H1 {...}`) and answers from the CURRENT message only: "simpler", "shorter", "hindi", "hinglish", "english" or "explain" ask for the same
  * papers again in another form; "newtopic" is a different topic; a year after "after", "since", "from" or "baad" is `year_from`, after "before" or "until" `year_to`, any other year both; anything else is a refinement, whose
  * standalone question and search words are the earlier topic and the message's words. "restatefail" makes the question carry a number nobody wrote (the server must refuse it), "bleedtopic" makes the search words of a new topic carry
  * the old topic's, "barereading" is a refinement whose question the model left as the message (only its search words are the earlier topic's).
@@ -37,17 +37,15 @@ export const stubRoute: Complete = async ({ user, label }) => {
   return { model: "stub", json: stubFollowUp(user, text) };
 };
 
-/** The earlier turns of a follow-up prompt: what the person asked, what the last answer searched, and the questions of earlier chats (each on a line of its own, behind its prefix). */
-function earlierTurns(user: string): { asked: string[]; searched: string[]; before: string[] } {
+/** The earlier turns of a follow-up prompt: what the person asked and what the last answer searched (each on a line of its own, behind its prefix). */
+function earlierTurns(user: string): { asked: string[]; searched: string[] } {
   const asked: string[] = [];
   const searched: string[] = [];
-  const before: string[] = [];
   // only inside their fences: the message (which cannot hold a fence, router.ts makes its delimiters harmless) is never read as an earlier turn, whatever lines it has
   const turns = /<<<EARLIER_TURNS\n([\s\S]*?)\nEARLIER_TURNS>>>/.exec(user)?.[1] ?? "";
-  const chats = /<<<EARLIER_CHATS\n([\s\S]*?)\nEARLIER_CHATS>>>/.exec(user)?.[1] ?? "";
   const lines = (block: string, prefix: string) => [...block.matchAll(new RegExp(`^${prefix}\\d+ (\\{.*\\})$`, "gm"))].flatMap((m) => {
     try {
-      return [JSON.parse(m[1]!) as { role?: string; text?: string; search?: string; question?: string }];
+      return [JSON.parse(m[1]!) as { role?: string; text?: string; search?: string }];
     } catch {
       return [];
     }
@@ -56,15 +54,14 @@ function earlierTurns(user: string): { asked: string[]; searched: string[]; befo
     if (o.role === "user" && o.text) asked.push(o.text);
     else if (o.role === "assistant" && o.search) searched.push(o.search);
   }
-  for (const o of lines(chats, "C")) before.push(o.search || o.question || "");
-  return { asked, searched, before };
+  return { asked, searched };
 }
 
 /** What the stand-in says about a follow-up (see the comment on `stubRoute`). */
 function stubFollowUp(user: string, text: string) {
-  const { asked, searched, before } = earlierTurns(user);
-  // the topic: what the last reply searched, else the last question, else the best question of an earlier chat (the browser sends the best first)
-  const prior = (searched.at(-1) ?? asked.at(-1) ?? before[0] ?? "").trim();
+  const { asked, searched } = earlierTurns(user);
+  // the topic: what the last reply searched, else the last question
+  const prior = (searched.at(-1) ?? asked.at(-1) ?? "").trim();
   const year = /\b(?:19|20)\d{2}\b/.exec(text)?.[0];
   const range = year ? (/\b(?:after|since|from|onwards|baad)\b|बाद/i.test(text) ? { year_from: Number(year), year_to: 0 } : /\b(?:before|until|till)\b|पहले/i.test(text) ? { year_from: 0, year_to: Number(year) } : { year_from: Number(year), year_to: Number(year) }) : { year_from: 0, year_to: 0 };
   const language = /\bhinglish\b/i.test(text) ? "hinglish" : /\bhindi\b|हिंदी|हिन्दी/i.test(text) ? "hi" : /\benglish\b/i.test(text) ? "en" : "";

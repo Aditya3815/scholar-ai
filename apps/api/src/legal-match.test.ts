@@ -289,7 +289,7 @@ async function touchedBy(load: () => Promise<Record<string, unknown>> | Record<s
   return { touched: [...touched], ran: [...ran] };
 }
 
-type FlagSentence = { flag: string; sentence: string; /** the positions of the flag at which the sentence must be on the page */ at: readonly ("core" | "on")[] };
+type FlagSentence = { flag: string; sentence: string; /** the positions of the flag at which the sentence must be on the page (`shadow` too for a flag whose shadow already sends or keeps something new) */ at: readonly ("shadow" | "core" | "beta" | "on")[] };
 type AlwaysOn = { sentence: string; /** the code that makes it true now that no flag guards it: a file of the repository and a piece of text that must be in it */ codePath: { file: string; contains: string } };
 type Disclosure = {
   page: string;
@@ -367,7 +367,7 @@ function disclosureProblems(i: Disclosure): string[] {
     const unpinned = unpinnable(row.flag, sentence);
     if (unpinned) problems.push(unpinned);
     const value = i.vars[row.flag];
-    const { position } = positionOfVariable(value, row.at.includes("core"));
+    const { position } = positionOfVariable(value, row.at.includes("core"), false, row.at.includes("beta"));
     const flagOn = (row.at as readonly string[]).includes(position);
     const present = page.includes(sentence);
     const needs = `needs ${row.at.join(" or ")}; vars has ${value === undefined ? "nothing" : JSON.stringify(value)}`;
@@ -396,8 +396,8 @@ function disclosureProblems(i: Disclosure): string[] {
   }
   const decided = new Set([...i.flagSentences.map((f) => f.flag), ...Object.keys(i.noSentence)]);
   for (const [name, value] of Object.entries(i.vars)) {
-    const { position, bad } = positionOfVariable(value, true);
-    if (!bad && (position === "on" || position === "core") && !decided.has(name)) {
+    const { position, bad } = positionOfVariable(value, true, true, true);
+    if (!bad && (position === "on" || position === "core" || position === "beta") && !decided.has(name)) {
       problems.push(`${name}: the committed vars has it at ${position}, and there is no row for it: add one to FLAG_SENTENCES (the sentence the page gets) or to FLAGS_WITHOUT_SENTENCE (why it needs none)`);
     }
   }
@@ -440,7 +440,31 @@ function readVars(text: string): Record<string, unknown> {
 // ---- end of the checks ----
 
 /** One row per privacy sentence of a release: a literal run of the page's source text (as plain text, in one line), stopping before any {expression} (see (4) in the header). Empty until the first release writes its text (10.1). */
-const FLAG_SENTENCES: readonly FlagSentence[] = [];
+const FLAG_SENTENCES: readonly FlagSentence[] = [
+  // M4/M5 (design PDF "Sodhsetu understanding, follow-ups and MCP"): with CHAT_UNDERSTAND at shadow or on, the page sends the turn ledger (replies and paper titles leave the browser) and counts are kept, so the
+  // sentence is needed from shadow on. Written on 6 Nov 2026 and NOT on the page yet: it waits for the owner's read, and the privacy version moves with it.
+  {
+    flag: "CHAT_UNDERSTAND",
+    sentence:
+      "When you write in Auto, your browser also sends a short record of the earlier turns of the same chat (your earlier messages, the first 300 characters of each reply and the titles of the papers it listed), so that a message like “the second paper” or “only after 2020” can be understood. It goes only to the AI model run by Cloudflare (Workers AI), it is not kept, nothing from another chat is ever in it, and of how a message was understood we keep only counts, never your words.",
+    at: ["shadow", "on"],
+  },
+  // M5: a visitor's Auto message is read by the private model too, with a daily cap kept under a one-way code of the day and the address (migration 0027). Waits for the owner's read.
+  {
+    flag: "CHAT_UNDERSTAND_VISITORS",
+    sentence:
+      "Even when you are not signed in, a message you write in Auto is sent to the AI model run by Cloudflare (Workers AI) so that it can be understood; it is not kept and not used for training. To limit how often this happens, we count these messages for the day under a one-way code made from your internet address and the date, which is deleted after two days.",
+    at: ["on"],
+  },
+  // The MCP server (src/mcp, docs "Sodhsetu understanding, follow-ups and MCP (design)", page 13). The sentence is written and waits for the owner's read: the commit that sets "MCP" to "beta"
+  // or "on" in wrangler.jsonc puts it on the privacy page (under "What we send where") with the next PRIVACY_VERSION, and this row then holds the two together.
+  {
+    flag: "MCP",
+    at: ["beta", "on"],
+    sentence:
+      "If you connect an AI app (such as Claude or ChatGPT) to your Sodhsetu account, what it sends to Sodhsetu's tools (a search, a list of references, DOIs, a question about a paper, a claim to check) is handled exactly as on this website: a search goes to the public indexes named above, references are checked at Crossref and OpenAlex and DOIs at Crossref, a question about a paper or a claim to check is sent with the paper's text to the AI model run by Cloudflare (Workers AI) and counts against your daily AI allowance, a verdict (never your text) is kept for up to a day, and we keep only counts: which tool was used, by which app, how long it took and whether it worked. An app you allow to use your library can see the papers you saved and save a paper you agreed to save. What the app does with the answers is up to that app and its own privacy terms. You can disconnect an app at any time in Settings, under Connected apps.",
+  },
+];
 /** Flags that are on in the committed config and need no sentence on the page, each with the reason (nothing new is sent, kept or shown that the page does not already say). Empty until a release has one. */
 const FLAGS_WITHOUT_SENTENCE: Readonly<Record<string, string>> = {};
 /** Rows that have lost their flag after 14 clean days on: the sentence and the code that makes it true. Releases with no flag (R6b, T1) start here. */

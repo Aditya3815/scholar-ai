@@ -58,7 +58,7 @@ function buildChat(owner, turns, cards = 8) {
       answer: { text: "Screening was feasible in community settings [1]. Costs per person were lower than with clinic visits [2].", grounded: true, checked: true, leftOut: 0, rewritten: 0, citations: [1, 2].map((n) => ({ n, paperId: papers[n - 1].id, sentenceNo: n, sentence: SENT[n] })) } });
   }
   const id = `polishchat${turns}0000001`.slice(0, 20);
-  return { entry: { id, title: TOPICS[0], updatedAt: Date.now(), owner, kw: "glaucoma screening" }, record: { id, messages, rev: 1 } };
+  return { entry: { id, title: TOPICS[0], updatedAt: Date.now(), owner }, record: { id, messages, rev: 1 } };
 }
 async function storeChat(page, turns, cards) {
   const meId = await page.evaluate(() => fetch("/api/v1/auth/me", { credentials: "same-origin" }).then((r) => r.json()).then((j) => j.user.id));

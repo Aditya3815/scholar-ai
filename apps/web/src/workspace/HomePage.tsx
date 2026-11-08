@@ -1,7 +1,7 @@
 import { m } from "motion/react";
-import { ArrowUp, Bookmark, Check, ChevronDown, EyeOff, FileStack, Landmark, Lightbulb, ListChecks, MessageSquare, MoreHorizontal, Plus, RefreshCw, Search, SeparatorHorizontal, Sparkles, Square, TriangleAlert, X } from "lucide-react";
+import { ArrowUp, Bookmark, Check, ChevronDown, EyeOff, FileStack, Landmark, Lightbulb, ListChecks, MoreHorizontal, Plus, RefreshCw, Search, SeparatorHorizontal, Sparkles, Square, TriangleAlert, X } from "lucide-react";
 import { Component, Suspense, lazy, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type Dispatch, type KeyboardEvent, type ReactNode, type RefObject, type SetStateAction } from "react";
-import { INDIA_SCOPE_HELP, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MIN_IDEA_CHARS, canStartNewTopic, textAttrs, yearRangeWords, type MemoryEntry, type RouteMode, type SearchScope } from "@scholar/shared";
+import { INDIA_SCOPE_HELP, INDIA_SCOPE_LABEL, MAX_CHAT_CHARS, MIN_IDEA_CHARS, canStartNewTopic, textAttrs, yearRangeWords, type RouteMode, type SearchScope } from "@scholar/shared";
 import { useAuth } from "../lib/auth";
 import { useGrowingField } from "../lib/autogrow";
 import { reportError } from "../lib/monitoring";
@@ -12,7 +12,7 @@ import { PAPERS_NAME, putHandoff } from "../lib/workspace";
 import { Pop } from "../components/Pop";
 import { ContinueReading, RememberThis } from "./HomeExtras";
 import type { ChatView as ChatViewType } from "./ChatView";
-import { cancelNewTopic, continueFromChat, continuedFrom, deleteChat, isPrivateChat, resumeChat, retryReply, reviveIdea, sendMessage, startIdeaCheck, startNewChat, startNewTopic, startPrivateChat, stopContinuing, stopReply, topicPending, useChatState, useConversing } from "../lib/chat";
+import { cancelNewTopic, deleteChat, isPrivateChat, resumeChat, retryReply, reviveIdea, sendMessage, startIdeaCheck, startNewChat, startNewTopic, startPrivateChat, stopReply, topicPending, useChatState, useConversing } from "../lib/chat";
 import { startersFor, starterMode } from "./starters";
 import { menuKeys } from "./menuKeys";
 import { TrendingChips, TryChips } from "./HomeChips";
@@ -223,16 +223,16 @@ function ModeMenu({ tool, onChange }: { tool: Tool; onChange: (t: Tool) => void 
 }
 
 /**
- * The box's other choices (docs/design/chat-actions-context.md, section 6), in a menu of their own: start a private chat (not kept, not used as memory), and, for a signed-in person, continue from an
- * earlier chat (a new chat that carries that chat's last three questions until the chip is removed). Both are plain buttons in a menu, so the keyboard reaches them with the arrow keys as in the tool menu.
+ * The box's other choices, in a menu of their own: "New topic" (on a phone, where the bar has no room for its own button) and a private chat (not kept). Plain buttons in a menu, so the keyboard reaches
+ * them with the arrow keys as in the tool menu. "Continue from an earlier chat" was here until 6 Nov 2026: a message now leans only on its own chat (design PDF M1).
  */
-function ChatMenu({ chats, signedIn, topic, onContinue, onPrivate, onTopic }: { chats: readonly MemoryEntry[]; signedIn: boolean; /** "New topic" can be pressed now */ topic: boolean; onContinue: (id: string) => void; onPrivate: () => void; onTopic: () => void }) {
+function ChatMenu({ topic, onPrivate, onTopic }: { /** "New topic" can be pressed now */ topic: boolean; onPrivate: () => void; onTopic: () => void }) {
   return (
     <Pop
       label="Chat options"
       align="start"
       trigger={(open) => (
-        <button type="button" className="icon-btn hm-more" aria-label="Chat options" title="Continue from an earlier chat, or start a private chat" aria-haspopup="menu" aria-expanded={open}>
+        <button type="button" className="icon-btn hm-more" aria-label="Chat options" title="Start a private chat, or a new topic" aria-haspopup="menu" aria-expanded={open}>
           <MoreHorizontal size={18} aria-hidden="true" />
         </button>
       )}
@@ -248,22 +248,8 @@ function ChatMenu({ chats, signedIn, topic, onContinue, onPrivate, onTopic }: { 
           )}
           <button type="button" role="menuitem" className="hm-menu-item" autoFocus={!topic} onClick={() => { onPrivate(); close(); }}>
             <span className="hm-menu-ico"><EyeOff size={16} aria-hidden="true" /></span>
-            <span className="hm-menu-txt"><b>Private chat</b><small>Not kept, and not used as memory. It is gone when you leave it.</small></span>
+            <span className="hm-menu-txt"><b>Private chat</b><small>Not kept. It is gone when you leave it.</small></span>
           </button>
-          {signedIn && (
-            <div role="group" aria-labelledby="hm-continue-h">
-              <p className="ws-nav-h" id="hm-continue-h">Continue from an earlier chat</p>
-              {chats.length === 0 && <p className="hm-fine">No earlier chat is kept in this browser.</p>}
-              <div className="hm-menu-list">
-                {chats.map((e) => (
-                  <button key={e.id} type="button" role="menuitem" className="hm-menu-item" onClick={() => { onContinue(e.id); close(); }}>
-                    <span className="hm-menu-ico"><MessageSquare size={16} aria-hidden="true" /></span>
-                    <span className="hm-menu-txt"><b>{e.title}</b></span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </Pop>
@@ -274,7 +260,7 @@ function ChatMenu({ chats, signedIn, topic, onContinue, onPrivate, onTopic }: { 
  * The home screen: one prompt box. With Auto the router chooses the tool from what you write; with the menu or the pills you choose it yourself.
  * A search is answered in this screen (the conversation below the box); the other tools open on their own page with your text.
  */
-export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPaper, inputRef }: { query: string; onQuery: (v: string) => void; /** what belongs to the text in the box besides the text (the Trending chip's year filter, the words it replaced): kept by the page above, next to `query`, so that both outlive this screen */ kept: Draft; setDraft: Dispatch<SetStateAction<Draft>>; onOpenTool: (t: "verify" | "idea" | "papers") => void; onOpenPaper: (id: string) => void; inputRef: RefObject<HTMLTextAreaElement | null> }) {
+export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPaper, inputRef }: { query: string; onQuery: (v: string) => void; /** what belongs to the text in the box besides the text (the Trending chip's year filter, the words it replaced): kept by the page above, next to `query`, so that both outlive this screen */ kept: Draft; setDraft: Dispatch<SetStateAction<Draft>>; onOpenTool: (t: "verify" | "idea" | "papers" | "litscan") => void; onOpenPaper: (id: string) => void; inputRef: RefObject<HTMLTextAreaElement | null> }) {
   const { user, status } = useAuth();
   const docs = useDocs();
   const saved = useLibrary().length;
@@ -307,7 +293,6 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
   // the box's position is measured (and glides) only when the page changes between the empty Home and a conversation, not for every message and every word of a reply: the box sticks to the bottom of the window by itself, and
   // the measurement took the box's place in the DOCUMENT, so a page that scrolled from the top of a long chat to its end to show the new question made the box fly in from tens of thousands of pixels away (the page followed the caret into it)
   const glide = useMemo(() => ({}), [framed]);
-  const from = continuedFrom(chat);
   const title = priv ? "Private chat" : chat.index.find((e) => e.id === chat.active)?.title ?? "New chat";
   const [problem, setProblem] = useState<string | null>(null);
   // What a Trending chip adds to the box: the year filter, the text it replaced (so that it can be put back) and what it put there (docs/design/chatview-and-trending.md, T9; the rules are `fillChip` and
@@ -390,7 +375,9 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
     onOpenTool(to);
   };
   /** The same text on the tool's own page (the offer card's second button). */
-  const openPage = (to: "idea", text: string) => {
+  const openPage = (to: "idea" | "litscan", text: string) => {
+    // M5: the literature scan opens on its own page (its topic is written there: it has no hand-off)
+    if (to === "litscan") return onOpenTool("litscan");
     putHandoff(to, text);
     onOpenTool(to);
   };
@@ -460,7 +447,7 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
     const r = putBack(draft);
     if (!r) return;
     setDraft(r.draft);
-    fill.current = "focus"; // the button that was pressed is gone from the page: the focus is put in the box, as the other buttons of this bar (the year's X, Continuing from) do
+    fill.current = "focus"; // the button that was pressed is gone from the page: the focus is put in the box, as the other buttons of this bar (the year's X, the private chip's X) do
     onQuery(r.text);
     setFilledAt((n) => n + 1);
     announce("Your own words are back in the box.");
@@ -500,7 +487,7 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
         </>
       )}
 
-      {conversing && priv && <p className="chat-und" role="note">Private chat: it is not kept, and not used as memory. It is gone when you leave it.</p>}
+      {conversing && priv && <p className="chat-und" role="note">Private chat: it is not kept. It is gone when you leave it.</p>}
       {resuming && <p className="sr-only" role="status">Loading the conversation…</p>}
       {conversing && (
         <ChatViewSlot jumpSlot={jumpSlot} topicPending={topicOn} messages={messages} signedIn={!!user} onRetry={(rid, as) => void retryReply(rid, as)} liveIdeas={chat.liveIdeas} onOpenPage={openPage} onIdeaAgain={reviveIdea} onChange={changeMode} onRefine={(t) => { onQuery(t); window.setTimeout(() => inputRef.current?.focus(), 0); }} onDelete={() => { if (chat.active) deleteChat(chat.active); }} />
@@ -510,14 +497,13 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
           default, a long question typed after a search ended in React's limit of 50 nested updates ("Maximum update depth exceeded", error 185) */}
       <m.form ref={boxRef} className="hm-box" layout="position" layoutDependency={glide} transition={{ type: "spring", stiffness: 260, damping: 30 }} onSubmit={(e) => { e.preventDefault(); if (busy) stopReply(); else send(); }} {...(framed ? {} : rise(3))}>
         {framed && <div ref={setJumpSlot} className="hm-jump" />}
-        {(from || (priv && !conversing) || yearChip !== null || draft.undo || topicOn) && (
-          // what the next message is sent with, or not kept: always in view, each with its own button to take it away (the two choices of a chat replace each other; the year of a Trending chip is a third thing, and so is
-          // the way back to the words a chip replaced)
+        {((priv && !conversing) || yearChip !== null || draft.undo || topicOn) && (
+          // what the next message is sent with, or not kept: always in view, each with its own button to take it away (the year of a Trending chip is another thing, and so is the way back to the words a chip replaced)
           <div className="hm-bar hm-bar-top">
-            {(from || (priv && !conversing)) && (
+            {priv && !conversing && (
               <span className="chat-chip">
-                <span id={`${id}-chip`}>{from ? <>Continuing from: <b>{from.title}</b>{tool === "auto" ? "" : " (used in Auto only)"}</> : "Private chat: not kept, not used as memory"}</span>
-                <button type="button" className="chat-chip-x" aria-label={from ? `Stop continuing from ${from.title}` : "Make this a normal chat again"} onClick={() => { if (from) stopContinuing(); else startNewChat(); inputRef.current?.focus(); }}>
+                <span id={`${id}-chip`}>Private chat: not kept</span>
+                <button type="button" className="chat-chip-x" aria-label="Make this a normal chat again" onClick={() => { startNewChat(); inputRef.current?.focus(); }}>
                   <X size={14} aria-hidden="true" />
                 </button>
               </span>
@@ -557,17 +543,14 @@ export function HomePage({ query, onQuery, kept, setDraft, onOpenTool, onOpenPap
           onChange={(e) => onQuery(e.target.value)}
           onKeyDown={onKey}
           onFocus={warmChatView}
-          aria-describedby={[from || (priv && !conversing) ? `${id}-chip` : "", topicOn ? `${id}-topic` : "", yearChip !== null ? `${id}-since` : "", `${id}-help`].filter(Boolean).join(" ")}
+          aria-describedby={[priv && !conversing ? `${id}-chip` : "", topicOn ? `${id}-topic` : "", yearChip !== null ? `${id}-since` : "", `${id}-help`].filter(Boolean).join(" ")}
           maxLength={20000}
         />
         <div className="hm-bar">
           <ModeMenu tool={tool} onChange={setTool} />
           <ChatMenu
-            signedIn={!!user}
             topic={topicReady}
-            chats={chat.index.filter((e) => e.id !== chat.active)}
-            // what was typed stays in the box: these two are a setting for the NEXT message (often the one just written, which is why the person chose "private" after typing it), not a start over
-            onContinue={(sid) => { if (continueFromChat(sid)) window.setTimeout(() => inputRef.current?.focus(), 0); }}
+            // what was typed stays in the box: these are a setting for the NEXT message (often the one just written, which is why the person chose "private" after typing it), not a start over
             onPrivate={() => { startPrivateChat(); window.setTimeout(() => inputRef.current?.focus(), 0); }}
             onTopic={pressNewTopic}
           />

@@ -29,7 +29,7 @@ const LEGAL_TS = read("../../../packages/shared/src/legal.ts");
 const PAGE = plain(read("../../web/src/components/legal/LegalPages.tsx"));
 
 /** Every version this text has replaced: when it changes in a way that matters again, add the version it replaces here, so a forgotten bump fails. */
-const RETIRED_VERSIONS = ["2026-10-draft-13"];
+const RETIRED_VERSIONS = ["2026-10-draft-13", "2026-11-draft-14"];
 
 describe("PRIVACY_VERSION", () => {
   it("keeps the exact line that the staging script reads", () => {
@@ -115,33 +115,24 @@ describe("the privacy page after earlier messages are sent to the AI service", (
     expect(PAGE).toMatch(/stay in your browser \(up to five versions of a message are kept\) until you delete the chat, and are never sent anywhere/);
   });
 
-  it("says that earlier chats are used only on a choice, that the switch is off unless turned on, and what they never include", () => {
-    expect(PAGE).toMatch(/Only if you choose to continue from an earlier chat, or turn on Use my earlier chats in Settings \(it is off unless you turn it on\)/);
-    expect(PAGE).toMatch(/up to three of your earlier questions, each with the English words it was searched with, go with a new question in Auto when you are signed in/);
-    expect(PAGE).toMatch(/chosen on your device/);
-    expect(PAGE).toMatch(/never an earlier answer, an Idea Check or a pasted list/);
-    expect(PAGE).toMatch(/shown on the answer, and you can remove them and ask again without them/);
-    expect(PAGE).toMatch(/nothing from another chat is sent/);
-  });
-
-  it("says which chats and which messages: the chip sends its chat's last three questions with every message, the switch picks from the six latest and only for a message that cannot stand alone (chat-memory.ts earlierFor, candidates)", () => {
-    expect(PAGE).toMatch(/If you continue from a chat, its last three questions go to our server with every message of the new chat/);
-    expect(PAGE).toMatch(/With the switch, they are chosen on your device from your six latest chats \(not one you left out, not a private chat, and not one kept before this feature that you have not opened since\), and only for a message that cannot stand alone/);
-    expect(PAGE).toMatch(/The AI service reads them only to work out what the new message refers to, and only when the message cannot stand alone/);
-    // the plain truth about the line that shows them (ChatView.tsx shows it on a search; a message sent to another tool was read the same way and shows nothing)
-    expect(PAGE).toMatch(/When they were read for a search, they are shown on the answer/);
-    expect(PAGE).toMatch(/when the message turned out to be for another tool they were read in the same way and nothing is shown/);
-    expect(PAGE).toMatch(/A private chat is not kept, does not use other chats and is not used by them/);
-    expect(PAGE).not.toContain("from the chats kept in this browser are sent");
-  });
-
-  it("lists what the browser keeps now (edited versions, the words and the account note that find earlier chats, the copy in a reply) in the retention table", () => {
+  it("lists what the browser keeps now (edited versions and the account note) in the retention table, and no longer the words or the copies of the removed earlier-chats feature", () => {
     expect(PAGE).toMatch(/the version it replaced and the messages that followed it/);
-    expect(PAGE).toMatch(/A few words taken from your questions and from the English words they were searched with, and a note of which account the chat belongs to, kept with each chat so that your device can find earlier chats/);
-    // deleting the earlier chat does not take its questions out of the reply that used them (chat.ts deleteChat; chat-state.ts trimForStorage keeps `earlier`)
-    expect(PAGE).toMatch(/A reply that used questions from an earlier chat keeps those questions \(up to three\), with the English words they were searched with, so that it can show what it used, until its own chat is deleted, even if the earlier chat is deleted first/);
+    expect(PAGE).toContain("A note of which account the chat belongs to, kept with each chat.");
     expect(PAGE).toContain("A private chat is not kept at all");
-    expect(PAGE).toContain("your choice about using earlier chats (kept with your account number, so that another person who signs in on this browser starts with it off) stay in your browser");
+    expect(PAGE).toContain("So you can come back to them and go back to a version you edited");
+    // gone with the feature (6 Nov 2026, design PDF M1): chat-memory.ts parseIndex drops `kw` and `nomem`, chat-state.ts trimForStorage drops a reply's `earlier`, lib/chat.ts removes `scholar.earlier`
+    expect(PAGE).not.toMatch(/A few words taken from your questions/);
+    expect(PAGE).not.toMatch(/A reply that used questions from an earlier chat/);
+    expect(PAGE).not.toContain("your choice about using earlier chats");
+    expect(PAGE).toContain("Your reading preferences (theme, text size) stay in your browser.");
+  });
+
+  it("says that nothing of another chat is sent, and no longer describes the removed earlier-chats feature (routes.ts ignores `earlier`; lib/chat.ts sends only `history`)", () => {
+    expect(PAGE).toContain("Nothing from another chat is ever sent with a message: each chat leans only on its own earlier messages.");
+    expect(PAGE).not.toMatch(/Use my earlier chats in Settings \(it is off unless you turn it on\)/);
+    expect(PAGE).not.toMatch(/If you continue from a chat, its last three questions go to our server/);
+    expect(PAGE).not.toMatch(/Earlier chats\. Only if you choose/);
+    expect(PAGE).not.toMatch(/does not use other chats and is not used by them/);
   });
 
   it("says when the chats are removed and what a sign-in that only runs out does (chat.ts setChatOwner: held, not deleted; another person's sign-in and sign-out remove)", () => {
@@ -154,7 +145,8 @@ describe("the privacy page after earlier messages are sent to the AI service", (
   it("says in 'Changes' that the chat does not ask first, and what changed", () => {
     expect(PAGE).toMatch(/before you upload a paper, check an idea or run a literature scan, and we will say here what changed/);
     expect(PAGE).toMatch(/The prompt box on Home does not ask first/);
-    expect(PAGE).toContain("Latest change (2 November 2026)");
+    expect(PAGE).toContain("Latest change (6 November 2026): the prompt box on Home no longer uses your earlier chats.");
+    expect(PAGE).toContain("a message carries only earlier messages of its own conversation, and the few words that were kept with each chat so that your device could find it are removed from your browser");
   });
 
   it("keeps the promises that are still true (nothing is weakened to fit)", () => {
@@ -186,14 +178,10 @@ describe("the Settings help text for chats", () => {
     expect(SETTINGS).toContain("They are not part of the copy of your data you can download, because we do not have them");
   });
 
-  it("says which chats the switch uses, for which messages, what is shown, and where the choice lives (memory.ts: the account id is stored)", () => {
-    expect(SETTINGS).toContain("Off unless you turn it on");
-    expect(SETTINGS).toContain("a new question in Auto that cannot stand alone can be sent with up to three of your earlier questions");
-    expect(SETTINGS).toContain("picked on this device from the chats listed under Recent (the latest six; a chat kept before this switch existed is used only after you open it)");
-    expect(SETTINGS).toContain("Never their answers, ideas or lists");
-    expect(SETTINGS).toContain("When a search used them, the answer shows them, and you can remove them");
-    expect(SETTINGS).toContain("A private chat does not use other chats and is not used");
-    expect(SETTINGS).toContain("This choice is kept on this device, with your account number, so another person who signs in here starts with it off");
+  it("says that nothing of one chat goes with a message in another, and has no switch for earlier chats any more (removed 6 Nov 2026)", () => {
+    expect(SETTINGS).toContain("Nothing of one chat is sent with a message in another.");
+    expect(SETTINGS).not.toContain("Use my earlier chats");
+    expect(SETTINGS).not.toContain("useEarlierChats");
   });
 });
 
@@ -221,10 +209,10 @@ describe("the runbook after the code", () => {
     expect(CONTEXT_SECTION).toContain("chat_route_ctx");
   });
 
-  it("says what the switch does and does not do (neither field is read or refused; the browser still sends; the chip and the Settings switch still look active)", () => {
-    expect(CONTEXT_SECTION).toMatch(/history` and `earlier` are neither read nor refused/);
+  it("says what the switch does and does not do (history is neither read nor refused; the browser still sends it), and that `earlier` is ignored for good", () => {
+    expect(CONTEXT_SECTION).toMatch(/With it set, `history` is neither read nor refused/);
     expect(CONTEXT_SECTION).toMatch(/The browser does not know about the switch/);
-    expect(CONTEXT_SECTION).toMatch(/the Settings switch "Use my earlier chats" still look active/);
+    expect(CONTEXT_SECTION).toMatch(/the server ignores it unread when an old open tab still does/);
   });
 
   it("says that a variable set by hand is replaced by the next deploy, and that staging needs its own entry, for both switches", () => {

@@ -11,7 +11,7 @@
   "assets": {
     "directory": "../web/dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/api/*", "/mcp", "/oauth/*", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/*"]
   },
   "d1_databases": [
     {
@@ -33,7 +33,13 @@
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "scholar-files" }],
   // Public lookups (search results, DOI and retraction checks, reference lookups) are cached here, not in the database: docs/spikes/R6-kv-cache.md.
   // Only public data is ever put in this namespace.
-  "kv_namespaces": [{ "binding": "CACHE", "id": "2e43e4d46b59423cafeecd08c383dba0" }],
+  // The MCP server (src/mcp) keeps its OAuth clients, grants and tokens in a namespace of its own, bound as OAUTH_KV (the name is fixed by @cloudflare/workers-oauth-provider): not in CACHE,
+  // which holds only public data. Without that binding the server stays off whatever MCP says. Created on 9 Nov 2026 (`npx wrangler kv namespace create OAUTH_KV`, and the same with
+  // `--env staging` for staging below). The binding alone turns nothing on: the server stays off until "MCP" is set in vars (docs/runbook.md, "MCP server").
+  "kv_namespaces": [
+    { "binding": "CACHE", "id": "2e43e4d46b59423cafeecd08c383dba0" },
+    { "binding": "OAUTH_KV", "id": "183f82ac6f9245a58e8d05f0d98f5865" }
+  ],
   "ai": { "binding": "AI" },
   "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }, { "name": "API_GATE", "class_name": "ApiGate" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }, { "tag": "v2", "new_sqlite_classes": ["ApiGate"] }],
@@ -66,7 +72,7 @@
       "assets": {
         "directory": "../web/dist",
         "not_found_handling": "single-page-application",
-        "run_worker_first": ["/api/*"]
+        "run_worker_first": ["/api/*", "/mcp", "/oauth/*", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/*"]
       },
       "d1_databases": [
         {
@@ -82,7 +88,10 @@
         { "name": "scholar-litscan-staging", "binding": "LITSCAN", "class_name": "LitscanRun" }
       ],
       "r2_buckets": [{ "binding": "FILES", "bucket_name": "scholar-files-staging" }],
-      "kv_namespaces": [{ "binding": "CACHE", "id": "4fba839cd6a84242955f48463b5bef02" }],
+      "kv_namespaces": [
+        { "binding": "CACHE", "id": "4fba839cd6a84242955f48463b5bef02" },
+        { "binding": "OAUTH_KV", "id": "9ff6033bd73c4fa7ac159c5351fb785b" }
+      ],
       "ai": { "binding": "AI" },
       "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }, { "name": "API_GATE", "class_name": "ApiGate" }] },
       "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }, { "tag": "v2", "new_sqlite_classes": ["ApiGate"] }],

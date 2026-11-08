@@ -147,7 +147,7 @@ export const stubJudgeStream = (_env?: unknown): StreamComplete => async (req) =
 };
 
 /**
- * The strict check's model, offline: like the quick judge, but a claim that says "claims a cure" is called `partial` and offered without it; "tightenfail" makes the call fail,
+ * The strict check's model, offline: like the quick judge (a claim with "invented" is `no`), but a claim that says "claims a cure" is called `partial` and offered without it; "tightenfail" makes the call fail,
  * "tightenquota" makes it fail as the daily allowance does, "tightenslow" makes it take four seconds (to press Cancel).
  */
 export const stubStrictStream: StreamComplete = async (req) => {
@@ -158,6 +158,7 @@ export const stubStrictStream: StreamComplete = async (req) => {
   const claims = lines.map((l) => {
     const n = Number(/\[(\d+)\]/.exec(l[2]!)?.[1]);
     if (!n) return { c: Number(l[1]), v: "framing", refs: [], safe: "" };
+    if (/invented/.test(l[3]!)) return { c: Number(l[1]), v: "no", refs: [], safe: "" };
     if (/claims a cure/.test(l[3]!)) return { c: Number(l[1]), v: "partial", refs: [{ n, s: [2] }], safe: l[3]!.replace(/ and also claims a cure/, "") };
     return { c: Number(l[1]), v: "yes", refs: [{ n, s: [2] }], safe: "" };
   });

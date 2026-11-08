@@ -1,5 +1,6 @@
 import type { Paper, SearchScope } from "./index";
 import type { ChatContextInfo } from "./chat-context";
+import type { ThinkLine } from "./think";
 import type { Lang, RouteHow, RouteMode as ChatMode } from "./route";
 import { ABSTRACT_READ_CHARS } from "./sentences";
 import type { Reading } from "./reading";
@@ -56,7 +57,36 @@ export type ChatAnswer = {
  * (`urgent`), or one that says the person may hurt themselves or plainly asks for help (`safety`), with a fixed text and no search; they carry no papers. `decision` is a message that asks what the person
  * should take: the papers of the topic are shown, and no answer is written, because the papers are about the topic and not about the person's case.
  */
-export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_grounded" | "quota" | "unavailable" | "stopped" | "routed" | "too_long" | "small_talk" | "urgent" | "safety" | "decision";
+export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_grounded" | "quota" | "unavailable" | "stopped" | "routed" | "too_long" | "small_talk" | "urgent" | "safety" | "decision" | "clarify";
+
+/**
+ * M4/M5 (design PDF "Sodhsetu understanding, follow-ups and MCP", pages 3 to 6): what the Understand step said about a message, when IT decided (CHAT_UNDERSTAND "on"). Optional fields of the `understood`
+ * event, so that a page that does not know them ignores them: absent whenever the rules decided, so every stream of the switch's off and shadow positions is byte for byte what it was.
+ *  - `intent`: the intent that acts (the ledger's intent of the turn is this when present).
+ *  - `statusLine`: the one line the model wrote about what it understood, in the person's language, shown with the label "I understood". The only model-written words of the line; checked on the server
+ *    (no citation, no link, nothing of a paper).
+ *  - `confirm`: the reading was between 0.45 and 0.75 sure, or the rules decided because the model could not: "Did you want this? Change" is shown prominently.
+ *  - `fallback`: the model could not be used and the rules decided ("I could not understand this well, so I searched for papers").
+ *  - `clarify`: the reply is one question with 2 or 3 choices (the page adds "Search anyway"); the reply ends with reason `clarify` and nothing is searched.
+ *  - `offer`: another tool that has no route mode of its own, offered as a card and never started: `litscan` (the literature scan).
+ */
+export type UnderstoodByModel = {
+  intent?: "chat" | "search" | "refine_search" | "ask_results" | "ask_paper" | "offer_tool" | "clarify";
+  statusLine?: string;
+  confirm?: true;
+  fallback?: true;
+  clarify?: { question: string; choices: string[] };
+  offer?: "litscan";
+};
+
+/** What the page asks the server once (GET /api/v1/chat/config): whether to send the turn ledger with a message (only while the Understand step reads it: CHAT_UNDERSTAND shadow or on). */
+export type ChatConfig = { ledger: boolean };
+
+/**
+ * `abstracts` (M5): a reply about papers already shown in the chat ("what dataset did the second paper use?") was answered from those papers' abstracts, with no new search; the line says so and where the
+ * full text can be asked. Only with CHAT_UNDERSTAND on.
+ */
+export const ABSTRACTS_NOTICE = "Answered from the abstracts of papers already in this chat, with no new search. For a paper's full text, use Ask this paper on its card.";
 
 /**
  * The four lines of the safety lane (one kind for each, because the reducer keeps one notice of a kind): the crisis line, the urgent line (also for a plain call for help), the line for a personal
@@ -65,7 +95,7 @@ export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_gr
 export const SAFETY_NOTICE_KINDS = ["safety_crisis", "safety_urgent", "safety_decision", "safety_care"] as const;
 export type SafetyNoticeKind = (typeof SAFETY_NOTICE_KINDS)[number];
 
-export const NOTICE_KINDS = ["partial", "nothing", "retracted", "years", "weak", "unfinished", ...SAFETY_NOTICE_KINDS] as const;
+export const NOTICE_KINDS = ["partial", "nothing", "retracted", "years", "weak", "unfinished", "abstracts", ...SAFETY_NOTICE_KINDS] as const;
 export type NoticeKind = (typeof NOTICE_KINDS)[number];
 
 export type ChatEvent =
@@ -76,7 +106,7 @@ export type ChatEvent =
    * ignores a field it does not know, where a new event type would crash its reducer. `reading` is there only when the request-frame cleaner (R8, docs/design/intent-and-state.md, 4.8) had something to say:
    * what it left out of the words and what the box could not do with it; `searchQuery` is then the words it left (the topic).
    */
-  | { type: "understood"; mode: ChatMode; query: string; language: Lang; auto: boolean; how: RouteHow; confidence: number; searchQuery?: string; scope?: SearchScope; context?: ChatContextInfo; reading?: Reading }
+  | ({ type: "understood"; mode: ChatMode; query: string; language: Lang; auto: boolean; how: RouteHow; confidence: number; searchQuery?: string; scope?: SearchScope; context?: ChatContextInfo; reading?: Reading } & UnderstoodByModel)
   | { type: "step"; step: ChatStep }
   /** The papers so far (a snapshot, in rank order); `final` once every source has answered and the checks are done. */
   | { type: "papers"; results: Paper[]; final: boolean }
@@ -96,7 +126,12 @@ export type ChatEvent =
   /** The general background, final: `text` is empty unless `kind` is "background" or "not_research". */
   | { type: "general"; kind: GeneralKind; text: string }
   | { type: "done"; answered: boolean; reason?: ChatNoAnswer; tookMs: number }
-  | { type: "error"; code: string; title: string; detail?: string };
+  | { type: "error"; code: string; title: string; detail?: string }
+  /**
+   * One line of the Thinking block (M2, think.ts): what a stage did, from its real counts. Sent only while CHAT_THINK is "on"; the same `id` again replaces the line. A reducer that does not know an event
+   * keeps the reply as it was (`applyChatEvent`'s default), so a page always survives a newer server.
+   */
+  | ({ type: "think" } & ThinkLine);
 
 /** The plain sentence shown when some of the places searched did not answer. No place is named. */
 export const PARTIAL_NOTICE = "Some of the places we search did not answer, so this list may be incomplete. Search again";

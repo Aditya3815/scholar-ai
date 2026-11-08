@@ -386,7 +386,6 @@
     "name": "follow-up, earlier chats",
     "status": 200,
     "types": [
-     "step",
      "understood",
      "step",
      "papers",
@@ -410,8 +409,8 @@
      "done"
     ],
     "end": "done:no:not_answered",
-    "bytes": 6879,
-    "sha256": "814689844549d306488669d2d77c9af5554684b902efe9380cc568f90be071a9"
+    "bytes": 6659,
+    "sha256": "c1a6c59d082dab96d9a9338acfae6897e3124113ae19c25a9111c42c3baa5220"
    },
    {
     "name": "follow-up, the switch is off",
@@ -1588,7 +1587,6 @@
     "name": "follow-up, earlier chats",
     "status": 200,
     "types": [
-     "step",
      "understood",
      "step",
      "papers",
@@ -1613,8 +1611,8 @@
      "done"
     ],
     "end": "done:no:not_answered",
-    "bytes": 7115,
-    "sha256": "ff9d9f1c36310adfc8d42ae3ff9c4eb33fce9e36d74115cda1e0c39945419f8d"
+    "bytes": 6875,
+    "sha256": "01a9b95f3090854db2bde8ddc55b013254f7c8e6577b444002895cf151ea807e"
    },
    {
     "name": "follow-up, the switch is off",
@@ -2813,7 +2811,6 @@
     "name": "follow-up, earlier chats",
     "status": 200,
     "types": [
-     "step",
      "understood",
      "step",
      "papers",
@@ -2838,8 +2835,8 @@
      "done"
     ],
     "end": "done:no:not_answered",
-    "bytes": 7115,
-    "sha256": "ff9d9f1c36310adfc8d42ae3ff9c4eb33fce9e36d74115cda1e0c39945419f8d"
+    "bytes": 6875,
+    "sha256": "01a9b95f3090854db2bde8ddc55b013254f7c8e6577b444002895cf151ea807e"
    },
    {
     "name": "follow-up, the switch is off",
@@ -3925,5 +3922,6 @@
     "sha256": "dec6bd05b0660fba9ca2d69f7eadda967103b8cf1367f95d3314746d453d610f"
    }
   ]
- }
+ },
+ "alsoProducedFromM1": "The three entries named \"follow-up, earlier chats\" were recorded again on 6 Nov 2026 with the same flags, when the server began to ignore `earlier` (design PDF M1). Every other entry is unchanged."
 }

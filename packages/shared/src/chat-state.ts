@@ -1,9 +1,10 @@
 import type { Paper, SearchScope } from "./index";
-import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatRequestMode, type ChatStep, type GeneralKind, type NoticeKind, type TightenRequest, type TightenResponse } from "./chat";
-import { MAX_FILTER_YEAR, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MIN_FILTER_YEAR, MIN_SINCE_YEAR, type ChatContextInfo, type EarlierQuestion, type HistoryEntry, type HistoryPaper } from "./chat-context";
+import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatRequestMode, type ChatStep, type GeneralKind, type NoticeKind, type TightenRequest, type TightenResponse, type UnderstoodByModel } from "./chat";
+import { MAX_FILTER_YEAR, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MIN_FILTER_YEAR, MIN_SINCE_YEAR, type ChatContextInfo, type HistoryEntry, type HistoryPaper } from "./chat-context";
 import { MAX_AUTO_CHARS, type Lang, type RouteHow } from "./route";
 import { abstractRead } from "./sentences";
 import type { Reading } from "./reading";
+import { withThinkLine, type ThinkLine } from "./think";
 
 /* The conversation as the browser keeps it: a reply is built event by event while it streams, and kept as it is when it is done. All of it is pure, so it is tested without a browser. */
 
@@ -47,13 +48,6 @@ export type AssistantMsg = {
   reading?: Reading;
   /** What the server read of the earlier turns of the conversation to understand this message (a follow-up: "only after 2020"), when a model read them. Absent for a message nothing was read for. */
   context?: ChatContextInfo;
-  /**
-   * The questions of other chats this message was sent with (at most three, as the page built them from the person's own earlier chats: docs/design/chat-actions-context.md, section 6), so that the reply can
-   * say what it used (`earlierUsed`) and the person can take one away and ask again. They are kept with the reply that used them and go with it when that chat is deleted.
-   */
-  earlier?: EarlierQuestion[];
-  /** True once the person took one of `earlier` away: asking this reply again sends exactly what is left (nothing more is chosen for it). */
-  earlierSet?: true;
   /** Where the search looked when it was not the regular sources ("india": only Indian sources, which the reader turned on). Kept so "Search again" looks in the same place. */
   scope?: SearchScope;
   /** The year a Trending chip asked the papers to start from ("From 2025 on", `sinceYear` of the request). Kept like `scope`, so that "Search again" and an edit ask for the same thing; absent for any message that had none. */
@@ -78,8 +72,10 @@ export type AssistantMsg = {
   reason?: ChatNoAnswer;
   error?: string;
   tookMs?: number;
+  /** The lines of the Thinking block (M2: `think` events, only while the server's CHAT_THINK is on); absent for a reply that had none, and in replies kept before it existed. Kept with the reply. */
+  think?: ThinkLine[];
   at: number;
-};
+} & UnderstoodByModel;
 /**
  * An Idea Check started in the conversation (W5). Only the idea's text is kept: the plan, the papers and the report are not (nothing about an idea is stored), so a conversation
  * opened later shows this as "run it again". The workspace itself lives in the page while the conversation is open.
@@ -101,12 +97,36 @@ export const startAssistant = (id: string, query: string, at: number, auto = fal
 /** A year a request may carry as `sinceYear`: a whole number from 1990 (what the server reads) to 2100 (the server also holds it to this year, by its own clock: the page's chips are held to the device's). Anything else is not sent. */
 export const isSinceYear = (y: unknown): y is number => typeof y === "number" && Number.isInteger(y) && y >= MIN_SINCE_YEAR && y <= MAX_FILTER_YEAR;
 
+const UND_INTENTS = new Set(["chat", "search", "refine_search", "ask_results", "ask_paper", "offer_tool", "clarify"]);
+/**
+ * The Understand step's fields of an `understood` event, as a reply keeps them: defensive about what came off the wire (a field of the wrong shape is dropped, never repaired), and nothing at all for an event
+ * that has none.
+ */
+export function understoodByModel(e: Partial<UnderstoodByModel>): UnderstoodByModel {
+  const out: UnderstoodByModel = {};
+  if (typeof e.intent === "string" && UND_INTENTS.has(e.intent)) out.intent = e.intent;
+  if (typeof e.statusLine === "string" && e.statusLine.trim()) out.statusLine = oneLine(e.statusLine).slice(0, 200);
+  if (e.confirm === true) out.confirm = true;
+  if (e.fallback === true) out.fallback = true;
+  const c = e.clarify;
+  if (c && typeof c === "object" && typeof c.question === "string" && Array.isArray(c.choices)) {
+    const choices = c.choices.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => oneLine(x).slice(0, 80)).slice(0, 3);
+    if (c.question.trim() && choices.length >= 2) out.clarify = { question: oneLine(c.question).slice(0, 200), choices };
+  }
+  if (e.offer === "litscan") out.offer = "litscan";
+  return out;
+}
+
 /** One event applied to a reply. Pure: the same events always give the same reply. Events that arrive after the reply has ended are ignored. */
 export function applyChatEvent(m: AssistantMsg, e: ChatEvent): AssistantMsg {
   if (m.status !== "working") return m;
   switch (e.type) {
     case "understood":
-      return { ...m, understood: true, query: e.query, mode: e.mode, language: e.language, auto: e.auto, how: e.how, confidence: e.confidence, searchQuery: e.searchQuery, ...(e.context ? { context: e.context } : {}), ...(e.reading ? { reading: e.reading } : {}) };
+      return {
+        ...m, understood: true, query: e.query, mode: e.mode, language: e.language, auto: e.auto, how: e.how, confidence: e.confidence, searchQuery: e.searchQuery, ...(e.context ? { context: e.context } : {}), ...(e.reading ? { reading: e.reading } : {}),
+        // M5: what the Understand step said, only when it decided (each field is absent otherwise, so a reply the rules decided is what it always was)
+        ...understoodByModel(e),
+      };
     case "step": {
       const at = STEP_ORDER.indexOf(e.step);
       // "route" is only a step when the router really had to look (a message sent to Auto that the rules could not settle)
@@ -128,6 +148,11 @@ export function applyChatEvent(m: AssistantMsg, e: ChatEvent): AssistantMsg {
       return { ...m, status: "done", step: null, stepsDone: STEP_ORDER.filter((s) => happened(m, s, null)), live: "", generalLive: "", tookMs: e.tookMs, reason: e.reason, papersFinal: true };
     case "error":
       return { ...m, status: "error", step: null, live: "", generalLive: "", error: e.title };
+    case "think":
+      return { ...m, think: withThinkLine(m.think, e) };
+    default:
+      // an event this build does not know (a newer server): the reply is kept as it is
+      return m;
   }
 }
 
@@ -137,13 +162,19 @@ export const stopAssistant = (m: AssistantMsg): AssistantMsg => (m.status === "w
 export const interruptAssistant = (m: AssistantMsg): AssistantMsg => (m.status === "working" ? { ...m, status: "interrupted", step: null, live: "", generalLive: "", papersFinal: true } : m);
 
 /** A reply as it is kept: abstracts cut to 600 characters (the list shows a few lines of them), nothing provisional. */
-export const trimForStorage = (m: AssistantMsg): AssistantMsg => ({
-  ...m,
-  strict: m.strict?.status === "done" ? m.strict : undefined,
-  live: "",
-  generalLive: "",
-  papers: m.papers.map((p) => (p.abstract && p.abstract.length > 600 ? { ...p, abstract: `${p.abstract.slice(0, 600).replace(/\s+\S*$/, "")}…` } : p)),
-});
+export const trimForStorage = (m: AssistantMsg): AssistantMsg => {
+  const kept: AssistantMsg & { earlier?: unknown; earlierSet?: unknown } = {
+    ...m,
+    strict: m.strict?.status === "done" ? m.strict : undefined,
+    live: "",
+    generalLive: "",
+    papers: m.papers.map((p) => (p.abstract && p.abstract.length > 600 ? { ...p, abstract: `${p.abstract.slice(0, 600).replace(/\s+\S*$/, "")}…` } : p)),
+  };
+  // the questions of other chats a reply kept before 6 Nov 2026 (the removed earlier-chats feature) are not kept again
+  delete kept.earlier;
+  delete kept.earlierSet;
+  return kept;
+};
 
 /** The title of a conversation: its first message, cut at a word. */
 export function chatTitle(firstMessage: string): string {
@@ -431,8 +462,8 @@ export function leavesNoTrace(m: AssistantMsg): boolean {
  */
 function historyTurn(u: UserMsg, a: AssistantMsg): { asked: AskedEntry; reply: ReplyEntry; from: AssistantMsg } | null {
   if (a.status !== "done" || a.mode !== "search" || a.reason === "routed" || a.reason === "small_talk" || a.reason === "too_long" || a.reason === "stopped" || a.general?.kind === "not_research") return null;
-  // the safety lane (docs/design/intent-and-state.md, 4.5): a message that described an emergency, said the person may hurt themselves, or asked what to take never rides along as context, and is in no words an
-  // earlier chat is found by (the same turns make both). Its reply is not an answer about anything the next message could lean on.
+  // the safety lane (docs/design/intent-and-state.md, 4.5): a message that described an emergency, said the person may hurt themselves, or asked what to take never rides along as context (and is not in the turn
+  // ledger). Its reply is not an answer about anything the next message could lean on.
   if (a.reason === "urgent" || a.reason === "safety" || a.reason === "decision" || a.notices.some((n) => n.kind === "safety_crisis" || n.kind === "safety_urgent")) return null;
   const text = askable(u.text);
   if (!text) return null;
@@ -455,7 +486,7 @@ const sizeOf = (e: HistoryEntry): number => (e.role === "user" ? e.text.length :
 
 /**
  * The finished searches of a list of messages, oldest first, each as `historyTurn` reads it. The one place that decides which turns of a conversation may be carried on: to the next message of the same
- * conversation (`contextBefore`) and to another conversation (`askedTurns`, which the index words and the questions of an earlier chat are made from).
+ * conversation (`contextBefore`), the count of a chat's turns (`askedTurns`) and the turn ledger.
  */
 function finishedTurns(path: readonly ChatMsg[]): NonNullable<ReturnType<typeof historyTurn>>[] {
   const turns: NonNullable<ReturnType<typeof historyTurn>>[] = [];
@@ -555,12 +586,15 @@ export function usesEarlierTurns(c: ChatContextInfo | undefined): boolean {
   return !!c && typeof c === "object" && typeof c.turns === "number" && c.turns > 0 && c.fellBack !== true && c.intent !== "new";
 }
 
+/** One finished search of a chat as the person asked it: the question, and the English words its search used when it had some. */
+export type AskedTurn = { question: string; searchQuery?: string };
+
 /**
- * What a conversation may say to ANOTHER one (docs/design/chat-actions-context.md, section 6): its finished searches as the person's own words, oldest first, each the question (2 to 300 characters,
- * nothing invisible in it) and the English words its search used when it had some. Never an answer, an Idea Check or the text echoed with one, a pasted list (a question over 300 characters), small talk,
- * background from general knowledge, or a reply that did not finish. Read through `activePath`, so a version of a message that was replaced is not in it. Pure.
+ * The finished searches of a conversation as the person's own words, oldest first, each the question (2 to 300 characters, nothing invisible in it) and the English words its search used when it had
+ * some. Never an answer, an Idea Check or the text echoed with one, a pasted list (a question over 300 characters), small talk, background from general knowledge, or a reply that did not finish. Read
+ * through `activePath`, so a version of a message that was replaced is not in it. Nothing of it is sent to another chat (that feature was removed on 6 Nov 2026); it counts the turns of a chat. Pure.
  */
-export function askedTurns(msgs: readonly ChatMsg[]): EarlierQuestion[] {
+export function askedTurns(msgs: readonly ChatMsg[]): AskedTurn[] {
   return finishedTurns(activePath(msgs)).map((t) => ({ question: t.asked.text, ...(t.reply.searchQuery ? { searchQuery: t.reply.searchQuery } : {}) }));
 }
 
@@ -589,11 +623,11 @@ export function contextBefore(msgs: readonly ChatMsg[], upTo: number): HistoryEn
 
 /**
  * The body of `POST /api/v1/chat`. The earlier turns go only in Auto: a search the reader chose is searched as written, and the server refuses them there (and with "anyway"). Without them the body is
- * exactly what it was before there were any (same keys, same order), so what is sent for a first message, a search by hand and a retry has not changed. `earlier` (questions of other chats, section 6)
- * goes by the same rule, after `history`. Only for a person who is signed in (`signedIn`, required so that no caller can forget it): the server ignores both for anybody else, but they would still have left
- * the device, and the privacy page says earlier questions are sent "when you are signed in".
+ * exactly what it was before there were any (same keys, same order), so what is sent for a first message, a search by hand and a retry has not changed. Nothing of another chat is ever in it. Only for a
+ * person who is signed in (`signedIn`, required so that no caller can forget it): the server ignores the turns for anybody else, but they would still have left the device, and the privacy page says earlier
+ * questions are sent "when you are signed in".
  */
-export function chatRequestBody(o: { mode: ChatRequestMode; message: string; scope?: SearchScope; anyway?: boolean; history?: readonly HistoryEntry[]; earlier?: readonly EarlierQuestion[]; sinceYear?: number | null; signedIn: boolean }): Record<string, unknown> {
+export function chatRequestBody(o: { mode: ChatRequestMode; message: string; scope?: SearchScope; anyway?: boolean; history?: readonly HistoryEntry[]; sinceYear?: number | null; signedIn: boolean; ledger?: readonly unknown[] }): Record<string, unknown> {
   const auto = o.mode === "auto" && !o.anyway && o.signedIn;
   return {
     mode: o.mode,
@@ -601,9 +635,11 @@ export function chatRequestBody(o: { mode: ChatRequestMode; message: string; sco
     ...(o.scope && o.scope !== "all" ? { scope: o.scope } : {}),
     ...(o.anyway ? { anyway: true } : {}),
     ...(auto && o.history && o.history.length > 0 ? { history: o.history } : {}),
-    ...(auto && o.earlier && o.earlier.length > 0 ? { earlier: o.earlier } : {}),
     // `sinceYear` (a Trending chip's "From 2025 on") is last, for everybody and in both tools, but never with "anyway", and only when the server would read it: a request without it is what it was
     ...(!o.anyway && isSinceYear(o.sinceYear) ? { sinceYear: o.sinceYear } : {}),
+    // M4 (design PDF, "Follow-ups: sirf usi chat se"): the turn ledger of THIS chat, only in Auto (never with "anyway"), and only when the caller was told by the server that the Understand step reads it
+    // (GET /api/v1/chat/config, `ledger`); a caller that was not told passes none, and the body is what it was
+    ...(o.mode === "auto" && !o.anyway && o.ledger && o.ledger.length > 0 ? { ledger: o.ledger } : {}),
   };
 }
 

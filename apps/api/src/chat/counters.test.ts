@@ -200,12 +200,14 @@ describe("what is not counted", () => {
     expect(namesOf(anyway.batches[0])).toEqual(["anyway"]);
   });
 
-  it("a follow-up (a message that carries the earlier turns, or earlier chats) counts nothing: it is not a first message, and it is the one place the names would mean something else", async () => {
-    for (const body of [auto("only after 2022", { history: GLAUCOMA }), auto("and in children?", { earlier: [{ question: "yoga and blood pressure", searchQuery: "yoga blood pressure" }] }), auto("only after 2020", { history: GLAUCOMA })]) {
+  it("a follow-up (a message that carries the earlier turns) counts nothing: it is not a first message, and it is the one place the names would mean something else", async () => {
+    for (const body of [auto("only after 2022", { history: GLAUCOMA }), auto("only after 2020", { history: GLAUCOMA })]) {
       const r = await post(body, { env: ON });
       expect(r.res.status).toBe(200);
       expect(r.batches).toEqual([]);
     }
+    // `earlier` from an old tab (the removed earlier-chats feature) is ignored: the message is a first message and is counted as one
+    expect((await post(auto("and in children?", { earlier: [{ question: "yoga and blood pressure" }] }), { env: ON })).batches.length).toBe(1);
     // the switch that ignores earlier turns does not make a follow-up a first message
     expect((await post(auto("only after 2020", { history: GLAUCOMA }), { env: { ...ON, CHAT_CONTEXT: "off" } })).batches).toEqual([]);
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MAX_EARLIER_CHARS, MAX_EARLIER_ENTRIES, MAX_EARLIER_QUESTION_CHARS, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MAX_HISTORY_USER_CHARS } from "@scholar/shared";
-import { cutChars, errorKind, neutralise, plainAnswer, readEarlier, readHistory, stripInvisible } from "./history";
+import { MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MAX_HISTORY_USER_CHARS } from "@scholar/shared";
+import { cutChars, errorKind, neutralise, plainAnswer, readHistory, stripInvisible } from "./history";
 
 /** The tag characters (U+E0000 to U+E007F) mirror ASCII and show nothing on a screen: a known way to hide an instruction in text. */
 const tagged = (s: string) => [...s].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join("");
@@ -271,51 +271,6 @@ describe("readHistory: how much of it", () => {
     const h = okHistory(raw);
     expect(h.entries).toHaveLength(MAX_HISTORY_ENTRIES);
     expect(JSON.stringify(h.entries).length).toBeLessThan(MAX_HISTORY_CHARS + 600);
-  });
-});
-
-describe("readEarlier (questions of earlier chats)", () => {
-  it("nothing is nothing", () => {
-    for (const raw of [undefined, null, []]) expect(readEarlier(raw)).toEqual({ ok: true, earlier: [] });
-  });
-
-  it("up to three questions, each with the search words it used if there were any", () => {
-    const r = readEarlier([{ question: "effect of yoga on blood pressure", searchQuery: "yoga blood pressure" }, { question: "diabetes me exercise ka asar" }]);
-    expect(r).toEqual({ ok: true, earlier: [{ question: "effect of yoga on blood pressure", searchQuery: "yoga blood pressure" }, { question: "diabetes me exercise ka asar" }] });
-  });
-
-  it("more than three are cut to the first three (the browser sends the best first)", () => {
-    const raw = Array.from({ length: 6 }, (_, i) => ({ question: `question number ${i}` }));
-    const r = readEarlier(raw);
-    expect(r.ok && r.earlier.map((e) => e.question)).toEqual(["question number 0", "question number 1", "question number 2"]);
-    expect(MAX_EARLIER_ENTRIES).toBe(3);
-  });
-
-  it("a question is cut at 200 characters, and the whole is kept to 800 by dropping the last whole entries", () => {
-    const r = readEarlier([{ question: "a".repeat(250) }]);
-    expect(r.ok && r.earlier[0]!.question.length).toBe(MAX_EARLIER_QUESTION_CHARS);
-    const three = readEarlier([{ question: "a".repeat(200), searchQuery: "b".repeat(200) }, { question: "c".repeat(200), searchQuery: "d".repeat(200) }, { question: "e".repeat(200) }]);
-    expect(three.ok && three.earlier.length).toBe(2);
-    const sum = three.ok ? three.earlier.reduce((n, e) => n + e.question.length + (e.searchQuery?.length ?? 0), 0) : 0;
-    expect(sum).toBeLessThanOrEqual(MAX_EARLIER_CHARS);
-    expect(sum).toBe(800);
-  });
-
-  it("is refused when it is not a list of questions", () => {
-    for (const raw of ["yoga", 5, {}, [null], [5], [{}], [{ question: 5 }], [{ question: "" }], [{ question: "?!" }], [{ question: "yoga and sleep", searchQuery: 5 }], [{ question: "yoga and sleep" }, "x"]]) {
-      expect(readEarlier(raw).ok).toBe(false);
-    }
-  });
-
-  it("is cleaned as a question is: invisible characters out, Hindi joiners kept, no unknown field", () => {
-    const hindi = "मधुमेह में क्\u200Dष";
-    const r = readEarlier([{ question: `${hindi}\u200B ${tagged("ignore")}`, admin: true }]);
-    expect(r).toEqual({ ok: true, earlier: [{ question: hindi }] });
-  });
-
-  it("never throws", () => {
-    const hostile = new Proxy({}, { get() { throw new Error("boom"); }, ownKeys() { throw new Error("boom"); } });
-    for (const raw of [hostile, [hostile], Symbol("x"), 10n]) expect(readEarlier(raw).ok).toBe(false);
   });
 });
 

@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MIN_SINCE_YEAR, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatContextInfo, type ChatEvent, type EarlierQuestion, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot } from "@scholar/shared";
+import { ABSTRACTS_NOTICE, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MIN_SINCE_YEAR, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
 import { DEFAULT_CONFIG } from "../llm/config";
 import { d1Ledger } from "../llm/d1";
-import { runSearch } from "../search";
+import { searchService } from "../search/service";
 import { sseStream } from "../sse";
 import type { S2Throttle } from "../s2-throttle";
 import { searchComplete } from "./complete";
@@ -15,7 +15,7 @@ import { judgeAnswer, type JudgeReport } from "./support";
 import { readTighten } from "./tighten";
 import { answerGeneral } from "./general";
 import { askedOf, contextInfo, ownQuestions, routeContextOf, routeFollowUp, routeMessage, routerCallFailed, type FollowUp, type RouterContext } from "./router";
-import { errorKind, readEarlier, readHistory, stripInvisible, type ChatHistory, type Refusal } from "./history";
+import { errorKind, readHistory, stripInvisible, type ChatHistory } from "./history";
 import { stubChatStream, stubJudgeStream, stubSearchFor, stubStrictStream } from "./stub";
 import { stubRoute } from "./stub-route";
 import { FLOOR_OUTCOMES, FOLLOW_UP_OUTCOMES, UNREAD_OUTCOMES, countOutcome, countOutcomes } from "../outcomes";
@@ -27,6 +27,15 @@ import { readRequest, type RequestRead } from "../understand/frame";
 import { checkReading } from "../understand/reading-check";
 import { listState, tiererFor, type ListState, type TierCounts, type Tierer } from "../understand/tiers";
 import { fewNotice, noneCloseNotice } from "../understand/tiers-text";
+import { asking as thinkAsking, checked as thinkChecked, chosenSearch as thinkChosen, confirmLine as thinkConfirm, fellBack as thinkFellBack, found as thinkFound, fromEarlier as thinkFromEarlier, notSure as thinkNotSure, reading as thinkReading, searchCounts, searched as thinkSearched, understoodChat, understoodModel, understoodSearch, understoodTool, writing as thinkWriting } from "./think";
+import { understandTurn, type UnderstandDecision } from "../understand/understand";
+import { guards } from "../understand/guards";
+import { greetingKind } from "../understand/greeting";
+import { templateChatReply, writeChatReply } from "../understand/chat-reply";
+import { readLedger, paperRefsToResolve, type LedgerPaper, type LedgerTurn } from "../understand/ledger-input";
+import { understandCounters, type OldDecision } from "../understand/understand-counters";
+import type { Understanding } from "../understand/understanding";
+import { chatReplyCompleteFor, resolveLedgerPapers, stubChatReply, stubUnderstand, takeVisitorCall, understandCompleteFor } from "./understand-wire";
 import { searchEnvFrom } from "../search/env";
 import { deny } from "../problem";
 
@@ -49,7 +58,7 @@ type Bindings = {
   LLM_REASONING?: string;
   /** "off" switches the support judge off (answers are then shown as the old check leaves them): a Worker variable, for a day when its model is down or its cost must stop. */
   CHAT_JUDGE?: string;
-  /** "off" makes the chat ignore the earlier messages of a conversation altogether (`history` and `earlier` are neither read nor refused), as it was before there were any: a Worker variable, a rollback that needs no new code. */
+  /** "off" makes the chat ignore the earlier messages of a conversation altogether (`history` is neither read nor refused), as it was before there were any: a Worker variable, a rollback that needs no new code. */
   CHAT_CONTEXT?: string;
   /**
    * R3 (docs/design/intent-and-state.md, 4.4): "on" counts what a message in the prompt box looked like, by closed names and never any of its text (feature `chat_input`). Unset, "off" and "shadow" count
@@ -80,6 +89,21 @@ type Bindings = {
    * Only for words the page can judge (1 to 6 content stems) and never for a search chosen by hand. A gate flag: unset is off.
    */
   CHAT_FLOOR?: string;
+  /**
+   * M2 (design PDF "Sodhsetu understanding, follow-ups and MCP", "Thinking dikhana"): "on" adds `think` events, status lines built from the real counts of each stage (chat/think.ts), which the page shows as the
+   * Thinking block. Unset, "off" and any other value send none, and the stream is byte for byte what it was. A gate flag: unset is off, and a KV override can only lower it. Turn it on only after a build that
+   * knows the event has been live for a day: an older open tab's reducer had no place for an event it did not know.
+   */
+  CHAT_THINK?: string;
+  /**
+   * M4/M5 (design PDF "Sodhsetu understanding, follow-ups and MCP", pages 3 to 9 and 13): the Understand step. Unset, "off" and any other value: it is not called, the ledger a page sends is not read, and the stream
+   * is byte for byte what it was. "shadow": it runs beside the rules on the response's waitUntil (the person never waits for it), the rules decide, and only counts are kept (feature `chat_understand`: agreement,
+   * latency, fallback; never text). "on": it decides, with the rules as the fallback when the model cannot be used. In both, the page is told to send the turn ledger (GET /chat/config), so the privacy page
+   * must say so before either is set (legal-match.test.ts holds it). A gate flag: unset is off, a KV override can only lower it.
+   */
+  CHAT_UNDERSTAND?: string;
+  /** M5: "on" lets the Understand step read a visitor's message too (40 calls a day per address, migration 0027), in whatever position CHAT_UNDERSTAND is; anything else keeps visitors on the rules. A gate flag. */
+  CHAT_UNDERSTAND_VISITORS?: string;
   /** Development only (with QA_STUB): the stand-in search writes the words of the question into its records, so that a list is about whatever was asked (stub.ts). The integration run sets it with CHAT_FLOOR. Never set in wrangler.jsonc. */
   QA_STUB_TOPIC?: string;
 };
@@ -97,7 +121,7 @@ const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB 
  * Where a gate flag of the understanding releases stands for this request (understand/flags.ts: unset is off, and an off flag reads nothing from KV). A value that is not exactly a position is off, and
  * one line says WHICH FLAG held it (a constant name, never anything of a message): a typo must not turn behaviour on, and must not pass unseen either.
  */
-async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY" | "CHAT_CLEAN" | "CHAT_FLOOR"): Promise<FlagPosition> {
+async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY" | "CHAT_CLEAN" | "CHAT_FLOOR" | "CHAT_THINK" | "CHAT_UNDERSTAND" | "CHAT_UNDERSTAND_VISITORS"): Promise<FlagPosition> {
   // the safety lane has a fourth position, `core`, between shadow and on, and the relevance floor has `writer` in the same place
   const r = await flagOf(env, name, { allowCore: name === "CHAT_SAFETY", allowWriter: name === "CHAT_FLOOR" });
   if (r.badVariable) console.warn(JSON.stringify({ level: "warn", msg: "flag_bad_value", flag: name }));
@@ -228,6 +252,37 @@ function withSince(own: YearRange | null, since: number | undefined): YearRange 
 
 
 /**
+ * M4/M5: where the Understand step stands for THIS requester: CHAT_UNDERSTAND's position for a person who is signed in; for a visitor, the same only while CHAT_UNDERSTAND_VISITORS is "on" (else "off").
+ * Unset flags read nothing (understand/flags.ts), so with both unset nothing at all is looked up.
+ */
+async function understandFor(env: Bindings, signedIn: boolean): Promise<FlagPosition> {
+  const position = await gate(env, "CHAT_UNDERSTAND");
+  if (position === "off" || signedIn) return position;
+  return (await gate(env, "CHAT_UNDERSTAND_VISITORS")) === "on" ? position : "off";
+}
+
+/** Work that must not hold the reply (shadow, counts): on the response's waitUntil, or (a test, which has no execution context) left to run on its own. Never throws. */
+function later(c: Context, work: Promise<unknown>): void {
+  const safe = work.catch(() => {});
+  try {
+    c.executionCtx.waitUntil(safe);
+  } catch {
+    void safe;
+  }
+}
+
+/** The ledger turn a message's papers come from: the one the reading points at, or else the latest that listed papers. */
+function papersTurnOf(ledger: readonly LedgerTurn[], u: Understanding): LedgerTurn | null {
+  if (u.refers_to) return ledger.find((t) => t.turn === u.refers_to!.turn) ?? null;
+  return [...ledger].reverse().find((t) => t.papers.length > 0) ?? null;
+}
+/** The papers to look up again for an `ask_results` reading: the numbered ones it names, or the whole turn when it names none ("explain that simpler", "Hindi mein batao"). */
+function askedPapers(ledger: readonly LedgerTurn[], u: Understanding): LedgerPaper[] {
+  if (u.refers_to && u.refers_to.papers.length > 0) return paperRefsToResolve(ledger, u.refers_to);
+  return papersTurnOf(ledger, u)?.papers ?? [];
+}
+
+/**
  * One message, one stream. `mode: "search"` is the reader's own choice (the words are searched as written); `mode: "auto"` lets the router choose the tool (router.ts). For a
  * search: the papers (the first as soon as one source has answered, the list again as each source does), a plain line if a source did not answer, and for a signed-in person a
  * short answer made from the papers with every claim tied to a sentence of an abstract (answer.ts). For any other tool the stream says what was understood and ends: the tools
@@ -237,7 +292,7 @@ chatRoutes.post("/", async (c) => {
   if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
   const read = await readChatBody(c);
   if (read.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
-  const body = read.body as { mode?: unknown; message?: unknown; scope?: unknown; anyway?: unknown; history?: unknown; earlier?: unknown; sinceYear?: unknown } | null;
+  const body = read.body as { mode?: unknown; message?: unknown; scope?: unknown; anyway?: unknown; history?: unknown; sinceYear?: unknown; ledger?: unknown } | null;
   if (!body || (body.mode !== "search" && body.mode !== "auto")) return deny(c, 400, "invalid_mode", "That mode is not available");
   // where a search looks: the regular sources, or only Indian ones when the reader turned that on (an unknown value is refused, not quietly widened)
   if (body.scope !== undefined && !isSearchScope(body.scope)) return deny(c, 400, "invalid_scope", "That search scope is not available");
@@ -253,29 +308,37 @@ chatRoutes.post("/", async (c) => {
   const auto = body.mode === "auto";
   // The earlier turns of the conversation (docs/design/chat-actions-context.md): for Auto only (a search chosen by hand is searched as written, so it refuses them as it refuses `anyway`), checked here
   // whoever sends them, read by a model only for a signed-in person, and not even looked at while CHAT_CONTEXT is "off" (a server that did not know the field would ignore it).
+  // `earlier` (questions of OTHER chats) is never read: that feature was removed on 6 Nov 2026 (design PDF "Sodhsetu understanding, follow-ups and MCP", M1). A tab opened before the release may still send
+  // it; it is ignored, not refused, so that tab's messages are answered as a message without it, and nothing of it reaches a model or a log.
   const contextOn = c.env.CHAT_CONTEXT !== "off";
-  const carries = (body.history !== undefined && body.history !== null) || (body.earlier !== undefined && body.earlier !== null);
+  const carries = body.history !== undefined && body.history !== null;
   if (carries && contextOn && !auto) return deny(c, 400, "invalid_flag", "That option is not available");
   let history: ChatHistory | null = null;
-  let earlier: EarlierQuestion[] = [];
   if (carries && contextOn) {
     const h = readHistory(body.history);
-    const e = readEarlier(body.earlier);
-    const refusal: Refusal | null = !h.ok ? h : !e.ok ? e : null;
-    if (refusal) {
+    if (!h.ok) {
       // a count, so that abuse shows in the logs; never a word of what was sent
       console.warn(JSON.stringify({ level: "warn", msg: "chat_history_refused" }));
-      return deny(c, 400, "invalid_history", "The earlier messages could not be used", refusal.detail);
+      return deny(c, 400, "invalid_history", "The earlier messages could not be used", h.detail);
     }
-    if (h.ok && e.ok) {
-      history = h.history;
-      earlier = e.earlier;
-    }
+    history = h.history;
   }
   const cleaned = auto ? cleanAutoMessage(body.message) : cleanChatMessage(body.message);
   if (!cleaned) return deny(c, 400, "invalid_message", auto ? "Write something, at most 20,000 characters" : "Write 2 to 300 characters");
   const user = await currentUser(c);
-  const ctx: RouterContext | null = auto && user && history && (history.turns > 0 || earlier.length > 0) ? { history, earlier } : null;
+  // M4/M5: where the Understand step stands for this requester, and the turn ledger it reads. The ledger is read only then: with the step off the field is not even looked at (as a server that did not know it
+  // would ignore it), and a bad one is refused only where it would be read (the page sends the message again without it, as for `history`). It is untrusted data: understand/ledger-input.ts.
+  const understand: FlagPosition = auto ? await understandFor(c.env, !!user) : "off";
+  let ledger: LedgerTurn[] = [];
+  if (understand !== "off" && body.ledger !== undefined && body.ledger !== null) {
+    const l = readLedger(body.ledger);
+    if (!l.ok) {
+      console.warn(JSON.stringify({ level: "warn", msg: "chat_ledger_refused" }));
+      return deny(c, 400, "invalid_ledger", "The earlier messages could not be used", l.detail);
+    }
+    ledger = l.turns;
+  }
+  const ctx: RouterContext | null = auto && user && history && history.turns > 0 ? { history } : null;
   // read with turns before it, the message loses its invisible characters too (they hide an instruction from a person's eyes and not from a model's)
   const text = ctx ? cleanAutoMessage(stripInvisible(cleaned)) : cleaned;
   if (!text) return deny(c, 400, "invalid_message", "Write something, at most 20,000 characters");
@@ -285,6 +348,11 @@ chatRoutes.post("/", async (c) => {
   const abort = new AbortController();
   return sseStream<ChatEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (s) => {
     const send = s.send;
+    // M2: the Thinking block's lines, only with CHAT_THINK "on" (with it off nothing below sends one, and the stream is what it was). A line is never logged: it goes to the page and nowhere else.
+    const thinkOn = (await gate(c.env, "CHAT_THINK")) === "on";
+    const think = async (line: ThinkLine | null) => {
+      if (thinkOn && line && !s.gone) await send({ type: "think", ...line });
+    };
     // how this question went is counted once, as it ends (counts only, src/outcomes.ts): what the papers did, or what stopped it
     let outcome: string | null = null;
     // what the router made of a message that was read with turns before it (null for any other message)
@@ -343,6 +411,7 @@ chatRoutes.post("/", async (c) => {
       if (s.gone) return;
       try {
         await send({ type: "step", step: "general" });
+        await think(thinkWriting(language, true));
         const g = await answerGeneral({
           question,
           language,
@@ -383,8 +452,73 @@ chatRoutes.post("/", async (c) => {
         await send({ type: "general", kind: "not_research", text: replyText(lane.reply, language) });
         return void (await done(false, lane.reply === "urgent" ? "urgent" : "safety"));
       }
-      const talk = !anyway && isSmallTalk(text, rctx);
-      if (auto && !talk) {
+      // M5 (CHAT_UNDERSTAND "on"): the Understand step decides (understand/understand.ts). Its guards run first and need no model: a greeting is conversation, a bare DOI is searched as written, a pasted
+      // reference list is offered to Check references. A visitor's call is counted against their day's cap only when the model would really be asked; past the cap the rules decide. When the model cannot be
+      // used (timeout, invalid twice, down, no allowance) the rules decide too, and the reply says so. Counts only, after the reply (never its text).
+      let und: UnderstandDecision | null = null;
+      let u: Understanding | null = null;
+      let visitorCapped = false;
+      let chatReply: string | null = null;
+      let preset: Paper[] | null = null;
+      let where: SearchScope = scope;
+      if (understand === "on") {
+        let complete: Complete | null = null;
+        let replyComplete: Complete | null = null;
+        if (guards({ text, mode: "auto" }).kind === "understand") {
+          let subject: string | null = user ? user.id : null;
+          if (!user) {
+            const v = await takeVisitorCall(c.env.DB, c.req.header("cf-connecting-ip") ?? "unknown");
+            if (v.ok) subject = `visitor:${v.code}`;
+            else visitorCapped = true;
+          }
+          if (subject) {
+            complete = stubbed(c.env) ? stubUnderstand : understandCompleteFor(c.env, subject);
+            replyComplete = stubbed(c.env) ? stubChatReply : chatReplyCompleteFor(c.env, subject);
+          }
+        }
+        und = await understandTurn({ text, mode: "auto" }, { ledger, visitor: !user, year: thisYear }, { complete });
+        if (s.gone) return;
+        const names: string[] = understandCounters(und);
+        if (und.source !== "fallback") u = und.understanding;
+        // the conversation reply: fixed text for a greeting (no model), else the model's few lines, checked; one that cites anything is thrown away and the message is searched instead
+        if (u?.intent === "chat") {
+          const kind = greetingKind(text);
+          if (und.source === "greeting" || !replyComplete) chatReply = templateChatReply(kind, u.language);
+          else {
+            const r = await writeChatReply(text, u.language, replyComplete);
+            if (s.gone) return;
+            if (r.ok) chatReply = r.reply;
+            else if (r.discarded) {
+              names.push("und_chat_leak");
+              u = { ...u, intent: "search", search: { queries: [(u.standalone || text).replace(/\s+/g, " ").slice(0, 120)], year_from: null, year_to: null, indian_sources: null } };
+            } else chatReply = templateChatReply(kind, u.language);
+          }
+        }
+        // a question about papers already in this chat: they are looked up again by DOI (the page's copy of a paper is never used); with none found, what was asked is searched instead
+        if (u?.intent === "ask_results") {
+          const refs = askedPapers(ledger, u);
+          const again = refs.length > 0 ? await resolveLedgerPapers(searchEnvFrom(c.env), refs, stubbed(c.env)) : [];
+          if (s.gone) return;
+          if (again.length > 0) preset = again;
+          else u = { ...u, intent: "search", refers_to: null, search: { queries: [(u.standalone || text).replace(/\s+/g, " ").slice(0, 120)], year_from: null, year_to: null, indian_sources: null } };
+        }
+        if (u?.search?.indian_sources === true) where = "india";
+        else if (u?.search?.indian_sources === false) where = "all";
+        later(c, countOutcomes(c.env.DB, "chat_understand", names));
+      }
+      const talk = u ? u.intent === "chat" : !anyway && isSmallTalk(text, rctx);
+      if (u) {
+        // what the step decided, as the route the rest of the stream reads: another tool's card, the person's paper, or a search (of the step's English words when they are not the message itself)
+        const words = u.search?.queries[0];
+        const tool = u.intent === "offer_tool" && u.tool !== "litscan" ? u.tool : null;
+        route = {
+          mode: tool ?? (u.intent === "ask_paper" ? "paper" : "search"),
+          how: und!.source === "model" ? "model" : "rules",
+          confidence: u.confidence,
+          language: u.language,
+          ...(words && !talk && words !== text.replace(/\s+/g, " ").trim() ? { searchQuery: words } : {}),
+        };
+      } else if (auto && !talk) {
         // a model is about to read the turns: it is not started for a day that cannot pay for the answer that follows (the quota is checked before each call and is not atomic). The words are then searched as
         // written, as for a visitor (the search is free), and the papers are shown with no answer: the line the screen says for this ("the papers are below") is true, which it was not when nothing was done.
         if (ctx && user && needsContext(text) && !ruleRoute(text, rctx) && !(await canAfford(c.env.DB, user.id))) {
@@ -405,6 +539,25 @@ chatRoutes.post("/", async (c) => {
       } else {
         route = { mode: "search", how: auto ? "rules" : "chosen", confidence: 1, language: ctx ? languageWithContext(text, ownQuestions(ctx)) : detectLanguage(text) };
       }
+      // M4 (CHAT_UNDERSTAND "shadow"): the Understand step reads the same message beside the rules, AFTER they decided and on the response's waitUntil, so the person never waits for it and nothing on the
+      // wire changes; only counts are kept (who decided, the intent, agreement with what the rules did, latency, fallback). A visitor's call is counted against their day's cap like a real one.
+      if (understand === "shadow") {
+        const old: OldDecision = talk ? { smallTalk: true } : { smallTalk: false, route, followUp: follow?.intent ?? null };
+        const needsModel = guards({ text, mode: "auto" }).kind === "understand";
+        later(
+          c,
+          (async () => {
+            let complete: Complete | null = null;
+            if (needsModel) {
+              const v = user ? null : await takeVisitorCall(c.env.DB, c.req.header("cf-connecting-ip") ?? "unknown");
+              const subject = user ? user.id : v?.ok ? `visitor:${v.code}` : null;
+              if (subject) complete = stubbed(c.env) ? stubUnderstand : understandCompleteFor(c.env, subject);
+            }
+            const d = await understandTurn({ text, mode: "auto" }, { ledger, visitor: !user, year: thisYear }, { complete });
+            await countOutcomes(c.env.DB, "chat_understand", understandCounters(d, old));
+          })(),
+        );
+      }
       // R5 (4.6): the policy is looked up only for a follow-up whose router call FAILED (router.ts, routerCallFailed): for every other message the flag is not even read
       if (routerCallFailed(follow)) failPolicy = await gate(c.env, "CHAT_FAILPOLICY");
       // R8 (4.8): what the message is, and what is only a request in it. Auto only, after the route is settled and before what the page is told: a message that goes to the indexes with the words that only make a
@@ -412,7 +565,7 @@ chatRoutes.post("/", async (c) => {
       // message whose search words a model wrote, or one the day could not pay a model for. The raw message still goes to the writer and the background (`asked`). A failure of the cleaner never stops a message.
       let reading: Reading | null = null;
       let nothingToSearch = false;
-      if (auto && !talk && route.mode === "search" && !route.searchQuery && !follow && !poor) {
+      if (auto && !talk && !u && route.mode === "search" && !route.searchQuery && !follow && !poor) {
         const clean = await gate(c.env, "CHAT_CLEAN");
         if (clean !== "off") {
           let read: RequestRead | null = null;
@@ -438,17 +591,28 @@ chatRoutes.post("/", async (c) => {
       }
       // a year range ("only after 2020", a Trending chip's `sinceYear`) is applied to the papers' own years before they are numbered, so that card numbers and marks stay true; the search asks for more, so that
       // what is left is not thin. It is the router's range and the chip's as one (`withSince`), and only a message that is searched has one: small talk and another tool's offer are not cut by anything.
-      const own: YearRange | null = follow && (follow.yearFrom !== undefined || follow.yearTo !== undefined) ? { from: follow.yearFrom, to: follow.yearTo } : null;
-      const years = route.mode === "search" && !talk ? withSince(own, sinceYear) : own;
+      const said = u?.search && (u.search.year_from !== null || u.search.year_to !== null) ? { from: u.search.year_from ?? undefined, to: u.search.year_to ?? undefined } : null;
+      const own: YearRange | null = said ?? (follow && (follow.yearFrom !== undefined || follow.yearTo !== undefined) ? { from: follow.yearFrom, to: follow.yearTo } : null);
+      // M5: a question about papers already in the chat is answered from those papers, whatever years a chip asked a search for
+      const years = preset ? null : route.mode === "search" && !talk ? withSince(own, sinceYear) : own;
       // what the page reads a year chip from is `context.yearFrom` and `yearTo`: the same fields whether the router or the chip gave the range, so that there is one chip for both. When the chip changed the
       // range, the context says the range that is applied (and a reading that fell back says nothing of its own then, since the page hides the whole of a context that did: the filter must not be hidden with it).
       const widened = years !== null && (years.from !== own?.from || years.to !== own?.to);
       let context: ChatContextInfo | undefined;
       if (follow && ctx) context = contextInfo(widened ? { ...follow, yearFrom: years.from, yearTo: years.to, fellBack: false } : follow, ctx);
+      // M5: what the Understand step read of the earlier turns (a refinement, a question about the papers above) says so the way a follow-up always has: the question it was read as, and a year chip
+      else if (u && (u.intent === "refine_search" || u.intent === "ask_results") && ledger.length > 0)
+        context = { turns: ledger.length, intent: u.intent === "refine_search" ? "refine" : "same_papers", rewrote: !!u.standalone, ...(u.standalone ? { question: u.standalone.slice(0, 200) } : {}), ...(years?.from === undefined ? {} : { yearFrom: years.from }), ...(years?.to === undefined ? {} : { yearTo: years.to }) };
+      else if (u && years) context = { turns: 0, intent: "new", rewrote: false, ...(years.from === undefined ? {} : { yearFrom: years.from }), ...(years.to === undefined ? {} : { yearTo: years.to }) };
       else if (widened) context = { turns: 0, intent: "new", rewrote: false, ...(years.from === undefined ? {} : { yearFrom: years.from }), ...(years.to === undefined ? {} : { yearTo: years.to }) };
-      await send({ type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}), ...(scope !== "all" && route.mode === "search" ? { scope } : {}), ...(context ? { context } : {}), ...(reading ? { reading } : {}) });
+      await send({
+        type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}), ...(where !== "all" && route.mode === "search" ? { scope: where } : {}), ...(context ? { context } : {}), ...(reading ? { reading } : {}),
+        // M5: what the Understand step said (only when it decided, or when it could not and the rules did)
+        ...(u ? { intent: u.intent, statusLine: u.status, ...(und?.confirm ? { confirm: true as const } : {}), ...(u.clarify ? { clarify: u.clarify } : {}), ...(u.intent === "offer_tool" && u.tool === "litscan" ? { offer: "litscan" as const } : {}) } : {}),
+        ...(und?.source === "fallback" ? { fallback: true as const, confirm: true as const } : {}),
+      });
       // counts and short names only: how many turns were read and what came of them, never a word of them
-      if (follow && ctx) console.log(JSON.stringify({ level: "info", msg: "chat_followup", turns: ctx.history.turns, earlier: ctx.earlier.length, mode: route.mode, intent: follow.intent, rewrote: follow.rewrote, fellBack: follow.fellBack, check: follow.check, years: follow.yearFrom !== undefined || follow.yearTo !== undefined }));
+      if (follow && ctx) console.log(JSON.stringify({ level: "info", msg: "chat_followup", turns: ctx.history.turns, mode: route.mode, intent: follow.intent, rewrote: follow.rewrote, fellBack: follow.fellBack, check: follow.check, years: follow.yearFrom !== undefined || follow.yearTo !== undefined }));
       // R4: the lines of the lane go right after what the message was understood as, above the answer and the papers (a search chosen by hand gets only these)
       if (lane.notices.length > 0) {
         const language = detectLanguage(text);
@@ -462,26 +626,54 @@ chatRoutes.post("/", async (c) => {
       }
       if (talk) {
         outcome = "small_talk";
-        await send({ type: "general", kind: "not_research", text: smallTalkReply(text, route.language, rctx) });
+        await think(understoodChat(route.language));
+        if (und?.confirm && u) await think(thinkConfirm(route.language));
+        await send({ type: "general", kind: "not_research", text: chatReply ?? smallTalkReply(text, route.language, rctx) });
         return void (await done(false, "small_talk"));
       }
+      // M5: one question back instead of a guess (the page shows its choices and "Search anyway"); nothing is searched
+      if (u?.intent === "clarify") {
+        outcome = "clarify";
+        await think(understoodModel(u.status, ["change"]));
+        await think(thinkAsking(route.language));
+        return void (await done(false, "clarify"));
+      }
+      // M5: the literature scan has no mode of the box: it is offered as a card (`offer`), never started
+      if (u?.intent === "offer_tool" && u.tool === "litscan") {
+        await think(understoodModel(u.status, ["change"]));
+        return void (await done(false, "routed"));
+      }
       // another tool: nothing runs here; the browser offers to open it
-      if (route.mode !== "search") return void (await done(false, "routed"));
+      if (route.mode !== "search") {
+        await think(u ? understoodModel(u.status, ["change"]) : understoodTool(route.language, route.mode));
+        if (und?.confirm && u) await think(thinkConfirm(route.language));
+        return void (await done(false, "routed"));
+      }
       // what the indexes are asked: the model's English words, or the message as written (at most 300 characters)
       const query = route.searchQuery ?? text.replace(/\s+/g, " ");
-      if (query.length > 300) return void (await done(false, "too_long"));
+      if (query.length > 300 && !preset) return void (await done(false, "too_long"));
+      // M2: what is looked for (a follow-up's restated question, which a model may have written, else the words searched), with the page's own controls: Change, and the exact words when other words were searched
+      if (route.how === "fallback") await think(thinkNotSure(route.language));
+      // M5: the rules decided because the model could not be used (or a visitor's free readings of the day are used): said, with Change
+      if (und?.source === "fallback") await think(thinkFellBack(route.language, visitorCapped));
+      if (u) await think(understoodModel(u.status, route.searchQuery ? ["change", "exact_words"] : ["change"]));
+      // a search chosen by hand: nothing was understood, so no "I understood" line (the page without the block says "Searching papers, as you chose." too)
+      else if (route.how === "chosen") await think(thinkChosen(route.language));
+      else await think(understoodSearch(route.language, follow?.rewrote && follow.question ? follow.question : query, route.searchQuery ? ["change", "exact_words"] : ["change"]));
+      if (und?.confirm && u) await think(thinkConfirm(route.language));
 
       // what the answer is for and in what language: the standalone question of a follow-up (the message as written for any other message, so that it is answered in the person's language),
-      // and the language the person asked for ("in Hindi") before the one the rules found
-      const asked = askedOf(follow, text.replace(/\s+/g, " ").slice(0, 600));
-      const spoken = follow?.answerLanguage ?? reading?.answerLanguage ?? route.language;
+      // and the language the person asked for ("in Hindi") before the one the rules found. M5: when the Understand step decided, the writer gets its standalone question (never the ledger) and is told the
+      // language to answer in.
+      const asked = u ? (u.standalone || text).replace(/\s+/g, " ").slice(0, 600) : askedOf(follow, text.replace(/\s+/g, " ").slice(0, 600));
+      const spoken = u ? u.language : (follow?.answerLanguage ?? reading?.answerLanguage ?? route.language);
       // R9 (4.9): the relevance floor. Read only for an Auto message (a search chosen by hand is never judged: its exact words are what it searched), and only where the page can judge the words: a follow-up whose router call
       // failed (or that the day could not pay a model for) was searched on words nobody read, a message that still has a request frame the cleaner is not on to take off would count the frame as topic, and more than six
       // content words (or none, or a script the tokeniser cuts in the middle of a word) is a ramble the page does not claim to read (tiers.ts: the trust rule). Then the page abstains and the list is what it was.
       // This is also what keeps the one notice kind `weak` with one line: the failure policy's line (R5) belongs to exactly the follow-ups that are never judged here.
       let floor: FlagPosition = "off";
       let tierer: Tierer | null = null;
-      if (auto) {
+      if (auto && !preset) {
         floor = await gate(c.env, "CHAT_FLOOR");
         if (floor !== "off" && !poor && !follow?.fellBack) {
           try {
@@ -504,22 +696,36 @@ chatRoutes.post("/", async (c) => {
         }
       };
 
-      await send({ type: "step", step: "search" });
-      // while the sources answer, each list carries only the start of the abstracts; the final one below carries all of them (slimForInterim)
-      const interim = (r: SearchResponse | SearchSnapshot) => send({ type: "papers", results: slimForInterim(shape(r.results)), final: false });
+      // while the sources answer, each list carries only the start of the abstracts; the final one below carries all of them (slimForInterim). With CHAT_THINK on, a line says how many sources have answered so far.
+      const interim = async (r: SearchResponse | SearchSnapshot) => {
+        const shaped = shape(r.results);
+        await send({ type: "papers", results: slimForInterim(shaped), final: false });
+        await think(thinkFound(route.language, searchCounts(r.providers, shaped.length, shaped.filter((p) => p.retracted).length), false));
+      };
       let found: SearchResponse;
-      if (stubbed(c.env)) {
-        if (/\bstalled\b/i.test(query)) await new Promise((r) => setTimeout(r, 3500)); // a silent wait, to see the keep-alive line and the "still working" hint
-        found = stubSearchFor(query, scope, { topical: c.env.QA_STUB_TOPIC === "1" });
-        if (found.results.length > 0) await interim(found);
+      if (preset) {
+        // M5: no search at all: the papers the chat already listed, as they were looked up again by DOI (understand-wire.ts), are what the answer is written from
+        const none = { ok: true, count: 0, ms: 0, cached: false };
+        found = { query, results: preset, providers: {}, doiCheck: none, retractionCheck: none, tookMs: 0 };
+        await think(thinkFromEarlier(spoken, preset.length));
       } else {
-        found = await runSearch(searchEnvFrom(c.env), query, years ? YEAR_FILTER_SEARCH_LIMIT : 20, { onSnapshot: interim }, scope);
+        await send({ type: "step", step: "search" });
+        await think(thinkSearched(route.language, query));
+        if (stubbed(c.env)) {
+          if (/\bstalled\b/i.test(query)) await new Promise((r) => setTimeout(r, 3500)); // a silent wait, to see the keep-alive line and the "still working" hint
+          found = stubSearchFor(query, where, { topical: c.env.QA_STUB_TOPIC === "1" });
+          if (found.results.length > 0) await interim(found);
+        } else {
+          found = await searchService.run(c.env, { q: query, limit: years ? YEAR_FILTER_SEARCH_LIMIT : 20, scope: where }, { onSnapshot: interim });
+        }
       }
       if (s.gone) return;
       if (auto && !carries) oneSource = new Set(found.results.flatMap((p) => p.sources)).size === 1;
       const beforeYears = found.results.length;
       if (years || (floor === "on" && tierer)) found = { ...found, results: shape(found.results) };
       await send({ type: "papers", results: found.results, final: true });
+      if (preset) await send({ type: "notice", kind: "abstracts", text: ABSTRACTS_NOTICE });
+      else await think(thinkFound(route.language, searchCounts(found.providers, found.results.length, found.results.filter((p) => p.retracted).length), true));
       const complete = searchComplete(found);
       if (!complete) await send({ type: "notice", kind: "partial", text: PARTIAL_NOTICE });
       // R5 (4.6): the router call failed, so the words were searched as they stand and nothing says what they refer to. With the policy on, the papers are all there is: no written answer, no judge, no
@@ -583,12 +789,15 @@ chatRoutes.post("/", async (c) => {
       }
 
       await send({ type: "step", step: "read" });
+      await think(thinkReading(spoken, picked.length));
+      // M2: the judge's counts, for the line that says how many claims were read against their sentences (only when it gave verdicts)
+      let judged: JudgeReport | null = null;
       let answer;
       try {
         // the question the answer is for is what the person wrote (so it is answered in their language), not the English words the indexes were asked; for a follow-up it is the standalone question,
         // and for the same papers only, the earlier answer goes with it as context the writer is told is not evidence. The judge is given neither (it reads claims and the abstracts they cite).
         // The debug log of what a model said is for the first message in development; a follow-up never uses it.
-        answer = await answerFromResults({ question: asked, language: spoken, languageAsked: !!(follow?.answerLanguage ?? reading?.answerLanguage), earlierAnswer: follow?.intent === "same_papers" ? (ctx?.history.lastAnswer ?? undefined) : undefined, picked, stream: streamFor(c.env, user.id, abort.signal), judge: c.env.CHAT_JUDGE === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: logJudged, emit: send, onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
+        answer = await answerFromResults({ question: asked, language: spoken, languageAsked: u ? u.language !== "en" : !!(follow?.answerLanguage ?? reading?.answerLanguage), earlierAnswer: follow?.intent === "same_papers" ? (ctx?.history.lastAnswer ?? undefined) : undefined, picked, stream: streamFor(c.env, user.id, abort.signal), judge: c.env.CHAT_JUDGE === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: (r) => { judged = r; logJudged(r); }, emit: async (e) => { await send(e); if (e.type === "step" && e.step === "write") await think(thinkWriting(spoken)); }, onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
       } catch (e) {
         if (s.gone) return;
         if (e instanceof QuotaError) return void (await done(false, "quota"));
@@ -603,6 +812,9 @@ chatRoutes.post("/", async (c) => {
       // the judge's reading already said "check" (answerFromResults); an answer that was not judged says it now
       if (answer.checked === undefined) await send({ type: "step", step: "check" });
       await send({ type: "answer", answer: { text: answer.text, citations: answer.citations, grounded: answer.grounded, ...(answer.checked === undefined ? {} : { checked: answer.checked, leftOut: answer.leftOut ?? 0, rewritten: answer.rewritten ?? 0 }) } });
+      const report = judged as JudgeReport | null;
+      const claims = report && !report.error ? Object.values(report.counts ?? {}).reduce((n, v) => n + (Number.isFinite(v) ? v : 0), 0) : 0;
+      if (answer.checked === true && claims > 0) await think(thinkChecked(spoken, { claims, leftOut: answer.leftOut ?? 0, rewritten: answer.rewritten ?? 0 }));
       // papers first: only when they do not answer, and the model itself says so (not when an answer was written and could not be checked), a labelled background follows
       if (!answer.grounded && !answer.enough) await background(user.id, spoken, asked);
       await done(answer.grounded, answer.grounded ? undefined : answer.enough ? "not_grounded" : "not_answered");
@@ -616,8 +828,18 @@ chatRoutes.post("/", async (c) => {
 });
 
 /**
+ * M4 (design PDF, "Follow-ups: sirf usi chat se"): what the page needs to know before it sends a message: whether to send the turn ledger of the chat with it. Only while the Understand step reads it for this
+ * requester (CHAT_UNDERSTAND shadow or on; for a visitor also CHAT_UNDERSTAND_VISITORS on): a page that always sent it would send replies and paper titles nobody reads, which the privacy page does not allow.
+ * A page that has not asked, or could not, sends none. Never cached.
+ */
+chatRoutes.get("/config", async (c) => {
+  const user = await currentUser(c);
+  return c.json({ ledger: (await understandFor(c.env, !!user)) !== "off" } satisfies ChatConfig);
+});
+
+/**
  * Development only (ENABLE_DEV_ROUTES=1; the deployed Workers do not set it, so this is a plain 404 there): the router's choice for one message, with the real model and no
- * search, so `scripts/router-eval.mjs` can measure the router over a labelled list without spending the search sources. With `history` and/or `earlier` (as the stream reads them) it reads
+ * search, so `scripts/router-eval.mjs` can measure the router over a labelled list without spending the search sources. With `history` (as the stream reads it) it reads
  * the message as a follow-up would be read and answers with the route plus `followUp` (what the checks made of the model's reading: intent, standalone question, search words, years, and the
  * reason if they did not pass) and `usage` (what the calls cost), so that `--followup` can score them. Without them the answer is the route and nothing more, as it always was.
  */
@@ -626,16 +848,14 @@ chatRoutes.post("/route", async (c) => {
   if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
   const read = await readChatBody(c);
   if (read.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
-  const body = read.body as { message?: unknown; history?: unknown; earlier?: unknown } | null;
+  const body = read.body as { message?: unknown; history?: unknown } | null;
   const text = cleanAutoMessage(body?.message);
   if (!text) return deny(c, 400, "invalid_message", "Write something, at most 20,000 characters");
   const user = await currentUser(c);
-  const carries = (body?.history !== undefined && body.history !== null) || (body?.earlier !== undefined && body.earlier !== null);
+  const carries = body?.history !== undefined && body.history !== null;
   if (!carries) return c.json(await routeMessage(text, user ? routeCompleteFor(c.env, user.id) : null));
   const h = readHistory(body?.history);
-  const e = readEarlier(body?.earlier);
-  const refusal: Refusal | null = !h.ok ? h : !e.ok ? e : null;
-  if (refusal || !h.ok || !e.ok) return deny(c, 400, "invalid_history", "The earlier messages could not be used", refusal?.detail);
+  if (!h.ok) return deny(c, 400, "invalid_history", "The earlier messages could not be used", h.detail);
   const usage = { calls: 0, tokensIn: 0, tokensOut: 0 };
   const complete = user
     ? routeCompleteFor(c.env, user.id, (u) => {
@@ -644,7 +864,7 @@ chatRoutes.post("/route", async (c) => {
         usage.tokensOut += u.tokensOut ?? 0;
       })
     : null;
-  const routed = await routeFollowUp(cleanAutoMessage(stripInvisible(text)) ?? text, complete, { history: h.history, earlier: e.earlier });
+  const routed = await routeFollowUp(cleanAutoMessage(stripInvisible(text)) ?? text, complete, { history: h.history });
   return c.json({ ...routed.route, followUp: routed.followUp, usage });
 });
 

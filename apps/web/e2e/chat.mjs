@@ -19,6 +19,30 @@ let failures = 0;
 class Stop extends Error {}
 const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
+// M5: this suite holds the page over the RULES' path (the router's follow-up context, "too long for a search", the body of a follow-up): with CHAT_UNDERSTAND "on" the Understand step decides instead, and the
+// page over the step is held by e2e/understand.mjs (and the Worker by src/chat/understand-route.test.ts). A run with it on says so and checks nothing here; with it off or in shadow everything runs.
+if (/(^|,)CHAT_UNDERSTAND:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "")) {
+  console.log("  ok   skipped: CHAT_UNDERSTAND is on, so the Understand step decides and the rules' path this suite holds is not taken (e2e/understand.mjs holds the step)");
+  process.exit(0);
+}
+// M2: with CHAT_THINK on, the line "I understood ..." with its Change, and "I searched for ..." with "Use my exact words", are lines of the Thinking block, which is folded once the reply is done. Before
+// such a control is used it is opened (`openThink`); with the switch off there is no block and nothing is done, so the run is what it was.
+const THINK = /(^|,)CHAT_THINK:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "");
+/** Opens every folded Thinking block in `scope` (a page or a turn). Nothing with CHAT_THINK off. */
+const openThink = async (scope) => {
+  if (!THINK) return;
+  for (const head of await scope.locator('.think-head[aria-expanded="false"]').all()) await head.click();
+};
+/** The text of the Thinking block's line of `kind` in `scope` ("" when there is none), read whether the block is open or folded. */
+const thinkLine = async (scope, kind) => {
+  const l = scope.locator(`.think-lines li[data-kind="${kind}"]`);
+  return (await l.count()) ? ((await l.first().textContent()) ?? "") : "";
+};
+/** What a reply says it searched, as the line reads without the block ("I searched for: <words>"); with CHAT_THINK on it is made from the block's line ("Searched for “<words>”", or its Hindi or Hinglish words). */
+const searchedFor = async (scope, nth = 0) => (THINK ? (await thinkLine(scope, "searched")).replace(/^\s*(?:Searched for|Search kiya:|खोजा:)\s*“([\s\S]*)”\s*$/, "I searched for: $1") : scope.locator(".chat-searched").nth(nth).innerText());
+/** A search chosen by hand says so in the block, in the language of the message, and is never "understood" (src/chat/think.ts, chosenSearch). */
+const CHOSEN_LINE = /^(?:Searching papers, as you chose|Aapke chune hisaab se papers dhundh raha hoon|आपके चुनने के हिसाब से शोध-पत्र खोज रहा हूँ)/;
+const saysChosen = async (scope) => CHOSEN_LINE.test((await thinkLine(scope, "note")).trim()) && (await thinkLine(scope, "understood")) === "";
 const idp = await startFakeIdp(9911);
 idp.setUser({ sub: "chat-ui-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
 const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
@@ -502,6 +526,7 @@ try {
     await bg.getByRole("button", { name: "Search again", exact: true }).click();
     await doneN(A, 1);
     ok(posted.length === 1 && posted[0].message === IDEA && await A.locator(".chat-bubble").count() === 1, "Search again on a finished reply asks the same question again in its place, with no new message");
+    await openThink(A);
     await A.locator(".chat-change").click();
     await A.getByRole("menuitem", { name: /Idea Check/ }).click();
     await A.locator(".chat-idea textarea").first().waitFor({ timeout: 20000 });
@@ -696,7 +721,7 @@ try {
     ok(same(posted[1].body.history, [{ role: "user", text: Q1 }, { role: "assistant", language: "en", papers: [PAPER_2021], text: ANSWER }]), "history is the question, then its reply: the language, the one paper the answer cited (with its year), the answer's words without the mark [1]; no abstract, no author, no link");
     const t2 = turnN(1);
     ok(await t2.locator(".chat-ctx").count() === 1 && (await t2.locator(".chat-ctx").innerText()) === `Using your earlier question: ${Q1} only after 2022 · Use these exact words`, "the reply says what it was read as: 'Using your earlier question: ...', with a way to search exactly that");
-    ok(/I searched for:\s*glaucoma screening in India/.test(await t2.locator(".chat-searched").nth(1).innerText()) && !/only after/.test(await t2.locator(".chat-searched").nth(1).innerText()) && await t2.locator(".chat-searched").nth(1).getByRole("button").count() === 0, "(the 'I searched for' line is still there, and has no button of its own beside it: one way back to exact words, not two)");
+    ok(/I searched for:\s*glaucoma screening in India/.test(await searchedFor(t2, 1)) && !/only after/.test(await searchedFor(t2, 1)) && await (THINK ? t2.locator('.think-lines li[data-kind="searched"]') : t2.locator(".chat-searched").nth(1)).getByRole("button").count() === 0, "(the 'I searched for' line is still there, and has no button of its own beside it: one way back to exact words, not two)");
     ok(await t2.locator(".chat-chip").count() === 1 && (await t2.locator(".chat-chip").innerText()).trim() === "Papers from 2022 or later" && await t2.getByRole("button", { name: "Remove the year filter (papers from 2022 or later) and search again", exact: true }).count() === 1, "the year range that cut the papers is a chip, with a remove button that says what it removes and that it searches again");
     ok(await t2.locator(".result").count() === 1 && /Smartphone-based retinal imaging/.test(await t2.locator(".result").innerText()), "the list is cut to the one paper from 2022 or later, and numbered after the cut");
     ok(/Only 1 of the papers found is from 2022 or later/.test(await t2.locator(".chat-note").innerText()) && await t2.locator(".chat-note button").count() === 0, "the short list is said to be short, and that notice has no 'Search again' of its own (that would be the same list)");
@@ -770,7 +795,7 @@ try {
     await turnDone(1);
     ok((await focusedReply(C)) === "Reply" && await C.evaluate(() => document.activeElement !== document.body), "the focus is still on that reply when it is ready (its name has lost 'being written'), and a screen reader hears 'Reply'");
     ok(posted.length === 1 && posted[0].raw === `{"mode":"search","message":"${Q1}"}`, `removing the chip (with the keyboard) searches the words the indexes were asked, as a search chosen by hand, and sends no history (${posted[0]?.raw})`);
-    ok(await t2e.locator(".result").count() === 5 && await t2e.locator(".chat-chip, .chat-ctx").count() === 0 && /Searching papers, as you chose/.test(await t2e.innerText()) && new RegExp(`I searched for:\\s*${Q1}$`).test(await t2e.locator(".chat-searched").innerText()), "the list is whole again (five papers), there is no chip, and the reply says what was searched, since it is not what the bubble above says");
+    ok(await t2e.locator(".result").count() === 5 && await t2e.locator(".chat-chip, .chat-ctx").count() === 0 && (THINK ? await saysChosen(t2e) : /Searching papers, as you chose/.test(await t2e.innerText())) && new RegExp(`I searched for:\\s*${Q1}$`).test(await searchedFor(t2e)), "the list is whole again (five papers), there is no chip, and the reply says what was searched, since it is not what the bubble above says");
 
     posted.length = 0;
     await t2e.getByRole("button", { name: "Search again", exact: true }).click();
@@ -785,7 +810,7 @@ try {
     ok(same(posted[0].body.history, [{ role: "user", text: Q1 }, { role: "assistant", language: "en", papers: [PAPER_2021] }, { role: "user", text: "only after 2020" }, { role: "assistant", searchQuery: Q1, language: "en", papers: [PAPER_2021], text: ANSWER }]), "the reply made from other words than the bubble is sent with what it searched (the anchor), not with 'only after 2020' as if that had been searched");
     const t3 = turnN(2);
     ok(/said again in simpler words/.test(await t3.locator(".chat-answer").innerText()), "the server read the last answer's words from it and used them for the same papers (the stand-in says so in its answer)");
-    ok(await t3.locator(".chat-ctx").count() === 1 && await t3.locator(".chat-ctx").getByRole("button").count() === 0 && /I searched for:\s*glaucoma screening in India/.test(await t3.locator(".chat-searched").nth(1).innerText()) && !/only after/.test(await t3.locator(".chat-searched").nth(1).innerText()), "it says what it was read as, with no 'exact words' (an instruction searched as it stands finds nothing), and what the papers were searched with");
+    ok(await t3.locator(".chat-ctx").count() === 1 && await t3.locator(".chat-ctx").getByRole("button").count() === 0 && /I searched for:\s*glaucoma screening in India/.test(await searchedFor(t3, 1)) && !/only after/.test(await searchedFor(t3, 1)), "it says what it was read as, with no 'exact words' (an instruction searched as it stands finds nothing), and what the papers were searched with");
 
     console.log("  'Use these exact words' on a refinement: the standalone question, as a search chosen by hand");
     await sendC("and in children?");
@@ -798,7 +823,7 @@ try {
     await focusOnReply(C, 3);
     await turnDone(3);
     ok(posted.length === 1 && posted[0].body.mode === "search" && posted[0].body.message === standalone && Object.keys(posted[0].body).join() === "mode,message" && /children/.test(standalone), "it searches the question the reply says it was read as (the person's own 'and in children?' means nothing alone), and sends no history");
-    ok(await turnN(3).locator(".chat-ctx").count() === 0 && new RegExp("I searched for:\\s*" + standalone.replace(/[?]/g, "\\?")).test(await turnN(3).locator(".chat-searched").innerText()), "and the reply says what it searched");
+    ok(await turnN(3).locator(".chat-ctx").count() === 0 && new RegExp("I searched for:\\s*" + standalone.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(await searchedFor(turnN(3))), "and the reply says what it searched");
 
     console.log("  a search chosen by hand sends no history, even in a chat that has some");
     posted.length = 0;
@@ -1415,6 +1440,7 @@ try {
     await sendR(OWNER);
     await doneN(R, 1);
     posted.length = 0;
+    await openThink(R.locator(".chat-turn").first());
     await R.locator(".chat-turn").first().getByRole("button", { name: "Use my exact words" }).click();
     await doneN(R, 1);
     ok(posted.length === 1 && posted[0].mode === "search" && posted[0].message === OWNER, `it sends the whole message as a search chosen by hand (${JSON.stringify(posted.at(-1))})`);
@@ -1459,13 +1485,13 @@ try {
     ok(await R.locator(".chat-turn").first().locator(".chat-left-chip").count() === 2 && await R.locator(".chat-turn").first().locator(".chat-reading-note").count() === 1, "a conversation opened again shows the lines it showed");
     await cx.close();
   };
-  /* ============================ chat to chat ============================
-     (docs/design/chat-actions-context.md, section 6.) Whose chats they are (a session that ends without a sign-out, another person on the same browser, another tab), the few words kept with each
-     chat, the switch "Use my earlier chats" (off unless turned on), the chat chosen to continue from, a private chat, and, for every state of them, what /api/v1/chat was SENT: the body is compared
-     whole, and what must never be in it is looked for in everything the page sent. The stand-in model reads a follow-up by the current message's words only, and says how many earlier-chat questions it
-     read, which is what the page shows. Runs in contexts of its own, so it can be run alone: CHAT_ONLY=memory node e2e/chat.mjs <baseUrl>. */
+  /* ============================ chats, whose they are, and nothing carried between them ============================
+     (docs/design/chat-actions-context.md, section 6, as changed on 6 Nov 2026 by the design PDF "Sodhsetu understanding, follow-ups and MCP", M1: "Continue from an earlier chat" and the Settings
+     switch "Use my earlier chats" are gone.) Whose chats they are (a session that ends without a sign-out, another person on the same browser, another tab), what the old feature left in the browser and
+     that it is removed, a private chat, and, for every state, what /api/v1/chat was SENT: the body is compared whole, and no message carries anything of another chat. Runs in contexts of its own, so it
+     can be run alone: CHAT_ONLY=memory node e2e/chat.mjs <baseUrl>. */
   const memory = async () => {
-    console.log("chat to chat: whose chats they are, the words kept, the switch, the chip, what is sent");
+    console.log("chats: whose they are, nothing of one chat sent with another, a private chat, what the removed feature left");
     const mx = await newCtx();
     const M = await mx.newPage();
     watch(M);
@@ -1489,238 +1515,110 @@ try {
     const fresh = async () => { await M.locator(".ws-rail").getByRole("button", { name: "New chat" }).click(); await M.locator(".hm-title").waitFor(); };
     const rowOf = (title) => M.locator(".ws-recent li").filter({ hasText: title });
     const dropChat = async (title) => { await rowOf(title).getByRole("button", { name: `Delete the chat ${title}` }).click({ force: true }); await M.waitForFunction((t) => ![...document.querySelectorAll(".ws-recent li")].some((li) => li.textContent.includes(t)), title, { timeout: 8000 }); };
-    const turnDoneM = (i) => M.waitForFunction((i) => document.querySelectorAll(".chat-turn")[i]?.getAttribute("data-status") === "done", i, { timeout: 30000 });
     const askedM = async (n) => { const t = Date.now(); while (posted.length < n) { if (Date.now() - t > 15000) throw new Error(`timed out waiting for request ${n}`); await new Promise((r) => setTimeout(r, 50)); } };
-    /** A chat made by one search chosen by hand, and left: a chat of the person's own to be drawn on later. */
+    /** A chat made by one search chosen by hand, and left. */
     const makeChat = async (text, tool = "Search papers") => { await fresh(); await sendM(text, tool); await doneN(M, 1); };
     const probe = async (text, tool = "Auto") => { posted.length = 0; await fresh(); await sendM(text, tool); await askedM(1); await doneN(M, 1); return posted[0]; };
-    const same = (a, b) => { try { assert.deepStrictEqual(a, b); return true; } catch { console.log("        expected", JSON.stringify(b), "\n        got     ", JSON.stringify(a)); return false; } };
     const store = (p) => p.evaluate(async () => ({
       raw: localStorage.getItem("scholar.chats.v1"),
       pref: localStorage.getItem("scholar.earlier"),
       active: sessionStorage.getItem("scholar.chat.active"),
-      records: await new Promise((resolve) => { const r = indexedDB.open("scholar"); r.onerror = () => resolve(-1); r.onsuccess = () => { const db = r.result; if (!db.objectStoreNames.contains("chats")) return resolve(0); const c = db.transaction("chats").objectStore("chats").count(); c.onsuccess = () => resolve(c.result); }; }),
+      records: await new Promise((resolve) => { const r = indexedDB.open("scholar"); r.onerror = () => resolve(-1); r.onsuccess = () => { const db = r.result; if (!db.objectStoreNames.contains("chats")) return resolve(0); const c = db.transaction("chats").objectStore("chats").count(); c.onsuccess = () => resolve(c.result); c.onerror = () => resolve(-1); }; }),
     }));
     const entries = async (p) => JSON.parse((await store(p)).raw ?? "[]");
     const goSettings = async (p = M) => { await p.locator(".ws-rail").getByRole("link", { name: "Settings" }).click(); await p.getByRole("heading", { name: "Chats" }).waitFor(); };
     // back to the Home screen and the conversation that was open when Settings was entered: the browser's own Back (the Home LINK starts a new chat, docs/design/ui-polish-1.md, and is tested in polish-chat.mjs)
     const goHome = async (p = M) => { await p.goBack(); await p.locator("#hm-h").waitFor(); };
-    const sw = (p = M) => p.getByRole("switch", { name: "Use my earlier chats", exact: true });
-    /** The switch is pressed to the state asked for (a switch already there is left alone). */
-    const setSwitch = async (on) => { if ((await sw().isChecked()) !== on) await sw().click(); await M.waitForFunction((on) => document.querySelector('input[role="switch"]')?.checked === on, on, { timeout: 5000 }); };
-    const asks = (x) => (x.body.earlier ?? []).map((e) => e.question);
+    const chatMenu = M.getByRole("button", { name: "Chat options", exact: true });
+    const FOLLOW = '{"mode":"auto","message":"and in children?"}';
+    let x;
+    let st;
 
     await signInVia(M);
     const meId = await M.evaluate(() => fetch("/api/v1/auth/me", { credentials: "same-origin" }).then((r) => r.json()).then((j) => j.user.id));
     ok(typeof meId === "string" && meId.length > 0, "signed in (the account has an id, which is what each chat is stamped with)");
 
-    console.log("  the account: each chat is stamped with its owner, and the words kept with it are the person's own");
-    const PASTE = `PASTECANARY ${"glaucoma screening cost review in rural clinics, ".repeat(10)}`;
+    console.log("  the account: each chat is stamped with its owner, and nothing else of the person's words is kept on the entry");
     await makeChat("diabetes in children");
     await makeChat("glaucoma screening in India");
-    await makeChat("metformin in pregnancy");
-    await makeChat("diabetes me exercise ka kya asar hota hai", "Auto");
-    await fresh();
-    await sendM("IDEACANARY my idea is to use drones for glaucoma screening in remote villages, is it new?", "Idea Check");
-    await M.locator(".chat-idea").waitFor({ timeout: 20000 });
-    await makeChat(PASTE, "Auto");
-    await settled(M);
-    let st = await store(M);
-    let idx = JSON.parse(st.raw);
-    ok(idx.length === 6 && idx.every((e) => e.owner === meId), `all six chats are stamped with the signed-in person's id (${idx.map((e) => (e.owner ?? "none").slice(0, 6)).join(",")})`);
-    const kwOf = (title) => idx.find((e) => e.title.startsWith(title))?.kw ?? "";
-    ok(/\bdiabetes\b/.test(kwOf("diabetes in children")) && /\bchildren\b/.test(kwOf("diabetes in children")), `the words kept with a chat are from the question (${kwOf("diabetes in children")})`);
-    ok(!/reports|main|result|paper/.test(idx.map((e) => e.kw ?? "").join(" ")), "...and none of them is from an answer (the stand-in's answer says 'The first paper reports its main result')");
-    ok(/translated/.test(kwOf("diabetes me exercise")) && /exercise/.test(kwOf("diabetes me exercise")), "the English words a search used are kept too");
-    ok(!/IDEACANARY|drones|PASTECANARY/i.test(idx.map((e) => e.kw ?? "").join(" ")) && idx.find((e) => e.title.startsWith("IDEACANARY"))?.kw === undefined, "nothing of an Idea Check, or of a pasted text, is in the words that are kept (a chat of only an idea has no words at all)");
-    ok(JSON.stringify(idx.map((e) => Object.keys(e).sort().join())).includes("id,kw,owner,title,updatedAt"), "an entry is its id, title, time, owner and words, and nothing else");
-
-    console.log("  the switch: off unless it is turned on, and what is sent is exactly what it always was");
-    await goSettings();
-    const chatsSec = M.locator(".settings-sec", { has: M.getByRole("heading", { name: "Chats" }) });
-    ok(await sw().count() === 1 && !(await sw().isChecked()) && (await sw().getAttribute("role")) === "switch", "Settings has a switch named 'Use my earlier chats' under Chats, and it is off");
-    ok(/Off unless you turn it on/.test(await chatsSec.innerText()) && /never their answers, ideas or lists/i.test(await chatsSec.innerText()) && /earlier versions of a question you edited/.test(await chatsSec.innerText()), "its help line says it is off unless turned on, and what is never used; the Chats paragraph says earlier versions are kept");
-    ok((await store(M)).pref === null, "nothing is stored while it is off");
-    await goHome();
-    let x = await probe("and in children?");
-    ok(x.raw === '{"mode":"auto","message":"and in children?"}', `off: a follow-up that shares a word with an earlier chat is sent with nothing of it (${x.raw})`);
-    await dropChat("and in children?");
-
-    console.log("  the switch, on: only questions and their search words, from related chats, with a line on the answer that used them");
-    await goSettings();
-    await setSwitch(true);
-    ok((await store(M)).pref === meId, "turned on, it is remembered on this device, as the id of the person who turned it on");
-    await M.reload({ waitUntil: "networkidle" });
-    await goSettings();
-    ok(await sw().isChecked(), "after a reload it is still on");
-    await goHome();
-    x = await probe("and in children?");
-    ok(Object.keys(x.body).join() === "mode,message,earlier" && same(x.body.earlier, [{ question: "diabetes in children" }]), "on, a short follow-up that shares a word with one chat is sent with that chat's question, and only that: 'question' (the stand-in searched it as written, so no search words)");
-    const rep = M.locator(".chat-turn").first();
-    ok(await rep.locator(".chat-earlier").count() === 1 && (await rep.locator(".chat-earlier").innerText()).startsWith("Used from your earlier chat: diabetes in children") && await rep.locator(".chat-earlier").getByRole("button", { name: "Do not use it and search again: remove the earlier question “diabetes in children”" }).count() === 1, "the answer says what it used, 'Used from your earlier chat: ...', with a button that removes it and asks again");
-    ok((await rep.locator(".chat-earlier button").innerText()).trim() === "Do not use it and search again", "the button says in its own words what it does: it does not use that question and searches again (not just 'Remove', which reads as dismissing a note)");
-    await dropChat("and in children?");
-    x = await probe("and CRISPR?");
-    ok(x.raw === '{"mode":"auto","message":"and CRISPR?"}', `on, an unrelated question carries nothing (${x.raw})`);
-    ok(await M.locator(".chat-earlier").count() === 0, "...and its answer says nothing of earlier chats");
-    await dropChat("and CRISPR?");
-    x = await probe("does early detection of glaucoma reduce blindness in elderly people");
-    ok(x.raw === '{"mode":"auto","message":"does early detection of glaucoma reduce blindness in elderly people"}', "on, a question that stands alone is not sent with other chats, though it shares a word with one: nothing would read them");
-    await dropChat("does early detection");
-    x = await probe("and in children?", "Search papers");
-    ok(x.raw === '{"mode":"search","message":"and in children?"}', "on, a search chosen by hand is searched as written: nothing is sent with it");
-    await dropChat("and in children?");
-
-    console.log("  at most three, only the chats the rail lists, and a chat that was left out");
-    await makeChat("asthma in children");
     await makeChat("obesity in children");
-    await makeChat("vaccination in children");
-    ok(await M.locator(".ws-recent li").count() === 6 && await rowOf("diabetes in children").count() === 0, "the rail lists six chats; the oldest, 'diabetes in children', is kept but not one of them");
+    await makeChat("diabetes me exercise ka kya asar hota hai", "Auto");
+    await settled(M);
+    st = await store(M);
+    let idx = JSON.parse(st.raw);
+    ok(idx.length === 4 && idx.every((e) => e.owner === meId), `all four chats are stamped with the signed-in person's id (${idx.map((e) => (e.owner ?? "none").slice(0, 6)).join(",")})`);
+    ok(idx.every((e) => Object.keys(e).sort().join() === "id,owner,title,updatedAt"), `an entry is its id, title, time and owner, and nothing else: no words of the questions (${[...new Set(idx.map((e) => Object.keys(e).sort().join()))].join(" | ")})`);
+
+    console.log("  no message carries anything of another chat: a follow-up in a new chat that shares words with three of them is sent as it is");
     x = await probe("and in children?");
-    ok(x.body.earlier.length === 3 && [...asks(x)].sort().join("|") === "asthma in children|obesity in children|vaccination in children", `three questions, from the three chats the rail lists that relate; the chat the rail does not list is not used (${asks(x).join(" | ")})`);
-    ok(x.body.earlier.every((e) => Object.keys(e).every((k) => k === "question" || k === "searchQuery")), "...each only a question and, where it has them, its search words");
-    ok(await M.locator(".chat-earlier").count() === 3, "the answer shows all three, each on a line of its own");
+    ok(x.raw === FOLLOW, `a follow-up in a new chat is exactly the message (${x.raw})`);
     await dropChat("and in children?");
-    await rowOf("vaccination in children").getByRole("button", { name: "More for the chat vaccination in children" }).click({ force: true });
-    await M.getByRole("menuitemcheckbox", { name: /Do not use this chat as memory/ }).click();
-    await M.keyboard.press("Escape");
-    ok((await entries(M)).find((e) => e.title === "vaccination in children")?.nomem === true, "'Do not use this chat as memory' is kept with the chat");
-    x = await probe("and in children?");
-    ok([...asks(x)].sort().join("|") === "asthma in children|obesity in children", `a chat that was left out is not drawn on (${asks(x).join(" | ")})`);
-    await dropChat("and in children?");
-    await M.reload({ waitUntil: "networkidle" });
-    await rowOf("vaccination in children").getByRole("button", { name: "More for the chat vaccination in children" }).click({ force: true });
-    ok(await M.getByRole("menuitemcheckbox", { name: /Do not use this chat as memory/ }).getAttribute("aria-checked") === "true", "after a reload the chat is still left out, and its menu says so");
-    await M.getByRole("menuitemcheckbox", { name: /Do not use this chat as memory/ }).click();
-    ok((await entries(M)).find((e) => e.title === "vaccination in children")?.nomem === undefined, "...and it can be taken back");
-    await M.keyboard.press("Escape");
-
-    console.log("  remove from the answer: asks again without it, and the choice stays on that answer");
-    posted.length = 0;
-    await fresh();
-    await sendM("and in children?", "Auto");
-    await askedM(1);
-    await doneN(M, 1);
-    ok(await M.locator(".chat-earlier").count() === 3, "(three lines)");
-    await M.locator(".chat-earlier").first().getByRole("button").click();
-    await askedM(2);
-    await focusOnReply(M, 0);
-    ok(true, "the focus is on the reply once the button that was pressed is gone (not on the body)");
-    await turnDoneM(0);
-    ok(posted[1].body.message === "and in children?" && posted[1].body.earlier.length === 2 && !asks(posted[1]).includes(asks(posted[0])[0]), `removing one asks the same words again with the other two (${asks(posted[1]).join(" | ")})`);
-    ok(await M.locator(".chat-bubble").count() === 1 && await M.locator(".chat-earlier").count() === 2, "(in the same place, with no new message, and two lines)");
-    await M.locator(".chat-earlier").first().getByRole("button").click();
-    await askedM(3);
-    await turnDoneM(0);
-    await M.locator(".chat-earlier").first().getByRole("button").click();
-    await askedM(4);
-    await turnDoneM(0);
-    ok(posted[3].raw === '{"mode":"auto","message":"and in children?"}' && await M.locator(".chat-earlier").count() === 0, `with the last one removed nothing is sent but the message (${posted[3].raw}), and the line is gone`);
-    await M.locator(".chat-turn").first().getByRole("button", { name: "Search again", exact: true }).click();
-    await askedM(5);
-    await focusOnReply(M, 0);
-    await turnDoneM(0);
-    ok(posted[4].raw === '{"mode":"auto","message":"and in children?"}', "'Search again' on that answer does not bring them back, though the switch is on and they relate: the choice was made for this answer");
-    await dropChat("and in children?");
-
-    console.log("  what is left on an answer after Remove is a limit, never a permission: the switch turned off in Settings stops it");
-    posted.length = 0;
-    await fresh();
-    await sendM("and in children?", "Auto");
-    await askedM(1);
-    await doneN(M, 1);
-    const keptTwo = await M.locator(".chat-earlier").count();
-    ok(keptTwo >= 2, `(an answer that used ${keptTwo} earlier questions)`);
-    await M.locator(".chat-earlier").first().getByRole("button").click();
-    await askedM(2);
-    await turnDoneM(0);
-    ok(Array.isArray(posted[1].body.earlier) && posted[1].body.earlier.length === keptTwo - 1, "Remove asks again with the rest");
-    await goSettings();
-    await setSwitch(false);
-    await goHome();
-    await M.locator(".chat-turn").first().getByRole("button", { name: "Search again", exact: true }).click();
-    await askedM(3);
-    await turnDoneM(0);
-    ok(!("earlier" in posted[2].body), `with the switch off, Search again on that answer sends no question of another chat, though they are stored on it (${posted[2].raw})`);
-    await M.locator(".chat-turn").first().getByRole("button", { name: "Search again", exact: true }).click();
-    await askedM(4);
-    await turnDoneM(0);
-    ok(!("earlier" in posted[3].body), "...and again");
-    await dropChat("and in children?");
-    await goSettings();
-    await setSwitch(true);
-    await goHome();
-
-    console.log("  the chat chosen to continue from: its last three questions go with every message of the new chat, in Auto, until the chip is removed");
-    await goSettings();
-    await setSwitch(false);
-    ok((await store(M)).pref === null, "(the switch is off for this part: the chip does not need it)");
-    await goHome();
-    await fresh();
-    const chatMenu = M.getByRole("button", { name: "Chat options", exact: true });
-    const beforeFrom = await entries(M);
-    await chatMenu.click();
-    await M.getByRole("menu", { name: "Chat options" }).waitFor();
-    ok(await M.getByRole("menuitem", { name: /^Private chat/ }).count() === 1 && await M.getByRole("group", { name: "Continue from an earlier chat" }).getByRole("menuitem").count() === beforeFrom.length, "the box's menu offers a private chat, and every kept chat to continue from (not only the six of the rail)");
-    await M.getByRole("menuitem", { name: "glaucoma screening in India", exact: true }).click();
-    const chip = M.locator(".hm-box .chat-chip");
-    ok((await chip.innerText()).replace(/\s+/g, " ").trim() === "Continuing from: glaucoma screening in India" && await M.locator(".hm-title").isVisible(), "a chip says 'Continuing from: glaucoma screening in India', and the page is a new, empty chat");
-    posted.length = 0;
-    await sendM("does early detection of cataract reduce blindness in elderly people", "Auto");
-    await askedM(1);
-    await doneN(M, 1);
-    ok(posted[0].raw === '{"mode":"auto","message":"does early detection of cataract reduce blindness in elderly people","earlier":[{"question":"glaucoma screening in India"}]}', `the first message is sent with that chat's question, though it stands alone and shares no word with it (${posted[0].raw})`);
-    ok(await M.locator(".hm-box .chat-chip").count() === 1 && await M.locator(".ws-recent li").first().innerText().then((t) => /does early detection of cataract/.test(t)), "the chip stays, and the new chat is a chat of its own in the rail");
-    await sendM("and in children?", "Auto");
+    x = await probe("asthma inhalers for adults");
+    ok(x.raw === '{"mode":"auto","message":"asthma inhalers for adults"}', "(a first question in another new chat)");
+    await sendM("only after 2020", "Auto");
     await askedM(2);
     await doneN(M, 2);
-    ok(Object.keys(posted[1].body).join() === "mode,message,history,earlier" && same(posted[1].body.earlier, [{ question: "glaucoma screening in India" }]), "every message of the chat is sent with it, after the turns of this chat");
-    await sendM("glaucoma costs", "Search papers");
+    ok(Object.keys(posted[1].body).join() === "mode,message,history" && JSON.stringify(posted[1].body.history.filter((e) => e.role === "user").map((e) => e.text)) === '["asthma inhalers for adults"]', `the next message leans on its own chat only: the questions in its history are this chat's (${posted[1]?.raw?.slice(0, 160)})`);
+    await M.locator(".chat-turn").first().getByRole("button", { name: "Search again", exact: true }).click();
     await askedM(3);
-    await doneN(M, 3);
-    ok(posted[2].raw === '{"mode":"search","message":"glaucoma costs"}' && await M.locator(".hm-box .chat-chip").count() === 1, "a search chosen by hand sends nothing of it, and the chip stays");
-    ok(/used in Auto only/.test(await M.locator(".hm-box .chat-chip").innerText()), "...and says it is used in Auto only");
-    await pick(M, "Auto");
-    await M.getByRole("button", { name: "Stop continuing from glaucoma screening in India" }).click();
-    ok(await M.locator(".hm-box .chat-chip").count() === 0, "the chip's remove button takes it away");
-    await sendM("and in men?", "Auto");
-    await askedM(4);
-    await doneN(M, 4);
-    ok(Object.keys(posted[3].body).join() === "mode,message,history", `after that nothing is sent with it (${posted[3].raw.slice(0, 60)}...)`);
-    const sourceUnchanged = (await entries(M)).find((e) => e.title === "glaucoma screening in India");
-    ok(!!sourceUnchanged, "the chat it was started from is as it was");
-    await dropChat("does early detection of cataract");
-    // from the rail's menu of a chat
-    await rowOf("obesity in children").getByRole("button", { name: "More for the chat obesity in children" }).click({ force: true });
-    await M.getByRole("menuitem", { name: /Continue in a new chat/ }).click();
-    ok((await M.locator(".hm-box .chat-chip").innerText()).includes("obesity in children"), "the menu of a chat in the rail can start one too");
-    posted.length = 0;
-    await sendM("tell me more about cost", "Auto");
-    await askedM(1);
-    await doneN(M, 1);
-    ok(same(posted[0].body.earlier, [{ question: "obesity in children" }]), "...with that chat's one question");
-    await dropChat("tell me more about cost");
+    await doneN(M, 2);
+    ok(!("earlier" in posted[2].body), "Search again sends nothing of other chats either");
+    await dropChat("asthma inhalers for adults");
 
-    console.log("  a private chat: not kept, not used, and gone when it is left");
+    console.log("  the box's menu has no 'Continue from an earlier chat', the rail has no menu of a chat, and Settings has no switch");
+    await fresh();
+    await chatMenu.click();
+    const menu = M.getByRole("menu", { name: "Chat options" });
+    await menu.waitFor();
+    ok(await M.getByRole("menuitem", { name: /^Private chat/ }).count() === 1 && await M.getByRole("group", { name: "Continue from an earlier chat" }).count() === 0 && !/Continue from|earlier chat/.test(await menu.innerText()), "the box's menu offers a private chat and nothing of earlier chats");
+    await M.keyboard.press("Escape");
+    await menu.waitFor({ state: "hidden" });
+    ok(await M.locator(".ws-recent-more").count() === 0 && await M.getByRole("button", { name: /^More for the chat/ }).count() === 0, "a chat in the rail has only its Delete button");
     await goSettings();
-    await setSwitch(true);
+    const chatsSec = M.locator(".settings-sec", { has: M.getByRole("heading", { name: "Chats" }) });
+    ok(await M.getByRole("switch", { name: "Use my earlier chats" }).count() === 0 && !/Use my earlier chats/.test(await chatsSec.innerText()), "Settings has no switch 'Use my earlier chats'");
+    ok(/Nothing of one chat is sent with a message in another/.test(await chatsSec.innerText()), "...and says that nothing of one chat goes with a message in another");
+    for (const theme of ["light", "dark"]) {
+      await setTheme(M, theme);
+      await calm(M);
+      await axe(`Settings, Chats, ${theme}`, M);
+    }
+    await setTheme(M, "light");
     await goHome();
+
+    console.log("  what the removed feature left in the browser is taken out when the page loads: the switch's key, the words and the mark on each entry");
+    await M.evaluate((meId) => {
+      const list = JSON.parse(localStorage.getItem("scholar.chats.v1") ?? "[]").map((e, i) => ({ ...e, kw: `kwcanary ${i}`, ...(i === 0 ? { nomem: true } : {}) }));
+      localStorage.setItem("scholar.chats.v1", JSON.stringify(list));
+      localStorage.setItem("scholar.earlier", meId);
+    }, meId);
+    await M.reload({ waitUntil: "networkidle" });
+    await M.locator("#hm-h").waitFor({ timeout: 20000 });
+    st = await store(M);
+    ok(st.pref === null, "the key of the old switch is gone");
+    ok(!/kwcanary|"kw"|nomem/.test(st.raw ?? ""), "the words and the 'not as memory' mark are gone from every entry");
+    ok((await entries(M)).length === 4 && (await entries(M)).every((e) => e.owner === meId), "(the chats themselves are all still there)");
+    x = await probe("and in children?");
+    ok(x.raw === FOLLOW, "and a follow-up is still sent as it is");
+    await dropChat("and in children?");
+
+    console.log("  a private chat: not kept, and gone when it is left");
     await fresh();
     const idxBefore = (await store(M)).raw;
     const recordsBefore = (await store(M)).records;
     await chatMenu.click();
     await M.getByRole("menuitem", { name: /^Private chat/ }).click();
-    ok((await M.locator(".hm-box .chat-chip").innerText()).includes("Private chat: not kept, not used as memory"), "choosing it puts a chip in the box that says so");
+    ok((await M.locator(".hm-box .chat-chip").innerText()).includes("Private chat: not kept"), "choosing it puts a chip in the box that says so");
     posted.length = 0;
     await sendM("zebrafishcanary in children and in men?", "Auto");
     await askedM(1);
     await doneN(M, 1);
-    ok(posted[0].raw === '{"mode":"auto","message":"zebrafishcanary in children and in men?"}', "a private chat is not sent with questions of other chats either, though the switch is on");
+    ok(posted[0].raw === '{"mode":"auto","message":"zebrafishcanary in children and in men?"}', "its first message is the message alone");
     ok(await M.locator(".chat-title").innerText() === "Private chat" && /not kept/.test(await M.locator("[role=note]").first().innerText()), "its heading says it is private, and a note says it is not kept");
     await sendM("and in women?", "Auto");
     await askedM(2);
     await doneN(M, 2);
-    ok(Object.keys(posted[1].body).join() === "mode,message,history" && posted[1].body.history[0].text.startsWith("zebrafishcanary"), "...but it leans on its own earlier messages, as any chat does");
+    ok(Object.keys(posted[1].body).join() === "mode,message,history" && posted[1].body.history[0].text.startsWith("zebrafishcanary"), "...it leans on its own earlier messages, as any chat does");
     await new Promise((r) => setTimeout(r, 1200));
     st = await store(M);
     ok(st.raw === idxBefore && st.records === recordsBefore, "nothing of it is in the list of chats or in the browser's storage");
@@ -1730,16 +1628,12 @@ try {
     ok(await M.locator(".chat-bubble").count() === 2 && (await M.locator(".chat-title").innerText()) === "Private chat", "going to Settings and back is not leaving a private chat: it is still on the screen, with both of its messages");
     await fresh();
     ok(await M.locator(".chat-list").count() === 0, "it is gone when it is left (New chat)");
-    x = await probe("and in children?");
-    ok(!JSON.stringify(everything.map((e) => e.body.earlier ?? [])).includes("zebrafishcanary"), "and nothing of it was ever drawn on");
-    await dropChat("and in children?");
-    await fresh();
     await chatMenu.click();
     await M.getByRole("menuitem", { name: /^Private chat/ }).click();
     await M.getByRole("button", { name: "Make this a normal chat again" }).click();
     ok(await M.locator(".hm-box .chat-chip").count() === 0, "(the chip of a private chat that has not begun has its own remove button)");
 
-    console.log("  the box's two choices are for the next message: they keep what was typed, and they do not outlive opening another chat");
+    console.log("  the private choice is for the next message: it keeps what was typed, and does not outlive opening another chat");
     const DRAFT = "a question typed before choosing";
     await fresh();
     await M.locator(".hm-input").fill(DRAFT);
@@ -1748,10 +1642,6 @@ try {
     ok((await M.locator(".hm-input").inputValue()) === DRAFT && (await M.locator(".hm-box .chat-chip").count()) === 1, "choosing a private chat after typing keeps the text in the box (it is the question to ask privately), and the chip says so");
     await M.getByRole("button", { name: "Make this a normal chat again" }).click();
     ok((await M.locator(".hm-input").inputValue()) === DRAFT, "...and taking the chip away keeps it too");
-    await chatMenu.click();
-    await M.getByRole("menuitem", { name: "glaucoma screening in India", exact: true }).click();
-    ok((await M.locator(".hm-input").inputValue()) === DRAFT && (await M.locator(".hm-box .chat-chip").count()) === 1, "choosing a chat to continue from keeps the text as well");
-    await M.getByRole("button", { name: "Stop continuing from glaucoma screening in India" }).click();
     await M.locator(".hm-input").fill("");
     await makeChat("disposable chat for the chip test", "Search papers");
     await fresh();
@@ -1762,37 +1652,20 @@ try {
     await dropChat("disposable chat for the chip");
     await M.locator(".hm-title").waitFor();
     ok(await M.locator(".hm-box .chat-chip").count() === 0, "a private-chat choice made for the next chat does not survive opening another chat: when that chat is deleted the box is a normal one, not a private one with its chip back");
-    await makeChat("second disposable chat for the chip test", "Search papers");
-    await fresh();
-    await chatMenu.click();
-    await M.getByRole("menuitem", { name: "glaucoma screening in India", exact: true }).click();
-    ok(await M.locator(".hm-box .chat-chip").count() === 1, "(a chat is chosen to continue from)");
-    await rowOf("second disposable chat").getByRole("button").first().click();
-    await M.locator(".chat-bubble").first().waitFor();
-    await dropChat("second disposable chat");
-    await M.locator(".hm-title").waitFor();
-    ok(await M.locator(".hm-box .chat-chip").count() === 0, "...and a chat chosen to continue from does not survive it either");
 
-    console.log("  accessibility: the chip, the line on the answer, the menus and the switch, in light, dark and read, and on a phone");
-    // a conversation that has all of it on one screen: the chip (a chat chosen to continue from) and an answer that says what it used from it
+    console.log("  accessibility: the box's menu and the private chip, in light, dark and read, and on a phone; the menu by keyboard");
     await fresh();
     await chatMenu.click();
-    await M.getByRole("menuitem", { name: "glaucoma screening in India", exact: true }).click();
-    posted.length = 0;
-    await sendM("and in children?", "Auto");
-    await askedM(1);
-    await doneN(M, 1);
-    const line = M.locator(".chat-earlier").first();
-    ok(await line.count() === 1 && (await line.innerText()).startsWith("Used from your earlier chat: glaucoma screening in India"), "(the answer says it used the chosen chat's question, and the chip is in the box)");
+    await M.getByRole("menuitem", { name: /^Private chat/ }).click();
     await M.mouse.move(5, 5);
     for (const theme of ["light", "dark", "read"]) {
       await setTheme(M, theme);
       await M.evaluate(() => window.scrollTo(0, 0));
-      await calm(M);
+      await frames(M); // (the empty home's glows never stop moving: calm() would wait for them)
       await faded(M);
-      await axe(`chat to chat, ${theme}: the chip, the line on the answer, the box's menu button`, M);
-      const c = { chip: await contrastOf(M.locator(".hm-box .chat-chip")), chipX: await contrastOf(M.locator(".hm-box .chat-chip-x")), more: await contrastOf(M.locator(".hm-more")), remove: await contrastOf(line.getByRole("button")) };
-      ok(Object.values(c).every((v) => v >= 4.5), `in ${theme}: the chip ${c.chip.toFixed(2)}:1, its remove icon ${c.chipX.toFixed(2)}:1, the box menu's icon ${c.more.toFixed(2)}:1, the Remove link ${c.remove.toFixed(2)}:1 (axe cannot read an icon's colour; 4.5 for all)`);
+      await axe(`the private chip, ${theme}`, M);
+      const c = { chip: await contrastOf(M.locator(".hm-box .chat-chip")), chipX: await contrastOf(M.locator(".hm-box .chat-chip-x")), more: await contrastOf(M.locator(".hm-more")) };
+      ok(Object.values(c).every((v) => v >= 4.5), `in ${theme}: the chip ${c.chip.toFixed(2)}:1, its remove icon ${c.chipX.toFixed(2)}:1, the box menu's icon ${c.more.toFixed(2)}:1 (4.5 for all)`);
     }
     await setTheme(M, "light");
     const sz = { more: await sizesOf(M.locator(".hm-more")), x: await sizesOf(M.locator(".hm-box .chat-chip-x")) };
@@ -1800,121 +1673,28 @@ try {
     for (const width of [390, 320]) {
       await M.setViewportSize({ width, height: 800 });
       await M.evaluate(() => window.scrollTo(0, 0));
-      await calm(M);
-      ok(await noSideways(M), `at ${width} px the page does not scroll sideways, with the chip and the line in it`);
-      await axe(`chat to chat, ${width} px wide: the chip and the line`, M);
+      await frames(M); // (the empty home's glows never stop moving: calm() would wait for them)
+      ok(await noSideways(M), `at ${width} px the page does not scroll sideways, with the chip in it`);
+      await axe(`the private chip, ${width} px wide`, M);
     }
     await M.setViewportSize({ width: 1360, height: 900 });
-
-    console.log("  accessibility: the box's menu, open (keyboard first)");
+    await M.getByRole("button", { name: "Make this a normal chat again" }).click();
     await M.locator(".hm-more").focus();
     await M.keyboard.press("Enter");
-    const menu = M.getByRole("menu", { name: "Chat options" });
     await menu.waitFor();
     const onItem = () => M.evaluate(() => document.activeElement?.textContent ?? "");
     ok(/^Private chat/.test(await onItem()), "Enter on the button opens the menu with the focus on its first item");
-    await M.keyboard.press("ArrowDown");
-    ok(!/^Private chat/.test(await onItem()) && (await M.evaluate(() => document.activeElement?.getAttribute("role"))) === "menuitem", "the arrow keys move between its items");
-    await M.keyboard.press("ArrowUp");
-    ok(/^Private chat/.test(await onItem()), "...and back");
-    await calm(M);
+    await frames(M); // (the empty home's glows never stop moving: calm() would wait for them)
     await axe("the box's menu, open, light", M);
     await setTheme(M, "dark");
-    await calm(M);
+    await frames(M); // (the empty home's glows never stop moving: calm() would wait for them)
     await axe("the box's menu, open, dark", M);
     await setTheme(M, "light");
     await M.keyboard.press("Escape");
     await menu.waitFor({ state: "hidden" });
     ok(await M.evaluate(() => document.activeElement?.getAttribute("aria-label")) === "Chat options", "Escape closes it, and the focus is back on its button");
 
-    console.log("  accessibility: the menu of a chat in the rail, by keyboard, on a desktop and in the drawer on a phone");
-    const moreBtn = rowOf("obesity in children").getByRole("button", { name: "More for the chat obesity in children" });
-    await rowOf("obesity in children").getByRole("button").first().focus();
-    await M.keyboard.press("Tab");
-    ok(await M.evaluate(() => document.activeElement?.getAttribute("aria-label")) === "More for the chat obesity in children" && await moreBtn.evaluate((el) => getComputedStyle(el).opacity) === "1", "Tab from a chat in the rail reaches its menu button, which is shown when it has the focus");
-    const mcs = [];
-    for (const theme of ["light", "dark", "read"]) {
-      await setTheme(M, theme);
-      await calm(M);
-      mcs.push(await contrastOf(moreBtn));
-    }
-    await setTheme(M, "light");
-    ok(mcs.every((v) => v >= 4.5) && (await sizesOf(moreBtn))[0][0] >= 24, `...its icon is ${mcs.map((v) => v.toFixed(2)).join(", ")}:1 in light, dark and read, and ${(await sizesOf(moreBtn))[0].join("x")}`);
-    await M.keyboard.press("Enter");
-    const railMenu = M.getByRole("menu", { name: "More for the chat obesity in children" });
-    await railMenu.waitFor();
-    ok(/Continue in a new chat/.test(await onItem()), "Enter opens it, with the focus on its first item");
-    await M.keyboard.press("ArrowDown");
-    ok(/Do not use this chat as memory/.test(await onItem()) && (await M.evaluate(() => document.activeElement?.getAttribute("role"))) === "menuitemcheckbox", "the arrow keys move between the items of this menu as they do in the box's menu (the second is a checkbox item, which a menu is made of too)");
-    await M.keyboard.press("ArrowDown");
-    ok(/Continue in a new chat/.test(await onItem()), "...round the end");
-    await M.keyboard.press("ArrowUp");
-    ok(/Do not use this chat as memory/.test(await onItem()), "...and back");
-    await M.keyboard.press("Home");
-    ok(/Continue in a new chat/.test(await onItem()), "Home goes to the first item");
-    await M.keyboard.press("End");
-    ok(/Do not use this chat as memory/.test(await onItem()), "End to the last");
-    await M.keyboard.press("Home");
-    await calm(M);
-    await axe("the menu of a chat in the rail, open, light", M);
-    await M.keyboard.press("Escape");
-    await railMenu.waitFor({ state: "hidden" });
-    ok(await M.evaluate(() => document.activeElement?.getAttribute("aria-label")) === "More for the chat obesity in children", "Escape closes it, and the focus is back on its button");
-    await M.setViewportSize({ width: 390, height: 800 });
-    await M.getByRole("button", { name: "Open the menu" }).click();
-    const drawer = M.locator(".ws-drawer");
-    await drawer.waitFor();
-    await calm(M); // it slides in
-    await drawer.getByRole("button", { name: "More for the chat obesity in children" }).click({ force: true });
-    const dMenu = M.getByRole("menu", { name: "More for the chat obesity in children" });
-    await dMenu.waitFor();
-    await calm(M);
-    ok(await dMenu.evaluate((el) => { const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!top?.closest(".pop"); }), "in the drawer on a phone the menu is above the drawer, not behind it");
-    await axe("the menu of a chat in the drawer, open, 390 px", M);
-    await M.keyboard.press("Escape");
-    await dMenu.waitFor({ state: "hidden" });
-    await M.keyboard.press("Escape");
-    await drawer.waitFor({ state: "detached" });
-    await M.setViewportSize({ width: 1360, height: 900 });
-
-    console.log("  accessibility: the switch in Settings, in every theme and on a phone, and by keyboard");
-    await goSettings();
-    const sws = await sizesOf(sw().locator("xpath=.."));
-    ok(!!(await sw().getAttribute("aria-describedby")) && /Off unless/.test(await M.locator(`#${await sw().getAttribute("aria-describedby")}`).innerText()), "the switch is described by its help line");
-    await sw().focus();
-    await M.keyboard.press("Space");
-    await M.waitForFunction(() => document.querySelector('input[role="switch"]')?.checked === false, null, { timeout: 5000 });
-    await M.keyboard.press("Space");
-    await M.waitForFunction(() => document.querySelector('input[role="switch"]')?.checked === true, null, { timeout: 5000 });
-    ok(await sw().isChecked() && (await store(M)).pref === meId, "the space bar turns it off and on, and the choice is kept");
-    for (const theme of ["light", "dark", "read"]) {
-      await setTheme(M, theme);
-      await calm(M);
-      await axe(`Settings with the switch, ${theme}`, M);
-    }
-    await setTheme(M, "light");
-    ok(sws[0][1] >= 24, `(the switch is pressed by its whole label, ${sws[0].join("x")})`);
-    for (const width of [390, 320]) {
-      await M.setViewportSize({ width, height: 800 });
-      await calm(M);
-      ok(await noSideways(M), `at ${width} px Settings does not scroll sideways`);
-      await axe(`Settings with the switch, ${width} px wide`, M);
-    }
-    await M.setViewportSize({ width: 1360, height: 900 });
-    await goHome();
-
-    console.log("  storage that refuses: the switch stays off and says so");
-    const blockedPref = await newCtx();
-    await blockedPref.addInitScript(() => { const set = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (k === "scholar.earlier") throw new DOMException("blocked", "QuotaExceededError"); return set.call(this, k, v); }; });
-    const BP = await blockedPref.newPage();
-    watch(BP);
-    await signInVia(BP);
-    await BP.locator(".ws-rail").getByRole("link", { name: "Settings" }).click();
-    await BP.getByRole("heading", { name: "Chats" }).waitFor();
-    await sw(BP).click();
-    await BP.getByText(/would not keep that choice/).waitFor({ timeout: 5000 });
-    ok(!(await sw(BP).isChecked()), "a browser that will not store the choice leaves the switch off, and a notice says so");
-    await blockedPref.close();
+    console.log("  storage that refuses: the chats are not kept, and a notice says so");
     const blockedDb = await newCtx();
     await blockedDb.addInitScript(() => { const open = indexedDB.open.bind(indexedDB); indexedDB.open = (...a) => { if (a[0] === "scholar") throw new DOMException("blocked", "SecurityError"); return open(...a); }; });
     const BD = await blockedDb.newPage();
@@ -1924,9 +1704,7 @@ try {
     await BD.keyboard.press("Enter");
     await BD.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
     await BD.getByText(/would not keep your chats/).first().waitFor({ timeout: 5000 });
-    await BD.locator(".ws-rail").getByRole("link", { name: "Settings" }).click();
-    await BD.getByRole("heading", { name: "Chats" }).waitFor();
-    ok(await sw(BD).isDisabled() && !(await sw(BD).isChecked()) && /would not keep your chats, so there is nothing to use/.test(await BD.locator(".settings-sec", { has: BD.getByRole("heading", { name: "Chats" }) }).innerText()), "when the browser will not keep the chats, the switch is off and cannot be turned on, and the page says why");
+    ok(true, "a browser that will not keep the chats answers anyway, and says the chats will be gone when the page is closed");
     await blockedDb.close();
 
     console.log("  nothing of the kind for a person who is not signed in");
@@ -1939,7 +1717,7 @@ try {
     await V.goto(BASE + "/home", { waitUntil: "networkidle" });
     await V.locator("#hm-h").waitFor({ timeout: 20000 });
     await V.getByRole("button", { name: "Chat options", exact: true }).click();
-    ok(await V.getByRole("menuitem", { name: /^Private chat/ }).count() === 1 && await V.getByRole("group", { name: "Continue from an earlier chat" }).count() === 0, "a visitor can start a private chat, and is not offered to continue from a chat");
+    ok(await V.getByRole("menuitem", { name: /^Private chat/ }).count() === 1 && await V.getByRole("group", { name: "Continue from an earlier chat" }).count() === 0, "a visitor can start a private chat");
     await V.keyboard.press("Escape");
     await V.locator(".hm-input").fill("diabetes in children");
     await V.keyboard.press("Enter");
@@ -1947,14 +1725,14 @@ try {
     await V.locator(".hm-input").fill("and in children?");
     await V.keyboard.press("Enter");
     await V.waitForFunction(() => document.querySelectorAll('.chat-turn[data-status="done"]').length === 2, null, { timeout: 30000 });
-    ok(vposted.every((r) => !r.includes("earlier")), "a visitor's messages carry no questions of other chats, even if the device holds a choice for someone else");
-    ok(vposted.length === 2 && vposted[0] === '{"mode":"auto","message":"diabetes in children"}' && vposted[1] === '{"mode":"auto","message":"and in children?"}', `a visitor's follow-up is exactly the message, with no earlier turns: nothing of the conversation leaves the device for somebody who is not signed in (${vposted[1]})`);
+    ok(vposted.length === 2 && vposted[0] === '{"mode":"auto","message":"diabetes in children"}' && vposted[1] === FOLLOW, `a visitor's follow-up is exactly the message, with no earlier turns: nothing of the conversation leaves the device for somebody who is not signed in (${vposted.join(" | ")})`);
+    ok((await V.evaluate(() => localStorage.getItem("scholar.earlier"))) === null, "(the old switch's key is removed for a visitor too)");
     ok((await V.evaluate(() => localStorage.getItem("scholar.chats.v1"))).includes("diabetes in children"), "(a visitor's chats are kept, as before)");
     await vctx.close();
 
     console.log("  the account: a session that ends without a sign-out, and another person on the same browser");
     const before = (await entries(M)).length;
-    ok(before >= 6, `(the first person has ${before} chats in this browser)`);
+    ok(before >= 4, `(the first person has ${before} chats in this browser)`);
     const second = await newCtx();
     const S = await second.newPage();
     watch(S);
@@ -1973,11 +1751,8 @@ try {
     st = await store(M);
     ok(st.records === 0 && (JSON.parse(st.raw ?? "[]")).length === 0, `the second person's session is on this browser: the first person's chats are gone from the list and from the browser's storage (${st.records} records)`);
     ok(await M.locator(".chat-list").count() === 0 && st.active === null, "...and from the page");
-    await goSettings();
-    ok(!(await sw().isChecked()), "the switch is off for the second person, though the first turned it on on this device: it is theirs to turn on");
-    await goHome();
     x = await probe("and in children?");
-    ok(x.raw === '{"mode":"auto","message":"and in children?"}', "...and nothing is sent with their messages");
+    ok(x.raw === FOLLOW, "...and nothing is sent with their messages");
 
     console.log("  the account: a session that has ended (a cookie that ran out, no sign-out) deletes nothing; the same person finds their chats again, another person removes them");
     await dropChat("and in children?"); // (the one the probe above made: this part counts the second person's chats)
@@ -1990,9 +1765,6 @@ try {
     st = await store(M);
     ok(st.records === 1 && (JSON.parse(st.raw ?? "[]")).length === 1 && (JSON.parse(st.raw))[0].owner === meId2, `with the session gone the chat of the person who had it is still in the browser: the list and its record (${st.records} record) are not deleted by a cookie that ran out`);
     ok(await M.locator(".ws-recent li").count() === 0 && await M.locator(".chat-list").count() === 0 && st.active === null, "...but whoever comes to this browser next does not see it: not in the rail, not on the page");
-    await M.getByRole("button", { name: "Chat options", exact: true }).click();
-    ok(await M.getByRole("group", { name: "Continue from an earlier chat" }).count() === 0, "...nor is it offered to continue from");
-    await M.keyboard.press("Escape");
     posted.length = 0;
     await sendM("owl pellets habitat survey", "Search papers");
     await doneN(M, 1);
@@ -2014,13 +1786,10 @@ try {
     await signInVia(M);
     await M.waitForFunction(() => !document.body.textContent.includes("quokka habitat research"), null, { timeout: 8000 });
     st = await store(M);
-    ok(!(st.raw ?? "").includes("quokka") && st.records === 0, `when somebody else signs in, the first person's chats are removed from the list and from the browser's storage (${st.records} records left). The owl chat the visitor made was on screen when the first person signed in, so it had become theirs, and went with the rest`);
+    ok(!(st.raw ?? "").includes("quokka") && st.records === 0, `when somebody else signs in, the first person's chats are removed from the list and from the browser's storage (${st.records} records left). The owl chat the visitor made was on screen when the first person signed in, so it had become theirs`);
 
-    console.log("  the account: chats kept before they had an owner are adopted by the person who opens them, and are not used as memory until then");
-    await goSettings();
-    await setSwitch(true);
-    await goHome();
-    const old = (id, text, at) => ({ id, title: text, updatedAt: at, kw: text.replace(/ in /g, " ") });
+    console.log("  the account: chats kept before they had an owner are adopted by the person who opens them");
+    const old = (id, text, at) => ({ id, title: text, updatedAt: at });
     const msgsOf = (id, text) => [{ id: `${id}u`, role: "user", text, at: 1 }, { id: `${id}a`, role: "assistant", mode: "search", query: text, language: "en", auto: false, how: "chosen", confidence: 1, understood: true, status: "done", step: null, stepsDone: [], papers: [], papersFinal: true, notices: [], live: "", answer: null, generalLive: "", general: null, at: 2 }];
     const seeds = [old("oldone", "migraine in children", Date.now() - 1000), old("oldtwo", "epilepsy in children", Date.now() - 2000)];
     await M.evaluate(async ({ seeds, recs }) => {
@@ -2032,33 +1801,30 @@ try {
     await M.reload({ waitUntil: "networkidle" });
     await M.locator(".ws-recent li").first().waitFor();
     ok(await M.locator(".ws-recent li").count() === 2, "the two chats kept before there was an owner are in the rail, as they were");
-    x = await probe("and in children?");
-    ok(x.raw === '{"mode":"auto","message":"and in children?"}', "...but they are not drawn on: nobody has said they are theirs");
-    await dropChat("and in children?");
     await M.locator(".ws-recent li").filter({ hasText: "migraine in children" }).getByRole("button").first().click();
     await M.locator(".chat-bubble").first().waitFor();
     ok((await entries(M)).find((e) => e.id === "oldone")?.owner === meId && (await entries(M)).find((e) => e.id === "oldtwo")?.owner === undefined, "opening one makes it the signed-in person's, and only that one");
     x = await probe("and in children?");
-    ok(same(asks(x), ["migraine in children"]), `from then on it is drawn on, and the one nobody opened is not (${asks(x).join(" | ")})`);
+    ok(x.raw === FOLLOW, "and a follow-up in a new chat still carries nothing of it");
     await dropChat("and in children?");
 
-    console.log("  the words go with the chat: delete, the thirty-chat limit, clearing, signing out");
+    console.log("  the chats go: delete, the thirty-chat limit, clearing, signing out");
     await makeChat("quokka canaryword habitat");
     await settled(M);
-    ok((await store(M)).raw.includes("canaryword"), "(the words of a chat are in the list)");
+    ok((await store(M)).raw.includes("canaryword"), "(the chat is in the list)");
     await dropChat("quokka canaryword habitat");
-    ok(!(await store(M)).raw.includes("canaryword"), "deleting a chat takes its words with it");
-    const thirty = Array.from({ length: 30 }, (_, i) => ({ id: `fill${i}`, title: `filler chat ${i}`, updatedAt: Date.now() - (i + 5) * 1000, owner: meId, kw: i === 29 ? "evictcanary" : `filler${i}x` }));
+    ok(!(await store(M)).raw.includes("canaryword"), "deleting a chat takes it out of the list");
+    const thirty = Array.from({ length: 30 }, (_, i) => ({ id: `fill${i}`, title: i === 29 ? "evictcanary" : `filler chat ${i}`, updatedAt: Date.now() - (i + 5) * 1000, owner: meId }));
     await M.evaluate((thirty) => localStorage.setItem("scholar.chats.v1", JSON.stringify(thirty)), thirty);
     await M.reload({ waitUntil: "networkidle" });
     await makeChat("platypus venom research");
     await settled(M);
     st = await store(M);
-    ok((JSON.parse(st.raw)).length === 30 && !st.raw.includes("evictcanary") && st.raw.includes("platypus"), "the thirty-first chat pushes the oldest out of the list, and its words with it");
+    ok((JSON.parse(st.raw)).length === 30 && !st.raw.includes("evictcanary") && st.raw.includes("platypus"), "the thirty-first chat pushes the oldest out of the list");
     await goSettings();
     await M.getByRole("button", { name: /^Delete all \d+ chats in this browser$/ }).click();
     await M.waitForFunction(() => localStorage.getItem("scholar.chats.v1") === null, null, { timeout: 8000 });
-    ok((await store(M)).raw === null, "'Delete all chats' takes the whole list, and the words in it");
+    ok((await store(M)).raw === null, "'Delete all chats' takes the whole list");
     await goHome();
     await makeChat("alligator habitat research");
     await settled(M);
@@ -2080,10 +1846,9 @@ try {
     await T2.waitForTimeout(1200);
     st = await store(T2);
     ok(st.records === 0 && st.raw === null, "...and nothing it held was saved back (the browser's storage is empty)");
-    ok(st.pref === meId, "(the choice 'Use my earlier chats' stays on the device when someone signs out: it is the device's, and is off for anyone else)");
     await T2.close();
 
-    ok(everything.every((e) => !/IDEACANARY|PASTECANARY|drones|reports its main/.test(JSON.stringify(e.body.earlier ?? []))), `in everything the page sent in this block (${everything.length} requests), no question of another chat is an idea, a pasted text or an answer`);
+    ok(everything.every((e) => !("earlier" in e.body)), `in everything the page sent in this block (${everything.length} requests), no message carried questions of another chat`);
     await mx.close();
   };
   /* ============================ layout, touch and two tabs ============================
@@ -2122,7 +1887,7 @@ try {
     await M.setViewportSize({ width: 320, height: 800 });
     await M.evaluate(() => window.scrollTo(0, 0));
     await calm(M);
-    ok(/translated: diabetes me glaucoma/.test(await M.locator(".chat-searched").first().innerText()), "(the reply says it searched for words that include the 60-letter word)");
+    ok(/translated: diabetes me glaucoma/.test(THINK ? await searchedFor(M) : await M.locator(".chat-searched").first().innerText()), "(the reply says it searched for words that include the 60-letter word)");
     let past = await spill(M);
     ok(past.length === 0, `at 320 px, with a 60-letter word in the question and in what the reply says it searched for, the conversation, its lines and its buttons are all inside the window (past the edge: ${past.join(", ") || "nothing"})`);
     await M.setViewportSize({ width: 1360, height: 900 });
@@ -2134,17 +1899,12 @@ try {
     await longMenu.waitFor();
     await frames(M);
     const menuFit = await longMenu.evaluate((el) => { const items = [...el.querySelectorAll(".hm-menu-item")]; return { w: innerWidth, right: Math.round(el.getBoundingClientRect().right), itemsRight: Math.max(...items.map((i) => Math.round(i.getBoundingClientRect().right))), overflowing: items.filter((i) => i.scrollWidth > i.clientWidth + 1).length }; });
-    ok(menuFit.right <= menuFit.w && menuFit.itemsRight <= menuFit.w && menuFit.overflowing === 0, `the box's menu, with a chat whose title is one long word, fits a 320 px window (menu to ${menuFit.right}, items to ${menuFit.itemsRight} of ${menuFit.w}, ${menuFit.overflowing} item wider than itself)`);
-    await M.getByRole("menuitem", { name: new RegExp(`^${LONG.slice(0, 20)}`) }).first().click();
-    await M.locator(".hm-box .chat-chip").waitFor();
-    await frames(M);
-    past = await spill(M);
-    ok(past.length === 0, `...and the chip that says which chat is continued (its title is one long word) and its X are inside the window too (past the edge: ${past.join(", ") || "nothing"})`);
-    ok((await sizesOf(M.locator(".hm-box .chat-chip-x")))[0][0] >= 24, "(the X is still a target of 24 px or more)");
-    await M.getByRole("button", { name: /^Stop continuing from/ }).click();
+    ok(menuFit.right <= menuFit.w && menuFit.itemsRight <= menuFit.w && menuFit.overflowing === 0, `the box's menu fits a 320 px window (menu to ${menuFit.right}, items to ${menuFit.itemsRight} of ${menuFit.w}, ${menuFit.overflowing} item wider than itself)`);
+    await M.keyboard.press("Escape");
+    await longMenu.waitFor({ state: "hidden" });
     await M.setViewportSize({ width: 1360, height: 900 });
 
-    console.log("  on a touch screen the two buttons beside a chat in the rail are apart enough for a finger (one of them deletes the chat at once)");
+    console.log("  on a touch screen the Delete button beside a chat in the rail is big enough for a finger, and clear of the title (it deletes the chat at once)");
     const tx = await newCtx({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     await tx.addCookies(await mx.cookies());
     const TP = await tx.newPage();
@@ -2162,11 +1922,12 @@ try {
       await calm(TP);
       const pair = await TP.locator(".ws-drawer .ws-recent li").first().evaluate((li) => {
         const box = (el) => { const b = el.getBoundingClientRect(); return { left: b.left, right: b.right, width: b.width, height: b.height }; };
-        return { more: box(li.querySelector(".ws-recent-more")), del: box(li.querySelector(".ws-recent-x:not(.ws-recent-more)")), open: box(li.querySelector(".ws-recent-open")) };
+        const open = li.querySelector(".ws-recent-open");
+        return { more: li.querySelector(".ws-recent-more"), del: box(li.querySelector(".ws-recent-x")), label: box(open.querySelector(".ws-link-label")), pad: parseFloat(getComputedStyle(open).paddingRight) };
       });
       // (to the pixel: the drawer slides in on a spring, and a box that is 40 px can be read as 39.98 while it is still settling)
-      ok([pair.more.width, pair.more.height, pair.del.width, pair.del.height].every((v) => Math.round(v) >= 40), `on touch both are at least 40 by 40 (${Math.round(pair.more.width)}x${Math.round(pair.more.height)} and ${Math.round(pair.del.width)}x${Math.round(pair.del.height)})`);
-      ok(pair.del.left - pair.more.right >= 7.5, `...with at least 8 px between them (${(pair.del.left - pair.more.right).toFixed(1)}), Delete the farthest from the title`);
+      ok(pair.more === null && Math.round(pair.del.width) >= 40 && Math.round(pair.del.height) >= 40, `on touch the one button, Delete, is at least 40 by 40 (${Math.round(pair.del.width)}x${Math.round(pair.del.height)}); the chat has no other menu since 6 Nov 2026`);
+      ok(pair.del.left - pair.label.right >= 7.5, `...with at least 8 px between it and the title (${(pair.del.left - pair.label.right).toFixed(1)})`);
     }
     await tx.close();
 
@@ -2333,7 +2094,7 @@ try {
   const boxAfter = await page.locator(".hm-box").boundingBox();
   ok(boxAfter.y > boxBefore.y - 5 && boxAfter.y + boxAfter.height <= 900, `the box has glided to the bottom of the window (from y ${Math.round(boxBefore.y)} to ${Math.round(boxAfter.y)})`);
   ok(await page.locator(".hm-title").count() === 0 && await page.locator(".chat-title").isVisible(), "the headline gives way to the conversation's title");
-  ok(/Searching papers, as you chose/.test(await turns().first().innerText()), "a search chosen by hand says so above the answer");
+  ok(THINK ? (await saysChosen(turns().first())) && (await searchedFor(turns().first())) === "I searched for: glaucoma screening" : /Searching papers, as you chose/.test(await turns().first().innerText()), "a search chosen by hand says so above the answer");
   ok(await page.locator(".chat-turn .result").count() === 5, "the five papers are listed");
   ok((await page.locator(".chat-turn .result-no").allInnerTexts()).join() === "1,2,3,4,5", "numbered 1 to 5, as the marks in the answer are");
   const answer = page.locator(".chat-answer");
@@ -2592,6 +2353,7 @@ try {
   await page.locator(".ws-rail").getByRole("button", { name: "New chat" }).click();
   await send("Mere thesis ke references check karo aur batao ki kya yeh idea pehle se kisi ne kiya hai");
   await page.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
+  await openThink(page);
   await page.locator(".chat-change").click();
   await page.getByRole("menuitem", { name: /Idea Check/ }).click();
   await page.locator(".chat-idea").waitFor({ timeout: 10000 });
@@ -2605,22 +2367,23 @@ try {
   const doneTurns = () => page.locator('.chat-turn[data-status="done"]').count();
   await sendAuto("glaucoma screening in India");
   await page.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
-  ok(/I understood this as Search papers/.test(await lastTurn().innerText()) && await lastTurn().locator(".result").count() === 5 && await lastTurn().locator(".chat-answer").isVisible(), "a plain question: 'I understood this as Search papers', the papers and the answer");
+  ok((THINK ? (await thinkLine(lastTurn(), "understood")).includes("you are looking for papers on “glaucoma screening in India”") : /I understood this as Search papers/.test(await lastTurn().innerText())) && await lastTurn().locator(".result").count() === 5 && await lastTurn().locator(".chat-answer").isVisible(), "a plain question: 'I understood this as Search papers', the papers and the answer");
   ok(await lastTurn().locator(".chat-searched").count() === 0, "(English words are searched as written: no 'I searched for' line)");
 
   await sendAuto("diabetes me exercise ka kya asar hota hai");
   await page.waitForFunction(() => document.querySelectorAll('.chat-turn[data-status="done"]').length === 2, null, { timeout: 30000 });
-  ok(/I searched for:\s*translated: diabetes me exercise ka kya/.test(await lastTurn().locator(".chat-searched").innerText()), "a Hinglish question: the English words that were searched are shown");
-  ok(await lastTurn().locator(".chat-searched b").getAttribute("lang") === "en" && await lastTurn().locator(".result").count() === 5, "(marked as English for a screen reader) and the papers are there");
+  ok(/I searched for:\s*translated: diabetes me exercise ka kya/.test(await searchedFor(lastTurn())), "a Hinglish question: the English words that were searched are shown");
+  ok((THINK || await lastTurn().locator(".chat-searched b").getAttribute("lang") === "en") && await lastTurn().locator(".result").count() === 5, "(marked as English for a screen reader) and the papers are there");
+  await openThink(lastTurn());
   await lastTurn().getByRole("button", { name: "Use my exact words" }).click();
-  await page.waitForFunction(() => /Searching papers, as you chose/.test(document.querySelectorAll(".chat-turn")[1]?.textContent ?? ""), null, { timeout: 30000 });
+  await page.waitForFunction((think) => (think ? /Searching papers, as you chose|Aapke chune hisaab se papers dhundh raha hoon/ : /Searching papers, as you chose/).test(document.querySelectorAll(".chat-turn")[1]?.textContent ?? ""), THINK, { timeout: 30000 });
   await page.waitForFunction(() => document.querySelectorAll('.chat-turn[data-status="done"]').length === 2, null, { timeout: 30000 });
   ok(await page.locator(".chat-bubble").count() === 2 && await lastTurn().locator(".chat-searched").count() === 0, "'Use my exact words' searches them as written, in the same place, with no new message");
 
   const REFS = "[1] LeCun, Y., Bengio, Y., & Hinton, G. (2015). Deep learning. Nature, 521, 436-444.\n[2] Vaswani, A., Shazeer, N., Parmar, N., et al. (2017). Attention is all you need. NeurIPS.\n[3] Krizhevsky, A., Sutskever, I., & Hinton, G. E. (2012). ImageNet classification with deep convolutional neural networks. NIPS.";
   await sendAuto(REFS);
   await page.locator(".chat-offer").waitFor({ timeout: 20000 });
-  ok(new URL(page.url()).pathname === "/" && /Check references/.test(await lastTurn().locator(".chat-und").first().innerText()) && await lastTurn().locator(".result").count() === 0, "pasted references: it says Check references and offers it; nothing was searched and the page did not move");
+  ok(new URL(page.url()).pathname === "/" && /Check references/.test(THINK ? await thinkLine(lastTurn(), "understood") : await lastTurn().locator(".chat-und").first().innerText()) && await lastTurn().locator(".result").count() === 0, "pasted references: it says Check references and offers it; nothing was searched and the page did not move");
   await page.getByRole("button", { name: "Open Check references" }).click();
   await page.waitForFunction(() => location.pathname === "/verify", null, { timeout: 10000 });
   await page.waitForTimeout(600);
@@ -2639,10 +2402,11 @@ try {
   await axe("an offer to open Idea Check, dark", page);
   await setTheme(page, "light");
   await page.screenshot({ path: OUT + "3-auto-offer.png" });
+  await openThink(lastTurn());
   await lastTurn().locator(".chat-change").click();
   ok((await page.getByRole("menuitem").allInnerTexts()).filter((t) => /Search papers|Check references|Ask a paper|Idea Check/.test(t)).length === 3, "Change lists the other three tools, not the one chosen");
   await page.getByRole("menuitem", { name: /Search papers/ }).click();
-  await page.waitForFunction(() => /Searching papers, as you chose/.test([...document.querySelectorAll(".chat-turn")].at(-1)?.textContent ?? "") && document.querySelectorAll(".chat-turn .result").length > 10, null, { timeout: 30000 });
+  await page.waitForFunction((think) => (think ? /Searching papers, as you chose|Aapke chune hisaab se papers dhundh raha hoon/ : /Searching papers, as you chose/).test([...document.querySelectorAll(".chat-turn")].at(-1)?.textContent ?? "") && document.querySelectorAll(".chat-turn .result").length > 10, THINK, { timeout: 30000 });
   ok(await lastTurn().locator(".chat-offer").count() === 0, "Change to Search papers searches the exact words in place and the offer goes");
 
   await sendAuto("my uploaded paper, what does it say about methods");
@@ -2725,7 +2489,7 @@ try {
   ok(/only in this browser/.test(await page.locator(".settings-sec", { has: page.getByRole("heading", { name: "Chats" }) }).innerText()), "Settings says the chats are kept only in this browser");
   // (what is about to be removed includes the owner and the words each chat is found by: they are part of the list)
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem("scholar.chats.v1") ?? "[]"));
-  ok(kept.length > 0 && kept.every((e) => typeof e.owner === "string") && kept.some((e) => typeof e.kw === "string" && e.kw.length > 0), `before signing out the list holds each chat's owner and the words it is found by (${kept.length} chats)`);
+  ok(kept.length > 0 && kept.every((e) => typeof e.owner === "string") && kept.every((e) => e.kw === undefined), `before signing out the list holds each chat's owner and no words of its questions (${kept.length} chats)`);
   await page.locator(".ws-rail").getByRole("button", { name: "Sign out" }).click();
   await page.locator(".ws-anon").waitFor({ timeout: 20000 });
   const left = await page.evaluate(async () => ({
@@ -2745,7 +2509,7 @@ try {
   await ap.locator(".hm-input").fill("glaucoma screening");
   await ap.keyboard.press("Enter");
   await ap.locator('.chat-turn[data-status="done"]').waitFor({ timeout: 30000 });
-  ok(/I understood this as Search papers/.test(await ap.locator(".chat-turn").first().innerText()), "Auto reads a plain question without a model: 'I understood this as Search papers'");
+  ok(THINK ? (await thinkLine(ap.locator(".chat-turn").first(), "understood")).includes("you are looking for papers on “glaucoma screening”") : /I understood this as Search papers/.test(await ap.locator(".chat-turn").first().innerText()), "Auto reads a plain question without a model: 'I understood this as Search papers'");
   ok(await ap.locator(".chat-turn .result").count() === 5 && await ap.locator(".chat-answer").count() === 0, "a person who has not signed in gets the papers and no written answer");
   ok(/Sign in to get a short written answer/.test(await ap.locator(".chat-why").innerText()) && await ap.locator(".chat-why").getByRole("button", { name: "Sign in" }).isVisible(), "and a line, with a Sign in button, says why");
   ok(await ap.locator(".chat-steps").count() === 0, "(the steps of a written answer are not promised to them)");
@@ -2755,7 +2519,7 @@ try {
   await ap.locator(".hm-input").fill("check my references please");
   await ap.keyboard.press("Enter");
   await ap.locator(".chat-offer").waitFor({ timeout: 20000 });
-  ok(/Check references/.test(await ap.locator(".chat-und").last().innerText()), "the words of a tool are enough for it to be offered, with no model");
+  ok(/Check references/.test(THINK ? await thinkLine(ap.locator(".chat-turn").last(), "understood") : await ap.locator(".chat-und").last().innerText()), "the words of a tool are enough for it to be offered, with no model");
   // small talk, joined or not (docs/design/not-research.md): the page answers it, in the language it was written in, and never leaves the reader at a dead end
   const talkTurn = () => ap.locator(".chat-turn").last();
   const talkDone = () => ap.waitForFunction(() => !document.querySelector('.chat-turn[data-status="working"]'), null, { timeout: 30000 });
@@ -2782,7 +2546,7 @@ try {
   ok(/Namaste! Main theek hu, shukriya\. Ye box research papers dhundta hai/.test(await talkTurn().innerText()), "a Hinglish greeting gets a Hinglish reply");
   await talkTurn().getByRole("button", { name: "Search for these words anyway" }).click();
   await talkDone();
-  ok(/Searching papers, as you chose/.test(await talkTurn().innerText()) && await talkTurn().locator(".chat-talk").count() === 0 && !/Namaste!/.test(await talkTurn().innerText()), "'Search for these words anyway' searches them as written, in the same place");
+  ok((THINK ? (await saysChosen(talkTurn())) && /^I searched for: hello bhai kaise ho$/.test(await searchedFor(talkTurn())) : /Searching papers, as you chose/.test(await talkTurn().innerText())) && await talkTurn().locator(".chat-talk").count() === 0 && !/Namaste!/.test(await talkTurn().innerText()), "'Search for these words anyway' searches them as written, in the same place");
   await anon.close();
 
   console.log("the page does not move under the reader");

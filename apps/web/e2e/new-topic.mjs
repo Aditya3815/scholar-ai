@@ -101,7 +101,7 @@ const meets = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom
 async function storeMessages(page, messages, title = "glaucoma screening") {
   const meId = await page.evaluate(() => fetch("/api/v1/auth/me", { credentials: "same-origin" }).then((r) => r.json()).then((j) => j.user.id));
   const id = `newtopic${messages.length}${Math.floor(Math.random() * 1e9)}`.slice(0, 20);
-  const entry = { id, title, updatedAt: Date.now(), owner: meId, kw: title };
+  const entry = { id, title, updatedAt: Date.now(), owner: meId };
   await page.evaluate(async ({ entry, record }) => {
     const prev = JSON.parse(localStorage.getItem("scholar.chats.v1") ?? "[]").filter((e) => e.id !== entry.id);
     localStorage.setItem("scholar.chats.v1", JSON.stringify([entry, ...prev]));

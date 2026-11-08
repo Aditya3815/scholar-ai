@@ -84,6 +84,20 @@ export async function openalexSemantic(text: string, limit: number, env: { OPENA
   return toProviderPapers(body.results ?? []);
 }
 
+/**
+ * Records by DOI (at most 10, one request): what a paper the browser says was listed earlier in a chat really is (M5, the Understand step's `ask_results`). The browser's copy of a paper is never used as a
+ * fact; only what OpenAlex answers for its DOI is. A DOI OpenAlex does not know is simply not in the answer.
+ */
+export async function openalexByDois(dois: readonly string[], env: { OPENALEX_API_KEY?: string }, signal: AbortSignal): Promise<ProviderPaper[]> {
+  const list = [...new Set(dois.map((d) => normalizeDoi(d)).filter((d): d is string => !!d && !/[|,]/.test(d)))].slice(0, 10);
+  if (list.length === 0) return [];
+  const params = new URLSearchParams({ filter: `doi:${list.map((d) => `https://doi.org/${d}`).join("|")}`, "per-page": String(list.length), select: SELECT });
+  if (env.OPENALEX_API_KEY) params.set("api_key", env.OPENALEX_API_KEY);
+  const res = await fetch(`https://api.openalex.org/works?${params}`, { signal });
+  if (!res.ok) throw new Error(`OpenAlex HTTP ${res.status}`);
+  return toProviderPapers(((await res.json()) as { results?: OAWork[] }).results ?? []);
+}
+
 /** The keyword search as Idea Check runs it: the same query as `openalex`, plus the kind of each work. Its own name, so its cached answers are kept apart. */
 export const openalexForIdea: Provider = {
   name: "openalex-idea",
