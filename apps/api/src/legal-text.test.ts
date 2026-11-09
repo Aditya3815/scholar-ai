@@ -145,8 +145,9 @@ describe("the privacy page after earlier messages are sent to the AI service", (
   it("says in 'Changes' that the chat does not ask first, and what changed", () => {
     expect(PAGE).toMatch(/before you upload a paper, check an idea or run a literature scan, and we will say here what changed/);
     expect(PAGE).toMatch(/The prompt box on Home does not ask first/);
-    // draft-16 (9 Nov, the MCP beta) is now the latest change; the earlier-chats change stays on the page under it.
-    expect(PAGE).toContain("Latest change (9 November 2026): you can connect an AI app (such as Claude or ChatGPT) to your Sodhsetu account");
+    // draft-17 (10 Nov, CHAT_TOOLS on) is the latest change; the MCP beta and the earlier-chats changes stay on the page under it.
+    expect(PAGE).toContain("Latest change (10 November 2026): in Auto, a list of references, DOIs with a question about retraction, or a question about one paper is now answered by running that tool in the reply itself");
+    expect(PAGE).toContain("Change before it (9 November 2026): you can connect an AI app (such as Claude or ChatGPT) to your Sodhsetu account");
     expect(PAGE).toContain("Change before it (6 November 2026): the prompt box on Home no longer uses your earlier chats.");
     expect(PAGE).toContain("a message carries only earlier messages of its own conversation, and the few words that were kept with each chat so that your device could find it are removed from your browser");
   });
