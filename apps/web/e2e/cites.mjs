@@ -314,6 +314,40 @@ try {
     await dark.ctx.close();
   }
 
+  /* ================================================================ the reader's tab bar (Paper, Ask, References, Notes) on narrow screens */
+  // Its icons sat at each tab's top-left corner, over the word, from 18 Oct 2026 (the icon was in the rule of the pill behind the tab): icon and word are now in one row.
+  for (const [w, h, phone] of [[320, 640, true], [390, 844, true], [768, 1000, false]]) {
+    for (const theme of ["light", "dark"]) {
+      const { ctx, page } = await open({ width: w, height: h }, { phone, theme, citesOff: true });
+      const bar = await page.locator(".dw-tabs").evaluate((tl) => {
+        const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+        const tabs = [...tl.querySelectorAll(".dw-tab")].map((t) => {
+          const box = t.getBoundingClientRect();
+          const icon = t.querySelector(":scope > svg");
+          const iconShown = icon && getComputedStyle(icon).display !== "none";
+          const ib = iconShown ? icon.getBoundingClientRect() : null;
+          const lb = t.querySelector(".dw-tab-label").getBoundingClientRect();
+          return {
+            name: t.textContent.trim(),
+            icon: !!ib,
+            overlap: ib ? hit(ib, lb) : false,
+            iconLeftOfWord: ib ? ib.right <= lb.left + 0.5 && Math.abs(ib.top + ib.height / 2 - (lb.top + lb.height / 2)) < 4 : true,
+            inside: [...t.children].every((c) => { const r = c.getBoundingClientRect(); return r.width === 0 || (r.right <= box.right + 0.5 && r.left >= box.left - 0.5); }),
+          };
+        });
+        return { tabs, fits: tl.scrollWidth <= tl.clientWidth + 1 };
+      });
+      const tag = `${w} px, ${theme}`;
+      ok(bar.tabs.length === 4 && bar.tabs.every((t) => !t.overlap), `[${tag}] no tab's icon covers its word (${bar.tabs.filter((t) => t.overlap).map((t) => t.name).join(", ") || "none"}; icons ${bar.tabs.some((t) => t.icon) ? "shown" : "hidden"})`);
+      ok(bar.tabs.every((t) => t.iconLeftOfWord), `[${tag}] each icon sits before its word, on its line`);
+      ok(bar.fits && bar.tabs.every((t) => t.inside), `[${tag}] the four tabs fit the bar, each word inside its tab`);
+      ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), `[${tag}] nothing scrolls sideways`);
+      const tb = await page.locator(".dw-tabs").boundingBox();
+      await page.screenshot({ path: join(SHOTS, `tabs-${w}-${theme}.png`), clip: { x: 0, y: 0, width: w, height: Math.min(h, Math.ceil(tb.y + tb.height + 12)) } });
+      await ctx.close();
+    }
+  }
+
   ok(errors.length === 0, `no errors in the page${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""}`);
 } catch (e) {
   console.log(" FAIL  " + (e?.stack ?? e));

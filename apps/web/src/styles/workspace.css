@@ -436,7 +436,9 @@
 .dw-tab {
   position: relative;
   display: inline-flex;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 0.5rem;
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
@@ -451,18 +453,32 @@
 .dw-tab[aria-selected="true"] {
   color: var(--accent);
 }
-.dw-tab > svg,
+/* The pill alone is laid behind the tab. The icon, the word and the count sit in the row above it (the icon was in the pill's rule from 18 Oct 2026, fa93b7b,
+   which put it at the tab's top-left corner over the word, on every phone): the same as .dw-sidetab below. */
 .dw-tab-pill {
   position: absolute;
   inset: 0;
   border-radius: 999px;
   background: var(--accent-soft);
 }
+.dw-tab > svg,
 .dw-tab-label {
   position: relative;
+  flex: none;
 }
-.dw-tab .dw-tab-label {
-  position: relative;
+/* With the icon in the row, the four tabs take their words' width (flex: 1 1 auto above) and, on a narrow phone, smaller type; under 360 px the icons go
+   (they only repeat the words) so that "References 4" still fits beside the others at 320 px. */
+@media (max-width: 420px) {
+  .dw-tab {
+    gap: 0.3rem;
+    padding: 0 0.35rem;
+    font-size: 0.8125rem;
+  }
+}
+@media (max-width: 359.98px) {
+  .dw-tab > svg {
+    display: none;
+  }
 }
 .dw-grid {
   display: grid;
