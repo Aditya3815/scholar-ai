@@ -66,8 +66,16 @@ The new events are in `packages/shared/src/chat-tools.ts`:
 | `tool_retractions` | all the DOIs at once |
 | `tool_ask` | one event of the Ask this paper stream, as it is |
 
-- **Understood line.** The `understood` event says the mode (Check references, or Ask a paper) and `confirm: true`, so the page
-  shows "Did you want this? Change". The page names a retraction check "Check retractions".
+- **Understood line, one line with one Change, by the existing confidence policy.**
+  - A decision of the rules (including after the Understand step could not be used), or a sure reading: "I understood this as
+    Check references · Change". The `understood` event has no `confirm`.
+  - A reading 0.45 to 0.75 sure: `confirm` is set, and "Did you want this? Ask this paper · Change" takes the place of that line.
+    It is never a second line. The Thinking block puts the question in its one understood line as well.
+  - The page names a retraction check "Check retractions" and a question about a result "Ask this paper".
+- **The bubble of the message.** It shows the Check references icon (verify, retractions) or the Ask a paper icon (a paper's
+  answer), the same as the speech mark of a conversation (a49083a). These are the Change menu's own icons, so the bundle does not grow.
+- **Only what the person wrote.** A retraction check reads only the DOIs in the message, each once
+  (`tools-route.test.ts`, `chat-tools-e2e.mjs`). The browser suite holds each DOI in the reply to the bubble's words.
 - **Ending.** The reply ends with `done` and reason `tool`: there is no written chat answer.
 - **Counted outcome.** `chat:tool_verify`, `tool_retractions`, `tool_ask_paper` or `tool_ask_doc`, with `_failed` added when an
   ask ended without an answer. Counts only.

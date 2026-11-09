@@ -451,7 +451,7 @@ chatRoutes.post("/", async (c) => {
      * CHAT_TOOLS (docs/design/chat-tools.md): one tool, run in the reply, by the same service functions the tool's own page calls. Its result goes out as `tool*` events (never as a written chat answer), its
      * lines in the Thinking block say what it did from its own counts, and the reply ends `tool`. A tool that fails says so in its own place and never shows a made-up result.
      */
-    const runPlan = async (plan: ToolPlan, doc: { id: string; title: string } | null, language: Route["language"]) => {
+    const runPlan = async (plan: ToolPlan, doc: { id: string; title: string } | null, language: Route["language"], unsure: boolean) => {
       const ip = c.req.header("cf-connecting-ip") ?? "unknown";
       const allowed = (b?: Pick<RateLimit, "limit">) => async () => !b || (await b.limit({ key: ip }).then((r) => r.success, () => true));
       const env = c.env as never;
@@ -492,8 +492,7 @@ chatRoutes.post("/", async (c) => {
         gone: () => s.gone,
       };
       const kind = plan.kind;
-      await think(understoodToolRun(language, kind));
-      await think(thinkConfirm(language));
+      await think(understoodToolRun(language, kind, unsure));
       outcome = `tool_${kind}`;
       if (plan.kind === "verify") {
         await send({ type: "tool", tool: "verify", total: plan.refs.length, skipped: plan.skipped });
@@ -738,9 +737,8 @@ chatRoutes.post("/", async (c) => {
         type: "understood", mode: route.mode, query: shown, language: route.language, auto, how: route.how, confidence: route.confidence, ...(route.searchQuery ? { searchQuery: route.searchQuery } : {}), ...(where !== "all" && route.mode === "search" ? { scope: where } : {}), ...(context ? { context } : {}), ...(reading ? { reading } : {}),
         // M5: what the Understand step said (only when it decided, or when it could not and the rules did)
         ...(u ? { intent: u.intent, statusLine: u.status, ...(und?.confirm ? { confirm: true as const } : {}), ...(u.clarify ? { clarify: u.clarify } : {}), ...(u.intent === "offer_tool" && u.tool === "litscan" ? { offer: "litscan" as const } : {}) } : {}),
-        ...(und?.source === "fallback" ? { fallback: true as const, confirm: true as const } : {}),
-        // CHAT_TOOLS: a tool that runs by itself always asks "Did you want this? Change"
-        ...(plan ? { confirm: true as const } : {}),
+        // (a tool the rules chose after the step could not be used asks nothing: the rules decided, so its one line is "I understood this as ..." with Change)
+        ...(und?.source === "fallback" ? { fallback: true as const, ...(plan ? {} : { confirm: true as const }) } : {}),
       });
       // counts and short names only: how many turns were read and what came of them, never a word of them
       if (follow && ctx) console.log(JSON.stringify({ level: "info", msg: "chat_followup", turns: ctx.history.turns, mode: route.mode, intent: follow.intent, rewrote: follow.rewrote, fellBack: follow.fellBack, check: follow.check, years: follow.yearFrom !== undefined || follow.yearTo !== undefined }));
@@ -775,7 +773,9 @@ chatRoutes.post("/", async (c) => {
         return void (await done(false, "routed"));
       }
       // CHAT_TOOLS: the tool runs here, in the reply
-      if (plan) return void (await runPlan(plan, planDoc, route.language));
+      // the confidence policy of every other reply: "Did you want this?" only when the Understand step was between 0.45 and 0.75 sure (`und.confirm`); a sure reading, or a decision of the rules, has only its
+      // understood line with Change. Either way ONE line (the question replaces the plain line, it is not a second one).
+      if (plan) return void (await runPlan(plan, planDoc, route.language, !!(und?.confirm && u)));
       // another tool: nothing runs here; the browser offers to open it
       if (route.mode !== "search") {
         await think(u ? understoodModel(u.status, ["change"]) : understoodTool(route.language, route.mode));
