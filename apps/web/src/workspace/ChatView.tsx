@@ -338,6 +338,9 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
   const line =
     msg.how === "chosen" ? (
       <>Searching papers, as you chose.</>
+    ) : msg.tool && (msg.fallback || !msg.statusLine) ? (
+      // CHAT_TOOLS: the rules chose the tool that ran (nothing was searched, so not the fallback's "I searched for papers")
+      <>I understood this as <b>{TOOL_RAN[msg.tool.kind]}</b>.</>
     ) : msg.fallback ? (
       // M5: the Understand step could not be used, so the rules decided
       <>I could not understand this well, so I searched for papers.</>
@@ -359,16 +362,23 @@ function Understood({ msg, text, working, onChange, onExact, onWords }: { msg: A
   const unfiltered = note?.years ? unfilteredWords(msg, text) : null;
   const tidy = (s: string) => s.replace(/\s+/g, " ").trim();
   const searchedAs = msg.how === "chosen" && msg.query.trim() !== "" && tidy(msg.query) !== tidy(text).slice(0, 300) ? msg.query : null;
+  // CHAT_TOOLS: a tool that ran in the reply has ONE line with one Change. When the reading was only fairly sure, the question takes the place of the plain line (never a second line under it).
+  const toolUnsure = !!msg.tool && !!msg.confirm;
   return (
     <>
-      {!thinking && (
+      {!thinking && !toolUnsure && (
         <p className="chat-und">
           {line}{" "}
           <ChangeMenu msg={msg} text={text} working={working} onChange={onChange} />
         </p>
       )}
+      {!thinking && toolUnsure && msg.tool && (
+        <p className="chat-und chat-confirm" role="note">
+          <b>Did you want this?</b> {TOOL_RAN[msg.tool.kind]}. <ChangeMenu msg={msg} text={text} working={working} onChange={onChange} />
+        </p>
+      )}
       {/* M5: a reading the step was only fairly sure of (or one the rules made because it could not): the design's question, prominently, with Change. With the Thinking block, it is a line of the block. */}
-      {!thinking && msg.confirm && !working && (
+      {!thinking && msg.confirm && !working && !msg.tool && (
         <p className="chat-und chat-confirm" role="note">
           <b>Did you want this?</b> <ChangeMenu msg={msg} text={text} working={working} onChange={onChange} />
         </p>
@@ -910,16 +920,22 @@ const HELD = "Another message is being edited. Save it, or press Cancel, first."
  */
 /** A reply that is a conversation and not a search: the page or the Understand step answered a greeting or a chat message, or the safety lane answered. Nothing was searched for it. */
 const isTalk = (r: ChatMsg | undefined): boolean => r?.role === "assistant" && r.status === "done" && (r.reason === "small_talk" || r.general?.kind === "not_research") && r.papers.length === 0;
-type UserTurnProps = { msg: UserMsg; n: number; /** the reply under it is a conversation (a greeting, a chat answer, a safety reply): nothing was searched, so the bubble carries no magnifier */ talk: boolean; info: EditInfo | null; busy: "reply" | "strict" | null; held: boolean; ideas: number; editing: boolean; onEdit: (id: string) => void; onClose: () => void; onSent: (id: string) => void; onAnchor: (id: string, on: boolean) => void };
+/**
+ * The icon of the bubble of a message you sent, from the reply under it: the speech mark for a conversation (nothing was searched), the Check references icon for a list or DOIs checked in the reply, the
+ * Ask a paper icon for a question answered from a paper (CHAT_TOOLS), and the magnifier for everything else. They are the Change menu's own icons: no new icon in the chunk.
+ */
+type BubbleIcon = "search" | "talk" | "verify" | "ask";
+const bubbleIcon = (r: ChatMsg | undefined): BubbleIcon => (isTalk(r) ? "talk" : r?.role === "assistant" && r.tool ? (r.tool.kind === "verify" || r.tool.kind === "retractions" ? "verify" : "ask") : "search");
+type UserTurnProps = { msg: UserMsg; n: number; /** what the reply under it did: a conversation (no magnifier), a tool run in the reply (that tool's icon), or a search */ icon: BubbleIcon; info: EditInfo | null; busy: "reply" | "strict" | null; held: boolean; ideas: number; editing: boolean; onEdit: (id: string) => void; onClose: () => void; onSent: (id: string) => void; onAnchor: (id: string, on: boolean) => void };
 /**
  * When two sets of props of a message you sent are the same, one test for each prop (a type that has to name every prop: a prop added later without its test is an error here and not a message that
  * stays as it was). `info` is made anew for every render (it holds the reply under the message, which changes for every word of it), and only what the row and the editor read of it is compared.
  */
 const sameUserTurn: { [K in keyof UserTurnProps]: (a: UserTurnProps[K], b: UserTurnProps[K]) => boolean } = {
-  msg: Object.is, n: Object.is, talk: Object.is, busy: Object.is, held: Object.is, ideas: Object.is, editing: Object.is, onEdit: Object.is, onClose: Object.is, onSent: Object.is, onAnchor: Object.is,
+  msg: Object.is, n: Object.is, icon: Object.is, busy: Object.is, held: Object.is, ideas: Object.is, editing: Object.is, onEdit: Object.is, onClose: Object.is, onSent: Object.is, onAnchor: Object.is,
   info: (a, b) => a === b || (!!a && !!b && a.at === b.at && a.mode === b.mode && a.scope === b.scope && a.limit === b.limit && a.later === b.later),
 };
-const UserTurn = memo(function UserTurn({ msg, n, talk, info, busy, held, ideas, editing, onEdit, onClose, onSent, onAnchor }: UserTurnProps) {
+const UserTurn = memo(function UserTurn({ msg, n, icon, info, busy, held, ideas, editing, onEdit, onClose, onSent, onAnchor }: UserTurnProps) {
   const v = versionInfo(msg);
   const uid = useId();
   const copy = useCopy();
@@ -973,7 +989,7 @@ const UserTurn = memo(function UserTurn({ msg, n, talk, info, busy, held, ideas,
         <>
           <m.p className="chat-bubble" initial={seen.current ? false : { opacity: 0, y: 10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={spring}>
             {/* the icon and the words are two cells of a row: the icon stays beside the first line of a question that takes two (it used to be left alone on a row of its own above the words) */}
-            {talk ? <MessageCircle size={13} aria-hidden="true" /> : <Search size={13} aria-hidden="true" />}
+            {icon === "talk" ? <MessageCircle size={13} aria-hidden="true" /> : icon === "verify" ? <ListChecks size={13} aria-hidden="true" /> : icon === "ask" ? <FileStack size={13} aria-hidden="true" /> : <Search size={13} aria-hidden="true" />}
             <span className="chat-bubble-t" {...textAttrs(msg.text, true)}>{msg.text.length > SHOWN ? `${msg.text.slice(0, SHOWN)}…` : msg.text}</span>
             {msg.text.length > SHOWN && <small className="chat-long"> {msg.text.length.toLocaleString("en-US")} characters, the start is shown</small>}
           </m.p>
@@ -1198,7 +1214,7 @@ export function ChatView({ messages, signedIn, liveIdeas, onRetry, onChange, onR
                 <UserTurn
                   msg={msg}
                   n={asked}
-                  talk={isTalk(messages[at + 1])}
+                  icon={bubbleIcon(messages[at + 1])}
                   info={editInfo(messages, msg.id)}
                   busy={busy}
                   held={editing !== null && editing !== msg.id}

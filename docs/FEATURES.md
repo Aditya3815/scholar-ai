@@ -63,8 +63,9 @@ New topic cuts it, an edit drops the turns after the edited message, a private c
 the Understand step reads it (below).
 
 **Tools in the reply (built, switched off: `CHAT_TOOLS`).** The owner's rule: a cheap tool runs by itself, an expensive one still
-asks. With the switch on, Auto runs these in the reply instead of offering a card, and says "I understood this as ... · Did you want
-this? Change":
+asks. With the switch on, Auto runs these in the reply instead of offering a card, with one line "I understood this as ... ·
+Change". "Did you want this? ... · Change" takes its place only when the reading was 0.45 to 0.75 sure. The message's bubble
+shows the tool's icon instead of the magnifier:
 - a pasted list of references (three or more, or one or two that each look like a reference): each gets the Check references
   page's verdict as it arrives, with a line that adds them up (verified, details differ, not found, could not be checked) and
   "Open on the Check references page"; no AI, a visitor too;

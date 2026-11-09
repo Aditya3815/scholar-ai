@@ -44,6 +44,18 @@ vi.mock("../oa/service", async (importOriginal) => {
   };
 });
 
+// "undmaybe" in a message makes the stand-in Understand model only 0.6 sure of what it read (the 0.45 to 0.75 band), whatever it read
+vi.mock("./understand-wire", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./understand-wire")>();
+  return {
+    ...real,
+    stubUnderstand: async (req: Parameters<typeof real.stubUnderstand>[0]) => {
+      const r = await real.stubUnderstand(req);
+      return /undmaybe/.test(req.user) ? { ...r, json: { ...(r.json as object), confidence: 0.6 } } : r;
+    },
+  };
+});
+
 import { chatRoutes } from "./routes";
 
 const TOKEN = "t".repeat(40);
@@ -159,7 +171,9 @@ describe("off (unset, off, shadow, a typo): the card as before, nothing runs", (
 describe("on: Check references runs in the reply", () => {
   it("every reference gets the page's verdict, in the order of the paste; the reply ends `tool`, asks 'Did you want this?', and keeps the verdicts", async () => {
     const r = await run(auto(LIST), { env: ON });
-    expect(r.understood).toMatchObject({ mode: "verify", confirm: true });
+    expect(r.understood.mode).toBe("verify");
+    // the rules decided: ONE line ("I understood this as ..." with Change), no "Did you want this?"
+    expect(r.understood.confirm).toBeUndefined();
     expect(r.tools[0]).toEqual({ type: "tool", tool: "verify", total: 4, skipped: 0 });
     expect(r.tools.filter((e) => e.type === "tool_ref")).toHaveLength(4);
     expect(r.done).toMatchObject({ type: "done", answered: false, reason: "tool" });
@@ -182,7 +196,7 @@ describe("on: Check references runs in the reply", () => {
   it("the Thinking block says what ran, from its own counts (every line honest)", async () => {
     const r = await run(auto(LIST), { env: ON_THINK });
     const ids = r.think.map((t) => t.id);
-    expect(ids).toEqual(["understood", "confirm", "tool", "tool_result"]);
+    expect(ids).toEqual(["understood", "tool", "tool_result"]);
     for (const t of r.think) expect(thinkIsHonest(t), t.text).toBe(true);
     expect(r.think.find((t) => t.id === "tool_result")).toMatchObject({ counts: { checked: 4, verified: 2, mismatch: 1, notFound: 1, unchecked: 0 } });
     expect(r.think[0]!.actions).toEqual(["change"]);
@@ -198,7 +212,9 @@ describe("on: retractions", () => {
   it("DOIs with a word that asks about retraction are checked at Crossref; the reply says which are retracted, with the notice", async () => {
     const r = await run(auto("is 10.1000/abc.retracted retracted? and 10.1000/clear.2"), { env: ON_THINK });
     expect(seen.retractions).toEqual([["10.1000/abc.retracted", "10.1000/clear.2"]]);
-    expect(r.understood).toMatchObject({ mode: "verify", confirm: true });
+    expect(r.understood.mode).toBe("verify");
+    // the rules decided: ONE line ("I understood this as ..." with Change), no "Did you want this?"
+    expect(r.understood.confirm).toBeUndefined();
     expect(r.reply.tool).toMatchObject({ kind: "retractions", dois: 2, final: true, checked: [{ doi: "10.1000/abc.retracted", status: "retracted", notices: ["10.1000/abc.retracted-notice"] }, { doi: "10.1000/clear.2", status: "not_retracted" }] });
     expect(r.think.find((t) => t.id === "tool_result")?.counts).toEqual({ retracted: 1, clear: 1, unknown: 0 });
     expect(r.done.reason).toBe("tool");
@@ -208,6 +224,16 @@ describe("on: retractions", () => {
     seen.retractionsFail = true;
     const r = await run(auto("10.1000/x.1 retract hua kya?"), { env: ON });
     expect(r.reply.tool).toMatchObject({ kind: "retractions", checked: [{ doi: "10.1000/x.1", status: "unknown" }] });
+  });
+
+  it("only what the person wrote is checked: the DOIs of the message, each once, and nothing else", async () => {
+    const message = "Are these retracted? 10.1000/a.1, 10.1000/b.2 and again 10.1000/a.1.";
+    const r = await run(auto(message), { env: ON });
+    expect(seen.retractions).toEqual([["10.1000/a.1", "10.1000/b.2"]]);
+    const checked = (r.tools.find((e) => e.type === "tool_retractions") as Extract<ChatEvent, { type: "tool_retractions" }>).checked.map((c) => c.doi);
+    expect(checked).toEqual(["10.1000/a.1", "10.1000/b.2"]);
+    for (const d of checked) expect(message.toLowerCase()).toContain(d);
+    expect(r.tools[0]).toEqual({ type: "tool", tool: "retractions", dois: 2 });
   });
 
   it("a bare DOI is still searched as written", async () => {
@@ -239,7 +265,10 @@ describe("on, with the Understand step: a question about one paper of the chat i
     expect(seen.asks[0]!.key).toBe("doi:10.1000/glaucoma.2");
     // the abstract the server has (the paper looked up again), never the page's copy
     expect(seen.asks[0]!.clientAbstract).toMatch(/smartphone adapters/i);
-    expect(r.understood).toMatchObject({ mode: "paper", intent: "ask_results", confirm: true });
+    expect(r.understood).toMatchObject({ mode: "paper", intent: "ask_results" });
+    // a sure reading (0.88): one line, no "Did you want this?"
+    expect(r.understood.confirm).toBeUndefined();
+    expect(r.think.filter((t) => t.id === "confirm" || /Did you want|chahiye tha/.test(t.text))).toEqual([]);
     const papers = r.ev.filter((e) => e.type === "papers") as Extract<ChatEvent, { type: "papers" }>[];
     expect(papers.at(-1)!.results.map((p) => p.doi)).toEqual(["10.1000/glaucoma.2"]);
     expect(r.reply.tool).toMatchObject({ kind: "ask_paper", paper: { doi: "10.1000/glaucoma.2" }, ask: { answer: { verified: true }, live: "" } });
@@ -247,6 +276,24 @@ describe("on, with the Understand step: a question about one paper of the chat i
     // no written chat answer from the abstracts: the paper's own answer is the reply
     expect(r.ev.some((e) => e.type === "answer")).toBe(false);
     for (const t of r.think) expect(thinkIsHonest(t), t.text).toBe(true);
+  });
+
+  it("a reading only 0.45 to 0.75 sure asks 'Did you want this?', in the SAME line as what was understood (one line, one Change)", async () => {
+    const r = await run(auto("undmaybe dusre paper ka method kya hai?", { ledger: LEDGER }), { env: UND });
+    expect(r.reply.tool?.kind).toBe("ask_paper");
+    expect(r.understood.confirm).toBe(true);
+    const und = r.think.filter((t) => t.kind === "understood" || t.id === "confirm");
+    expect(und).toHaveLength(1);
+    expect(und[0]).toMatchObject({ id: "understood", actions: ["change"] });
+    expect(und[0]!.text).toMatch(/Ask this paper, yahin chala raha hoon\. Aapko ye chahiye tha\?$/);
+  });
+
+  it("the step could not be used and the rules chose the tool: one line, no question (the rules decided)", async () => {
+    const r = await run(auto("undtimeout is 10.1000/abc.retracted retracted?"), { env: UND });
+    expect(r.reply.tool?.kind).toBe("retractions");
+    expect(r.understood).toMatchObject({ fallback: true });
+    expect(r.understood.confirm).toBeUndefined();
+    expect(r.think.filter((t) => t.kind === "understood" || t.id === "confirm").map((t) => t.text)).toEqual(["Check retractions, run here"]);
   });
 
   it("a visitor keeps the answer from the abstracts (Ask this paper needs a sign-in)", async () => {

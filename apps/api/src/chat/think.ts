@@ -82,12 +82,16 @@ const TOOL_NAMES = {
 } as const;
 export type ToolName = keyof typeof TOOL_NAMES;
 
-/** What the message was understood as when a tool runs in the reply: the tool's name, and that it runs here (not offered). With Change, as every understood line has. */
-export function understoodToolRun(l: Lang, tool: ToolName): ThinkLine | null {
+/**
+ * What the message was understood as when a tool runs in the reply: the tool's name, and that it runs here (not offered). With Change, as every understood line has. `unsure` (the Understand step was only
+ * 0.45 to 0.75 sure) puts the confidence question in the SAME line, so that there is one line with one Change, not two.
+ */
+export function understoodToolRun(l: Lang, tool: ToolName, unsure = false): ThinkLine | null {
   const k = lang(l);
   const name = TOOL_NAMES[tool][k];
   const t = { en: `${name}, run here`, hinglish: `${name}, yahin chala raha hoon`, hi: `${name}, यहीं चला रहा हूँ` }[k];
-  return line("understood", "understood", t, undefined, ["change"]);
+  const ask = unsure ? { en: ". Did you want this?", hinglish: ". Aapko ye chahiye tha?", hi: "। क्या आपको यही चाहिए था?" }[k] : "";
+  return line("understood", "understood", t + ask, undefined, ["change"]);
 }
 /** A list of references is checked: how many, and where (no AI). How many were left out over the limit, when any were. */
 export function toolChecking(l: Lang, references: number, skipped: number): ThinkLine | null {

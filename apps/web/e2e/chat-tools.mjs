@@ -86,7 +86,8 @@ const VERIFY_OFF = [
 ];
 // the verdicts come as each reference is answered: 3 before 1
 const VERIFY_ON = [
-  { type: "understood", mode: "verify", query: LIST.slice(0, 300), language: "en", auto: true, how: "rules", confidence: 1, confirm: true },
+  // the rules decided: no `confirm` (the server sends it only for a reading 0.45 to 0.75 sure)
+  { type: "understood", mode: "verify", query: LIST.slice(0, 300), language: "en", auto: true, how: "rules", confidence: 1 },
   { type: "tool", tool: "verify", total: 4, skipped: 0 },
   { type: "tool_ref", item: REFS[2] },
   { type: "tool_ref", item: REFS[0] },
@@ -94,8 +95,11 @@ const VERIFY_ON = [
   { type: "tool_ref", item: REFS[1] },
   { type: "done", answered: false, reason: "tool", tookMs: 2400 },
 ];
+// The message names all three DOIs the reply checks (an earlier version of this stand-in answered a message of two DOIs with three: a fixture's mistake, never the server's, which checks
+// only the DOIs of the message: src/chat/tools-route.test.ts "only what the person wrote is checked" and scripts/chat-tools-e2e.mjs). The suite now holds the reply's DOIs to the bubble's words.
+const RETRACT_MSG = "Are these retracted? 10.1016/j.cell.2014.01.retracted, 10.1038/nature14539 and 10.9999/down.1";
 const RETRACT_ON = [
-  { type: "understood", mode: "verify", query: "is 10.1016/j.cell.2014.01.retracted retracted? and 10.1038/nature14539", language: "en", auto: true, how: "rules", confidence: 1, confirm: true },
+  { type: "understood", mode: "verify", query: RETRACT_MSG, language: "en", auto: true, how: "rules", confidence: 1 },
   { type: "tool", tool: "retractions", dois: 3 },
   { type: "tool_retractions", checked: [{ doi: "10.1016/j.cell.2014.01.retracted", status: "retracted", notices: ["10.1016/j.cell.2014.01.retracted-notice"] }, { doi: "10.1038/nature14539", status: "not_retracted", notices: [] }, { doi: "10.9999/down.1", status: "unknown", notices: [] }], invalid: [] },
   { type: "done", answered: false, reason: "tool", tookMs: 900 },
@@ -103,7 +107,7 @@ const RETRACT_ON = [
 const PAPER = { id: "doi:10.1000/glaucoma.2", doi: "10.1000/glaucoma.2", pmid: null, title: "Smartphone-based retinal imaging in rural clinics", authors: ["P. Iyer", "S. Rao"], year: 2022, venue: "Lancet Digital Health", abstract: "Low-cost smartphone adapters were used to capture retinal images in three rural clinics. Community health workers took the images after two hours of training. Sensitivity for referable disease was 88 percent.", citationCount: 14, oaUrl: null, retracted: false, retractionSources: [], sources: ["openalex"], score: 1, doiStatus: "verified" };
 const ANSWER = { id: "a1", question: "What method did the second paper use?", found: true, answer: "Community health workers captured retinal images with low-cost smartphone adapters [1], after two hours of training [2].", verified: true, citations: [{ n: 1, page: 1, idx: 0, quote: "Low-cost smartphone adapters were used to capture retinal images in three rural clinics.", section: "Methods" }, { n: 2, page: 1, idx: 1, quote: "Community health workers took the images after two hours of training.", section: "Methods > Training" }], createdAt: 0 };
 const ASK_ON = [
-  { type: "understood", mode: "paper", query: "What method did the second paper use?", language: "en", auto: true, how: "model", confidence: 0.88, intent: "ask_results", statusLine: "A question about paper 2 above", confirm: true },
+  { type: "understood", mode: "paper", query: "What method did the second paper use?", language: "en", auto: true, how: "model", confidence: 0.88, intent: "ask_results", statusLine: "A question about paper 2 above" },
   { type: "papers", results: [PAPER], final: true },
   { type: "tool", tool: "ask_paper", paper: { title: PAPER.title, doi: PAPER.doi }, question: "What method did the second paper use?" },
   { type: "tool_ask", event: { type: "ingest", status: "ready", progress: 1, source: "europepmc" } },
@@ -113,6 +117,8 @@ const ASK_ON = [
   { type: "tool_ask", event: { type: "answer", answer: ANSWER } },
   { type: "done", answered: false, reason: "tool", tookMs: 5200 },
 ];
+// the same, read only 0.6 sure (the 0.45 to 0.75 band): the server adds `confirm`, and the page asks "Did you want this?" in the place of the plain line
+const ASK_UNSURE = ASK_ON.map((e) => (e.type === "understood" ? { ...e, confidence: 0.6, confirm: true } : e));
 // before: the same question answered from the abstracts of the papers above (CHAT_UNDERSTAND on, CHAT_TOOLS off)
 const ASK_OFF = [
   { type: "understood", mode: "search", query: "What method did the second paper use?", language: "en", auto: true, how: "model", confidence: 0.88, intent: "ask_results", statusLine: "A question about paper 2 above" },
@@ -159,6 +165,10 @@ const shot = async (p, name) => {
   await p.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: false });
 };
 const lastTurn = (p) => p.locator(".chat-turn").last();
+/** The icon of the last message bubble you sent (lucide names its icon in the class: "lucide lucide-list-checks"). */
+const bubbleIcon = (p) => p.locator(".chat-bubble").last().locator("svg").first().getAttribute("class").then((c) => /lucide-([a-z-]+)/.exec(c ?? "")?.[1] ?? "none");
+/** The understood line(s) of the last reply, outside the Thinking block, and how many Change buttons they have. */
+const undLines = async (p) => ({ texts: (await lastTurn(p).locator(".chat-und:not(.chat-searched)").allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim()), changes: await lastTurn(p).locator(".chat-und").getByRole("button", { name: /^Change/ }).count() });
 
 try {
   console.log("before (CHAT_TOOLS off): a pasted list is offered, as it always was");
@@ -166,6 +176,7 @@ try {
     const { ctx, page } = await signedIn(vp);
     await ask(page, LIST, VERIFY_OFF);
     ok(await lastTurn(page).locator(".chat-offer").count() === 1 && await page.locator(".chat-tool").count() === 0, `${vp}: the offer card, and no tool`);
+    ok(await bubbleIcon(page) === "search", `${vp}: the bubble keeps the magnifier it always had (${await bubbleIcon(page)})`);
     await shot(page, `before-verify-${vp}`);
     await ask(page, "What method did the second paper use?", ASK_OFF);
     await shot(page, `before-ask-${vp}`);
@@ -188,7 +199,9 @@ try {
     ok(head.trim() === "4 references checked · 2 verified · 1 with details that differ · 1 not found", `the line that adds them up, with a middle dot between (${head})`);
     // no text of the reply was written in a wrong encoding (a "Â·" for a "·", a "â€¦" for a "…")
     ok(!/Â|â€/.test(await lastTurn(page).innerText()), "every character of the reply is the one meant");
-    ok(/I understood this as Check references/.test(await lastTurn(page).innerText()) && await lastTurn(page).locator(".chat-confirm").count() === 1, "'I understood this as Check references' and 'Did you want this? Change'");
+    const v1 = await undLines(page);
+    ok(v1.texts.length === 1 && v1.texts[0] === "I understood this as Check references. Change" && v1.changes === 1, `ONE line, "I understood this as Check references · Change", and no "Did you want this?" (${JSON.stringify(v1)})`);
+    ok(await bubbleIcon(page) === "list-checks", `the bubble has the Check references icon, not the magnifier (${await bubbleIcon(page)})`);
     ok(await lastTurn(page).getByRole("button", { name: "Open on the Check references page" }).count() === 1, "the way to the full page");
     ok(await lastTurn(page).getByRole("button", { name: /Copy the answer/ }).count() === 0 && await lastTurn(page).locator(".chat-offer").count() === 0, "no 'Copy the answer' row, no offer card");
     ok(await rows.nth(0).getByRole("link", { name: "Open DOI" }).count() === 1, "a matched record links to its DOI");
@@ -211,9 +224,15 @@ try {
     ok(await page.locator(".chat-tool-refs > li").count() === 4, "the four verdicts are kept with the chat");
 
     console.log("retractions");
-    await ask(page, "is 10.1016/j.cell.2014.01.retracted retracted? and 10.1038/nature14539", RETRACT_ON);
+    await ask(page, RETRACT_MSG, RETRACT_ON);
     const dois = lastTurn(page).locator(".chat-tool-doi");
     ok(await dois.count() === 3, "three DOIs");
+    const bubble = await page.locator(".chat-bubble").last().innerText();
+    const shown = await dois.locator(".chat-tool-doi-id").allInnerTexts();
+    ok(shown.every((d) => bubble.includes(d)), `every DOI the reply checked is in the message's bubble (${shown.join(", ")})`);
+    ok(await bubbleIcon(page) === "list-checks", "the bubble has the Check references icon");
+    const v2 = await undLines(page);
+    ok(v2.texts.length === 1 && v2.texts[0] === "I understood this as Check retractions. Change" && v2.changes === 1, `one line: "I understood this as Check retractions · Change" (${JSON.stringify(v2)})`);
     ok(await dois.nth(0).getAttribute("data-status") === "retracted" && /Retracted/.test(await dois.nth(0).innerText()) && await dois.nth(0).getByRole("link", { name: "10.1016/j.cell.2014.01.retracted-notice" }).count() === 1, "the retracted one says so, with its notice");
     ok(/Not retracted/.test(await dois.nth(1).innerText()) && /Could not be checked/.test(await dois.nth(2).innerText()), "the others: not retracted, and could not be checked (never 'not retracted' for a check that did not run)");
     ok(/I understood this as Check retractions/.test(await lastTurn(page).innerText()), "'I understood this as Check retractions'");
@@ -229,7 +248,16 @@ try {
     ok(/Full text from Europe PMC · CC BY/.test(await turn.locator(".oa-basis").innerText()), "what the answer is made from");
     ok(/Every quote checked against the paper/.test(await turn.locator(".oa-answer").innerText()) && await turn.locator(".oa-source").count() === 2, "the checked answer with its two quotes");
     ok(await turn.locator(".chat-papers li").count() === 1, "the paper's card is above it");
+    ok(await bubbleIcon(page) === "file-stack", `the bubble has the Ask a paper icon (${await bubbleIcon(page)})`);
+    const v3 = await undLines(page);
+    ok(v3.texts.length === 1 && v3.texts[0] === "I understood: A question about paper 2 above. Change" && v3.changes === 1, `a sure reading (0.88): one line (${JSON.stringify(v3)})`);
     await shot(page, "after-ask-1280");
+
+    console.log("a reading only 0.45 to 0.75 sure: the question REPLACES the line");
+    await ask(page, "What method did the second paper use?", ASK_UNSURE);
+    const v4 = await undLines(page);
+    ok(v4.texts.length === 1 && v4.texts[0] === "Did you want this? Ask this paper. Change" && v4.changes === 1, `one line, "Did you want this? Ask this paper · Change", and no "I understood" line under or over it (${JSON.stringify(v4)})`);
+    await shot(page, "after-ask-unsure-1280");
     for (const theme of ["light", "dark"]) { await setTheme(page, theme); await axe(`1280 ${theme}: a paper's answer`, page); }
     await setTheme(page, "light");
     ok(errors.length === 0, `no page error (${errors.slice(0, 2).join(" | ")})`);
@@ -242,7 +270,7 @@ try {
     await ask(page, LIST, VERIFY_ON);
     ok(await wide(page), `${vp}: references checked, nothing sideways`);
     if (vp === 390) { await shot(page, "after-verify-390"); await axe("390 light: references checked", page); }
-    await ask(page, "is 10.1016/j.cell.2014.01.retracted retracted? and 10.1038/nature14539", RETRACT_ON);
+    await ask(page, RETRACT_MSG, RETRACT_ON);
     ok(await wide(page), `${vp}: retractions, nothing sideways`);
     if (vp === 390) await shot(page, "after-retractions-390");
     await ask(page, "What method did the second paper use?", ASK_ON);

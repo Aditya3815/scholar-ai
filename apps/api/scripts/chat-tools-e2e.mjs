@@ -56,7 +56,8 @@ try {
     const list = await chat(A, { mode: "auto", message: LIST });
     checkStream("chat", list.events, "a list");
     const refs = list.tools.filter((e) => e.type === "tool_ref").map((e) => e.item).sort((a, b) => a.n - b.n);
-    ok(list.understood?.mode === "verify" && list.understood?.confirm === true, "it is understood as Check references and asks 'Did you want this?'");
+    ok(list.understood?.mode === "verify" && list.understood?.confirm === undefined, "it is understood as Check references; the rules decided, so there is no 'Did you want this?' (one line)");
+    if (list.think.length) ok(list.think.filter((t) => t.kind === "understood" || t.id === "confirm").length === 1, "the Thinking block has one understood line, with its Change");
     ok(list.tools[0]?.type === "tool" && list.tools[0].tool === "verify" && list.tools[0].total === 4, "the reply says it checks 4 references");
     ok(JSON.stringify(refs.map((i) => i.verdict?.status)) === JSON.stringify(["verified", "verified", "not_found", "mismatch"]), `each gets the page's verdict, in order (${refs.map((i) => i.verdict?.status).join(", ")})`);
     ok(list.done?.type === "done" && list.done.reason === "tool" && list.done.answered === false, "the reply ends `tool`: no written chat answer");
@@ -73,6 +74,7 @@ try {
     const r = ret.tools.find((e) => e.type === "tool_retractions");
     ok(!!r && r.checked.find((c) => c.doi === "10.5555/retracted-chat-tools")?.status === "retracted" && r.checked.find((c) => c.doi === "10.5555/clear-chat-tools")?.status === "not_retracted", "Crossref's data says which DOI is retracted and which is not");
     ok(r?.checked.find((c) => c.status === "retracted")?.notices.includes("10.5555/retracted-chat-tools-notice"), "...with the retraction notice's DOI");
+    ok(JSON.stringify(r?.checked.map((c) => c.doi)) === JSON.stringify(["10.5555/retracted-chat-tools", "10.5555/clear-chat-tools"]) && ret.tools[0]?.dois === 2, `only the DOIs the person wrote are checked (${r?.checked.map((c) => c.doi).join(", ")})`);
 
     console.log("never for a search chosen by hand, a greeting or an idea");
     const hand = await chat(A, { mode: "search", message: RETRACT });
