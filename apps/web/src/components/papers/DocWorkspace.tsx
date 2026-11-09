@@ -1,7 +1,7 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowLeft, BookMarked, Columns2, ExternalLink, FileWarning, Highlighter, Loader2, Maximize2, MessageSquareText, Minimize2, Pencil, PanelRightClose, PanelRightOpen, ScrollText, X } from "lucide-react";
 import { leaveFullscreen, toggleFullscreen, useFullscreen } from "../../lib/fullscreen";
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { analyzeScan, planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type OutlineItem, type PaperInfo, type ScanInfo } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { ApiError, continueScan, fetchDocument, fileUrl, pauseScan, postProgress, reindexDoc, renameDoc, savePaperInfo, loadDocs, useDocs, useJobs } from "../../lib/documents";
@@ -16,6 +16,9 @@ import { PAPERS_NAME, PARKED } from "../../lib/workspace";
 import { easeOut, spring } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { PdfError, openPdf, type PDFDocumentProxy } from "../../lib/pdf";
+import { useVerify } from "../../lib/verify";
+import { toggleSaved, useLibrary } from "../../lib/library";
+import { openOaAsk } from "../../lib/oa-ask";
 import { ThemeSwitch } from "../ThemeSwitch";
 import { AskPanel } from "./AskPanel";
 import { DocMeta } from "./DocMeta";
@@ -199,6 +202,14 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     };
   }, [needsInfo, isScan, pdf, id]);
 
+  // The checks of the paper's reference list: run by the References panel (as soon as the paper is open), and read by the citation cards in the paper too, so no entry is checked twice.
+  const verify = useVerify();
+  // The citations in the paper (docs/design/reader-citations.md), found by the viewer from this list. Not for a scan (it has no text layer).
+  const citeRefs = load.status === "ready" && !load.doc.scanned ? load.info?.references ?? null : null;
+  const itemOf = useCallback((i: number) => verify.state.items[i], [verify.state.items]);
+  const library = useLibrary();
+  const savedIds = useMemo(() => new Set(library.map((p) => p.id)), [library]);
+
   // While a scanned paper is being read, its counts are kept up to date (the reading itself is a job that lives outside this page).
   const scanRunning = !!myJob && myJob.step === "scanning";
   useEffect(() => {
@@ -339,6 +350,25 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     setTab("paper");
     window.setTimeout(() => viewer.current?.goTo(page), 120);
   }, []);
+
+  /** "Show in reference list" on a citation card: the entry in the paper's own list, with its first words highlighted; when its page is not known (a list from Crossref or one corrected by hand), its card in the References tab. */
+  const onShowInList = useCallback(
+    (i: number, page: number | null) => {
+      const entry = citeRefs?.[i];
+      // the entry's first words are highlighted on its page
+      if (page && entry) return void viewer.current?.goTo(page, entry.split(/\s+/).slice(0, 10).join(" "));
+      setSide("refs");
+      setTab("side");
+      if (sideAway) putSideAway(false);
+      window.setTimeout(() => {
+        const card = document.querySelector<HTMLElement>(`.refs-list [data-ref-id="${i}"]`);
+        card?.scrollIntoView({ block: "center", behavior: "smooth" });
+        card?.classList.add("ref-flash");
+        window.setTimeout(() => card?.classList.remove("ref-flash"), 1600);
+      }, 180);
+    },
+    [citeRefs, sideAway, putSideAway],
+  );
 
   // what the command palette (Ctrl+K) can do while this paper is open
   const doc0 = load.status === "ready" ? load.doc : null;
@@ -541,7 +571,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
             {pdf.status === "ready" && (
               <m.div key="r" className="dw-viewer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }}>
                 <Suspense fallback={<OpeningPaper progress={1} />}>
-                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} docId={doc.id} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} notes={notes.notes} onCreateNote={(n) => void onCreateNote(n)} focusNoteId={focusNote?.id ?? null} onOpenNote={openNote} ink={ink} toolbarEnd={
+                  <PdfViewer ref={viewer} pdf={pdf.pdf} title={doc.title} docId={doc.id} downloadHref={fileUrl(doc.id)} onPage={setPage} contents={contentsOf(info)} notes={notes.notes} onCreateNote={(n) => void onCreateNote(n)} focusNoteId={focusNote?.id ?? null} onOpenNote={openNote} ink={ink} citations={citeRefs && citeRefs.length > 0 ? { references: citeRefs, itemOf, bump: verify.bump, onShowInList, online, onAsk: openOaAsk, savedIds, onToggleSave: toggleSaved } : undefined} toolbarEnd={
                     <button type="button" className="icon-btn icon-btn-sm dw-side-btn" aria-expanded={!sideAway} aria-controls="dw-panel-side" aria-label="Side panel" title={sideAway ? "Show the side panel: Ask, References, Notes" : "Hide the side panel"} onClick={() => putSideAway(!sideAway)}>
                       {sideAway ? <PanelRightOpen size={16} aria-hidden="true" /> : <PanelRightClose size={16} aria-hidden="true" />}
                     </button>
@@ -598,6 +628,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
               waiting={scanLeft > 0 ? `The references are looked for when every page has been read (${scanLeft} ${scanLeft === 1 ? "page is" : "pages are"} still to be read).` : undefined}
               onOpenPage={onGoToPage}
               onUseList={onUseReferenceList}
+              verify={verify}
             />
           </div>
           <div className="dw-side" hidden={side !== "notes"}>

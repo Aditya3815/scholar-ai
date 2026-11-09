@@ -1,0 +1,207 @@
+/* ---------- Citations in the paper and their card (docs/design/reader-citations.md). Loaded with the reader, not on the first visit. ---------- */
+
+/* On the page. The page itself is always white (the PDF is drawn as printed, in every theme), so the marks use one ink that reads on white: a light tint with a dotted underline,
+   blended so the words stay as dark as they are printed. */
+.pdfp-cites {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+/* The button is the area that takes the pointer (at least 24 px square); the mark is its ::before, the size of the words (--cw, --ch), in its middle. */
+.pdfp-cite {
+  --cite-ink: #3548c8;
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.pdfp-cite::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  box-sizing: border-box;
+  width: var(--cw);
+  height: var(--ch);
+  transform: translate(-50%, -50%);
+  border-bottom: 1.5px dotted color-mix(in srgb, var(--cite-ink) 70%, transparent);
+  border-radius: 3px 3px 1px 1px;
+  background: color-mix(in srgb, var(--cite-ink) 9%, transparent);
+  mix-blend-mode: multiply;
+  transition: background-color 0.12s ease;
+}
+.pdfp-cite:hover::before,
+.pdfp-cite[aria-expanded="true"]::before {
+  background: color-mix(in srgb, var(--cite-ink) 18%, transparent);
+}
+.pdfp-cite:focus-visible {
+  outline: none;
+}
+.pdfp-cite:focus-visible::before {
+  outline: 2px solid var(--cite-ink);
+  outline-offset: 1px;
+  mix-blend-mode: normal;
+}
+/* while drawing, the pen goes through the citations */
+.pdfv[data-drawing="true"] .pdfp-cites,
+.pdfv[data-drawing="true"] .pdfp-cite {
+  pointer-events: none;
+}
+
+/* The card: a small panel under the citation, never over it (Radix places it, and turns it to fit the window). */
+.cite-card {
+  z-index: 60;
+  box-sizing: border-box;
+  width: min(25rem, calc(100vw - 24px));
+  padding: 0.9rem 1rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.22), 0 2px 6px rgb(0 0 0 / 0.06);
+  font-family: var(--font-ui);
+  transform-origin: var(--radix-popover-content-transform-origin);
+  animation: cite-in 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cite-card:focus {
+  outline: none;
+}
+@keyframes cite-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cite-card {
+    animation-name: cite-fade;
+  }
+  .pdfp-cite::before {
+    transition: none;
+  }
+}
+@keyframes cite-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.cite-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+  margin-bottom: 0.45rem;
+}
+.cite-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.cite-status[data-tone="ok"] {
+  color: var(--ok);
+}
+.cite-status[data-tone="muted"] {
+  color: var(--muted);
+  font-weight: 500;
+}
+/* the owner's mark for Verified: a small green tick inside a small circle */
+.cite-tick {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ok);
+  color: var(--surface);
+}
+.cite-retracted {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.cite-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.cite-pager .icon-btn {
+  width: 26px;
+  height: 26px;
+}
+.cite-title {
+  margin: 0 0 0.3rem;
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.cite-meta {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+.cite-printed {
+  margin: 0 0 0.6rem;
+  color: var(--text);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.cite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+.cite-actions .btn {
+  min-height: 34px;
+}
+.cite-list {
+  font-size: 0.8125rem;
+}
+
+/* "Show in reference list" when the entry's page is not known: its card in the References tab flashes once */
+.ref-flash {
+  animation: ref-flash 1.4s ease-out;
+}
+@keyframes ref-flash {
+  0%,
+  30% {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ref-flash {
+    animation: none;
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+}

@@ -16,8 +16,9 @@ import { VerifySummary, type Filter } from "../verify/VerifySummary";
  * The paper's own reference list, each entry checked against Crossref and OpenAlex by the Reference Verifier. Answers the questions
  * a reader has about a paper: does it cite things that do not exist, mix up details, or cite retracted work?
  */
-export function ReferencesPanel({ info, analyzing, pdf = null, scanDocId, waiting, onOpenPage, onUseList }: { info: PaperInfo | null; analyzing: boolean; pdf?: PDFDocumentProxy | null; /** A scanned paper: its references are looked for in the text that was read. */ scanDocId?: string; /** Why there is nothing to show yet (the pages of a scan are still being read). */ waiting?: string; onOpenPage?: (page: number) => void; onUseList?: (entries: string[]) => Promise<void> }) {
-  const { state, start, recheck, stop } = useVerify();
+export function ReferencesPanel({ info, analyzing, pdf = null, scanDocId, waiting, onOpenPage, onUseList, verify }: { info: PaperInfo | null; analyzing: boolean; pdf?: PDFDocumentProxy | null; /** A scanned paper: its references are looked for in the text that was read. */ scanDocId?: string; /** Why there is nothing to show yet (the pages of a scan are still being read). */ waiting?: string; onOpenPage?: (page: number) => void; onUseList?: (entries: string[]) => Promise<void>; /** The checks of this paper's list, when the page shares them (the reader's citation cards read the same verdicts: no entry is checked twice). */ verify?: ReturnType<typeof useVerify> }) {
+  const own = useVerify();
+  const { state, start, recheck, stop } = verify ?? own;
   const [filter, setFilter] = useState<Filter>("all");
   const started = useRef<string | null>(null);
   const refs = info?.references ?? [];

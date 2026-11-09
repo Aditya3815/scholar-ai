@@ -1,11 +1,11 @@
 import "pdfjs-dist/web/pdf_viewer.css";
 import { m } from "motion/react";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, ListTree, Loader2, MoveHorizontal, Minus, PencilLine, Plus, Search, StickyNote, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, ListTree, Loader2, MoveHorizontal, Minus, PencilLine, Plus, Quote, Search, StickyNote, X } from "lucide-react";
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
-import { NOTE_COLORS, anchoredScroll, clampZoom, pinchFactor, stepZoom, wheelFactor, type DocNote, type InkItem, type InkSize, type MarkRect, type NoteColor, type OutlineItem } from "@scholar/shared";
+import { NOTE_COLORS, anchoredScroll, clampZoom, pinchFactor, stepZoom, wheelFactor, type DocNote, type InkItem, type InkSize, type MarkRect, type NoteColor, type OutlineItem, type Paper } from "@scholar/shared";
 import type { PDFDocumentProxy } from "../../lib/pdf";
 import { Pop } from "../Pop";
-import { pdfjs } from "../../lib/pdf";
+import { pdfjs, readPage } from "../../lib/pdf";
 import { clearHighlights, highlightMatches, highlightQuote, quoteRects } from "../../lib/highlight";
 import { locate, usePaperSearch } from "../../lib/paperSearch";
 import { spring } from "../../lib/motion";
@@ -14,6 +14,45 @@ import type { InkApi } from "../../lib/ink";
 import { InkLayer, type DrawTool } from "./InkLayer";
 import { InkToolbar, TOOL_KEYS, paletteOf, sizeOf, type InkPrefs } from "./InkToolbar";
 import { AnnotatedDownload } from "./AnnotatedDownload";
+import type { CiteMap, PageCite } from "../../lib/citations";
+import type { VerifyItem } from "../../lib/verify";
+
+/**
+ * The citation code (the parser, the map and the card) is a chunk of its own, fetched after the paper's first pages are on screen and in idle time:
+ * the reader draws its pages without waiting for it, and it is not in the reader's own chunk.
+ */
+type CiteLib = typeof import("../../lib/citations") & { CitationCard: typeof import("./CitationCard").CitationCard };
+let citeLib: Promise<CiteLib> | undefined;
+const loadCiteLib = () => (citeLib ??= Promise.all([import("../../lib/citations"), import("./CitationCard")]).then(([lib, card]) => ({ ...lib, CitationCard: card.CitationCard })));
+
+/**
+ * The paper's in-text citations, highlighted, each with a card (docs/design/reader-citations.md). Given by My Workspace; without it the viewer draws none.
+ * The viewer reads the labels of the list itself (all of this stays in the reader's own chunk: an import of it from the page pulled shared pieces into the first load).
+ */
+export type CitationsProps = {
+  /** the paper's stored reference list (PaperInfo.references); an entry's position is its id in the verifier's results */
+  references: readonly string[];
+  itemOf: (entry: number) => VerifyItem | undefined;
+  bump: (entry: number) => void;
+  /** go to the entry: its page in the paper when it was found there, else null (the page then shows it another way) */
+  onShowInList: (entry: number, page: number | null) => void;
+  online: boolean;
+  /** what the card's buttons do with a verified paper (given by the page, so this chunk imports nothing more from the first load) */
+  onAsk: (paper: Paper) => void;
+  savedIds: ReadonlySet<string>;
+  onToggleSave: (paper: Paper) => void;
+};
+
+const CITES_KEY = "scholar.cites";
+/** The reader's choice to show citation cards, kept on this device (on unless turned off). */
+function readCitesOn(): boolean {
+  try {
+    return localStorage.getItem(CITES_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+const NO_CITES: PageCite[] = [];
 
 /** What the reader chose in the paper: a highlight in a colour, or a note. */
 export type NewNote = { page: number; quote: string; color: NoteColor; withNote: boolean };
@@ -92,6 +131,8 @@ type PageProps = {
   onOpenNote?: (id: string) => void;
   /** The drawing on this paper and the tool in hand; absent where drawing is not offered. */
   draw?: DrawProps;
+  /** The citations found on this page (drawn over their words; each a button that opens its card). */
+  cites: PageCite[];
 };
 
 /** What a page needs to show and take drawing. */
@@ -134,7 +175,7 @@ function noteIcons(marks: PageMark[], notesById: Map<string, DocNote>, focusId: 
   return out;
 }
 
-function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, focusId, onOpenNote, draw }: PageProps) {
+function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, focusId, onOpenNote, draw, cites }: PageProps) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const text = useRef<HTMLDivElement>(null);
@@ -219,6 +260,34 @@ function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, 
           ))}
         </div>
       )}
+      {cites.length > 0 && (
+        <div className="pdfp-cites">
+          {cites.map((c) =>
+            c.rects.map((r, i) => {
+              // a citation over two lines has a box on each; the first is the one the keyboard reaches, the others are for the mouse only.
+              // The button is the size of the words, as a link in a sentence is: WCAG 2.2's target size (2.5.8) excepts a target in a sentence whose size is set by the line
+              // height of the text around it. A 24 px box was tried and covered the citations of the lines above and below (lines of a paper are closer than 24 px).
+              const w = r.w + 2;
+              const h = r.h + 2;
+              const bw = w;
+              const bh = h;
+              return (
+                <button
+                  key={`${c.id}-${i}`}
+                  type="button"
+                  className="pdfp-cite"
+                  data-cite={c.id}
+                  tabIndex={i === 0 ? 0 : -1}
+                  aria-hidden={i === 0 ? undefined : true}
+                  aria-haspopup="dialog"
+                  aria-label={i === 0 ? `Citation: ${c.label}` : undefined}
+                  style={{ left: r.x - 1 - (bw - w) / 2, top: r.y - 1 - (bh - h) / 2, width: bw, height: bh, ["--cw" as string]: `${w}px`, ["--ch" as string]: `${h}px` }}
+                />
+              );
+            }),
+          )}
+        </div>
+      )}
       {!painted && <span className="pdfp-skel" aria-hidden="true" />}
     </div>
   );
@@ -276,7 +345,8 @@ function Contents({ items, detected, current, onPick }: { items: OutlineItem[]; 
       label="Contents"
       align="start"
       trigger={(open) => (
-        <button type="button" className="btn btn-ghost btn-sm pdfv-contents" aria-expanded={open}>
+        // the word is hidden on a phone (only the icon shows): the name is given to screen readers either way
+        <button type="button" className="btn btn-ghost btn-sm pdfv-contents" aria-expanded={open} aria-label="Contents">
           <ListTree size={15} aria-hidden="true" />
           <span>Contents</span>
         </button>
@@ -301,7 +371,7 @@ function Contents({ items, detected, current, onPick }: { items: OutlineItem[]; 
   );
 }
 
-export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote, ink, idPrefix = "pdfv", toolbarEnd }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; docId: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void; /** Drawing on the paper (My Workspace). Without it the viewer has no drawing tools. */ ink?: InkApi; /** Start of the ids inside the viewer: a second viewer on the page needs another one. */ idPrefix?: string; /** What the page puts at the end of the toolbar (the reader's side-panel button). */ toolbarEnd?: ReactNode }) {
+export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote, ink, idPrefix = "pdfv", toolbarEnd, citations }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; docId: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void; /** Drawing on the paper (My Workspace). Without it the viewer has no drawing tools. */ ink?: InkApi; /** Start of the ids inside the viewer: a second viewer on the page needs another one. */ idPrefix?: string; /** What the page puts at the end of the toolbar (the reader's side-panel button). */ toolbarEnd?: ReactNode; /** The paper's citations with their cards (My Workspace). */ citations?: CitationsProps }) {
   const scroller = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
   const [zoomLevel, setZoomLevel] = useState(readZoom);
@@ -599,14 +669,67 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
     setMarks((m) => ({ ...m, [n]: list }));
   }, []);
 
+  /* ---- citations: found on each page as its text appears, drawn as buttons over their words (only in My Workspace, where `citations` is given) ---- */
+  const [citesOn, setCitesOn] = useState(readCitesOn);
+  const [cites, setCites] = useState<Record<number, PageCite[]>>({});
+  const [citeMap, setCiteMap] = useState<CiteMap | null>(null);
+  const [lib, setLib] = useState<CiteLib | null>(null);
+  const citeRefs = citations?.references ?? null;
+  // the labels of the list are read from the paper's text in idle time, a moment after it opens (and again for a corrected list)
+  useEffect(() => {
+    setCiteMap(null);
+    if (!citeRefs || citeRefs.length === 0 || !citesOn) return;
+    const ctl = new AbortController();
+    const t = window.setTimeout(() => {
+      loadCiteLib()
+        .then(async (l) => {
+          const m = await l.buildCiteMap(pdf, citeRefs, ctl.signal, readPage);
+          if (ctl.signal.aborted) return;
+          setLib(l);
+          setCiteMap(m);
+        })
+        .catch(() => {}); // offline before the chunk came, or a paper whose text cannot be read again: no cards
+    }, 600);
+    return () => {
+      ctl.abort();
+      window.clearTimeout(t);
+    };
+  }, [pdf, citeRefs, citesOn]);
+  const citeMapRef = useRef<{ map: CiteMap; lib: CiteLib } | null>(null);
+  citeMapRef.current = citesOn && citeMap && lib ? { map: citeMap, lib } : null;
+  const paintCites = useCallback((n: number) => {
+    const layer = layers.current.get(n);
+    const at = citeMapRef.current;
+    const found = layer && at ? at.lib.citationsOnLayer(layer, n, at.map) : NO_CITES;
+    setCites((c) => ((c[n] ?? NO_CITES).length === 0 && found.length === 0 ? c : { ...c, [n]: found }));
+  }, []);
+  // the map arrived (the list's labels were read) or the reader turned the cards on or off: the pages on screen are looked at again
+  useEffect(() => {
+    if (!citeMap || !citesOn) setCites({});
+    else layers.current.forEach((_l, n) => paintCites(n));
+  }, [citeMap, citesOn, paintCites]);
+  const citeById = useMemo(() => new Map(Object.values(cites).flatMap((list) => list.map((c) => [c.id, c] as const))), [cites]);
+  const toggleCites = () => {
+    setCitesOn((on) => {
+      try {
+        localStorage.setItem(CITES_KEY, on ? "0" : "1");
+      } catch {
+        /* private mode: only for this visit */
+      }
+      return !on;
+    });
+  };
+
   const onText = useCallback(
     (n: number, layer: HTMLElement | null) => {
       if (layer) {
         layers.current.set(n, layer);
         paintSaved(n);
+        paintCites(n);
       } else {
         layers.current.delete(n);
         setMarks((m) => (m[n] ? { ...m, [n]: [] } : m));
+        setCites((c) => (c[n]?.length ? { ...c, [n]: NO_CITES } : c));
       }
       if (layer && pending.current?.page === n) {
         const { quote } = pending.current;
@@ -619,7 +742,7 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
         applyFind(n, query, k);
       }
     },
-    [applyHighlight, applyFind, paintSaved],
+    [applyHighlight, applyFind, paintSaved, paintCites],
   );
 
   // A note was added, changed or deleted: redraw the pages that are on screen.
@@ -836,6 +959,18 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
             </button>
           )}
           {contents && <Contents items={contents.items} detected={contents.detected} current={current} onPick={(p) => goTo(p)} />}
+          {citations && (
+            <button
+              type="button"
+              className="icon-btn icon-btn-sm pdfv-cites-btn"
+              aria-pressed={citesOn}
+              aria-label="Citation cards"
+              title={citesOn ? "Citation cards are on: citations are highlighted and show their reference. Turn off" : "Citation cards are off. Turn on to highlight citations and show their reference"}
+              onClick={toggleCites}
+            >
+              <Quote size={15} aria-hidden="true" />
+            </button>
+          )}
           <button type="button" className="icon-btn icon-btn-sm" aria-label="Zoom out" disabled={zoomLevel <= 0.6} onClick={() => zoomTo(stepZoom(zoomLevel, -1))}>
             <Minus size={16} aria-hidden="true" />
           </button>
@@ -922,11 +1057,14 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
         <div ref={scroller} className="pdfv-scroll" tabIndex={0} role="region" aria-label={`Pages of ${title}`} onMouseUp={onCreateNote ? captureSelection : undefined} onKeyUp={onCreateNote ? captureSelection : undefined} onScroll={sel ? followSelection : undefined}>
           <div ref={pagesEl} className="pdfv-pages">
             {pages.map((n) => (
-              <PdfPage key={n} pdf={pdf} n={n} scale={scale} size={sizes[n] ?? first} root={scroller} onSize={onSize} onText={onText} marks={marks[n] ?? NO_MARKS} notesById={notesById} focusId={focusNoteId} onOpenNote={onOpenNote} draw={draw} />
+              <PdfPage key={n} pdf={pdf} n={n} scale={scale} size={sizes[n] ?? first} root={scroller} onSize={onSize} onText={onText} marks={marks[n] ?? NO_MARKS} notesById={notesById} focusId={focusNoteId} onOpenNote={onOpenNote} draw={draw} cites={cites[n] ?? NO_CITES} />
             ))}
           </div>
         </div>
       </div>
+      {citations && citeMap && lib && citesOn && (
+        <lib.CitationCard root={scroller} cites={citeById} references={citeMap.references} itemOf={citations.itemOf} bump={citations.bump} onShowInList={(i) => citations.onShowInList(i, citeMap.pages[i] ?? null)} disabled={tool !== "hand"} online={citations.online} onAsk={citations.onAsk} savedIds={citations.savedIds} onToggleSave={citations.onToggleSave} />
+      )}
     </div>
   );
 }

@@ -184,6 +184,11 @@ time, outcome). Switch `MCP`: off (unset) / beta (the ids in `MCP_BETA_USERS`) /
 - Heavy parts are lazy chunks: the conversation view (`ChatView`), the PDF reader, Idea Check, literature scan, admin, the legal
   pages, Rive animations. **Size budget** (CI fails above it): first-load script 250 KB gzip (now about 244), first-load style
   sheet 26 KB gzip (about 24), fonts 185 KB, PDF reader 66 KB.
+- **Citation cards in the reader** (docs/design/reader-citations.md):
+  - **Parser:** `packages/shared/src/citations.ts` finds and links in-text citations (pure; tested on fixtures and, with `CITE_PDFS`, on real PDFs).
+  - **Labels:** `labelledReferenceEntries` in `paperinfo.ts` keeps each entry's printed label.
+  - **Chunks:** the map, the boxes and the card (`lib/citations.ts`, `CitationCard.tsx`) are their own chunks, about 8.5 KB gzip, fetched by the reader in idle time after its first pages.
+  - **Verdicts:** read from the same `useVerify` run as the References tab (lifted to `DocWorkspace`), so no entry is checked twice.
 - State: chats in IndexedDB (`scholar`/`chats`) with an index in localStorage, owned by the signed-in account; settings and theme
   in localStorage; offline papers (if switched on) in the browser's storage. Settings has **Connected apps** (the MCP apps a person
   allowed), shown only while `MCP` lets the account in.

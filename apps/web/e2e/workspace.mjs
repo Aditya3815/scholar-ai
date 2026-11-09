@@ -19,7 +19,7 @@ const LOGO_PATH = "M16 9.5c-2.2-1.4-5-1.8-8-1.3v13.3c3-.5 5.8-.1 8 1.3V9.5Z";
 let failures = 0;
 const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
+const idp = await startFakeIdp(Number(process.env.INTEGRATION_IDP_PORT ?? 9911));
 idp.setUser({ sub: "ws-ui-1", email: "asha.rao@example.edu", email_verified: true, name: "Asha Rao" });
 
 const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });

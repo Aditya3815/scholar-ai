@@ -126,6 +126,7 @@ export * from "./documents";
 export * from "./text";
 export * from "./zoom";
 export * from "./paperinfo";
+export * from "./citations";
 export * from "./idea";
 export * from "./idea-m3";
 export * from "./ideafile";

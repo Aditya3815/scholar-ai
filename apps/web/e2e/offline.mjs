@@ -10,7 +10,7 @@ const BASE = process.argv[2] ?? "http://localhost:8788";
 let failures = 0;
 const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
+const idp = await startFakeIdp(Number(process.env.INTEGRATION_IDP_PORT ?? 9911));
 idp.setUser({ sub: "ws-offline-1", email: "meera.s@example.edu", email_verified: true, name: "Meera S" });
 const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
 const errors = [];

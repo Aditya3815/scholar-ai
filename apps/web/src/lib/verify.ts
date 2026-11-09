@@ -58,6 +58,8 @@ export function useVerify() {
   const abort = useRef<AbortController | null>(null);
   const latest = useRef(state);
   latest.current = state;
+  /** The ids still waiting in the run in progress, in the order they will be checked (the workers take them from the front). */
+  const waiting = useRef<number[]>([]);
 
   const patch = useCallback((id: number, change: Partial<VerifyItem>) => {
     setState((s) => ({ ...s, items: s.items.map((it) => (it.id === id ? { ...it, ...change } : it)) }));
@@ -66,6 +68,7 @@ export function useVerify() {
   const work = useCallback(
     async (ids: number[], inputs: Map<number, string>, signal: AbortSignal) => {
       const queue = [...ids];
+      waiting.current = queue;
       let pausedUntil = 0;
       const worker = async () => {
         for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
@@ -144,7 +147,17 @@ export function useVerify() {
     setState(idle);
   }, []);
 
+  /** Check this entry next: a reader looking at its citation card should not wait for the hundred before it. Nothing changes for an entry already checked. */
+  const bump = useCallback((id: number) => {
+    const q = waiting.current;
+    const k = q.indexOf(id);
+    if (k > 0) {
+      q.splice(k, 1);
+      q.unshift(id);
+    }
+  }, []);
+
   useEffect(() => () => abort.current?.abort(), []);
 
-  return { state, start, recheck, stop, clear };
+  return { state, start, recheck, stop, clear, bump };
 }

@@ -18,7 +18,7 @@ const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`);
 const note = (msg) => console.log(`        ${msg}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const idp = await startFakeIdp(9911);
+const idp = await startFakeIdp(Number(process.env.INTEGRATION_IDP_PORT ?? 9911));
 idp.setUser({ sub: "polish-reader-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
 const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });
 const errors = [];
