@@ -19,7 +19,7 @@ mkdirSync(OUT, { recursive: true });
 let failures = 0;
 const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
+const idp = await startFakeIdp(Number(process.env.INTEGRATION_IDP_PORT ?? 9911));
 idp.setUser({ sub: "papers-ui-1", email: "kavya@example.edu", email_verified: true, name: "Kavya Menon" });
 
 const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });

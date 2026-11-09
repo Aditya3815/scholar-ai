@@ -253,11 +253,17 @@ export function referenceLines(lines: Line[], body?: number): Line[] {
 const MARKER = /^\s*(\[\s*\d{1,3}\s*\]|\(\s*\d{1,3}\s*\)|\d{1,3}\s*[.)])\s+/;
 
 /**
+ * One entry of a reference list as it was cut, before cleaning: its text, the label it was printed with ("12" for "[12]" or "12.", "ADG16" for "[ADG16]"; null in an
+ * author-year list) and the page its first line is on (null when the list had to be split as plain text).
+ */
+type RawEntry = { text: string; label: string | null; page: number | null };
+
+/**
  * Hanging-indent bibliographies (APA and most journal styles): every entry starts at the left edge of its column and its
  * continuation lines are indented. Works for two columns too: a "left edge" is a position with no other position within 40 units to
  * its left; an indent sits a few units right of one.
  */
-function splitByIndent(block: Line[]): string[] | null {
+function splitByIndent(block: Line[]): RawEntry[] | null {
   const byPage = new Map<number, Line[]>();
   for (const l of block) (byPage.get(l.page) ?? byPage.set(l.page, []).get(l.page)!).push(l);
   const flush = new Set<Line>();
@@ -272,10 +278,10 @@ function splitByIndent(block: Line[]): string[] | null {
     }
   }
   if (flush.size < 3 || indented < block.length / 3) return null;
-  const entries: string[] = [];
+  const entries: RawEntry[] = [];
   for (const l of block) {
-    if (flush.has(l) || entries.length === 0) entries.push(l.text);
-    else entries[entries.length - 1] += ` ${l.text}`;
+    if (flush.has(l) || entries.length === 0) entries.push({ text: l.text, label: null, page: l.page });
+    else entries[entries.length - 1]!.text += ` ${l.text}`;
   }
   return entries;
 }
@@ -284,8 +290,8 @@ function splitByIndent(block: Line[]): string[] | null {
  * A numbered list ([1] ... [n], or 1. ... n.): a line starts a new entry only when its number is the NEXT one (or one or two ahead, when a marker was lost).
  * A line that merely begins with a number or a dash ("2024 IEEE International ...", "- 2024 IEEE ...", "19 pages.") continues the entry before it.
  */
-function splitNumbered(block: Line[]): string[] {
-  const entries: string[] = [];
+function splitNumbered(block: Line[]): RawEntry[] {
+  const entries: RawEntry[] = [];
   let last = 0;
   for (const l of block) {
     const n = markerNumber(l.text);
@@ -293,9 +299,9 @@ function splitNumbered(block: Line[]): string[] {
     if (n === 1 && last >= 5) break;
     const starts = n !== null && (entries.length === 0 ? n <= 2 : n > last && n <= last + 3);
     if (starts) {
-      entries.push(l.text);
+      entries.push({ text: l.text, label: String(n), page: l.page });
       last = n!;
-    } else if (entries.length > 0) entries[entries.length - 1] += ` ${l.text}`;
+    } else if (entries.length > 0) entries[entries.length - 1]!.text += ` ${l.text}`;
   }
   return entries;
 }
@@ -313,12 +319,14 @@ const startsWithKey = (text: string): boolean => KEY_COMPLETE.test(text) || KEY_
  * A list labelled with keys. Its labels are usually right-aligned, so the first lines of its entries start at a different x each time and the hanging-indent reading finds almost no
  * entry start: a whole list became thirty entries of five references each. A key is the start of an entry, whatever the x.
  */
-function splitKeyed(block: Line[]): string[] {
-  const entries: string[] = [];
+function splitKeyed(block: Line[]): RawEntry[] {
+  const entries: RawEntry[] = [];
   for (const l of block) {
-    if (startsWithKey(l.text) || entries.length === 0) entries.push(l.text);
-    else entries[entries.length - 1] += ` ${l.text}`;
+    if (startsWithKey(l.text) || entries.length === 0) entries.push({ text: l.text, label: null, page: l.page });
+    else entries[entries.length - 1]!.text += ` ${l.text}`;
   }
+  // the key is read from the whole entry: a key broken over two lines ("[ADG" and "16] ...") is whole once the lines are joined
+  for (const e of entries) e.label = /^\[(\p{Lu}[\p{L}+-]{1,9})\s?(\d{2,4}[a-z]?)\]/u.exec(e.text)?.slice(1, 3).join("") ?? null;
   return entries;
 }
 
@@ -335,18 +343,36 @@ export function compactLong(e: string, max = 900): string {
   return `${head} … ${tail}`;
 }
 
-export function referenceEntries(block: Line[]): string[] {
+/** An entry of the reference list with the label it was printed with and the page it starts on (see RawEntry): what the reader needs to link "[12]" to its entry. */
+export type LabelledEntry = { text: string; label: string | null; page: number | null };
+
+/** The entries of a reference list (as `referenceEntries` gives them, in the same order and with the same text), each with its printed label and first page. */
+export function labelledReferenceEntries(block: Line[]): LabelledEntry[] {
   if (block.length === 0) return [];
   const numbered = block.filter((l) => markerNumber(l.text) !== null).length >= Math.min(3, Math.ceil(block.length / 12));
   const byNumber = numbered ? splitNumbered(block) : [];
   const keyed = !numbered && block.filter((l) => startsWithKey(l.text)).length >= Math.max(3, Math.ceil(block.length / 10));
-  const entries = (byNumber.length >= 2 && byNumber) || (keyed && splitKeyed(block)) || (!numbered && splitByIndent(block)) || splitReferences(block.map((l) => l.text).join("\n"));
+  const entries: RawEntry[] =
+    (byNumber.length >= 2 && byNumber) ||
+    (keyed && splitKeyed(block)) ||
+    (!numbered && splitByIndent(block)) ||
+    splitReferences(block.map((l) => l.text).join("\n")).map((text) => ({ text, label: null, page: null }));
   const kept = entries
-    .map((e) => compactLong(clean(e)))
-    .filter((e) => e.length >= 20 && /\p{L}{3}/u.test(e));
+    .map((e) => ({ ...e, text: compactLong(clean(e.text)) }))
+    .filter((e) => e.text.length >= 20 && /\p{L}{3}/u.test(e.text));
   // Text after the last reference (a paragraph of an appendix that nothing separated from the list) is not a reference.
-  while (kept.length > 3 && !CITES.test(kept[kept.length - 1]!)) kept.pop();
+  while (kept.length > 3 && !CITES.test(kept[kept.length - 1]!.text)) kept.pop();
   return kept.slice(0, MAX_PAPER_REFERENCES);
+}
+
+export function referenceEntries(block: Line[]): string[] {
+  return labelledReferenceEntries(block).map((e) => e.text);
+}
+
+/** The reference list of a paper's lines, labelled (see labelledReferenceEntries). Empty when no list is found. */
+export function labelledReferenceList(lines: Line[], pages: number): LabelledEntry[] {
+  const stripped = stripRunningHeads(lines, pages);
+  return labelledReferenceEntries(referenceLines(stripped, bodySize(stripped)));
 }
 
 /** The highest number the list prints at the start of an entry ([12] or 12.): for a numbered list, what the count of entries should be. 0 when the list is not numbered. */

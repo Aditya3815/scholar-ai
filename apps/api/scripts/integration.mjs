@@ -16,6 +16,9 @@ const web = fileURLToPath(new URL("../../web", import.meta.url));
 const PORT = Number(process.env.INTEGRATION_PORT ?? 8788);
 const STATE = process.env.INTEGRATION_STATE ?? ".wrangler/integration-state";
 const CONFIG = process.env.INTEGRATION_CONFIG ?? "wrangler.integration.jsonc";
+// The fake identity provider's port (INTEGRATION_IDP_PORT, default 9911): two runs at once each need their own. Only the suites that read the same variable follow it (e2e/cites.mjs does);
+// the others still start theirs on 9911, so a second run must keep to such suites (--only).
+const IDP_PORT = Number(process.env.INTEGRATION_IDP_PORT ?? 9911);
 const withBrowser = process.argv.includes("--browser");
 // --only=<substring of a suite label> runs just the matching suites, e.g. --only="browser: auth" (several: --only="operations,browser: idea")
 const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7);
@@ -50,7 +53,7 @@ const vars = {
   GOOGLE_CLIENT_ID: "dev", GOOGLE_CLIENT_SECRET: "dev-secret", ORCID_CLIENT_ID: "dev", ORCID_CLIENT_SECRET: "dev-secret",
   // .dev.vars is read by `wrangler dev` too: the tests must never report to the real Sentry project, so its address is blanked here.
   SENTRY_DSN: "",
-  DEV_IDP_URL: "http://localhost:9911", ORCID_BASE_URL: "http://localhost:9911/orcid", ENABLE_DEV_ROUTES: "1", QA_STUB: "1", SSE_KEEPALIVE_MS: "1000", OCR_PAGES_PER_DAY: "25",
+  DEV_IDP_URL: `http://localhost:${IDP_PORT}`, ORCID_BASE_URL: `http://localhost:${IDP_PORT}/orcid`, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", SSE_KEEPALIVE_MS: "1000", OCR_PAGES_PER_DAY: "25",
   CROSSREF_MAILTO: process.env.CROSSREF_MAILTO ?? "ci@example.com",
   // INTEGRATION_TRENDING=off (or =dark) starts the Worker with the variable TRENDING=off (or dark) (run it with --only="trending": scripts/trending-e2e.mjs then checks that switch instead of the others)
   ...(process.env.INTEGRATION_TRENDING ? { TRENDING: process.env.INTEGRATION_TRENDING } : {}),
@@ -163,6 +166,7 @@ try {
     ok = await run("browser: the Understand step (what the page draws; the design's examples when CHAT_UNDERSTAND is on)", "e2e/understand.mjs", [`http://localhost:${PORT}`], web) && ok;
   ok = await run("browser: chat tools (what the page draws for a tool run in the reply)", "e2e/chat-tools.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: reader polish (back, drawing tools, question box)", "e2e/polish-reader.mjs", [`http://localhost:${PORT}`], web) && ok;
+    ok = await run("browser: citation cards in the reader", "e2e/cites.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: trending", "e2e/trending.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: ask any paper", "e2e/oa.mjs", [`http://localhost:${PORT}`], web) && ok;
     ok = await run("browser: literature scan", "e2e/litscan.mjs", [`http://localhost:${PORT}`], web) && ok;

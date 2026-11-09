@@ -88,6 +88,7 @@ export function RefCard({ item, index, onRecheck }: { item: VerifyItem; index: n
   return (
     <m.li
       className="card ref"
+      data-ref-id={item.id}
       data-state={item.state}
       data-bucket={settled ? s.bucket : "pending"}
       data-status={v?.status}

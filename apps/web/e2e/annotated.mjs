@@ -15,7 +15,7 @@ let failures = 0;
 const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 const sha = (b) => createHash("sha256").update(b).digest("hex");
 
-const idp = await startFakeIdp(9911);
+const idp = await startFakeIdp(Number(process.env.INTEGRATION_IDP_PORT ?? 9911));
 idp.setUser({ sub: "ws-annot-1", email: "ravi.k@example.edu", email_verified: true, name: "Ravi K" });
 const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
 const errors = [];

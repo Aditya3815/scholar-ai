@@ -124,6 +124,24 @@ The page lists every search that ran and says that not finding a paper is not pr
 - **Scanned PDFs** are read by two AI vision models that check each other (60 pages a day); pages they disagree on are marked
   and left out of answers.
 - **The reader:** full screen or with a side panel; zoom; Find in the paper; reading position remembered; a round back button.
+- **Citation cards (built 9 Nov, not live):** the paper's in-text citations are found and lightly highlighted. Styles found: "[12]", "[3-5]", "[1, 4, 7–9]", "[ADG16]",
+  "(Vaswani et al., 2017)", "Smith and Jones (2019a)", and several in one bracket.
+  - **Opening the card:**
+    - mouse: hover;
+    - keyboard: Tab shows it, Enter goes into it, Escape comes back;
+    - phone: a tap.
+  - **What the card shows:**
+    - **Verified** with a small green tick in a circle, or the Reference Verifier's own words ("Details don't match", "Not found", ...);
+    - **Retracted**, when the paper was retracted;
+    - for a verified reference, the record's title, authors, venue and year, and **Ask about it**, **Save to library** and **Open**;
+    - otherwise, the reference as printed;
+    - **Show in reference list** (goes to the entry in the paper).
+  - **Linking rules:**
+    - a citation is drawn only when it links to exactly one entry;
+    - numbers are linked by the label the list printed, never by position.
+  - **Verdicts** are the same checks the References tab runs, so nothing new is sent.
+  - **Turning it off:** a switch in the reader's toolbar ("Citation cards"), kept on the device.
+  - Measured on 18 open-access PDFs (arXiv and PMC) in `docs/design/reader-citations.md`.
 - **Ask the paper:** answers with the page and the exact quote, each quote checked against the paper's text; "Ask your
   highlights" asks about what you marked.
 - **Highlights and notes** by colour; notes can be exported (Markdown).
