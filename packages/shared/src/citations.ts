@@ -53,13 +53,29 @@ const MATH_BEFORE = /[∈∉=<>≤≥≈∼~+×·*/^∪∩⊂⊆∀∃→↦]\s*
 const WORD_BEFORE = /\b(interval|intervals|range|ranges|between|matrix|vector|array|tuple|set|indices|index|from|to|size|shape|dim|dimension|dimensions|bits?|bytes?)\s*$/i;
 
 /** The surnames of an author string: "Smith and Jones" -> ["Smith", "Jones"]; "Smith et al." -> ["Smith"]. */
+// Read by tokens, not by a split regex: "\s*,\s*" and "\s+and\s+" are slow on a long run of white space (CodeQL js/polynomial-redos).
+const CONNECTORS = new Set([",", "and", "und", "y", "et", "&", "और"]);
+const ET_AL_TOKEN = /^et\.?al(?:ii|\.)?$/u;
 function readAuthors(s: string): { surnames: string[]; etAl: boolean } {
-  const etAl = new RegExp(ETAL + "\\s*$", "u").test(s);
-  const body = s.replace(new RegExp(ETAL + "\\s*$", "u"), "");
-  const surnames = body
-    .split(/\s*,\s*(?:and\s+|&\s*)?|\s+(?:and|und|y|et)\s+|\s*&\s*|\s+और\s+/u)
-    .map((x) => x.trim())
-    .filter(Boolean);
+  const tokens = s.replace(/[,&]/g, (c) => ` ${c} `).split(/\s+/).filter(Boolean);
+  let etAl = false;
+  // "et al.", "et. al.", "etal.", "et alii" at the end, after at least one name
+  for (const n of [2, 1]) {
+    if (tokens.length > n && ET_AL_TOKEN.test(tokens.slice(-n).join(""))) {
+      tokens.splice(-n);
+      etAl = true;
+      break;
+    }
+  }
+  const surnames: string[] = [];
+  let name: string[] = [];
+  for (const t of tokens) {
+    if (CONNECTORS.has(t)) {
+      if (name.length) surnames.push(name.join(" "));
+      name = [];
+    } else name.push(t);
+  }
+  if (name.length) surnames.push(name.join(" "));
   return { surnames, etAl };
 }
 
@@ -67,7 +83,7 @@ function readAuthors(s: string): { surnames: string[]; etAl: boolean } {
 function readYears(s: string): { year: number; suffix: string | null }[] {
   const out: { year: number; suffix: string | null }[] = [];
   let last: number | null = null;
-  for (const raw of s.split(/\s*,\s*/)) {
+  for (const raw of s.split(",")) {
     const m = /^(\d{4})([a-z])?$/.exec(raw.trim());
     if (m) {
       last = Number(m[1]);
