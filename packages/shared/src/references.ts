@@ -1,3 +1,5 @@
+import { squash } from "./text";
+
 /**
  * Reference Verifier: types shared by the API and the web app, plus the splitter that turns whatever a scholar pastes
  * (a numbered list, a Word bibliography, a BibTeX file) into one string per reference.
@@ -57,7 +59,6 @@ const AUTHOR_START = /^(?:[\p{Lu}][\p{L}'’-]+(?:\s+[\p{L}'’-]+){0,2}),\s+(?:
 /** Vancouver: "Smith AB, Jones C." */
 const VANCOUVER_START = /^[\p{Lu}][\p{L}'’-]+\s+\p{Lu}{1,3}[,.]/u;
 
-const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 
 /** One BibTeX entry's fields, enough to rebuild a readable reference. Handles nested braces such as {{CRISPR}}. */
 function bibFields(body: string): Record<string, string> {

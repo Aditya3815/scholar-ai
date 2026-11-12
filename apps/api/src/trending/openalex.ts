@@ -1,3 +1,4 @@
+import { isCount } from "@scholar/shared";
 import type { Country, KeywordRow, Venue } from "@scholar/shared/src/trending";
 import { SourceError, getText, type CallBudget, type Http } from "./sources";
 
@@ -50,7 +51,6 @@ async function ask(d: OaDeps, scope: OaScope, extra: Record<string, string>): Pr
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-const isCount = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
 
 /** The papers that match the filter, and the groups of a group_by. A body that is not that is a failure, not an empty answer. */
 function readGroups(body: unknown): { total: number; groups: Record<string, unknown>[] } {

@@ -1,3 +1,4 @@
+import { isCount } from "@scholar/shared";
 import { TREND, trendWindows, type KeywordRow, type SubfieldInput, type TrendGroup } from "@scholar/shared/src/trending";
 import { policyOf } from "@scholar/shared/src/subfield-policy";
 import { keywordCounts, type OaDeps } from "./openalex";
@@ -30,7 +31,6 @@ export function expand(subfield: number, c: Compact): SubfieldInput {
   return { subfield, totalA: c.ta, totalB: c.tb, rowsA: c.a.map(([id, name, count]) => ({ id, name, count })), rowsB: c.b.map(([id, count]) => ({ id, name: "", count })) };
 }
 
-const isCount = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
 const isCompact = (c: unknown): c is Compact => {
   const o = c as Compact | null;
   return (
@@ -50,7 +50,7 @@ const isTable = (t: unknown): t is Record<string, Compact> => !!t && typeof t ==
 export function isBatchFile(raw: unknown, day: string, n: number): BatchFile | null {
   const o = raw as BatchFile | null;
   if (!o || typeof o !== "object" || o.version !== 1 || o.day !== day || o.n !== n) return null;
-  if (!Array.isArray(o.subfields) || !o.subfields.every(isCount) || !isTable(o.global) || !isTable(o.india)) return null;
+  if (!Array.isArray(o.subfields) || !o.subfields.every((n) => isCount(n)) || !isTable(o.global) || !isTable(o.india)) return null;
   return o;
 }
 

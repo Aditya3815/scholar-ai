@@ -1,4 +1,4 @@
-import { decodeEntities } from "@scholar/shared";
+import { decodeEntities, squash } from "@scholar/shared";
 
 /**
  * Reads the text of a paper from JATS XML, the format of PubMed Central and Europe PMC full text. No XML library: what we need is small (the title, the abstract, the licence,
@@ -92,7 +92,6 @@ const child = (el: El, name: string): El | undefined => el.kids.find((k): k is E
 
 /** Elements whose content is not part of what a paper says. */
 const SKIPPED = new Set(["tex-math", "mml:math", "math", "inline-graphic", "graphic", "media", "object-id", "supplementary-material", "email", "ref-list", "alternatives"]);
-const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 
 /** The text inside an element, as one line: citations to the reference list and formulas are dropped, the rest keeps its words (italics, sub- and superscripts, links). */
 function textOf(el: El): string {

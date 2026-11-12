@@ -1,3 +1,5 @@
+import { flatLine } from "./text";
+
 /** Uploaded papers and grounded Q&A: types and limits shared by the API and the web app. */
 
 export const MAX_DOC_BYTES = 25 * 1024 * 1024;
@@ -45,7 +47,7 @@ export const MAX_TAG_CHARS = 30;
 /** A tag as it is kept: spaces tidied, no control characters, at most 30 characters; null if nothing is left. Two tags that differ only in case are the same tag (`tagKey`). */
 export function cleanTag(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  const t = raw.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TAG_CHARS).trim();
+  const t = flatLine(raw).slice(0, MAX_TAG_CHARS).trim();
   return t.length > 0 ? t : null;
 }
 export const tagKey = (label: string) => label.toLowerCase();

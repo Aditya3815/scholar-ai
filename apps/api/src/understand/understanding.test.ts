@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseUnderstanding, plainLine, UNDERSTAND_SCHEMA, type Understanding } from "./understanding";
+import { plainLine } from "@scholar/shared";
+import { parseUnderstanding, UNDERSTAND_SCHEMA, type Understanding } from "./understanding";
 
 const PDF_EXAMPLE = {
   intent: "search",

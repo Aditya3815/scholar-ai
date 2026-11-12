@@ -1,4 +1,5 @@
 import { NOTE_COLORS, type DocNote, type NoteColor } from "./documents";
+import { flatLine, squash } from "./text";
 
 /** What each highlight colour means to this reader: their own words, kept on their device and sent with a question about their highlights. */
 export type Legend = Record<NoteColor, string>;
@@ -10,7 +11,7 @@ export const isPlainLegend = (l: Legend): boolean => NOTE_COLORS.every((c) => l[
 
 const cleanName = (v: unknown): string | null => {
   if (typeof v !== "string") return null;
-  const t = v.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_LEGEND_CHARS).trim();
+  const t = flatLine(v).slice(0, MAX_LEGEND_CHARS).trim();
   return t || null;
 };
 
@@ -20,10 +21,8 @@ export function cleanLegend(raw: unknown): Legend {
   return Object.fromEntries(NOTE_COLORS.map((c) => [c, cleanName(o[c]) ?? DEFAULT_LEGEND[c]])) as Legend;
 }
 
-/** One line of text for a Markdown quote: line breaks and a leading marker cannot end the quote or start a list. */
-const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
 /** Markdown that is safe to put in a heading: no line breaks, no leading `#`. */
-const heading = (s: string) => oneLine(s).replace(/^#+\s*/, "");
+const heading = (s: string) => squash(s).replace(/^#+\s*/, "");
 
 export type MarkdownOptions = {
   legend?: Legend;
@@ -41,7 +40,7 @@ export function notesMarkdown(title: string, notes: DocNote[], opts: MarkdownOpt
   const legend = opts.legend ?? DEFAULT_LEGEND;
   const keep = new Set<NoteColor>(opts.colours ?? NOTE_COLORS);
   const list = notes.filter((n) => keep.has(n.color));
-  const item = (n: DocNote) => `> ${oneLine(n.quote)} (p. ${n.page})${n.note.trim() ? `\n\n${n.note.trim()}` : ""}`;
+  const item = (n: DocNote) => `> ${squash(n.quote)} (p. ${n.page})${n.note.trim() ? `\n\n${n.note.trim()}` : ""}`;
   const head = `# Notes on ${heading(title) || "this paper"}\n\n`;
   if (list.length === 0) return `${head}No highlights.\n`;
   if (opts.groupBy === "colour") {

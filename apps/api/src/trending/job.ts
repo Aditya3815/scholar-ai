@@ -1,4 +1,4 @@
-import { TRENDING_POOL_MAX_DAYS, YEAR_FILTER_SEARCH_LIMIT, parseTrending, type SearchResponse, type SearchScope } from "@scholar/shared";
+import { isCount, TRENDING_POOL_MAX_DAYS, YEAR_FILTER_SEARCH_LIMIT, parseTrending, type SearchResponse, type SearchScope } from "@scholar/shared";
 import { QUERYABLE_SUBFIELDS } from "@scholar/shared/src/subfield-policy";
 import {
   buildPayload,
@@ -166,7 +166,6 @@ type ScanState = { version: 1; asOf: string; startedAt: number; next: number; ba
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 const daysBetween = (from: string, to: string): number => Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS);
-const isCount = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
 const num = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 
 function isCandidate(c: unknown): c is Candidate {

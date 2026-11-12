@@ -1,4 +1,4 @@
-import { ABSTRACT_READ_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, type ChatCitation, type Paper, type TightenRequest } from "@scholar/shared";
+import { ABSTRACT_READ_CHARS, isInt, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, type ChatCitation, type Paper, type TightenRequest } from "@scholar/shared";
 import type { Picked } from "./answer";
 import { shownSentence } from "./evidence";
 
@@ -17,7 +17,6 @@ const TITLE_ALLOWANCE_CHARS = 1_000;
  */
 export const MAX_TIGHTEN_BODY_BYTES = 4 * (MAX_TIGHTEN_TEXT + MAX_TIGHTEN_PAPERS * (ABSTRACT_READ_CHARS + TITLE_ALLOWANCE_CHARS)) + Math.ceil(MAX_TIGHTEN_TEXT / 3) * 32 + 2_048;
 
-const isInt = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v);
 
 /** The request as an input, or the plain reason it is not one. Never throws. */
 export function readTighten(raw: unknown): { ok: true; input: TightenInput } | { ok: false; detail: string } {

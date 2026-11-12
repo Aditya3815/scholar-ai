@@ -15,6 +15,7 @@
  * (https://help.openalex.org/data/keywords/, read 4 Nov 2026), so the words are model-assigned before they reach us and are unchanged here. The privacy page and the Why panel say so.
  */
 import { cleanChatMessage } from "./chat";
+import { isCount } from "./text";
 import { isSmallTalk, offlineRoute } from "./route";
 import { subfieldInfo, type SubfieldInfo } from "./subfield-policy";
 import { TRENDING_CHIP_MAX, TRENDING_CHIP_MIN, TRENDING_MAX_CHIPS, parseTrending, type TrendingChip, type TrendingPayload } from "./trending-client";
@@ -587,7 +588,7 @@ export function verifySummary(s: SearchSummary): { ok: boolean; failures: Verify
 /* ---------------------------------------------------------------- the file */
 
 const tidyField = (f: unknown): f is string => typeof f === "string" && f.length >= 1 && f.length <= 60 && !/[\p{Cc}\p{Cf}]/u.test(f);
-const count = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 1e9;
+const count = (n: unknown): n is number => isCount(n, 1e9);
 
 /**
  * A candidate as the page shows it: the keyword's own text, the year its search starts from (the year before the day's: "From 2025 on"), and the two counts. Null when it cannot be shown: a

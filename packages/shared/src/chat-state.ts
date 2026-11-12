@@ -1,6 +1,7 @@
 import type { Paper, SearchScope } from "./index";
+import { cutWhole, FILTER_YEARS, isYear, oneLine, PUBLICATION_YEARS, stripInvisible } from "./text";
 import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatRequestMode, type ChatStep, type GeneralKind, type NoticeKind, type TightenRequest, type TightenResponse, type UnderstoodByModel } from "./chat";
-import { MAX_FILTER_YEAR, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MIN_FILTER_YEAR, MIN_SINCE_YEAR, type ChatContextInfo, type HistoryEntry, type HistoryPaper } from "./chat-context";
+import { MAX_FILTER_YEAR, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MIN_SINCE_YEAR, historySizeOf as sizeOf, type ChatContextInfo, type HistoryEntry, type HistoryPaper } from "./chat-context";
 import { MAX_AUTO_CHARS, type Lang, type RouteHow } from "./route";
 import { abstractRead } from "./sentences";
 import type { Reading } from "./reading";
@@ -382,37 +383,15 @@ export const interruptMessages = (msgs: readonly ChatMsg[]): ChatMsg[] => mapRep
 
 /* ---------------------------------------------------------------- context between messages */
 
-const cp = (c: number) => String.fromCodePoint(c);
-/**
- * Text that shows nothing: the bidi controls, the zero-width space, the word joiner and the invisible operators, the byte-order mark, the tag characters. The list is the server's (apps/api/src/chat/history.ts)
- * and a few more, built from code points so that no invisible character is typed into this file: what the browser sends is then already what the server would make of it, and it never sends a
- * question that the server reads as shorter than it is and refuses (a refusal is of the whole message). U+200C and U+200D are NOT in it: Hindi is written with them.
- */
-const INVISIBLE = new RegExp(`[${[0x061c, 0x200b, 0x200e, 0x200f, 0x2060, 0x2061, 0x2062, 0x2063, 0x2064, 0xfeff].map(cp).join("")}${cp(0x202a)}-${cp(0x202e)}${cp(0x2066)}-${cp(0x2069)}${cp(0xe0000)}-${cp(0xe007f)}]`, "gu");
-const CONTROLS = new RegExp(`[${cp(0)}-${cp(0x1f)}${cp(0x7f)}]`, "g");
-/** A text as one line: nothing invisible, no control character, no line break. A title or an answer is data from outside, and one that held a line break and "[2] ..." could otherwise start a line of its own. */
-export const oneLine = (s: string): string => s.replace(INVISIBLE, "").replace(CONTROLS, " ").replace(/\s+/g, " ").trim();
 /** Words that can be sent as a search or as a question (2 to 300 characters with a letter or a number in it) once the invisible characters are out, or nothing. */
-const askable = (s: unknown): string | undefined => (typeof s === "string" ? (cleanChatMessage(s.replace(INVISIBLE, "")) ?? undefined) : undefined);
+const askable = (s: unknown): string | undefined => (typeof s === "string" ? (cleanChatMessage(stripInvisible(s)) ?? undefined) : undefined);
 
-/** At most `max` characters, cut where a whole character ends: never between the halves of a character outside the basic plane, and, where the browser can tell, never inside a Hindi conjunct. */
-export function cutWhole(s: string, max: number): string {
-  if (s.length <= max) return s;
-  const head = s.slice(0, max + 16);
-  const parts = typeof Intl !== "undefined" && typeof Intl.Segmenter === "function" ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(head), (x) => x.segment) : Array.from(head);
-  let out = "";
-  for (const part of parts) {
-    if (out.length + part.length > max) break;
-    out += part;
-  }
-  return out;
-}
 
 /** The year range a person can ask for (the same as the server's reader), or nothing: both ends whole numbers in range, at least one of them, in order. `null` is no end, as it is on the wire. */
 function yearRange(from: unknown, to: unknown): { from?: number; to?: number } | null {
   const f = from ?? undefined;
   const t = to ?? undefined;
-  const fine = (y: unknown): y is number | undefined => y === undefined || (typeof y === "number" && Number.isInteger(y) && y >= MIN_FILTER_YEAR && y <= MAX_FILTER_YEAR);
+  const fine = (y: unknown): y is number | undefined => y === undefined || isYear(y, FILTER_YEARS);
   if (!fine(f) || !fine(t) || (f === undefined && t === undefined) || (f !== undefined && t !== undefined && f > t)) return null;
   return { ...(f === undefined ? {} : { from: f }), ...(t === undefined ? {} : { to: t }) };
 }
@@ -442,7 +421,7 @@ function citedPapers(a: AssistantMsg): HistoryPaper[] {
     const p = a.papers[n - 1]!;
     const title = typeof p.title === "string" ? cutWhole(oneLine(p.title), MAX_HISTORY_TITLE_CHARS).trim() : "";
     if (!/[\p{L}\p{N}]/u.test(title)) continue;
-    out.push({ n, title, year: typeof p.year === "number" && Number.isInteger(p.year) && p.year >= 1000 && p.year <= 2999 ? p.year : null });
+    out.push({ n, title, year: isYear(p.year, PUBLICATION_YEARS) ? p.year : null });
     if (out.length === MAX_HISTORY_PAPERS) break;
   }
   return out;
@@ -492,8 +471,6 @@ function historyTurn(u: UserMsg, a: AssistantMsg): { asked: AskedEntry; reply: R
   return { asked: { role: "user", text }, reply, from: a };
 }
 
-/** The characters of an entry that count towards the total the server reads (every text of it that can reach a model). */
-const sizeOf = (e: HistoryEntry): number => (e.role === "user" ? e.text.length : (e.searchQuery?.length ?? 0) + (e.text?.length ?? 0) + (e.papers ?? []).reduce((n, p) => n + p.title.length, 0));
 
 /**
  * The finished searches of a list of messages, oldest first, each as `historyTurn` reads it. The one place that decides which turns of a conversation may be carried on: to the next message of the same

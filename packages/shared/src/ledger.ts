@@ -1,4 +1,5 @@
-import { activePath, cutWhole, oneLine, topicStart, type AssistantMsg, type ChatMsg, type UserMsg } from "./chat-state";
+import { activePath, topicStart, type AssistantMsg, type ChatMsg, type UserMsg } from "./chat-state";
+import { cutWhole, oneLine } from "./text";
 
 /**
  * The turn ledger (design PDF "Sodhsetu understanding, follow-ups and MCP", section "Follow-ups: sirf usi chat se", milestone M2): a compact record of each turn of ONE chat, built in the browser from the

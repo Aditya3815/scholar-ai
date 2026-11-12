@@ -2,6 +2,7 @@ import { GENERAL_LABEL } from "./chat";
 import type { AssistantMsg } from "./chat-state";
 import type { Paper } from "./index";
 import { apaReference } from "./litscan-review";
+import { oneLine } from "./text";
 
 /*
  * "Copy the answer" (docs/design/chat-actions-context.md, decision A2): what a finished reply becomes as plain text on the clipboard. Pure, so it is tested without a browser.
@@ -13,20 +14,12 @@ import { apaReference } from "./litscan-review";
 
 /** A source mark in a text: the same shape the screen turns into a button (`AnswerText`). The space before it goes with it. */
 const MARK = /\s*\[(\d{1,2})\]/g;
-/** Controls and line separators: a record's field is one line, whatever it holds. */
-const CONTROLS = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/g;
-/**
- * Characters that change how text reads without showing: zero-width space, left-to-right and right-to-left marks and overrides and isolates, word joiner and the invisible operators, the byte-order
- * mark, and tag characters. U+200C and U+200D are NOT here: Hindi and other scripts need them to spell some words and conjuncts.
- */
-const INVISIBLE = /[\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\u{E0000}-\u{E007F}]/gu;
-
 /**
  * A field of a record made safe for one line of a list: controls and line breaks become a space, invisible characters go, white space is collapsed, and a number in square brackets
  * becomes the same number in round ones. A title or a name is data from an index, and one that carried a line break and "[2] ..." could otherwise write a source of its own into what was
  * copied. A "](" gets a space, so that a title that is written as a Markdown link does not become one where the text is pasted. Anything but a string is nothing.
  */
-const plain = (s: unknown): string => (typeof s === "string" ? s.replace(CONTROLS, " ").replace(INVISIBLE, "").replace(/\s+/g, " ").trim().replace(/\[(\d{1,2})\]/g, "($1)").replace(/\]\(/g, "] (") : "");
+const plain = (s: unknown): string => (typeof s === "string" ? oneLine(s, { c1: true }).replace(/\[(\d{1,2})\]/g, "($1)").replace(/\]\(/g, "] (") : "");
 /** A link as one http(s) address with no break in it, or nothing: a record's field is not trusted to be a link. */
 const link = (s: unknown): string | null => {
   const v = plain(s).replace(/\s/g, "");

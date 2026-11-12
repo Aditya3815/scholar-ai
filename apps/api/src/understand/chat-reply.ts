@@ -1,6 +1,7 @@
 import type { Complete } from "../docs/qa";
 import type { GreetingKind } from "./greeting";
-import { plainLine, type UnderstandLanguage } from "./understanding";
+import { plainLine } from "@scholar/shared";
+import type { UnderstandLanguage } from "./understanding";
 
 /**
  * The reply to a message understood as conversation (intent `chat`; design of 6 Nov 2026, page 5). This is the riskiest new part, because here a model could state facts of its own. So:

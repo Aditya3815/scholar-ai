@@ -5,6 +5,7 @@
  * Measured against GROBID on five papers in docs/spikes/R1b-grobid-alternatives.md.
  */
 import { MAX_PAPER_REFERENCES, splitReferences } from "./references";
+import { squash } from "./text";
 
 /** One piece of text from pdf.js (a TextItem), reduced to what we use. */
 export type RawItem = { str: string; x: number; y: number; w: number; size: number };
@@ -46,7 +47,6 @@ export function rawItems(items: readonly { str?: string; transform?: number[]; w
   return out;
 }
 
-const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 
 /** Items of one page -> lines. Items on (nearly) the same baseline are one line; a gap wider than a space gets a space. */
 export function groupLines(items: readonly RawItem[], page: number): Line[] {

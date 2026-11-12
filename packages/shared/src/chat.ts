@@ -4,6 +4,7 @@ import type { ThinkLine } from "./think";
 import type { Lang, RouteHow, RouteMode as ChatMode } from "./route";
 import type { Reading } from "./reading";
 import type { ChatToolEvent } from "./chat-tools";
+import { flatLine } from "./text";
 
 /**
  * The prompt box of the new home (W2): what the browser sends to `POST /api/v1/chat` and what comes back as server-sent events.
@@ -153,7 +154,7 @@ export const didNotFinishText = (language: Lang): string => (language === "hingl
 /** A message that can be sent, as the browser checks it before sending and the server checks again: whitespace tidied, then 2 to 300 characters. Null if it cannot be sent. */
 export function cleanChatMessage(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  const t = raw.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  const t = flatLine(raw);
   return t.length >= MIN_CHAT_CHARS && t.length <= MAX_CHAT_CHARS && /[\p{L}\p{N}]/u.test(t) ? t : null;
 }
 

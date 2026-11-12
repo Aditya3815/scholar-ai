@@ -1,4 +1,5 @@
-import { plainLine, UNDERSTAND_INTENTS, type UnderstandIntent } from "./understanding";
+import { plainLine } from "@scholar/shared";
+import { UNDERSTAND_INTENTS, type UnderstandIntent } from "./understanding";
 
 /**
  * The turn ledger as the server reads it (design of 6 Nov 2026, page 7): a short record of each earlier turn of THIS chat, built and kept by the browser, sent with a message so the Understand step
