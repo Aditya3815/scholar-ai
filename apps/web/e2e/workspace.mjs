@@ -5,7 +5,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
-import { BASE, UNSTICK, axeCheck, axeSource, countFailure, finish, launch, noSideways, ok, phone, setTheme, startIdp } from "./lib/browser.mjs";
+import { BASE, UNSTICK, axeCheck, axeViolations, countFailure, finish, launch, noSideways, ok, phone, setTheme, startIdp } from "./lib/browser.mjs";
 
 const OUT = fileURLToPath(new URL("./shots/ws-", import.meta.url));
 mkdirSync(fileURLToPath(new URL("./shots/", import.meta.url)), { recursive: true });
@@ -195,8 +195,7 @@ try {
     let clean = true;
     for (const id of SCENES) {
       await toScene(page, id, 0.97);
-      await page.evaluate(axeSource);
-      const v = await page.evaluate(async () => (await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } })).violations.map((x) => `${x.id} ${x.nodes[0]?.target?.join(" ")}`));
+      const v = (await axeViolations(page)).map((x) => `${x.id} ${x.sample}`);
       if (v.length) { clean = false; console.log(`        ${theme} ${id}: ${v.join(" | ")}`); }
     }
     ok(clean, `axe [the end of every scene, ${theme}]`);
@@ -256,8 +255,7 @@ try {
     let clean = true;
     for (const id of SCENES) {
       await toScene(mp, id, 0.97);
-      await mp.evaluate(axeSource);
-      const v = await mp.evaluate(async () => (await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } })).violations.map((x) => `${x.id} ${x.nodes[0]?.target?.join(" ")}`));
+      const v = (await axeViolations(mp)).map((x) => `${x.id} ${x.sample}`);
       if (v.length) { clean = false; console.log(`        phone ${theme} ${id}: ${v.join(" | ")}`); }
     }
     ok(clean, `axe [the end of every scene, on a phone, ${theme}]`);
