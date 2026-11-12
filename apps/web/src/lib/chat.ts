@@ -399,12 +399,6 @@ export function cancelNewTopic() {
   if (id && state.newTopic.has(id)) setNewTopic(new Set([...state.newTopic].filter((x) => x !== id)));
 }
 
-/**
- * The turn ledger of a conversation this page holds (M2): built from its messages as they are now. A private chat's ledger exists only here, in memory, and is gone with the chat; a kept chat's is also written
- * with its record. Nothing of it is sent yet (M4 will send part of it, `ledgerForSend`).
- */
-export const chatLedger = (id: string): LedgerTurn[] => buildLedger(state.chats.get(id) ?? []);
-
 /** Whether the conversation on screen has "New topic" pressed and waiting for its next message. */
 export const topicPending = (s: State): boolean => !!s.active && s.newTopic.has(s.active);
 

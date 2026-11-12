@@ -698,8 +698,7 @@
   .idea-results .cmp-action,
   .idea-results .idea-stage,
   .idea-results .vin-actions,
-  .idea-results .btn,
-  .idea-results .report-btn {
+  .idea-results .btn {
     display: none !important;
   }
   body:has(.idea-results) {

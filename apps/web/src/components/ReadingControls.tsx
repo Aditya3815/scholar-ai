@@ -12,13 +12,11 @@ const FONTS: { id: ReadingPrefs["font"]; label: string }[] = [
 ];
 
 /** Text size, line width and font for abstracts and the paper reader. On the Settings page. */
-export function ReadingForm({ heading = true, idPrefix = "rc" }: { heading?: boolean; idPrefix?: string }) {
+export function ReadingForm({ idPrefix = "rc" }: { idPrefix?: string }) {
   const prefs = readingStore.use();
   const set = (patch: Partial<ReadingPrefs>) => readingStore.set({ ...prefs, ...patch });
   return (
       <div className="rc">
-        {heading && <h2 className="pop-title">Reading settings</h2>}
-
         <label className="rc-row" htmlFor={`${idPrefix}-size`}>
           <span>Text size</span>
           <output>{prefs.size}px</output>

@@ -268,7 +268,7 @@ export function App() {
       <AnimatePresence mode="wait" initial={false} presenceAffectsLayout={false}>
         {idle ? (
           <m.div key="home" exit={{ opacity: 0, y: -12, transition: { duration: 0.18 } }}>
-            <HomePage query={query} onQuery={setQuery} kept={draft} setDraft={setDraft} onOpenTool={(tool) => navigate(tool === "papers" ? "papers" : tool)} onOpenPaper={(id) => navigate("papers", id)} inputRef={homeRef} />
+            <HomePage query={query} onQuery={setQuery} kept={draft} setDraft={setDraft} onOpenTool={(tool) => navigate(tool)} onOpenPaper={(id) => navigate("papers", id)} inputRef={homeRef} />
           </m.div>
         ) : (
           <m.div key="results" className="results-view" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }}>

@@ -2,17 +2,6 @@
 
 
 
-.hero-verify {
-  margin-top: 1.1rem;
-  color: var(--muted);
-  font-size: 0.9375rem;
-}
-.hero-verify .link-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: inherit;
-}
 
 /* ============ Reference Verifier ============ */
 .verify {

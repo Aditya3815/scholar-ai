@@ -10,7 +10,7 @@ import { newStrokeId } from "../../lib/ink";
 /** What is in the hand: nothing (read and select text), a freehand tool, the eraser, a shape, the lasso, or a text box or sticky note to put down. */
 export type DrawTool = "hand" | "pen" | "highlighter" | "eraser" | "lasso" | "text" | "sticky" | ShapeKind;
 const SHAPE_TOOLS: readonly string[] = ["line", "arrow", "rect", "ellipse"];
-export const isShapeTool = (t: DrawTool): t is ShapeKind => SHAPE_TOOLS.includes(t);
+const isShapeTool = (t: DrawTool): t is ShapeKind => SHAPE_TOOLS.includes(t);
 
 type Props = {
   page: number;
@@ -64,11 +64,11 @@ export function penOutline(pts: number[], w: number, pageW: number): number[][] 
   return getStroke(points, { size: Math.max(0.6, w * pageW), thinning: simulate ? 0.45 : 0.6, smoothing: 0.5, streamline: 0.45, simulatePressure: simulate, last: true });
 }
 /** A pen stroke as a filled outline, thicker where the pressure was greater. A mouse has no pressure (all 0.5), so the speed of the hand shapes the line instead. */
-export function penPath(pts: number[], w: number, pageW: number): string {
+function penPath(pts: number[], w: number, pageW: number): string {
   return outlinePath(penOutline(pts, w, pageW));
 }
 /** A highlighter stroke: a flat-ended wide line of one width (no pressure), which is how a real marker looks. */
-export function markerPath(pts: number[], pageW: number): string {
+function markerPath(pts: number[], pageW: number): string {
   let d = "";
   for (let i = 0; i < pts.length; i += 3) d += `${i === 0 ? "M" : "L"}${(pts[i]! * pageW).toFixed(2)},${(pts[i + 1]! * pageW).toFixed(2)} `;
   if (pts.length === 3) d += `L${(pts[0]! * pageW + 0.01).toFixed(2)},${(pts[1]! * pageW).toFixed(2)}`;

@@ -12,7 +12,7 @@ const SHODHGANGA_THESES = 117635;
 const DOAJ_INDIA_ARTICLES = 309564;
 const fmt = new Intl.NumberFormat("en-IN");
 
-export const SCENE_TITLES = ["Cold open", "Title", "I · The question", "II · The answer", "III · The proof", "IV · The fake", "V · Close to home", "VI · Your own papers", "The end"] as const;
+const SCENE_TITLES = ["Cold open", "Title", "I · The question", "II · The answer", "III · The proof", "IV · The fake", "V · Close to home", "VI · Your own papers", "The end"] as const;
 
 const OPEN: string[][] = [["An", "AI", "can", "write", "a", "perfect", "reference"], ["to", "a", "paper"], ["that", "was", "*never", "*written."]];
 

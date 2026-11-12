@@ -13,7 +13,7 @@ import { ConnectedAppsSettings } from "./ConnectedApps";
  * The three sections of the account settings (details, a copy of your data, erasing the account: DPDP access, portability, erasure).
  * Shown on the Settings page.
  */
-export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: () => void; idPrefix?: string }) {
+export function SettingsSections({ idPrefix }: { idPrefix: string }) {
   const { user, providers } = useAuth();
   const rememberOn = useRememberOn();
   const { index } = useChatState();
@@ -43,7 +43,6 @@ export function SettingsSections({ onDeleted, idPrefix = "set" }: { onDeleted?: 
     await clearOfflineData();
     await clearChats();
     await refreshAuth();
-    onDeleted?.();
     setConfirm("");
     showNotice("Your account and everything saved in it have been deleted.");
   };

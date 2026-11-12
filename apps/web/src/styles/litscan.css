@@ -6,7 +6,7 @@
 .ls-topic { margin: 0; font-size: clamp(1.15rem, 2.6vw, 1.45rem); line-height: 1.3; overflow-wrap: anywhere; }
 .ls-topic:focus { outline: none; }
 .ls-topic:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
-.ls-meta, .ls-hint, .ls-src-m { margin: 0; color: var(--muted); font-size: 0.85rem; }
+.ls-meta, .ls-hint { margin: 0; color: var(--muted); font-size: 0.85rem; }
 .ls-hint { max-width: 62ch; }
 
 .ls-label { display: block; font-weight: 600; font-size: 0.92rem; }
@@ -36,10 +36,6 @@
 .ls-sendnote svg { flex: none; margin-top: 0.1rem; color: var(--ok); }
 .ls-sendnote p { margin: 0; font-size: 0.9rem; }
 
-.ls-items { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
-.ls-item { display: grid; gap: 0.35rem; padding: 0.9rem 1rem; }
-.ls-item-head { display: flex; align-items: center; gap: 0.6rem; }
-.ls-item-head .ls-label { flex: 1; }
 .ls-n { flex: none; display: inline-grid; place-items: center; width: 1.55rem; height: 1.55rem; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 0.8rem; font-weight: 700; }
 .ls-options { gap: 0.9rem; }
 .ls-cost { margin: 0; font-size: 0.9rem; }
@@ -53,10 +49,8 @@
 .ls-section-h { margin: 0; display: flex; align-items: flex-start; gap: 0.6rem; font-size: 1.05rem; line-height: 1.35; }
 .ls-section-h .ls-n { margin-top: 0.1rem; }
 .ls-text { margin: 0; }
-.ls-gap, .ls-wait { margin: 0; color: var(--muted); font-size: 0.92rem; }
+.ls-gap { margin: 0; color: var(--muted); font-size: 0.92rem; }
 .ls-gap b { color: var(--text); }
-.ls-wait { display: flex; align-items: center; gap: 0.5rem; }
-.ls-wait-quiet { opacity: 0.85; }
 
 .ls-sources { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
 .ls-sources li { display: flex; gap: 0.6rem; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface-2); scroll-margin: 5rem; }

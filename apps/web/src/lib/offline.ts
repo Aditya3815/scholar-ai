@@ -10,7 +10,7 @@ const PAPERS = "scholar-papers-v1";
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
-const supported = () => typeof navigator !== "undefined" && "serviceWorker" in navigator && typeof caches !== "undefined";
+export const offlineSupported = () => typeof navigator !== "undefined" && "serviceWorker" in navigator && typeof caches !== "undefined";
 const readSetting = (): boolean => {
   try {
     return localStorage.getItem(KEY) === "1";
@@ -18,7 +18,6 @@ const readSetting = (): boolean => {
     return false;
   }
 };
-export const offlineSupported = supported;
 
 export const useOfflineOn = (): boolean =>
   useSyncExternalStore(
@@ -42,7 +41,7 @@ async function worker(): Promise<ServiceWorker | null> {
 }
 
 /** Ask the worker to do something and wait until it says it has (the reply is its answer, so nothing is assumed). */
-function tell(sw: ServiceWorker, type: "on" | "off" | "clear"): Promise<boolean> {
+function tell(sw: ServiceWorker, type: "on" | "off"): Promise<boolean> {
   return new Promise((resolve) => {
     const timer = window.setTimeout(() => done(false), 5000);
     const onMsg = (e: MessageEvent) => {
@@ -71,7 +70,7 @@ async function warmUp() {
 export type OfflineResult = "ok" | "unsupported" | "failed";
 
 export async function enableOffline(): Promise<OfflineResult> {
-  if (!supported()) return "unsupported";
+  if (!offlineSupported()) return "unsupported";
   try {
     const sw = await worker();
     if (!sw || !(await tell(sw, "on"))) return "failed";
@@ -96,7 +95,7 @@ export async function disableOffline(): Promise<void> {
     /* ignore */
   }
   emit();
-  if (!supported()) return;
+  if (!offlineSupported()) return;
   try {
     const reg = await navigator.serviceWorker.getRegistration("/");
     if (reg?.active) await tell(reg.active, "off");
@@ -115,7 +114,7 @@ export async function disableOffline(): Promise<void> {
  */
 export async function clearOfflineData(): Promise<void> {
   try {
-    if (supported()) {
+    if (offlineSupported()) {
       for (const name of await caches.keys()) if (name.startsWith("scholar-") && name !== "scholar-meta") await caches.delete(name);
     }
     await idbClear();
@@ -132,7 +131,7 @@ const idOf = (url: string) => /\/api\/v1\/documents\/([a-f0-9]+)\/file$/.exec(ne
 
 /** The papers whose file is kept on this device. */
 export async function cachedPaperIds(): Promise<string[]> {
-  if (!supported()) return [];
+  if (!offlineSupported()) return [];
   try {
     if (!(await caches.has(PAPERS))) return [];
     const cache = await caches.open(PAPERS);
@@ -144,7 +143,7 @@ export async function cachedPaperIds(): Promise<string[]> {
 
 /** One paper's kept copy goes (its file, and the small reads that were kept with it). */
 export async function removeCachedPaper(id: string): Promise<void> {
-  if (!supported()) return;
+  if (!offlineSupported()) return;
   try {
     const papers = await caches.open(PAPERS);
     for (const r of await papers.keys()) if (idOf(r.url) === id) await papers.delete(r);
@@ -212,5 +211,5 @@ export async function storageUse(): Promise<{ used: number; quota: number } | nu
 
 /** Keep the worker registered and current at the start of every visit while the switch is on (a new version of the worker replaces the old one). */
 export function resumeOffline() {
-  if (readSetting() && supported()) void worker().catch(() => {});
+  if (readSetting() && offlineSupported()) void worker().catch(() => {});
 }
