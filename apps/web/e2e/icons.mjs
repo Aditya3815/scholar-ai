@@ -3,18 +3,12 @@
 // browser computes: what each icon does when hovered, focused with the keyboard, pressed; that nothing moves when it is disabled, not pressable, on a touch screen, or with reduced motion; and that
 // no layout changes. One real icon of the app (the intro's Sign in) is checked too.
 //   node e2e/icons.mjs [baseUrl]    (default http://localhost:8788)
-import { chromium } from "playwright-core";
+import { BASE, countFailure, finish, launch, ok, watchPage } from "./lib/browser.mjs";
 
-const BASE = process.argv[2] ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
-const watch = (page) => {
-  page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409)/.test(m.text())) errors.push("console: " + m.text()); });
-};
+const watch = (page) => watchPage(page, errors);
 
 /** A button (or something else) with one Lucide-classed svg in it, the way the app writes them. */
 const svg = (name, extra = "") => `<svg class="lucide lucide-${name}" ${extra} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/><path d="M5 5h14"/></svg>`;
@@ -166,8 +160,7 @@ try {
   ok(errors.length === 0, `no errors in the browser console${errors.length ? ": " + errors.slice(0, 3).join(" | ") : ""}`);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 }
 await browser.close();
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall icon motion checks passed");
-process.exit(failures ? 1 : 0);
+finish("all icon motion checks passed", (n) => `${n} check(s) FAILED`);

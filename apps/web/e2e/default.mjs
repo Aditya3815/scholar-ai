@@ -3,42 +3,27 @@
 // way to sign in, checking references from the rail, and that the old pages are gone.
 // Needs the Worker with the fake identity provider and ENABLE_DEV_ROUTES: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/default.mjs [baseUrl]    (default http://localhost:8788)
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, axeCheck, countFailure, desk, finish, launch, ok, setTheme as setThemeOn, startIdp } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const OUT = fileURLToPath(new URL("./shots/default-", import.meta.url));
 mkdirSync(fileURLToPath(new URL("./shots/", import.meta.url)), { recursive: true });
 
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "default-ui-1", email: "mira.das@example.edu", email_verified: true, name: "Mira Das" });
 
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 // nothing is set in this context: no flag, no stored value
-const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+const ctx = await browser.newContext(desk(1360, 900));
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409)/.test(m.text())) errors.push("console: " + m.text()); });
 
-async function axe(label, p = page) {
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  ok(res.length === 0, `axe [${label}]: ${res.length ? "" : "no violations"}`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
-const setTheme = async (t) => { await page.evaluate((t) => { document.documentElement.setAttribute("data-theme", t); }, t); await page.waitForTimeout(500); };
+const axe = (label, p = page) => axeCheck(p, label, { said: true });
+const setTheme = (t) => setThemeOn(page, t, 500);
 const noSideways = (p) => p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 const railLink = (name) => page.locator(".ws-rail").getByRole("link", { name, exact: true });
 
@@ -168,10 +153,9 @@ try {
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
   await page.screenshot({ path: OUT + "zz-failure.png" }).catch(() => {});
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   idp.close();
-  console.log(failures ? `\n${failures} FAILED` : "\nall default-look browser checks passed");
-  process.exit(failures ? 1 : 0);
+  finish("all default-look browser checks passed");
 }

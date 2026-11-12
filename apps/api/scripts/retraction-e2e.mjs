@@ -1,29 +1,19 @@
 // S3: saved papers are looked at again for retractions, and the person is told. Real Worker + local D1 + fake identity provider; the Worker runs with --test-scheduled and the offline
 // Crossref stand-in (src/library/retraction-stub.ts: a DOI containing "retracted" is retracted, "reject" is refused by the service). `npm run integration -w apps/api` starts everything.
 //   node scripts/retraction-e2e.mjs
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
+import { APP, ok, countFailure, finish, startIdp, createClient, loginWith, sqlResults, until } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
 const paper = (doi, over = {}) => ({
   id: `doi:${doi}`, doi, pmid: null, title: `About ${doi}`, authors: ["A. Author"], year: 2024, venue: "Journal of Tests", abstract: "An abstract.", citationCount: 1,
   oaUrl: null, retracted: false, retractionSources: [], sources: ["openalex"], score: 0.05, ...over,
 });
 const enc = encodeURIComponent;
-const sql = async (...statements) => (await (await fetch(`${APP}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: statements }) })).json()).results ?? [];
+const sql = async (...statements) => (await sqlResults(statements)) ?? [];
 
-const idp = await startFakeIdp(9911);
-const login = async (sub, email, name) => {
-  idp.setUser({ sub, email, email_verified: true, name });
-  const c = createClient(APP);
-  await c.follow(`${APP}/api/v1/auth/google/start`);
-  return c;
-};
+const idp = await startIdp();
+const login = loginWith(idp, { ack: false });
 const read = async (c) => (await c.api("/api/v1/library")).json();
-const until = async (fn, ms = 15000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await new Promise((r) => setTimeout(r, 250)); } return false; };
 const runJob = async () => (await fetch(`${APP}/cdn-cgi/handler/scheduled`)).status;
 
 try {
@@ -87,9 +77,8 @@ try {
   ok((await sql(`SELECT COUNT(*) AS n FROM library_alerts WHERE user_id = '${aid}'`))[0][0].n === 0, "no notice of that person is left");
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   idp.close();
 }
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall retraction re-check checks passed");
-process.exit(failures ? 1 : 0);
+finish("all retraction re-check checks passed", (n) => `${n} check(s) FAILED`);

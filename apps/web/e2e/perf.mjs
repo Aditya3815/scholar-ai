@@ -4,9 +4,8 @@
 // so they are held to a loose line that a real regression (an eager chunk, a blocking font) would cross, and are printed so the trend can be read.
 // Needs the Worker: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/perf.mjs [baseUrl]    (default http://localhost:8788)
-import { chromium } from "playwright-core";
+import { BASE, countFailure, finish, launch, ok } from "./lib/browser.mjs";
 
-const BASE = process.argv[2] ?? "http://localhost:8788";
 /** The lines (ms and layout-shift score). Measured on 27 Oct 2026 on a development machine: see docs/design/w6.md. */
 const LIMIT = { fcp: 4500, lcp: 5000, cls: 0.1 };
 /**
@@ -19,10 +18,8 @@ const LIMIT = { fcp: 4500, lcp: 5000, cls: 0.1 };
  */
 const INTRO_CLS = { "intro, phone": 0.05 };
 
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 
 async function measure(label, path, viewport, mobile) {
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: mobile ? 2 : 1, isMobile: mobile, hasTouch: mobile });
@@ -71,9 +68,8 @@ try {
   await measure("check references, desktop (a page fetched on arrival)", "/verify", { width: 1360, height: 900 }, false);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
-  console.log(failures ? `\n${failures} FAILED` : "\nall first-paint checks passed");
-  process.exit(failures ? 1 : 0);
+  finish("all first-paint checks passed");
 }

@@ -1,18 +1,14 @@
 // Browser e2e for offline reading (My Workspace): switched on in Settings, the app and the papers that are opened are kept on the device; with the network cut,
 // the app opens, the paper is read and drawn on; what is drawn is kept on the device and reaches the server when the connection is back; signing out removes it all.
 //   node e2e/offline.mjs [baseUrl]    (default http://localhost:8788; `npm run integration -w apps/api -- --browser` starts the Worker)
-import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
+import { BASE, countFailure, finish, launch, ok, until as poll, startIdp } from "./lib/browser.mjs";
 
-const BASE = process.argv[2] ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(Number(process.env.INTEGRATION_IDP_PORT ?? 9911));
+const idp = await startIdp();
 idp.setUser({ sub: "ws-offline-1", email: "meera.s@example.edu", email_verified: true, name: "Meera S" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
 let offline = false;
 
@@ -35,7 +31,7 @@ try {
       c.onerror = () => { db.close(); resolve(-1); };
     };
   }));
-  const until = async (fn, what, ms = 15000) => { const end = Date.now() + ms; let v; while (Date.now() < end) { v = await fn(); if (v) return v; await page.waitForTimeout(200); } throw new Error("timed out waiting for " + what); };
+  const until = (fn, what, ms = 15000) => poll(fn, { ms, every: 200, what });
 
   console.log("sign in, switch offline reading on");
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -181,10 +177,9 @@ try {
   ok(errors.length === 0, `no console or page errors${errors.length ? ": " + errors.slice(0, 3).join(" | ") : ""}`);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   idp.close();
-  console.log(failures ? `\n${failures} FAILED` : "\nall offline checks passed");
-  process.exit(failures ? 1 : 0);
+  finish("all offline checks passed");
 }

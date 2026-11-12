@@ -1,14 +1,10 @@
 // Idea Check integration test: real Worker + local D1 + fake IdP, with the offline stand-ins (QA_STUB=1) for the model and the
 // literature services. `npm run integration -w apps/api` starts everything.
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
 import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
+import { APP, ok, countFailure, finish, startIdp, createClient, readEvents } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "idea-api-1", email: "ira@example.edu", email_verified: true, name: "Ira Das" });
 const A = createClient(APP);
 await A.follow(`${APP}/api/v1/auth/google/start`);
@@ -16,19 +12,7 @@ await A.follow(`${APP}/api/v1/auth/google/start`);
 const IDEA = "We want to detect fraudulent invoices in small cooperative banks using graph neural networks on transaction networks, tested on public benchmark data.";
 
 async function events(res) {
-  const out = [];
-  const dec = new TextDecoder();
-  let buf = "";
-  for await (const part of res.body) {
-    buf += dec.decode(part, { stream: true });
-    let i;
-    while ((i = buf.indexOf("\n\n")) >= 0) {
-      const block = buf.slice(0, i);
-      buf = buf.slice(i + 2);
-      const data = block.split("\n").find((l) => l.startsWith("data:"));
-      if (data) out.push(JSON.parse(data.slice(5)));
-    }
-  }
+  const { events: out } = await readEvents(res);
   checkStream("idea", out, "idea");
   return out;
 }
@@ -105,8 +89,7 @@ try {
   reportStreams(ok);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 }
 await idp.close?.(); // the next suite starts its own identity provider on the same port
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall idea integration checks passed");
-process.exit(failures ? 1 : 0);
+finish("all idea integration checks passed", (n) => `${n} check(s) FAILED`);

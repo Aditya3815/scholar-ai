@@ -8,74 +8,29 @@
 // batao", "thanks bhai", "ab diffusion models for MRI", a question back, and a model that times out.
 // SHOTS_DIR=<folder> SHOTS_TAG=before|after also writes pictures of part 2's replies (light and dark, 1280 and 390): run once with the switch off ("before") and once on ("after").
 //   node e2e/understand.mjs [baseUrl]    (default http://localhost:8788)
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, CHAT_STAND_IN, UNSTICK_ALL, at, axeCheck, countFailure, desk, finish, launch, ok, phone, setTheme, sleep, startIdp, watchPage } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
-const VARS = Object.fromEntries((process.env.INTEGRATION_VARS ?? "").split(",").filter(Boolean).map((p) => [p.slice(0, p.indexOf(":")), p.slice(p.indexOf(":") + 1)]));
-const ON = VARS.CHAT_UNDERSTAND === "on";
+const ON = at("CHAT_UNDERSTAND", "on");
 // in shadow the step runs beside the rules and needs the ledger to measure follow-ups, so the server asks for it there too (docs/design/understand-wiring.md)
-const SHADOW = VARS.CHAT_UNDERSTAND === "shadow";
+const SHADOW = at("CHAT_UNDERSTAND", "shadow");
 const SHOTS = process.env.SHOTS_DIR ?? "";
 const TAG = process.env.SHOTS_TAG ?? (ON ? "after" : "before");
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const idp = await startFakeIdp(Number(process.env.FAKE_IDP_PORT ?? 9911));
+const idp = await startIdp();
 idp.setUser({ sub: "understand-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
-const watch = (p) => {
-  p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(400|401|403|404|409|429|503)/.test(m.text())) errors.push("console: " + m.text()); });
-};
-const VP = { 1280: { viewport: { width: 1280, height: 800 } }, 390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } };
-const setTheme = (p, t) => p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), t);
-async function axe(label, p) {
-  const unstick = await p.addStyleTag({ content: ".hm-box { position: static !important; } .chat-list > li { content-visibility: visible !important; } * { transition: none !important; animation: none !important; }" });
-  await sleep(300);
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  await unstick.evaluate((el) => el.remove());
-  ok(res.length === 0, `axe [${label}]`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
+const watch = (p) => watchPage(p, errors, { allowed: /Failed to load resource.*(400|401|403|404|409|429|503)/ });
+const VP = { 1280: desk(1280, 800), 390: phone(390, 844) };
+const axe = (label, p) => axeCheck(p, label, { css: `${UNSTICK_ALL} * { transition: none !important; animation: none !important; }`, settle: () => sleep(300) });
 
-/** Every page: once armed (`window.__und = {}`), the next POST to /api/v1/chat is answered by a stream this script feeds; every body sent to /api/v1/chat is recorded in `window.__sent`. */
-const STANDIN = () => {
-  const real = window.fetch.bind(window);
-  window.__sent = [];
-  window.fetch = (input, init) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    const path = new URL(url, location.href).pathname;
-    if (path === "/api/v1/chat" && (init?.method ?? "GET") === "POST") {
-      try { window.__sent.push(JSON.parse(init.body)); } catch { /* not JSON */ }
-      if (window.__und && !window.__und.emit) {
-        const enc = new TextEncoder();
-        let ctrl;
-        const body = new ReadableStream({ start(c) { ctrl = c; } });
-        window.__und.emit = (e) => ctrl.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
-        window.__und.end = () => { try { ctrl.close(); } catch { /* closed */ } };
-        return Promise.resolve(new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } }));
-      }
-    }
-    return real(input, init);
-  };
-};
 
 let state;
 const signedIn = async (vp, theme = "light") => {
   const ctx = await browser.newContext({ ...VP[vp], ...(state ? { storageState: state } : {}), colorScheme: theme === "dark" ? "dark" : "light", reducedMotion: "reduce" });
-  await ctx.addInitScript(STANDIN);
+  await ctx.addInitScript(CHAT_STAND_IN, { key: "__und", sent: "all" });
   const page = await ctx.newPage();
   watch(page);
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -249,10 +204,9 @@ try {
   ok(errors.length === 0, `no page error${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""}`);
 } catch (e) {
   console.error(e);
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   await idp.close?.();
 }
-console.log(failures ? `\n${failures} FAIL` : "\nall ok");
-process.exit(failures ? 1 : 0);
+finish("all ok", (n) => `${n} FAIL`);

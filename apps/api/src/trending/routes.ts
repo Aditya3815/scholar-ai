@@ -3,6 +3,7 @@ import { isFresh, parseTrending, type TrendingPayload } from "@scholar/shared";
 import { emptyPayload } from "@scholar/shared/src/trending";
 import { TRENDING_KEYS } from "./store";
 import type { EnvPick, HonoEnv } from "../platform/env";
+import { killSwitch, lowerByKey } from "../platform/switches";
 
 /**
  * GET /api/v1/home/trending (docs/design/chatview-and-trending.md, T12): the one public file the Home page reads, the same for everyone. Not under /search or /chat, so it is outside their
@@ -24,13 +25,11 @@ import type { EnvPick, HonoEnv } from "../platform/env";
  */
 export type TrendingRouteEnv = EnvPick<"TRENDING", "CACHE">;
 
-const word = (v: unknown): string => (typeof v === "string" ? v.trim().toLowerCase() : "");
-/** "off": the job is stopped too (job.ts) and the route hides the list. "dark": the job runs and makes the list, and the route hides it (the step after the launch state, which wrangler.jsonc commits as "off"). */
-const hidden = (v: unknown): boolean => word(v) === "off" || word(v) === "dark";
-
 /** What the route answers, for a time, and whether the store could not be read (the answer is then not one to keep). Never throws. */
 export async function readTrending(env: TrendingRouteEnv, now: Date): Promise<{ payload: TrendingPayload; storeFailed: boolean }> {
-  if (hidden(env.TRENDING)) return { payload: emptyPayload(now, true), storeFailed: false };
+  // "off": the job is stopped too (job.ts) and the route hides the list. "dark": the job runs and makes the list, and the route hides it (the step after the launch state, which wrangler.jsonc
+  // commits as "off"). The variable is read trimmed and in any case (platform/switches.ts, its row of SWITCHES).
+  if (killSwitch(env, "TRENDING") !== "on") return { payload: emptyPayload(now, true), storeFailed: false };
   const kv = env.CACHE;
   if (!kv) return { payload: emptyPayload(now, false), storeFailed: false };
   let flag: string | null | undefined;
@@ -42,7 +41,7 @@ export async function readTrending(env: TrendingRouteEnv, now: Date): Promise<{ 
   } catch {
     return { payload: emptyPayload(now, false), storeFailed: true }; // the store is out of reach: nothing to show, and nothing said about why
   }
-  if (flag !== null && flag !== undefined) return { payload: emptyPayload(now, true), storeFailed: false };
+  if (lowerByKey("TRENDING", "on", flag) !== "on") return { payload: emptyPayload(now, true), storeFailed: false };
   if (text === null || text === undefined) return { payload: emptyPayload(now, false), storeFailed: false };
   let file: TrendingPayload | null = null;
   try {

@@ -1,14 +1,10 @@
 // Public cache integration test: the real Worker with its KV binding (a local KV that behaves like the real one), through the dev-only route /api/v1/dev/cache, plus the
 // hit and miss counts reaching the database and the admin page. `npm run integration -w apps/api` starts everything.
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
+import { APP, ok, countFailure, finish, startIdp, createClient, sqlResults } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
 const post = async (body) => (await fetch(`${APP}/api/v1/dev/cache`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json();
-const sql = async (...s) => (await (await fetch(`${APP}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: s }) })).json()).results;
+const sql = (...s) => sqlResults(s);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const run = Date.now().toString(36);
 const k = (name) => `dev:${run}-${name}`;
@@ -61,7 +57,7 @@ try {
   ok(rows === 1, "one row per source per day, however many lookups there were");
 
   console.log("the admin page");
-  const idp = await startFakeIdp(9911);
+  const idp = await startIdp();
   idp.setUser({ sub: "cache-admin", email: "cache@example.com", email_verified: true, name: "Cache Admin" });
   const A = createClient(APP);
   await A.follow(`${APP}/api/v1/auth/google/start`);
@@ -74,7 +70,6 @@ try {
   idp.close?.();
 } catch (e) {
   console.error(e);
-  failures++;
+  countFailure();
 }
-console.log(failures === 0 ? "\npublic cache: all passed" : `\npublic cache: ${failures} FAILED`);
-process.exit(failures === 0 ? 0 : 1);
+finish("public cache: all passed", (n) => `public cache: ${n} FAILED`);
