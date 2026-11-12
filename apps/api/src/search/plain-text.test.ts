@@ -6,8 +6,8 @@ import { searchEnvFrom, type SearchBindings } from "./env";
 import { runProvider } from "./index";
 import { mergeAndRank } from "./merge";
 import { crossref } from "./crossref";
-import { foldTitle } from "@scholar/shared";
-import { plainPaper, plainText, stripJats } from "./normalize";
+import { foldTitle, plainText } from "@scholar/shared";
+import { plainPaper, stripJats } from "./normalize";
 import type { Provider, ProviderPaper, SearchEnv } from "./types";
 
 /**

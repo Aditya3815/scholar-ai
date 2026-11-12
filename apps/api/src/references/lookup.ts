@@ -1,3 +1,4 @@
+import { plainText } from "@scholar/shared";
 import { crossrefFetch, type CrossrefInit } from "./crossref-gate";
 import { arxivYear, type Candidate } from "./match";
 import type { CacheStore } from "../cache/store";
@@ -49,8 +50,7 @@ type CRItem = {
 };
 
 /** Crossref titles carry markup ("<i>Anionic Mishran</i> Supplementation …", "&amp;"); a citation does not. */
-const plainTitle = (t: string): string =>
-  t.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+const plainTitle = (t: string): string => plainText(t, { tags: true });
 
 function fromCrossref(it: CRItem): Candidate | null {
   const title = it.title?.[0] ? plainTitle(it.title[0]) : "";

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import REAL from "./fixtures/PMC1182327.xml?raw"; // Ioannidis 2005, PLoS Medicine, CC BY, from Europe PMC
-import { MAX_JATS_CHARS, decodeEntities, isPermissiveLicense, normaliseLicense, parseJats } from "./jats";
+import { decodeEntities } from "@scholar/shared";
+import { MAX_JATS_CHARS, isPermissiveLicense, normaliseLicense, parseJats } from "./jats";
 
 const wrap = (body: string, front = "") => `<?xml version="1.0"?><article><front>${front}</front><body>${body}</body></article>`;
 
@@ -157,9 +158,17 @@ describe("licences", () => {
   });
 });
 
-describe("decodeEntities", () => {
+describe("decodeEntities (the one decoder of both apps, untangle F3, decision 18)", () => {
   it("handles the five XML entities, numbers, and leaves what it does not know", () => {
     expect(decodeEntities("&amp;&lt;&gt;&quot;&apos;&#65;&#x42;&bogus;")).toBe(`&<>"'AB&bogus;`);
-    expect(decodeEntities("&#1114112;&#xD800;&#0;")).toBe("");
+    expect(decodeEntities("&#1114112;&#xD800;&#0;", { dropInvalid: true })).toBe("");
+    // without the option (a record of a search), such a reference is left as it came
+    expect(decodeEntities("&#1114112;&#xD800;")).toBe("&#1114112;&#xD800;");
+  });
+
+  it("knows the names HTML gives Latin-1 and Greek letters, where JATS's own decoder knew 23 names", () => {
+    expect(decodeEntities("Caf&eacute; &alpha;-synuclein &ndash; &Uuml;ber")).toBe("Café α-synuclein – Über");
+    // decoded once: an escaped entity in XML is text
+    expect(decodeEntities("&amp;lt;")).toBe("&lt;");
   });
 });

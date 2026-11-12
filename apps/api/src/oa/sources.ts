@@ -1,4 +1,4 @@
-import { arxivIdFromDoi, cleanArxivId, cleanDoi, cleanPmcid, type OaRef, type OaReason, type OaSource } from "@scholar/shared";
+import { arxivIdFromDoi, cleanArxivId, cleanDoi, cleanPmcid, plainText, type OaRef, type OaReason, type OaSource } from "@scholar/shared";
 import { invertedIndexToText } from "../search/normalize";
 import { normaliseLicense } from "./jats";
 import { fetchPdf, safeFetch, type FetchOptions } from "./safe-fetch";
@@ -36,7 +36,7 @@ export type PmcRecord = { pmcid: string | null; isOpenAccess: boolean; license: 
 const EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest";
 
 /** Europe PMC's abstract text has a little HTML in it (<h4>Background</h4>, <i>): the words are kept. */
-const plain = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/\s+/g, " ").trim();
+const plain = (html: string) => plainText(html, { tags: true });
 
 /** What Europe PMC knows about a DOI: its PubMed Central number (null if it has none), whether it is open access, the licence. Null if it knows nothing (or could not be asked). */
 export async function lookupByDoi(doi: string, deps: SourceDeps): Promise<PmcRecord | null> {

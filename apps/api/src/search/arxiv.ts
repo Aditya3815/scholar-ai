@@ -1,4 +1,4 @@
-import { foldTitle } from "@scholar/shared";
+import { foldTitle, plainText } from "@scholar/shared";
 import { normalizeDoi } from "./normalize";
 import type { Provider, ProviderPaper } from "./types";
 
@@ -10,16 +10,8 @@ import type { Provider, ProviderPaper } from "./types";
 const API = "https://export.arxiv.org/api/query";
 const STOP = new Set(["the", "a", "an", "of", "for", "and", "or", "in", "on", "to", "with", "by", "from", "using", "based", "is", "are"]);
 
-const decode = (s: string) =>
-  s
-    .replace(/<!\[CDATA\[|\]\]>/g, "")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;|&#39;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/\s+/g, " ")
-    .trim();
+/** A field of the feed as plain text: the CDATA brackets out, then the one decoder of both apps (plainText: every entity it knows, white space collapsed). */
+const decode = (s: string) => plainText(s.replace(/<!\[CDATA\[|\]\]>/g, ""));
 
 const tag = (xml: string, name: string) => decode(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`).exec(xml)?.[1] ?? "");
 

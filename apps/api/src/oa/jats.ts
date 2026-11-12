@@ -1,3 +1,5 @@
+import { decodeEntities } from "@scholar/shared";
+
 /**
  * Reads the text of a paper from JATS XML, the format of PubMed Central and Europe PMC full text. No XML library: what we need is small (the title, the abstract, the licence,
  * and the sections of the body with their paragraphs, tables and figure captions), and a tolerant reader that never throws on a broken file is easier to trust than a strict
@@ -17,17 +19,6 @@ export const MAX_JATS_CHARS = 600_000;
 const MAX_TABLE_ROWS = 40;
 const MAX_ROW_CHARS = 400;
 const MAX_DEPTH = 200;
-
-const NAMED: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ensp: " ", emsp: " ", thinsp: " ", ndash: "–", mdash: "—", hellip: "…", lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”", times: "×", plusmn: "±", deg: "°", micro: "µ", alpha: "α", beta: "β" };
-export function decodeEntities(s: string): string {
-  return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]*);/gi, (m, e: string) => {
-    if (e[0] === "#") {
-      const code = e[1]!.toLowerCase() === "x" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
-      return Number.isFinite(code) && code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : "";
-    }
-    return NAMED[e.toLowerCase()] ?? m;
-  });
-}
 
 /** The licence as one of a few words: cc0, cc-by, cc-by-sa, cc-by-nc, cc-by-nc-sa, cc-by-nd, cc-by-nc-nd, or "other" for something we cannot place; null for nothing. */
 export function normaliseLicense(raw: string | null | undefined): string | null {
@@ -66,7 +57,7 @@ function parseTree(xml: string): El {
     const [, cdata, closing, rawName, attrs = "", selfClose, text] = m;
     const top = stack[stack.length - 1]!;
     if (cdata !== undefined) top.kids.push(cdata);
-    else if (text !== undefined) top.kids.push(decodeEntities(text));
+    else if (text !== undefined) top.kids.push(decodeEntities(text, { dropInvalid: true }));
     else if (rawName) {
       const name = rawName.toLowerCase();
       if (!closing) {

@@ -1,11 +1,10 @@
-import { titleKey, type Paper } from "@scholar/shared";
+import { plainText, titleKey, type Paper } from "@scholar/shared";
 import { getMany, type CacheStore } from "../cache/store";
 import { crossrefFetch, SEARCH_GATE_WAIT_MS } from "../references/crossref-gate";
 import { doiResolves } from "../references/lookup";
 import { tokenize } from "../references/match";
 import { cacheKey } from "./cache";
 import { crossrefHeaders } from "./crossref";
-import { plainText } from "./normalize";
 import type { Env } from "../platform/env";
 
 /**
