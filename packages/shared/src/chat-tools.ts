@@ -14,7 +14,6 @@ import type { RefVerdict } from "./references";
  * The server sends the events below only with the switch on. A page that does not know them keeps the reply as it was (`applyChatEvent`'s default).
  */
 export const CHAT_TOOL_KINDS = ["verify", "retractions", "ask_paper", "ask_doc"] as const;
-export type ChatToolKind = (typeof CHAT_TOOL_KINDS)[number];
 
 /** One reference of a list checked in the chat: the verdict the Check references page would give, or why there is none (never a verdict made up for it). */
 export type ChatRefItem = { n: number; input: string; verdict: RefVerdict | null; error?: string };

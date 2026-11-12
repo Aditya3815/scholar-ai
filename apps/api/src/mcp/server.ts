@@ -169,7 +169,7 @@ async function paperByDoi(env: McpEnv, doi: string): Promise<Paper | null> {
  * reading of the claim against the abstracts that can be used (a retracted paper never is). The day's allowance is the person's.
  */
 async function checkClaim(ctx: Ctx, claim: string, dois: string[], signal: AbortSignal): Promise<ClaimOutT> {
-  const [abstracts, retraction] = await Promise.all([Promise.all(dois.map((doi) => oaService.abstractFor(ctx.env, { doi, ...(arxivIdFromDoi(doi) ? { arxivId: arxivIdFromDoi(doi)! } : {}) }))), retractionService.check(ctx.env, dois)]);
+  const [abstracts, retraction] = await Promise.all([Promise.all(dois.map((doi) => { const arxivId = arxivIdFromDoi(doi); return oaService.abstractFor(ctx.env, { doi, ...(arxivId ? { arxivId } : {}) }); })), retractionService.check(ctx.env, dois)]);
   const statusOf = (doi: string) => retraction.checked.find((c) => c.doi.toLowerCase() === doi)?.status ?? "unknown";
   const papers: ClaimOutT["papers"] = dois.map((doi, i) => {
     const retracted = statusOf(doi) === "retracted" ? true : statusOf(doi) === "not_retracted" ? false : null;

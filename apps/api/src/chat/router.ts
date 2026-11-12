@@ -19,7 +19,6 @@ import {
   type Lang,
   type Route,
   type RouteContext,
-  type RouteMode,
 } from "@scholar/shared";
 import type { Complete } from "../docs/qa";
 import { AllProvidersFailedError } from "../llm";
@@ -428,4 +427,3 @@ export async function routeFollowUp(text: string, complete: Complete | null, ctx
   };
 }
 
-export type { RouteMode };

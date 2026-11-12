@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { ABSTRACTS_NOTICE, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MAX_OA_ABSTRACT_CHARS, MIN_SINCE_YEAR, type AskStreamEvent, type ChatRetraction, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
+import { ABSTRACTS_NOTICE, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MAX_OA_ABSTRACT_CHARS, MIN_SINCE_YEAR, type AskStreamEvent, type ChatRetraction, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, refTally, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
@@ -38,7 +38,7 @@ import type { Understanding } from "../understand/understanding";
 import { chatReplyCompleteFor, resolveLedgerPapers, stubChatReply, stubUnderstand, takeVisitorCall, understandCompleteFor } from "./understand-wire";
 import { searchEnvFrom } from "../search/env";
 import { deny } from "../problem";
-import { modeOfPlan, pickDoc, planTool, relayAsk, runVerify, tallyOf, type ToolDeps, type ToolPlan } from "./tools";
+import { modeOfPlan, pickDoc, planTool, relayAsk, runVerify, type ToolDeps, type ToolPlan } from "./tools";
 import { stubVerify } from "./tools-stub";
 import { toolAnswered as thinkToolAnswered, toolAsking as thinkToolAsking, toolChecked as thinkToolChecked, toolChecking as thinkToolChecking, toolRetractions as thinkToolRetractions, toolRetractionsDone as thinkToolRetractionsDone, understoodToolRun } from "./think";
 import { referenceService } from "../references/service";
@@ -499,7 +499,7 @@ chatRoutes.post("/", async (c) => {
         await think(thinkToolChecking(language, plan.refs.length, plan.skipped));
         const items = await runVerify(plan.refs, deps, send);
         if (s.gone) return;
-        await think(thinkToolChecked(language, tallyOf(items)));
+        await think(thinkToolChecked(language, refTally(items)));
       } else if (plan.kind === "retractions") {
         await send({ type: "tool", tool: "retractions", dois: plan.dois.length });
         await think(thinkToolRetractions(language, plan.dois.length));

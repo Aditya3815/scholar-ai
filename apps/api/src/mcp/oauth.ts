@@ -5,7 +5,7 @@ import { randomToken } from "../auth/oauth";
 import { configuredProviders, type AuthEnv } from "../auth/providers";
 import type { SessionUser } from "../auth/users";
 import { mcpAllowedFor, mcpMode, type McpFlagEnv } from "./flag";
-import { DEFAULT_SCOPES, GRANTABLE, SCOPES, baseUrlOf, grantedScopes, type McpProps, type Scope } from "./scopes";
+import { DEFAULT_SCOPES, SCOPES, baseUrlOf, grantedScopes, type McpProps } from "./scopes";
 import { closedBetaPage, consentPage, errorPage, signInPage } from "./pages";
 
 /**
@@ -20,7 +20,6 @@ import { closedBetaPage, consentPage, errorPage, signInPage } from "./pages";
  */
 
 export type McpOAuthEnv = AuthEnv & McpFlagEnv & { DB: D1Database; OAUTH_KV: KVNamespace };
-export { DEFAULT_SCOPES, GRANTABLE, SCOPES, baseUrlOf, grantedScopes, type McpProps, type Scope };
 
 /** The provider's options for one address of the Worker. `apiHandler` is the MCP server (src/mcp/server.ts), passed in so that this file does not import it. */
 export function oauthOptions(base: string, apiHandler: OAuthProviderOptions<McpOAuthEnv>["apiHandler"], defaultHandler: OAuthProviderOptions<McpOAuthEnv>["defaultHandler"]): OAuthProviderOptions<McpOAuthEnv> {

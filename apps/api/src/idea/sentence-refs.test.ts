@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FACET_KEYS, type IdeaCompareRequest, type IdeaInsightsRequest } from "@scholar/shared";
+import { FACET_KEYS, type IdeaCompareRequest } from "@scholar/shared";
 import { SYSTEM as COMPARE_SYSTEM, SCHEMA as COMPARE_SCHEMA, buildComparePrompt, verifyComparison } from "./compare";
 import { SYSTEM as INSIGHTS_SYSTEM, SCHEMA as INSIGHTS_SCHEMA, buildInsightsPrompt, verifyInsights } from "./insights";
 import { resolveCompareSentences, resolveInsightsSentences } from "./sentence-refs";
@@ -14,7 +14,7 @@ const papers = [
 ];
 const facets = { purpose: "screen glaucoma", mechanism: "smartphone fundus camera with a CNN", evaluation: "compare with specialist grading", domain: "rural clinics" };
 const compareReq: IdeaCompareRequest = { title: "T", summary: "Screening glaucoma in rural clinics.", facets, papers };
-const insightsReq: IdeaInsightsRequest = { ...compareReq, question: "What sensitivity was reported?" };
+const insightsReq: IdeaCompareRequest = { ...compareReq, question: "What sensitivity was reported?" };
 const abstractOf = (n: unknown) => (typeof n === "number" && Number.isInteger(n) ? ([A1, A2][n - 1] ?? null) : null);
 
 describe("the prompts number the sentences, and the schemas ask for numbers", () => {

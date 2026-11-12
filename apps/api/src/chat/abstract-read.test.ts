@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ABSTRACT_READ_CHARS, MAX_TIGHTEN_ABSTRACT, abstractRead, splitSentences } from "@scholar/shared";
+import { ABSTRACT_READ_CHARS, abstractRead, splitSentences } from "@scholar/shared";
 import { abstractOf, shownSentence } from "./evidence";
 
 const sentence = (i: number, len = 120) => `Sentence number ${i} says something about the study and its ${"very ".repeat(Math.max(0, Math.floor((len - 50) / 5)))}results.`;
@@ -103,7 +103,6 @@ describe("the writer, the judge and the strict check read the same text", () => 
   });
 
   it("the strict check accepts what the browser sends: an abstract cut by the same function fits the server's limit", () => {
-    expect(MAX_TIGHTEN_ABSTRACT).toBeGreaterThanOrEqual(ABSTRACT_READ_CHARS);
-    for (const n of [5, 30, 60, 200]) expect(abstractRead(longText(n)).length).toBeLessThanOrEqual(MAX_TIGHTEN_ABSTRACT);
+    for (const n of [5, 30, 60, 200]) expect(abstractRead(longText(n)).length).toBeLessThanOrEqual(ABSTRACT_READ_CHARS);
   });
 });

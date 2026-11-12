@@ -33,7 +33,6 @@ export type OaRow = {
   refresh_at: string | null;
 };
 
-export const fromSql = (s: string | null) => (s ? Date.parse(`${s.replace(" ", "T")}Z`) : NaN);
 
 /** The name under which a paper's files and its Workflow instances are kept: a short hash of the key (a key can be long and has characters an id cannot have). */
 export async function keyHash(key: string): Promise<string> {

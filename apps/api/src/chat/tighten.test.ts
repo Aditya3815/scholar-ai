@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_TIGHTEN_ABSTRACT, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT } from "@scholar/shared";
+import { ABSTRACT_READ_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT } from "@scholar/shared";
 import { readTighten } from "./tighten";
 
 const abstract = "First sentence of the paper is here. Second sentence says the model reached ninety percent. Third sentence is a limitation.";
@@ -31,7 +31,7 @@ describe("readTighten", () => {
     expect(readTighten({ ...good(), papers }).ok).toBe(true);
   });
   it("refuses a paper with no abstract or one that is too long, and does not need a title or a year", () => {
-    for (const abs of [undefined, null, "", "   ", 5, "x".repeat(MAX_TIGHTEN_ABSTRACT + 1)]) expect(readTighten({ ...good(), papers: [{ n: 1, title: "t", abstract: abs }] }).ok).toBe(false);
+    for (const abs of [undefined, null, "", "   ", 5, "x".repeat(ABSTRACT_READ_CHARS + 1)]) expect(readTighten({ ...good(), papers: [{ n: 1, title: "t", abstract: abs }] }).ok).toBe(false);
     const r = readTighten({ ...good(), papers: [{ n: 1, abstract }] });
     expect(r.ok && r.input.picked[0]!.paper).toMatchObject({ title: "", year: null });
   });

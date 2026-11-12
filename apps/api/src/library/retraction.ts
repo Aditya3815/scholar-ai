@@ -1,5 +1,5 @@
 import { LOOKUP_GATE_WAIT_MS } from "../references/crossref-gate";
-import { findRetracted } from "../search/retraction";
+import { findRetractionNotices } from "../search/retraction";
 
 /**
  * S3: papers that were saved in a library are looked at again for retractions. A paper is retracted after people have saved it; the search that found it only knew what was true that day.
@@ -56,7 +56,7 @@ const isRejection = (e: unknown) => {
 /** Which of `dois` are retracted. A batch the service rejects is split in halves until the one DOI at fault stands alone and is marked unknown; any other failure stops the run (tomorrow's run continues). */
 async function ask(dois: string[], env: Env): Promise<{ retracted: Set<string>; unknown: Set<string> }> {
   try {
-    return { retracted: new Set(await findRetracted(dois, env, AbortSignal.timeout(30_000), LOOKUP_GATE_WAIT_MS)), unknown: new Set() };
+    return { retracted: new Set((await findRetractionNotices(dois, env, AbortSignal.timeout(30_000), LOOKUP_GATE_WAIT_MS)).keys()), unknown: new Set() };
   } catch (e) {
     if (!isRejection(e)) throw e;
     if (dois.length === 1) return { retracted: new Set(), unknown: new Set(dois) };

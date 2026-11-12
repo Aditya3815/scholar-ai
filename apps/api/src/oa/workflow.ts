@@ -2,7 +2,7 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 import { NonRetryableError } from "cloudflare:workflows";
 import { workersAiEmbedder, hashEmbedder, type Embedder } from "../docs/embed";
 import { remoteGate, type ApiGate } from "../gate/api-gate";
-import { installGates, withGate } from "../gate";
+import { installGates } from "../gate";
 import { EMBED_BATCH, IngestError, recordFailure, stepEmbed, stepFetch, stepFinish, stepRead, type IngestDeps } from "./ingest";
 import { keepOld } from "./store";
 import { OA_REFRESH_DAYS } from "@scholar/shared";
@@ -43,7 +43,7 @@ export class OaIngest extends WorkflowEntrypoint<OaEnv, OaParams> {
   async run(event: WorkflowEvent<OaParams>, step: WorkflowStep): Promise<{ key: string; chunks: number }> {
     const env = this.env;
     installGates(env.API_GATE ? remoteGate(env.API_GATE) : null);
-    const deps: IngestDeps = { db: env.DB, files: env.FILES, embed: embedderFor(env), source: sourceDepsFor(env, withGate) };
+    const deps: IngestDeps = { db: env.DB, files: env.FILES, embed: embedderFor(env), source: sourceDepsFor(env) };
     const { key, refresh = false } = event.payload;
     // the local end-to-end run waits a second between tries instead of the real delays (a test cannot wait twenty seconds)
     const fast = env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";

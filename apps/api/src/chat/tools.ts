@@ -1,4 +1,4 @@
-import { MAX_QUESTION_CHARS, MAX_REFERENCES, MAX_REFERENCE_CHARS, cleanDoi, looksLikeReference, looksLikeReferenceList, oaKey, refFromPaper, refTally, splitReferences, type Answer, type AskStreamEvent, type ChatEvent, type ChatRefItem, type ChatRetraction, type Lang, type OaAskEvent, type OaRef, type Paper, type RefVerdict, type RouteMode } from "@scholar/shared";
+import { MAX_QUESTION_CHARS, MAX_REFERENCES, MAX_REFERENCE_CHARS, cleanDoi, looksLikeReference, looksLikeReferenceList, oaKey, refFromPaper, splitReferences, type Answer, type AskStreamEvent, type ChatEvent, type ChatRefItem, type ChatRetraction, type OaAskEvent, type OaRef, type Paper, type RefVerdict, type RouteMode } from "@scholar/shared";
 
 /**
  * Tools run IN the conversation (CHAT_TOOLS "on"; docs/design/chat-tools.md). The owner's rule (9 Nov 2026): "sasta tool khud, mehenga pooche".
@@ -181,5 +181,3 @@ export async function relayAsk(run: (send: (e: OaAskEvent) => Promise<void>) => 
   return end;
 }
 
-export const tallyOf = refTally;
-export type { Lang };

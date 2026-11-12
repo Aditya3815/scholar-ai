@@ -7,7 +7,6 @@ export function randomToken(bytes = 32): string {
   return b64url(crypto.getRandomValues(new Uint8Array(bytes)));
 }
 
-export { sha256Hex } from "../hash";
 
 /** PKCE S256 challenge: base64url(SHA-256(verifier)). */
 export async function pkceChallenge(verifier: string): Promise<string> {

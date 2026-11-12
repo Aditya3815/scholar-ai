@@ -3,8 +3,6 @@ import { MAX_REFERENCE_CHARS } from "@scholar/shared";
 import { sameOrigin } from "../auth/http";
 import { referenceService, type ReferenceEnv } from "./service";
 
-export { MAX_REFERENCE_CHARS };
-export { verifyCached } from "./service";
 
 export const referenceRoutes = new Hono<{ Bindings: ReferenceEnv }>();
 

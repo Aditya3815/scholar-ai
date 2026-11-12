@@ -9,7 +9,6 @@ export type HealthResponse = {
   version?: string;
 };
 
-export type Theme = "light" | "dark" | "read";
 
 /** Signed-in user as returned by GET /api/v1/auth/me (never contains tokens). */
 export type AuthUser = {
@@ -151,6 +150,7 @@ export * from "./chat-state";
 export * from "./chat-tools";
 export * from "./outcome-counts";
 export * from "./chat-copy";
+export * from "./copy-through";
 export * from "./chat-memory";
 // the turn ledger and the Thinking block (design PDF "Sodhsetu understanding, follow-ups and MCP", M2)
 export * from "./ledger";

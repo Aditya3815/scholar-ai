@@ -3,7 +3,7 @@ import { testD1 } from "./test-d1";
 import { readSearch } from "./search/service";
 import { readReference } from "./references/service";
 import { checkRetractions, isRetracted } from "./search/retraction-service";
-import { findRetracted, findRetractionNotices } from "./search/retraction";
+import { findRetractionNotices } from "./search/retraction";
 import { stubCrossrefFetch } from "./library/retraction-stub";
 
 /** The service layer (docs/design: "service layer"): what the web routes and the MCP tools both call. Behaviour of the routes themselves is held by their own tests and the goldens. */
@@ -35,11 +35,11 @@ describe("referenceService.read", () => {
   });
 });
 
-describe("findRetracted keeps its answer while the notices are now kept too", () => {
-  it("names the retracted DOIs and, separately, the notices that retracted them", async () => {
+describe("findRetractionNotices", () => {
+  it("names the retracted DOIs (its keys) and the notices that retracted them", async () => {
     const env = { CROSSREF_MAILTO: "t@example.org", fetch: stubCrossrefFetch };
     const signal = AbortSignal.timeout(2000);
-    expect(await findRetracted(["10.1234/retracted-a", "10.1234/clear-b"], env, signal)).toEqual(["10.1234/retracted-a"]);
+    expect([...(await findRetractionNotices(["10.1234/retracted-a", "10.1234/clear-b"], env, signal)).keys()]).toEqual(["10.1234/retracted-a"]);
     const notices = await findRetractionNotices(["10.1234/retracted-a", "10.1234/clear-b"], env, signal);
     expect([...notices.entries()]).toEqual([["10.1234/retracted-a", ["10.1234/retracted-a-notice"]]]);
   });

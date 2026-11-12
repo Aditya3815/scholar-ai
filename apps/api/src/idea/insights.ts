@@ -5,14 +5,14 @@ import {
   MAX_OPINION_ITEMS,
   type AnswerStatement,
   type IdeaInsights,
-  type IdeaInsightsRequest,
+  type IdeaCompareRequest,
   type OpenProblem,
   type OutcomeKind,
   type PaperReading,
 } from "@scholar/shared";
 import { findRun, numberSentences, words } from "@scholar/shared";
 import type { StreamComplete } from "../docs/qa";
-import { quoteIsInAbstract, sanitizeCompareRequest, type ComparePaper } from "./compare";
+import { quoteIsInAbstract, type ComparePaper } from "./compare";
 import { scrubText } from "./plan";
 import { resolveInsightsSentences } from "./sentence-refs";
 
@@ -60,12 +60,10 @@ export const SCHEMA = {
   required: ["open_problems", "papers", "answer", "opinion"],
 } as const;
 
-/** The request is the same as the comparison's: the plan, the question, and the papers with their abstracts. */
-export const sanitizeInsightsRequest = sanitizeCompareRequest;
 
 const stated = (v: string) => v !== "" && v.toLowerCase() !== "not stated";
 
-export function buildInsightsPrompt(req: IdeaInsightsRequest, withAbstract: ComparePaper[]): string {
+export function buildInsightsPrompt(req: IdeaCompareRequest, withAbstract: ComparePaper[]): string {
   const idea = FACET_KEYS.map((k) => `- ${k}: ${stated(req.facets[k]) ? req.facets[k] : "(not stated by the researcher)"}`).join("\n");
   return [
     `The researcher's idea${req.title ? `, "${req.title}"` : ""}:\n${req.summary}\n${idea}`,
@@ -123,7 +121,7 @@ export type Dropped = { kind: "open_problem" | "outcome" | "method_or_data" | "a
 /** The model pointed at a sentence (a number other than 0) that the abstract does not have: a claim with nothing behind it, counted like a quote that is not in the abstract. */
 const pointsAtNothing = (o: Record<string, unknown>, key: string, quote: string) => !quote && typeof o[key] === "number" && o[key] !== 0;
 
-export function verifyInsights(raw: unknown, req: IdeaInsightsRequest, model: string, onDropped?: (d: Dropped) => void): IdeaInsights {
+export function verifyInsights(raw: unknown, req: IdeaCompareRequest, model: string, onDropped?: (d: Dropped) => void): IdeaInsights {
   const withAbstract = req.papers.filter((p) => p.abstract.length >= 80);
   const paperOf = (n: unknown): ComparePaper | null => (typeof n === "number" && Number.isInteger(n) ? (withAbstract[n - 1] ?? null) : null);
   // the model names a sentence by its number; the sentence is then checked like any quote
@@ -224,7 +222,7 @@ export function verifyInsights(raw: unknown, req: IdeaInsightsRequest, model: st
 }
 
 export async function insightsIdea(input: {
-  req: IdeaInsightsRequest;
+  req: IdeaCompareRequest;
   stream: StreamComplete;
   hooks?: { onThinking?: () => void; onStage?: (s: "reading" | "analysing" | "checking") => void };
   /** Local tuning only: told about each claim that was dropped. */

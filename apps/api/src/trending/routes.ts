@@ -56,11 +56,6 @@ export async function readTrending(env: TrendingRouteEnv, now: Date): Promise<{ 
   return { payload: isFresh(file, now) ? file : emptyPayload(now, file.disabled), storeFailed: false };
 }
 
-/** What the route answers, for a time. Never throws. */
-export async function servedPayload(env: TrendingRouteEnv, now: Date): Promise<TrendingPayload> {
-  return (await readTrending(env, now)).payload;
-}
-
 export const trendingRoutes = new Hono<{ Bindings: TrendingRouteEnv }>();
 
 trendingRoutes.get("/trending", async (c) => {

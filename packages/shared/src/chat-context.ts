@@ -11,8 +11,6 @@ import type { Lang } from "./route";
 export const MAX_HISTORY_ENTRIES = 6;
 /** A question of the person's in the history. Longer than this is a pasted manuscript or a list, which never goes along as context (the browser leaves the whole turn out). */
 export const MAX_HISTORY_USER_CHARS = 300;
-/** The English words an earlier search used (the server makes them, and never makes more than the 300 characters a search takes). */
-export const MAX_HISTORY_QUERY_CHARS = 300;
 /** The last reply's text, with its marks, DOIs and links taken out. Only the last reply carries it. */
 export const MAX_HISTORY_ANSWER_CHARS = 500;
 /** The papers that reply cited, to say what "the second paper" is: their titles, cut. */
@@ -75,12 +73,6 @@ export type HistoryPaper = { n: number; title: string; year: number | null };
 export type HistoryEntry =
   | { role: "user"; text: string }
   | { role: "assistant"; searchQuery?: string; language?: Lang; papers?: HistoryPaper[]; text?: string; yearFrom?: number; yearTo?: number };
-
-/**
- * The optional field of `POST /api/v1/chat` that carries context. Only with `mode: "auto"`. Nothing of another chat is ever sent (the earlier-chats feature was removed on 6 Nov 2026: design PDF
- * "Sodhsetu understanding, follow-ups and MCP", M1); a body from an old open tab that still has `earlier` is answered as if it had not (the server never reads it).
- */
-export type ChatContextRequest = { history?: HistoryEntry[] };
 
 /**
  * What the server tells the browser about the context it read, on the `understood` event (an old open tab ignores a field it does not know; a new event type would crash its reducer). It is

@@ -1,4 +1,5 @@
-import { randomToken, sha256Hex } from "./oauth";
+import { sha256Hex } from "../hash";
+import { randomToken } from "./oauth";
 import type { ProviderId } from "./providers";
 import type { SessionUser } from "./users";
 

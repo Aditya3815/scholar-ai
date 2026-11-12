@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { restoreWords, subjectWords, tidyWords, withoutLeft, type MessageReading as Reading } from "@scholar/shared";
-import { cleanRequest, readRequest, type RouteLike } from "./frame";
+import { readRequest, type RouteLike } from "./frame";
 import { checkReading } from "./reading-check";
 import { HOSTILE_MESSAGES } from "./hostile-messages";
 
@@ -434,14 +434,6 @@ describe("the contract of the whole: deterministic, idempotent, never grows, one
     }
   });
 
-  it("cleanRequest is the topic of a Reading, or the message tidied; it is idempotent on every sample", () => {
-    for (const t of SAMPLES) {
-      const once = cleanRequest(t);
-      expect(cleanRequest(once), t).toBe(once);
-      expect(once.length).toBeLessThanOrEqual(t.replace(/\s+/g, " ").trim().length);
-    }
-  });
-
   it("every piece left out is an exact piece of the message, in order, and the topic is the message less those pieces", () => {
     for (const t of SAMPLES) {
       const r = read(t);
@@ -467,10 +459,8 @@ describe("the contract of the whole: deterministic, idempotent, never grows, one
   it("a hostile message never breaks it: control characters, 20,000 characters, entities, newlines", () => {
     for (const h of HOSTILE_MESSAGES) {
       expect(() => read(h)).not.toThrow();
-      expect(() => cleanRequest(h)).not.toThrow();
     }
     expect(read("x".repeat(20_000))).toBeNull();
-    expect(typeof cleanRequest("please ".repeat(5000))).toBe("string");
   });
 });
 

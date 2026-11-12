@@ -82,5 +82,3 @@ export function answerCopy(m: AssistantMsg): { text: string; what: "answer" | "p
 /** The text "Copy the answer" puts on the clipboard, or null when there is none (see `answerCopy`). */
 export const answerAsText = (m: AssistantMsg): string | null => answerCopy(m)?.text ?? null;
 
-/** Writing to the clipboard by one way after another (`copy-through.ts`: its own module, so that the first screen does not carry the rest of this one). */
-export { copyThrough } from "./copy-through";

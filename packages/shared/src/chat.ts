@@ -2,7 +2,6 @@ import type { Paper, SearchScope } from "./index";
 import type { ChatContextInfo } from "./chat-context";
 import type { ThinkLine } from "./think";
 import type { Lang, RouteHow, RouteMode as ChatMode } from "./route";
-import { ABSTRACT_READ_CHARS } from "./sentences";
 import type { Reading } from "./reading";
 import type { ChatToolEvent } from "./chat-tools";
 
@@ -181,6 +180,5 @@ export function slimForInterim(papers: readonly Paper[]): Paper[] {
  */
 export const MAX_TIGHTEN_TEXT = 2000;
 export const MAX_TIGHTEN_PAPERS = 12;
-export const MAX_TIGHTEN_ABSTRACT = ABSTRACT_READ_CHARS;
 export type TightenRequest = { text: string; papers: { n: number; title: string; year: number | null; abstract: string }[]; citations: { n: number; sentenceNo: number }[] };
 export type TightenResponse = { answer: ChatAnswer; changed: boolean };

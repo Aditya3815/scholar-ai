@@ -3,20 +3,16 @@ import { MAX_OA_ABSTRACT_CHARS, MAX_QUESTION_CHARS, oaKey, type OaAskEvent } fro
 import { currentUser, sameOrigin } from "../auth/http";
 import { embedderFor } from "../docs/routes";
 import { sseStream } from "../sse";
-import { installGates } from "../gate";
-import { remoteGate } from "../gate/api-gate";
 import { isPermissiveLicense } from "./jats";
 import { getPaper } from "./store";
 import { oaService, progressOf, readRef, type OaEnv } from "./service";
 import { deny } from "../problem";
 
-export { progressOf };
 
 type Env = { Bindings: OaEnv };
 export const oaRoutes = new Hono<Env>();
 
 oaRoutes.use("*", async (c, next) => {
-  installGates(c.env.API_GATE ? remoteGate(c.env.API_GATE) : null);
   await next();
   c.header("Cache-Control", "no-store");
 });

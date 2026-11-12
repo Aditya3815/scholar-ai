@@ -29,8 +29,6 @@ export type IdeaPlan = {
   keywordQueries: string[];
 };
 
-export type IdeaPlanRequest = { text: string; question?: string };
-
 /** The (possibly edited) plan the researcher approved. */
 export type IdeaSearchRequest = { semanticQuery: string; keywordQueries: string[] };
 
@@ -178,8 +176,6 @@ export type IdeaInsights = {
   droppedClaims: number;
   model: string;
 };
-
-export type IdeaInsightsRequest = IdeaCompareRequest;
 
 export type IdeaInsightsEvent =
   | { type: "stage"; stage: "reading" | "analysing" | "checking" }

@@ -225,7 +225,7 @@ export async function abstractFor(env: Pick<OaEnv, "ENABLE_DEV_ROUTES" | "QA_STU
   return { title, abstract, found };
 }
 
-async function answerFromAbstract(env: OaEnv, s: AskSession, a: { key: string; ref: OaRef; reason: OaReason; title?: string | null; clientAbstract: string; question: string; embed: AskArgs["embed"]; subject: string; abort: AbortController; notice?: "daily_cap" }): Promise<void> {
+async function answerFromAbstract(env: OaEnv, s: AskSession, a: { key: string; ref: OaRef; reason: OaReason; title?: string | null; clientAbstract: string; question: string; embed: AskArgs["embed"]; subject: string; abort: AbortController }): Promise<void> {
   const looked = await abstractFor(env, a.ref);
   const title = a.title ?? looked.title;
   const abstract = looked.abstract || a.clientAbstract;

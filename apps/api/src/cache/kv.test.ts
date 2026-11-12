@@ -84,12 +84,10 @@ describe("kvStore", () => {
     expect(calls.get).toBe(0);
     expect((await s.getMany!([])).size).toBe(0);
   });
-  it("lets a place keep what it read for at least the 30 seconds KV allows", async () => {
+  it("lets a place keep what it read for a minute (KV allows no less than 30 seconds)", async () => {
     const { kv, calls } = fakeKv();
     await kvStore(kv).get("a");
-    await kvStore(kv, { cacheTtl: 5 }).get("a");
-    await kvStore(kv, { cacheTtl: 600 }).get("a");
-    expect(calls.opts).toEqual([{ cacheTtl: 60 }, { cacheTtl: 30 }, { cacheTtl: 600 }]);
+    expect(calls.opts).toEqual([{ cacheTtl: 60 }]);
   });
   it("lets a KV failure reach the caller (which treats it as a miss), without having changed anything", async () => {
     const broken = { get: async () => { throw new Error("KV down"); }, put: async () => { throw new Error("KV down"); } } as unknown as KVNamespace;

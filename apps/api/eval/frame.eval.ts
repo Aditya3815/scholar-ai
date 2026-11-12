@@ -12,9 +12,16 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { withoutLeft, type NoteKind } from "@scholar/shared";
-import { cleanRequest, readRequest, type RouteLike } from "../src/understand/frame";
+import { readRequest, type ReadOptions, type RouteLike } from "../src/understand/frame";
 import { checkReading } from "../src/understand/reading-check";
 import { lowerBound, upperBound } from "./lib/metrics";
+
+const AS_SEARCH: RouteLike = { mode: "search", language: "en", how: "rules" };
+/** String in, string out: the words searched for a plain English one-line Auto message (the message itself, with its white space tidied, when it is left alone). The same as `readRequest(text, search)?.reading.topic`. */
+function cleanRequest(text: string, options: ReadOptions = {}): string {
+  const t = typeof text === "string" ? text.replace(/\s+/g, " ").trim() : "";
+  return readRequest(text, AS_SEARCH, options)?.reading.topic ?? t;
+}
 // @ts-expect-error plain .mjs: the labelled messages of the router eval
 import { CASES as ROUTER_CASES } from "../scripts/router-cases.mjs";
 

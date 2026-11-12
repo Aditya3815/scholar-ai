@@ -5,8 +5,6 @@ import { abstractRead, sentenceAt, type Paper } from "@scholar/shared";
  * are tidied. Kept apart so that the two files do not import each other.
  */
 
-/** The most the model reads of each abstract. */
-export const MAX_ABSTRACT_CHARS = 1500;
 /** The most sentences shown for one paper: the ones its claims rest on. */
 export const MAX_SENTENCES_PER_PAPER = 3;
 /** A cited sentence is shown whole up to this length, then cut at a word (still word for word). */

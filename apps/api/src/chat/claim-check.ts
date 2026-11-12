@@ -34,7 +34,7 @@ export type ClaimJudgement = {
 const asPaper = (p: ClaimPaper): Paper => ({ id: `t:${p.n}`, doi: null, pmid: null, title: p.title, authors: [], year: p.year, venue: null, abstract: p.abstract, citationCount: null, oaUrl: null, retracted: false, retractionSources: [], sources: [], score: 0 });
 
 /** The claim as the judge's one claim: its words, citing every paper. */
-export function claimOf(text: string, papers: readonly ClaimPaper[]): Claim {
+function claimOf(text: string, papers: readonly ClaimPaper[]): Claim {
   const plain = text.replace(/\s+/g, " ").trim();
   return { index: 0, text: plain, plain, marks: papers.map((p) => p.n) };
 }

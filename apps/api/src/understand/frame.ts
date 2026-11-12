@@ -538,10 +538,3 @@ export function readRequest(text: string, route: RouteLike, options: ReadOptions
     return null;
   }
 }
-
-const AS_SEARCH: RouteLike = { mode: "search", language: "en", how: "rules" };
-/** String in, string out: the words searched for a plain English one-line Auto message (the message itself, with its white space tidied, when it is left alone). The same as `readRequest(text, search)?.reading.topic`. */
-export function cleanRequest(text: string, options: ReadOptions = {}): string {
-  const t = typeof text === "string" ? text.replace(/\s+/g, " ").trim() : "";
-  return readRequest(text, AS_SEARCH, options)?.reading.topic ?? t;
-}

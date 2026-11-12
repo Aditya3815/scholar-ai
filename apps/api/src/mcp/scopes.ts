@@ -11,8 +11,6 @@ export const SCOPES = {
   "library:write": "Save papers to your Sodhsetu library",
 } as const;
 export type Scope = keyof typeof SCOPES;
-/** The scopes this release can grant. A request for another is shown as "not available yet" and left out of the grant. */
-export const GRANTABLE: readonly Scope[] = ["papers:read", "references:verify", "library:read", "library:write"];
 /**
  * What an app gets when it names no scope, and what the 401 challenge asks for first: Phase 1's two, as before the library tools. The library is granted only to an app that asks for it (by
  * name, or by the step-up challenge when it first calls get_library or save_paper), so a person sees "your library" on the consent page only when an app wants it.
@@ -33,7 +31,7 @@ export const baseUrlOf = (env: { PUBLIC_BASE_URL?: string }, request: Request): 
 
 /** The scopes to grant: what was asked for and can be granted; Phase 1's two (DEFAULT_SCOPES) when the app named none. */
 export function grantedScopes(requested: string[]): Scope[] {
-  const asked = requested.filter((s): s is Scope => (GRANTABLE as readonly string[]).includes(s));
+  const asked = requested.filter((s): s is Scope => Object.hasOwn(SCOPES, s));
   return requested.length === 0 ? [...DEFAULT_SCOPES] : asked;
 }
 
