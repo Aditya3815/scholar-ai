@@ -7,13 +7,13 @@
 // For each worker: time to the first event, to the papers, to the written answer, and the tokens the model used (read from the staging database, by account and time).
 //
 //   node scripts/staging-session.mjs make 2 <file>        (staging only; erase afterwards with: node scripts/staging-session.mjs cleanup)
-//   APP=https://scholar-staging.shodhsetu.workers.dev SESSIONS=<file> node scripts/scan-spike.mjs [--topic="..."]
+//   APP=https://scholar-staging.shodhsetu.workers.dev SESSIONS=<file> node scripts/archive/scan-spike.mjs [--topic="..."]
 //
 // What it cannot say: the planning and merging calls (small, estimated from the answers' size), a scan on a production-sized load, or how good a merged report would be.
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createClient } from "./test-client.mjs";
+import { createClient } from "../test-client.mjs";
 
 const APP = process.env.APP;
 if (!APP || !/staging/.test(APP) || !process.env.SESSIONS) throw new Error("set APP to the staging address and SESSIONS to a file made by staging-session.mjs: this runs against staging only");
@@ -37,8 +37,8 @@ const SET_B = [
 ];
 const SUBQUESTIONS = SET_A;
 
-const api = fileURLToPath(new URL("..", import.meta.url));
-const WRANGLER = fileURLToPath(new URL("../../../node_modules/wrangler/bin/wrangler.js", import.meta.url));
+const api = fileURLToPath(new URL("../..", import.meta.url));
+const WRANGLER = fileURLToPath(new URL("../../../../node_modules/wrangler/bin/wrangler.js", import.meta.url));
 const d1 = (sql) => {
   const r = spawnSync(process.execPath, [WRANGLER, "d1", "execute", "scholar-db-staging", "--remote", "--env", "staging", "--json", "--command", sql], { cwd: api, encoding: "utf8", maxBuffer: 20_000_000 });
   if (r.status !== 0) throw new Error("wrangler failed: " + (r.stderr || r.stdout).slice(-400));

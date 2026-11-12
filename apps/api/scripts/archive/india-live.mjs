@@ -1,5 +1,5 @@
 // What the "Indian sources" scope adds, on topics an Indian scholar searches (src/search/india.ts, docs/design/india-sources.md). Real services, no Worker, no cache:
-//   node scripts/india-live.mjs [--json=<file>]
+//   node scripts/archive/india-live.mjs [--json=<file>]
 // Needs OPENALEX_API_KEY in the environment (apps/api/.dev.vars). For each topic it runs the regular search and each Indian source, and counts per source: records,
 // with an abstract, with a DOI, on topic (a rough check: at least two thirds of the topic's words, by their first five letters, are in the title or abstract), and new
 // (not among the regular search's 20, by DOI or by title). The topics were written before the first run and were not changed after it.
@@ -36,7 +36,7 @@ const TOPICS = [
   "handloom weavers livelihood",
 ];
 
-const root = fileURLToPath(new URL("../../../", import.meta.url));
+const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const tmp = mkdtempSync(join(tmpdir(), "india-live-"));
 await build({ entryPoints: { search: join(root, "apps/api/src/search/index.ts"), india: join(root, "apps/api/src/search/india.ts"), store: join(root, "apps/api/src/cache/store.ts"), norm: join(root, "apps/api/src/search/normalize.ts") }, bundle: true, format: "esm", platform: "node", outdir: tmp, logLevel: "silent", splitting: true });
 const { runSearch, runProvider } = await import(pathToFileURL(join(tmp, "search.js")).href);

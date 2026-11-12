@@ -1,11 +1,11 @@
 // Builds the frozen eval datasets from OpenAlex + Crossref. Run ONCE (and when you deliberately want a new set):
-//   OPENALEX_API_KEY=... CROSSREF_MAILTO=you@example.org node eval/build-dataset.mjs
+//   OPENALEX_API_KEY=... CROSSREF_MAILTO=you@example.org node scripts/archive/build-dataset.mjs
 // The output (eval/data/*.json) is committed and reviewed by a human; CI never regenerates it.
 import { writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { cleanTitle } from "./lib/text.mjs";
+import { cleanTitle } from "../../eval/lib/text.mjs";
 
-const OUT = fileURLToPath(new URL("./data/", import.meta.url));
+const OUT = fileURLToPath(new URL("../../eval/data/", import.meta.url));
 mkdirSync(OUT, { recursive: true });
 const KEY = process.env.OPENALEX_API_KEY;
 const MAIL = process.env.CROSSREF_MAILTO ?? "eval@example.org";

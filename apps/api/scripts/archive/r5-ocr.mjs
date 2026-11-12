@@ -1,7 +1,7 @@
 // Cost research for scanned pages (docs/spikes/R5-cost.md): what does reading a page cost with other checking models and at lower resolution, and how far do the readings drift?
 // Uses the same prompt, the same limits and the same comparison (packages/shared/src/ocr.ts) as the app. Needs the throwaway forwarding Worker on port 8799 (see r5-replay.mjs).
 //
-//   node scripts/r5-ocr.mjs <folder with page JPEGs> --models=scout,mistral,gemma4 [--scales=1,0.8,0.65,0.5]
+//   node scripts/archive/r5-ocr.mjs <folder with page JPEGs> --models=scout,mistral,gemma4 [--scales=1,0.8,0.65,0.5]
 //
 // For every page and model: tokens, neurons, seconds, and the share of characters on which its reading differs from the reference reading (the first model at full size).
 // Page pictures are never committed: keep the folder outside the repository.
@@ -13,10 +13,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import sharp from "sharp";
 
-const API = fileURLToPath(new URL("..", import.meta.url));
+const API = fileURLToPath(new URL("../..", import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.slice(2).split("=")));
 const dir = process.argv[2];
-if (!dir || dir.startsWith("--")) throw new Error("usage: node scripts/r5-ocr.mjs <folder with page JPEGs> --models=scout,mistral,gemma4 [--scales=1,0.8,0.65,0.5]");
+if (!dir || dir.startsWith("--")) throw new Error("usage: node scripts/archive/r5-ocr.mjs <folder with page JPEGs> --models=scout,mistral,gemma4 [--scales=1,0.8,0.65,0.5]");
 const PLAY = process.env.PLAYGROUND ?? "http://localhost:8799";
 const MODELS = {
   scout: "@cf/meta/llama-4-scout-17b-16e-instruct",

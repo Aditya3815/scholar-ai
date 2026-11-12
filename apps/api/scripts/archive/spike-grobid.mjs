@@ -1,13 +1,13 @@
 // R1 spike: does GROBID turn scholarly PDFs into usable structure (title, authors, abstract, sections, references)?
 //   docker run -d --name grobid -p 8070:8070 --init --ulimit core=0 grobid/grobid:0.9.1-crf
-//   node scripts/spike-grobid.mjs <dir with *.pdf and optional same-name *.txt from pdftotext> [outDir]
+//   node scripts/archive/spike-grobid.mjs <dir with *.pdf and optional same-name *.txt from pdftotext> [outDir]
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, basename } from "node:path";
 
 const dir = process.argv[2];
 const out = process.argv[3] ?? join(dir, "grobid-out");
 const BASE = process.env.GROBID ?? "http://localhost:8070";
-if (!dir) throw new Error("usage: node scripts/spike-grobid.mjs <pdf dir> [outDir]");
+if (!dir) throw new Error("usage: node scripts/archive/spike-grobid.mjs <pdf dir> [outDir]");
 mkdirSync(out, { recursive: true });
 
 const strip = (s) => s.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/\s+/g, " ").trim();

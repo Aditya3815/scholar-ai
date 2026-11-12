@@ -1,9 +1,9 @@
 // Streaming answers with the REAL models: shows when each stage arrives and how the answer text is written.
 //   npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911
-//   node scripts/stream-live.mjs ["a question"]
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
-import { SAMPLE_PAPER, makePdf } from "./lib/make-pdf.mjs";
+//   node scripts/archive/stream-live.mjs ["a question"]
+import { startFakeIdp } from "../fake-idp.mjs";
+import { createClient } from "../test-client.mjs";
+import { SAMPLE_PAPER, makePdf } from "../lib/make-pdf.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 const questions = process.argv.slice(2).length ? process.argv.slice(2) : ["How were participants recruited?", "What are the limitations?"];

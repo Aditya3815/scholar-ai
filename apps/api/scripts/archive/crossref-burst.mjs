@@ -1,13 +1,13 @@
 // Many reference checks at once against a deployed Worker: how many come back as a verdict, how many as "could not check" (a 429 or a refusal reaching the person), and how long they take.
-//   node scripts/crossref-burst.mjs <base url> <papers|heldout|refs> [count=40] [parallel=12] [offset=0]
+//   node scripts/archive/crossref-burst.mjs <base url> <papers|heldout|refs> [count=40] [parallel=12] [offset=0]
 // The references are real records from the eval data (each needs fresh Crossref lookups: the cache has not seen them), so use a data set once per deployment you compare.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { formatRef } from "../eval/lib/text.mjs";
+import { formatRef } from "../../eval/lib/text.mjs";
 
 const [base, set = "papers", count = "40", par = "12", offset = "0"] = process.argv.slice(2);
-if (!base) throw new Error("usage: node scripts/crossref-burst.mjs <base url> <papers|heldout|refs> [count] [parallel]");
-const data = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(`../eval/data/${name}.json`, import.meta.url)), "utf8"));
+if (!base) throw new Error("usage: node scripts/archive/crossref-burst.mjs <base url> <papers|heldout|refs> [count] [parallel]");
+const data = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../eval/data/${name}.json`, import.meta.url)), "utf8"));
 // "refs": real references from the prior-art data, by title only (about 1,700 of them: a fresh set for every run)
 const all = set === "refs" ? data("prior_art").flatMap((p) => p.refs).filter((r) => r.title && r.title.length > 25) : data(set === "heldout" ? "heldout_papers" : "papers");
 const papers = all.slice(Number(offset), Number(offset) + Number(count));

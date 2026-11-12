@@ -35,7 +35,7 @@ throwaway local Worker and database and runs them (after `npm run build`): `npm 
 also run the Playwright suites (set `E2E_BROWSER=chrome` if you do not have Edge). CI runs the first on every push and the second weekly.
 Real credentials: `docs/auth-setup.md`.
 
-Uploaded papers and grounded Q&A: `docs/qa.md` (try it with the real models via `apps/api/scripts/docs-live.mjs`).
+Uploaded papers and grounded Q&A: `docs/qa.md` (try it with the real models via `apps/api/scripts/archive/docs-live.mjs`).
 
 How we work (decide, test first, cause before fix, prove before done): `docs/how-we-work.md`.
 

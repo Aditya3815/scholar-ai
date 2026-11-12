@@ -1,5 +1,5 @@
 // What DOAJ would add to the REGULAR search (docs/design/doaj-regular.md). Real services, no Worker, no cache:
-//   node scripts/doaj-live.mjs [--json=<file>]
+//   node scripts/archive/doaj-live.mjs [--json=<file>]
 // Needs the keys of apps/api/.dev.vars (OpenAlex, Semantic Scholar). For each of 34 topics it runs the four regular sources and DOAJ asked in three ways, and measures:
 //   - per DOAJ variant: records, with an abstract, with a DOI, on topic (a rough check: two thirds of the topic's words, by their first five letters, are in the title or abstract),
 //     new to the regular search's twenty (by DOI or by title), topics with nothing;
@@ -49,7 +49,7 @@ const TOPICS = [
   "cost effectiveness of telemedicine",
 ];
 
-const root = fileURLToPath(new URL("../../../", import.meta.url));
+const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const vars = {};
 try {
   for (const line of readFileSync(join(root, "apps/api/.dev.vars"), "utf8").split(/\r?\n/)) {

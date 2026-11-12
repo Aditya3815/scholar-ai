@@ -1,11 +1,11 @@
 // Real-service check of Idea Check (Workers AI plan + OpenAlex semantic/keyword + Semantic Scholar + DOI/retraction checks). Needs a Worker
 // started WITHOUT QA_STUB, with a Workers AI login and the real search keys from .dev.vars:
 //   npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911 --var ENABLE_DEV_ROUTES:1
-//   node scripts/idea-live.mjs ["an idea in your own words"]
+//   node scripts/archive/idea-live.mjs ["an idea in your own words"]
 // Prints the plan and the closest papers for a few ideas so their quality can be judged by eye. Each idea costs about 4k model tokens
 // and a few OpenAlex / Semantic Scholar calls.
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
+import { startFakeIdp } from "../fake-idp.mjs";
+import { createClient } from "../test-client.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 const IDEAS = process.argv[2] && !process.argv[2].startsWith("--")
@@ -18,7 +18,7 @@ const IDEAS = process.argv[2] && !process.argv[2].startsWith("--")
 
 const IDEA_QUESTIONS = {};
 // What each step used, read from the ledger (needs ENABLE_DEV_ROUTES=1 on the Worker), and a result file per run so models and settings can be compared:
-//   node scripts/idea-live.mjs --tag=gptoss120b      (docs/spikes/R5-cost.md)
+//   node scripts/archive/idea-live.mjs --tag=gptoss120b      (docs/spikes/R5-cost.md)
 const tag = process.argv.find((a) => a.startsWith("--tag="))?.slice(6);
 const sql = async (statement) => {
   try {
@@ -29,7 +29,7 @@ const sql = async (statement) => {
   }
 };
 const results = [];
-// --dump=<folder> saves what each check searched and read (plan, the papers' abstracts, the question) so scripts/r5-replay.mjs can replay the model steps
+// --dump=<folder> saves what each check searched and read (plan, the papers' abstracts, the question) so scripts/archive/r5-replay.mjs can replay the model steps
 // with other models or prompts without searching again. Abstracts are public text; keep the folder outside the repository.
 const dumpDir = process.argv.find((a) => a.startsWith("--dump="))?.slice(7);
 let dumpN = 0;
@@ -127,7 +127,7 @@ for (const idea of IDEAS) {
 }
 if (results.length) {
   const { mkdirSync, writeFileSync } = await import("node:fs");
-  const out = new URL("./r2/results/", import.meta.url);
+  const out = new URL("../r2/results/", import.meta.url);
   mkdirSync(out, { recursive: true });
   writeFileSync(new URL(`idea-live-${new Date().toISOString().slice(0, 10)}${tag ? `-${tag}` : ""}.json`, out), JSON.stringify({ tag: tag ?? null, results }, null, 1));
   const mean = (f) => Math.round(results.reduce((a, r) => a + f(r), 0) / results.length);

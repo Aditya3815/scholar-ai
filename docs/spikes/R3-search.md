@@ -6,7 +6,7 @@ Date: 2026-10-17 · Verdict: **GO** (gate: 0 fabricated citations, p95 < 3 s wit
 `GET /api/v1/search?q=&limit=` in `apps/api/src/search/`:
 OpenAlex + Crossref + PubMed in parallel (6 s timeout each, partial failure tolerated), DOI/PMID/title dedup,
 reciprocal-rank-fusion ranking, one batched Crossref/Retraction Watch call for retraction flags, D1 read-through cache (24 h).
-Harness: `apps/api/scripts/spike-r3.mjs` (50 queries across CS, medicine, social science, engineering, integrity topics, edge cases).
+Harness: `apps/api/scripts/archive/spike-r3.mjs` (50 queries across CS, medicine, social science, engineering, integrity topics, edge cases).
 
 ## Results (local worker + real APIs, 50 queries)
 

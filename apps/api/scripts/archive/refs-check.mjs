@@ -1,5 +1,5 @@
 // How many references does the browser-side extraction find in a real PDF, and how does that compare with what the PDF itself shows?
-//   node scripts/refs-check.mjs <folder or file.pdf> [--dump <folder>]
+//   node scripts/archive/refs-check.mjs <folder or file.pdf> [--dump <folder>]
 // Runs the same code the browser runs (pdf.js text items -> lines -> analyzePaper from packages/shared), in Node, so it can be iterated on without a Worker.
 // For each paper it prints the number of references found, the highest reference number printed in the list ("expected", for numbered styles) and entries that look wrong
 // (very long = probably two merged; very short = probably a piece). --dump writes the reference block text and the entries to a folder for reading.
@@ -9,11 +9,11 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const root = fileURLToPath(new URL("../../../", import.meta.url));
+const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const args = process.argv.slice(2);
 const dump = args.includes("--dump") ? args[args.indexOf("--dump") + 1] : null;
 const target = args.find((a) => !a.startsWith("--") && a !== dump);
-if (!target) throw new Error("usage: node scripts/refs-check.mjs <folder or file.pdf> [--dump <folder>]");
+if (!target) throw new Error("usage: node scripts/archive/refs-check.mjs <folder or file.pdf> [--dump <folder>]");
 
 // bundle the shared package (TypeScript) once, to a temporary module
 const tmp = mkdtempSync(join(tmpdir(), "refs-check-"));

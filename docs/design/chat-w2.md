@@ -26,7 +26,7 @@ The written answer (`apps/api/src/chat/answer.ts`):
 - The text goes to the **private** model lane only (Workers AI), with `label: "chat_search"` in the ledger, so cost shows per feature on `/admin`.
 - The papers' text is data: the system message says so, and what the model returns is only ever used through the checks above.
 
-## What the real model taught (measured, `scripts/chat-live.mjs`, Workers AI, real sources)
+## What the real model taught (measured, `scripts/archive/chat-live.mjs`, Workers AI, real sources)
 
 | Finding | What was done |
 | --- | --- |

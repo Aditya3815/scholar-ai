@@ -25,7 +25,7 @@ tokens about 68.
 | Unit of work | Tokens in / out | Cost | How measured |
 | --- | --- | --- | --- |
 | A question about a paper (gpt-oss-120b, top 6 passages) | 1,569 / 276 | **$0.00076** (about 69 neurons) | 35 gold questions on 5 papers, `scripts/qa-eval.mjs`; 100% correct, 100% unanswerable declined, 100% verified |
-| An Idea Check, whole (plan + comparison + second reading) | 6,800 / 6,300 | **$0.0071** (about 650 neurons) | 3 real ideas, `scripts/idea-live.mjs`. Plan 0.07 cents, comparison 0.29, second reading 0.34 |
+| An Idea Check, whole (plan + comparison + second reading) | 6,800 / 6,300 | **$0.0071** (about 650 neurons) | 3 real ideas, `scripts/archive/idea-live.mjs`. Plan 0.07 cents, comparison 0.29, second reading 0.34 |
 | A scanned page, read by two models | about 600 to 2,400 in (the picture counts as input), 200 to 1,000 out, for each of the two | **about $0.002** (about 180 neurons) | 6 real pages, see [../ocr.md](../ocr.md) |
 | Indexing a 30-page paper (embeddings, bge-m3, $0.012 per million tokens) | about 21,000 | **$0.0003** | calculated from the price |
 
@@ -136,8 +136,8 @@ the requests it cannot parse (the gateway already supports a chain), each agains
 - **Admin page**: cost by model and by feature for the last 7 days, the 14-day total, and the scanned pages' cost (neurons × $0.011 per 1,000).
 - Evidence by sentence number for Idea Check (3.2).
 - The weekly Q&A workflow had been failing since the privacy note was added (the harness never agreed to it; the upload got a 403): fixed in `scripts/qa-eval.mjs`.
-- Tools to repeat this: `scripts/qa-eval.mjs` and `scripts/idea-live.mjs` now print tokens and cost per answer or per step (`--tag=` names a result file), `scripts/r5-replay.mjs` replays the Idea Check steps with
-  other models or prompts and measures agreement with a model's own majority, `scripts/r5-ocr.mjs` compares page readers and sizes. Dev-only knobs (`LLM_QA_MODEL`, `LLM_REASONING`, `QA_TOP_K`) exist only with
+- Tools to repeat this: `scripts/qa-eval.mjs` and `scripts/archive/idea-live.mjs` now print tokens and cost per answer or per step (`--tag=` names a result file), `scripts/archive/r5-replay.mjs` replays the Idea Check steps with
+  other models or prompts and measures agreement with a model's own majority, `scripts/archive/r5-ocr.mjs` compares page readers and sizes. Dev-only knobs (`LLM_QA_MODEL`, `LLM_REASONING`, `QA_TOP_K`) exist only with
   `ENABLE_DEV_ROUTES=1`.
 
 ## 5. What I would do next (in this order)
@@ -153,7 +153,7 @@ the requests it cannot parse (the gateway already supports a chain), each agains
 
 ```
 node scripts/qa-eval.mjs <folder with the five R2 papers as .pdf and .txt> --tag=baseline        # the Worker needs ENABLE_DEV_ROUTES=1; for other settings add --var LLM_QA_MODEL:@cf/... or QA_TOP_K:4
-node scripts/idea-live.mjs --tag=baseline --dump=<folder outside the repository>                  # real search keys in apps/api/.dev.vars; dumps the plan and abstracts for replay
-node scripts/r5-replay.mjs <that folder> --step=compare --runs=3 --variants=idx:120b:low,idx:scout:low    # needs the forwarding Worker (generic: {model, body} -> env.AI.run)
-node scripts/r5-ocr.mjs <folder of page JPEGs> --models=scout,mistral
+node scripts/archive/idea-live.mjs --tag=baseline --dump=<folder outside the repository>                  # real search keys in apps/api/.dev.vars; dumps the plan and abstracts for replay
+node scripts/archive/r5-replay.mjs <that folder> --step=compare --runs=3 --variants=idx:120b:low,idx:scout:low    # needs the forwarding Worker (generic: {model, body} -> env.AI.run)
+node scripts/archive/r5-ocr.mjs <folder of page JPEGs> --models=scout,mistral
 ```

@@ -1,11 +1,11 @@
 // Real-service check of the prompt box's search (W2): the real search sources and the real model, through POST /api/v1/chat. Needs a Worker started WITHOUT QA_STUB,
 // with a Workers AI login and the real search keys from .dev.vars:
 //   npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911 --var ENABLE_DEV_ROUTES:1
-//   node scripts/chat-live.mjs ["a question in your own words"]
+//   node scripts/archive/chat-live.mjs ["a question in your own words"]
 // Prints, for each question, the papers, the answer, and the sentence behind each mark, so quality can be judged by eye and the groundedness measured:
 // how many answers were written, how many marks were backed by a real sentence, how long the first papers and the whole answer took.
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
+import { startFakeIdp } from "../fake-idp.mjs";
+import { createClient } from "../test-client.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 const QUESTIONS = process.argv[2] && !process.argv[2].startsWith("--")

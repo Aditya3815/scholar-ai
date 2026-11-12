@@ -2,11 +2,11 @@
 // with a DOI from OpenAlex, on the topics the R8 spike used (docs/spikes/R8-server-extraction.md), asks each one a plain question through POST /api/v1/papers/oa/ask, and counts
 // what the paper was read from (Europe PMC XML, arXiv, a free PDF) or why it fell back to its abstract.
 //
-//   APP=https://scholar-staging.shodhsetu.workers.dev SESSIONS=<file from scripts/staging-session.mjs> node scripts/oa-sample.mjs [--per=6] [--seed=27] [--dois=<doi>,<doi>]
+//   APP=https://scholar-staging.shodhsetu.workers.dev SESSIONS=<file from scripts/staging-session.mjs> node scripts/archive/oa-sample.mjs [--per=6] [--seed=27] [--dois=<doi>,<doi>]
 //
 // Needs one account per 20 new papers (the daily limit per person); `staging-session.mjs make 4 <file>` gives enough for 80. Run it on staging, not on production.
 import { readFileSync } from "node:fs";
-import { createClient } from "./test-client.mjs";
+import { createClient } from "../test-client.mjs";
 
 const APP = process.env.APP;
 if (!APP || !process.env.SESSIONS) throw new Error("set APP and SESSIONS (see the top of this file)");

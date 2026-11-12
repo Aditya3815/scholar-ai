@@ -1,13 +1,13 @@
 // Real-model check of upload -> index -> ask (Workers AI embeddings + gpt-oss-120b). Needs a Worker started WITHOUT QA_STUB and
 // with a Workers AI login (the AI binding is remote even in dev):
 //   npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911
-//   node scripts/docs-live.mjs [path/to/paper.pdf] [extracted.txt]
+//   node scripts/archive/docs-live.mjs [path/to/paper.pdf] [extracted.txt]
 // With no arguments it uses the built-in sample paper. With a real PDF and its text (pdftotext output, pages split by
 // "[[page N]]" as in scripts/r2/) it also prints timing so retrieval + answer quality can be judged by eye.
 import { readFileSync } from "node:fs";
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
-import { SAMPLE_PAPER, makePdf } from "./lib/make-pdf.mjs";
+import { startFakeIdp } from "../fake-idp.mjs";
+import { createClient } from "../test-client.mjs";
+import { SAMPLE_PAPER, makePdf } from "../lib/make-pdf.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 const [pdfPath, txtPath] = process.argv.slice(2);

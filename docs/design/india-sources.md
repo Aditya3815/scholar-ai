@@ -24,7 +24,7 @@ The regular search did not change when this was built (four sources). DOAJ was a
 
 ## Measured (28 Oct 2026)
 
-**What the sources add**, 24 topics an Indian scholar searches, written before the first run and not changed after it ([india-live.mjs](../../apps/api/scripts/india-live.mjs)). "On topic" is a rough word check (two thirds of the topic's words in the title or abstract), so it is generous to sources that already require every word; "new" = not among the regular search's 20.
+**What the sources add**, 24 topics an Indian scholar searches, written before the first run and not changed after it ([india-live.mjs](../../apps/api/scripts/archive/india-live.mjs)). "On topic" is a rough word check (two thirds of the topic's words in the title or abstract), so it is generous to sources that already require every word; "new" = not among the regular search's 20.
 
 | Source | Records | With abstract | With DOI | On topic (first 10) | New | Topics with nothing |
 | --- | --- | --- | --- | --- | --- | --- |

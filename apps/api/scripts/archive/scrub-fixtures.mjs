@@ -1,10 +1,10 @@
-// Re-applies the current trimming/scrubbing to an existing recording (no network): node eval/scrub-fixtures.mjs
+// Re-applies the current trimming/scrubbing to an existing recording (no network): node scripts/archive/scrub-fixtures.mjs
 import { readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
-import { trimBody } from "./lib/trim.mjs";
+import { trimBody } from "../../eval/lib/trim.mjs";
 
-const file = fileURLToPath(new URL("./fixtures.json.gz", import.meta.url));
+const file = fileURLToPath(new URL("../../eval/fixtures.json.gz", import.meta.url));
 const fx = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8"));
 const before = gunzipSync(readFileSync(file)).length;
 for (const [key, v] of Object.entries(fx)) v.b = trimBody(key.slice(key.indexOf(" ") + 1), v.b);

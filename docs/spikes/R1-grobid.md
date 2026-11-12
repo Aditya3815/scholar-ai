@@ -13,7 +13,7 @@ request while the models warm up). The deep-learning `-full` image (14 GB) is no
   Verifier does that itself, deterministically).
 - Papers: the same five PDFs used for the LLM spike ([R2](R2-llm.md)): a 15-page ML paper, an arXiv maths paper, an
   agricultural-economics paper (Indian authors), a physics-education paper and a statistics paper. Reproduce with
-  `apps/api/scripts/spike-grobid.mjs`.
+  `apps/api/scripts/archive/spike-grobid.mjs`.
 - Gate set before running: at least 4/5 papers "sensible" (title, abstract, sections and references all present and plausible)
   and under 90 s each.
 
@@ -64,5 +64,5 @@ request while the models warm up). The deep-learning `-full` image (14 GB) is no
 ```sh
 docker run -d --name grobid -p 8070:8070 --init --ulimit core=0 grobid/grobid:0.9.1-crf
 curl http://localhost:8070/api/isalive          # wait for "true" (about 30 s)
-node apps/api/scripts/spike-grobid.mjs <folder with PDFs> [output folder]
+node apps/api/scripts/archive/spike-grobid.mjs <folder with PDFs> [output folder]
 ```

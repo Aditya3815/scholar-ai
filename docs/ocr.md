@@ -110,4 +110,4 @@ The first model's text on the Hindi page was mostly right (a few wrong words: "à
   deleting a paper and erasing an account. The two models are replaced by an offline stand-in (`src/ocr/stub.ts`, only with `QA_STUB=1` and `ENABLE_DEV_ROUTES=1`).
 - Browser (`apps/web/e2e/scan.mjs`, 61 checks): upload, the steps, a blank page found by the browser, the banner, questions, references, pause and continue, the daily limit and the
   next day, phone width, light and dark, axe on every state.
-- Live, with the real models: `apps/api/scripts/scan-live.mjs <folder of page JPEGs>` (costs neurons; needs `--var ENABLE_DEV_ROUTES:1` as well, see the script header).
+- Live, with the real models: `apps/api/scripts/archive/scan-live.mjs <folder of page JPEGs>` (costs neurons; needs `--var ENABLE_DEV_ROUTES:1` as well, see the script header).

@@ -1,21 +1,21 @@
 // Literature scan on the DEPLOYED STAGING Worker with the real model and the real search sources (docs/design/litscan.md, "Measured"). Staging only: it refuses any other address.
 //   node scripts/staging-session.mjs make 2 <file>        (erase afterwards with: node scripts/staging-session.mjs cleanup)
-//   APP=https://scholar-staging.shodhsetu.workers.dev SESSIONS=<file> node scripts/litscan-live.mjs [--only=english|hinglish|cancel]
+//   APP=https://scholar-staging.shodhsetu.workers.dev SESSIONS=<file> node scripts/archive/litscan-live.mjs [--only=english|hinglish|cancel]
 // For each scenario it plans, starts and follows a scan to its end, and prints what a person would see (the plan, the time to each part, every section), the tokens the model used
 // by what the call was for (read from the staging database), and checks the stream against the event rule. Nothing here is a pass/fail test of quality: it is for a person to read.
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createClient } from "./test-client.mjs";
-import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
-import { assembleReport } from "../../../packages/shared/src/litscan.ts";
+import { createClient } from "../test-client.mjs";
+import { checkStream, reportStreams } from "../lib/stream-rule.mjs";
+import { assembleReport } from "../../../../packages/shared/src/litscan.ts";
 
 const APP = process.env.APP;
 if (!APP || !/staging/.test(APP) || !process.env.SESSIONS) throw new Error("set APP to the staging address and SESSIONS to a file made by staging-session.mjs: this runs against staging only");
 const SESSIONS = JSON.parse(readFileSync(process.env.SESSIONS, "utf8"));
 const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7);
-const api = fileURLToPath(new URL("..", import.meta.url));
-const WRANGLER = fileURLToPath(new URL("../../../node_modules/wrangler/bin/wrangler.js", import.meta.url));
+const api = fileURLToPath(new URL("../..", import.meta.url));
+const WRANGLER = fileURLToPath(new URL("../../../../node_modules/wrangler/bin/wrangler.js", import.meta.url));
 const d1 = (sql) => {
   const r = spawnSync(process.execPath, [WRANGLER, "d1", "execute", "scholar-db-staging", "--remote", "--env", "staging", "--json", "--command", sql], { cwd: api, encoding: "utf8", maxBuffer: 20_000_000 });
   if (r.status !== 0) throw new Error("wrangler failed: " + (r.stderr || r.stdout).slice(-400));

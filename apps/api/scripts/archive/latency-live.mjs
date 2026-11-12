@@ -1,12 +1,12 @@
 // P7: how long until the first words of an answer, measured on the DEPLOYED STAGING Worker with the real model (docs/design/p7-latency.md). Staging only.
 //   node scripts/staging-session.mjs make 3 <file>      (erase afterwards: node scripts/staging-session.mjs cleanup)
-//   APP=https://scholar-staging.shodhsetu.workers.dev SESSIONS=<file> node scripts/latency-live.mjs <folder with PDFs> [--chat] [--docs]
+//   APP=https://scholar-staging.shodhsetu.workers.dev SESSIONS=<file> node scripts/archive/latency-live.mjs <folder with PDFs> [--chat] [--docs]
 // A question about a paper of your own (POST /documents/:id/ask?stream=1) and a question in the prompt box (POST /chat) are asked several times each; for every answer the time of each
 // event is kept: the first event, the passages (`sources`), the first word of the answer (`delta` / `token`), the checked answer. Prints the median and the slowest.
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { getDocumentProxy, extractText } from "unpdf";
-import { createClient } from "./test-client.mjs";
+import { createClient } from "../test-client.mjs";
 
 const APP = process.env.APP;
 if (!APP || !/staging/.test(APP) || !process.env.SESSIONS) throw new Error("set APP to the staging address and SESSIONS to a file made by staging-session.mjs: this runs against staging only");

@@ -1,5 +1,5 @@
 // Builds the HELD-OUT eval set: papers and references the verifier was never tuned on. Run once; the output is frozen.
-//   OPENALEX_API_KEY=... CROSSREF_MAILTO=you@example.org node eval/build-heldout.mjs
+//   OPENALEX_API_KEY=... CROSSREF_MAILTO=you@example.org node scripts/archive/build-heldout.mjs
 //
 // Why it differs from papers.json: that set is the 4 most-cited papers of 25 hand-picked topics, which flatters the tool
 // (famous papers are everywhere and have clean metadata). Here papers are a seeded RANDOM sample, half with an Indian
@@ -7,9 +7,9 @@
 // Nothing in the matcher may be changed to fix a miss in this set; misses are reported as the honest accuracy.
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { cleanTitle, formatRef } from "./lib/text.mjs";
+import { cleanTitle, formatRef } from "../../eval/lib/text.mjs";
 
-const D = fileURLToPath(new URL("./data/", import.meta.url));
+const D = fileURLToPath(new URL("../../eval/data/", import.meta.url));
 const KEY = process.env.OPENALEX_API_KEY;
 const MAIL = process.env.CROSSREF_MAILTO ?? "eval@example.org";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

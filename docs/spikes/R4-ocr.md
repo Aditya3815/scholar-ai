@@ -88,7 +88,7 @@ python score.py                      # tables above
 
 Six real scans were added (kept out of the repository): an old English book page (margin note, footnotes), a two-column English bibliography, a Hindi page (a 515 px wide
 screenshot), a Sanskrit and English page pair (a JBIG2-compressed, image-only PDF), a Russian transcript (creased, stamped) and a text PDF as a control. Each was read by both
-models through the finished route (`apps/api/scripts/scan-live.mjs`). Details and the build are in [../ocr.md](../ocr.md). What the real pages changed:
+models through the finished route (`apps/api/scripts/archive/scan-live.mjs`). Details and the build are in [../ocr.md](../ocr.md). What the real pages changed:
 
 1. **The 5% limit was wrong for real Hindi and Sanskrit.** Clean English pages differ by 0.3 to 2%, but the Hindi page differs by 9.9% and the Sanskrit and English pages by 9 to 12.5%,
    although the first model's text on them is mostly right. The checking model (Mistral) is much weaker in Devanagari and invents words, so the disagreement measures its errors as well.

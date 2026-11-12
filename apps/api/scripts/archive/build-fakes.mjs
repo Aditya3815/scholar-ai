@@ -1,10 +1,10 @@
 // Builds eval/data/fake_refs.json (30 fabricated references) and validates eval/data/topical.json. Run once; output is frozen.
-//   CROSSREF_MAILTO=you@example.org node eval/build-fakes.mjs
+//   CROSSREF_MAILTO=you@example.org node scripts/archive/build-fakes.mjs
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { formatRef } from "./lib/text.mjs";
+import { formatRef } from "../../eval/lib/text.mjs";
 
-const D = fileURLToPath(new URL("./data/", import.meta.url));
+const D = fileURLToPath(new URL("../../eval/data/", import.meta.url));
 const papers = JSON.parse(readFileSync(D + "papers.json", "utf8"));
 const MAIL = process.env.CROSSREF_MAILTO ?? "eval@example.org";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

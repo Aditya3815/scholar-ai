@@ -5,7 +5,7 @@
 // title the one keyword search. The paper itself is hidden from the results. Ground truth is the list of references that paper cites
 // (resolved to DOIs by OpenAlex). Measured: how many of those references are among the closest 30 papers Idea Check returns.
 // NOT measured here: the AI step that writes the plan (a person's idea is not as clean as an abstract) and the meaning re-rank, which needs
-// the embedding model; both are checked by hand and in the live run (scripts/idea-live.mjs). So this is the retrieval's floor, not the whole product.
+// the embedding model; both are checked by hand and in the live run (scripts/archive/idea-live.mjs). So this is the retrieval's floor, not the whole product.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

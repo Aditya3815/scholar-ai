@@ -1,11 +1,11 @@
 // Builds eval/data/prior_art.json: recent papers whose own reference lists are the ground truth for "prior work an idea check should find".
-//   node eval/build-prior-art.mjs            (needs network; an OpenAlex key from .dev.vars or OPENALEX_API_KEY makes it faster)
+//   node scripts/archive/build-prior-art.mjs            (needs network; an OpenAlex key from .dev.vars or OPENALEX_API_KEY makes it faster)
 // Each paper: its abstract (stands in for a well-written idea) and the references it cites that OpenAlex can resolve to a DOI and a title.
 // Half have an author at an Indian institution. Papers published 2023 to 2025, English, at least 12 resolvable references.
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const HERE = fileURLToPath(new URL(".", import.meta.url));
+const HERE = fileURLToPath(new URL("../../eval/", import.meta.url));
 let key = process.env.OPENALEX_API_KEY;
 try {
   key ??= /^OPENALEX_API_KEY=(.+)$/m.exec(readFileSync(HERE + "../.dev.vars", "utf8"))?.[1]?.trim();

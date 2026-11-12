@@ -1,20 +1,20 @@
 // Reads real scanned pages with the REAL models through the real route (POST /documents/:id/ocr): the two Workers AI vision models, the gate, the
 // stored passages, a question. Costs neurons (about 200 per page). Needs a Worker started WITHOUT QA_STUB and with a Workers AI login:
 //   npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911 --var ENABLE_DEV_ROUTES:1 --var SENTRY_DSN:
-//   node scripts/scan-live.mjs <folder with page JPEGs (<= 1240 x 1754)> [--dump <folder>] [--ask "question" ...]
+//   node scripts/archive/scan-live.mjs <folder with page JPEGs (<= 1240 x 1754)> [--dump <folder>] [--ask "question" ...]
 // Page pictures are never committed: keep them in a folder outside the repository (or a git-ignored one).
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
-import { makeScanPdf } from "./lib/make-scan-pdf.mjs";
+import { startFakeIdp } from "../fake-idp.mjs";
+import { createClient } from "../test-client.mjs";
+import { makeScanPdf } from "../lib/make-scan-pdf.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 const args = process.argv.slice(2);
 const folder = args[0] && !args[0].startsWith("--") ? args[0] : null;
 const dump = args.includes("--dump") ? args[args.indexOf("--dump") + 1] : null;
 const questions = args.includes("--ask") ? args.slice(args.indexOf("--ask") + 1).filter((a) => !a.startsWith("--")) : [];
-if (!folder) throw new Error("usage: node scripts/scan-live.mjs <folder with page JPEGs> [--dump <folder>] [--ask \"question\" ...]");
+if (!folder) throw new Error("usage: node scripts/archive/scan-live.mjs <folder with page JPEGs> [--dump <folder>] [--ask \"question\" ...]");
 const files = readdirSync(folder).filter((f) => /\.jpe?g$/i.test(f)).sort();
 if (files.length === 0) throw new Error("no .jpg files in " + folder);
 if (dump) mkdirSync(dump, { recursive: true });

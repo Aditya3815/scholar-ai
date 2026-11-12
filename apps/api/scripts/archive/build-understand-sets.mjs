@@ -2,14 +2,14 @@
 // the lists below, with labeller_1 filled (the engineer who wrote them) and labeller_2 empty for the second person. After the second person has labelled, the JSON files are the source of truth:
 // this script refuses to overwrite a file in which any labeller_2 is filled, so their work cannot be lost by a re-run.
 //
-//   node apps/api/eval/build-understand-sets.mjs [--check]     (--check: build in memory and compare, write nothing)
+//   node apps/api/scripts/archive/build-understand-sets.mjs [--check]     (--check: build in memory and compare, write nothing)
 //
 // Label fields: intent (one of the seven), also (other intents a careful reader would accept, used sparingly), search (whether a search runs), language (of the reply), year_from / year_to,
 // indian_sources (only when the message says it), tool (offer_tool), papers (ask_results: the paper numbers meant), guard (what the deterministic guards settle: greeting, identifier, reference_list).
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const OUT = fileURLToPath(new URL("../../../docs/eval/understand/", import.meta.url));
+const OUT = fileURLToPath(new URL("../../../../docs/eval/understand/", import.meta.url));
 const check = process.argv.includes("--check");
 
 /* ------------------------------------------------------------------ single messages */

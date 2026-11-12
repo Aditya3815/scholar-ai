@@ -1,5 +1,5 @@
 // Spike R3: 50 queries, cold run + warm run (cache), DOI validity sample, retraction sanity check.
-// Usage: node scripts/spike-r3.mjs [baseUrl]   (default http://localhost:8787)
+// Usage: node scripts/archive/spike-r3.mjs [baseUrl]   (default http://localhost:8787)
 // Local D1 cache persist hota hai: pehle `rm -r .wrangler/state` ya naye queries se cold run lo.
 
 const BASE = process.argv[2] ?? "http://localhost:8787";

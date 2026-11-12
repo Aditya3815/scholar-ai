@@ -1,7 +1,7 @@
 // What does the Reference Verifier say about the references of real PDFs? The browser's own extraction (pdf.js text -> lines -> analyzePaper) and then the real verifier, against the live
 // services (Crossref, OpenAlex, doi.org), one line per reference that is not verified. This is the check the eval cannot be: its references are clean records written in five formats; these are
 // what a PDF really gives (broken words, wrapped DOIs, Springer-style "Authors: Title", shortened titles, years that differ by an issue).
-//   node scripts/refs-live.mjs <folder or file.pdf> [--limit=60] [--out=results.json] [--cache=<folder>] [--all]
+//   node scripts/archive/refs-live.mjs <folder or file.pdf> [--limit=60] [--out=results.json] [--cache=<folder>] [--all]
 // --limit   references checked per paper (the first N; default 60)
 // --out     every result as JSON (paper, number, text, status, reason, matched record, checks), for comparing two runs
 // --cache   keeps every GET answer by URL in this folder, so a second run asks the services only what it asks newly, and two runs (before and after a change) see the same world
@@ -14,11 +14,11 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const root = fileURLToPath(new URL("../../../", import.meta.url));
+const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const args = process.argv.slice(2);
 const flag = (name, fallback) => (args.find((a) => a.startsWith(`--${name}=`)) ?? `--${name}=${fallback}`).split("=").slice(1).join("=");
 const target = args.find((a) => !a.startsWith("--"));
-if (!target) throw new Error("usage: node scripts/refs-live.mjs <folder or file.pdf> [--limit=60] [--out=results.json] [--cache=<folder>] [--all]");
+if (!target) throw new Error("usage: node scripts/archive/refs-live.mjs <folder or file.pdf> [--limit=60] [--out=results.json] [--cache=<folder>] [--all]");
 const limit = Number(flag("limit", "60")) || 0;
 const out = flag("out", "");
 const cacheDir = flag("cache", "");

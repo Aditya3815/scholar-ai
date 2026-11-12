@@ -2,9 +2,9 @@
 // the quote check. No search is repeated and nothing touches the app: it calls a throwaway Worker that only forwards a request to the Workers AI binding.
 //
 //   cd <a folder outside the repository> && npx wrangler dev --remote --port 8799        (index.js: forward {model, body} to env.AI.run, see the header of this script's README in the spike)
-//   node scripts/r5-replay.mjs <fixtures folder> --step=compare|insights --variants=base:120b:low,base:20b:low,idx:120b:low [--runs=1]
+//   node scripts/archive/r5-replay.mjs <fixtures folder> --step=compare|insights --variants=base:120b:low,base:20b:low,idx:120b:low [--runs=1]
 //
-// Fixtures are written by `node scripts/idea-live.mjs --dump=<folder>` (plan, question and the abstracts of the closest papers: public text).
+// Fixtures are written by `node scripts/archive/idea-live.mjs --dump=<folder>` (plan, question and the abstracts of the closest papers: public text).
 // A variant is `<prompt>:<model>:<effort>`; prompt `base` = what the app sends today, `idx` = the model names the number of the abstract's sentence instead of copying it.
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -13,10 +13,10 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 
-const API = fileURLToPath(new URL("..", import.meta.url));
+const API = fileURLToPath(new URL("../..", import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).filter((a) => a.startsWith("--")).map((a) => a.slice(2).split("=")));
 const dir = process.argv[2];
-if (!dir || dir.startsWith("--")) throw new Error("usage: node scripts/r5-replay.mjs <fixtures folder> --step=compare|insights --variants=base:120b:low,...");
+if (!dir || dir.startsWith("--")) throw new Error("usage: node scripts/archive/r5-replay.mjs <fixtures folder> --step=compare|insights --variants=base:120b:low,...");
 const step = args.step ?? "compare";
 const variants = (args.variants ?? "base:120b:low").split(",");
 const runs = Number(args.runs ?? 1);

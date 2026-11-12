@@ -48,7 +48,7 @@ What it taught, in the order it happened: the first run answered 7 of 10 because
 
 ## Measured on the deployed Worker (27 Oct 2026, staging, real publishers)
 
-Hand-picked papers (the eval above) say little about what happens to a paper a person finds by chance. So three random samples of open-access articles with a DOI were taken from OpenAlex (seeds 27, 28, 29; the seven topics of spike R8; **112 articles**), each asked one plain question through `POST /papers/oa/ask` on the **deployed staging Worker** (the same code as production, Cloudflare's network and addresses), each by a throwaway staging account (`scripts/staging-session.mjs`, staging database only, erased after). The script is `scripts/oa-sample.mjs`.
+Hand-picked papers (the eval above) say little about what happens to a paper a person finds by chance. So three random samples of open-access articles with a DOI were taken from OpenAlex (seeds 27, 28, 29; the seven topics of spike R8; **112 articles**), each asked one plain question through `POST /papers/oa/ask` on the **deployed staging Worker** (the same code as production, Cloudflare's network and addresses), each by a throwaway staging account (`scripts/staging-session.mjs`, staging database only, erased after). The script is `scripts/archive/oa-sample.mjs`.
 
 | Result | Papers | Share |
 | --- | --- | --- |

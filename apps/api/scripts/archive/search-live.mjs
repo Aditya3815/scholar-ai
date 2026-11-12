@@ -1,4 +1,4 @@
-// Runs the real search code against the real services (no Worker, no cache): node scripts/search-live.mjs "SwinYolo" "glaucoma screening"
+// Runs the real search code against the real services (no Worker, no cache): node scripts/archive/search-live.mjs "SwinYolo" "glaucoma screening"
 // Needs OPENALEX_API_KEY and S2_API_KEY in the environment (apps/api/.dev.vars). Shows what each source returned and what was searched as well.
 import { build } from "esbuild";
 import { mkdtempSync } from "node:fs";
@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const root = fileURLToPath(new URL("../../../", import.meta.url));
+const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const tmp = mkdtempSync(join(tmpdir(), "live-search-"));
 await build({ entryPoints: { search: join(root, "apps/api/src/search/index.ts"), store: join(root, "apps/api/src/cache/store.ts") }, bundle: true, format: "esm", platform: "node", outdir: tmp, logLevel: "silent", splitting: true, external: [] });
 const { runSearch } = await import(pathToFileURL(join(tmp, "search.js")).href);

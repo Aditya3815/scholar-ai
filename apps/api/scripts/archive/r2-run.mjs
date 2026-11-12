@@ -1,7 +1,7 @@
 // Spike R2: grounded paper Q&A quality across LLMs. Deterministic scoring (no LLM judge).
 //
-//   node scripts/r2/run.mjs --papers <dir with attention.txt milk.txt ...> --models wai:@cf/openai/gpt-oss-120b,gemini:gemini-3.5-flash-lite
-//   node scripts/r2/run.mjs --papers <dir> --retrieval-only          (BM25 vs bge-m3 vs hybrid recall, no LLM calls)
+//   node scripts/archive/r2-run.mjs --papers <dir with attention.txt milk.txt ...> --models wai:@cf/openai/gpt-oss-120b,gemini:gemini-3.5-flash-lite
+//   node scripts/archive/r2-run.mjs --papers <dir> --retrieval-only          (BM25 vs bge-m3 vs hybrid recall, no LLM calls)
 //
 // Env: CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID (Workers AI REST), GEMINI_API_KEY.
 // Every model call and embedding is cached on disk (scripts/r2/.cache) so reruns do not spend free quota.
@@ -12,8 +12,10 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const CACHE = path.join(HERE, ".cache");
-const RESULTS = path.join(HERE, "results");
+/** The data of the R2 spike stays in scripts/r2 (qa-eval reads questions.json and pdf2txt.py there). */
+const R2 = path.join(HERE, "../r2");
+const CACHE = path.join(R2, ".cache");
+const RESULTS = path.join(R2, "results");
 mkdirSync(CACHE, { recursive: true });
 mkdirSync(RESULTS, { recursive: true });
 
@@ -33,7 +35,7 @@ const ACCT = process.env.CLOUDFLARE_ACCOUNT_ID;
 const CF = process.env.CLOUDFLARE_API_TOKEN;
 const GEM = process.env.GEMINI_API_KEY;
 
-const data = JSON.parse(readFileSync(path.join(HERE, "questions.json"), "utf8"));
+const data = JSON.parse(readFileSync(path.join(R2, "questions.json"), "utf8"));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ---------- text utils ---------- */

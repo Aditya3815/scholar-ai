@@ -67,11 +67,11 @@ POST /api/v1/litscan/:id/cancel, DELETE /api/v1/litscan/:id, GET /api/v1/litscan
 - **Unit** (`src/litscan/*.test.ts`, 68): the report assembly (one source list, renumbered marks, gaps, nothing added), the view fold (repeat-safe, never back), the event rule for the new stream, the Markdown file, the plan (scrubbing, limits, the approved plan cleaned again), the relevance check, the search words, the worker (every outcome, papers that are not about the question, sources that did not answer, the language, a failure that is retried, titles cleaned), the store on a real SQLite (once-only events, nothing after the end, cancel against finish, five writes at once, stale, ownership, the clean-up, the daily counter).
 - **Endpoint** (`scripts/litscan-e2e.mjs`, 68 checks, real Worker with local Workflows and the offline stand-ins): access, validation, the plan, a five-sub-question scan with every kind of gap (the stream, the snapshot, a reconnect, after the end), the counters, ownership, one at a time, cancel (nothing added afterwards), the daily limit, the allowance, a lost workflow, delete, export, erasing the account.
 - **Browser** (`e2e/litscan.mjs`, 52 checks, axe in light and dark, phone width): sign-in gate, the rail, the privacy note, editing the plan, the running scan (progress, stages, stop), the report (marks, evidence, gaps, one source list), reload, a second tab, the file, delete.
-- **Live** (`scripts/litscan-live.mjs`, deployed staging, real model and search): see "Measured".
+- **Live** (`scripts/archive/litscan-live.mjs`, deployed staging, real model and search): see "Measured".
 
 ## Measured (deployed staging, real model and real search, 27 Oct 2026)
 
-Scripts: [litscan-live.mjs](../../apps/api/scripts/litscan-live.mjs) (staging only, throwaway accounts, erased after). Two topics at once, an English one (air pollution and childhood asthma, 5 sub-questions) and a Hinglish one (mobile phones and children's eyes, 5 to 6), then a cancel and a reconnect.
+Scripts: [litscan-live.mjs](../../apps/api/scripts/archive/litscan-live.mjs) (staging only, throwaway accounts, erased after). Two topics at once, an English one (air pollution and childhood asthma, 5 sub-questions) and a Hinglish one (mobile phones and children's eyes, 5 to 6), then a cancel and a reconnect.
 
 | | First run | After the three fixes below |
 | --- | --- | --- |
