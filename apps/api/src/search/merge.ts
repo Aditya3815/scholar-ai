@@ -1,12 +1,7 @@
-import type { Paper } from "@scholar/shared";
-import { normalizeTitle } from "./normalize";
+import { titleKey, type Paper } from "@scholar/shared";
 import type { ProviderPaper } from "./types";
 
 const RRF_K = 60;
-
-function titleKey(p: ProviderPaper): string {
-  return `${normalizeTitle(p.title)}|${p.year ?? ""}`;
-}
 
 /**
  * DOI (phir PMID, phir title+year) se dedup, aur reciprocal rank fusion se ranking.
@@ -21,7 +16,7 @@ export function mergeAndRank(lists: Record<string, ProviderPaper[]>, limit: numb
   for (const [source, list] of Object.entries(lists)) {
     list.forEach((p, i) => {
       const rr = 1 / (RRF_K + i + 1);
-      const tk = titleKey(p);
+      const tk = titleKey(p.title, p.year);
       let existing =
         (p.doi && byDoi.get(p.doi)) || (p.pmid && byPmid.get(p.pmid)) || byTitle.get(tk) || undefined;
 

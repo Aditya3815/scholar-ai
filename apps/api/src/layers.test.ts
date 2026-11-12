@@ -146,7 +146,6 @@ const ALLOW: string[] = [
   "api/idea/search.ts -> api/search/core.ts",
   "api/idea/search.ts -> api/search/index.ts",
   "api/idea/search.ts -> api/search/merge.ts",
-  "api/idea/search.ts -> api/search/normalize.ts",
   "api/idea/search.ts -> api/search/openalex.ts",
   "api/idea/search.ts -> api/search/pubmed.ts",
   "api/idea/search.ts -> api/search/s2.ts",

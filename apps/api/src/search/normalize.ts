@@ -15,15 +15,6 @@ export function normalizeDoi(raw: string | null | undefined): string | null {
     .replace(/\/(pdf|epdf|pdfdirect|full|fulltext|full-text|abstract|summary|html|xml|meta)$/, "");
 }
 
-export function normalizeTitle(title: string): string {
-  return title
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
 /*
  * The entities plainText decodes: a fixed set, not HTML's 2,000 names. The XML five, the spaces, typographic punctuation, the whole of Latin-1 (U+00A0 to U+00FF, in code point order, as HTML 4 names
  * them), the letters of Latin Extended-A that HTML 4 names, Greek and the few signs that science titles use: 207 names, 205 of the 252 that HTML 4 gives. The 47 it leaves are the other arrows, mathematical and

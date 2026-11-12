@@ -1,4 +1,39 @@
-/** Word-level text helpers shared by the server (verifying quotes) and the browser (highlighting them in the PDF). */
+/**
+ * The text toolkit of both apps (docs/design/untangle.md, 1.2 and F3): one way to fold, clean, cut and check text, so the browser and the server do it the same way. Imports nothing.
+ * Word-level helpers are shared by the server (verifying quotes) and the browser (highlighting them in the PDF).
+ */
+
+/* ---------------------------------------------------------------- titles as keys */
+
+/** Latin letters and digits of a title, lower case, diacritics folded, every other run one space: the fold the merge key had before F3. */
+const foldLatin = (title: string): string =>
+  title
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/**
+ * A title as a key: "Résumé of Deep-Learning (2nd ed.)" -> "resume of deep learning 2nd ed". A title with a Latin letter or a digit folds to exactly the key it always had (so a stored id
+ * `t:<key>|<year>` does not change); a title with none (Devanagari, any other script) keeps the letters, marks and digits of its own script, lower case, every other run one space, where it
+ * used to fold to "" and every such paper of a year shared one key (bug B5). `latinOnly`: the old fold alone, for the words of a query sent to a source (arXiv, DOAJ) that is asked in English.
+ */
+export function foldTitle(title: string, opts: { latinOnly?: boolean } = {}): string {
+  const latin = foldLatin(title);
+  if (latin || opts.latinOnly) return latin;
+  return title
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu, " ")
+    .trim();
+}
+
+/** The key of a paper that has neither a DOI nor a PMID, as the search merges and names it (its id is `t:` and this key): its folded title and its year. */
+export const titleKey = (title: string, year: number | null | undefined): string => `${foldTitle(title)}|${year ?? ""}`;
+
+/* ---------------------------------------------------------------- words */
 
 /** Lower-case words and numbers; diacritics folded so "Résumé" and "resume" compare equal. Punctuation is dropped. */
 export const words = (s: string): string[] => s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").match(/[\p{L}\p{N}]+/gu) ?? [];

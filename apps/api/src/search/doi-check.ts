@@ -1,11 +1,11 @@
-import type { Paper } from "@scholar/shared";
+import { titleKey, type Paper } from "@scholar/shared";
 import { getMany, type CacheStore } from "../cache/store";
 import { crossrefFetch, SEARCH_GATE_WAIT_MS } from "../references/crossref-gate";
 import { doiResolves } from "../references/lookup";
 import { tokenize } from "../references/match";
 import { cacheKey } from "./cache";
 import { crossrefHeaders } from "./crossref";
-import { normalizeTitle, plainText } from "./normalize";
+import { plainText } from "./normalize";
 import type { Env } from "../platform/env";
 
 /**
@@ -117,7 +117,7 @@ export function applyDoiChecks(results: Paper[], checks: Record<string, DoiCheck
       dropped++;
       p.doiStatus = reason;
       p.doi = null;
-      p.id = `t:${normalizeTitle(p.title)}|${p.year ?? ""}`; // the old id embedded the bad DOI
+      p.id = `t:${titleKey(p.title, p.year)}`; // the old id embedded the bad DOI
       p.retractionSources = p.retractionSources.filter((s) => s !== "crossref-retraction-watch");
       if (p.retractionSources.length === 0) p.retracted = false;
     } else {

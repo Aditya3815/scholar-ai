@@ -1,5 +1,6 @@
+import { foldTitle } from "@scholar/shared";
 import { withGate } from "../gate";
-import { invertedIndexToText, normalizeDoi, normalizeTitle, sanitizeQuery, stripJats } from "./normalize";
+import { invertedIndexToText, normalizeDoi, sanitizeQuery, stripJats } from "./normalize";
 import type { Provider, ProviderPaper } from "./types";
 
 /**
@@ -36,7 +37,7 @@ export function webUrl(raw: unknown): string | null {
  * the syntax gets through (only letters, digits and spaces are kept, so a quote, a colon or a bracket cannot change the query). "India" is left out: the scope says it.
  */
 export function doajQuery(q: string, opts: { keepPlaces?: boolean } = {}): string {
-  const words = [...new Set(normalizeTitle(q).split(" ").filter((w) => w.length > 2 && !STOP.has(w) && (opts.keepPlaces || !PLACES.has(w))))].slice(0, 8);
+  const words = [...new Set(foldTitle(q, { latinOnly: true }).split(" ").filter((w) => w.length > 2 && !STOP.has(w) && (opts.keepPlaces || !PLACES.has(w))))].slice(0, 8);
   return words.join(" AND ");
 }
 

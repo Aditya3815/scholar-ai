@@ -6,7 +6,8 @@ import { searchEnvFrom, type SearchBindings } from "./env";
 import { runProvider } from "./index";
 import { mergeAndRank } from "./merge";
 import { crossref } from "./crossref";
-import { normalizeTitle, plainPaper, plainText, stripJats } from "./normalize";
+import { foldTitle } from "@scholar/shared";
+import { plainPaper, plainText, stripJats } from "./normalize";
 import type { Provider, ProviderPaper, SearchEnv } from "./types";
 
 /**
@@ -200,8 +201,8 @@ describe("plainText: what shows nothing, and what is not text", () => {
 
   it("a soft hyphen is not part of the word: a title written with one merges with the same title written without", () => {
     expect(plainText("Pre&shy;diction of risk")).toBe("Prediction of risk");
-    expect(normalizeTitle(plainText("Pre&shy;diction of risk"))).toBe(normalizeTitle("Prediction of risk"));
-    expect(normalizeTitle(plainText("Pre" + cp(0xad) + "diction of risk"))).toBe("prediction of risk");
+    expect(foldTitle(plainText("Pre&shy;diction of risk"))).toBe(foldTitle("Prediction of risk"));
+    expect(foldTitle(plainText("Pre" + cp(0xad) + "diction of risk"))).toBe("prediction of risk");
   });
 
   it("makes a noncharacter, written or as a reference, a space; and a lone surrogate too, while a pair stays", () => {
@@ -242,9 +243,9 @@ describe("plainText: marks, and the one thing NFC cannot be trusted with", () =>
     expect(plainText(zalgo)).toBe(zalgo.normalize("NFC"));
   });
 
-  it("a title that is all marks costs no more than a normal one once cleaned, in plainText and in normalizeTitle (NFKD, the same quadratic)", () => {
+  it("a title that is all marks costs no more than a normal one once cleaned, in plainText and in foldTitle (NFKD, the same quadratic)", () => {
     const t0 = performance.now();
-    normalizeTitle(plainText("a" + M.repeat(100_000) + D.repeat(100_000)));
+    foldTitle(plainText("a" + M.repeat(100_000) + D.repeat(100_000)));
     expect(performance.now() - t0).toBeLessThan(500);
   });
 });
@@ -681,6 +682,6 @@ describe("through the real Crossref adapter, to the RIS file", () => {
     const store = memoryStore();
     const off = mergeAndRank({ crossref: (await runProvider(crossref, "tom", envOf(store, { SEARCH_PLAINTEXT: "off" }))).value }, 20);
     const on = mergeAndRank({ crossref: (await runProvider(crossref, "tom", envOf(store))).value }, 20);
-    expect([off.length, on.length]).toEqual([2, 1]); // normalizeTitle made "amp" a word of the first title
+    expect([off.length, on.length]).toEqual([2, 1]); // foldTitle made "amp" a word of the first title
   });
 });

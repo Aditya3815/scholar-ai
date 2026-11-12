@@ -1,4 +1,4 @@
-import { normalizeTitle } from "./normalize";
+import { titleKey } from "@scholar/shared";
 import type { ProviderPaper } from "./types";
 
 /**
@@ -42,7 +42,7 @@ export function queryVariants(q: string): string[] {
   return [spaced].slice(0, MAX_VARIANTS);
 }
 
-const keyOf = (p: ProviderPaper) => p.doi ?? (p.pmid ? `pmid:${p.pmid}` : `t:${normalizeTitle(p.title)}|${p.year ?? ""}`);
+const keyOf = (p: ProviderPaper) => p.doi ?? (p.pmid ? `pmid:${p.pmid}` : `t:${titleKey(p.title, p.year)}`);
 
 /**
  * The answers of one provider to the original search and to its variants as one list: rank by rank, the original first, each paper once. So a paper that both
