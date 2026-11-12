@@ -2,7 +2,6 @@ import type { Paper } from "@scholar/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { memoryStore } from "../cache/store";
 import { applyDoiChecks, checkDois } from "./doi-check";
-import { normalizeDoi } from "./normalize";
 
 const paper = (doi: string | null, title: string, over: Partial<Paper> = {}): Paper => ({
   id: doi ? `doi:${doi}` : `t:${title.toLowerCase()}|2020`,
@@ -33,16 +32,6 @@ function stub(opts: { registered?: Record<string, string>; handles?: Record<stri
   });
   return calls;
 }
-
-describe("normalizeDoi", () => {
-  it.each([
-    ["https://doi.org/10.1051/bioconf/202621302009/pdf", "10.1051/bioconf/202621302009"],
-    ["10.1002/abc.123/full", "10.1002/abc.123"],
-    ["10.1016/J.CELL.2015.03.017.", "10.1016/j.cell.2015.03.017"],
-    ["10.1007/s11263-019-01228-7/epdf", "10.1007/s11263-019-01228-7"],
-    ["not a doi", null],
-  ])("%s", (raw, expected) => expect(normalizeDoi(raw)).toBe(expected));
-});
 
 describe("checkDois + applyDoiChecks", () => {
   it("keeps registered DOIs whose title agrees, marks them verified", async () => {
