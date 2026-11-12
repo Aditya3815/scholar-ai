@@ -13,7 +13,7 @@
     "integration": "node scripts/integration.mjs",
     "eval:live": "node eval/run.mjs live",
     "secrets:push": "node scripts/push-secrets.mjs",
-    "cf-typegen": "wrangler types",
+    "cf-typegen": "wrangler types --env-file=typegen.env --include-runtime=false --strict-vars=false",
     "db:migrate:local": "wrangler d1 migrations apply scholar-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply scholar-db --remote",
     "db:migrate:staging": "wrangler d1 migrations apply scholar-db-staging --remote --env staging",
