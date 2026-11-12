@@ -219,7 +219,9 @@ try {
   ok(stepsOf(a1) === "search,read,write,check" && a1.events.at(-1).answered === true, "...and it goes the whole way, with no Understanding step and with an answer");
   const REFS = "[1] LeCun, Y., Bengio, Y., & Hinton, G. (2015). Deep learning. Nature, 521, 436-444.\n[2] Vaswani, A., Shazeer, N., Parmar, N., et al. (2017). Attention is all you need. NeurIPS.\n[3] Krizhevsky, A., Sutskever, I., & Hinton, G. E. (2012). ImageNet classification with deep convolutional neural networks. NIPS.";
   const a2 = await auto(A, REFS);
-  ok(understood(a2).mode === "verify" && understood(a2).how === "rules" && understood(a2).confidence === 1 && a2.events.at(-1).reason === "routed" && a2.events.at(-1).answered === false, "a pasted list of references is Check references, and the stream ends: the tool opens on its own page");
+  // with CHAT_TOOLS on the list is checked in the reply (scripts/chat-tools-e2e.mjs holds what that shows); off, the stream ends and the tool opens on its own page
+  const toolsOn = /(^|,)CHAT_TOOLS:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "");
+  ok(understood(a2).mode === "verify" && understood(a2).how === "rules" && understood(a2).confidence === 1 && a2.events.at(-1).reason === (toolsOn ? "tool" : "routed") && a2.events.at(-1).answered === false, toolsOn ? "a pasted list of references is Check references, checked in the reply (CHAT_TOOLS on)" : "a pasted list of references is Check references, and the stream ends: the tool opens on its own page");
   ok(!types(a2.events).includes("papers") && !types(a2.events).includes("token") && !types(a2.events).includes("step"), "...nothing was searched, written or asked of a model");
   const a3 = await auto(A, "10.1038/nature14539");
   ok(understood(a3).mode === "search" && understood(a3).how === "rules" && types(a3.events).includes("papers"), "a bare DOI is searched as written");

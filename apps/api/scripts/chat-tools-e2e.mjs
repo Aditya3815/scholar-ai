@@ -1,8 +1,8 @@
 // CHAT_TOOLS end to end (docs/design/chat-tools.md): POST /api/v1/chat on the real Worker + local D1 + fake IdP, with the offline stand-ins (QA_STUB=1): the chat's search and model, the reference
 // check (src/chat/tools-stub.ts), Crossref's retraction data (src/library/retraction-stub.ts) and the open-access network (src/oa/stub.ts). The retraction service, "Ask this paper" and a paper's
 // own ask are the real ones.
-// - Default run (the switch unset): a pasted list is still OFFERED (the card), and nothing runs.
-// - INTEGRATION_VARS="CHAT_TOOLS:on" (with --only="chat tools"): the cheap tools run in the reply.
+// - Default run (CHAT_TOOLS "on" in wrangler.jsonc, which scripts/integration.mjs passes on in INTEGRATION_VARS): the cheap tools run in the reply.
+// - INTEGRATION_VARS="CHAT_TOOLS:off" (with --only="chat tools"): a pasted list is still OFFERED (the card), and nothing runs.
 // - Add CHAT_UNDERSTAND:on to also see a question about one paper of the chat answered from that paper.
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";

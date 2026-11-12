@@ -28,6 +28,8 @@ if (/(^|,)CHAT_UNDERSTAND:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "")) {
 // M2: with CHAT_THINK on, the line "I understood ..." with its Change, and "I searched for ..." with "Use my exact words", are lines of the Thinking block, which is folded once the reply is done. Before
 // such a control is used it is opened (`openThink`); with the switch off there is no block and nothing is done, so the run is what it was.
 const THINK = /(^|,)CHAT_THINK:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "");
+// CHAT_TOOLS on (wrangler.jsonc since 10 Nov): a pasted list is checked in the reply instead of offered; e2e/chat-tools.mjs holds what that reply shows.
+const TOOLS = /(^|,)CHAT_TOOLS:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "");
 /** Opens every folded Thinking block in `scope` (a page or a turn). Nothing with CHAT_THINK off. */
 const openThink = async (scope) => {
   if (!THINK) return;
@@ -1968,8 +1970,16 @@ try {
     await X.locator(".chat-edit-ta").press("Enter");
     await X.waitForFunction(() => !document.querySelector(".chat-edit") && document.querySelectorAll('.chat-turn[data-status="done"]').length === 1 && /children/.test(document.querySelector(".chat-bubble")?.textContent ?? ""), null, { timeout: 30000 });
     await settled(X);
-    await M.evaluate(() => { window.dispatchEvent(new Event("focus")); });
-    await M.waitForFunction(() => /in children/.test(document.querySelector(".chat-bubble")?.textContent ?? ""), null, { timeout: 8000 });
+    // A tab is put away before the other comes to the front, and putting it away starts its waiting save (lib/chat.ts). X is never put away here, so the save it keeps for 800 ms is waited for
+    // in storage first; a focus sent before it lands reads the old record, and nothing would make M look again.
+    for (let t = Date.now(); !/children/.test((await recordsOf(M))[0]?.first ?? "") && Date.now() - t < 10000; ) await M.waitForTimeout(200);
+    // M may still be finishing its own save from the step before, and a page with a save of its own under way rightly keeps its copy (lib/chat.ts refreshChat): coming back to the tab
+    // is then done again, as a person would, until it is quiet.
+    for (let t = Date.now(); !(await M.evaluate(() => /in children/.test(document.querySelector(".chat-bubble")?.textContent ?? ""))); ) {
+      if (Date.now() - t > 8000) throw new Error("the tab brought back to the front did not take up the other tab's edit in 8 s");
+      await M.evaluate(() => { window.dispatchEvent(new Event("focus")); });
+      await M.waitForTimeout(400);
+    }
     ok(true, "a tab that is brought back to the front takes up what the other tab saved without a word (the new edit is on its screen)");
     await X.close();
 
@@ -2382,9 +2392,9 @@ try {
 
   const REFS = "[1] LeCun, Y., Bengio, Y., & Hinton, G. (2015). Deep learning. Nature, 521, 436-444.\n[2] Vaswani, A., Shazeer, N., Parmar, N., et al. (2017). Attention is all you need. NeurIPS.\n[3] Krizhevsky, A., Sutskever, I., & Hinton, G. E. (2012). ImageNet classification with deep convolutional neural networks. NIPS.";
   await sendAuto(REFS);
-  await page.locator(".chat-offer").waitFor({ timeout: 20000 });
-  ok(new URL(page.url()).pathname === "/" && /Check references/.test(THINK ? await thinkLine(lastTurn(), "understood") : await lastTurn().locator(".chat-und").first().innerText()) && await lastTurn().locator(".result").count() === 0, "pasted references: it says Check references and offers it; nothing was searched and the page did not move");
-  await page.getByRole("button", { name: "Open Check references" }).click();
+  await page.locator(TOOLS ? ".chat-tool-more" : ".chat-offer").waitFor({ timeout: 20000 });
+  ok(new URL(page.url()).pathname === "/" && /Check references/.test(THINK ? await thinkLine(lastTurn(), "understood") : await lastTurn().locator(".chat-und").first().innerText()) && await lastTurn().locator(".result").count() === 0 && (!TOOLS || await lastTurn().locator(".chat-tool-refs > li").count() === 3), TOOLS ? "pasted references: it says Check references and checks the three in the reply; nothing was searched and the page did not move" : "pasted references: it says Check references and offers it; nothing was searched and the page did not move");
+  await page.getByRole("button", { name: TOOLS ? "Open on the Check references page" : "Open Check references" }).click();
   await page.waitForFunction(() => location.pathname === "/verify", null, { timeout: 10000 });
   await page.waitForTimeout(600);
   ok(/Deep learning/.test(await page.locator("textarea").first().inputValue()) && /Attention is all you need/.test(await page.locator("textarea").first().inputValue()), "'Open Check references' hands over the whole list");
@@ -2392,7 +2402,7 @@ try {
   await page.locator("#hm-h").waitFor();
 
   await sendAuto("my idea about using bees to detect cancer, is it novel");
-  await page.waitForFunction(() => document.querySelectorAll(".chat-offer").length === 2, null, { timeout: 20000 });
+  await page.waitForFunction((offers) => document.querySelectorAll(".chat-offer").length === offers, TOOLS ? 1 : 2, { timeout: 20000 });
   ok(new URL(page.url()).pathname === "/" && /searches only after you have seen and approved the search plan/.test(await page.locator(".chat-offer").last().innerText()), "an idea is offered to Idea Check, which starts only by a click and an approval: the page did not move");
   await page.locator(".chat-offer").last().scrollIntoViewIfNeeded();
   await page.waitForTimeout(700);
@@ -2410,7 +2420,7 @@ try {
   ok(await lastTurn().locator(".chat-offer").count() === 0, "Change to Search papers searches the exact words in place and the offer goes");
 
   await sendAuto("my uploaded paper, what does it say about methods");
-  await page.waitForFunction(() => document.querySelectorAll(".chat-offer").length === 2 && /Open My Workspace/.test(document.body.textContent ?? ""), null, { timeout: 20000 });
+  await page.waitForFunction((offers) => document.querySelectorAll(".chat-offer").length === offers && /Open My Workspace/.test(document.body.textContent ?? ""), TOOLS ? 1 : 2, { timeout: 20000 });
   ok(true, "a question about the reader's own paper is offered to My Workspace");
 
   await sendAuto("boom my idea about sleep");
