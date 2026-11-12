@@ -1,6 +1,7 @@
 import { Hono } from "hono";
-import { PRIVACY_VERSION, IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaCompareEvent, type IdeaInsightsEvent, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
-import { currentUser, sameOrigin } from "../auth/http";
+import { IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaCompareEvent, type IdeaInsightsEvent, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
+import { requireUser, type Door } from "../auth/service";
+import { readJson } from "../platform/http/body";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "../docs/embed";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
@@ -16,11 +17,10 @@ import type { Env, HonoEnv } from "../platform/env";
 
 export const ideaRoutes = new Hono<HonoEnv>();
 
-ideaRoutes.use("*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "no-store");
-});
 
+/** Idea Check is for a signed-in person; what reads the idea's text with a model also needs the privacy note read. */
+const IDEA: Door = { signIn: "Sign in to check an idea" };
+const IDEA_TEXT: Door = { ...IDEA, ack: { title: "Please read how your ideas are handled first", detail: "A short note appears before your first check." } };
 
 const stubbed = (env: Env) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
 
@@ -53,14 +53,13 @@ const embedderFor = (env: Env): Embedder | null => (stubbed(env) ? hashEmbedder 
  * What comes back is the proposed search, which the researcher edits before anything goes to a search service.
  */
 ideaRoutes.post("/plan", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to check an idea");
-  if (user.privacyAck !== PRIVACY_VERSION) return deny(c, 403, "privacy_ack_required", "Please read how your ideas are handled first", "A short note appears before your first check.");
+  const got = await requireUser(c, IDEA_TEXT);
+  if (got instanceof Response) return got;
+  const { user } = got;
 
   // 60,000 characters of text, even all multi-byte, fits well inside this; anything bigger is not an idea.
   if (Number(c.req.header("content-length") ?? 0) > 300_000) return deny(c, 413, "too_large", "That is too much text", "Use a shorter file or paste the key parts.");
-  const body = (await c.req.json().catch(() => null)) as { text?: unknown; question?: unknown } | null;
+  const body = (await readJson(c)) as { text?: unknown; question?: unknown } | null;
   const text = typeof body?.text === "string" ? body.text.replace(/\r/g, "").trim().slice(0, MAX_IDEA_CHARS) : "";
   const question = scrubText(body?.question, MAX_IDEA_QUESTION_CHARS);
   if (text.length < MIN_IDEA_CHARS) return deny(c, 400, "invalid_idea", "Describe your idea in a few sentences", `At least ${MIN_IDEA_CHARS} characters, or add a file.`);
@@ -89,11 +88,10 @@ ideaRoutes.post("/plan", async (c) => {
  * the slower services are still answering.
  */
 ideaRoutes.post("/search", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to check an idea");
+  const got = await requireUser(c, IDEA);
+  if (got instanceof Response) return got;
 
-  const req = sanitizeRequest(await c.req.json().catch(() => null));
+  const req = sanitizeRequest(await readJson(c));
   if (!req) return deny(c, 400, "invalid_plan", "The search plan is empty", "Keep at least one keyword search, or a description of a few sentences.");
 
   return sseStream<IdeaSearchEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" } }, async (sse) => {
@@ -122,13 +120,12 @@ ideaRoutes.post("/search", async (c) => {
  * match in it has a quote that was checked to be in the paper's abstract. Nothing is stored.
  */
 ideaRoutes.post("/compare", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to check an idea");
-  if (user.privacyAck !== PRIVACY_VERSION) return deny(c, 403, "privacy_ack_required", "Please read how your ideas are handled first", "A short note appears before your first check.");
+  const got = await requireUser(c, IDEA_TEXT);
+  if (got instanceof Response) return got;
+  const { user } = got;
   if (Number(c.req.header("content-length") ?? 0) > 120_000) return deny(c, 413, "too_large", "That is too much text");
 
-  const req = sanitizeCompareRequest(await c.req.json().catch(() => null));
+  const req = sanitizeCompareRequest(await readJson(c));
   if (!req) return deny(c, 400, "invalid_compare", "There is nothing to compare", "Send the idea's plan and the papers to compare.");
   const abort = new AbortController();
   const stream = streamFor(c.env, user.id, abort.signal);
@@ -167,14 +164,13 @@ ideaRoutes.post("/compare", async (c) => {
  * are labelled as the model's opinion. Nothing is stored.
  */
 ideaRoutes.post("/insights", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to check an idea");
-  if (user.privacyAck !== PRIVACY_VERSION) return deny(c, 403, "privacy_ack_required", "Please read how your ideas are handled first", "A short note appears before your first check.");
+  const got = await requireUser(c, IDEA_TEXT);
+  if (got instanceof Response) return got;
+  const { user } = got;
   if (Number(c.req.header("content-length") ?? 0) > 120_000) return deny(c, 413, "too_large", "That is too much text");
 
   // the request is the same as the comparison's: the plan, the question, and the papers with their abstracts
-  const req = sanitizeCompareRequest(await c.req.json().catch(() => null));
+  const req = sanitizeCompareRequest(await readJson(c));
   if (!req) return deny(c, 400, "invalid_insights", "There is nothing to read", "Send the idea's plan and the papers to read.");
   const abort = new AbortController();
   // the second reading is the longest answer (about 80 s with the real model): a longer allowance than the comparison's

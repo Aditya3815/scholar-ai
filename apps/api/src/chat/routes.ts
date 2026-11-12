@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { ABSTRACTS_NOTICE, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MAX_OA_ABSTRACT_CHARS, MIN_SINCE_YEAR, type AskStreamEvent, type ChatRetraction, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, refTally, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
-import { currentUser, sameOrigin } from "../auth/http";
+import { currentUser, requireUser } from "../auth/service";
+import { readJson } from "../platform/http/body";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
 import { DEFAULT_CONFIG } from "../llm/config";
@@ -108,39 +109,6 @@ function routeCompleteFor(env: Env, subject: string, onUsage?: (u: { tokensIn?: 
   };
 }
 
-/**
- * The JSON body of a chat request, with a limit on its size (`MAX_CHAT_BODY_BYTES`): refused by its Content-Length where it has one (as Idea Check and the literature scan do), and by counting the
- * bytes as they arrive where it has not, since a chunked body has no length and a length can be a lie. A body that is not JSON is `null`, as before.
- */
-async function readChatBody(c: Context): Promise<{ tooLarge: true } | { tooLarge: false; body: unknown }> {
-  if (Number(c.req.header("content-length") ?? 0) > MAX_CHAT_BODY_BYTES) return { tooLarge: true };
-  const reader = c.req.raw.body?.getReader();
-  if (!reader) return { tooLarge: false, body: null };
-  const parts: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > MAX_CHAT_BODY_BYTES) {
-      await reader.cancel().catch(() => {});
-      return { tooLarge: true };
-    }
-    parts.push(value);
-  }
-  const bytes = new Uint8Array(total);
-  let at = 0;
-  for (const p of parts) {
-    bytes.set(p, at);
-    at += p.byteLength;
-  }
-  try {
-    return { tooLarge: false, body: JSON.parse(new TextDecoder().decode(bytes)) };
-  } catch {
-    return { tooLarge: false, body: null };
-  }
-}
-
 /** Is enough of the day's allowance left for a follow-up that a model reads with the earlier turns? Not being able to tell is not a reason to refuse. */
 async function canAfford(db: D1Database, subject: string): Promise<boolean> {
   try {
@@ -228,10 +196,10 @@ function askedPapers(ledger: readonly LedgerTurn[], u: Understanding): LedgerPap
  * open on their own pages, and Idea Check never starts without a click. The server keeps no chat.
  */
 chatRoutes.post("/", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const read = await readChatBody(c);
+  // the JSON body, with a limit on its size (MAX_CHAT_BODY_BYTES): by its length, and by counting where it has none (src/platform/http/body.ts)
+  const read = await readJson(c, MAX_CHAT_BODY_BYTES);
   if (read.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
-  const body = read.body as { mode?: unknown; message?: unknown; scope?: unknown; anyway?: unknown; history?: unknown; sinceYear?: unknown; ledger?: unknown } | null;
+  const body = read.value as { mode?: unknown; message?: unknown; scope?: unknown; anyway?: unknown; history?: unknown; sinceYear?: unknown; ledger?: unknown } | null;
   if (!body || (body.mode !== "search" && body.mode !== "auto")) return deny(c, 400, "invalid_mode", "That mode is not available");
   // where a search looks: the regular sources, or only Indian ones when the reader turned that on (an unknown value is refused, not quietly widened)
   if (body.scope !== undefined && !isSearchScope(body.scope)) return deny(c, 400, "invalid_scope", "That search scope is not available");
@@ -896,10 +864,9 @@ chatRoutes.get("/config", async (c) => {
  */
 chatRoutes.post("/route", async (c) => {
   if (c.env.ENABLE_DEV_ROUTES !== "1") return c.notFound();
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const read = await readChatBody(c);
+  const read = await readJson(c, MAX_CHAT_BODY_BYTES);
   if (read.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
-  const body = read.body as { message?: unknown; history?: unknown } | null;
+  const body = read.value as { message?: unknown; history?: unknown } | null;
   const text = cleanAutoMessage(body?.message);
   if (!text) return deny(c, 400, "invalid_message", "Write something, at most 20,000 characters");
   const user = await currentUser(c);
@@ -925,10 +892,10 @@ chatRoutes.post("/route", async (c) => {
  */
 chatRoutes.post("/judge", async (c) => {
   if (c.env.ENABLE_DEV_ROUTES !== "1") return c.notFound();
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 403, "forbidden", "Sign in first");
-  const body = (await c.req.json().catch(() => null)) as { text?: unknown; papers?: unknown; model?: unknown; reasoning?: unknown; timeoutMs?: unknown; strict?: unknown; recheck?: unknown } | null;
+  const got = await requireUser(c, { signIn: { status: 403, type: "forbidden", title: "Sign in first" } });
+  if (got instanceof Response) return got;
+  const { user } = got;
+  const body = (await readJson(c)) as { text?: unknown; papers?: unknown; model?: unknown; reasoning?: unknown; timeoutMs?: unknown; strict?: unknown; recheck?: unknown } | null;
   const text = typeof body?.text === "string" ? body.text.slice(0, 3000) : "";
   const list = Array.isArray(body?.papers) ? (body!.papers as { n?: unknown; title?: unknown; year?: unknown; abstract?: unknown }[]) : [];
   if (!text || list.length === 0 || list.length > 12) return deny(c, 400, "invalid_message", "text and 1 to 12 papers are needed");
@@ -969,12 +936,12 @@ function strictStreamFor(env: Env, subject: string, abort: AbortSignal, onQuota:
  * answer comes back. It is asked for, never automatic: it takes 20 to 45 seconds and about 5,000 tokens of the day's allowance.
  */
 chatRoutes.post("/tighten", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 403, "sign_in", "Sign in to check an answer strictly");
+  const got = await requireUser(c, { signIn: { status: 403, type: "sign_in", title: "Sign in to check an answer strictly" } });
+  if (got instanceof Response) return got;
+  const { user } = got;
   // the switch that turns the support judge off (CHAT_JUDGE=off) turns the strict check off too: a page that was opened before it still shows the button
   if (killSwitch(c.env, "CHAT_JUDGE") === "off") return c.json({ type: "unavailable", title: "The strict check is switched off", detail: "Try again later." }, 503);
-  const read = readTighten(await c.req.json().catch(() => null));
+  const read = readTighten(await readJson(c));
   if (!read.ok) return deny(c, 400, "invalid_request", "That answer cannot be checked", read.detail);
   const { text, picked, citations } = read.input;
   let quota = false;

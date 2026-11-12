@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { memoryStore } from "../cache/store";
 import { MAX_REFERENCE_CHARS } from "@scholar/shared";
 import { referenceRoutes } from "./routes";
+import { sameOriginWrites } from "../platform/http/guards";
 import { verifyCached } from "./service";
 
 const env = { CROSSREF_MAILTO: "test@example.org" };
@@ -65,6 +66,8 @@ describe("verifyCached", () => {
 
 describe("POST /verify", () => {
   const app = new Hono();
+  // the origin check is the app's, for every write (app/mount.ts), not the router's
+  app.use("/api/*", sameOriginWrites({ skip: {}, devFirst: [] }));
   app.route("/api/v1/references", referenceRoutes);
   const post = (body: unknown, headers: Record<string, string> = { origin: "http://localhost" }) =>
     app.request(

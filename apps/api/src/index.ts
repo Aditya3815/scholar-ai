@@ -2,7 +2,7 @@ import { streamSSE } from "hono/streaming";
 import type { HealthResponse, JobsHealthResponse } from "@scholar/shared";
 import { INVALID_QUERY, searchService } from "./search/service";
 import { AllProvidersFailedError, NoRouteError, PolicyError, QuotaError, gatewayFromEnv, type LlmRequest } from "./llm";
-import { currentUser } from "./auth/http";
+import { currentUser } from "./auth/service";
 import { captureException } from "./monitoring/sentry";
 import { cacheStore } from "./cache";
 import { runMaintenance } from "./maintenance";

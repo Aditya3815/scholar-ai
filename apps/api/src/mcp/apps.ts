@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { ConnectedApp, ConnectedApps } from "@scholar/shared";
-import { currentUser, sameOrigin } from "../auth/http";
+import { requireUser } from "../auth/service";
 import { deny } from "../problem";
 import { mcpMode } from "./flag";
 import { SCOPES, baseUrlOf } from "./scopes";
@@ -16,16 +16,13 @@ const oauthApi = async (env: Pick<Env, "OAUTH_KV">, base: string) => (await impo
 
 export const connectedAppsRoutes = new Hono<HonoEnv>();
 
-connectedAppsRoutes.use("*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "no-store");
-});
 
 connectedAppsRoutes.get("/", async (c) => {
   const mode = await mcpMode(c.env);
   if (mode === "off") return deny(c, 404, "not_found", "Not found");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const got = await requireUser(c, { signIn: "Sign in first" });
+  if (got instanceof Response) return got;
+  const { user } = got;
   const api = await oauthApi(c.env, baseUrlOf(c.env, c.req.raw));
   const apps: ConnectedApp[] = [];
   let cursor: string | undefined;
@@ -48,10 +45,10 @@ connectedAppsRoutes.get("/", async (c) => {
 });
 
 connectedAppsRoutes.delete("/:id", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
   if ((await mcpMode(c.env)) === "off") return deny(c, 404, "not_found", "Not found");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const got = await requireUser(c, { signIn: "Sign in first" });
+  if (got instanceof Response) return got;
+  const { user } = got;
   const id = c.req.param("id");
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) return deny(c, 400, "invalid_id", "Unknown app");
   // revokeGrant takes the account too, so one person can never disconnect another's app

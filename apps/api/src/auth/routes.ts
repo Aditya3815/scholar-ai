@@ -1,7 +1,7 @@
 import { PRIVACY_VERSION } from "@scholar/shared";
 import { Hono, type Context } from "hono";
 import { deleteCookie, setCookie } from "hono/cookie";
-import { cookieOpts, isHttps, readSession, sameOrigin } from "./http";
+import { cookieOpts, isHttps, readSession } from "./http";
 import { buildAuthorizeUrl, exchangeCode, pkceChallenge, randomToken, safeReturnTo } from "./oauth";
 import { configuredProviders, type ProviderId } from "./providers";
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, createSession, destroySession, userFromSession } from "./session";
@@ -16,10 +16,6 @@ const redirectUri = (c: Context<HonoEnv>, id: ProviderId) => `${baseUrl(c)}/api/
 
 const fail = (c: Context<HonoEnv>, code: string) => c.redirect(`/?auth_error=${code}`, 302);
 
-authRoutes.use("*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "no-store");
-});
 
 /** Which sign-in buttons the UI should show: only providers that are configured on this deployment. */
 authRoutes.get("/providers", (c) =>
@@ -32,7 +28,6 @@ authRoutes.get("/me", async (c) => {
 });
 
 authRoutes.post("/logout", async (c) => {
-  if (!sameOrigin(c)) return c.json({ type: "forbidden", title: "Cross-origin request blocked" }, 403);
   await destroySession(c.env.DB, readSession(c));
   deleteCookie(c, SESSION_COOKIE, { path: "/", ...cookieOpts(c), secure: isHttps(c) });
   return c.json({ ok: true });

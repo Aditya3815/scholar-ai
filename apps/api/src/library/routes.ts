@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { currentUser, sameOrigin } from "../auth/http";
+import { requireUser, type Door } from "../auth/service";
+import { readJson } from "../platform/http/body";
 import { MAX_IMPORT_ITEMS, MAX_LIBRARY_ITEMS, doiColumn, parsePaper, sqliteTime } from "./validate";
 import { libraryService } from "./service";
 import { deny } from "../problem";
@@ -8,25 +9,24 @@ import type { HonoEnv } from "../platform/env";
 export const libraryRoutes = new Hono<HonoEnv>();
 
 
-libraryRoutes.use("*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "no-store");
-});
+
+const READER: Door = { signIn: "Sign in to use your library" };
 
 /** Every handler is scoped by the session's user id; there is no way to name another user's rows. */
 libraryRoutes.get("/", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to use your library");
+  const got = await requireUser(c, READER);
+  if (got instanceof Response) return got;
+  const { user } = got;
   const [items, alerts] = await Promise.all([libraryService.list(c.env.DB, user.id), libraryService.alerts(c.env.DB, user.id)]);
   return c.json({ items, alerts });
 });
 
 /** "I have seen it": the notices are not shown again. With `paperIds` only those, otherwise all of this person's. */
 libraryRoutes.post("/alerts/seen", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to use your library");
-  const body = (await c.req.json().catch(() => null)) as { paperIds?: unknown } | null;
+  const got = await requireUser(c, READER);
+  if (got instanceof Response) return got;
+  const { user } = got;
+  const body = (await readJson(c)) as { paperIds?: unknown } | null;
   const ids = Array.isArray(body?.paperIds) ? body.paperIds.filter((x): x is string => typeof x === "string").slice(0, 100) : null;
   if (ids && ids.length === 0) return c.json({ ok: true, dismissed: 0 });
   const res = ids
@@ -39,11 +39,11 @@ libraryRoutes.post("/alerts/seen", async (c) => {
 });
 
 libraryRoutes.put("/:id", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to use your library");
+  const got = await requireUser(c, READER);
+  if (got instanceof Response) return got;
+  const { user } = got;
 
-  const paper = parsePaper(await c.req.json().catch(() => null));
+  const paper = parsePaper(await readJson(c));
   if (!paper || paper.id !== decodeURIComponent(c.req.param("id"))) return deny(c, 400, "invalid_paper", "Invalid paper");
 
   const saved = await libraryService.save(c.env.DB, user.id, paper);
@@ -52,9 +52,9 @@ libraryRoutes.put("/:id", async (c) => {
 });
 
 libraryRoutes.delete("/:id", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to use your library");
+  const got = await requireUser(c, READER);
+  if (got instanceof Response) return got;
+  const { user } = got;
   const paperId = decodeURIComponent(c.req.param("id"));
   // taking a paper out of the library settles any notice about it
   await c.env.DB.batch([
@@ -66,11 +66,11 @@ libraryRoutes.delete("/:id", async (c) => {
 
 /** One-time import of a device-local library after sign-in. Never overwrites rows that already exist. */
 libraryRoutes.post("/import", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to use your library");
+  const got = await requireUser(c, READER);
+  if (got instanceof Response) return got;
+  const { user } = got;
 
-  const body = (await c.req.json().catch(() => null)) as { items?: unknown } | null;
+  const body = (await readJson(c)) as { items?: unknown } | null;
   if (!body || !Array.isArray(body.items) || body.items.length > MAX_IMPORT_ITEMS) {
     return deny(c, 400, "invalid_import", `Send up to ${MAX_IMPORT_ITEMS} items`);
   }

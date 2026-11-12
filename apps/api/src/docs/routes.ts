@@ -38,9 +38,9 @@ import {
   type DocStatus,
   type DocumentInfo,
   type PaperInfo,
-  PRIVACY_VERSION,
 } from "@scholar/shared";
-import { currentUser, sameOrigin } from "../auth/http";
+import { requireUser, type Door } from "../auth/service";
+import { readJson } from "../platform/http/body";
 import { answerAboutHighlights } from "./highlights-qa";
 import { readerOnFor, readerSwitchedOn } from "./reader-flag";
 import { deletePage, listPages, patchPage, putPage, type NotebookResult } from "./notebook";
@@ -62,11 +62,6 @@ import { deny } from "../problem";
 import type { Env, EnvPick, HonoEnv } from "../platform/env";
 
 export const documentRoutes = new Hono<HonoEnv>();
-
-documentRoutes.use("*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "no-store");
-});
 
 
 type Row = {
@@ -101,6 +96,15 @@ const titleFrom = (filename: string) => filename.replace(/\.pdf$/i, "").replace(
 async function owned(c: Context<HonoEnv>, userId: string, id: string): Promise<Row | null> {
   return c.env.DB.prepare(`SELECT ${COLS} FROM documents WHERE id = ?1 AND user_id = ?2`).bind(id, userId).first<Row>();
 }
+
+/** Who may do what with My papers (the words differ from route to route, as they always have). A paper named by the path that is not the person's is "Paper not found". */
+const paperOf = (c: Context<HonoEnv>, userId: string) => owned(c, userId, c.req.param("id") ?? "");
+const SIGNED_IN: Door = { signIn: "Sign in first" };
+const PAPER: Door<Row> = { ...SIGNED_IN, owns: { find: paperOf, missing: "Paper not found" } };
+const VIEW: Door = { signIn: "Sign in to use your papers" };
+const VIEW_PAPER: Door<Row> = { ...VIEW, owns: { find: paperOf, missing: "Paper not found" } };
+const VIEW_COVER: Door<Row> = { ...VIEW, owns: { find: paperOf, missing: "No cover" } };
+const UPLOAD: Door = { signIn: "Sign in to upload papers", ack: { title: "Please read how your papers are handled first", detail: "A short note appears before your first upload." } };
 
 const stubbed = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_STUB">) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
 const readerFor = (env: EnvPick<"ENABLE_DEV_ROUTES" | "QA_STUB", "AI">): PageReader | null => (stubbed(env) ? stubReader : env.AI ? workersAiReader(env.AI) : null);
@@ -153,8 +157,9 @@ export function describeAskError(e: unknown): { status: 429 | 502 | 503; code: s
 /* ---------------------------------------------------------------- list / read */
 
 documentRoutes.get("/", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to use your papers");
+  const got = await requireUser(c, VIEW);
+  if (got instanceof Response) return got;
+  const { user } = got;
   const rows = await c.env.DB.prepare(`SELECT ${COLS} FROM documents WHERE user_id = ?1 ORDER BY created_at DESC, rowid DESC`).bind(user.id).all<Row>();
   const used = rows.results.reduce((n, r) => n + r.size_bytes, 0);
   return c.json({ items: rows.results.map(toInfo), usage: { count: rows.results.length, maxCount: MAX_DOCS_PER_USER, bytes: used, maxBytes: MAX_TOTAL_DOC_BYTES } });
@@ -173,8 +178,9 @@ const snippet = (text: string, words: string[], len = 220): string => {
 
 /** Search across everything of one person's: paper titles and tags, the passages of the papers, highlights and notes. Words must all be present; nothing leaves the database. */
 documentRoutes.get("/search", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const got = await requireUser(c, SIGNED_IN);
+  if (got instanceof Response) return got;
+  const { user } = got;
   const q = (c.req.query("q") ?? "").slice(0, 200);
   const words = searchWords(q);
   if (words.length === 0) return c.json({ q, papers: [], passages: [], highlights: [] });
@@ -195,17 +201,17 @@ documentRoutes.get("/search", async (c) => {
 
 /** One of the person's own highlights for "Remember this?" on the home screen: the same one all day, another on `?skip=1`, `?skip=2`... Nothing is sent to anyone. */
 documentRoutes.get("/remember", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  const got = await requireUser(c, SIGNED_IN);
+  if (got instanceof Response) return got;
+  const { user } = got;
   const skip = Math.max(0, Math.min(1000, Number(c.req.query("skip")) || 0));
   return c.json(await rememberOne(c.env.DB, user.id, skip, Math.floor(Date.now() / 86_400_000)));
 });
 
 documentRoutes.get("/:id", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to use your papers");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, VIEW_PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
   const qa = await c.env.DB.prepare("SELECT answer FROM doc_qa WHERE doc_id = ?1 ORDER BY created_at, rowid LIMIT 100").bind(row.id).all<{ answer: string }>();
   const stored = await c.env.DB.prepare("SELECT info FROM documents WHERE id = ?1").bind(row.id).first<{ info: string | null }>();
   const scan = row.scanned === 1 ? await scanInfo(c.env.DB, user.id, row.id, ocrPerDay(c.env)) : null;
@@ -215,10 +221,9 @@ documentRoutes.get("/:id", async (c) => {
 });
 
 documentRoutes.get("/:id/file", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to use your papers");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, VIEW_PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
   const obj = await c.env.FILES.get(pdfKey(user.id, row.id));
   if (!obj) return deny(c, 404, "not_found", "The file is missing");
   return new Response(obj.body, {
@@ -233,10 +238,10 @@ documentRoutes.get("/:id/file", async (c) => {
 });
 
 documentRoutes.get("/:id/cover", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to use your papers");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row || !row.has_cover) return deny(c, 404, "not_found", "No cover");
+  const got = await requireUser(c, VIEW_COVER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
+  if (!row.has_cover) return deny(c, 404, "not_found", "No cover");
   const obj = await c.env.FILES.get(coverKey(user.id, row.id));
   if (!obj) return deny(c, 404, "not_found", "No cover");
   return new Response(obj.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff" } });
@@ -245,10 +250,9 @@ documentRoutes.get("/:id/cover", async (c) => {
 /* ---------------------------------------------------------------- upload */
 
 documentRoutes.post("/", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to upload papers");
-  if (user.privacyAck !== PRIVACY_VERSION) return deny(c, 403, "privacy_ack_required", "Please read how your papers are handled first", "A short note appears before your first upload.");
+  const got = await requireUser(c, UPLOAD);
+  if (got instanceof Response) return got;
+  const { user } = got;
 
   // A retry with the same Idempotency-Key (a reply that never arrived) returns the first result instead of storing the paper twice; see idempotency.ts.
   return runIdempotent(d1KeyStore(c.env.DB), { userId: user.id, route: "documents" }, readKey(c.req.header("Idempotency-Key")), `${c.req.header("content-length") ?? ""}:${c.req.header("x-filename") ?? ""}`, Date.now(), async () => {
@@ -279,11 +283,9 @@ documentRoutes.post("/", async (c) => {
 });
 
 documentRoutes.put("/:id/cover", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
   const img = await c.req.arrayBuffer();
   const b = new Uint8Array(img);
   if (img.byteLength > MAX_COVER_BYTES || b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8) return deny(c, 400, "invalid_cover", "The cover must be a JPEG under 300 KB");
@@ -297,11 +299,9 @@ documentRoutes.put("/:id/cover", async (c) => {
  * and, if the paper still has the title we made up from its file name, give it its real title.
  */
 documentRoutes.put("/:id/info", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
   const raw = await c.req.text();
   if (raw.length > 700_000) return deny(c, 413, "too_large", "That is too much to store");
   const clean = sanitizePaperInfo((() => { try { return JSON.parse(raw); } catch { return null; } })());
@@ -317,12 +317,10 @@ documentRoutes.put("/:id/info", async (c) => {
 });
 
 documentRoutes.patch("/:id", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
-  const body = (await c.req.json().catch(() => null)) as { title?: unknown } | null;
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
+  const body = (await readJson(c)) as { title?: unknown } | null;
   const title = typeof body?.title === "string" ? body.title.replace(/\s+/g, " ").trim().slice(0, 200) : "";
   if (!title) return deny(c, 400, "invalid_title", "Give the paper a title");
   await c.env.DB.prepare("UPDATE documents SET title = ?1, updated_at = datetime('now') WHERE id = ?2").bind(title, row.id).run();
@@ -345,11 +343,9 @@ export async function deleteDocument(env: Pick<Env, "DB" | "FILES">, userId: str
 }
 
 documentRoutes.delete("/:id", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
   await deleteDocument(c.env, user.id, row.id);
   return c.json({ ok: true });
 });
@@ -357,13 +353,11 @@ documentRoutes.delete("/:id", async (c) => {
 /* ---------------------------------------------------------------- indexing (the browser reads the PDF; we chunk + embed) */
 
 documentRoutes.post("/:id/pages", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { row } = got;
 
-  const body = (await c.req.json().catch(() => null)) as { pages?: unknown } | null;
+  const body = (await readJson(c)) as { pages?: unknown } | null;
   const pages = Array.isArray(body?.pages) ? body.pages : null;
   if (!pages || pages.length === 0 || pages.length > MAX_PAGES_PER_BATCH) return deny(c, 400, "invalid_pages", `Send 1 to ${MAX_PAGES_PER_BATCH} pages at a time`);
   const clean: { page: number; text: string }[] = [];
@@ -414,12 +408,10 @@ documentRoutes.post("/:id/pages", async (c) => {
 });
 
 documentRoutes.post("/:id/finish", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
-  const body = (await c.req.json().catch(() => null)) as { pages?: unknown; failed?: unknown } | null;
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
+  const body = (await readJson(c)) as { pages?: unknown; failed?: unknown } | null;
   const pages = typeof body?.pages === "number" && Number.isInteger(body.pages) && body.pages >= 1 && body.pages <= MAX_DOC_PAGES ? body.pages : null;
 
   const n = (await c.env.DB.prepare("SELECT COUNT(*) AS n FROM doc_chunks WHERE doc_id = ?1").bind(row.id).first<{ n: number }>())?.n ?? 0;
@@ -437,12 +429,10 @@ documentRoutes.post("/:id/finish", async (c) => {
  * can be stopped and continued (also from another day, when the daily limit has been reached). Asking again keeps what has been read.
  */
 documentRoutes.post("/:id/scan", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
-  const body = (await c.req.json().catch(() => null)) as { pages?: unknown; scanPages?: unknown } | null;
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
+  const body = (await readJson(c)) as { pages?: unknown; scanPages?: unknown } | null;
   const pages = body?.pages;
   const list = body?.scanPages;
   if (typeof pages !== "number" || !Number.isInteger(pages) || pages < 1 || pages > MAX_DOC_PAGES) return deny(c, 400, "invalid_scan", "The number of pages is not valid");
@@ -455,19 +445,17 @@ documentRoutes.post("/:id/scan", async (c) => {
 });
 
 documentRoutes.get("/:id/scan", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
   return c.json({ scan: await scanInfo(c.env.DB, user.id, row.id, ocrPerDay(c.env)) });
 });
 
 /** The text that was read from the scanned pages that were used (for the paper's title, DOI and reference list, and for showing what was read). */
 documentRoutes.get("/:id/scan/text", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { row } = got;
   return c.json({ pages: await scanTexts(c.env.DB, row.id) });
 });
 
@@ -476,11 +464,9 @@ documentRoutes.get("/:id/scan/text", async (c) => {
  * not stored. The answer says how the page was read and, for a page that was used, what it says.
  */
 documentRoutes.post("/:id/ocr", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
   if (row.scanned !== 1) return deny(c, 409, "not_scanned", "This paper has a text layer, so nothing has to be read from pictures");
   const page = Number(c.req.query("page"));
   if (!Number.isInteger(page) || page < 1 || page > (row.pages ?? MAX_DOC_PAGES)) return deny(c, 400, "invalid_page", "That page is not in this paper");
@@ -522,14 +508,12 @@ documentRoutes.post("/:id/ocr", async (c) => {
 /* ---------------------------------------------------------------- ask */
 
 documentRoutes.post("/:id/ask", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
   if (row.status !== "ready") return deny(c, 409, "not_ready", "This paper is not ready yet", row.status === "failed" ? row.error ?? undefined : "Wait until indexing finishes.");
 
-  const body = (await c.req.json().catch(() => null)) as { question?: unknown } | null;
+  const body = (await readJson(c)) as { question?: unknown } | null;
   const question = typeof body?.question === "string" ? body.question.replace(/\s+/g, " ").trim() : "";
   if (question.length < 3) return deny(c, 400, "invalid_question", "Ask a question about the paper");
   if (question.length > MAX_QUESTION_CHARS) return deny(c, 400, "invalid_question", "That question is too long", `Keep it under ${MAX_QUESTION_CHARS} characters.`);
@@ -581,12 +565,10 @@ documentRoutes.post("/:id/ask", async (c) => {
 
 /** A question about what the reader marked: the highlights are the passages, the answer's quotes are checked against them, and it is not added to the paper's question history. */
 documentRoutes.post("/:id/ask-highlights", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
-  const body = (await c.req.json().catch(() => null)) as { question?: unknown; legend?: unknown } | null;
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
+  const body = (await readJson(c)) as { question?: unknown; legend?: unknown } | null;
   const question = typeof body?.question === "string" ? body.question.replace(/\s+/g, " ").trim() : "";
   if (question.length < 3) return deny(c, 400, "invalid_question", "Ask a question about your highlights");
   if (question.length > MAX_QUESTION_CHARS) return deny(c, 400, "invalid_question", "That question is too long", `Keep it under ${MAX_QUESTION_CHARS} characters.`);
@@ -608,12 +590,10 @@ documentRoutes.post("/:id/ask-highlights", async (c) => {
 
 /** Reading status and tags (collections) of one paper. Tags are replaced as a set: the browser sends the whole list. */
 documentRoutes.put("/:id/meta", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
-  const b = (await c.req.json().catch(() => null)) as { readState?: unknown; tags?: unknown } | null;
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
+  const b = (await readJson(c)) as { readState?: unknown; tags?: unknown } | null;
   if (!b || (b.readState === undefined && b.tags === undefined)) return deny(c, 400, "invalid_meta", "Nothing to change");
   const statements: D1PreparedStatement[] = [];
   if (b.readState !== undefined) {
@@ -641,12 +621,10 @@ documentRoutes.put("/:id/meta", async (c) => {
  * "reading" once the reader is past its first page. "Done" is always the reader's own decision.
  */
 documentRoutes.post("/:id/progress", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
-  const b = (await c.req.json().catch(() => null)) as { page?: unknown } | null;
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { user, row } = got;
+  const b = (await readJson(c)) as { page?: unknown } | null;
   const limit = row.pages ?? MAX_DOC_PAGES;
   if (typeof b?.page !== "number" || !Number.isInteger(b.page) || b.page < 1 || b.page > limit) return deny(c, 400, "invalid_progress", "That page is not in this paper");
   await c.env.DB
@@ -662,20 +640,17 @@ documentRoutes.post("/:id/progress", async (c) => {
 const INK_MAX_BODY = INK_LIMITS.bytes + 100_000;
 
 documentRoutes.get("/:id/ink", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { row } = got;
   const ink = await c.env.DB.prepare("SELECT data, rev FROM doc_ink WHERE doc_id = ?1").bind(row.id).first<{ data: string; rev: number }>();
   return c.json({ strokes: ink ? (JSON.parse(ink.data) as unknown) : [], rev: ink?.rev ?? 0 });
 });
 
 documentRoutes.put("/:id/ink", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { row } = got;
   const length = Number(c.req.header("content-length") ?? 0);
   if (length > INK_MAX_BODY) return deny(c, 413, "too_big", "There is too much drawing on this paper to save", "Erase some of it, or draw on a copy.");
   const text = await c.req.text().catch(() => "");
@@ -711,21 +686,18 @@ const cleanText = (v: unknown, max: number) => (typeof v === "string" ? v.replac
 const NOTE_COLS = "id, page, quote, note, color, created_at, updated_at";
 
 documentRoutes.get("/:id/notes", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { row } = got;
   const rows = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE doc_id = ?1 ORDER BY page, created_at, rowid`).bind(row.id).all<NoteRow>();
   return c.json({ items: rows.results.map(toNote), max: MAX_NOTES_PER_DOC });
 });
 
 documentRoutes.post("/:id/notes", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
-  const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { row } = got;
+  const b = (await readJson(c)) as Record<string, unknown> | null;
   const page = b?.page;
   const quote = cleanText(b?.quote, MAX_NOTE_QUOTE_CHARS);
   if (typeof page !== "number" || !Number.isInteger(page) || page < 1 || page > (row.pages ?? MAX_DOC_PAGES)) return deny(c, 400, "invalid_note", "That page is not in this paper");
@@ -741,14 +713,12 @@ documentRoutes.post("/:id/notes", async (c) => {
 });
 
 documentRoutes.patch("/:id/notes/:nid", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { row } = got;
   const existing = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE id = ?1 AND doc_id = ?2`).bind(c.req.param("nid"), row.id).first<NoteRow>();
   if (!existing) return deny(c, 404, "not_found", "Note not found");
-  const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  const b = (await readJson(c)) as Record<string, unknown> | null;
   if (!b) return deny(c, 400, "invalid_note", "Nothing to change");
   const note = "note" in b ? cleanNoteText(b.note, MAX_NOTE_CHARS) : (existing.note ?? "");
   const color = NOTE_COLORS.includes(b.color as NoteColor) ? (b.color as NoteColor) : existing.color;
@@ -758,11 +728,9 @@ documentRoutes.patch("/:id/notes/:nid", async (c) => {
 });
 
 documentRoutes.delete("/:id/notes/:nid", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  const row = await owned(c, user.id, c.req.param("id"));
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  const got = await requireUser(c, PAPER);
+  if (got instanceof Response) return got;
+  const { row } = got;
   const r = await c.env.DB.prepare("DELETE FROM doc_notes WHERE id = ?1 AND doc_id = ?2").bind(c.req.param("nid"), row.id).run();
   if ((r.meta.changes ?? 0) === 0) return deny(c, 404, "not_found", "Note not found");
   return c.json({ ok: true });

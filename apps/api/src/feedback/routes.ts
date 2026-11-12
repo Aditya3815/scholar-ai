@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { FEEDBACK_KINDS, FEEDBACK_PROBLEMS, MAX_FEEDBACK_NOTE_CHARS, MAX_FEEDBACK_PER_DAY, MAX_KEYWORD_QUERIES, MAX_KEYWORD_QUERY_CHARS, MAX_SEMANTIC_QUERY_CHARS, type FeedbackKind } from "@scholar/shared";
-import { currentUser, sameOrigin } from "../auth/http";
+import { requireUser } from "../auth/service";
+import { readJson } from "../platform/http/body";
 import { d1KeyStore, fingerprintOf, readKey, runIdempotent } from "../idempotency";
 import { scrubText } from "../idea/plan";
 import { deny } from "../problem";
@@ -8,10 +9,6 @@ import type { HonoEnv } from "../platform/env";
 
 export const feedbackRoutes = new Hono<HonoEnv>();
 
-feedbackRoutes.use("*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "no-store");
-});
 
 const randomId = () => [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("");
 const REF_STATUSES = new Set(["verified", "mismatch", "not_found", "unverifiable", "unparsed"]);
@@ -22,14 +19,14 @@ const MAX_CONTEXT_CHARS = 20_000;
  * from the researcher's own record (so nobody can file someone else's text, or invent an answer), and only ids come from the browser.
  */
 feedbackRoutes.post("/", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to send a report");
+  const got = await requireUser(c, { signIn: "Sign in to send a report" });
+  if (got instanceof Response) return got;
+  const { user } = got;
 
   // A retry with the same Idempotency-Key (a reply that never arrived, a double click) returns the first reply instead of filing the report twice; see idempotency.ts.
   const fingerprint = await fingerprintOf(await c.req.raw.clone().text());
   return runIdempotent(d1KeyStore(c.env.DB), { userId: user.id, route: "feedback" }, readKey(c.req.header("Idempotency-Key")), fingerprint, Date.now(), async () => {
-    const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+    const b = (await readJson(c)) as Record<string, unknown> | null;
     const kind = b?.kind as FeedbackKind;
     if (!b || !FEEDBACK_KINDS.includes(kind)) return deny(c, 400, "invalid_report", "Choose what you are reporting");
     const problem = typeof b.problem === "string" ? b.problem : "";

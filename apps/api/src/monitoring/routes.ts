@@ -1,5 +1,4 @@
-import { Hono } from "hono";
-import { sameOrigin } from "../auth/http";
+import { Hono, type Context } from "hono";
 import { allowEvent, parseDsn, routeOf, scrubMessage, sendEvent } from "./sentry";
 import type { HonoEnv } from "../platform/env";
 
@@ -7,13 +6,15 @@ export const monitoringRoutes = new Hono<HonoEnv>();
 
 const MAX_BODY = 12_000;
 
+/** A report from another site is refused like every other answer here: a status and no body (the origin check itself is the app's: src/app/mount.ts). */
+export const refuseCrossOrigin = (c: Context) => c.body(null, 403);
+
 /**
  * The browser reports its own errors here, not to Sentry directly: the Sentry key stays on the server, the page's Content-Security-Policy
  * stays strict, and what is forwarded is chosen here (a short message, the stack, a route pattern), never the page's content.
  * Always answers 204, so the page never learns whether monitoring is on and a reporting problem can never break it.
  */
 monitoringRoutes.post("/", async (c) => {
-  if (!sameOrigin(c)) return c.body(null, 403);
   if (!parseDsn(c.env.SENTRY_DSN)) return c.body(null, 204);
   if (Number(c.req.header("content-length") ?? 0) > MAX_BODY) return c.body(null, 413);
 

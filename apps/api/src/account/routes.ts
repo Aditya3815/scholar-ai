@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { deleteCookie } from "hono/cookie";
 import type { Paper } from "@scholar/shared";
-import { cookieOpts, currentUser, isHttps, sameOrigin } from "../auth/http";
+import { cookieOpts, isHttps } from "../auth/http";
+import { requireUser, type Door } from "../auth/service";
+import { readJson } from "../platform/http/body";
 import { SESSION_COOKIE } from "../auth/session";
 import { fromSqliteTime } from "../library/validate";
 import { PRIVACY_VERSION } from "@scholar/shared";
@@ -10,15 +12,14 @@ import type { HonoEnv } from "../platform/env";
 
 export const accountRoutes = new Hono<HonoEnv>();
 
-accountRoutes.use("*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "no-store");
-});
+const SIGNED_IN: Door = { signIn: "Sign in first" };
+
 
 /** Everything we hold about the signed-in user, as a downloadable JSON file (DPDP: right to access / portability). */
 accountRoutes.get("/export", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return c.json({ type: "unauthorized", title: "Sign in first" }, 401);
+  const got = await requireUser(c, SIGNED_IN);
+  if (got instanceof Response) return got;
+  const { user } = got;
 
   const profile = await c.env.DB
     .prepare("SELECT created_at, last_login_at, locale, theme_pref, privacy_ack, privacy_ack_at FROM users WHERE id = ?1")
@@ -122,10 +123,10 @@ accountRoutes.get("/export", async (c) => {
 
 /** "I have read how my papers and ideas are handled." Needed before the first upload or idea check; records which text and when. */
 accountRoutes.post("/privacy-ack", async (c) => {
-  if (!sameOrigin(c)) return c.json({ type: "forbidden", title: "Cross-origin request blocked" }, 403);
-  const user = await currentUser(c);
-  if (!user) return c.json({ type: "unauthorized", title: "Sign in first" }, 401);
-  const body = (await c.req.json().catch(() => null)) as { version?: unknown } | null;
+  const got = await requireUser(c, SIGNED_IN);
+  if (got instanceof Response) return got;
+  const { user } = got;
+  const body = (await readJson(c)) as { version?: unknown } | null;
   if (body?.version !== PRIVACY_VERSION) return c.json({ type: "outdated", title: "That text has changed", detail: "Reload the page and read the current text." }, 400);
   await c.env.DB.prepare("UPDATE users SET privacy_ack = ?2, privacy_ack_at = datetime('now') WHERE id = ?1").bind(user.id, PRIVACY_VERSION).run();
   return c.json({ ok: true, privacyAck: PRIVACY_VERSION });
@@ -133,10 +134,10 @@ accountRoutes.post("/privacy-ack", async (c) => {
 
 /** Irreversible: deletes the account, sign-in links, sessions and library in one batch. Needs {"confirm":"DELETE"}. */
 accountRoutes.delete("/", async (c) => {
-  if (!sameOrigin(c)) return c.json({ type: "forbidden", title: "Cross-origin request blocked" }, 403);
-  const user = await currentUser(c);
-  if (!user) return c.json({ type: "unauthorized", title: "Sign in first" }, 401);
-  const body = (await c.req.json().catch(() => null)) as { confirm?: unknown } | null;
+  const got = await requireUser(c, SIGNED_IN);
+  if (got instanceof Response) return got;
+  const { user } = got;
+  const body = (await readJson(c)) as { confirm?: unknown } | null;
   if (body?.confirm !== "DELETE") return c.json({ type: "confirmation_required", title: 'Send {"confirm":"DELETE"}' }, 400);
 
   // Files first (the rows that name them disappear with the user), and a deletion marker before both: see account/erase.ts.
