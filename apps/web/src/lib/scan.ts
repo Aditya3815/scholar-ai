@@ -112,7 +112,6 @@ export async function readScannedPages(args: {
   pages: number[];
   signal: AbortSignal;
   onPage: (result: ScanPageResult, document: DocumentInfo, left: number) => void;
-  parallel?: number;
 }): Promise<ScanEnd> {
   const { docId, pdf, signal } = args;
   const queue = readingOrder(args.pages);
@@ -175,7 +174,7 @@ export async function readScannedPages(args: {
       await one(page);
     }
   };
-  await Promise.all(Array.from({ length: Math.max(1, Math.min(args.parallel ?? OCR_PARALLEL_PAGES, 6)) }, worker));
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(OCR_PARALLEL_PAGES, 6)) }, worker));
   const reason = stop ?? (signal.aborted ? "paused" : "done");
   return { reason, left: [...left].sort((a, b) => a - b), document, lastResult };
 }

@@ -9,7 +9,6 @@ export type HealthResponse = {
   version?: string;
 };
 
-export type Theme = "light" | "dark" | "read";
 
 /** Signed-in user as returned by GET /api/v1/auth/me (never contains tokens). */
 export type AuthUser = {
@@ -149,10 +148,9 @@ export * from "./chat-context";
 export * from "./chat-state";
 // tools run in the reply (CHAT_TOOLS)
 export * from "./chat-tools";
-// the pure fold of a chat (R19): built beside `contextBefore`, and not used by the page or the server yet
-export * from "./chat-fold";
 export * from "./outcome-counts";
 export * from "./chat-copy";
+export * from "./copy-through";
 export * from "./chat-memory";
 // the turn ledger and the Thinking block (design PDF "Sodhsetu understanding, follow-ups and MCP", M2)
 export * from "./ledger";

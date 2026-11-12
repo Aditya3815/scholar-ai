@@ -1,6 +1,6 @@
 # P7: time to the first words of an answer (measured and decided, 28 Oct 2026)
 
-The target of the plan was "Q&A first answer text under 2.5 s". This measures where the time goes with the real model and the real sources, tries the obvious lever (a faster model), and records what was **not** done and why. Scripts: [latency-live.mjs](../../apps/api/scripts/latency-live.mjs) (deployed staging, real network), [chat-eval.mjs](../../apps/api/scripts/chat-eval.mjs) (now with first-word times and `--dump` of every answer), [qa-eval.mjs](../../apps/api/scripts/qa-eval.mjs), [router-eval.mjs](../../apps/api/scripts/router-eval.mjs).
+The target of the plan was "Q&A first answer text under 2.5 s". This measures where the time goes with the real model and the real sources, tries the obvious lever (a faster model), and records what was **not** done and why. Scripts: [latency-live.mjs](../../apps/api/scripts/archive/latency-live.mjs) (deployed staging, real network), [chat-eval.mjs](../../apps/api/scripts/chat-eval.mjs) (now with first-word times and `--dump` of every answer), [qa-eval.mjs](../../apps/api/scripts/qa-eval.mjs), [router-eval.mjs](../../apps/api/scripts/router-eval.mjs).
 
 ## 1. What a person waits for today
 

@@ -102,7 +102,6 @@ async function reserve(db: D1Database, userId: string, perDay: number): Promise<
 }
 const refund = (db: D1Database, userId: string) => db.prepare("UPDATE ocr_usage SET pages = MAX(0, pages - 1) WHERE user_id = ?1 AND day = ?2").bind(userId, day()).run();
 
-export type PageResult = ScanPageResult;
 
 type ReadArgs = {
   db: D1Database;
@@ -120,7 +119,7 @@ type ReadArgs = {
  * Reads one page of a scanned paper and keeps the result. Throws DailyLimitError when the person has used today's pages, and ReadFailedError when
  * neither model could be reached (in both cases nothing is changed and no page is used up).
  */
-export async function readScanPage(a: ReadArgs): Promise<PageResult | null> {
+export async function readScanPage(a: ReadArgs): Promise<ScanPageResult | null> {
   const { db, userId, docId, page } = a;
   const row = await db.prepare("SELECT status, disagreement, disputed, why, text FROM doc_ocr WHERE doc_id = ?1 AND page = ?2").bind(docId, page).first<{ status: OcrStatus | "pending"; disagreement: number | null; disputed: string | null; why: OcrWhy | null; text: string | null }>();
   if (!row || page < 1 || page > MAX_DOC_PAGES) return null;

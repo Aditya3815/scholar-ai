@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { isFresh, parseTrending, type TrendingPayload } from "@scholar/shared";
 import { emptyPayload } from "@scholar/shared/src/trending";
 import { TRENDING_KEYS } from "./store";
+import type { EnvPick, HonoEnv } from "../platform/env";
 
 /**
  * GET /api/v1/home/trending (docs/design/chatview-and-trending.md, T12): the one public file the Home page reads, the same for everyone. Not under /search or /chat, so it is outside their
@@ -21,7 +22,7 @@ import { TRENDING_KEYS } from "./store";
  * (`cacheTtl`), which is also how long the kill switch takes to reach a place that has just read the file. There is no memo in the isolate and no Cache API: at 10 million reads a month included,
  * a Home page seen a million times is up to a fifth of the allowance (2 million reads), and either would only add a second delay to the kill switch.
  */
-export type TrendingRouteEnv = { CACHE?: KVNamespace; /** "off" or "dark" hides the list (a Worker variable); anything else, or none, leaves it on. */ TRENDING?: string };
+export type TrendingRouteEnv = EnvPick<"TRENDING", "CACHE">;
 
 const word = (v: unknown): string => (typeof v === "string" ? v.trim().toLowerCase() : "");
 /** "off": the job is stopped too (job.ts) and the route hides the list. "dark": the job runs and makes the list, and the route hides it (the step after the launch state, which wrangler.jsonc commits as "off"). */
@@ -56,12 +57,7 @@ export async function readTrending(env: TrendingRouteEnv, now: Date): Promise<{ 
   return { payload: isFresh(file, now) ? file : emptyPayload(now, file.disabled), storeFailed: false };
 }
 
-/** What the route answers, for a time. Never throws. */
-export async function servedPayload(env: TrendingRouteEnv, now: Date): Promise<TrendingPayload> {
-  return (await readTrending(env, now)).payload;
-}
-
-export const trendingRoutes = new Hono<{ Bindings: TrendingRouteEnv }>();
+export const trendingRoutes = new Hono<HonoEnv>();
 
 trendingRoutes.get("/trending", async (c) => {
   const { payload, storeFailed } = await readTrending(c.env, new Date());

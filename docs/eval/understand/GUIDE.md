@@ -10,7 +10,7 @@ Part of M3 in the design of 6 Nov 2026 ("Sodhsetu: understanding, follow-ups and
 
 **Who wrote them.** Labeller 1 is the engineer who built the step. That makes these a **development set**: they were written before the prompt's examples, and no example in the prompt is an item here, but the same person wrote both. An honest number on unseen messages needs a hold-out written by people who do not build the product ([intent-writing-guide.md](../intent-writing-guide.md)). That is not this set.
 
-**Rebuilding.** `node apps/api/eval/build-understand-sets.mjs` wrote these files once. After labeller 2 has written anything, the JSON files are the source of truth, and the builder refuses to overwrite them.
+**Rebuilding.** `node apps/api/scripts/archive/build-understand-sets.mjs` wrote these files once. After labeller 2 has written anything, the JSON files are the source of truth, and the builder refuses to overwrite them.
 
 ## For the second labeller (a Hindi and Hinglish reader)
 

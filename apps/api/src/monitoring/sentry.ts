@@ -5,7 +5,9 @@
  * researcher's idea, question or manuscript text. Without `SENTRY_DSN` every function here does nothing.
  */
 
-export type SentryEnv = { SENTRY_DSN?: string; SENTRY_ENVIRONMENT?: string };
+import type { Env } from "../platform/env";
+
+export type SentryEnv = Pick<Env, "SENTRY_DSN" | "SENTRY_ENVIRONMENT">;
 
 export type Dsn = { key: string; host: string; project: string; protocol: string };
 

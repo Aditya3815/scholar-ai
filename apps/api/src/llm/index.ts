@@ -5,24 +5,10 @@ import { createGateway } from "./gateway";
 import { geminiProvider } from "./providers/gemini";
 import { workersAiProvider } from "./providers/workersai";
 import type { LlmProvider } from "./types";
+import type { EnvPick } from "../platform/env";
 
-export type LlmEnv = {
-  DB: D1Database;
-  CACHE?: KVNamespace;
-  AI?: Ai;
-  GEMINI_API_KEY?: string;
-  /**
-   * Cost and quality experiments only (docs/spikes/R5-cost.md), and only where ENABLE_DEV_ROUTES is "1" (never in production): `LLM_QA_MODEL` sends the private
-   * `qa` task to another Workers AI model, `LLM_REASONING` (low, medium, high) sets how long a gpt-oss model thinks. Neither exists in a deployed Worker.
-   */
-  ENABLE_DEV_ROUTES?: string;
-  LLM_QA_MODEL?: string;
-  /** The same for the private `classify` task (the router of Auto mode: docs/design/p7-latency.md). */
-  LLM_CLASSIFY_MODEL?: string;
-  /** The same for the private `verify` task (the support judge: docs/design/claim-support.md). */
-  LLM_VERIFY_MODEL?: string;
-  LLM_REASONING?: string;
-};
+/** What the gateway reads: the ledger and the cache, the providers, and the development-only model choices (platform/env.ts says what each is). */
+export type LlmEnv = EnvPick<"DB" | "GEMINI_API_KEY" | "ENABLE_DEV_ROUTES" | "LLM_QA_MODEL" | "LLM_CLASSIFY_MODEL" | "LLM_VERIFY_MODEL" | "LLM_REASONING", "CACHE" | "AI">;
 
 /** Providers that are not configured (no binding / no key) are simply absent; routing skips them. */
 export function gatewayFromEnv(env: LlmEnv) {

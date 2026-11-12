@@ -49,7 +49,6 @@ export type FetchOptions = {
   fetchImpl?: typeof fetch;
   maxBytes?: number;
   timeoutMs?: number;
-  maxRedirects?: number;
   accept?: string;
   userAgent: string;
 };
@@ -87,12 +86,11 @@ async function readCapped(res: Response, max: number): Promise<Uint8Array | null
 export async function safeFetch(rawUrl: string, opts: FetchOptions): Promise<Fetched | FetchFailed> {
   const f = opts.fetchImpl ?? fetch;
   const max = opts.maxBytes ?? MAX_OA_BYTES;
-  const maxRedirects = opts.maxRedirects ?? MAX_OA_REDIRECTS;
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), opts.timeoutMs ?? OA_FETCH_TIMEOUT_MS);
   try {
     let current = rawUrl;
-    for (let hop = 0; hop <= maxRedirects; hop++) {
+    for (let hop = 0; hop <= MAX_OA_REDIRECTS; hop++) {
       const verdict = checkFetchUrl(current);
       if (!verdict.ok) return { ok: false, reason: "blocked" };
       let res: Response;

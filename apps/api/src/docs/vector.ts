@@ -40,7 +40,6 @@ export function cosine(a: ArrayLike<number>, b: ArrayLike<number>): number {
 const STOP = new Set(
   "a an the of in on at to for from by with and or but not is are was were be been being this that these those it its as into than then so such which who whom what when where why how do does did can could should would may might will shall we our us you your they their there here about over under between across per via also using used use paper study".split(" "),
 );
-export { words };
 export const keywords = (s: string): string[] => [...new Set(words(s).filter((w) => w.length > 2 && !STOP.has(w)))];
 
 /** Share of the question's keywords that occur in the chunk (0..1). */

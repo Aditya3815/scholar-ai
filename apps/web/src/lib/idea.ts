@@ -1,4 +1,4 @@
-import type { IdeaCompareEvent, IdeaCompareRequest, IdeaComparison, IdeaInsights, IdeaInsightsEvent, IdeaInsightsRequest, IdeaPaper, IdeaPlan, IdeaSearchEvent, IdeaSearchRequest, IdeaSearchResult } from "@scholar/shared";
+import type { IdeaCompareEvent, IdeaCompareRequest, IdeaComparison, IdeaInsights, IdeaInsightsEvent, IdeaPaper, IdeaPlan, IdeaSearchEvent, IdeaSearchRequest, IdeaSearchResult } from "@scholar/shared";
 import { ApiError } from "./documents";
 import { readSse } from "./sse";
 
@@ -60,7 +60,7 @@ export async function compareIdea(req: IdeaCompareRequest, onStage: (s: "reading
 }
 
 /** Reads the closest papers a second time for what is still open, what each reports, an answer and notes on feasibility. Resolves with the checked result. */
-export async function insightsIdea(req: IdeaInsightsRequest, onStage: (s: "reading" | "analysing" | "checking") => void, signal?: AbortSignal): Promise<IdeaInsights> {
+export async function insightsIdea(req: IdeaCompareRequest, onStage: (s: "reading" | "analysing" | "checking") => void, signal?: AbortSignal): Promise<IdeaInsights> {
   const res = await fetch("/api/v1/idea/insights", post(req, signal));
   if (!res.ok) await fail(res);
   let result: IdeaInsights | null = null;

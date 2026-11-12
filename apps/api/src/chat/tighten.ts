@@ -1,4 +1,4 @@
-import { MAX_TIGHTEN_ABSTRACT, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, type ChatCitation, type Paper, type TightenRequest } from "@scholar/shared";
+import { ABSTRACT_READ_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, type ChatCitation, type Paper, type TightenRequest } from "@scholar/shared";
 import type { Picked } from "./answer";
 import { shownSentence } from "./evidence";
 
@@ -24,7 +24,7 @@ export function readTighten(raw: unknown): { ok: true; input: TightenInput } | {
   for (const p of o.papers) {
     const x = (p && typeof p === "object" ? p : {}) as { n?: unknown; title?: unknown; year?: unknown; abstract?: unknown };
     if (!isInt(x.n) || x.n < 1 || x.n > 99 || seen.has(x.n)) return { ok: false, detail: "Each paper needs its own number, from 1 to 99." };
-    if (typeof x.abstract !== "string" || x.abstract.trim().length === 0 || x.abstract.length > MAX_TIGHTEN_ABSTRACT) return { ok: false, detail: `Each paper needs an abstract of at most ${MAX_TIGHTEN_ABSTRACT} characters.` };
+    if (typeof x.abstract !== "string" || x.abstract.trim().length === 0 || x.abstract.length > ABSTRACT_READ_CHARS) return { ok: false, detail: `Each paper needs an abstract of at most ${ABSTRACT_READ_CHARS} characters.` };
     seen.add(x.n);
     picked.push({
       n: x.n,

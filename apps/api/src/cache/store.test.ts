@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { d1Store, memoryStore } from "./store";
+import { d1Store, getMany, memoryStore, type CacheStore } from "./store";
 
 /** A D1 stand-in that remembers the statements and answers `all` from a table of rows, so the SQL the store writes is checked as well as what it returns. */
 function fakeD1(rows: Record<string, string> = {}) {
@@ -62,5 +62,18 @@ describe("memoryStore", () => {
     expect((await s.getMany!(["a", "b"])).get("a")).toBe("1");
     t = 10_001;
     expect(await s.get("a")).toBeNull();
+  });
+});
+
+describe("getMany", () => {
+  it("uses the store's own bulk read when it has one, one read per key when it has not", async () => {
+    const m = memoryStore();
+    await m.set("a", "1", 100);
+    expect([...(await getMany(m, ["a", "b"]))]).toEqual([["a", "1"], ["b", null]]);
+    let reads = 0;
+    const plain: CacheStore = { get: async (k) => (reads++, k === "a" ? "1" : null), set: async () => {} };
+    expect([...(await getMany(plain, ["a", "b", "c"]))]).toEqual([["a", "1"], ["b", null], ["c", null]]);
+    expect(reads).toBe(3);
+    expect((await getMany(plain, [])).size).toBe(0);
   });
 });

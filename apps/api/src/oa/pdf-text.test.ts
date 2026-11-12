@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SAMPLE_PAPER, makePdf } from "../../scripts/lib/make-pdf.mjs";
+import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 import { PdfReadError, dehyphenate, extractPdfPages } from "./pdf-text";
 
 const fail = async (p: Promise<unknown>) => {

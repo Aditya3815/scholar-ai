@@ -150,8 +150,7 @@ export const ERROR_HELP: Record<string, string> = {
   quota: "It comes back tomorrow.",
 };
 
-function Turn({ turn, paperKey, onRetry, onPapers }: { turn: OaTurn; paperKey: string; onRetry: (t: OaTurn) => void; onPapers: () => void }) {
-  void paperKey;
+function Turn({ turn, onRetry, onPapers }: { turn: OaTurn; onRetry: (t: OaTurn) => void; onPapers: () => void }) {
   const working = turn.status === "working";
   return (
     <li className="oa-turn" data-status={turn.status}>
@@ -256,7 +255,7 @@ export function OaAskSheet({ onOpenPapers }: { onOpenPapers: () => void }) {
                       )}
                       <ol className="oa-turns" aria-label="Questions about this paper">
                         {list.map((t) => (
-                          <Turn key={t.id} turn={t} paperKey={key!} onRetry={retry} onPapers={papers} />
+                          <Turn key={t.id} turn={t} onRetry={retry} onPapers={papers} />
                         ))}
                       </ol>
                       <div ref={end} />

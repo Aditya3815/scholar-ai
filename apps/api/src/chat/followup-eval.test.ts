@@ -6,7 +6,7 @@ import { readHistory } from "./history";
 import { chatRoutes } from "./routes";
 // the labelled follow-ups, and their scoring: scripts that the real-model eval runs (scripts/router-eval.mjs --followup); pinned here without a model
 // @ts-expect-error a script, not a typed module
-import { CLASSES, HOLDOUT, HOLDOUT2, LANGS, TUNED } from "../../scripts/router-followup-cases.mjs";
+import { CLASSES, HOLDOUT, HOLDOUT2, LANGS, TUNED } from "@scholar/test-support/router-followup-cases.mjs";
 // @ts-expect-error a script, not a typed module
 import { evaluate, formatReport, scoreCase, searchedText, summarize, table, wilson } from "../../scripts/lib/followup-score.mjs";
 

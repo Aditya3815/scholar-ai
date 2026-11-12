@@ -17,7 +17,6 @@ import type { UnderstandIntent } from "./understanding";
  *   und_fix_*           a check changed the model's reading (closed names of `Correction`)
  *   und_retry           the first reading was invalid and the model was asked once more
  *   und_chat_leak       a conversation reply was thrown away by the post-check (counted by the caller of writeChatReply)
- *   und_change          the person pressed Change on the reading (counted by the page's report, not here)
  */
 export const UNDERSTAND_COUNTER_NAMES = [
   "und_turn",
@@ -32,10 +31,9 @@ export const UNDERSTAND_COUNTER_NAMES = [
   "und_fix_that_paper_clarify", "und_fix_no_results_to_ask", "und_fix_no_search_to_refine", "und_fix_low_confidence_clarify", "und_fix_chat_greeting_kept", "und_fix_language_switch",
   "und_retry",
   "und_chat_leak",
-  "und_change",
 ] as const;
 export type UnderstandCounterName = (typeof UNDERSTAND_COUNTER_NAMES)[number];
-/** Is this a name of the closed list? For a writer that takes names from elsewhere (the page's report of `und_change`). */
+/** Is this a name of the closed list? Kept although no writer uses it yet: it is the one function of this module a plain string can call, which the run-time check of legal-match rule 3 needs. */
 export const isUnderstandCounterName = (name: unknown): name is UnderstandCounterName => typeof name === "string" && (UNDERSTAND_COUNTER_NAMES as readonly string[]).includes(name);
 
 /** What today's pipeline did with the same message, as an intent of the new list (for the shadow comparison). */

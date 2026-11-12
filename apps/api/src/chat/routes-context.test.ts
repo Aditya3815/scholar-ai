@@ -401,7 +401,7 @@ describe("what a model is given, stage by stage: the earlier turns reach the rou
       expect(named(path).length).toBeGreaterThan(200);
       expect(named(path)).not.toMatch(/history|earlier|readHistory|readEarlier|routeFollowUp|CHAT_CONTEXT/i);
     }
-    expect(src).toMatch(/function judgeStreamFor\(env: Bindings, subject: string, abort: AbortSignal, timeoutMs = 20_000\)/);
+    expect(src).toMatch(/function judgeStreamFor\(env: Env, subject: string, abort: AbortSignal, timeoutMs = 20_000\)/);
   });
 
   it("the strict check ignores a history that is sent to it", async () => {

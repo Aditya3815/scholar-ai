@@ -205,13 +205,10 @@ describe("applyVerdicts", () => {
     const q = splitClaims("Does it work?");
     expect(applyVerdicts({ claims: q, verdicts: verdicts({ 0: J("partial", [1, [1]]) }), citations: [], picked: picked(1) }).text).toBe("Does it work [1]?");
   });
-  it("takes out an unmarked claim judged no, unless told to keep it", () => {
+  it("takes out an unmarked claim judged no", () => {
     const only = splitClaims("Real finding [1]. Invented finding.");
     const v = verdicts({ 0: J("yes", [1, [1]]), 1: J("no") });
     expect(applyVerdicts({ claims: only, verdicts: v, citations: [cite(1, 1)], picked: picked(1) }).text).toBe("Real finding [1].");
-    const kept = applyVerdicts({ claims: only, verdicts: v, citations: [cite(1, 1)], picked: picked(1), dropUnmarkedNo: false });
-    expect(kept.text).toBe("Real finding [1]. Invented finding.");
-    expect(kept.leftOut).toBe(0);
   });
   it("leaves a claim with no usable verdict as it was, with the model's own sentence, and says the answer was not fully checked", () => {
     const r = run({ 0: J("yes", [1, [2]]) });
@@ -259,7 +256,7 @@ describe("applyVerdicts keeps its promises under any verdicts (random)", () => {
         if ((kind === "yes" || kind === "partial") && refs.length === 0) continue;
         v.set(c.index, { verdict: kind, refs });
       }
-      const r = applyVerdicts({ claims, verdicts: v, citations: [cite(1, 2), cite(2, 1), cite(3, 3), cite(4, 4)], picked: picked(1, 2, 3, 4), dropUnmarkedNo: rand() < 0.5 });
+      const r = applyVerdicts({ claims, verdicts: v, citations: [cite(1, 2), cite(2, 1), cite(3, 3), cite(4, 4)], picked: picked(1, 2, 3, 4) });
       const shown = new Set(r.citations.map((c) => c.n));
       for (const m of r.text.matchAll(/\[(\d{1,2})\]/g)) expect(shown.has(Number(m[1]))).toBe(true);
       for (const c of r.citations) expect(SENTENCES(c.n)).toContain(c.sentence);

@@ -3,26 +3,17 @@ import { normalizeDoi } from "./normalize";
 import { crossrefFetch, SEARCH_GATE_WAIT_MS } from "../references/crossref-gate";
 import { getMany, type CacheStore } from "../cache/store";
 import { cacheKey } from "./cache";
-type RetractionEnv = { CROSSREF_MAILTO: string; fetch?: typeof fetch };
+import type { Env } from "../platform/env";
+type RetractionEnv = Pick<Env, "CROSSREF_MAILTO"> & { fetch?: typeof fetch };
 
 type NoticeItem = { DOI?: string; "update-to"?: { DOI?: string; type?: string }[] };
 
 /**
  * Ek Crossref call mein sab DOIs ka retraction check (Retraction Watch data Crossref mein hai).
  * `updates:<doi>` ek hi naam ke filters OR hote hain, `update-type:retraction` se AND.
- * Result: retraction notices; unke `update-to` mein retracted paper ka DOI hota hai.
+ * Result: retracted DOI -> the DOIs of its retraction notices (usually one); the keys are the retracted DOIs.
+ * `gateWaitMs`: how long a call may wait for its turn in the shared Crossref lane (a search has little time, a background job can wait longer).
  */
-export async function findRetracted(
-  dois: string[],
-  env: RetractionEnv,
-  signal: AbortSignal,
-  /** How long a call may wait for its turn in the shared Crossref lane: a search has little time, a background job can wait longer. */
-  gateWaitMs = SEARCH_GATE_WAIT_MS,
-): Promise<string[]> {
-  return [...(await findRetractionNotices(dois, env, signal, gateWaitMs)).keys()];
-}
-
-/** The same one call as `findRetracted`, keeping which notice retracted each DOI: retracted DOI -> the DOIs of its retraction notices (usually one). */
 export async function findRetractionNotices(dois: string[], env: RetractionEnv, signal: AbortSignal, gateWaitMs = SEARCH_GATE_WAIT_MS): Promise<Map<string, string[]>> {
   // DOI mein comma ho toh filter syntax toot jaata hai; aise rare DOIs skip (unknown rahenge).
   const usable = [...new Set(dois)].filter((d) => !d.includes(","));
@@ -58,12 +49,12 @@ export async function findRetractionNotices(dois: string[], env: RetractionEnv, 
 const RETRACTION_TTL_S = 24 * 3600;
 
 /**
- * `findRetracted` with one cache entry per DOI ("1" retracted, "0" not): the DOIs already known are read in one operation and only the others are sent to Crossref. A DOI that
- * `findRetracted` cannot ask about (one with a comma) is not in the answer and is not cached. Throws when Crossref could not be asked; nothing is kept then.
+ * `findRetractionNotices` with one cache entry per DOI ("1" retracted, "0" not): the DOIs already known are read in one operation and only the others are sent to Crossref. A DOI that
+ * `findRetractionNotices` cannot ask about (one with a comma) is not in the answer and is not cached. Throws when Crossref could not be asked; nothing is kept then.
  */
 export async function retractedDois(store: CacheStore | undefined, dois: string[], env: RetractionEnv, signal: AbortSignal): Promise<{ retracted: Set<string>; fromCache: boolean }> {
   const usable = [...new Set(dois)].filter((d) => d && !d.includes(","));
-  if (!store) return { retracted: new Set(await findRetracted(usable, env, signal)), fromCache: false };
+  if (!store) return { retracted: new Set((await findRetractionNotices(usable, env, signal)).keys()), fromCache: false };
   if (usable.length === 0) return { retracted: new Set(), fromCache: true };
 
   const keys = await Promise.all(usable.map((d) => cacheKey("retraction", d)));
@@ -77,7 +68,7 @@ export async function retractedDois(store: CacheStore | undefined, dois: string[
   });
   if (missing.length === 0) return { retracted, fromCache: true };
 
-  const found = new Set(await findRetracted(missing, env, signal));
+  const found = new Set((await findRetractionNotices(missing, env, signal)).keys());
   await Promise.all(
     missing.map((d) => {
       if (found.has(d)) retracted.add(d);

@@ -57,7 +57,6 @@ export type LitscanPlan = { topic: string; language: LitscanLanguage; items: Lit
 export type LitscanStartRequest = { topic: string; language: LitscanLanguage; items: LitscanItem[]; scope?: SearchScope };
 
 export type LitscanState = "running" | "completed" | "canceled" | "failed";
-export const LITSCAN_END_STATES = ["completed", "canceled", "failed"] as const;
 
 /** Why a sub-question has no written answer. */
 export type LitscanGap = "nothing_found" | "no_relevant" | "no_abstracts" | "not_answered" | "not_grounded" | "too_slow" | "quota" | "unavailable";

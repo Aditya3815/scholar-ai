@@ -22,7 +22,8 @@ npm run dev:web        # Vite dev server with /api proxied to :8787
 Secrets: copy `apps/api/.dev.vars.example` to `apps/api/.dev.vars` (gitignored) and fill the keys
 (OpenAlex, Semantic Scholar, NCBI, CORE, Crossref contact email, optional Gemini). For production use `wrangler secret bulk`.
 
-Checks: `npm run typecheck`, `npm run contrast -w apps/web` (WCAG pairs for the 3 themes),
+Checks: `npm run typecheck`, `npm test` (the unit tests of apps/api, packages/shared and apps/web, each beside the code it tests; a `layers.test.ts`
+in each holds the dependency rule of docs/design/untangle.md), `npm run contrast -w apps/web` (WCAG pairs for the 3 themes),
 `npm run e2e -w apps/web` (Edge headless: screenshots in `apps/web/e2e/shots`, axe accessibility scan, mobile overflow, CSP violations;
 needs the local server from `npm run dev:api` running, or use `npm run integration` above).
 
@@ -35,7 +36,7 @@ throwaway local Worker and database and runs them (after `npm run build`): `npm 
 also run the Playwright suites (set `E2E_BROWSER=chrome` if you do not have Edge). CI runs the first on every push and the second weekly.
 Real credentials: `docs/auth-setup.md`.
 
-Uploaded papers and grounded Q&A: `docs/qa.md` (try it with the real models via `apps/api/scripts/docs-live.mjs`).
+Uploaded papers and grounded Q&A: `docs/qa.md` (try it with the real models via `apps/api/scripts/archive/docs-live.mjs`).
 
 How we work (decide, test first, cause before fix, prove before done): `docs/how-we-work.md`.
 

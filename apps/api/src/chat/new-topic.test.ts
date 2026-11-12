@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  DID_NOT_FINISH_NOTICE, DID_NOT_FINISH_NOTICE_HINGLISH, NOTICE_KINDS, activePath, askedTurns, canStartNewTopic, contextBefore, didNotFinishText, editUserMessage, foldState, interruptMessages, lastReplyDidNotFinish, startAssistant, switchVersion,
+  DID_NOT_FINISH_NOTICE, DID_NOT_FINISH_NOTICE_HINGLISH, NOTICE_KINDS, activePath, askedTurns, canStartNewTopic, contextBefore, didNotFinishText, editUserMessage, interruptMessages, lastReplyDidNotFinish, startAssistant, switchVersion,
   topicStart, trimMessagesForStorage, usesEarlierTurns,
   type AssistantMsg, type ChatMsg, type HistoryEntry, type IdeaMsg, type Paper, type UserMsg,
 } from "@scholar/shared";
@@ -141,7 +141,6 @@ describe("an edit, a version switch and Search again, with a marker in the chat"
     expect(asks(contextBefore(msgs, 8))).toEqual(["question number 3", "question number 4"]);
     const edited = editUserMessage(msgs, "u4", "fourth, reworded", reply("a9", { status: "working" }))!;
     expect(edited.find((m) => m.id === "u3")).toMatchObject({ newTopic: true });
-    expect(json(foldState(edited))).not.toMatch(/question number [12]\b/);
   });
 
   it("an edit of the marked message keeps the marker and is sent with nothing", () => {
@@ -177,40 +176,6 @@ describe("an edit, a version switch and Search again, with a marker in the chat"
     const edited = editUserMessage(base, "u2", "NEW-WORDS", reply("a9", { query: "NEW-WORDS" }))!;
     const next = [...edited, ...turn(7, {}, "NEXT-WORDS")];
     expect(json(contextBefore(next, next.length))).not.toMatch(/ORIGINAL|SECOND|THIRD/);
-    expect(json(foldState(next))).not.toMatch(/ORIGINAL|SECOND|THIRD/);
-  });
-});
-
-describe("the fold starts at the marker too", () => {
-  it("turns, current and before are the new topic's; `newTopic` says the last message was sent after it", () => {
-    const msgs = mark(chat(5), "u3");
-    const s = foldState(msgs);
-    expect(s.turns).toBe(3);
-    expect(s.current).toMatchObject({ asked: "question number 5" });
-    expect(s.before.map((b) => b.asked)).toEqual(["question number 3", "question number 4"]);
-    expect(s.newTopic).toBe(false); // the last user message is the fifth, and it was not sent after "New topic"
-    expect(json(s)).not.toMatch(/question number [12]\b/);
-  });
-
-  it("with the marked message just sent (no reply yet) the state is empty and says why", () => {
-    const sent: ChatMsg[] = [...chat(3), { ...user("m", "a new topic"), newTopic: true }];
-    const s = foldState(sent);
-    expect(s).toMatchObject({ turns: 0, current: null, before: [], newTopic: true, unfinished: 0 });
-  });
-
-  it("a failed reply before the marker is not counted; one after it is", () => {
-    const msgs: ChatMsg[] = [...chat(1), ...failed(1), { ...user("m", "new topic"), newTopic: true }, reply("ma"), ...failed(2, "error")];
-    expect(foldState(msgs).unfinished).toBe(1);
-    expect(foldState(msgs.slice(0, 4)).unfinished).toBe(1); // before the marker is sent: the failure is the chat's
-  });
-
-  it("agrees with contextBefore on what is carried: the same questions, whatever the marker's place", () => {
-    for (const at of ["u1", "u2", "u3", "u4", "u5", "u6"]) {
-      const msgs = mark(chat(6), at);
-      const h = asks(contextBefore(msgs, msgs.length));
-      const s = foldState(msgs);
-      expect([...s.before.map((b) => b.asked), s.current!.asked]).toEqual(h);
-    }
   });
 });
 

@@ -200,9 +200,9 @@ export type Applied = {
 /**
  * The answer after the verdicts: a claim judged `no` is taken out; a claim judged `yes` or `partial` keeps the marks of the papers that support it (and takes marks, when it had none),
  * and the evidence shown for a paper is the sentences the judge found (at most three, the ones most claims rest on); a claim without a usable verdict, or judged `framing`, stays as it was
- * with the model's own sentences. `dropUnmarkedNo: false` keeps a claim without marks even when the judge finds no support for it. Pure.
+ * with the model's own sentences. Pure.
  */
-export function applyVerdicts(args: { claims: readonly Claim[]; verdicts: ReadonlyMap<number, Judged>; citations: readonly ChatCitation[]; picked: readonly Picked[]; dropUnmarkedNo?: boolean; rewrites?: ReadonlyMap<number, Rewrite> }): Applied {
+export function applyVerdicts(args: { claims: readonly Claim[]; verdicts: ReadonlyMap<number, Judged>; citations: readonly ChatCitation[]; picked: readonly Picked[]; rewrites?: ReadonlyMap<number, Rewrite> }): Applied {
   const { claims, verdicts, citations } = args;
   const byN = new Map(args.picked.map((p) => [p.n, p.paper]));
   const counts: Applied["counts"] = { yes: 0, partial: 0, no: 0, framing: 0, unverified: 0 };
@@ -220,7 +220,7 @@ export function applyVerdicts(args: { claims: readonly Claim[]; verdicts: Readon
       counts.unverified++;
       if (marked) unverifiedMarked++;
     } else counts[v.verdict]++;
-    if (v?.verdict === "no" && (marked || args.dropUnmarkedNo !== false)) {
+    if (v?.verdict === "no") {
       leftOut++;
       continue;
     }
@@ -313,7 +313,7 @@ export function candidateRewrites(claims: readonly Claim[], verdicts: ReadonlyMa
  * In the strict check (`strict`) a claim called `partial` may come with a shorter version. It is used only if it passes `checkRewrite` (adds no word, number or negation, keeps the claim's hedges) **and** a second
  * reading, of the shorter claims alone, calls each one `yes` with sentences of the papers it keeps. A second reading that fails or says anything else leaves the claim as it was.
  */
-export async function judgeAnswer(args: { answer: Pick<ChatAnswer, "text" | "citations">; picked: readonly Picked[]; judge: StreamComplete; label?: string; dropUnmarkedNo?: boolean; /** The strict check: the stronger reading that also offers a shorter claim for a claim that says more than its sentences (default: the quick one, which never rewrites). */ strict?: boolean; /** The model of the second reading of shorter claims (default: `judge`). */ recheck?: StreamComplete; onResult?: (r: JudgeReport) => void }): Promise<Judgement | null> {
+export async function judgeAnswer(args: { answer: Pick<ChatAnswer, "text" | "citations">; picked: readonly Picked[]; judge: StreamComplete; label?: string; /** The strict check: the stronger reading that also offers a shorter claim for a claim that says more than its sentences (default: the quick one, which never rewrites). */ strict?: boolean; /** The model of the second reading of shorter claims (default: `judge`). */ recheck?: StreamComplete; onResult?: (r: JudgeReport) => void }): Promise<Judgement | null> {
   const t0 = Date.now();
   const claims = splitClaims(args.answer.text);
   // every paper the model read, not only the ones it cited: a claim that cites nothing (its mark was taken out because its sentence did not check) may rest on any of them
@@ -352,7 +352,7 @@ export async function judgeAnswer(args: { answer: Pick<ChatAnswer, "text" | "cit
       }
       checkMs = Date.now() - t1;
     }
-    const applied = applyVerdicts({ claims, verdicts, citations: args.answer.citations, picked: papers, dropUnmarkedNo: args.dropUnmarkedNo, rewrites: accepted });
+    const applied = applyVerdicts({ claims, verdicts, citations: args.answer.citations, picked: papers, rewrites: accepted });
     args.onResult?.({ ms: Date.now() - t0, model: r.model, counts: applied.counts, leftOut: applied.leftOut, rewritten: applied.rewritten, verdicts: [...verdicts], rewrites: report, ...(checkMs === undefined ? {} : { checkMs }) });
     return { ...applied, grounded: applied.citations.length > 0 && applied.text !== "" };
   } catch (e) {

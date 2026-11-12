@@ -41,10 +41,6 @@ export type MountOptions = {
   src: string;
   artboard: string;
   stateMachine: string;
-  /** How long a change is drawn before the loop stops, in ms. */
-  settleMs?: number;
-  /** How long to wait for the runtime and the file before giving up, in ms. */
-  timeoutMs?: number;
 };
 
 /**
@@ -52,7 +48,10 @@ export type MountOptions = {
  * what it showed before. The canvas is sized by CSS; its drawing surface follows its size.
  */
 export async function mountRive(opts: MountOptions): Promise<RiveScene | null> {
-  const { canvas, settleMs = 3000, timeoutMs = 15000 } = opts;
+  const { canvas } = opts;
+  /** How long a change is drawn before the loop stops, and how long to wait for the runtime and the file before giving up, in ms. */
+  const settleMs = 3000;
+  const timeoutMs = 15000;
   let mod: Runtime;
   try {
     mod = await Promise.race([loadRuntime(), new Promise<never>((_, reject) => setTimeout(() => reject(new Error("rive: the runtime did not load in time")), timeoutMs))]);

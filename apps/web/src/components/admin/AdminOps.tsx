@@ -64,7 +64,6 @@ const UNDERSTAND_TEXT: Record<string, string> = {
   und_fix_language_switch: "Messages like “Hindi mein batao”: the last answer again in that language",
   und_retry: "The model was asked a second time after an invalid reading",
   und_chat_leak: "A conversation reply that cited something was thrown away, and the message searched",
-  und_change: "The person pressed Change on the step's reading",
 };
 const OUTCOME_TEXT: Record<string, string> = {
   clarify: "Answered with one question back before searching (the Understand step)",

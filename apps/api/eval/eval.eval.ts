@@ -12,7 +12,7 @@ import { crossrefByDoi, doiResolves } from "../src/references/lookup";
 import { tokenize } from "../src/references/match";
 import { verifyReference, type RefResult } from "../src/references/verify";
 import { runSearch } from "../src/search";
-import { findRetracted } from "../src/search/retraction";
+import { findRetractionNotices } from "../src/search/retraction";
 import { FetchLayer, type Mode } from "./lib/fetch-layer";
 // @ts-expect-error plain .mjs helper shared with the dataset builders
 import { formatRef, stripRetractionBanner } from "./lib/text.mjs";
@@ -186,9 +186,9 @@ beforeAll(async () => {
 
   /* 4. retraction detection straight from Retraction Watch via Crossref, plus a no-false-positive control */
   const retractedDois = retracted.map((r) => r.doi);
-  const detected = await findRetracted(retractedDois, env, AbortSignal.timeout(60_000));
+  const detected = [...(await findRetractionNotices(retractedDois, env, AbortSignal.timeout(60_000))).keys()];
   const control: string[] = [];
-  for (let i = 0; i < papers.length; i += 25) control.push(...(await findRetracted(papers.slice(i, i + 25).map((p) => p.doi), env, AbortSignal.timeout(60_000))));
+  for (let i = 0; i < papers.length; i += 25) control.push(...(await findRetractionNotices(papers.slice(i, i + 25).map((p) => p.doi), env, AbortSignal.timeout(60_000))).keys());
   M.retraction = { detected: retractedDois.filter((d) => detected.includes(d)).length, total: retractedDois.length, falsePositives: control };
 
   /* 5. citation integrity over EVERY DOI any search RETURNED (after the pipeline's own DOI check), verified independently */

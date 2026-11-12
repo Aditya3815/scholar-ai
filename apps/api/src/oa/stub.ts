@@ -18,7 +18,7 @@
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** A tiny valid PDF writer (Helvetica, one block of text per page). The same idea as scripts/lib/make-pdf.mjs, which the browser tests use; ASCII only. */
+/** A tiny valid PDF writer (Helvetica, one block of text per page). The same idea as packages/test-support/make-pdf.mjs, which the browser tests use; ASCII only. */
 export function tinyPdf(pages: string[]): Uint8Array {
   const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
   const objs: string[] = [];

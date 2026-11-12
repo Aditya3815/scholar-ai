@@ -7,7 +7,7 @@
 import { chromium } from "playwright-core";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
-import { SAMPLE_PAPER, makePdf } from "../../api/scripts/lib/make-pdf.mjs";
+import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 
 const require = createRequire(import.meta.url);

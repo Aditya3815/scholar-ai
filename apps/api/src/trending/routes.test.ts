@@ -6,7 +6,7 @@ import { isFresh, parseTrending, type TrendingChip, type TrendingPayload } from 
 import { rateLimit } from "../ratelimit";
 import { fakeKv } from "./fake-kv";
 import { TRENDING_KEYS } from "./store";
-import { servedPayload, trendingRoutes, type TrendingRouteEnv } from "./routes";
+import { readTrending, trendingRoutes, type TrendingRouteEnv } from "./routes";
 
 /**
  * GET /api/v1/home/trending (T12): one public file, the same for everyone, read from KV and never from OpenAlex or arXiv. A miss, a broken store, a broken file, a stale file and the two
@@ -145,9 +145,9 @@ describe("what it answers when there is nothing to show", () => {
     err.mockRestore();
   });
 
-  it("servedPayload itself still answers an empty expired file for a store that throws (nothing is shown; it never throws)", async () => {
+  it("readTrending itself still answers an empty expired file for a store that throws (nothing is shown; it never throws)", async () => {
     vi.useFakeTimers({ now: NOW });
-    const b = await servedPayload({ CACHE: fakeKv({ fail: () => { throw new Error("down"); } }).kv }, new Date(NOW));
+    const b = (await readTrending({ CACHE: fakeKv({ fail: () => { throw new Error("down"); } }).kv }, new Date(NOW))).payload;
     nothing(b);
     expect(b.disabled).toBe(false);
   });
@@ -163,18 +163,18 @@ describe("what it answers when there is nothing to show", () => {
 
   it("a stale file (past its validUntil) is not served as trending: the page is given no chips", async () => {
     const stale = good({ validUntil: "2026-11-03T05:59:59.000Z" });
-    const b = await servedPayload({ CACHE: fileKv(stale).kv }, new Date(NOW));
+    const b = (await readTrending({ CACHE: fileKv(stale).kv }, new Date(NOW))).payload;
     nothing(b);
     expect(b.disabled).toBe(false);
     // the second it expires
-    expect((await servedPayload({ CACHE: fileKv(good({ validUntil: "2026-11-03T06:00:01.000Z" })).kv }, new Date(NOW))).groups.global.chips).toHaveLength(8);
-    expect((await servedPayload({ CACHE: fileKv(good({ validUntil: "2026-11-03T06:00:00.000Z" })).kv }, new Date(NOW))).groups.global.chips).toHaveLength(0);
+    expect((await readTrending({ CACHE: fileKv(good({ validUntil: "2026-11-03T06:00:01.000Z" })).kv }, new Date(NOW))).payload.groups.global.chips).toHaveLength(8);
+    expect((await readTrending({ CACHE: fileKv(good({ validUntil: "2026-11-03T06:00:00.000Z" })).kv }, new Date(NOW))).payload.groups.global.chips).toHaveLength(0);
   });
 
   it("a file made from a weekly pool older than 14 days is not served as trending", async () => {
     // the page's rule is on time, not on days: the pool's day counts from its midnight, and it is 06:00 on the 3rd
-    expect((await servedPayload({ CACHE: fileKv(good({ poolAsOf: "2026-10-21" })).kv }, new Date(NOW))).groups.global.chips).toHaveLength(8); // 13 days and 6 hours
-    expect((await servedPayload({ CACHE: fileKv(good({ poolAsOf: "2026-10-20" })).kv }, new Date(NOW))).groups.global.chips).toHaveLength(0); // 14 days and 6 hours
+    expect((await readTrending({ CACHE: fileKv(good({ poolAsOf: "2026-10-21" })).kv }, new Date(NOW))).payload.groups.global.chips).toHaveLength(8); // 13 days and 6 hours
+    expect((await readTrending({ CACHE: fileKv(good({ poolAsOf: "2026-10-20" })).kv }, new Date(NOW))).payload.groups.global.chips).toHaveLength(0); // 14 days and 6 hours
   });
 
   it("a file that is not right (not JSON, wrong version, a bad chip, 13 chips, text that is not tidy) is treated as missing, and says so once in the log without its content", async () => {
@@ -182,7 +182,7 @@ describe("what it answers when there is nothing to show", () => {
     const thirteen = good();
     thirteen.groups.global.chips = Array.from({ length: 13 }, (_, i) => chip(`phrase number ${i}`));
     for (const bad of ["not json {", JSON.stringify({ ...good(), version: 2 }), JSON.stringify(good({ asOf: "2026-02-31" })), JSON.stringify(thirteen), JSON.stringify(good({ groups: { global: { chips: [chip(`two${String.fromCharCode(0x200b)}words`)] }, in: { chips: [] } } })), "null", "[]", '"x"']) {
-      const b = await servedPayload({ CACHE: fileKv(bad).kv }, new Date(NOW));
+      const b = (await readTrending({ CACHE: fileKv(bad).kv }, new Date(NOW))).payload;
       nothing(b);
     }
     expect(warn).toHaveBeenCalled();

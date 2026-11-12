@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
-import { SAMPLE_PAPER, makePdf, makePdfLines } from "../../api/scripts/lib/make-pdf.mjs";
+import { SAMPLE_PAPER, makePdf, makePdfLines } from "@scholar/test-support/make-pdf.mjs";
 
 const require = createRequire(import.meta.url);
 // Injected with evaluate(), which CSP does not apply to, so the policy under test stays strict.

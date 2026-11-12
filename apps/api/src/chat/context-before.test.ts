@@ -487,6 +487,8 @@ describe("noticeOffersRetry: which notice has 'Search again' beside it", () => {
   const years = { turns: 1, intent: "refine" as const, rewrote: false, yearFrom: 2022 };
   const FEW = { kind: "years" as const, text: "Only 1 of the papers found is from 2022 or later, so this list is short. Remove the year filter to see more." };
   const SOURCE = { kind: "partial" as const, text: PARTIAL_NOTICE };
+  /** a notice with its words (the function reads only the kind) */
+  const notice = (kind: string, text: string) => ({ kind, text });
   it("a source that did not answer: yes, whatever else the reply was", () => {
     expect(noticeOffersRetry(reply("a1"), SOURCE)).toBe(true);
     expect(noticeOffersRetry(reply("a1", { context: years }), SOURCE)).toBe(true);
@@ -495,12 +497,12 @@ describe("noticeOffersRetry: which notice has 'Search again' beside it", () => {
     expect(noticeOffersRetry(reply("a1", { context: years }), FEW)).toBe(false);
     expect(noticeOffersRetry(reply("a1"), FEW)).toBe(false);
     // the words do not decide: a notice of kind partial with any words is a source notice (the old way of telling them apart is gone)
-    expect(noticeOffersRetry(reply("a1", { context: years }), { kind: "partial", text: "Only 1 of the papers found is from 2022 or later" })).toBe(true);
+    expect(noticeOffersRetry(reply("a1", { context: years }), notice("partial", "Only 1 of the papers found is from 2022 or later"))).toBe(true);
   });
   it("not while the reply is being written, and not for the other kinds", () => {
     expect(noticeOffersRetry(reply("a1", { status: "working" }), SOURCE)).toBe(false);
-    expect(noticeOffersRetry(reply("a1"), { kind: "nothing", text: "No paper from 2030 was found for this." })).toBe(false);
-    expect(noticeOffersRetry(reply("a1"), { kind: "retracted", text: "x" })).toBe(false);
+    expect(noticeOffersRetry(reply("a1"), notice("nothing", "No paper from 2030 was found for this."))).toBe(false);
+    expect(noticeOffersRetry(reply("a1"), notice("retracted", "x"))).toBe(false);
   });
 });
 

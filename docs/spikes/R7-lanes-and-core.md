@@ -39,7 +39,7 @@ Rules that matter:
 
 ### Measured on deployed Workers (production still ran the old code, staging the new)
 
-`node apps/api/scripts/crossref-burst.mjs <url> refs <count> <parallel> <offset>`: real references (title only, from the prior-art data), each needing fresh lookups.
+`node apps/api/scripts/archive/crossref-burst.mjs <url> refs <count> <parallel> <offset>`: real references (title only, from the prior-art data), each needing fresh lookups.
 
 | | at a time | references | in all | median per reference | 90th percentile | "could not check" |
 | --- | --- | --- | --- | --- | --- | --- |

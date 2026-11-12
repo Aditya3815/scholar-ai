@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { sameOrigin } from "../auth/http";
-import { allowEvent, parseDsn, routeOf, scrubMessage, sendEvent, type SentryEnv } from "./sentry";
+import { allowEvent, parseDsn, routeOf, scrubMessage, sendEvent } from "./sentry";
+import type { HonoEnv } from "../platform/env";
 
-type Env = { Bindings: SentryEnv & { CF_VERSION_METADATA?: WorkerVersionMetadata } };
-export const monitoringRoutes = new Hono<Env>();
+export const monitoringRoutes = new Hono<HonoEnv>();
 
 const MAX_BODY = 12_000;
 

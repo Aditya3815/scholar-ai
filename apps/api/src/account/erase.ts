@@ -1,6 +1,7 @@
 import { deleteDocument } from "../docs/routes";
 import { captureException, type SentryEnv } from "../monitoring/sentry";
 import { revokeAllApps } from "../mcp/apps";
+import type { EnvPick } from "../platform/env";
 
 /**
  * Deleting an account, and keeping a deletion from being undone by a database restore.
@@ -15,10 +16,10 @@ export const TOMBSTONE_PREFIX = "tombstones/";
 const ID = /^[A-Za-z0-9-]{8,64}$/;
 const tombstoneKey = (userId: string) => `${TOMBSTONE_PREFIX}${userId}`;
 
-type Env = { DB: D1Database; FILES: R2Bucket; OAUTH_KV?: KVNamespace; PUBLIC_BASE_URL?: string } & SentryEnv;
+type EraseEnv = EnvPick<"DB" | "FILES" | "PUBLIC_BASE_URL", "OAUTH_KV"> & SentryEnv;
 
 /** Erases the account's papers (files and rows), library, reports, sessions and sign-in links, in that order, then the account itself. */
-export async function eraseAccount(env: Env, userId: string, opts: { tombstone?: boolean } = {}): Promise<void> {
+export async function eraseAccount(env: EraseEnv, userId: string, opts: { tombstone?: boolean } = {}): Promise<void> {
   if (opts.tombstone !== false && ID.test(userId)) {
     // First, so that a deletion which stops half way is still re-applied. A marker that cannot be written must not block someone's right to delete.
     try {
@@ -84,7 +85,7 @@ export async function existingUsers(db: D1Database, ids: string[]): Promise<stri
 export type ReapplyResult = { markers: number; erased: number; failed: number };
 
 /** Erases again every account that was deleted and has come back (after a restore). Safe to run twice: the second run finds nothing. */
-export async function reapplyDeletions(env: Env): Promise<ReapplyResult> {
+export async function reapplyDeletions(env: EraseEnv): Promise<ReapplyResult> {
   const ids = await listTombstones(env.FILES);
   const back = await existingUsers(env.DB, ids);
   let erased = 0;

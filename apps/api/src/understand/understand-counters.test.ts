@@ -38,7 +38,8 @@ describe("understandCounters", () => {
   });
 
   it("tells a name of the list from anything else", () => {
-    expect(isUnderstandCounterName("und_change")).toBe(true);
+    expect(isUnderstandCounterName("und_retry")).toBe(true);
+    expect(isUnderstandCounterName("und_change")).toBe(false);
     expect(isUnderstandCounterName("und_text_of_message")).toBe(false);
     expect(isUnderstandCounterName(5)).toBe(false);
   });

@@ -15,7 +15,7 @@ import { parseUnderstanding, UNDERSTAND_SCHEMA, type ParseFailure, type Understa
  *   - the confidence policy: 0.75 and above acts; 0.45 to 0.75 acts and asks "Did you want this? Change" prominently; below 0.45 asks a question only when the wrong action is costly, never on chat;
  *   - the fail policy: a timeout, invalid JSON twice, every model down, or no allowance left falls back to today's rules, and says so ("I could not understand well, so I searched for papers").
  *
- * Not wired into the chat route yet (that is the step after M2's ledger and think event): `understandTurn` is called by nothing in production. Its switch is CHAT_UNDERSTAND (understand-flag.ts).
+ * Not wired into the chat route yet (that is the step after M2's ledger and think event): `understandTurn` is called by nothing in production. Its switch is CHAT_UNDERSTAND (read with the other chat switches in chat/routes.ts).
  */
 
 export const CONFIDENT = 0.75;
@@ -399,11 +399,3 @@ export const RETRY_HINTS: Record<ParseFailure, string> = {
   confidence: "confidence must be a number from 0 to 1.",
 };
 
-/** The line the Thinking block shows when the rules decided because the model could not (the design's words, per language). */
-export const FALLBACK_NOTICE: Record<UnderstandLanguage, string> = {
-  en: "I could not understand this well, so I searched for papers",
-  hinglish: "Main theek se samajh nahi paaya, isliye papers dhundhe",
-  hi: "मैं ठीक से समझ नहीं पाया, इसलिए पेपर खोजे",
-};
-/** The prominent question for a reading between 0.45 and 0.75. */
-export const CONFIRM_TEXT: Record<UnderstandLanguage, string> = { en: "Did you want this?", hinglish: "Aapko ye chahiye tha?", hi: "क्या आपको यही चाहिए था?" };

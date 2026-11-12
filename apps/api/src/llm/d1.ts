@@ -1,5 +1,4 @@
-import { d1Store } from "../cache/store";
-import type { Ledger, ResponseCache, UsageRow } from "./types";
+import type { Ledger, UsageRow } from "./types";
 
 export function d1Ledger(db: D1Database): Ledger {
   return {
@@ -19,9 +18,4 @@ export function d1Ledger(db: D1Database): Ledger {
         .run();
     },
   };
-}
-
-/** Reuses the shared `api_cache` table. Only the gateway's PUBLIC responses are ever stored here. */
-export function d1ResponseCache(db: D1Database): ResponseCache {
-  return d1Store(db, "llm");
 }

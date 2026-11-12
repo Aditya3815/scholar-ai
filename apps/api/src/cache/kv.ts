@@ -17,8 +17,11 @@ export const MAX_CACHED_CHARS = 1_000_000;
 /** KV reads at most this many keys in one operation. */
 const BULK = 100;
 
-export function kvStore(kv: KVNamespace, opts: { /** how long a place keeps what it read, seconds (KV's minimum is 30) */ cacheTtl?: number } = {}): CacheStore {
-  const cacheTtl = Math.max(30, opts.cacheTtl ?? 60);
+/** How long a place keeps what it read, seconds (KV's minimum is 30). */
+const READ_CACHE_TTL_S = 60;
+
+export function kvStore(kv: KVNamespace): CacheStore {
+  const cacheTtl = READ_CACHE_TTL_S;
   const k = (key: string) => `${KV_VERSION}:${key}`;
   return {
     async get(key) {

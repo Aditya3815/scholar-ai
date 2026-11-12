@@ -2,6 +2,7 @@ import type { Context } from "hono";
 import { getCookie } from "hono/cookie";
 import { SESSION_COOKIE, userFromSession } from "./session";
 import type { SessionUser } from "./users";
+import type { Env } from "../platform/env";
 
 export const isHttps = (c: Context) => new URL(c.req.url).protocol === "https:";
 
@@ -18,8 +19,7 @@ export function sameOrigin(c: Context): boolean {
   return site === "same-origin" || site === "none";
 }
 
-// Any route's context works as long as its bindings include the D1 database (hence the loose Context type).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function currentUser(c: Context<any>): Promise<SessionUser | null> {
-  return userFromSession((c.env as { DB: D1Database }).DB, readSession(c));
+/** Any route's context works as long as its bindings include the D1 database. */
+export async function currentUser<E extends { Bindings: Pick<Env, "DB"> }>(c: Context<E>): Promise<SessionUser | null> {
+  return userFromSession(c.env.DB, readSession(c));
 }

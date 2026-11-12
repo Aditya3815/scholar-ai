@@ -83,7 +83,7 @@ export function SettingsPage() {
       <section className="settings-sec" aria-labelledby="set-read">
         <h2 id="set-read" className="settings-h">Reading</h2>
         <p className="settings-p">Applies to abstracts, answers and the paper reader. Stored in this browser.</p>
-        <ReadingForm heading={false} idPrefix="ws-rc" />
+        <ReadingForm idPrefix="ws-rc" />
       </section>
 
       {user ? (

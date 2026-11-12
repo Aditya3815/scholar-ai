@@ -19,7 +19,7 @@ export const UNDERSTAND_CHAIN: ModelRef[] = [
  * RULES (enforced by tests in gateway.test.ts):
  *  - Every "private" chain contains only privateOk providers (workersai). Never gemini, never OpenRouter free.
  *  - Only models that passed spike R2 (docs/spikes/R2-llm.md) are listed: workersai gpt-oss-120b (private-eligible)
- *    and gemini 3.5-flash-lite (public only). Re-run `scripts/r2/run.mjs` before adding or swapping a model.
+ *    and gemini 3.5-flash-lite (public only). Re-run `scripts/archive/r2-run.mjs` before adding or swapping a model.
  *  - Private chains have a single model for now (the `verify` task has two: both were benchmarked on the same labelled claims, scripts/support-eval.mjs): a second private fallback must be benchmarked first.
  */
 export const DEFAULT_CONFIG: GatewayConfig = {

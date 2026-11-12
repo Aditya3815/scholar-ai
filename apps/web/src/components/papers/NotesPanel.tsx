@@ -1,10 +1,10 @@
 import { AnimatePresence, m } from "motion/react";
 import { Check, Copy, Download, Highlighter, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { MAX_NOTE_CHARS, NOTE_COLORS, type DocNote, type DocumentInfo, type NoteColor } from "@scholar/shared";
+import { MAX_NOTE_CHARS, NOTE_COLORS, notesMarkdown, type DocNote, type DocumentInfo, type NoteColor } from "@scholar/shared";
 import { easeOut, spring } from "../../lib/motion";
 import { useLegend } from "../../lib/legend";
-import { notesToMarkdown, type NotesApi } from "../../lib/notes";
+import { type NotesApi } from "../../lib/notes";
 import { PARKED } from "../../lib/workspace";
 import { ColourFilter, LegendEditor } from "./HighlightsTools";
 
@@ -64,7 +64,7 @@ export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone
   const [colour, setColour] = useState<NoteColor | "all">("all");
   const [group, setGroup] = useState<"page" | "colour">("page");
   const shown = colour === "all" ? api.notes : api.notes.filter((n) => n.color === colour);
-  const md = () => notesToMarkdown(doc.title, shown, { legend, groupBy: group, ...(colour === "all" ? {} : { colours: [colour] }) });
+  const md = () => notesMarkdown(doc.title, shown, { legend, groupBy: group, ...(colour === "all" ? {} : { colours: [colour] }) });
   const copy = () => navigator.clipboard?.writeText(md()).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800); }, () => {});
   const download = () => {
     const url = URL.createObjectURL(new Blob([md()], { type: "text/markdown;charset=utf-8" }));

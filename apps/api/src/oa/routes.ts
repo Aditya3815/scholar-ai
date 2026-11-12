@@ -3,20 +3,16 @@ import { MAX_OA_ABSTRACT_CHARS, MAX_QUESTION_CHARS, oaKey, type OaAskEvent } fro
 import { currentUser, sameOrigin } from "../auth/http";
 import { embedderFor } from "../docs/routes";
 import { sseStream } from "../sse";
-import { installGates } from "../gate";
-import { remoteGate } from "../gate/api-gate";
 import { isPermissiveLicense } from "./jats";
 import { getPaper } from "./store";
-import { oaService, progressOf, readRef, type OaEnv } from "./service";
+import { oaService, progressOf, readRef } from "./service";
 import { deny } from "../problem";
+import type { HonoEnv } from "../platform/env";
 
-export { progressOf };
 
-type Env = { Bindings: OaEnv };
-export const oaRoutes = new Hono<Env>();
+export const oaRoutes = new Hono<HonoEnv>();
 
 oaRoutes.use("*", async (c, next) => {
-  installGates(c.env.API_GATE ? remoteGate(c.env.API_GATE) : null);
   await next();
   c.header("Cache-Control", "no-store");
 });
@@ -54,7 +50,7 @@ oaRoutes.post("/ask", async (c) => {
   if (question.length > MAX_QUESTION_CHARS) return deny(c, 400, "invalid_question", "That question is too long", `Keep it under ${MAX_QUESTION_CHARS} characters.`);
   // an abstract the browser already has (the card shows it): used only if the full text cannot be read, for this person's answer alone, never stored
   const clientAbstract = typeof body?.abstract === "string" ? body.abstract.replace(/\s+/g, " ").trim().slice(0, MAX_OA_ABSTRACT_CHARS) : "";
-  const embed = embedderFor(c.env as never);
+  const embed = embedderFor(c.env);
   if (!embed) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
 
   const abort = new AbortController();

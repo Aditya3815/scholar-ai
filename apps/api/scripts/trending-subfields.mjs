@@ -4,13 +4,14 @@
 //   node scripts/trending-subfields.mjs --from <page1.json> [<page2.json> ...]   the same from saved pages (no network)
 // The file's decisions (allow, hold, never) are kept; a subfield that is new to the file is held, and the first run uses the rules in lib/trending-subfields.mjs. The owner reads the
 // table once: change a decision by editing the policy word on its line. An OPENALEX_API_KEY in the environment is sent if there is one (never printed); without one the two requests
-// share OpenAlex's small free daily budget, which is enough.
+// share OpenAlex's small free daily budget, which is enough. The contact address sent to OpenAlex (mailto, and in the User-Agent) is CROSSREF_MAILTO from the environment, as the Worker's;
+// without one, none is sent.
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { countBy, mergeRows, parseLive, readRows, renderRows, replaceBlock } from "./lib/trending-subfields.mjs";
 
 const TARGET = fileURLToPath(new URL("../../../packages/shared/src/subfield-policy.ts", import.meta.url));
-const MAILTO = "tiadiaditya@gmail.com";
+const MAILTO = process.env.CROSSREF_MAILTO?.trim() || "";
 const args = process.argv.slice(2);
 const check = args.includes("--check");
 const fromAt = args.indexOf("--from");
@@ -20,8 +21,8 @@ async function livePages() {
   const pages = [];
   for (let page = 1; page <= 5; page++) {
     const url = new URL("https://api.openalex.org/subfields");
-    url.search = new URLSearchParams({ "per-page": "200", page: String(page), select: "id,display_name,field,domain", mailto: MAILTO, ...(process.env.OPENALEX_API_KEY ? { api_key: process.env.OPENALEX_API_KEY } : {}) }).toString();
-    const res = await fetch(url, { headers: { "user-agent": `sodhsetu-trending-subfields (mailto:${MAILTO})` }, signal: AbortSignal.timeout(30_000) });
+    url.search = new URLSearchParams({ "per-page": "200", page: String(page), select: "id,display_name,field,domain", ...(MAILTO ? { mailto: MAILTO } : {}), ...(process.env.OPENALEX_API_KEY ? { api_key: process.env.OPENALEX_API_KEY } : {}) }).toString();
+    const res = await fetch(url, { headers: { "user-agent": MAILTO ? `sodhsetu-trending-subfields (mailto:${MAILTO})` : "sodhsetu-trending-subfields" }, signal: AbortSignal.timeout(30_000) });
     if (!res.ok) throw new Error(`OpenAlex answered ${res.status} for page ${page}`);
     const body = await res.json();
     pages.push(body);

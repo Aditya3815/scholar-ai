@@ -26,6 +26,9 @@ jobs:
       - run: npm ci
       # Known-vulnerable production dependencies fail the build (dev-only tooling is excluded; Dependabot covers it).
       - run: npm audit --omit=dev --audit-level=high
+      # The Worker's bindings and vars as types (apps/api/worker-configuration.d.ts, read by src/platform/env.ts) must be what `wrangler types` makes of the
+      # committed wrangler.jsonc: a binding added, renamed or removed there without `npm run cf-typegen -w apps/api` fails here.
+      - run: npm run cf-typegen -w apps/api && git diff --exit-code -- apps/api/worker-configuration.d.ts
       - run: npm run typecheck
       - run: npm test
       # The alert and watchdog scripts that run in the other workflows have tests of their own.

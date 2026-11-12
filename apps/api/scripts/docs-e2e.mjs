@@ -2,7 +2,7 @@
 // (QA_STUB=1). Same setup as library-e2e.mjs; `npm run integration -w apps/api` starts everything.
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
-import { SAMPLE_PAPER, makePdf } from "./lib/make-pdf.mjs";
+import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";

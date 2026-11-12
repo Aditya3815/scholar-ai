@@ -10,7 +10,6 @@ export type CallOutcome = "ok" | "invalid" | "error" | "quota" | "rate_limited";
 
 /** Every tool name the server has. A row names one of these (anything else is written as "unknown"), so the admin page's table is a closed list. */
 export const MCP_TOOLS = ["search_papers", "verify_references", "check_retractions", "ask_paper", "get_library", "save_paper", "check_claim"] as const;
-export type McpTool = (typeof MCP_TOOLS)[number];
 
 const today = () => new Date().toISOString().slice(0, 10);
 

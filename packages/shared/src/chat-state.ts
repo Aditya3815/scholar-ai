@@ -689,7 +689,7 @@ export function retryText(old: AssistantMsg, written: string | null, as?: "searc
  * did to the list has a kind of its own ("years"): asking again would give the same list, so for that line the way out is to take the year filter off (the chip). A kind this page does not know
  * (an old tab meeting a newer server) offers nothing.
  */
-export function noticeOffersRetry(m: AssistantMsg, n: { kind: string; text?: string }): boolean {
+export function noticeOffersRetry(m: AssistantMsg, n: { kind: string }): boolean {
   return n.kind === "partial" && m.status !== "working";
 }
 

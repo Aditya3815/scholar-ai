@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { SMALL_TALK_REPLY, detectLanguage, hasDependencyCue, isSmallTalk, needsContext, ruleRoute, smallTalkReply, topicWordCount } from "@scholar/shared";
 // the router's labelled first messages, and the labelled follow-ups
 // @ts-expect-error a script, not a typed module
-import { CASES, HOLDOUT as FIRST_HOLDOUT } from "../../scripts/router-cases.mjs";
+import { CASES, HOLDOUT as FIRST_HOLDOUT } from "@scholar/test-support/router-cases.mjs";
 // @ts-expect-error a script, not a typed module
-import { TUNED } from "../../scripts/router-followup-cases.mjs";
+import { TUNED } from "@scholar/test-support/router-followup-cases.mjs";
 
 /**
  * The rule that says whether a message can stand alone once there is an earlier conversation. It used to be "five words or more and no dependency cue": a natural follow-up that has neither a cue nor

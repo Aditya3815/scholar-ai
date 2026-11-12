@@ -4,13 +4,14 @@ import { cacheStore, type CacheEnv } from "../cache";
 import type { CacheStore } from "../cache/store";
 import type { LookupEnv } from "./lookup";
 import { verifyReference, type RefResult } from "./verify";
+import type { Env } from "../platform/env";
 
 /**
  * Checking a reference as a service (docs/design: "service layer"): the page's /api/v1/references/verify and the MCP tool `verify_references` both call `referenceService.verify`, so a
  * reference sent from an AI assistant gets exactly the verdict, the cache and the rules a reference pasted on the page gets.
  */
 
-export type ReferenceEnv = CacheEnv & { CROSSREF_MAILTO: string; OPENALEX_API_KEY?: string };
+export type ReferenceEnv = CacheEnv & Pick<Env, "CROSSREF_MAILTO" | "OPENALEX_API_KEY">;
 
 /** Verified/mismatch answers change slowly; "not found" is re-checked sooner because Crossref keeps indexing new papers. */
 const TTL_SECONDS: Partial<Record<RefResult["status"], number>> = { verified: 86_400, mismatch: 86_400, not_found: 3_600 };

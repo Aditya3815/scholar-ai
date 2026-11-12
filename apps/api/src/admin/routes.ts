@@ -2,19 +2,18 @@ import { Hono, type Context } from "hono";
 import type { AdminOverview, FeedbackKind } from "@scholar/shared";
 import { NEURON_CENTS } from "../llm/pricing";
 import { currentUser, sameOrigin } from "../auth/http";
-import { reapplyDeletions } from "../account/erase";
 import { readJobs } from "../jobs";
 import { readOutcomes } from "../outcomes";
 import { compareInventory, listDocuments, listFiles } from "./integrity";
-import { eraseAccount } from "../account/erase";
+import { eraseAccount, reapplyDeletions } from "../account/erase";
 import { findAccount, parseAccountRef } from "./accounts";
-import { captureException, parseDsn, sendEvent, type SentryEnv } from "../monitoring/sentry";
+import { captureException, parseDsn, sendEvent } from "../monitoring/sentry";
 import { deny } from "../problem";
 import { readMcpAdmin } from "../mcp/calls";
 import { mcpMode } from "../mcp/flag";
+import type { HonoEnv } from "../platform/env";
 
-type Env = { Bindings: SentryEnv & { DB: D1Database; FILES: R2Bucket; CACHE?: KVNamespace; MCP?: string } };
-export const adminRoutes = new Hono<Env>();
+export const adminRoutes = new Hono<HonoEnv>();
 
 adminRoutes.use("*", async (c, next) => {
   await next();
@@ -23,7 +22,7 @@ adminRoutes.use("*", async (c, next) => {
 
 
 /** Admin only. Anyone else, signed in or not, is told the page does not exist. */
-async function admin(c: Context<Env>) {
+async function admin(c: Context<HonoEnv>) {
   const user = await currentUser(c);
   return user?.role === "admin" ? user : null;
 }

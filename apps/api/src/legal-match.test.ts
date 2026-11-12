@@ -489,7 +489,7 @@ const understandFiles = (): string[] => listModules(UNDERSTAND);
 const NO_FUNCTION_TO_CALL: Readonly<Record<string, string>> = {
   "hostile-messages.ts": "exports a list of messages and a canary string, no function",
   "lane-words.ts": "exports the phrase lists of the safety lane as data, no function (lane.ts, which reads them, is run here)",
-  "frame-words.ts": "exports the word lists of the request-frame cleaner (R8) as data, no function (frame.ts, which reads them, is run here through cleanRequest)",
+  "frame-words.ts": "exports the word lists of the request-frame cleaner (R8) as data, no function (frame.ts, which reads them, is run here through readRequest)",
 };
 const moduleOf = (file: string): Module => ({ label: `understand/${file}`, source: readFileSync(join(UNDERSTAND, file), "utf8"), dir: dirname(join(UNDERSTAND, file)) });
 /** A folder under node_modules/.cache (which git ignores, and which needs no Node type that this project does not declare) holding the given files; a name with a slash makes its folders. The caller removes it. */

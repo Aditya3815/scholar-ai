@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Hono } from "hono";
 import { memoryStore } from "../cache/store";
-import { MAX_REFERENCE_CHARS, referenceRoutes, verifyCached } from "./routes";
+import { MAX_REFERENCE_CHARS } from "@scholar/shared";
+import { referenceRoutes } from "./routes";
+import { verifyCached } from "./service";
 
 const env = { CROSSREF_MAILTO: "test@example.org" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });

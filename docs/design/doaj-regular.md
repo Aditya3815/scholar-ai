@@ -2,7 +2,7 @@
 
 **What it is.** The regular search (the prompt box, the old search page, and every sub-question of a literature scan) asked four sources: OpenAlex, Semantic Scholar, Crossref, PubMed. It now asks a fifth: **DOAJ** (the Directory of Open Access Journals), every journal, no country. The Indian-sources switch is unchanged (it still asks DOAJ for journals published in India, with the other two Indian sources). Why it was held back: [india-sources.md](india-sources.md) said it needed the search eval re-recorded and a check that the first page does not get worse. Both are done below.
 
-Code: `doajAll` in [india.ts](../../apps/api/src/search/india.ts) (named `doaj-all`, because the cache keeps what a provider answered under its name and the Indian one asks something else), `SCOPES.all` in [search/index.ts](../../apps/api/src/search/index.ts), `searchComplete` in [chat/complete.ts](../../apps/api/src/chat/complete.ts). Measured with [doaj-live.mjs](../../apps/api/scripts/doaj-live.mjs) and the replay eval (`npm run eval -w apps/api`).
+Code: `doajAll` in [india.ts](../../apps/api/src/search/india.ts) (named `doaj-all`, because the cache keeps what a provider answered under its name and the Indian one asks something else), `SCOPES.all` in [search/index.ts](../../apps/api/src/search/index.ts), `searchComplete` in [chat/complete.ts](../../apps/api/src/chat/complete.ts). Measured with [doaj-live.mjs](../../apps/api/scripts/archive/doaj-live.mjs) and the replay eval (`npm run eval -w apps/api`).
 
 ## 1. Was it worth it? (34 topics, real services, written before the first run)
 

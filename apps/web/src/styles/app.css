@@ -882,12 +882,6 @@
   margin-top: 0.15rem;
   color: var(--ok);
 }
-/* Modals */
-.modal-wide {
-  width: min(34rem, 100%);
-  max-height: min(90vh, 46rem);
-  overflow-y: auto;
-}
 .settings-sec {
   margin-top: 1.4rem;
   padding-top: 1.2rem;

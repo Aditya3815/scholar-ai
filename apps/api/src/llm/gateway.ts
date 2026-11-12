@@ -1,4 +1,4 @@
-import { NoRouteError, PolicyError, QuotaError, assertAllowed, selectChain } from "./policy";
+import { PolicyError, QuotaError, assertAllowed, selectChain } from "./policy";
 import { sha256Hex } from "../hash";
 import { costCents } from "./pricing";
 import type {
@@ -164,5 +164,3 @@ export function createGateway(deps: GatewayDeps) {
   return { complete: (req: LlmRequest) => run(req), stream: (req: LlmRequest, hooks: StreamHooks, abort?: AbortSignal) => run(req, hooks, abort) };
 }
 
-export type Gateway = ReturnType<typeof createGateway>;
-export { NoRouteError, PolicyError, QuotaError };

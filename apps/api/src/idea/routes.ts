@@ -4,33 +4,17 @@ import { currentUser, sameOrigin } from "../auth/http";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "../docs/embed";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
-import type { S2Throttle } from "../s2-throttle";
 import { sseStream } from "../sse";
 import { PlanError, planIdea, scrubText } from "./plan";
 import { compareIdea, sanitizeCompareRequest } from "./compare";
-import { insightsIdea, sanitizeInsightsRequest } from "./insights";
+import { insightsIdea } from "./insights";
 import { runIdeaSearch, sanitizeRequest } from "./search";
 import { stubCompareStream, stubInsightsStream, stubPlan, stubSearch } from "./stub";
 import { searchEnvFrom } from "../search/env";
 import { deny } from "../problem";
+import type { Env, HonoEnv } from "../platform/env";
 
-type Bindings = {
-  DB: D1Database;
-  CACHE?: KVNamespace;
-  AI?: Ai;
-  S2_THROTTLE: DurableObjectNamespace<S2Throttle>;
-  GEMINI_API_KEY?: string;
-  CROSSREF_MAILTO: string;
-  OPENALEX_API_KEY?: string;
-  NCBI_API_KEY?: string;
-  S2_API_KEY?: string;
-  CORE_API_KEY?: string;
-  ENABLE_DEV_ROUTES?: string;
-  /** "1" (with ENABLE_DEV_ROUTES) swaps the model, embeddings and literature services for stand-ins in local tests. */
-  QA_STUB?: string;
-};
-type Env = { Bindings: Bindings };
-export const ideaRoutes = new Hono<Env>();
+export const ideaRoutes = new Hono<HonoEnv>();
 
 ideaRoutes.use("*", async (c, next) => {
   await next();
@@ -38,9 +22,9 @@ ideaRoutes.use("*", async (c, next) => {
 });
 
 
-const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+const stubbed = (env: Env) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
 
-function completeFor(env: Bindings, subject: string): Complete | null {
+function completeFor(env: Env, subject: string): Complete | null {
   if (stubbed(env)) return stubPlan;
   const gateway = gatewayFromEnv(env);
   return async (req) => {
@@ -50,7 +34,7 @@ function completeFor(env: Bindings, subject: string): Complete | null {
   };
 }
 
-function streamFor(env: Bindings, subject: string, abort: AbortSignal, stub: StreamComplete = stubCompareStream, timeoutMs = 90_000): StreamComplete | null {
+function streamFor(env: Env, subject: string, abort: AbortSignal, stub: StreamComplete = stubCompareStream, timeoutMs = 90_000): StreamComplete | null {
   if (stubbed(env)) return stub;
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
@@ -60,7 +44,7 @@ function streamFor(env: Bindings, subject: string, abort: AbortSignal, stub: Str
   };
 }
 
-const embedderFor = (env: Bindings): Embedder | null => (stubbed(env) ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null);
+const embedderFor = (env: Env): Embedder | null => (stubbed(env) ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null);
 
 /* ---------------------------------------------------------------- plan */
 
@@ -189,7 +173,8 @@ ideaRoutes.post("/insights", async (c) => {
   if (user.privacyAck !== PRIVACY_VERSION) return deny(c, 403, "privacy_ack_required", "Please read how your ideas are handled first", "A short note appears before your first check.");
   if (Number(c.req.header("content-length") ?? 0) > 120_000) return deny(c, 413, "too_large", "That is too much text");
 
-  const req = sanitizeInsightsRequest(await c.req.json().catch(() => null));
+  // the request is the same as the comparison's: the plan, the question, and the papers with their abstracts
+  const req = sanitizeCompareRequest(await c.req.json().catch(() => null));
   if (!req) return deny(c, 400, "invalid_insights", "There is nothing to read", "Send the idea's plan and the papers to read.");
   const abort = new AbortController();
   // the second reading is the longest answer (about 80 s with the real model): a longer allowance than the comparison's

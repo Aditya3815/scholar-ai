@@ -62,7 +62,7 @@ export type PageCite = { id: string; page: number; rects: MarkRect[]; entries: n
 
 /**
  * The citations on a page whose text layer is on screen. The spans' text is joined as one string (by their boxes, the same rule the measurement on real PDFs used:
- * apps/api/src/docs/citations.real.test.ts), the shared parser finds and links the citations, and each find becomes boxes through a Range over its spans.
+ * packages/shared/src/citations.real.test.ts), the shared parser finds and links the citations, and each find becomes boxes through a Range over its spans.
  * Only citations linked to an entry are returned; list markers ("[12]" at the start of its own entry) are not.
  */
 export function citationsOnLayer(layer: HTMLElement, page: number, map: CiteMap): PageCite[] {

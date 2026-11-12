@@ -18,7 +18,7 @@ export const setVar = (el: HTMLElement, k: string, v: number | string) => el.sty
 /** A scene's updater: its element and its progress. */
 export type Updater = (el: HTMLElement, p: number) => void;
 
-export type FilmHooks = {
+type FilmHooks = {
   /** Geometry that depends on layout and fonts (the iris centre, the dust's letters): measured on start, after fonts load and on resize. */
   measure?: () => void;
   /** The scene on screen changed (its index), for the strip of scenes. */
@@ -28,7 +28,7 @@ export type FilmHooks = {
 };
 
 /** The least a scene's content is scaled to, so that a very small window shrinks it but never to something nobody can read. */
-export const FIT_FLOOR = 0.62;
+const FIT_FLOOR = 0.62;
 
 /**
  * What a scene shows must be in the frame whatever the window: the content marked `data-fit` is scaled down (never up) to the room the frame has left after its own padding, which
@@ -48,7 +48,7 @@ export function fitScenes(root: HTMLElement) {
 }
 
 /** A scene's progress: 0 when its top reaches the top of the screen, 1 when its bottom reaches the bottom. */
-export function sceneProgress(top: number, height: number, viewport: number): number {
+function sceneProgress(top: number, height: number, viewport: number): number {
   const span = height - viewport;
   return span > 0 ? clamp(-top / span) : top <= 0 ? 1 : 0;
 }

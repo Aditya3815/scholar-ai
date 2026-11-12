@@ -320,12 +320,6 @@
 .hl-legend-row { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.5rem; }
 .hl-group .seg-label, .hl-group .hl-seg-label { display: inline; padding: 0 0.5rem; font-size: 0.8125rem; }
 .hl-group-sec { margin-bottom: 0.8rem; }
-.hl-ask { display: grid; gap: 0.5rem; margin-bottom: 1rem; padding: 0.8rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
-.hl-ask-h { margin: 0; font-size: 0.9375rem; }
-.hl-ask-form { display: grid; grid-template-columns: 1fr auto; gap: 0.4rem; }
-.hl-suggest { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-.hl-suggest .chip-btn { min-height: 32px; font-size: 0.8125rem; }
-.hl-answer { margin: 0; }
 
 /* ---------- command palette and the list of shortcuts ---------- */
 .palette-wrap {
@@ -587,7 +581,6 @@ kbd {
 .chat-note > svg { margin-top: 0.2em; }
 .chat-note > span { flex: 1 1 12rem; min-width: 0; }
 .chat-papers { display: grid; gap: 0.9rem; margin: 0; padding: 0; list-style: none; }
-.chat-end { height: 1px; }
 .result-no { display: inline-grid; place-items: center; min-width: 1.5rem; height: 1.5rem; padding: 0 0.3rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 0.78rem; font-weight: 700; }
 .result[data-flash="true"] { animation: chat-flash 1.8s var(--ease); }
 @keyframes chat-flash { 0%, 60% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: none; } }

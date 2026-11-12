@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { notesMarkdown, type DocNote, type MarkdownOptions, type NoteColor } from "@scholar/shared";
+import { type DocNote, type NoteColor } from "@scholar/shared";
 import { ApiError } from "./documents";
 
 async function call<T>(docId: string, path: string, init: RequestInit = {}): Promise<T> {
@@ -83,6 +83,3 @@ export function useNotes(docId: string): NotesApi {
 
   return { ...state, add, update, remove };
 }
-
-/** The notes as Markdown: the quote with its page, then the researcher's own words (the same text the server-side tests cover, see `notesMarkdown` in the shared package). */
-export const notesToMarkdown = (title: string, notes: DocNote[], opts?: MarkdownOptions): string => notesMarkdown(title, notes, opts);

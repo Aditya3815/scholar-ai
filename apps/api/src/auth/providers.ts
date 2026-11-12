@@ -1,4 +1,5 @@
 import type { TokenResponse } from "./oauth";
+import type { Env } from "../platform/env";
 
 export type ProviderId = "google" | "orcid";
 
@@ -23,18 +24,7 @@ export type ProviderDef = {
   profile(token: TokenResponse, doFetch: typeof fetch): Promise<Profile>;
 };
 
-export type AuthEnv = {
-  GOOGLE_CLIENT_ID?: string;
-  GOOGLE_CLIENT_SECRET?: string;
-  ORCID_CLIENT_ID?: string;
-  ORCID_CLIENT_SECRET?: string;
-  /** "https://orcid.org" (default) or "https://sandbox.orcid.org" while testing. */
-  ORCID_BASE_URL?: string;
-  /** Only honoured together with ENABLE_DEV_ROUTES=1: points Google at a local fake identity provider for tests. */
-  DEV_IDP_URL?: string;
-  ENABLE_DEV_ROUTES?: string;
-  PUBLIC_BASE_URL?: string;
-};
+export type AuthEnv = Pick<Env, "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "ORCID_CLIENT_ID" | "ORCID_CLIENT_SECRET" | "ORCID_BASE_URL" | "DEV_IDP_URL" | "ENABLE_DEV_ROUTES" | "PUBLIC_BASE_URL">;
 
 type GoogleUserInfo = { sub?: string; email?: string; email_verified?: boolean; name?: string; picture?: string };
 

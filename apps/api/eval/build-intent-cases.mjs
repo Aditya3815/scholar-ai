@@ -18,7 +18,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { CASES as ROUTER_CASES } from "../scripts/router-cases.mjs";
+import { CASES as ROUTER_CASES } from "@scholar/test-support/router-cases.mjs";
 
 export const DEV_FILES = [
   { key: "a", file: "r3-cases-a.json" },

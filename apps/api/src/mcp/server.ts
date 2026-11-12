@@ -5,7 +5,6 @@ import { searchService } from "../search/service";
 import { referenceService, type ReferenceEnv } from "../references/service";
 import { retractionService, type RetractionServiceEnv } from "../search/retraction-service";
 import type { LimitEnv } from "../ratelimit";
-import type { ApiGate } from "../gate/api-gate";
 import { MAX_REFERENCE_CHARS, arxivIdFromDoi, type OaAskEvent, type Paper } from "@scholar/shared";
 import { embedderFor } from "../docs/routes";
 import { oaService, type OaEnv } from "../oa/service";
@@ -63,6 +62,7 @@ import {
   type ClaimOut as ClaimOutT,
   type SaveOut as SaveOutT,
 } from "./tools";
+import type { EnvPick } from "../platform/env";
 
 /**
  * The MCP server itself (docs "Sodhsetu understanding, follow-ups and MCP (design)", pages 11-12): Streamable HTTP at /mcp, stateless (a fresh server per request, as @modelcontextprotocol/server's
@@ -72,7 +72,7 @@ import {
  * the address). The tools that read with a model (ask_paper, check_claim) take from the person's daily AI allowance exactly as the page does, and ask_paper from their 20 new papers a day.
  */
 
-export type McpEnv = McpOAuthEnv & SearchBindings & ReferenceEnv & RetractionServiceEnv & LimitEnv & OaEnv & LlmEnv & { API_GATE?: DurableObjectNamespace<ApiGate>; MCP_CHECK_CLAIM?: string };
+export type McpEnv = McpOAuthEnv & SearchBindings & ReferenceEnv & RetractionServiceEnv & LimitEnv & OaEnv & LlmEnv & EnvPick<"MCP_CHECK_CLAIM", "API_GATE">;
 
 /** Which scope each tool needs. A token without it gets a step-up challenge (403 insufficient_scope) naming it, and the app can ask the person for it. */
 export const TOOL_SCOPES: Record<string, Scope> = {
@@ -169,7 +169,7 @@ async function paperByDoi(env: McpEnv, doi: string): Promise<Paper | null> {
  * reading of the claim against the abstracts that can be used (a retracted paper never is). The day's allowance is the person's.
  */
 async function checkClaim(ctx: Ctx, claim: string, dois: string[], signal: AbortSignal): Promise<ClaimOutT> {
-  const [abstracts, retraction] = await Promise.all([Promise.all(dois.map((doi) => oaService.abstractFor(ctx.env, { doi, ...(arxivIdFromDoi(doi) ? { arxivId: arxivIdFromDoi(doi)! } : {}) }))), retractionService.check(ctx.env, dois)]);
+  const [abstracts, retraction] = await Promise.all([Promise.all(dois.map((doi) => { const arxivId = arxivIdFromDoi(doi); return oaService.abstractFor(ctx.env, { doi, ...(arxivId ? { arxivId } : {}) }); })), retractionService.check(ctx.env, dois)]);
   const statusOf = (doi: string) => retraction.checked.find((c) => c.doi.toLowerCase() === doi)?.status ?? "unknown";
   const papers: ClaimOutT["papers"] = dois.map((doi, i) => {
     const retracted = statusOf(doi) === "retracted" ? true : statusOf(doi) === "not_retracted" ? false : null;
@@ -276,7 +276,7 @@ export function buildServer(ctx: Ctx): McpServer {
       metered(ctx, "ask_paper", "ASK_LIMITER", 1, async () => {
         const read = readAskPaperIn(args);
         if (!read.ok) return { result: failure(read.error), outcome: "invalid" };
-        const embed = embedderFor(ctx.env as never);
+        const embed = embedderFor(ctx.env);
         if (!embed) return { result: failure("Answering is unavailable right now. Try again later."), outcome: "error" };
         const abort = new AbortController();
         const stop = () => abort.abort();

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { MAX_ANSWER_STATEMENTS, MAX_OPEN_PROBLEMS, MAX_OPINION_ITEMS, type IdeaInsightsRequest } from "@scholar/shared";
-import { SYSTEM, buildInsightsPrompt, insightsIdea, phraseIsInAbstract, sanitizeInsightsRequest, supports, verifyInsights } from "./insights";
+import { MAX_ANSWER_STATEMENTS, MAX_OPEN_PROBLEMS, MAX_OPINION_ITEMS, type IdeaCompareRequest } from "@scholar/shared";
+import { sanitizeCompareRequest } from "./compare";
+import { SYSTEM, buildInsightsPrompt, insightsIdea, phraseIsInAbstract, supports, verifyInsights } from "./insights";
 
 const A1 = "We train a convolutional network on 5,000 smartphone fundus photographs to screen for glaucoma, and reach 91% sensitivity in rural clinics. However, performance fell on images taken in poor light, which remains a challenge.";
 const A2 = "Optical coherence tomography is used to measure retinal nerve fibre thickness in 300 patients. Future work should extend the method to community screening.";
 const A3 = "A short note.";
-const req = (over: Partial<IdeaInsightsRequest> = {}): IdeaInsightsRequest => ({
+const req = (over: Partial<IdeaCompareRequest> = {}): IdeaCompareRequest => ({
   title: "Glaucoma screening",
   summary: "Screening glaucoma with a smartphone fundus camera.",
   facets: { purpose: "screen glaucoma", mechanism: "smartphone fundus camera", evaluation: "not stated", domain: "rural clinics" },
@@ -17,16 +18,16 @@ const req = (over: Partial<IdeaInsightsRequest> = {}): IdeaInsightsRequest => ({
   ...over,
 });
 
-describe("sanitizeInsightsRequest", () => {
+describe("sanitizeCompareRequest, which reads the insights request too", () => {
   it("is the same cleaning as the comparison: bounded, scrubbed, papers kept", () => {
-    const r = sanitizeInsightsRequest({ ...req(), summary: "mail me@x.org https://a.b/c about glaucoma screening", question: "What data did they use? Write to a@b.org" })!;
+    const r = sanitizeCompareRequest({ ...req(), summary: "mail me@x.org https://a.b/c about glaucoma screening", question: "What data did they use? Write to a@b.org" })!;
     expect(r.summary).not.toMatch(/@|https?:/);
     expect(r.question).not.toMatch(/@/);
     expect(r.papers).toHaveLength(3);
   });
   it("refuses an empty request", () => {
-    expect(sanitizeInsightsRequest({})).toBeNull();
-    expect(sanitizeInsightsRequest(null)).toBeNull();
+    expect(sanitizeCompareRequest({})).toBeNull();
+    expect(sanitizeCompareRequest(null)).toBeNull();
   });
 });
 

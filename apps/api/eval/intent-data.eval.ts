@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 // @ts-expect-error plain .mjs: the mapping from a study record to a case, shared with the script that wrote the data
 import { DEV_FILES, detectLanguage, studyCase } from "./build-intent-cases.mjs";
 // @ts-expect-error plain .mjs: the labelled messages of the router eval
-import { CASES as ROUTER_CASES } from "../scripts/router-cases.mjs";
+import { CASES as ROUTER_CASES } from "@scholar/test-support/router-cases.mjs";
 import { INTENT_SETS, contactProblems, frameMarkers, validateCase, type IntentCase } from "./lib/intent-schema";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));

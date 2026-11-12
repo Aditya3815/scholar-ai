@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from "hono";
+import type { EnvPick } from "./platform/env";
 
-type Limiter = Pick<RateLimit, "limit">;
-export type LimitEnv = { SEARCH_LIMITER?: Limiter; VERIFY_LIMITER?: Limiter; ASK_LIMITER?: Limiter; API_LIMITER?: Limiter };
+export type LimitEnv = EnvPick<never, "SEARCH_LIMITER" | "VERIFY_LIMITER" | "ASK_LIMITER" | "API_LIMITER">;
 
 /**
  * Per-IP request limits using Cloudflare's Rate Limiting binding. Search is the expensive route (it fans out to four

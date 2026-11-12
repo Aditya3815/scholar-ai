@@ -3,18 +3,18 @@ import { Hono, type Context } from "hono";
 import { deleteCookie, setCookie } from "hono/cookie";
 import { cookieOpts, isHttps, readSession, sameOrigin } from "./http";
 import { buildAuthorizeUrl, exchangeCode, pkceChallenge, randomToken, safeReturnTo } from "./oauth";
-import { configuredProviders, type AuthEnv, type ProviderId } from "./providers";
+import { configuredProviders, type ProviderId } from "./providers";
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, createSession, destroySession, userFromSession } from "./session";
 import { resolveUser } from "./users";
+import type { HonoEnv } from "../platform/env";
 
-type Env = { Bindings: AuthEnv & { DB: D1Database } };
 
-export const authRoutes = new Hono<Env>();
+export const authRoutes = new Hono<HonoEnv>();
 
-const baseUrl = (c: Context<Env>) => (c.env.PUBLIC_BASE_URL ?? new URL(c.req.url).origin).replace(/\/$/, "");
-const redirectUri = (c: Context<Env>, id: ProviderId) => `${baseUrl(c)}/api/v1/auth/${id}/callback`;
+const baseUrl = (c: Context<HonoEnv>) => (c.env.PUBLIC_BASE_URL ?? new URL(c.req.url).origin).replace(/\/$/, "");
+const redirectUri = (c: Context<HonoEnv>, id: ProviderId) => `${baseUrl(c)}/api/v1/auth/${id}/callback`;
 
-const fail = (c: Context<Env>, code: string) => c.redirect(`/?auth_error=${code}`, 302);
+const fail = (c: Context<HonoEnv>, code: string) => c.redirect(`/?auth_error=${code}`, 302);
 
 authRoutes.use("*", async (c, next) => {
   await next();

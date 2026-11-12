@@ -90,8 +90,8 @@ $0.0008 a question, [spikes/R5-cost.md](spikes/R5-cost.md)). **Scanned PDFs (pag
 
 ```sh
 npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret --var DEV_IDP_URL:http://localhost:9911
-node apps/api/scripts/docs-live.mjs                              # built-in sample paper, 5 questions (one in Hindi)
-node apps/api/scripts/docs-live.mjs paper.pdf paper.txt          # a real PDF and its text (pdftotext, pages split by [[page N]])
+node apps/api/scripts/archive/docs-live.mjs                              # built-in sample paper, 5 questions (one in Hindi)
+node apps/api/scripts/archive/docs-live.mjs paper.pdf paper.txt          # a real PDF and its text (pdftotext, pages split by [[page N]])
 ```
 
 Tests run offline with a deterministic stand-in for the model (`QA_STUB=1` together with `ENABLE_DEV_ROUTES=1`, never uploaded
