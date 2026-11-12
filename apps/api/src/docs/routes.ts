@@ -651,16 +651,9 @@ documentRoutes.put("/:id/ink", async (c) => {
   const got = await requireUser(c, PAPER);
   if (got instanceof Response) return got;
   const { row } = got;
-  const length = Number(c.req.header("content-length") ?? 0);
-  if (length > INK_MAX_BODY) return deny(c, 413, "too_big", "There is too much drawing on this paper to save", "Erase some of it, or draw on a copy.");
-  const text = await c.req.text().catch(() => "");
-  if (text.length > INK_MAX_BODY) return deny(c, 413, "too_big", "There is too much drawing on this paper to save", "Erase some of it, or draw on a copy.");
-  let body: { strokes?: unknown; rev?: unknown } | null = null;
-  try {
-    body = JSON.parse(text) as { strokes?: unknown; rev?: unknown };
-  } catch {
-    /* handled below */
-  }
+  const sent = await readJson(c, INK_MAX_BODY);
+  if (sent.tooLarge) return deny(c, 413, "too_big", "There is too much drawing on this paper to save", "Erase some of it, or draw on a copy.");
+  const body = sent.value as { strokes?: unknown; rev?: unknown } | null;
   if (!body || typeof body.rev !== "number" || !Number.isInteger(body.rev) || body.rev < 0) return deny(c, 400, "invalid_ink", "Nothing to save");
   const checked = checkInk(body.strokes, row.pages ?? MAX_DOC_PAGES);
   if (!checked.ok) return deny(c, checked.reason.startsWith("too") ? 413 : 400, "invalid_ink", "That drawing could not be saved", checked.reason);

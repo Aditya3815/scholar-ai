@@ -622,7 +622,7 @@
   "noAck": "403 privacy_ack_required: Please read how your ideas are handled first (A short note appears before your first check.) [no-store]",
   "notOwned": "400 invalid_compare: There is nothing to compare (Send the idea's plan and the papers to compare.) [no-store]",
   "big": "413 too_large: That is too much text [no-store]",
-  "chunked": "400 invalid_compare: There is nothing to compare (Send the idea's plan and the papers to compare.) [no-store]",
+  "chunked": "413 too_large: That is too much text [no-store]",
   "bucket": "ASK_LIMITER"
  },
  "POST /api/v1/idea/insights": {
@@ -632,7 +632,7 @@
   "noAck": "403 privacy_ack_required: Please read how your ideas are handled first (A short note appears before your first check.) [no-store]",
   "notOwned": "400 invalid_insights: There is nothing to read (Send the idea's plan and the papers to read.) [no-store]",
   "big": "413 too_large: That is too much text [no-store]",
-  "chunked": "400 invalid_insights: There is nothing to read (Send the idea's plan and the papers to read.) [no-store]",
+  "chunked": "413 too_large: That is too much text [no-store]",
   "bucket": "API_LIMITER"
  },
  "POST /api/v1/idea/plan": {
@@ -642,7 +642,7 @@
   "noAck": "403 privacy_ack_required: Please read how your ideas are handled first (A short note appears before your first check.) [no-store]",
   "notOwned": "400 invalid_idea: Describe your idea in a few sentences (At least 40 characters, or add a file.) [no-store]",
   "big": "413 too_large: That is too much text (Use a shorter file or paste the key parts.) [no-store]",
-  "chunked": "400 invalid_idea: Describe your idea in a few sentences (At least 40 characters, or add a file.) [no-store]",
+  "chunked": "413 too_large: That is too much text (Use a shorter file or paste the key parts.) [no-store]",
   "bucket": "ASK_LIMITER"
  },
  "POST /api/v1/idea/search": {
@@ -682,7 +682,7 @@
   "noAck": "403 privacy_ack_required: Please read how your topics are handled first (A short note appears before your first scan.) [no-store]",
   "notOwned": "400 invalid_plan: The plan needs a topic and two to six themes (Each theme needs its question and some search words.) [no-store]",
   "big": "413 too_large: That is too much text [no-store]",
-  "chunked": "400 invalid_plan: The plan needs a topic and two to six themes (Each theme needs its question and some search words.) [no-store]",
+  "chunked": "413 too_large: That is too much text [no-store]",
   "bucket": "API_LIMITER"
  },
  "POST /api/v1/litscan/:id/cancel": {
@@ -712,7 +712,7 @@
   "noAck": "403 privacy_ack_required: Please read how your topics are handled first (A short note appears before your first scan.) [no-store]",
   "notOwned": "400 invalid_topic: Describe the topic in a sentence or two (Between 8 and 400 characters.) [no-store]",
   "big": "413 too_large: That is too much text [no-store]",
-  "chunked": "400 invalid_topic: Describe the topic in a sentence or two (Between 8 and 400 characters.) [no-store]",
+  "chunked": "413 too_large: That is too much text [no-store]",
   "bucket": "API_LIMITER"
  },
  "POST /api/v1/monitoring": {

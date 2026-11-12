@@ -60,8 +60,9 @@ litscanRoutes.post("/plan", async (c) => {
   const got = await requireUser(c, SCANNER_TOPIC);
   if (got instanceof Response) return got;
   const { user } = got;
-  if (Number(c.req.header("content-length") ?? 0) > 20_000) return deny(c, 413, "too_large", "That is too much text");
-  const body = (await readJson(c)) as { topic?: unknown; language?: unknown } | null;
+  const sent = await readJson(c, 20_000);
+  if (sent.tooLarge) return deny(c, 413, "too_large", "That is too much text");
+  const body = sent.value as { topic?: unknown; language?: unknown } | null;
   const topic = cleanLitscanTopic(body?.topic);
   if (!topic) return deny(c, 400, "invalid_topic", "Describe the topic in a sentence or two", "Between 8 and 400 characters.");
   const language = resolveLanguage(body?.language, topic);
@@ -89,8 +90,9 @@ litscanRoutes.post("/", async (c) => {
   const got = await requireUser(c, SCANNER_TOPIC);
   if (got instanceof Response) return got;
   const { user } = got;
-  if (Number(c.req.header("content-length") ?? 0) > 20_000) return deny(c, 413, "too_large", "That is too much text");
-  const body = (await readJson(c)) as { topic?: unknown; language?: unknown; items?: unknown; scope?: unknown } | null;
+  const sent = await readJson(c, 20_000);
+  if (sent.tooLarge) return deny(c, 413, "too_large", "That is too much text");
+  const body = sent.value as { topic?: unknown; language?: unknown; items?: unknown; scope?: unknown } | null;
   const topic = cleanLitscanTopic(body?.topic);
   const items = sanitizeApproved(body?.items);
   if (!topic || !items) return deny(c, 400, "invalid_plan", "The plan needs a topic and two to six themes", "Each theme needs its question and some search words.");

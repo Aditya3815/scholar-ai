@@ -58,8 +58,9 @@ ideaRoutes.post("/plan", async (c) => {
   const { user } = got;
 
   // 60,000 characters of text, even all multi-byte, fits well inside this; anything bigger is not an idea.
-  if (Number(c.req.header("content-length") ?? 0) > 300_000) return deny(c, 413, "too_large", "That is too much text", "Use a shorter file or paste the key parts.");
-  const body = (await readJson(c)) as { text?: unknown; question?: unknown } | null;
+  const sent = await readJson(c, 300_000);
+  if (sent.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Use a shorter file or paste the key parts.");
+  const body = sent.value as { text?: unknown; question?: unknown } | null;
   const text = typeof body?.text === "string" ? body.text.replace(/\r/g, "").trim().slice(0, MAX_IDEA_CHARS) : "";
   const question = scrubText(body?.question, MAX_IDEA_QUESTION_CHARS);
   if (text.length < MIN_IDEA_CHARS) return deny(c, 400, "invalid_idea", "Describe your idea in a few sentences", `At least ${MIN_IDEA_CHARS} characters, or add a file.`);
@@ -123,9 +124,10 @@ ideaRoutes.post("/compare", async (c) => {
   const got = await requireUser(c, IDEA_TEXT);
   if (got instanceof Response) return got;
   const { user } = got;
-  if (Number(c.req.header("content-length") ?? 0) > 120_000) return deny(c, 413, "too_large", "That is too much text");
+  const sent = await readJson(c, 120_000);
+  if (sent.tooLarge) return deny(c, 413, "too_large", "That is too much text");
 
-  const req = sanitizeCompareRequest(await readJson(c));
+  const req = sanitizeCompareRequest(sent.value);
   if (!req) return deny(c, 400, "invalid_compare", "There is nothing to compare", "Send the idea's plan and the papers to compare.");
   const abort = new AbortController();
   const stream = streamFor(c.env, user.id, abort.signal);
@@ -167,10 +169,11 @@ ideaRoutes.post("/insights", async (c) => {
   const got = await requireUser(c, IDEA_TEXT);
   if (got instanceof Response) return got;
   const { user } = got;
-  if (Number(c.req.header("content-length") ?? 0) > 120_000) return deny(c, 413, "too_large", "That is too much text");
+  const sent = await readJson(c, 120_000);
+  if (sent.tooLarge) return deny(c, 413, "too_large", "That is too much text");
 
   // the request is the same as the comparison's: the plan, the question, and the papers with their abstracts
-  const req = sanitizeCompareRequest(await readJson(c));
+  const req = sanitizeCompareRequest(sent.value);
   if (!req) return deny(c, 400, "invalid_insights", "There is nothing to read", "Send the idea's plan and the papers to read.");
   const abort = new AbortController();
   // the second reading is the longest answer (about 80 s with the real model): a longer allowance than the comparison's
