@@ -1,0 +1,68 @@
+name: Switch matrix
+
+# Nightly on main (decision 12 of docs/design/untangle.md): the integration suites with the switches in positions the per-push run never sets (docs/design/untangle.md, section 2,
+# "switch matrix"; [ti] T2), so a check written for a switch's other position runs before that position reaches production:
+#   chat switches on   every gate flag of the chat on at once (INTEGRATION_VARS), the API suites and the browser suites
+#   trending dark      TRENDING=dark: the Trending suites only (as scripts/integration.mjs says to run them)
+#   mcp off            MCP=off: the MCP suites only (every MCP path answers 404)
+# A failure opens the usual issue (alert.yml). The runner reads these variables today; F24 of the plan turns them into named runs of a table, and this list follows it.
+on:
+  schedule:
+    - cron: "37 21 * * *" # 21:37 UTC, 03:07 in India, away from the hour and from the weekly jobs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: switch-matrix
+  cancel-in-progress: false
+
+jobs:
+  integration:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: chat switches on
+            env: INTEGRATION_VARS=CHAT_UNDERSTAND:on,CHAT_FLOOR:on,CHAT_SAFETY:core,CHAT_CLEAN:on,CHAT_COUNTERS:on,CHAT_THINK:on,CHAT_TOOLS:on
+            args: "--browser"
+          - name: trending dark
+            env: INTEGRATION_TRENDING=dark
+            args: "--browser --only=trending"
+          - name: mcp off
+            env: INTEGRATION_MCP=off
+            args: "--browser --only=MCP"
+    env:
+      E2E_BROWSER: chrome # preinstalled on GitHub's Ubuntu runners; playwright-core does not download browsers
+      OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+      S2_API_KEY: ${{ secrets.S2_API_KEY }}
+      NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+      CROSSREF_MAILTO: ${{ secrets.CROSSREF_MAILTO }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: npm run build
+      # `env NAME=value`: only the run's own variable is set (an empty INTEGRATION_MCP would not mean "on" to the runner)
+      - run: env ${{ matrix.env }} npm run integration -w apps/api -- ${{ matrix.args }}
+      - name: Keep screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-shots-${{ strategy.job-index }}
+          path: apps/web/e2e/shots
+          if-no-files-found: ignore
+          retention-days: 7
+
+  alert:
+    needs: [integration]
+    if: always()
+    uses: ./.github/workflows/alert.yml
+    permissions:
+      contents: read
+      issues: write
+    with:
+      needs: ${{ toJSON(needs) }}
