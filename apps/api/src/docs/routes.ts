@@ -39,6 +39,7 @@ import {
 } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { answerAboutHighlights } from "./highlights-qa";
+import { readerOnFor } from "./reader-flag";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv, type LlmEnv } from "../llm";
 import { fromSqliteTime } from "../library/validate";
 import { cacheStore } from "../cache";
@@ -204,7 +205,9 @@ documentRoutes.get("/:id", async (c) => {
   const qa = await c.env.DB.prepare("SELECT answer FROM doc_qa WHERE doc_id = ?1 ORDER BY created_at, rowid LIMIT 100").bind(row.id).all<{ answer: string }>();
   const stored = await c.env.DB.prepare("SELECT info FROM documents WHERE id = ?1").bind(row.id).first<{ info: string | null }>();
   const scan = row.scanned === 1 ? await scanInfo(c.env.DB, user.id, row.id, ocrPerDay(c.env)) : null;
-  return c.json({ document: toInfo(row), history: qa.results.map((r) => JSON.parse(r.answer) as Answer), info: stored?.info ? (JSON.parse(stored.info) as PaperInfo) : null, scan });
+  // which reader the page draws (docs/design/paper-reader.md, 15): told here, with the paper, so it costs no request of its own
+  const features = { reader: await readerOnFor(c.env, user.id) };
+  return c.json({ document: toInfo(row), history: qa.results.map((r) => JSON.parse(r.answer) as Answer), info: stored?.info ? (JSON.parse(stored.info) as PaperInfo) : null, scan, features });
 });
 
 documentRoutes.get("/:id/file", async (c) => {

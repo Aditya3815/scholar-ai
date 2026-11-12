@@ -46,6 +46,8 @@ type SecretsAndVariables = {
   PUBLIC_BASE_URL?: string;
   /** The account ids of the MCP beta (src/mcp/flag.ts), separated by commas or spaces: a secret, not a var, so that an account id is not in this public repository. */
   MCP_BETA_USERS?: string;
+  /** The account ids that see the new Paper Reader while READER is "dark" (src/docs/reader-flag.ts), separated by commas or spaces: a secret, not a var, like MCP_BETA_USERS. */
+  READER_BETA_USERS?: string;
 
   /* ------------------------------------------------------------ switches and settings (Worker variables: `vars` in wrangler.jsonc while one is set) */
 
@@ -60,6 +62,11 @@ type SecretsAndVariables = {
   TRENDING?: string;
   /** The MCP server (src/mcp/flag.ts): "off" (unset), "beta" (the accounts in MCP_BETA_USERS) or "on". */
   MCP?: string;
+  /**
+   * The new Paper Reader (docs/design/paper-reader.md; src/docs/reader-flag.ts): "off" (unset) is today's reader, "dark" the new one for the accounts of READER_BETA_USERS only, "on" the new one for everyone.
+   * A gate: any other value is off, and the KV key flag:READER can only lower it. Sent to the page as `features.reader` on GET /api/v1/documents/:id.
+   */
+  READER?: string;
   /** The MCP tool check_claim alone (src/mcp/flag.ts): "off" (unset), "beta" (the accounts in MCP_BETA_USERS) or "on". */
   MCP_CHECK_CLAIM?: string;
   /**

@@ -2,7 +2,7 @@
 // (QA_STUB=1). Same setup as library-e2e.mjs; `npm run integration -w apps/api` starts everything.
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
-import { APP, ok, countFailure, finish, startIdp, createClient, loginWith, readEvents, sqlResults } from "./lib/harness.mjs";
+import { APP, ok, countFailure, finish, startIdp, createClient, loginWith, readEvents, sqlResults, at } from "./lib/harness.mjs";
 
 
 const idp = await startIdp();
@@ -112,6 +112,9 @@ try {
   ok((await A.api(`${P}/ask`, { method: "POST", body: { question: "How were participants recruited?" }, origin: null })).status === 403, "asking without an Origin is blocked");
   const history = (await (await A.api(P)).json()).history;
   ok(history.length === 3 && history[0].question === "How were participants recruited?", "the question history is kept, oldest first");
+  // the switch of the new Paper Reader rides on this read (docs/design/paper-reader.md, 15): a boolean, true only where READER puts this account in
+  const features = (await (await A.api(P)).json()).features;
+  ok(features && features.reader === at("READER", "on"), `the paper's details say which reader to draw (features.reader ${features?.reader}, READER ${at("READER", "on") ? "on" : "not on"})`);
 
   console.log("a scanned PDF (no text) fails clearly");
   const scanned = (await (await upload(A, makePdf([""]), { name: "scan.pdf" })).json()).document;
