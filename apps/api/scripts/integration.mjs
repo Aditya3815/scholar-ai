@@ -109,7 +109,7 @@ for (const name of runNames) {
     console.error(e.message);
     ok = false;
   } finally {
-    worker?.stop();
+    await worker?.stop();
   }
 }
 console.log(ok ? "\nintegration: all passed" : "\nintegration: FAILED");

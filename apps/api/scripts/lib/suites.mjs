@@ -102,7 +102,7 @@ export const RUNS = {
   "chat-floor": { vars: { CHAT_FLOOR: "on", CHAT_COUNTERS: "on" }, suites: CHAT_SUITES, why: "the relevance floor on (R9)" },
   "chat-understand": { vars: { CHAT_UNDERSTAND: "on" }, suites: CHAT_SUITES, why: "the Understand step decides" },
   "chat-think": { vars: { CHAT_THINK: "on" }, suites: CHAT_SUITES, why: "the Thinking block's lines are sent" },
-  "chat-tools-off": { vars: { CHAT_TOOLS: "off" }, suites: ["chat tools integration", "browser: chat tools (what the page draws for a tool run in the reply)"], why: "a pasted list is offered and nothing runs" },
+  "chat-tools-off": { vars: { CHAT_TOOLS: "off" }, suites: CHAT_SUITES, why: "a pasted list is offered and nothing runs" },
 };
 
 /**

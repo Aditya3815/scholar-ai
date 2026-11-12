@@ -2,12 +2,13 @@
 // switch positions (docs/design/untangle.md, F24). The ports, the state folder and the generated config follow INTEGRATION_PORT and INTEGRATION_IDP_PORT (scripts/lib/harness.mjs), so two runs
 // can go side by side on different ports.
 import { spawn, spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, rmSync, readdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseJsonc } from "./jsonc.mjs";
 import { IDP_PORT, IDP_SECRET, IDP_URL, WORKER_PORT } from "./harness.mjs";
 
 const api = fileURLToPath(new URL("../../", import.meta.url));
+let started = 0;
 const isWin = process.platform === "win32";
 
 /** A made-up account id for MCP_BETA_USERS (in production a Worker secret): the Worker runs with MCP "beta" as production does, with a beta list that names no real account. */
@@ -50,7 +51,12 @@ export function testVars() {
  * (`switchVars` over the committed ones: INTEGRATION_VARS), and stop(). `follows` adds variables that follow a switch (scripts/lib/suites.mjs, FOLLOWS).
  */
 export async function startTestWorker({ switchVars = {}, follows = [], port = WORKER_PORT } = {}) {
-  const state = process.env.INTEGRATION_STATE ?? `.wrangler/integration-state-${port}`;
+  // A folder of its own for each Worker: a Worker that was just stopped can hold its files for many seconds on Windows, and the next run must not wait for it. The folders of earlier
+  // runs on this port are removed when they can be; what cannot be removed yet is left for the next time (.wrangler/ is not committed).
+  for (const old of (existsSync(`${api}.wrangler`) ? readdirSync(`${api}.wrangler`, { withFileTypes: true }) : []).filter((d) => d.isDirectory() && d.name.startsWith(`integration-state-${port}-`))) {
+    try { rmSync(`${api}.wrangler/${old.name}`, { recursive: true, force: true }); } catch { /* still held by a Worker that is going away: deliberate, removed next time */ }
+  }
+  const state = process.env.INTEGRATION_STATE ?? `.wrangler/integration-state-${port}-${process.pid}-${++started}`;
   const config = process.env.INTEGRATION_CONFIG ?? `wrangler.integration-${port}.jsonc`;
   const cfg = localConfig();
   writeFileSync(`${api}${config}`, JSON.stringify(cfg, null, 2));
@@ -68,14 +74,22 @@ export async function startTestWorker({ switchVars = {}, follows = [], port = WO
   // only the end of it is ever read (to say why the Worker did not start), so it is kept short however long the run is
   for (const s of [server.stdout, server.stderr]) s.on("data", (d) => { log = (log + d).slice(-65536); });
   const url = `http://localhost:${port}`;
-  const stop = () => {
+  const kill = () => {
     if (server.exitCode === null) {
       if (isWin) spawnSync("taskkill", ["/T", "/F", "/PID", String(server.pid)], { stdio: "ignore" });
       else try { process.kill(-server.pid, "SIGTERM"); } catch { /* already gone */ }
     }
     rmSync(`${api}${config}`, { force: true });
   };
-  process.on("exit", stop);
+  process.on("exit", kill);
+  /** Stops the Worker and waits until its port no longer answers (up to 30 s), so that the next run can start on it. */
+  const stop = async () => {
+    kill();
+    for (let i = 0; i < 60; i++) {
+      try { await fetch(`${url}/api/v1/health`); } catch { return; } // refused: it is gone
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  };
   try {
     for (let i = 0; ; i++) {
       if (server.exitCode !== null) throw new Error("wrangler dev exited early:\n" + log);
@@ -84,7 +98,7 @@ export async function startTestWorker({ switchVars = {}, follows = [], port = WO
       await new Promise((r) => setTimeout(r, 1000));
     }
   } catch (e) {
-    stop();
+    await stop();
     throw e;
   }
   return { url, port, idpPort: IDP_PORT, suiteVars, vars, stop };
