@@ -431,8 +431,8 @@
   "anon": "403 forbidden: Sign in first [no-store]",
   "noAck": "400 invalid_message: text and 1 to 12 papers are needed [no-store]",
   "notOwned": "400 invalid_message: text and 1 to 12 papers are needed [no-store]",
-  "big": "400 invalid_message: text and 1 to 12 papers are needed [no-store]",
-  "chunked": "400 invalid_message: text and 1 to 12 papers are needed [no-store]",
+  "big": "413 too_large: That is too much text (Send a shorter message.) [no-store]",
+  "chunked": "413 too_large: That is too much text (Send a shorter message.) [no-store]",
   "bucket": "API_LIMITER"
  },
  "POST /api/v1/chat/route": {
@@ -451,8 +451,8 @@
   "anon": "403 sign_in: Sign in to check an answer strictly [no-store]",
   "noAck": "400 invalid_request: That answer cannot be checked (There is no answer to read.) [no-store]",
   "notOwned": "400 invalid_request: That answer cannot be checked (There is no answer to read.) [no-store]",
-  "big": "400 invalid_request: That answer cannot be checked (The request is not a JSON object.) [no-store]",
-  "chunked": "400 invalid_request: That answer cannot be checked (The request is not a JSON object.) [no-store]",
+  "big": "413 too_large: That is too much text (Send a shorter message.) [no-store]",
+  "chunked": "413 too_large: That is too much text (Send a shorter message.) [no-store]",
   "bucket": "ASK_LIMITER"
  },
  "POST /api/v1/dev/cache": {

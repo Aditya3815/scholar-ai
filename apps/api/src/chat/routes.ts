@@ -895,7 +895,9 @@ chatRoutes.post("/judge", async (c) => {
   const got = await requireUser(c, { signIn: { status: 403, type: "forbidden", title: "Sign in first" } });
   if (got instanceof Response) return got;
   const { user } = got;
-  const body = (await readJson(c)) as { text?: unknown; papers?: unknown; model?: unknown; reasoning?: unknown; timeoutMs?: unknown; strict?: unknown; recheck?: unknown } | null;
+  const sent = await readJson(c, MAX_CHAT_BODY_BYTES);
+  if (sent.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
+  const body = sent.value as { text?: unknown; papers?: unknown; model?: unknown; reasoning?: unknown; timeoutMs?: unknown; strict?: unknown; recheck?: unknown } | null;
   const text = typeof body?.text === "string" ? body.text.slice(0, 3000) : "";
   const list = Array.isArray(body?.papers) ? (body!.papers as { n?: unknown; title?: unknown; year?: unknown; abstract?: unknown }[]) : [];
   if (!text || list.length === 0 || list.length > 12) return deny(c, 400, "invalid_message", "text and 1 to 12 papers are needed");
@@ -941,7 +943,10 @@ chatRoutes.post("/tighten", async (c) => {
   const { user } = got;
   // the switch that turns the support judge off (CHAT_JUDGE=off) turns the strict check off too: a page that was opened before it still shows the button
   if (killSwitch(c.env, "CHAT_JUDGE") === "off") return c.json({ type: "unavailable", title: "The strict check is switched off", detail: "Try again later." }, 503);
-  const read = readTighten(await readJson(c));
+  // the chat's limit on the size of a body (bug B7: this body was read with none)
+  const sent = await readJson(c, MAX_CHAT_BODY_BYTES);
+  if (sent.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
+  const read = readTighten(sent.value);
   if (!read.ok) return deny(c, 400, "invalid_request", "That answer cannot be checked", read.detail);
   const { text, picked, citations } = read.input;
   let quota = false;
