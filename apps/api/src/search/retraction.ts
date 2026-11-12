@@ -1,5 +1,5 @@
+import { normalizeDoi } from "@scholar/shared";
 import { crossrefHeaders } from "./crossref";
-import { normalizeDoi } from "./normalize";
 import { crossrefFetch, SEARCH_GATE_WAIT_MS } from "../references/crossref-gate";
 import { getMany, type CacheStore } from "../cache/store";
 import { cacheKey } from "./cache";

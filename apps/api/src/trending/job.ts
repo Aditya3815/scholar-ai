@@ -1,4 +1,4 @@
-import { isCount, TRENDING_POOL_MAX_DAYS, YEAR_FILTER_SEARCH_LIMIT, parseTrending, type SearchResponse, type SearchScope } from "@scholar/shared";
+import { isoDay, ISO_DAY, isCount, TRENDING_POOL_MAX_DAYS, YEAR_FILTER_SEARCH_LIMIT, parseTrending, type SearchResponse, type SearchScope } from "@scholar/shared";
 import { QUERYABLE_SUBFIELDS } from "@scholar/shared/src/subfield-policy";
 import {
   buildPayload,
@@ -163,8 +163,7 @@ export type TrendingResult = {
 type Pool = { version: 1; poolAsOf: string; builtAt: string; global: Candidate[]; india: Candidate[]; held: string[] };
 type ScanState = { version: 1; asOf: string; startedAt: number; next: number; batches: number; n: number; calls: number; leaseUntil: number; done?: boolean };
 
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+const DAY = ISO_DAY;
 const daysBetween = (from: string, to: string): number => Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS);
 const num = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 

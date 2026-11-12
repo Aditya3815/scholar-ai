@@ -1,4 +1,4 @@
-import { isCount } from "@scholar/shared";
+import { ISO_DAY, isCount } from "@scholar/shared";
 import type { Country, KeywordRow, Venue } from "@scholar/shared/src/trending";
 import { SourceError, getText, type CallBudget, type Http } from "./sources";
 
@@ -11,7 +11,7 @@ import { SourceError, getText, type CallBudget, type Http } from "./sources";
  * groups and does not page; a call takes 1 to 4 seconds; a call costs $0.0001.
  */
 const WORKS = "https://api.openalex.org/works";
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const DAY = ISO_DAY;
 /** A keyword id as it goes into a filter: the tail of its address. Anything that could end the filter and start another (a comma, a colon, a pipe) is not one. */
 const SLUG = /^[A-Za-z0-9._~-]{1,100}$/;
 

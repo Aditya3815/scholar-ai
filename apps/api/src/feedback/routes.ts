@@ -1,9 +1,8 @@
 import { Hono } from "hono";
-import { FEEDBACK_KINDS, FEEDBACK_PROBLEMS, MAX_FEEDBACK_NOTE_CHARS, MAX_FEEDBACK_PER_DAY, MAX_KEYWORD_QUERIES, MAX_KEYWORD_QUERY_CHARS, MAX_SEMANTIC_QUERY_CHARS, type FeedbackKind } from "@scholar/shared";
+import { scrubText, FEEDBACK_KINDS, FEEDBACK_PROBLEMS, MAX_FEEDBACK_NOTE_CHARS, MAX_FEEDBACK_PER_DAY, MAX_KEYWORD_QUERIES, MAX_KEYWORD_QUERY_CHARS, MAX_SEMANTIC_QUERY_CHARS, type FeedbackKind } from "@scholar/shared";
 import { requireUser } from "../auth/service";
 import { readJson } from "../platform/http/body";
 import { d1KeyStore, fingerprintOf, readKey, runIdempotent } from "../idempotency";
-import { scrubText } from "../idea/plan";
 import { deny } from "../problem";
 import type { HonoEnv } from "../platform/env";
 

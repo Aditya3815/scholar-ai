@@ -1,5 +1,6 @@
+import { normalizeDoi } from "@scholar/shared";
 import { crossrefFetch, SEARCH_GATE_WAIT_MS } from "../references/crossref-gate";
-import { normalizeDoi, stripJats } from "./normalize";
+import { stripJats } from "./normalize";
 import type { Provider, ProviderPaper } from "./types";
 import type { Env } from "../platform/env";
 

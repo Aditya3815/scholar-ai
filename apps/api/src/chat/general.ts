@@ -1,4 +1,4 @@
-import { GENERAL_KINDS, type ChatEvent, type GeneralKind, type Lang } from "@scholar/shared";
+import { DOI_START, GENERAL_KINDS, type ChatEvent, type GeneralKind, type Lang } from "@scholar/shared";
 import type { StreamComplete } from "../docs/qa";
 import { AnswerFieldStreamer } from "../docs/stream-json";
 import { isMalformedReply } from "./malformed";
@@ -42,7 +42,7 @@ const MAX_NOT_RESEARCH_CHARS = 300;
 
 /** What gives a model's text away as a claim about the literature. Any of these and the background is not shown. */
 const CITES_SOMETHING = [
-  /\b10\.\d{4,9}\/\S+/, // a DOI
+  new RegExp(String.raw`\b${DOI_START}\S+`), // a DOI
   /https?:\/\/|www\./i, // an address
   /\bet al\b/i, // "Smith et al."
   /\(\s*[\p{Lu}][\p{L}'’-]+(?:\s+(?:and|&)\s+[\p{Lu}][\p{L}'’-]+)?,?\s+(?:19|20)\d{2}[a-z]?\s*\)/u, // "(Smith, 2019)", "(Smith and Rao 2019)"

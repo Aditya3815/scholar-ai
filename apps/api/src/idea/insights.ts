@@ -10,10 +10,9 @@ import {
   type OutcomeKind,
   type PaperReading,
 } from "@scholar/shared";
-import { findRun, numberSentences, words } from "@scholar/shared";
+import { scrubText, findRun, numberSentences, words } from "@scholar/shared";
 import type { StreamComplete } from "../docs/qa";
 import { quoteIsInAbstract, type ComparePaper } from "./compare";
-import { scrubText } from "./plan";
 import { resolveInsightsSentences } from "./sentence-refs";
 
 /**

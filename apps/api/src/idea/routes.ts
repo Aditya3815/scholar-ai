@@ -1,12 +1,12 @@
 import { Hono } from "hono";
-import { IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaCompareEvent, type IdeaInsightsEvent, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
+import { scrubText, IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHARS, MIN_IDEA_CHARS, type IdeaCompareEvent, type IdeaInsightsEvent, type IdeaPlan, type IdeaSearchEvent } from "@scholar/shared";
 import { requireUser, type Door } from "../auth/service";
 import { readJson } from "../platform/http/body";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "../docs/embed";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
 import { sseStream } from "../sse";
-import { PlanError, planIdea, scrubText } from "./plan";
+import { PlanError, planIdea } from "./plan";
 import { compareIdea, sanitizeCompareRequest } from "./compare";
 import { insightsIdea } from "./insights";
 import { runIdeaSearch, sanitizeRequest } from "./search";

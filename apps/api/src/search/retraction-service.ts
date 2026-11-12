@@ -1,6 +1,6 @@
+import { normalizeDoi } from "@scholar/shared";
 import { cacheStore, type CacheEnv } from "../cache";
 import { stubCrossrefFetch } from "../library/retraction-stub";
-import { normalizeDoi } from "./normalize";
 import { findRetractionNotices, retractedDois } from "./retraction";
 import type { Env } from "../platform/env";
 

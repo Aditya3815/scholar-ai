@@ -1,3 +1,4 @@
+import { scrubText } from "@scholar/shared";
 import {
   foldTitle,
   IDEA_RESULTS,
@@ -24,7 +25,6 @@ import { pubmed } from "../search/pubmed";
 import { s2 } from "../search/s2";
 import type { ProviderPaper, SearchEnv } from "../search/types";
 import { classifyWork } from "./kind";
-import { scrubText } from "./plan";
 
 const SEMANTIC_LIMIT = 40;
 const MAX_MERGED = 80;

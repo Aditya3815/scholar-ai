@@ -1,4 +1,4 @@
-import { arxivIdFromDoi, cleanArxivId, cleanDoi, cleanPmcid, plainText, type OaRef, type OaReason, type OaSource } from "@scholar/shared";
+import { doiPath, arxivIdFromDoi, cleanArxivId, cleanDoi, cleanPmcid, plainText, type OaRef, type OaReason, type OaSource } from "@scholar/shared";
 import { invertedIndexToText } from "../search/normalize";
 import { normaliseLicense } from "./jats";
 import { fetchPdf, safeFetch, type FetchOptions } from "./safe-fetch";
@@ -102,7 +102,7 @@ export async function lookupOpenAlex(doi: string, deps: SourceDeps): Promise<Ope
   const clean = cleanDoi(doi);
   if (!clean) return null;
   const gated = deps.gated ?? passThrough;
-  const path = clean.replace(/[%?#]/g, (c) => encodeURIComponent(c));
+  const path = doiPath(clean, { reserved: true });
   const q = new URLSearchParams({ select: "title,best_oa_location" });
   if (deps.mailto) q.set("mailto", deps.mailto);
   if (deps.openAlexKey) q.set("api_key", deps.openAlexKey);
@@ -126,7 +126,7 @@ export async function lookupOpenAlexAbstract(doi: string, deps: SourceDeps): Pro
   const clean = cleanDoi(doi);
   if (!clean) return null;
   const gated = deps.gated ?? passThrough;
-  const path = clean.replace(/[%?#]/g, (c) => encodeURIComponent(c));
+  const path = doiPath(clean, { reserved: true });
   const q = new URLSearchParams({ select: "title,abstract_inverted_index" });
   if (deps.mailto) q.set("mailto", deps.mailto);
   if (deps.openAlexKey) q.set("api_key", deps.openAlexKey);

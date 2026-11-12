@@ -1,6 +1,5 @@
-import { titleKey } from "@scholar/shared";
+import { normalizeDoi, titleKey } from "@scholar/shared";
 import { GateBusy, withGate } from "../gate";
-import { normalizeDoi } from "./normalize";
 import type { Provider, ProviderPaper } from "./types";
 
 /**

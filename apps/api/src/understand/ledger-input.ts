@@ -1,4 +1,4 @@
-import { plainLine } from "@scholar/shared";
+import { DOI_START, DOI_KEPT, plainLine } from "@scholar/shared";
 import { UNDERSTAND_INTENTS, type UnderstandIntent } from "./understanding";
 
 /**
@@ -43,8 +43,8 @@ export const LEDGER_MAX_CHARS = 12_000;
 
 const OPENALEX_ID = /^W\d{1,12}$/;
 /** A paper id as the search makes it (search/merge.ts: `doi:`, `pmid:` or `t:` and a key). Only an id: it is never shown, and a paper is resolved again by its DOI before it is used. */
-const SEARCH_ID = /^(?:doi:10\.\d{4,9}\/[^\s"<>]{1,200}|pmid:\d{1,12}|t:[\p{L}\p{N} _.:-]{1,200})$/u;
-const DOI = /^10\.\d{4,9}\/[^\s"<>]{1,200}$/;
+const SEARCH_ID = new RegExp(String.raw`^(?:doi:${DOI_START}[^\s"<>]{1,200}|pmid:\d{1,12}|t:[\p{L}\p{N} _.:-]{1,200})$`, "u");
+const DOI = DOI_KEPT;
 
 export type LedgerRead = { ok: true; turns: LedgerTurn[] } | { ok: false; detail: string };
 

@@ -1,4 +1,4 @@
-import { MAX_LEFT, MAX_LEFT_CHARS, MAX_LEFT_PERSON, MAX_NOTE_PHRASE, detectLanguage, isRomanNumeralI, subjectWords, tidyWords, withoutLeft, type AnswerLanguage, type MessageReading as Reading, type NoteKind, type ReadingNote } from "@scholar/shared";
+import { DOI_START, MAX_LEFT, MAX_LEFT_CHARS, MAX_LEFT_PERSON, MAX_NOTE_PHRASE, detectLanguage, isRomanNumeralI, subjectWords, tidyWords, withoutLeft, type AnswerLanguage, type MessageReading as Reading, type NoteKind, type ReadingNote } from "@scholar/shared";
 import * as W from "./frame-words";
 
 /**
@@ -166,7 +166,7 @@ const NOT_START: ReadonlySet<string> = new Set(W.NOT_AT_START);
 const NOT_END: ReadonlySet<string> = new Set(W.NOT_AT_END);
 const TITLE_SMALL: ReadonlySet<string> = new Set(W.TITLE_SMALL_WORDS);
 // an id: a DOI, an arXiv number (a month from 01 to 12), an old-style arXiv id, a PubMed number after "pmid" or "pubmed"
-const ID_IN_TEXT = /(?<![\p{L}\p{M}\p{N}_.])10\.\d{4,9}\/\S|(?<![\p{L}\p{N}.])\d{2}(?:0[1-9]|1[0-2])\.\d{4,5}(?:v\d+)?(?![\p{N}])|(?:pmid|pubmed)\s*[:#]?\s*\d{6,9}|(?<![\p{L}\p{N}.])[a-z]+(?:-[a-z]+)?\/\d{7}(?![\p{N}])/iu;
+const ID_IN_TEXT = new RegExp(String.raw`(?<![\p{L}\p{M}\p{N}_.])${DOI_START}\S|(?<![\p{L}\p{N}.])\d{2}(?:0[1-9]|1[0-2])\.\d{4,5}(?:v\d+)?(?![\p{N}])|(?:pmid|pubmed)\s*[:#]?\s*\d{6,9}|(?<![\p{L}\p{N}.])[a-z]+(?:-[a-z]+)?\/\d{7}(?![\p{N}])`, "iu");
 // an e-mail address or a link: R11's, not ours
 const ADDRESS = /@|:\/\/|(?:^|[\s(])www\./i;
 const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u;

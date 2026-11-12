@@ -5,6 +5,7 @@
  * Measured against GROBID on five papers in docs/spikes/R1b-grobid-alternatives.md.
  */
 import { MAX_PAPER_REFERENCES, splitReferences } from "./references";
+import { arxivDoi, DOI_START } from "./ids";
 import { squash } from "./text";
 
 /** One piece of text from pdf.js (a TextItem), reduced to what we use. */
@@ -138,8 +139,9 @@ export function detectTitle(lines: Line[], body: number): string | null {
 }
 
 /** "10.1000/abc.def)." -> "10.1000/abc.def" */
+const DOI_IN_TEXT = new RegExp(String.raw`${DOI_START}[^\s"<>]+`, "i");
 export function findDoi(text: string): string | null {
-  const m = text.match(/10\.\d{4,9}\/[^\s"<>]+/i);
+  const m = text.match(DOI_IN_TEXT);
   if (!m) return null;
   return m[0].replace(/[.,;:)\]}>'"]+$/, "").toLowerCase();
 }
@@ -161,7 +163,7 @@ export function detectIdentifiers(lines: Line[]): { doi: string | null; arxiv: s
 }
 
 /** The DOI to look a paper up by: its own, or the DataCite DOI that arXiv gives every preprint. */
-export const lookupDoi = (info: Pick<PaperInfo, "doi" | "arxiv">): string | null => info.doi ?? (info.arxiv ? `10.48550/arxiv.${info.arxiv.toLowerCase()}` : null);
+export const lookupDoi = (info: Pick<PaperInfo, "doi" | "arxiv">): string | null => info.doi ?? (info.arxiv ? arxivDoi(info.arxiv.toLowerCase()) : null);
 
 /* ---------------------------------------------------------------- headings */
 
@@ -307,7 +309,7 @@ function splitNumbered(block: Line[]): RawEntry[] {
 }
 
 /** Something that cites a work: a year, a DOI, an arXiv id or an address. What does not is not a reference (an appendix paragraph that followed the list). */
-const CITES = /\b(1[5-9]\d{2}|20\d{2})[a-z]?\b|doi\.org|\b10\.\d{4,9}\/|arxiv|https?:\/\/|www\.|in press|forthcoming|to appear/i;
+const CITES = new RegExp(String.raw`\b(1[5-9]\d{2}|20\d{2})[a-z]?\b|doi\.org|\b${DOI_START}|arxiv|https?:\/\/|www\.|in press|forthcoming|to appear`, "i");
 
 /** A key in place of a number ("[ADG16]", "[BBDIW20]", "[Knu97a]": BibTeX's alpha style); a PDF may break it in two lines ("[ADG" and then "16] ..."). */
 const KEY_COMPLETE = /^\[\p{Lu}[\p{L}+-]{1,9}\d{2,4}[a-z]?\]/u;

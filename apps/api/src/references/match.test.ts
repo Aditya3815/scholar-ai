@@ -1,5 +1,6 @@
+import { arxivDoi } from "@scholar/shared";
 import { describe, expect, it } from "vitest";
-import { arxivDoi, arxivYear, spacedTitle, checkIdentified, checkLocator, checkMatch, doiCandidates, dropBrokenWords, firstAuthorFamily, extractArxivId, extractDoi, extractYears, guessTitle, joinHyphenated, looksLikeAuthors, pickBest, referenceKind, searchTitle, titleAfterAuthors, verdict, type Candidate } from "./match";
+import { arxivYear, spacedTitle, checkIdentified, checkLocator, checkMatch, doiCandidates, dropBrokenWords, firstAuthorFamily, extractArxivId, extractDoi, extractYears, guessTitle, joinHyphenated, looksLikeAuthors, pickBest, referenceKind, searchTitle, titleAfterAuthors, verdict, type Candidate } from "./match";
 
 const attention: Candidate = {
   doi: "10.48550/arxiv.1706.03762",

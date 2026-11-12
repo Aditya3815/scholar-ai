@@ -1,4 +1,4 @@
-import { plainText } from "@scholar/shared";
+import { doiPath, plainText } from "@scholar/shared";
 import { crossrefFetch, type CrossrefInit } from "./crossref-gate";
 import { arxivYear, type Candidate } from "./match";
 import type { CacheStore } from "../cache/store";
@@ -81,7 +81,7 @@ export async function crossrefByDoi(doi: string, env: LookupEnv): Promise<Candid
 }
 async function crossrefByDoiLive(doi: string, env: LookupEnv): Promise<Candidate | null> {
   // No `select` here: Crossref rejects it on the single-work endpoint (HTTP 400); it only works on list queries.
-  const url = `https://api.crossref.org/works/${encodeURIComponent(doi).replace(/%2F/g, "/")}?mailto=${encodeURIComponent(env.CROSSREF_MAILTO)}`;
+  const url = `https://api.crossref.org/works/${doiPath(doi)}?mailto=${encodeURIComponent(env.CROSSREF_MAILTO)}`;
   const res = await cr(env)(url, { headers: headers(env), timeoutMs: 10_000 }).catch((e) => {
     throw new LookupError(`Crossref unreachable: ${e instanceof Error ? e.message : e}`);
   });
@@ -177,7 +177,7 @@ export async function openAlexByDoi(doi: string, env: LookupEnv): Promise<Candid
 async function openAlexByDoiLive(doi: string, env: LookupEnv): Promise<Candidate | null> {
   const params = new URLSearchParams({ select: OA_SELECT });
   if (env.OPENALEX_API_KEY) params.set("api_key", env.OPENALEX_API_KEY);
-  const res = await f(env)(`https://api.openalex.org/works/doi:${encodeURIComponent(doi).replace(/%2F/g, "/")}?${params}`, { signal: AbortSignal.timeout(10_000) }).catch((e) => {
+  const res = await f(env)(`https://api.openalex.org/works/doi:${doiPath(doi)}?${params}`, { signal: AbortSignal.timeout(10_000) }).catch((e) => {
     throw new LookupError(`OpenAlex unreachable: ${e instanceof Error ? e.message : e}`);
   });
   if (res.status === 404) return null;
@@ -211,7 +211,7 @@ export async function doiResolves(doi: string, env: LookupEnv): Promise<boolean>
   return remembered(env, "doi-handle", [doi.toLowerCase()], () => doiResolvesLive(doi, env));
 }
 async function doiResolvesLive(doi: string, env: LookupEnv): Promise<boolean> {
-  const res = await f(env)(`https://doi.org/api/handles/${encodeURIComponent(doi).replace(/%2F/g, "/")}`, { signal: AbortSignal.timeout(8_000) }).catch((e) => {
+  const res = await f(env)(`https://doi.org/api/handles/${doiPath(doi)}`, { signal: AbortSignal.timeout(8_000) }).catch((e) => {
     throw new LookupError(`doi.org unreachable: ${e instanceof Error ? e.message : e}`);
   });
   if (res.status === 404) return false;
@@ -239,7 +239,7 @@ export async function crossrefReferenceStrings(doi: string, env: LookupEnv): Pro
   return remembered(env, "crossref-refs", [doi.toLowerCase()], () => crossrefReferenceStringsLive(doi, env));
 }
 async function crossrefReferenceStringsLive(doi: string, env: LookupEnv): Promise<string[]> {
-  const url = `https://api.crossref.org/works/${encodeURIComponent(doi).replace(/%2F/g, "/")}?mailto=${encodeURIComponent(env.CROSSREF_MAILTO)}`;
+  const url = `https://api.crossref.org/works/${doiPath(doi)}?mailto=${encodeURIComponent(env.CROSSREF_MAILTO)}`;
   const res = await cr(env)(url, { headers: headers(env), timeoutMs: 10_000 }).catch((e) => {
     throw new LookupError(`Crossref unreachable: ${e instanceof Error ? e.message : e}`);
   });

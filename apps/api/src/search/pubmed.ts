@@ -1,4 +1,4 @@
-import { normalizeDoi } from "./normalize";
+import { normalizeDoi } from "@scholar/shared";
 import type { Provider, ProviderPaper } from "./types";
 
 const EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils";

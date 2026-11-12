@@ -1,5 +1,6 @@
 import {
   cutWhole,
+  DOI_START,
   FILTER_YEARS,
   historySizeOf as sizeOf,
   isInt,
@@ -62,7 +63,7 @@ export const errorKind = (message?: string): "timeout" | "malformed" | "quota" |
   !message ? "error" : /time(?:d)? ?out|abort/i.test(message) ? "timeout" : /json|unterminated|parse/i.test(message) ? "malformed" : /quota/i.test(message) ? "quota" : /unavailable|overload|rate|5\d\d/i.test(message) ? "unavailable" : "error";
 
 const MARKS = /\s*(?:\[\s*\d{1,3}(?:\s*[,;–-]\s*\d{1,3})*\s*\]|【[^】]{0,40}】)/g;
-const DOI = /\b(?:doi:\s*)?10\.\d{4,9}\/[^\s,;)\]]*[^\s,;)\].:!?]/gi;
+const DOI = new RegExp(String.raw`\b(?:doi:\s*)?${DOI_START}[^\s,;)\]]*[^\s,;)\].:!?]`, "gi");
 const LINK = /\b(?:https?:\/\/|www\.)[^\s)\]]*[^\s)\].,;:!?]/gi;
 // a name is at most 40 letters long: without the bound `[\p{L}'’-]+` scans to the end of the text from every start of a word, and a text of "A-" repeated to 60 KB took 1.9 seconds
 const AUTHOR_YEAR = /\(\s*\p{Lu}[\p{L}'’-]{1,40}(?:\s+(?:and|&)\s+\p{Lu}[\p{L}'’-]{1,40})?(?:\s+et al\.?)?,?\s+(?:19|20)\d{2}[a-z]?\s*\)/gu;

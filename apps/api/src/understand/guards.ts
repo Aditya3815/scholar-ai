@@ -1,4 +1,4 @@
-import { MAX_AUTO_CHARS, cleanAutoMessage, looksLikeReferenceList, type RouteMode } from "@scholar/shared";
+import { DOI_INPUT, ARXIV_INPUT, MAX_AUTO_CHARS, cleanAutoMessage, looksLikeReferenceList, type RouteMode } from "@scholar/shared";
 import { isGreeting } from "./greeting";
 
 /**
@@ -16,8 +16,8 @@ import { isGreeting } from "./greeting";
  * Pure: it never calls a model, reads the network or throws.
  */
 
-const DOI = /^(?:doi:\s*|https?:\/\/(?:dx\.)?doi\.org\/)?10\.\d{4,9}\/\S+$/i;
-const ARXIV = /^(?:arxiv:\s*)?\d{4}\.\d{4,5}(?:v\d+)?$|^https?:\/\/arxiv\.org\/(?:abs|pdf)\/\S+$/i;
+const DOI = DOI_INPUT;
+const ARXIV = ARXIV_INPUT;
 
 /**
  * R11 HOOK. R11 (leaving e-mail addresses, links and phone numbers out of what is searched) is being built on another branch and is NOT on main. Until it lands, the default is the identity; the

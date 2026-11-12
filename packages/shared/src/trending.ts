@@ -1,3 +1,4 @@
+import { isoDay } from "./ids";
 /**
  * The pure half of the Trending feed, server side (docs/design/chatview-and-trending.md, T3 to T8, T10). No network, no clock, no storage: the job in apps/api feeds it what OpenAlex,
  * arXiv and the product's own search answered, and it says what is a trend, what may be shown, and what the file for the page holds. Not imported by the page (the page has
@@ -72,7 +73,6 @@ const dayMs = (s: unknown): number => {
   const t = Date.parse(s);
   return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === s ? t : NaN;
 };
-const isoDay = (t: number): string => new Date(t).toISOString().slice(0, 10);
 
 /** The two windows of dates (inclusive, as OpenAlex's from_publication_date and to_publication_date read them) for a day "YYYY-MM-DD". Throws on a day that is not a day. */
 export function trendWindows(asOf: string): { a: { from: string; to: string }; b: { from: string; to: string } } {

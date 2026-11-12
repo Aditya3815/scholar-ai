@@ -1,5 +1,6 @@
 import { MAX_CHAT_CHARS } from "./chat";
 import { splitReferences } from "./references";
+import { ARXIV_INPUT, DOI_INPUT, DOI_START } from "./ids";
 
 /**
  * Which tool does a message on Home belong to? The rules here cost nothing and always give the same answer; they settle what is plain, and everything else goes to a small
@@ -81,8 +82,10 @@ const IDEA_CUE =
   /\b(?:my|our)\s+(?:idea|hypothesis|proposal|approach|research plan|manuscript)\b|\b(?:is|are)\s+(?:(?:this|my|our|the)\s+(?:idea|approach|work|research|hypothesis)|this|it)\s+(?:novel|new|original)\b|\bnovelty\b|\bprior art\b|\bi\s+(?:want|plan|propose|intend|am planning|am thinking)\s+to\b|\bwe\s+(?:propose|plan|intend)\b|\bmera\s+idea\b|\bnaya\s+(?:hai|idea)\b|\bnovel\s+hai\b|\bmera\s+(?:hypothesis|proposal)\b/i;
 const REFS_CUE = /\b(?:check|verify|validate|jaanch|jaanchna)\s+(?:my|these|the|this|mere|meri|ye|yeh)?\s*(?:references?|citations?|bibliography|refs)\b|\b(?:references?|citations?)\s+(?:check|verify|karo|jaanch)\b|\breference list\b|\bbibliography\b/i;
 const PAPER_CUE = /\b(?:my|the)\s+(?:uploaded|workspace)\b|\bmy\s+(?:pdf|pdfs)\b|\b(?:upload\s*kiye|upload\s*kiya|upload\s*ki\s*hui|mere\s+(?:pdf|upload))\b|\bin\s+my\s+workspace\b/i;
-const DOI = /^(?:doi:\s*|https?:\/\/(?:dx\.)?doi\.org\/)?10\.\d{4,9}\/\S+$/i;
-const ARXIV = /^(?:arxiv:\s*)?\d{4}\.\d{4,5}(?:v\d+)?$|^https?:\/\/arxiv\.org\/(?:abs|pdf)\/\S+$/i;
+const DOI = DOI_INPUT;
+const ARXIV = ARXIV_INPUT;
+/** A DOI in a reference: its address, or its start. */
+const DOI_CITED = new RegExp(String.raw`doi\.org|\b${DOI_START}`, "i");
 
 /** Does the text look like a list of references (three or more entries, each with a year and the look of authors, a title mark or a DOI)? */
 export function looksLikeReferenceList(text: string): boolean {
@@ -94,7 +97,7 @@ export function looksLikeReferenceList(text: string): boolean {
 
 /** One entry that has the look of a reference: 30 characters or more, a year, and the look of authors, "et al", a DOI or a title in quotes. */
 export function looksLikeReference(e: string): boolean {
-  return e.length >= 30 && /\b(?:1[89]|20)\d{2}\b/.test(e) && (/\p{Lu}[\p{L}'’-]+,?\s+\p{Lu}\./u.test(e) || /\bet al\b/i.test(e) || /doi\.org|\b10\.\d{4,9}\//i.test(e) || /[“"][^”"]{8,}[”"]/.test(e));
+  return e.length >= 30 && /\b(?:1[89]|20)\d{2}\b/.test(e) && (/\p{Lu}[\p{L}'’-]+,?\s+\p{Lu}\./u.test(e) || /\bet al\b/i.test(e) || DOI_CITED.test(e) || /[“"][^”"]{8,}[”"]/.test(e));
 }
 
 /** Words that suggest another tool without being sure of it (they may be the topic: "novelty detection", "reference checking tools"); the model decides. */

@@ -1,6 +1,6 @@
 import type { Complete } from "../docs/qa";
 import type { GreetingKind } from "./greeting";
-import { plainLine } from "@scholar/shared";
+import { DOI_START, plainLine } from "@scholar/shared";
 import type { UnderstandLanguage } from "./understanding";
 
 /**
@@ -39,7 +39,7 @@ export const CHAT_LEAK_KINDS = ["doi", "arxiv", "et_al", "numbered_citation", "a
 export type ChatLeak = (typeof CHAT_LEAK_KINDS)[number];
 
 const LEAK_PATTERNS: [ChatLeak, RegExp][] = [
-  ["doi", /\b10\.\d{4,9}\/\S+|\bdoi\s*:/i],
+  ["doi", new RegExp(String.raw`\b${DOI_START}\S+|\bdoi\s*:`, "i")],
   ["arxiv", /\barxiv\b|\b\d{4}\.\d{4,5}(?:v\d+)?\b/i],
   ["et_al", /\bet\.?\s*al\b/i],
   ["numbered_citation", /\[\s*\d{1,3}(?:\s*[,–-]\s*\d{1,3})*\s*\]/],

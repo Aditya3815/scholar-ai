@@ -1,3 +1,4 @@
+import { ISO_DAY } from "./ids";
 import { isCount, isInt } from "./text";
 
 /**
@@ -39,7 +40,7 @@ export type TrendingPayload = {
 };
 
 const DAY = 864e5;
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const DATE = ISO_DAY;
 const TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 
 /** A date or a UTC time as the server writes it, and a real one (a parser would roll "02-31" over into March). */

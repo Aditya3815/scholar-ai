@@ -1,5 +1,4 @@
-import { foldTitle, plainText } from "@scholar/shared";
-import { normalizeDoi } from "./normalize";
+import { arxivDoi, normalizeDoi, foldTitle, plainText } from "@scholar/shared";
 import type { Provider, ProviderPaper } from "./types";
 
 /**
@@ -32,7 +31,7 @@ export function parseArxivFeed(xml: string): ProviderPaper[] {
     const ownDoi = normalizeDoi(tag(e, "arxiv:doi"));
     out.push({
       // every preprint has the DOI arXiv registers for it, which is what other indexes list for the same paper, so the copies merge
-      doi: ownDoi ?? (/^\d{4}\.\d{4,5}$/.test(id) ? `10.48550/arxiv.${id}` : null),
+      doi: ownDoi ?? (/^\d{4}\.\d{4,5}$/.test(id) ? arxivDoi(id) : null),
       pmid: null,
       title,
       authors: [...e.matchAll(/<author>[\s\S]*?<name>([\s\S]*?)<\/name>[\s\S]*?<\/author>/g)].map((a) => decode(a[1]!)).filter(Boolean).slice(0, 10),

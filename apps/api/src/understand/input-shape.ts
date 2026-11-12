@@ -1,4 +1,4 @@
-import { subjectWords } from "@scholar/shared";
+import { DOI_START, subjectWords } from "@scholar/shared";
 
 /**
  * R3: what a message in the prompt box LOOKS like, as names from a closed list, so that how often messages are messy can be counted without keeping any of their text
@@ -203,7 +203,7 @@ function hasFirstPerson(t: string): boolean {
 
 /* ---------------------------------------------------------------- id (R13, 4.13) */
 
-const DOI = /(?<![\p{L}\p{M}\p{N}_.])10\.\d{4,9}\/\S/u;
+const DOI = new RegExp(String.raw`(?<![\p{L}\p{M}\p{N}_.])${DOI_START}\S`, "u");
 const PMID = re(String.raw`${START}(?:pmid|pubmed)\s*[:#]?\s*\d{6,9}(?!\d)`);
 const ARXIV_WORD = /arxiv/i;
 const ARXIV_ADDRESS = /arxiv\.org\/(?:abs|pdf)\//i;

@@ -1,4 +1,4 @@
-import { normalizeDoi } from "./normalize";
+import { normalizeDoi } from "@scholar/shared";
 import type { Provider, ProviderPaper } from "./types";
 
 const FIELDS = "paperId,externalIds,title,abstract,year,venue,authors,citationCount,openAccessPdf";

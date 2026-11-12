@@ -1,9 +1,9 @@
-import { MAX_PAPER_REFERENCES, lookupDoi, type OutlineItem, type PaperInfo, type PaperMetadata } from "@scholar/shared";
+import { DOI_KEPT, ARXIV_OLD, ARXIV_NEW, MAX_PAPER_REFERENCES, lookupDoi, type OutlineItem, type PaperInfo, type PaperMetadata } from "@scholar/shared";
 import { tokenize } from "../references/match";
 import { crossrefByDoi, crossrefReferenceStrings, openAlexByDoi, type LookupEnv } from "../references/lookup";
 
-const DOI = /^10\.\d{4,9}\/[^\s"<>]{1,200}$/i;
-const ARXIV = /^(\d{4}\.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?\/\d{7})$/;
+const DOI = DOI_KEPT;
+const ARXIV = new RegExp(`^(?:${ARXIV_NEW}|${ARXIV_OLD})$`);
 
 const str = (v: unknown, max: number): string => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
 const int = (v: unknown, min: number, max: number, fallback: number): number => (typeof v === "number" && Number.isInteger(v) && v >= min && v <= max ? v : fallback);

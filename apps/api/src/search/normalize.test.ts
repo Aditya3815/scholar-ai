@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeDoi } from "./normalize";
+import { normalizeDoi } from "@scholar/shared";
 
 describe("normalizeDoi", () => {
   it.each([

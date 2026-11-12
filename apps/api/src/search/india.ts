@@ -1,6 +1,6 @@
-import { foldTitle } from "@scholar/shared";
+import { normalizeDoi, foldTitle } from "@scholar/shared";
 import { withGate } from "../gate";
-import { invertedIndexToText, normalizeDoi, sanitizeQuery, stripJats } from "./normalize";
+import { invertedIndexToText, sanitizeQuery, stripJats } from "./normalize";
 import type { Provider, ProviderPaper } from "./types";
 
 /**

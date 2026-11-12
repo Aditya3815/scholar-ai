@@ -1,4 +1,4 @@
-import { MAX_RESTATED_QUESTION_CHARS, subjectWords } from "@scholar/shared";
+import { DOI_START, MAX_RESTATED_QUESTION_CHARS, subjectWords } from "@scholar/shared";
 
 /**
  * The deterministic part of letting a model restate a follow-up (docs/design/chat-actions-context.md, section 5), in the spirit of chat/rewrite.ts: words written by a model act only if they pass
@@ -53,7 +53,7 @@ const pureScript = (s: string): "devanagari" | "latin" | null => {
   return share >= 0.9 ? "devanagari" : share <= 0.1 ? "latin" : null;
 };
 
-const LINKISH = /https?:\/\/|www\.|[^\s@]+@[^\s@]+\.[^\s@]+|\b10\.\d{4,9}\//i;
+const LINKISH = new RegExp(String.raw`https?:\/\/|www\.|[^\s@]+@[^\s@]+\.[^\s@]+|\b${DOI_START}`, "i");
 /** Words of an order to the model, not of a question: the restatement is only ever a question or a topic. A person who wrote one themselves is not refused for repeating it. */
 const INSTRUCTION =
   /\b(?:ignore|disregard|forget|override)\b[^.?!]{0,40}\b(?:instructions?|rules?|above|previous|prompt|everything)\b|\b(?:system prompt|you are now|reply with|respond with|answer with|set (?:the )?(?:mode|confidence)|mode (?:idea|paper|verify|search))\b/i;

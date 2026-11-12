@@ -9,6 +9,7 @@ import {
   type IdeaSearched,
   type OutcomeKind,
 } from "./idea";
+import { DOI_LINKABLE } from "./ids";
 
 /* ---------------------------------------------------------------- gaps that need no model */
 
@@ -87,7 +88,7 @@ export function md(s: unknown, max = 400): string {
 }
 
 const quote = (q: string) => `> “${md(q, 320)}”`;
-const doiLink = (doi: string | null) => (doi && /^10\.\d{4,9}\/[^\s<>]+$/.test(doi) ? `https://doi.org/${encodeURI(doi)}` : null);
+const doiLink = (doi: string | null) => (doi && DOI_LINKABLE.test(doi) ? `https://doi.org/${encodeURI(doi)}` : null);
 const dayOf = (iso: string) => (Number.isFinite(Date.parse(iso)) ? new Date(iso).toISOString().slice(0, 10) : "");
 
 /** The services that were really asked, in the order of the list above, as a sentence part: "OpenAlex, PubMed and arXiv". */

@@ -4,6 +4,7 @@
  */
 import type { AskStreamEvent } from "./documents";
 import type { Paper } from "./index";
+import { arxivIdFromDoi, cleanArxivId, cleanDoi } from "./ids";
 
 /** Where the text came from, best first: Europe PMC's full-text XML, an arXiv PDF, the open-access PDF a record links to, or (when none can be read) the abstract alone. */
 export const OA_SOURCES = ["europepmc", "arxiv", "pdf", "abstract"] as const;
@@ -53,35 +54,12 @@ export const OA_WAIT_MS = 120_000;
 /** What identifies a paper: any of these. A DOI is best; an arXiv paper can be named by its number alone. */
 export type OaRef = { doi?: string; arxivId?: string; pmcid?: string };
 
-const DOI = /^10\.\d{4,9}\/\S+$/;
-const ARXIV_NEW = /^\d{4}\.\d{4,5}(?:v\d+)?$/;
-const ARXIV_OLD = /^[a-z-]+(?:\.[A-Z]{2})?\/\d{7}(?:v\d+)?$/;
 const PMCID = /^PMC\d{1,10}$/i;
 
-/** A DOI as a lower-case bare identifier (a URL, "doi:" and surrounding junk removed), or null. */
-export function cleanDoi(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const s = raw.trim().replace(/^(?:https?:\/\/(?:dx\.)?doi\.org\/|doi:\s*)/i, "").replace(/[\s.,;)]+$/, "").toLowerCase();
-  return s.length <= 200 && DOI.test(s) ? s : null;
-}
-/** An arXiv number without its version ("1706.03762v5" -> "1706.03762"), from a bare id, "arXiv:" or an arxiv.org address; or null. */
-export function cleanArxivId(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  let s = raw.trim().replace(/^arxiv:\s*/i, "");
-  const url = /^https?:\/\/(?:www\.)?arxiv\.org\/(?:abs|pdf|html)\/(.+?)(?:\.pdf)?(?:[?#].*)?$/i.exec(s);
-  if (url) s = url[1]!;
-  s = s.replace(/v\d+$/, "");
-  return ARXIV_NEW.test(s) || ARXIV_OLD.test(s) ? s : null;
-}
 export function cleanPmcid(raw: unknown): string | null {
   return typeof raw === "string" && PMCID.test(raw.trim()) ? raw.trim().toUpperCase() : null;
 }
 
-/** The DOI of an arXiv paper is 10.48550/arXiv.<number>: the number is the arXiv id. */
-export function arxivIdFromDoi(doi: string): string | null {
-  const m = /^10\.48550\/arxiv\.(.+)$/i.exec(doi);
-  return m ? cleanArxivId(m[1]) : null;
-}
 
 /** Everything a search result tells about where a paper can be read. */
 export function refFromPaper(p: Pick<Paper, "doi" | "oaUrl">): OaRef | null {

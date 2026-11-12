@@ -123,6 +123,7 @@ export type SearchResponse = {
 export * from "./references";
 export * from "./documents";
 export * from "./text";
+export * from "./ids";
 export * from "./zoom";
 export * from "./paperinfo";
 export * from "./citations";
