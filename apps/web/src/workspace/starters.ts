@@ -2,7 +2,7 @@ import { detectLanguage } from "@scholar/shared";
 
 /**
  * The "Try" chips: example searches the owner chose, shown on Home and under a reply that has nothing to show (a greeting, a search that found no paper). One list, the same everywhere, never called
- * trending and never made by a model (docs/design/chatview-and-trending.md, T2). A click sends one. They are held to what a message is held to by apps/api/src/trending/starters.test.ts (the chat cleaner leaves
+ * trending and never made by a model (docs/design/chatview-and-trending.md, T2). A click sends one. They are held to what a message is held to by apps/web/src/workspace/starters.test.ts (the chat cleaner leaves
  * them as they are, none reads as small talk, 2 to 8 of them) and, once a week, to a live search (scripts/trending-contract-live.mjs).
  *
  * Four are the owner's English ones, two more are about India, and two are in Hinglish. A Hinglish chip is sent through Auto, which writes the English words and says so ("I searched for"). On the

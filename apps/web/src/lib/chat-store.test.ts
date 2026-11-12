@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { startAssistant, type AssistantMsg, type ChatMsg, type Paper } from "@scholar/shared";
+import { storage, target } from "../test/fake-storage";
 
 /**
  * The page's own store of conversations (apps/web/src/lib/chat.ts), run in node against a fake localStorage, a fake IndexedDB and a fake network. The store is one module with state of its own and
@@ -7,9 +8,8 @@ import { startAssistant, type AssistantMsg, type ChatMsg, type Paper } from "@sc
  * in review and that no pure function could show: the whole path from a press to what is kept, what is sent and what is left on the screen. (The real IndexedDB, the real focus and the real
  * layout are checked in the browser suite, apps/web/e2e/chat.mjs.)
  *
- * The module is loaded by a path that is not a literal, so that this workspace's type check (no DOM) does not follow it into the web workspace.
+ * The module is imported afresh for each case (`import("./chat")` after `vi.resetModules()` where a case needs a new page).
  */
-const CHAT_PATH = "/@fs" + decodeURIComponent(new URL("../../../web/src/lib/" + "chat.ts", import.meta.url).pathname);
 
 const fake = vi.hoisted(() => ({
   /** "store/key" to what is kept. */
@@ -20,66 +20,13 @@ const fake = vi.hoisted(() => ({
   writes: [] as string[],
 }));
 
-vi.mock("../../../web/src/lib/idb", () => {
-  const k = (store: string, key: string) => `${store}/${key}`;
-  const read = (key: string, store: string): { ok: boolean; value: unknown } => {
-    if (fake.failReads > 0) {
-      fake.failReads--;
-      return { ok: false, value: null };
-    }
-    const v = fake.records.get(k(store, key));
-    return { ok: true, value: v === undefined ? null : structuredClone(v) };
-  };
-  return {
-    idbGet: async (key: string, store = "pendingInk") => read(key, store).value,
-    idbRead: async (key: string, store = "pendingInk") => {
-      const r = read(key, store);
-      return r.ok ? { ok: true, value: r.value } : { ok: false };
-    },
-    idbSet: async (key: string, value: unknown, store = "pendingInk") => {
-      fake.records.set(k(store, key), structuredClone(value));
-      fake.writes.push(k(store, key));
-      return true;
-    },
-    // a write that is made only if the record is the one that was read (its `rev` is the one the writer saw)
-    idbSwap: async (key: string, make: (rev: number) => unknown, expected: number, store = "pendingInk") => {
-      const have = (fake.records.get(k(store, key)) as { rev?: unknown } | undefined)?.rev;
-      if ((typeof have === "number" ? have : 0) !== expected) return { status: "conflict" };
-      fake.records.set(k(store, key), structuredClone(make(expected + 1)));
-      fake.writes.push(k(store, key));
-      return { status: "saved", rev: expected + 1 };
-    },
-    idbDelete: async (key: string, store = "pendingInk") => {
-      fake.records.delete(k(store, key));
-      return true;
-    },
-    idbKeys: async (store = "pendingInk") => [...fake.records.keys()].filter((x) => x.startsWith(`${store}/`)).map((x) => x.slice(store.length + 1)),
-    idbClear: async (store = "pendingInk") => {
-      for (const x of [...fake.records.keys()]) if (x.startsWith(`${store}/`)) fake.records.delete(x);
-      return true;
-    },
-  };
-});
+vi.mock("./idb", async () => (await import("../test/fake-idb")).fakeIdb(fake));
 vi.mock("react", () => ({ useSyncExternalStore: (_subscribe: unknown, get: () => unknown) => get() }));
 const notices: string[] = [];
-vi.mock("../../../web/src/lib/notice", () => ({ showNotice: (t: string) => notices.push(t), clearNotice: () => {}, useNotice: () => null }));
+vi.mock("./notice", () => ({ showNotice: (t: string) => notices.push(t), clearNotice: () => {}, useNotice: () => null }));
 
 /* ---------------------------------------------------------------- what the browser gives the page */
 
-type Handlers = Record<string, ((e: unknown) => void)[]>;
-const target = () => {
-  const handlers: Handlers = {};
-  return {
-    handlers,
-    addEventListener: (type: string, f: (e: unknown) => void) => void (handlers[type] ??= []).push(f),
-    removeEventListener: () => {},
-    fire: (type: string, e: unknown = {}) => (handlers[type] ?? []).forEach((f) => f(e)),
-  };
-};
-const storage = () => {
-  const m = new Map<string, string>();
-  return { getItem: (k: string) => (m.has(k) ? m.get(k)! : null), setItem: (k: string, v: string) => void m.set(k, String(v)), removeItem: (k: string) => void m.delete(k), clear: () => m.clear() };
-};
 let local = storage();
 let session = storage();
 const g = globalThis as unknown as Record<string, unknown>;
@@ -134,7 +81,7 @@ async function openTab(): Promise<Tab> {
   Object.assign(win, { setTimeout: (...a: Parameters<typeof setTimeout>) => setTimeout(...a), clearTimeout: (t: Parameters<typeof clearTimeout>[0]) => clearTimeout(t) });
   g.window = win;
   g.document = doc;
-  const lib = (await import(/* @vite-ignore */ CHAT_PATH)) as Lib;
+  const lib = (await import("./chat")) as Lib;
   return { lib, win, doc, st: () => lib.useChatState() };
 }
 

@@ -22,7 +22,7 @@ import {
   type RawItem,
 } from "@scholar/shared";
 // @ts-expect-error plain .mjs test helper
-import { makePdfLines } from "../../scripts/lib/make-pdf.mjs";
+import { makePdfLines } from "@scholar/test-support/make-pdf.mjs";
 
 const L = (text: string, o: Partial<Line> = {}): Line => ({ text, size: 11, x: 56, y: 700, page: 1, ...o });
 /** A column of lines going down the page. */

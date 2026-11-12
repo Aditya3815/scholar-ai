@@ -23,7 +23,7 @@
 // that needs the turns, so each 20 messages use their own throwaway account here too. The 203-message list above is NOT run by it, and must stay at its present result.
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
-import { CASES as TUNED, GROUPS, HOLDOUT } from "./router-cases.mjs";
+import { CASES as TUNED, GROUPS, HOLDOUT } from "@scholar/test-support/router-cases.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 const gate = process.argv.includes("--gate");
@@ -151,7 +151,7 @@ if (gate && failed.length) {
 
 /** Runs the labelled follow-ups through the development route and prints the gates and the tables. Returns the exit code (1 with --gate when a line is past its limit). */
 async function followUpMain() {
-  const { TUNED: FOLLOW_TUNED, HOLDOUT: FOLLOW_HOLDOUT, HOLDOUT2: FOLLOW_HOLDOUT2, CLASSES, LANGS } = await import("./router-followup-cases.mjs");
+  const { TUNED: FOLLOW_TUNED, HOLDOUT: FOLLOW_HOLDOUT, HOLDOUT2: FOLLOW_HOLDOUT2, CLASSES, LANGS } = await import("@scholar/test-support/router-followup-cases.mjs");
   const { scoreCase, formatReport } = await import("./lib/followup-score.mjs");
   const cases = set === "holdout" ? FOLLOW_HOLDOUT : set === "holdout2" ? FOLLOW_HOLDOUT2 : set === "all" ? [...FOLLOW_TUNED, ...FOLLOW_HOLDOUT, ...FOLLOW_HOLDOUT2] : FOLLOW_TUNED;
   const idp = await startFakeIdp(9911);

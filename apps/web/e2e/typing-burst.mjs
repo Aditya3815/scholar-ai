@@ -8,7 +8,7 @@
 //   node e2e/typing-burst.mjs [baseUrl]    (default http://localhost:8788)
 import { chromium } from "playwright-core";
 import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
-import { SAMPLE_PAPER, makePdf } from "../../api/scripts/lib/make-pdf.mjs";
+import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 
 const BASE = process.argv[2] ?? "http://localhost:8788";
 const CHARS = 120; // more than twice React's limit of 50

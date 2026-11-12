@@ -1,4 +1,4 @@
-// Scoring of the router's answers to follow-ups against the labelled cases of ../router-followup-cases.mjs (docs/design/chat-actions-context.md, section 9). Pure: it reads a case and the answer
+// Scoring of the router's answers to follow-ups against the labelled cases of packages/test-support/router-followup-cases.mjs (docs/design/chat-actions-context.md, section 9). Pure: it reads a case and the answer
 // of the development route (`POST /api/v1/chat/route` with `history`: the route, `followUp` and `usage`) and says what was right. `router-eval.mjs --followup` prints it; the unit test
 // of the same name pins it, including that a made-up wrong answer is scored as wrong.
 //

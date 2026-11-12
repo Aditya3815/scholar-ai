@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import { startFakeIdp } from "../fake-idp.mjs";
 import { createClient } from "../test-client.mjs";
-import { SAMPLE_PAPER, makePdf } from "../lib/make-pdf.mjs";
+import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 const [pdfPath, txtPath] = process.argv.slice(2);

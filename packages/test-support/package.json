@@ -1,0 +1,7 @@
+{
+  "name": "@scholar/test-support",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Fixtures that tests, scripts and browser suites of more than one package use (docs/design/untangle.md, F1). Never imported by production code."
+}

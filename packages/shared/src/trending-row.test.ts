@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TRENDING_MAX_CHIPS, isFresh, parseTrending, type TrendingChip, type TrendingPayload } from "@scholar/shared";
-import { trendWindows } from "@scholar/shared/src/trending";
-import { DEVICE_COPY_MAX_AGE_MS, NO_DRAFT, TRENDING_ROW_MIN, TRENDING_ROW_SIZE, chipCounts, chipFacts, countWindows, dateWords, decideFetched, deviceCopyOf, fillChip, putBack, readDeviceCopy, reconcileDraft, rowFacts, rowWindows, trendingRow, windowWords, type Draft } from "@scholar/shared/src/trending-row";
+import { trendWindows } from "./trending";
+import { DEVICE_COPY_MAX_AGE_MS, NO_DRAFT, TRENDING_ROW_MIN, TRENDING_ROW_SIZE, chipCounts, chipFacts, countWindows, dateWords, decideFetched, deviceCopyOf, fillChip, putBack, readDeviceCopy, reconcileDraft, rowFacts, rowWindows, trendingRow, windowWords, type Draft } from "./trending-row";
 
 /**
  * What the Home page does with the Trending file once it has it (docs/design/chatview-and-trending.md, T1, T4, T9, T10, T12): which chips are shown and in what order, the facts behind each chip, when a copy

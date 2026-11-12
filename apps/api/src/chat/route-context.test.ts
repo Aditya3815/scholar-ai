@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { SMALL_TALK_REPLY, cleanAutoMessage, detectLanguage, hasDependencyCue, isSmallTalk, languageWithContext, looksLikeReferenceList, needsContext, offlineRoute, ruleRoute, smallTalkReply } from "@scholar/shared";
 // the router's labelled messages: the first-turn behaviour is pinned by running every one of them through both signatures
 // @ts-expect-error a script, not a typed module
-import { CASES, HOLDOUT } from "../../scripts/router-cases.mjs";
+import { CASES, HOLDOUT } from "@scholar/test-support/router-cases.mjs";
 
 const ONE = { turns: 1 };
 const ALL: [string, unknown, string][] = [...CASES, ...HOLDOUT];

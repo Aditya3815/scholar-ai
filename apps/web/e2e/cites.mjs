@@ -17,7 +17,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
-import { makePdf } from "../../api/scripts/lib/make-pdf.mjs";
+import { makePdf } from "@scholar/test-support/make-pdf.mjs";
 
 const require = createRequire(import.meta.url);
 const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");

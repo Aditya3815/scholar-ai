@@ -3,7 +3,7 @@
 //   node scripts/archive/stream-live.mjs ["a question"]
 import { startFakeIdp } from "../fake-idp.mjs";
 import { createClient } from "../test-client.mjs";
-import { SAMPLE_PAPER, makePdf } from "../lib/make-pdf.mjs";
+import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 const questions = process.argv.slice(2).length ? process.argv.slice(2) : ["How were participants recruited?", "What are the limitations?"];

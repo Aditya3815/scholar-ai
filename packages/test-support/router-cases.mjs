@@ -2,8 +2,8 @@
 // Each case: [text, expected mode (or the modes that would all be fine), language label, group]. Language: en, hinglish (Hindi in Roman letters), hi (Devanagari).
 // Groups: plain (clear intent), typo (misspelt), mixed (two intents, a topic that sounds like a tool, a long text), safe (small talk and attempts to give the router orders).
 // "search" is the safe default, so for small talk and for orders hidden in a message the right answer is a search; nothing here may ever start Idea Check.
-// These are FIRST messages. A message that comes with the turns before it is measured on router-followup-cases.mjs (`router-eval.mjs --followup`); and every message here is also run through the rules
-// by src/chat/route-context.test.ts, which compares what the rules and the small-talk gate give for it with what the last commit before the follow-up release gave (src/chat/first-turn.golden.json),
+// These are FIRST messages. A message that comes with the turns before it is measured on router-followup-cases.mjs (`apps/api/scripts/router-eval.mjs --followup`); and every message here is also run through the rules
+// by apps/api/src/chat/route-context.test.ts, which compares what the rules and the small-talk gate give for it with what the last commit before the follow-up release gave (apps/api/src/chat/first-turn.golden.json),
 // and checks that with no conversation (no argument, undefined, no earlier turns) the three ways of asking give the same. That does not replace the real-model run of this list (`router-eval.mjs --set=all`).
 
 const S = "search", V = "verify", I = "idea", P = "paper";

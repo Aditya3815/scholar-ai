@@ -1,6 +1,6 @@
 /**
  * How well in-text citations are found and linked on REAL papers (docs/design/reader-citations.md). Not part of the normal run: it needs a folder of PDFs.
- *   CITE_PDFS=<folder of .pdf> [CITE_OUT=<report.json>] npx vitest run src/docs/citations.real.test.ts      (in apps/api)
+ *   CITE_PDFS=<folder of .pdf> [CITE_OUT=<report.json>] npx vitest run src/citations.real.test.ts      (in packages/shared)
  * Reads each PDF with pdf.js as the browser does (the same shared code: analyzePaper for the stored list, labelledReferenceList for the labels, joinPieces and
  * findInTextCitations for each page), and reports per paper: the references, whether their labels could be used, the citations found and how many were linked,
  * and a sample of linked ones to read by eye (precision is judged by reading, not by this script).

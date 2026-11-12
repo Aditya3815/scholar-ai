@@ -1,5 +1,5 @@
 // The labelled follow-ups the router is measured on when a message comes with the turns before it (docs/design/chat-actions-context.md, sections 5 and 9): what a person types after an answer,
-// in English, Hindi (Devanagari) and Hinglish (Hindi in Roman letters), and what it means. `node scripts/router-eval.mjs --followup` runs them with the REAL model through the development route.
+// in English, Hindi (Devanagari) and Hinglish (Hindi in Roman letters), and what it means. `node scripts/router-eval.mjs --followup` (in apps/api) runs them with the REAL model through the development route.
 //
 // Each case: { id, lang, cls, history, message, want }.
 //   cls: refine        the same subject, something changed or added ("and in children?")

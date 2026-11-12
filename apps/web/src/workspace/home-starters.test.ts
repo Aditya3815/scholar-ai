@@ -5,11 +5,9 @@ import { detectLanguage } from "@scholar/shared";
  * Which Try chips a visitor is offered and how each is sent (apps/web/src/workspace/starters.ts; docs/design/chatview-and-trending.md, C4). The list is one array the owner edits. It has to hold at least two
  * chips in Hinglish and two about India (the design note promised them), the English ones are searched as written, and a Hinglish one is sent through Auto and offered only to a person who is signed in:
  * on the live search of 4 Nov 2026 the Hinglish words as they stand found nothing in OpenAlex, and what Crossref gave was not about the topic ("What Does Pakistan Mean?: Pakistan Ka Matlab Kya?").
- * The file is loaded by a path that is not a literal, so that this workspace's type check (no DOM) does not follow it into the web workspace (as starters.test.ts does).
  */
-const PATH = "/@fs" + decodeURIComponent(new URL("../../../web/src/workspace/" + "starters.ts", import.meta.url).pathname);
 type Mod = { STARTERS: string[]; startersFor: (signedIn: boolean) => string[]; starterMode: (t: string) => "search" | "auto"; inEnglish: (t: string) => boolean };
-const load = async () => (await import(/* @vite-ignore */ PATH)) as Mod;
+const load = async () => (await import("./starters")) as Mod;
 
 describe("the Try chips and who is offered which", () => {
   it("has two or more chips in Hinglish and two or more about India, and no more than the 8 the design allows (the words are the owner's to change)", async () => {

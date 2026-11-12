@@ -1,51 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DID_NOT_FINISH_NOTICE, DID_NOT_FINISH_NOTICE_HINGLISH, startAssistant, type AssistantMsg, type ChatContextInfo, type ChatMsg, type Paper, type UserMsg } from "@scholar/shared";
+import { storage, target } from "../test/fake-storage";
 
 /**
  * "New topic" and the line "did not finish" in the page's own store of conversations (apps/web/src/lib/chat.ts), run in node against a fake localStorage and sessionStorage, a fake IndexedDB and a fake network,
- * the way web-store.test.ts runs it: the whole path from a press to what is kept and what is sent (docs/design/intent-and-state.md, 4.19 R22). The real IndexedDB, the real focus and the real layout are checked in the
- * browser suite (apps/web/e2e/new-topic.mjs). The module is loaded by a path that is not a literal, so that this workspace's type check (no DOM) does not follow it into the web workspace.
+ * the way chat-store.test.ts runs it: the whole path from a press to what is kept and what is sent (docs/design/intent-and-state.md, 4.19 R22). The real IndexedDB, the real focus and the real layout are checked in the
+ * browser suite (apps/web/e2e/new-topic.mjs).
  */
-const CHAT_PATH = "/@fs" + decodeURIComponent(new URL("../../../web/src/lib/" + "chat.ts", import.meta.url).pathname);
 
 const fake = vi.hoisted(() => ({ records: new Map<string, unknown>(), writes: [] as string[] }));
 
-vi.mock("../../../web/src/lib/idb", () => {
-  const k = (store: string, key: string) => `${store}/${key}`;
-  const read = (key: string, store: string) => {
-    const v = fake.records.get(k(store, key));
-    return { ok: true, value: v === undefined ? null : structuredClone(v) };
-  };
-  return {
-    idbGet: async (key: string, store = "pendingInk") => read(key, store).value,
-    idbRead: async (key: string, store = "pendingInk") => read(key, store),
-    idbSet: async (key: string, value: unknown, store = "pendingInk") => (fake.records.set(k(store, key), structuredClone(value)), fake.writes.push(k(store, key)), true),
-    idbSwap: async (key: string, make: (rev: number) => unknown, expected: number, store = "pendingInk") => {
-      const have = (fake.records.get(k(store, key)) as { rev?: unknown } | undefined)?.rev;
-      if ((typeof have === "number" ? have : 0) !== expected) return { status: "conflict" };
-      fake.records.set(k(store, key), structuredClone(make(expected + 1)));
-      fake.writes.push(k(store, key));
-      return { status: "saved", rev: expected + 1 };
-    },
-    idbDelete: async (key: string, store = "pendingInk") => (fake.records.delete(k(store, key)), true),
-    idbKeys: async (store = "pendingInk") => [...fake.records.keys()].filter((x) => x.startsWith(`${store}/`)).map((x) => x.slice(store.length + 1)),
-    idbClear: async (store = "pendingInk") => {
-      for (const x of [...fake.records.keys()]) if (x.startsWith(`${store}/`)) fake.records.delete(x);
-      return true;
-    },
-  };
-});
+vi.mock("./idb", async () => (await import("../test/fake-idb")).fakeIdb(fake));
 vi.mock("react", () => ({ useSyncExternalStore: (_subscribe: unknown, get: () => unknown) => get() }));
-vi.mock("../../../web/src/lib/notice", () => ({ showNotice: () => {}, clearNotice: () => {}, useNotice: () => null }));
+vi.mock("./notice", () => ({ showNotice: () => {}, clearNotice: () => {}, useNotice: () => null }));
 
-const target = () => {
-  const handlers: Record<string, ((e: unknown) => void)[]> = {};
-  return { handlers, addEventListener: (type: string, f: (e: unknown) => void) => void (handlers[type] ??= []).push(f), removeEventListener: () => {}, fire: (type: string, e: unknown = {}) => (handlers[type] ?? []).forEach((f) => f(e)) };
-};
-const storage = () => {
-  const m = new Map<string, string>();
-  return { getItem: (k: string) => (m.has(k) ? m.get(k)! : null), setItem: (k: string, v: string) => void m.set(k, String(v)), removeItem: (k: string) => void m.delete(k), clear: () => m.clear() };
-};
 let local = storage();
 let session = storage();
 const g = globalThis as unknown as Record<string, unknown>;
@@ -82,7 +50,7 @@ async function openTab(): Promise<Tab> {
   Object.assign(win, { setTimeout: (...a: Parameters<typeof setTimeout>) => setTimeout(...a), clearTimeout: (t: Parameters<typeof clearTimeout>[0]) => clearTimeout(t) });
   g.window = win;
   g.document = doc;
-  const lib = (await import(/* @vite-ignore */ CHAT_PATH)) as Lib;
+  const lib = (await import("./chat")) as Lib;
   return { lib, st: () => lib.useChatState() };
 }
 

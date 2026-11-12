@@ -7,7 +7,7 @@ import { chromium } from "playwright-core";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
-import { SAMPLE_PAPER, makePdf } from "../../api/scripts/lib/make-pdf.mjs";
+import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 import { PDFDocument, degrees } from "@cantoo/pdf-lib";
 
 const BASE = process.argv[2] ?? "http://localhost:8788";

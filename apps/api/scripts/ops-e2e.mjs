@@ -2,7 +2,7 @@
 // Real Worker + local D1 + local R2 + fake IdP. `npm run integration -w apps/api` starts everything (the Worker runs with --test-scheduled).
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
-import { SAMPLE_PAPER, makePdf } from "./lib/make-pdf.mjs";
+import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 
 const APP = process.env.APP ?? "http://localhost:8788";
 let failures = 0;

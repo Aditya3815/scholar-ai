@@ -22,7 +22,8 @@ npm run dev:web        # Vite dev server with /api proxied to :8787
 Secrets: copy `apps/api/.dev.vars.example` to `apps/api/.dev.vars` (gitignored) and fill the keys
 (OpenAlex, Semantic Scholar, NCBI, CORE, Crossref contact email, optional Gemini). For production use `wrangler secret bulk`.
 
-Checks: `npm run typecheck`, `npm run contrast -w apps/web` (WCAG pairs for the 3 themes),
+Checks: `npm run typecheck`, `npm test` (the unit tests of apps/api, packages/shared and apps/web, each beside the code it tests; a `layers.test.ts`
+in each holds the dependency rule of docs/design/untangle.md), `npm run contrast -w apps/web` (WCAG pairs for the 3 themes),
 `npm run e2e -w apps/web` (Edge headless: screenshots in `apps/web/e2e/shots`, axe accessibility scan, mobile overflow, CSP violations;
 needs the local server from `npm run dev:api` running, or use `npm run integration` above).
 

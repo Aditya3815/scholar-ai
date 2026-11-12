@@ -7,7 +7,7 @@ import { LEFT_OUT_LABEL, NOTE_KINDS, NO_TOPIC_TEXT, findPhrase, noteText, quoted
  * The part of the Reading that the page uses (packages/shared/src/reading.ts, docs/design/intent-and-state.md, 3.2, 5.3 and 12b.4): the fixed sentences, the lines built from a Reading, the rule that a Reading with nothing
  * to say draws nothing, and the way a piece that was left out is put back. The words the cleaner takes out are not in this file's subject: they are on the server only (frame.test.ts).
  */
-const doc = readFileSync(fileURLToPath(new URL("../../../../docs/design/intent-and-state.md", import.meta.url)), "utf8").replace(/\r\n/g, "\n");
+const doc = readFileSync(fileURLToPath(new URL("../../../docs/design/intent-and-state.md", import.meta.url)), "utf8").replace(/\r\n/g, "\n");
 const quiet = (over: Partial<Reading> = {}): Reading => ({ v: 1, source: "rules", topic: "effect of yoga on blood pressure", left: [], notes: [], ...over });
 
 describe("the fixed sentences are the plan's, word for word (5.3)", () => {

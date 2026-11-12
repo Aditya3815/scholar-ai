@@ -14,10 +14,7 @@ import { phraseKey } from "@scholar/shared/src/trending";
  *
  * Not held to the 36 characters of a Trending chip (those are keywords of OpenAlex, set in a row of narrow chips; a Try chip is a sentence the owner wrote, and a Hinglish one is longer) and not to
  * the generic-word rule (that rule is about what a count can call rising). The live half is `scripts/trending-contract-live.mjs`: every chip is searched against the live product, weekly.
- *
- * The file is loaded by a path that is not a literal, so that this workspace's type check (no DOM) does not follow it into the web workspace (as memory-switch.test.ts does).
  */
-const STARTERS_PATH = "/@fs" + decodeURIComponent(new URL("../../../web/src/workspace/" + "starters.ts", import.meta.url).pathname);
 
 /** Why a Try chip may not be a Try chip, or null when it may. */
 function tryChipProblem(text: unknown): string | null {
@@ -31,7 +28,7 @@ function tryChipProblem(text: unknown): string | null {
 }
 
 async function bundled(): Promise<unknown> {
-  const mod = (await import(/* @vite-ignore */ STARTERS_PATH)) as Record<string, unknown>;
+  const mod = (await import("./starters")) as Record<string, unknown>;
   return mod.STARTERS;
 }
 

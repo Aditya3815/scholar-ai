@@ -6,7 +6,7 @@
 //     constraint cases for the notes and fewer than 400 research messages, so the rest is measured on
 //   frame-r8.json: 234 frame-labelled cases, 304 note cases (16 or 18 positives and 11 or 12 near-miss negatives for each kind) and 402 plain research messages, written for R8 by a separate session that was
 //     given only the plan's text (its provenance is in the file). They are development data from the moment a miss of theirs is read.
-//   The 203-message router list (scripts/router-cases.mjs), English one-line searches: reported, not gated (it holds framed messages by design: "find me papers on ...").
+//   The 203-message router list (packages/test-support/router-cases.mjs), English one-line searches: reported, not gated (it holds framed messages by design: "find me papers on ...").
 // WHAT CANNOT BE MEASURED HERE: oracle overlap at 20, the paired precision at 10 on the messy class, the one-provider share (they need recorded provider lists and human labels), and the sealed hold-out.
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -23,7 +23,7 @@ function cleanRequest(text: string, options: ReadOptions = {}): string {
   return readRequest(text, AS_SEARCH, options)?.reading.topic ?? t;
 }
 // @ts-expect-error plain .mjs: the labelled messages of the router eval
-import { CASES as ROUTER_CASES } from "../scripts/router-cases.mjs";
+import { CASES as ROUTER_CASES } from "@scholar/test-support/router-cases.mjs";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const readJson = <T>(name: string) => JSON.parse(readFileSync(HERE + "data/" + name, "utf8")) as T;

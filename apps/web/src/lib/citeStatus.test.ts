@@ -5,10 +5,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { RefVerdict } from "@scholar/shared";
-import { CITE_LABEL, NOT_FOUND_HELP, cardRecord, citeStatus, metaLine } from "../../../web/src/lib/citeStatus";
+import { CITE_LABEL, NOT_FOUND_HELP, cardRecord, citeStatus, metaLine } from "./citeStatus";
 
-// The verifier's own words are read from its source (lib/refStatus.ts imports browser-only modules that this package's compiler does not know).
-const REF_STATUS = readFileSync(decodeURIComponent(new URL("../../../web/src/lib/refStatus.ts", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1"), "utf8");
+// The verifier's own words are read from its source, lib/refStatus.ts (written when this test ran in apps/api, whose compiler did not know the browser-only modules it imports).
+const REF_STATUS = readFileSync(decodeURIComponent(new URL("./refStatus.ts", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1"), "utf8");
 const labelOf = (key: string): string | undefined => new RegExp(`\\b${key}:\\s*\\{[^}]*?label:\\s*"([^"]+)"`, "s").exec(REF_STATUS)?.[1];
 
 const verdict = (status: RefVerdict["status"], o: Partial<RefVerdict> = {}): RefVerdict => ({
