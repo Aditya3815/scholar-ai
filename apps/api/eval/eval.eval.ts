@@ -13,7 +13,8 @@ import { tokenize } from "../src/references/match";
 import { verifyReference, type RefResult } from "../src/references/verify";
 import { runSearch } from "../src/search";
 import { findRetractionNotices } from "../src/search/retraction";
-import { FetchLayer, type Mode } from "./lib/fetch-layer";
+import { FetchLayer } from "./lib/fetch-layer";
+import { evalMode } from "./lib/mode";
 // @ts-expect-error plain .mjs helper shared with the dataset builders
 import { formatRef, stripRetractionBanner } from "./lib/text.mjs";
 
@@ -34,7 +35,7 @@ const GATES = {
   heldoutKnownItemRecallAt10: 0.92, // measured 97% (58/60)
 };
 
-const MODE = (process.env.EVAL_MODE ?? "replay") as Mode;
+const MODE = evalMode();
 const QUICK = process.env.EVAL_QUICK === "1" && MODE !== "replay";
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const read = <T>(f: string) => JSON.parse(readFileSync(HERE + "data/" + f, "utf8")) as T;
@@ -326,7 +327,7 @@ afterAll(() => {
 
 describe("citation accuracy gates", () => {
   it("replay fixtures cover every request the code makes", () => {
-    if (MODE !== "replay") return;
+    // only replay can miss one (record and live ask the network), so in those modes the list is empty
     expect(layer.missing.slice(0, 5), "re-record with `npm run eval:record -w apps/api` if the code's requests changed on purpose").toEqual([]);
   });
 

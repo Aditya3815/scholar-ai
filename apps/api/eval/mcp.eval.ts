@@ -9,12 +9,13 @@ import { fileURLToPath } from "node:url";
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { testD1 } from "../src/test-d1";
 import { buildServer, type McpEnv } from "../src/mcp/server";
-import { FetchLayer, type Mode } from "./lib/fetch-layer";
+import { FetchLayer } from "./lib/fetch-layer";
+import { evalMode } from "./lib/mode";
 // @ts-expect-error plain .mjs shared with the build scripts
 import { formatRef } from "./lib/text.mjs";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
-const MODE = (process.env.EVAL_MODE ?? "replay") as Mode;
+const MODE = evalMode();
 const read = <T>(f: string) => JSON.parse(readFileSync(HERE + "data/" + f, "utf8")) as T;
 type Fake = { id: string; kind: string; expect: string[]; text: string };
 type Paper = { doi: string; title: string; year: number; authors: { given: string; family: string }[]; venue: string | null };
@@ -83,7 +84,7 @@ describe("MCP verify_references on the reference eval", () => {
   });
 
   it("needs no request that was not recorded (replay)", () => {
-    if (MODE === "replay") expect(layer.missing).toEqual([]);
+    expect(layer.missing).toEqual([]);
   });
 });
 
