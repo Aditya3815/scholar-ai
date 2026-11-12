@@ -15,9 +15,11 @@ function preloadFonts(): Plugin {
       order: "post",
       handler(_html, ctx) {
         const names = Object.keys(ctx.bundle ?? {});
-        return wanted.flatMap((re) => {
+        return wanted.map((re) => {
           const file = names.find((n) => re.test(n));
-          return file ? [{ tag: "link", injectTo: "head" as const, attrs: { rel: "preload", as: "font", type: "font/woff2", href: `/${file}`, crossorigin: "" } }] : [];
+          // a font package that renamed its files would otherwise leave the page with no preload and no sign of it (the budget's font line passed at 0 KB)
+          if (!file) throw new Error(`preloadFonts: no built file matches ${re}; update the pattern to the font package's new file name`);
+          return { tag: "link", injectTo: "head" as const, attrs: { rel: "preload", as: "font", type: "font/woff2", href: `/${file}`, crossorigin: "" } };
         });
       },
     },
@@ -27,6 +29,8 @@ function preloadFonts(): Plugin {
 export default defineConfig({
   plugins: [react(), preloadFonts()],
   build: {
+    // dist/.vite/manifest.json: which file each module was built into, read by scripts/budget.mjs to find the chunks that load later. public/.assetsignore keeps it out of what is served.
+    manifest: true,
     // packages/shared is plain functions, constants and types: none of its modules does anything when it is imported (no statement at the top level of any of them is a call or an assignment
     // to something outside it). Told so, the bundler leaves out a module of it that nobody uses, and the parts of one that nobody uses, instead of keeping them in case importing them did
     // something: about 4 KB (gzip) of the first load on 3 Nov 2026 (docs/design/chatview-and-trending.md, C3). A module of it that ever has to run when it is imported must not be put here.
