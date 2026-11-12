@@ -1,38 +1,23 @@
 import { MAX_OA_ABSTRACT_CHARS, OA_REFRESH_DAYS, OA_UNREADABLE_TEXT, OA_NEW_PAPERS_PER_DAY, OA_NEW_PAPERS_PER_DAY_ALL, OA_WAIT_MS, OA_WORKING, cleanArxivId, cleanDoi, cleanPmcid, type OaAskEvent, type OaReason, type OaRef, type OaSource } from "@scholar/shared";
 import { answerQuestionStream, type StoredChunk } from "../docs/qa";
 import { describeAskError, embedderFor, streamFor } from "../docs/routes";
-import type { ApiGate } from "../gate/api-gate";
 import type { SseSession } from "../sse";
 import { isPermissiveLicense } from "./jats";
 import { sourceDepsFor } from "./deps";
 import { fetchArxivMeta, lookupByDoi, lookupOpenAlexAbstract } from "./sources";
 import { claimAttempt, claimRefresh, createPaper, failIfStale, getPaper, instanceId, keepOld, keyHash, markFailed, readyChunks, refundDaily, setInstance, takeDaily, type OaRow } from "./store";
 import { isRetracted } from "../search/retraction-service";
-import type { OaParams } from "./workflow";
 import { askOutcome, countOutcome } from "../outcomes";
+import type { EnvPick } from "../platform/env";
+import type { LlmEnv } from "../llm";
 
 /**
  * "Ask this paper" as a service (docs/design: "service layer"): the page's /api/v1/papers/oa/ask stream calls `oaService.ask`, and so will the MCP tool `ask_paper` (Phase 2). The events it
  * sends are the stream's events; who carries them (an SSE response, or a tool that collects them) is the caller's business.
  */
 
-export type Bindings = {
-  DB: D1Database;
-  /** The public cache (Workers KV), where the retraction lookups are kept for a day. */
-  CACHE?: KVNamespace;
-  FILES: R2Bucket;
-  AI?: Ai;
-  API_GATE?: DurableObjectNamespace<ApiGate>;
-  OA_INGEST: Workflow<OaParams>;
-  ENABLE_DEV_ROUTES?: string;
-  QA_STUB?: string;
-  QA_TOP_K?: string;
-  CROSSREF_MAILTO: string;
-  OPENALEX_API_KEY?: string;
-  OCR_PAGES_PER_DAY?: string;
-  GEMINI_API_KEY?: string;
-};
-export type OaEnv = Bindings;
+/** What "Ask this paper" reads: the model (through the gateway), the shared index and its Workflow, the literature services, and the development switches. */
+export type OaEnv = LlmEnv & EnvPick<"FILES" | "OA_INGEST" | "QA_STUB" | "QA_TOP_K" | "CROSSREF_MAILTO" | "OPENALEX_API_KEY", "API_GATE">;
 export type AskSession = SseSession<OaAskEvent>;
 
 /** What a request says about a paper: any of a DOI, an arXiv number, a PubMed Central number. */
@@ -48,7 +33,7 @@ export function readRef(body: unknown): OaRef | null {
  * Is the paper retracted? Looked up when it is asked (Crossref's retraction data through the public cache, which keeps an answer for a day), not only when a card was made: a paper can be
  * retracted after it was found, and a bare DOI pasted into the box has no card. A lookup that fails says nothing and never stops an answer.
  */
-async function retractedNow(env: Bindings, ref: OaRef): Promise<boolean> {
+async function retractedNow(env: OaEnv, ref: OaRef): Promise<boolean> {
   if (!ref.doi) return false;
   return isRetracted(env, ref.doi, 4000);
 }
@@ -57,7 +42,7 @@ async function retractedNow(env: Bindings, ref: OaRef): Promise<boolean> {
  * A paper that was read more than OA_REFRESH_DAYS ago is fetched again, in the background: the person who asked is answered from the copy that is there (it stays ready), and the new
  * file is compared with the old one (src/oa/ingest.ts). One refresh at a time, and none again for an hour.
  */
-async function refreshIfOld(env: Bindings, key: string): Promise<void> {
+async function refreshIfOld(env: OaEnv, key: string): Promise<void> {
   const attempt = await claimRefresh(env.DB, key, Date.now(), OA_REFRESH_DAYS).catch(() => null);
   if (attempt === null) return;
   try {
@@ -179,7 +164,7 @@ type AskArgs = { /** what the answer is made from: the paper's text, or only its
 
 /** The question over the passages: the same code as for a paper of your own, so the same checks. */
 async function ask(env: OaEnv, s: AskSession, a: AskArgs): Promise<void> {
-  const stream = streamFor(env as never, a.subject, a.abort.signal);
+  const stream = streamFor(env, a.subject, a.abort.signal);
   if (!stream) return void (await s.send({ type: "error", code: "ai_unavailable", title: "Answering is unavailable right now" }));
   const topK = env.ENABLE_DEV_ROUTES === "1" && Number.isInteger(Number(env.QA_TOP_K)) && Number(env.QA_TOP_K) >= 1 ? Number(env.QA_TOP_K) : undefined;
   // Only with the local dev switch (and not the stand-ins): print what the model said and was shown, to tune prompts. Never in production.
@@ -199,7 +184,7 @@ async function ask(env: OaEnv, s: AskSession, a: AskArgs): Promise<void> {
  * knew the paper at all. Lookups that fail say nothing; never throws. Used by the answer from an abstract below and by the MCP tool check_claim.
  */
 export async function abstractFor(env: Pick<OaEnv, "ENABLE_DEV_ROUTES" | "QA_STUB" | "CROSSREF_MAILTO" | "OPENALEX_API_KEY">, ref: OaRef): Promise<{ title: string | null; abstract: string; found: boolean }> {
-  const deps = sourceDepsFor(env as never);
+  const deps = sourceDepsFor(env);
   let title: string | null = null;
   let abstract = "";
   let found = false;

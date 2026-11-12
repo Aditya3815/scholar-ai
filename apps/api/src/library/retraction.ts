@@ -1,5 +1,6 @@
 import { LOOKUP_GATE_WAIT_MS } from "../references/crossref-gate";
 import { findRetractionNotices } from "../search/retraction";
+import type { Env } from "../platform/env";
 
 /**
  * S3: papers that were saved in a library are looked at again for retractions. A paper is retracted after people have saved it; the search that found it only knew what was true that day.
@@ -16,7 +17,7 @@ export const RECHECK_AFTER_DAYS = 7;
 export const MAX_DOIS_PER_RUN = 400;
 export const BATCH = 40;
 
-type Env = { CROSSREF_MAILTO: string; fetch?: typeof fetch };
+type RecheckEnv = Pick<Env, "CROSSREF_MAILTO"> & { fetch?: typeof fetch };
 export type RecheckResult = { checked: number; retracted: number; unknown: number; alerts: number };
 
 /**
@@ -54,7 +55,7 @@ const isRejection = (e: unknown) => {
 };
 
 /** Which of `dois` are retracted. A batch the service rejects is split in halves until the one DOI at fault stands alone and is marked unknown; any other failure stops the run (tomorrow's run continues). */
-async function ask(dois: string[], env: Env): Promise<{ retracted: Set<string>; unknown: Set<string> }> {
+async function ask(dois: string[], env: RecheckEnv): Promise<{ retracted: Set<string>; unknown: Set<string> }> {
   try {
     return { retracted: new Set((await findRetractionNotices(dois, env, AbortSignal.timeout(30_000), LOOKUP_GATE_WAIT_MS)).keys()), unknown: new Set() };
   } catch (e) {
@@ -66,7 +67,7 @@ async function ask(dois: string[], env: Env): Promise<{ retracted: Set<string>; 
   }
 }
 
-export async function recheckRetractions(db: D1Database, env: Env, opts: { max?: number } = {}): Promise<RecheckResult> {
+export async function recheckRetractions(db: D1Database, env: RecheckEnv, opts: { max?: number } = {}): Promise<RecheckResult> {
   const result: RecheckResult = { checked: 0, retracted: 0, unknown: 0, alerts: 0 };
   const due = await dueDois(db, opts.max ?? MAX_DOIS_PER_RUN);
   for (let i = 0; i < due.length; i += BATCH) {

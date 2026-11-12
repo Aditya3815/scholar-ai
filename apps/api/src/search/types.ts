@@ -1,19 +1,9 @@
 import type { CacheStore } from "../cache/store";
+import type { Env } from "../platform/env";
 
-export type SearchEnv = {
+export type SearchEnv = Pick<Env, "OPENALEX_API_KEY" | "NCBI_API_KEY" | "S2_API_KEY" | "CORE_API_KEY" | "CROSSREF_MAILTO" | "SEARCH_PLAINTEXT"> & {
   /** Where provider responses and retraction checks are cached (D1 in production, memory in tests). */
   store: CacheStore;
-  OPENALEX_API_KEY?: string;
-  NCBI_API_KEY?: string;
-  S2_API_KEY?: string;
-  /** CORE (api.core.ac.uk): used by Idea Check only, and only when a key is set. */
-  CORE_API_KEY?: string;
-  CROSSREF_MAILTO: string;
-  /**
-   * "off" gives back the title, venue, authors and abstract of a provider as its adapter returned them: entities, tabs and line breaks left in (see plainText in normalize.ts). It does not reach the adapters' own
-   * stripJats: Crossref's abstract and DOAJ's title and abstract are cleaned while the response is read, before the cache, with the switch off too. Anything else, or nothing, is the fix.
-   */
-  SEARCH_PLAINTEXT?: string;
   /** Reserves a Semantic Scholar slot (1 req/s global). Resolves to ms to wait, or null if the queue is too long. Absent in tests/eval. */
   s2Gate?: (maxWaitMs: number) => Promise<number | null>;
 };

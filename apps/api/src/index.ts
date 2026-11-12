@@ -13,73 +13,28 @@ import { ideaRoutes } from "./idea/routes";
 import { chatRoutes } from "./chat/routes";
 import { oaRoutes } from "./oa/routes";
 import { litscanRoutes } from "./litscan/routes";
-import type { LitscanParams } from "./litscan/workflow";
-import type { OaParams } from "./oa/workflow";
 import { feedbackRoutes } from "./feedback/routes";
 import { adminRoutes } from "./admin/routes";
 import { monitoringRoutes } from "./monitoring/routes";
 import { captureException } from "./monitoring/sentry";
-import type { AuthEnv } from "./auth/providers";
 import { cacheStore, meter, writeCacheRows } from "./cache";
 import { apiSecurityHeaders, requestLog } from "./middleware";
-import { rateLimit, type LimitEnv } from "./ratelimit";
+import { rateLimit } from "./ratelimit";
 import { runMaintenance } from "./maintenance";
 import { recheckRetractions } from "./library/retraction";
 import { stubCrossrefFetch } from "./library/retraction-stub";
 import { readJobs, runJob, type JobName } from "./jobs";
-import type { S2Throttle } from "./s2-throttle";
-import { ApiGate, remoteGate } from "./gate/api-gate";
+import { remoteGate } from "./gate/api-gate";
 import { installGates, withGate, GATES, type GateName } from "./gate";
 import { trendingRoutes } from "./trending/routes";
 import { runTrendingFromEnv } from "./trending/job";
 import { isMcpPath, mcpMode } from "./mcp/flag";
 import { baseUrlOf } from "./mcp/scopes";
-import { mcpApiHandler, type McpEnv } from "./mcp/server";
+import { mcpApiHandler } from "./mcp/server";
 import { connectedAppsRoutes } from "./mcp/apps";
+import type { Env } from "./platform/env";
 
-type Bindings = AuthEnv & LimitEnv & {
-  S2_THROTTLE: DurableObjectNamespace<S2Throttle>;
-  /** The shared lanes to Crossref and CORE (src/gate): one limit for every isolate. Absent in a test: each isolate then keeps its own lane. */
-  API_GATE?: DurableObjectNamespace<ApiGate>;
-  DB: D1Database;
-  /** Workers KV: the public cache (src/cache/kv.ts). Absent in a local run without it: the database table is used. */
-  CACHE?: KVNamespace;
-  CF_VERSION_METADATA?: WorkerVersionMetadata;
-  JOBS: Queue;
-  /** The reading of an open-access paper into the shared index (src/oa/workflow.ts). */
-  OA_INGEST: Workflow<OaParams>;
-  /** A literature scan: one instance per scan (src/litscan/workflow.ts). */
-  LITSCAN: Workflow<LitscanParams>;
-  FILES: R2Bucket;
-  AI: Ai;
-  GEMINI_API_KEY?: string;
-  /** "1" only in local .dev.vars; never set as a production secret. Enables /api/v1/dev/* smoke routes. */
-  ENABLE_DEV_ROUTES?: string;
-  /** "1" (local tests only, together with ENABLE_DEV_ROUTES) swaps the model and embeddings for stand-ins. */
-  QA_STUB?: string;
-  OPENALEX_API_KEY?: string;
-  NCBI_API_KEY?: string;
-  S2_API_KEY?: string;
-  CORE_API_KEY?: string;
-  CROSSREF_MAILTO: string;
-  /** Optional: where unexpected errors are reported (Sentry). Nothing is sent when it is not set. */
-  SENTRY_DSN?: string;
-  SENTRY_ENVIRONMENT?: string;
-  /** "1" where the daily clean-up is scheduled (production): /api/v1/health/jobs then reports a job that did not run. Staging has no schedule and leaves it unset. */
-  EXPECT_CRON?: string;
-  /** "off" switches the Home page's Trending list off, and its daily job (src/trending/routes.ts, job.ts): a Worker variable. The KV key trending:v1:off hides the list too, and leaves the job running. */
-  TRENDING?: string;
-  /** The MCP server (src/mcp/flag.ts): "off" (unset), "beta" (the accounts in MCP_BETA_USERS) or "on". */
-  MCP?: string;
-  MCP_BETA_USERS?: string;
-  /** The MCP tool check_claim alone (src/mcp/flag.ts): "off" (unset), "beta" (the accounts in MCP_BETA_USERS) or "on". */
-  MCP_CHECK_CLAIM?: string;
-  /** Clients, grants and tokens of the MCP server's OAuth (src/mcp/oauth.ts): a namespace of its own (wrangler.jsonc); without it the server is off. */
-  OAUTH_KV?: KVNamespace;
-  PUBLIC_BASE_URL?: string;
-};
-
-const app = new Hono<{ Bindings: Bindings; Variables: { requestId: string } }>();
+const app = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
 
 app.use("*", requestLog());
 // every call to Crossref and CORE asks the shared lane first (the binding is the same for the life of an isolate)
@@ -357,18 +312,18 @@ export { LitscanRun } from "./litscan/workflow";
  * The MCP server and its OAuth endpoints (src/mcp) own a few paths of their own (MCP_PATHS); everything else goes to the app as before. With the switch off those paths go to the app too, which has no
  * route for them: they answer 404 exactly as they did before the server existed.
  */
-async function fetchWorker(request: Request, env: Bindings, ctx: ExecutionContext): Promise<Response> {
+async function fetchWorker(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   if (!isMcpPath(new URL(request.url).pathname) || (await mcpMode(env)) === "off") return app.fetch(request, env, ctx);
   // the MCP tools call Crossref through the same shared lanes as every /api request
   installGates(env.API_GATE ? remoteGate(env.API_GATE) : null);
   // loaded only here: the OAuth library imports the Workers runtime, and nothing else of the Worker needs it
   const { oauthPages, providerFor } = await import("./mcp/oauth");
-  return providerFor(baseUrlOf(env, request), mcpApiHandler as never, { fetch: (r, e, x) => oauthPages.fetch(r, e, x) }).fetch(request, env as unknown as McpEnv, ctx);
+  return providerFor(baseUrlOf(env, request), mcpApiHandler, { fetch: (r, e, x) => oauthPages.fetch(r, e, x) }).fetch(request, env, ctx);
 }
 
 export default {
   fetch: fetchWorker,
-  async scheduled(controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     // the calls to Crossref take their turn in the shared lane, as they do in a request
     installGates(env.API_GATE ? remoteGate(env.API_GATE) : null);
     const cron = <T,>(name: JobName, job: () => Promise<T>) =>
@@ -391,4 +346,4 @@ export default {
       cron("trending", () => runTrendingFromEnv(env, controller.scheduledTime)),
     ]);
   },
-} satisfies ExportedHandler<Bindings>;
+} satisfies ExportedHandler<Env>;

@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
+import type { Env } from "./platform/env";
 
 /**
  * One way to open an event stream, for every endpoint that has one (chat, Idea Check, paper Q&A, and the open-access ingest to come).
@@ -30,7 +31,7 @@ type Options<E extends { type: string }> = {
 
 /** In development and tests the interval can be shortened with the variable SSE_KEEPALIVE_MS (never below 50 ms, and only with the dev switch); otherwise it is fixed. */
 function keepAliveMs(c: Context): number {
-  const env = (c.env ?? {}) as { ENABLE_DEV_ROUTES?: string; SSE_KEEPALIVE_MS?: string };
+  const env: Pick<Env, "ENABLE_DEV_ROUTES" | "SSE_KEEPALIVE_MS"> = c.env ?? {};
   const n = Number(env.SSE_KEEPALIVE_MS);
   return env.ENABLE_DEV_ROUTES === "1" && Number.isFinite(n) && n >= 50 ? n : KEEP_ALIVE_MS;
 }

@@ -2,29 +2,16 @@ import { stubPlanScan, stubScanSearch, stubScanStream } from "./stub";
 import { stubJudgeStream } from "../chat/stub";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { gatewayFromEnv, type LlmEnv } from "../llm";
-import type { S2Throttle } from "../s2-throttle";
 import type { SearchResponse, SearchScope } from "@scholar/shared";
 import { runSearch } from "../search";
 import { withGate } from "../gate";
-import { searchEnvFrom } from "../search/env";
+import { searchEnvFrom, type SearchBindings } from "../search/env";
+import type { Env } from "../platform/env";
 
 /** What the scan needs from the Worker's environment, for the request that plans it and for the Workflow that runs it. */
-export type ScanEnv = LlmEnv & {
-  DB: D1Database;
-  S2_THROTTLE: DurableObjectNamespace<S2Throttle>;
-  CROSSREF_MAILTO: string;
-  OPENALEX_API_KEY?: string;
-  NCBI_API_KEY?: string;
-  S2_API_KEY?: string;
-  CORE_API_KEY?: string;
-  ENABLE_DEV_ROUTES?: string;
-  /** "1" (with ENABLE_DEV_ROUTES) swaps the model and the search for stand-ins in local tests. */
-  QA_STUB?: string;
-  /** "off" switches the support judge off (see chat/routes.ts). */
-  CHAT_JUDGE?: string;
-};
+export type ScanEnv = LlmEnv & SearchBindings & Pick<Env, "QA_STUB" | "CHAT_JUDGE">;
 
-export const stubbed = (env: Pick<ScanEnv, "ENABLE_DEV_ROUTES" | "QA_STUB">) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+export const stubbed = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_STUB">) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
 
 /** The planning call. The topic is the person's own text: PRIVATE, so the gateway only uses providers that do not keep or train on it. */
 export function planModel(env: ScanEnv, subject: string): Complete {

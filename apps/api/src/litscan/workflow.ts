@@ -2,11 +2,12 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 import { NonRetryableError } from "cloudflare:workflows";
 import type { StreamComplete } from "../docs/qa";
 import { installGates } from "../gate";
-import { remoteGate, type ApiGate } from "../gate/api-gate";
+import { remoteGate } from "../gate/api-gate";
 import { countOutcome } from "../outcomes";
-import { answerModel, judgeModel, searchFor, stubbed, type ScanEnv } from "./model";
+import { answerModel, judgeModel, searchFor, stubbed } from "./model";
 import { appendEvent, endScan, getScanForRun, itemsOf, partsOf } from "./store";
 import { answerSubQuestion } from "./worker";
+import type { Env } from "../platform/env";
 
 /**
  * A literature scan as a Cloudflare Workflow (spike R10, docs/design/litscan.md): one instance per scan, one named step per sub-question, all started at once. A step that fails is tried
@@ -15,13 +16,12 @@ import { answerSubQuestion } from "./worker";
  *
  * The report is not written by a model: the parts are the checked answers, and putting them together (shared/litscan.ts) is a program. So a scan costs the answers and nothing more.
  */
-export type LitscanEnv = ScanEnv & { API_GATE?: DurableObjectNamespace<ApiGate> };
 export type LitscanParams = { id: string };
 
 /** How long the model may take to write one sub-question's answer, once it has started (the longest seen in a real run was 62 s, the usual 17 to 24 s). */
 export const MODEL_LIMIT_MS = 75_000;
 
-export class LitscanRun extends WorkflowEntrypoint<LitscanEnv, LitscanParams> {
+export class LitscanRun extends WorkflowEntrypoint<Env, LitscanParams> {
   async run(event: WorkflowEvent<LitscanParams>, step: WorkflowStep): Promise<{ id: string }> {
     const env = this.env;
     const db = env.DB;

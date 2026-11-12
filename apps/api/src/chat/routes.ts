@@ -8,7 +8,6 @@ import { DEFAULT_CONFIG } from "../llm/config";
 import { d1Ledger } from "../llm/d1";
 import { searchService } from "../search/service";
 import { sseStream } from "../sse";
-import type { S2Throttle } from "../s2-throttle";
 import { searchComplete } from "./complete";
 import { answerFromResults, pickEvidencePapers, type Picked } from "./answer";
 import { judgeAnswer, type JudgeReport } from "./support";
@@ -47,102 +46,22 @@ import { oaService } from "../oa/service";
 import { describeAskError, embedderFor, streamFor as docStreamFor } from "../docs/routes";
 import { answerQuestionStream, type StoredChunk } from "../docs/qa";
 import { decodeVec } from "../docs/vector";
+import type { Env, HonoEnv } from "../platform/env";
 
-type Bindings = {
-  DB: D1Database;
-  CACHE?: KVNamespace;
-  AI?: Ai;
-  S2_THROTTLE: DurableObjectNamespace<S2Throttle>;
-  GEMINI_API_KEY?: string;
-  CROSSREF_MAILTO: string;
-  OPENALEX_API_KEY?: string;
-  NCBI_API_KEY?: string;
-  S2_API_KEY?: string;
-  CORE_API_KEY?: string;
-  ENABLE_DEV_ROUTES?: string;
-  QA_STUB?: string;
-  /** Development only (ENABLE_DEV_ROUTES): another Workers AI model for the private `qa` task, and how long a gpt-oss model thinks. */
-  LLM_QA_MODEL?: string;
-  LLM_VERIFY_MODEL?: string;
-  LLM_REASONING?: string;
-  /** "off" switches the support judge off (answers are then shown as the old check leaves them): a Worker variable, for a day when its model is down or its cost must stop. */
-  CHAT_JUDGE?: string;
-  /** "off" makes the chat ignore the earlier messages of a conversation altogether (`history` is neither read nor refused), as it was before there were any: a Worker variable, a rollback that needs no new code. */
-  CHAT_CONTEXT?: string;
-  /**
-   * R3 (docs/design/intent-and-state.md, 4.4): "on" counts what a message in the prompt box looked like, by closed names and never any of its text (feature `chat_input`). Unset, "off" and "shadow" count
-   * nothing: a counter that counts is its own shadow, and nothing new may be stored before the privacy page says so. A gate flag: unset is off (understand/flags.ts).
-   */
-  CHAT_COUNTERS?: string;
-  /**
-   * R5 (4.6): "on" gives a follow-up whose router call FAILED the papers and no written answer, with a plain line; "shadow" only counts `followup_unread_shadow`; unset and "off" change nothing.
-   * A gate flag: unset is off.
-   */
-  CHAT_FAILPOLICY?: string;
-  /**
-   * R4 (4.5): the safety lane. Four positions. Unset, "off" or a value that is not one of them: nothing is read. "shadow": every Auto message is read and only counted (`would_*`, and only with CHAT_COUNTERS "on"), nothing
-   * on the wire changes. "core": the unmistakable phrases of an emergency, self-harm and a plain call for help are answered by the page with a fixed text and no search, no router and no model; a search chosen by hand
-   * gets a line. "on": every tier. The numbers in the sentences are checked by a person first (lane-text.ts HELPLINE_CHECKED), and a test fails if the committed wrangler.jsonc sets this above "shadow" until they are.
-   */
-  CHAT_SAFETY?: string;
-  /**
-   * R8 (4.8): the request-frame cleaner. "on": an Auto message that is going to be searched is searched without the words that only make a request ("can you search about", "please", "all papers", "what is"),
-   * the page says what was left out and what the box could not do with it (`understood.reading`), and a health message that R4's lane reads as a decision or a care story is also searched without the words that say
-   * who the person is. "shadow": the same Reading is made and only counted (`would_clean`, and only with CHAT_COUNTERS "on"); nothing on the wire changes. Unset and "off" change nothing. A gate flag: unset is off.
-   */
-  CHAT_CLEAN?: string;
-  /**
-   * R9 (4.9): the relevance floor. Four positions. Unset, "off" or a value that is not one of them: nothing is read. "shadow": the list of an Auto message is read against the words that were searched and only counted
-   * (`would_tier_none`, `would_tier_few`, and only with CHAT_COUNTERS "on"); nothing on the wire changes. "writer": only the writer's gate acts: it reads the strong papers alone, and with none the writer is not asked
-   * (the reply ends not_answered, counted as floor_skipped); no reorder and no line. "on": the papers are listed strong, then medium, then weak (each in its old order), and a line says how few match closely.
-   * Only for words the page can judge (1 to 6 content stems) and never for a search chosen by hand. A gate flag: unset is off.
-   */
-  CHAT_FLOOR?: string;
-  /**
-   * M2 (design PDF "Sodhsetu understanding, follow-ups and MCP", "Thinking dikhana"): "on" adds `think` events, status lines built from the real counts of each stage (chat/think.ts), which the page shows as the
-   * Thinking block. Unset, "off" and any other value send none, and the stream is byte for byte what it was. A gate flag: unset is off, and a KV override can only lower it. Turn it on only after a build that
-   * knows the event has been live for a day: an older open tab's reducer had no place for an event it did not know.
-   */
-  CHAT_THINK?: string;
-  /**
-   * M4/M5 (design PDF "Sodhsetu understanding, follow-ups and MCP", pages 3 to 9 and 13): the Understand step. Unset, "off" and any other value: it is not called, the ledger a page sends is not read, and the stream
-   * is byte for byte what it was. "shadow": it runs beside the rules on the response's waitUntil (the person never waits for it), the rules decide, and only counts are kept (feature `chat_understand`: agreement,
-   * latency, fallback; never text). "on": it decides, with the rules as the fallback when the model cannot be used. In both, the page is told to send the turn ledger (GET /chat/config), so the privacy page
-   * must say so before either is set (legal-match.test.ts holds it). A gate flag: unset is off, a KV override can only lower it.
-   */
-  CHAT_UNDERSTAND?: string;
-  /** M5: "on" lets the Understand step read a visitor's message too (40 calls a day per address, migration 0027), in whatever position CHAT_UNDERSTAND is; anything else keeps visitors on the rules. A gate flag. */
-  CHAT_UNDERSTAND_VISITORS?: string;
-  /** Development only (with QA_STUB): the stand-in search writes the words of the question into its records, so that a list is about whatever was asked (stub.ts). The integration run sets it with CHAT_FLOOR. Never set in wrangler.jsonc. */
-  QA_STUB_TOPIC?: string;
-  /**
-   * Tools run in the reply (docs/design/chat-tools.md, the owner's request of 9 Nov 2026): "on" runs Check references on a pasted list, a retraction check on DOIs that ask about one, "Ask this paper" on a
-   * question about one paper of the chat, and the person's own paper's ask, in the reply itself (Idea Check and the literature scan stay a card). Unset, "off" and any other value: the card, as before, and the stream
-   * is byte for byte what it was. Auto only: a search chosen by hand never runs a tool. A gate flag: unset is off, a KV override can only lower it. Its privacy sentence (legal-match.test.ts) must be on the page first.
-   */
-  CHAT_TOOLS?: string;
-  /** What the tools run on (the Worker has them; the chat's own code above does not need them). */
-  OA_INGEST?: unknown;
-  FILES?: unknown;
-  API_GATE?: unknown;
-  VERIFY_LIMITER?: Pick<RateLimit, "limit">;
-  ASK_LIMITER?: Pick<RateLimit, "limit">;
-};
-type Env = { Bindings: Bindings };
-export const chatRoutes = new Hono<Env>();
+export const chatRoutes = new Hono<HonoEnv>();
 
 chatRoutes.use("*", async (c, next) => {
   await next();
   c.header("Cache-Control", "no-store");
 });
 
-const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+const stubbed = (env: Env) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
 
 /**
  * Where a gate flag of the understanding releases stands for this request (understand/flags.ts: unset is off, and an off flag reads nothing from KV). A value that is not exactly a position is off, and
  * one line says WHICH FLAG held it (a constant name, never anything of a message): a typo must not turn behaviour on, and must not pass unseen either.
  */
-async function gate(env: Bindings, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY" | "CHAT_CLEAN" | "CHAT_FLOOR" | "CHAT_THINK" | "CHAT_UNDERSTAND" | "CHAT_UNDERSTAND_VISITORS" | "CHAT_TOOLS"): Promise<FlagPosition> {
+async function gate(env: Env, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY" | "CHAT_CLEAN" | "CHAT_FLOOR" | "CHAT_THINK" | "CHAT_UNDERSTAND" | "CHAT_UNDERSTAND_VISITORS" | "CHAT_TOOLS"): Promise<FlagPosition> {
   // the safety lane has a fourth position, `core`, between shadow and on, and the relevance floor has `writer` in the same place
   const r = await flagOf(env, name, { allowCore: name === "CHAT_SAFETY", allowWriter: name === "CHAT_FLOOR" });
   if (r.badVariable) console.warn(JSON.stringify({ level: "warn", msg: "flag_bad_value", flag: name }));
@@ -154,7 +73,7 @@ const logJudged = (r: JudgeReport) =>
   console.log(JSON.stringify({ level: r.error ? "warn" : "info", msg: "chat_judge", ms: r.ms, model: r.model, ...r.counts, leftOut: r.leftOut, rewritten: r.rewritten ?? 0, offered: r.rewrites?.length ?? 0, ...(r.checkMs === undefined ? {} : { checkMs: r.checkMs }), ...(r.error ? { error: r.error } : {}) }));
 
 /** The model, for the person's own message: PRIVATE, so the gateway only uses providers that do not keep or train on it. `abort` stops it when the reader presses Stop or leaves. */
-function streamFor(env: Bindings, subject: string, abort: AbortSignal): StreamComplete {
+function streamFor(env: Env, subject: string, abort: AbortSignal): StreamComplete {
   if (stubbed(env)) return stubChatStream;
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
@@ -167,7 +86,7 @@ function streamFor(env: Bindings, subject: string, abort: AbortSignal): StreamCo
  * The support judge's model (chat/support.ts): the answer to the person's own question, so PRIVATE. Shorter timeout than the answer's: a judge that takes longer is not waited for
  * (the answer is then shown as written and says it was not checked).
  */
-function judgeStreamFor(env: Bindings, subject: string, abort: AbortSignal, timeoutMs = 20_000): StreamComplete {
+function judgeStreamFor(env: Env, subject: string, abort: AbortSignal, timeoutMs = 20_000): StreamComplete {
   if (stubbed(env)) return stubJudgeStream(env);
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
@@ -180,7 +99,7 @@ function judgeStreamFor(env: Bindings, subject: string, abort: AbortSignal, time
  * The router's model: the person's own free text, so PRIVATE (the gateway only uses providers that do not keep or train on it). `onUsage` hears what a call cost, for the development route that
  * measures a follow-up (scripts/router-eval.mjs); the stream never uses it.
  */
-function routeCompleteFor(env: Bindings, subject: string, onUsage?: (u: { tokensIn?: number | null; tokensOut?: number | null }) => void): Complete {
+function routeCompleteFor(env: Env, subject: string, onUsage?: (u: { tokensIn?: number | null; tokensOut?: number | null }) => void): Complete {
   if (stubbed(env)) return stubRoute;
   const gateway = gatewayFromEnv(env);
   return async (req) => {
@@ -276,7 +195,7 @@ function withSince(own: YearRange | null, since: number | undefined): YearRange 
  * M4/M5: where the Understand step stands for THIS requester: CHAT_UNDERSTAND's position for a person who is signed in; for a visitor, the same only while CHAT_UNDERSTAND_VISITORS is "on" (else "off").
  * Unset flags read nothing (understand/flags.ts), so with both unset nothing at all is looked up.
  */
-async function understandFor(env: Bindings, signedIn: boolean): Promise<FlagPosition> {
+async function understandFor(env: Env, signedIn: boolean): Promise<FlagPosition> {
   const position = await gate(env, "CHAT_UNDERSTAND");
   if (position === "off" || signedIn) return position;
   return (await gate(env, "CHAT_UNDERSTAND_VISITORS")) === "on" ? position : "off";
@@ -454,7 +373,7 @@ chatRoutes.post("/", async (c) => {
     const runPlan = async (plan: ToolPlan, doc: { id: string; title: string } | null, language: Route["language"], unsure: boolean) => {
       const ip = c.req.header("cf-connecting-ip") ?? "unknown";
       const allowed = (b?: Pick<RateLimit, "limit">) => async () => !b || (await b.limit({ key: ip }).then((r) => r.success, () => true));
-      const env = c.env as never;
+      const env = c.env;
       const deps: ToolDeps = {
         verify: stubbed(c.env) ? stubVerify : async (t) => (await referenceService.verify(env, t)).result,
         verifyAllowed: allowed(c.env.VERIFY_LIMITER),
@@ -465,7 +384,7 @@ chatRoutes.post("/", async (c) => {
         askPaper: async (a, sendAsk) => {
           const embed = embedderFor(env);
           if (!embed) return void (await sendAsk({ type: "error", code: "ai_unavailable", title: "Answering is unavailable right now" }));
-          await oaService.ask(env, { userId: user!.id, ref: a.ref, key: a.key, question: a.question, clientAbstract: a.clientAbstract, embed, abort }, { get gone() { return s.gone; }, send: sendAsk } as never);
+          await oaService.ask(env, { userId: user!.id, ref: a.ref, key: a.key, question: a.question, clientAbstract: a.clientAbstract, embed, abort }, { get gone() { return s.gone; }, send: sendAsk });
         },
         askDoc: async (docId, question, sendAsk) => {
           const embed = embedderFor(env);
@@ -1025,13 +944,13 @@ chatRoutes.post("/judge", async (c) => {
   let detail: unknown = null;
   // `strict`: what "Check strictly" does (the stronger model judges, the quick one reads the shorter claims again), so that it can be measured
   const strict = body?.strict === true;
-  const quick = judgeStreamFor(env as Bindings, user.id, c.req.raw.signal, typeof body?.timeoutMs === "number" ? Math.min(120_000, Math.max(5_000, body.timeoutMs)) : 20_000);
-  const result = await judgeAnswer({ answer: { text, citations }, picked, judge: strict ? strictStreamFor(env as Bindings, user.id, c.req.raw.signal, () => {}) : quick, recheck: strict ? (body?.recheck === "strong" ? strictStreamFor(env as Bindings, user.id, c.req.raw.signal, () => {}) : judgeStreamFor(env as Bindings, user.id, c.req.raw.signal)) : undefined, strict, onResult: (r) => (detail = r) });
+  const quick = judgeStreamFor(env, user.id, c.req.raw.signal, typeof body?.timeoutMs === "number" ? Math.min(120_000, Math.max(5_000, body.timeoutMs)) : 20_000);
+  const result = await judgeAnswer({ answer: { text, citations }, picked, judge: strict ? strictStreamFor(env, user.id, c.req.raw.signal, () => {}) : quick, recheck: strict ? (body?.recheck === "strong" ? strictStreamFor(env, user.id, c.req.raw.signal, () => {}) : judgeStreamFor(env, user.id, c.req.raw.signal)) : undefined, strict, onResult: (r) => (detail = r) });
   return c.json({ result, detail });
 });
 
 /** The strict check's model: the stronger one that wrote the answer (it thinks before it answers: 20 to 45 s), always PRIVATE. */
-function strictStreamFor(env: Bindings, subject: string, abort: AbortSignal, onQuota: () => void): StreamComplete {
+function strictStreamFor(env: Env, subject: string, abort: AbortSignal, onQuota: () => void): StreamComplete {
   const gateway = stubbed(env) ? null : gatewayFromEnv(env);
   return async (req, hooks) => {
     try {

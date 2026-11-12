@@ -1,4 +1,5 @@
 import { flagOf, type FlagEnv } from "../understand/flags";
+import type { Env, EnvPick } from "../platform/env";
 
 /**
  * The switch of the MCP server (docs "Sodhsetu understanding, follow-ups and MCP (design)", page 13): the Worker variable `MCP` is `off`, `beta` or `on`, and unset is off. It is read through the
@@ -10,7 +11,7 @@ import { flagOf, type FlagEnv } from "../understand/flags";
  *   on    every signed-in account may connect an app.
  */
 export type McpMode = "off" | "beta" | "on";
-export type McpFlagEnv = FlagEnv & { MCP?: string; MCP_BETA_USERS?: string; OAUTH_KV?: KVNamespace };
+export type McpFlagEnv = FlagEnv & EnvPick<"MCP" | "MCP_BETA_USERS", "OAUTH_KV">;
 
 /** Where the switch stands. Without the OAUTH_KV binding (a namespace of its own, which the owner creates: wrangler.jsonc) the server has nowhere to keep its grants, so it is off whatever MCP says. */
 export async function mcpMode(env: McpFlagEnv | undefined): Promise<McpMode> {
@@ -30,7 +31,7 @@ export const mcpAllowedFor = (mode: McpMode, env: McpFlagEnv | undefined, userId
  * `flag:MCP_CHECK_CLAIM` can only lower it). The tool is listed only for an account the MCP server itself lets in AND this switch lets in: `beta` means the accounts of MCP_BETA_USERS, `on`
  * everyone the server lets in. With it off the tool is not listed and cannot be called (src/mcp/phase2.test.ts); the contract test holds every tool's schema, this one's included.
  */
-export async function checkClaimAllowedFor(env: McpFlagEnv & { MCP_CHECK_CLAIM?: string }, userId: string): Promise<boolean> {
+export async function checkClaimAllowedFor(env: McpFlagEnv & Pick<Env, "MCP_CHECK_CLAIM">, userId: string): Promise<boolean> {
   const r = await flagOf(env, "MCP_CHECK_CLAIM", { allowBeta: true });
   return r.position === "on" || (r.position === "beta" && betaUsers(env).includes(userId));
 }

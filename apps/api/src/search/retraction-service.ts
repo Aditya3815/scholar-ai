@@ -2,13 +2,14 @@ import { cacheStore, type CacheEnv } from "../cache";
 import { stubCrossrefFetch } from "../library/retraction-stub";
 import { normalizeDoi } from "./normalize";
 import { findRetractionNotices, retractedDois } from "./retraction";
+import type { Env } from "../platform/env";
 
 /**
  * Is a paper retracted, as a service (docs/design: "service layer"): "Ask this paper" and the MCP tool `check_retractions` call it. Crossref's retraction data (which carries the Retraction
  * Watch database) through the public cache, which keeps each DOI's answer for a day. A lookup that fails says "unknown", never "not retracted".
  */
 
-export type RetractionServiceEnv = CacheEnv & { CROSSREF_MAILTO: string; ENABLE_DEV_ROUTES?: string; QA_STUB?: string };
+export type RetractionServiceEnv = CacheEnv & Pick<Env, "CROSSREF_MAILTO" | "ENABLE_DEV_ROUTES" | "QA_STUB">;
 
 export type RetractionCheck = {
   /** The DOIs as they were read (lower case, without a resolver prefix), in the order given, each once. */

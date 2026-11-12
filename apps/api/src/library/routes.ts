@@ -3,9 +3,9 @@ import { currentUser, sameOrigin } from "../auth/http";
 import { MAX_IMPORT_ITEMS, MAX_LIBRARY_ITEMS, doiColumn, parsePaper, sqliteTime } from "./validate";
 import { libraryService } from "./service";
 import { deny } from "../problem";
+import type { HonoEnv } from "../platform/env";
 
-type Env = { Bindings: { DB: D1Database } };
-export const libraryRoutes = new Hono<Env>();
+export const libraryRoutes = new Hono<HonoEnv>();
 
 
 libraryRoutes.use("*", async (c, next) => {

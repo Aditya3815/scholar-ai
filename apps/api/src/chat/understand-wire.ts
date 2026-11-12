@@ -1,6 +1,6 @@
 import type { Paper } from "@scholar/shared";
 import type { Complete } from "../docs/qa";
-import { AllProvidersFailedError, gatewayFromEnv } from "../llm";
+import { AllProvidersFailedError, gatewayFromEnv, type LlmEnv } from "../llm";
 import { sha256Hex } from "../hash";
 import { applyDoiIntegrity, applyRetractions } from "../search";
 import { cacheKey, cached } from "../search/cache";
@@ -22,10 +22,8 @@ import { stubIndiaPapers, stubPapers } from "./stub";
 /** How long the Understand call may take in the gateway (the step itself gives up at UNDERSTAND_TIMEOUT_MS and lets the rules decide). */
 const UNDERSTAND_GATEWAY_MS = 8_000;
 
-type GatewayEnv = Parameters<typeof gatewayFromEnv>[0];
-
 /** The Understand step's model for `subject` (a person's id, or a visitor's code of the day): PRIVATE, counted in that subject's daily allowance like every other model call. */
-export function understandCompleteFor(env: GatewayEnv, subject: string): Complete {
+export function understandCompleteFor(env: LlmEnv, subject: string): Complete {
   const gateway = gatewayFromEnv(env);
   return async (req) => {
     const r = await gateway.complete({ task: "understand", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: UNDERSTAND_GATEWAY_MS, label: req.label });
@@ -34,7 +32,7 @@ export function understandCompleteFor(env: GatewayEnv, subject: string): Complet
 }
 
 /** The conversation reply's model (intent `chat`): the same private chain, a short reply. */
-export function chatReplyCompleteFor(env: GatewayEnv, subject: string): Complete {
+export function chatReplyCompleteFor(env: LlmEnv, subject: string): Complete {
   const gateway = gatewayFromEnv(env);
   return async (req) => {
     const r = await gateway.complete({ task: "understand", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 15_000, label: req.label });

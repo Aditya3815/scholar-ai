@@ -2,10 +2,9 @@ import { crossrefFetch, type CrossrefInit } from "./crossref-gate";
 import { arxivYear, type Candidate } from "./match";
 import type { CacheStore } from "../cache/store";
 import { cacheKey, cached } from "../search/cache";
+import type { Env } from "../platform/env";
 
-export type LookupEnv = {
-  CROSSREF_MAILTO: string;
-  OPENALEX_API_KEY?: string;
+export type LookupEnv = Pick<Env, "CROSSREF_MAILTO" | "OPENALEX_API_KEY"> & {
   /**
    * Where answers from Crossref, OpenAlex and doi.org are remembered (public data only). Without it every lookup goes upstream (the eval harness, which replays recorded
    * answers, and most tests leave it out). OpenAlex has a daily budget and Crossref a request rate; a reference list shared by many people asks the same questions again and again.

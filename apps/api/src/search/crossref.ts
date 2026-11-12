@@ -1,11 +1,12 @@
 import { crossrefFetch, SEARCH_GATE_WAIT_MS } from "../references/crossref-gate";
 import { normalizeDoi, stripJats } from "./normalize";
 import type { Provider, ProviderPaper } from "./types";
+import type { Env } from "../platform/env";
 
 const SELECT = "DOI,title,author,issued,container-title,is-referenced-by-count,abstract";
 
 /** Crossref polite pool: mailto param + User-Agent mein contact. */
-export function crossrefHeaders(env: { CROSSREF_MAILTO: string }): HeadersInit {
+export function crossrefHeaders(env: Pick<Env, "CROSSREF_MAILTO">): HeadersInit {
   return { "User-Agent": `SodhsetuSearch/0.1 (mailto:${env.CROSSREF_MAILTO})` };
 }
 
