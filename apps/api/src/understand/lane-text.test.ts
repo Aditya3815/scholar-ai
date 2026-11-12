@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { positionOfVariable } from "./flags";
+import { positionOfVariable } from "../platform/switches";
 import { HELPLINE_CHECKED, HELPLINES, allLaneSentences, helplineProblems, noticeText, replyText, type LaneLang } from "./lane-text";
 
 /**

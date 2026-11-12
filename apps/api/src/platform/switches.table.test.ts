@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { flagOf } from "../understand/flags";
+import { SWITCHES, flag, killSwitch, type GateName, type KillName } from "./switches";
 import { checkClaimAllowedFor, mcpMode } from "../mcp/flag";
 import { readTrending } from "../trending/routes";
 import { runTrending } from "../trending/job";
@@ -25,11 +25,8 @@ const kvStates = (): KvState[] => [
 const GATES = ["CHAT_COUNTERS", "CHAT_FAILPOLICY", "CHAT_SAFETY", "CHAT_CLEAN", "CHAT_FLOOR", "CHAT_THINK", "CHAT_UNDERSTAND", "CHAT_UNDERSTAND_VISITORS", "CHAT_TOOLS", "MCP", "MCP_CHECK_CLAIM"] as const;
 type Gate = (typeof GATES)[number];
 
-/** Today's reading of one gate, exactly as its one caller makes it. */
-async function readGate(name: Gate, env: Record<string, unknown>) {
-  if (name === "MCP" || name === "MCP_CHECK_CLAIM") return flagOf(env, name, { allowBeta: true });
-  return flagOf(env, name, { allowCore: name === "CHAT_SAFETY", allowWriter: name === "CHAT_FLOOR" });
-}
+/** The reading of one gate, as every caller makes it: through the registry. */
+const readGate = (name: Gate, env: Record<string, unknown>) => flag(env, name);
 
 async function gateTable(name: Gate) {
   const rows: Record<string, Record<string, string>> = {};
@@ -55,8 +52,8 @@ async function gateTable(name: Gate) {
 
 const KILL_VALUES: readonly (string | undefined)[] = [undefined, "off", "OFF", " off", "Off", "on", "dark", "", "false", "0"];
 const KILLS = ["CHAT_JUDGE", "CHAT_CONTEXT", "SEARCH_PLAINTEXT"] as const;
-/** Today: `env.NAME === "off"` at every read (chat/routes.ts, litscan/workflow.ts, search/index.ts); no KV. */
-const killToday = (_name: (typeof KILLS)[number], v: string | undefined) => (v === "off" ? "off" : "on");
+/** Every read (chat/routes.ts, litscan/workflow.ts, search/index.ts) goes through killSwitch; no KV. Before the registry each was `env.NAME === "off"`. */
+const killToday = (name: (typeof KILLS)[number], v: string | undefined) => killSwitch(v === undefined ? {} : { [name]: v }, name);
 
 const TRENDING_VALUES: readonly (string | undefined)[] = [undefined, "off", "OFF", " off ", "dark", "Dark", " DARK ", "on", "", "shadow", "1", "no"];
 const TRENDING_KV: readonly (string | null | "(no binding)")[] = ["(no binding)", null, "1", "", "off", "on"];
@@ -112,6 +109,15 @@ async function wholeTable() {
 }
 
 describe("every switch, at every position and every KV lowering, stands where it stood before the registry (docs/design/untangle.md, F6)", () => {
+  it("covers every switch of the registry, and every position of each", () => {
+    const names = Object.keys(SWITCHES);
+    expect([...GATES].sort()).toEqual(names.filter((n) => SWITCHES[n as GateName].kind === "gate").sort());
+    expect([...KILLS, "TRENDING"].sort()).toEqual(names.filter((n) => SWITCHES[n as KillName].kind === "kill").sort());
+    for (const g of GATES) for (const p of SWITCHES[g].positions) expect(VARIABLES, `${g} ${p}`).toContain(p);
+    for (const k of KILLS) for (const p of SWITCHES[k].positions) expect(KILL_VALUES, `${k} ${p}`).toContain(p);
+    for (const p of SWITCHES.TRENDING.positions) expect(TRENDING_VALUES, `TRENDING ${p}`).toContain(p);
+  });
+
   it("matches switches.table.json, written from the code before the change", async () => {
     const table = await wholeTable();
     expect(table).toEqual(JSON.parse(readFileSync(TABLE_FILE, "utf8")));

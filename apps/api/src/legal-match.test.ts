@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseAst } from "vite";
-import { positionOfVariable } from "./understand/flags";
+import { SWITCHES, positionOfVariable, type SwitchName } from "./platform/switches";
 
 // src/test-node.d.ts declares only the little of Node that the database stand-in uses; this file also needs these.
 declare module "node:fs" {
@@ -36,7 +36,7 @@ declare module "node:path" {
  *          in text), or a relative module elsewhere in apps/api/src, which is followed through its own relative imports and must pass the same site rule and the same import rule (a package it imports
  *          is refused, as a client could sit behind it). So `../search/normalize` (pure) is allowed and `../search/openalex` (a `fetch` call) or `../llm` (`env.AI`) is not, with no list of providers
  *          to keep up to date. Any other import (`hono`, `node:`, `cloudflare:`, `import a = require("x")`) is refused.
- *      Workers KV, D1 and R2 are our own storage, not a recipient the privacy page names, so they are not covered: flags.ts takes the KV namespace as an argument and reads from it.
+ *      Workers KV, D1 and R2 are our own storage, not a recipient the privacy page names, so they are not covered: platform/switches.ts (whose types understand/ imports) takes the KV namespace as an argument and reads from it.
  *      run time: every module is loaded afresh and every exported function of it is called with plain strings (a normal message, an empty one, one of 20 000 characters) in the shapes (text), (text, text),
  *        (env, text) and (text, env), with global `fetch` replaced by a function that records and throws and an `env` whose `AI` records and throws on any property. The trap is in place before the module is
  *        imported (what runs at import is seen) and stays for SETTLE_MS after the last call (a call scheduled by a short timer is seen). What it records fails the test even when the module catches the
@@ -303,7 +303,7 @@ type Disclosure = {
 };
 
 /**
- * The names a source mentions in code, as whole words: identifiers (a type included), and the words inside its strings and templates (a flag is read as `env.CHAT_X` or named in `flagOf(env, "CHAT_X")`).
+ * The names a source mentions in code, as whole words: identifiers (a type included), and the words inside its strings and templates (a flag is read as `env.CHAT_X` or named in `flag(env, "CHAT_X")`).
  * A comment is not code and is not read: a deleted flag leaves its comments behind, and they must not make it look alive.
  */
 function namesIn(source: string): string[] {
@@ -439,8 +439,11 @@ function readVars(text: string): Record<string, unknown> {
 
 // ---- end of the checks ----
 
-/** One row per privacy sentence of a release: a literal run of the page's source text (as plain text, in one line), stopping before any {expression} (see (4) in the header). Empty until the first release writes its text (10.1). */
-const FLAG_SENTENCES: readonly FlagSentence[] = [
+/**
+ * One row per privacy sentence of a release: a literal run of the page's source text (as plain text, in one line), stopping before any {expression} (see (4) in the header). Empty until the first release writes its text (10.1).
+ * The flag is a name of the switch registry (platform/switches.ts, SWITCHES), so a typo does not compile; the registry's `sentence` says which switches have a row here.
+ */
+const FLAG_SENTENCES: readonly (FlagSentence & { flag: SwitchName })[] = [
   // M4/M5 (design PDF "Sodhsetu understanding, follow-ups and MCP"): with CHAT_UNDERSTAND at shadow or on, the page sends the turn ledger (replies and paper titles leave the browser) and counts are kept, so the
   // sentence is needed from shadow on. Written on 6 Nov 2026 and NOT on the page yet: it waits for the owner's read, and the privacy version moves with it.
   {
@@ -474,7 +477,7 @@ const FLAG_SENTENCES: readonly FlagSentence[] = [
   },
 ];
 /** Flags that are on in the committed config and need no sentence on the page, each with the reason (nothing new is sent, kept or shown that the page does not already say). Empty until a release has one. */
-const FLAGS_WITHOUT_SENTENCE: Readonly<Record<string, string>> = {};
+const FLAGS_WITHOUT_SENTENCE = {} as const satisfies { readonly [N in SwitchName]?: string };
 /** Rows that have lost their flag after 14 clean days on: the sentence and the code that makes it true. Releases with no flag (R6b, T1) start here. */
 const ALWAYS_ON: readonly AlwaysOn[] = [];
 
@@ -516,7 +519,7 @@ describe("(3) no module of understand/ imports a network client", () => {
       readdirSync(dir).flatMap((name) => (statSync(join(dir, name)).isDirectory() ? walkAgain(join(dir, name), prefix + name + "/") : [prefix + name]));
     const second = walkAgain(UNDERSTAND).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !f.endsWith(".d.ts")).sort();
     expect(files).toEqual(second);
-    expect(files).toContain("flags.ts");
+    expect(files).toContain("lane.ts");
     // nothing in the folder is a kind of file this check cannot read
     expect(files.filter((f) => !f.endsWith(".ts"))).toEqual([]);
   });
@@ -552,8 +555,12 @@ describe("(3) no module of understand/ imports a network client", () => {
     for (const file of Object.keys(NO_FUNCTION_TO_CALL)) expect(files, file).toContain(file);
   });
 
-  it("really calls what flags.ts exports (the run-time check is not empty: flagOf takes the env and a name, as strings, and runs)", async () => {
-    const { touched, ran } = await touchedBy(loadAfresh("flags.ts"));
+  it("the switch reader, whose types understand/ imports (platform/switches.ts), touches neither too, and really runs (flagOf takes the env and a name, as strings)", async () => {
+    expect(understandProblems({ label: "platform/switches.ts", source: read("./platform/switches.ts"), dir: join(API_SRC, "platform") })).toEqual([]);
+    const { touched, ran } = await touchedBy(async () => {
+      vi.resetModules();
+      return (await import(/* @vite-ignore */ new URL("./platform/switches.ts", import.meta.url).href)) as Record<string, unknown>;
+    });
     expect(touched).toEqual([]);
     expect(ran).toEqual(expect.arrayContaining(["flagOf", "positionOfVariable", "flagKey"]));
   });
@@ -634,10 +641,11 @@ describe("the network check catches a module that is not clean (fixtures: source
       'import type { Ai } from "@cloudflare/workers-types";',
       "type Fetcher = { fetch: typeof fetch; AI?: Ai };",
       'import { normalizeTitle } from "../search/normalize";',
-      'import { positionOfVariable } from "./flags";',
+      'import { isUnderstandCounterName } from "./understand-counters";',
+      'import { positionOfVariable } from "../platform/switches";',
       'import { PRIVACY_VERSION } from "@scholar/shared";',
       'const url = "https://example.org/a//b"; const text = "x";',
-      "export function shape(text: string, env?: Fetcher) { return env ? 1 : normalizeTitle(text) + url + PRIVACY_VERSION + positionOfVariable(text, false).position; }",
+      "export function shape(text: string, env?: Fetcher) { return env ? 1 : normalizeTitle(text) + url + PRIVACY_VERSION + positionOfVariable(text, false).position + String(isUnderstandCounterName(text)); }",
     );
     expect(understandProblems(fixture(clean))).toEqual([]);
   });
@@ -740,8 +748,10 @@ describe("(4) the disclosure match: each privacy sentence is on the page exactly
   // read inside each test, so that a trailing comment fails the test that names it and not the whole file
   const committedVars = () => readVars(read("../wrangler.jsonc"));
 
+  // The files that DECLARE every switch (the registry and the Env type) are not read: a flag that only they name is no longer used by any code.
+  const DECLARE_EVERY_SWITCH = ["platform/switches.ts", "platform/env.ts"];
   const sources = (readdirSync(API_SRC, { recursive: true }) as string[])
-    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !f.endsWith(".d.ts") && !f.includes("node_modules"))
+    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !f.endsWith(".d.ts") && !f.includes("node_modules") && !DECLARE_EVERY_SWITCH.includes(f.split(SEP).join("/")))
     .map((f) => readFileSync(join(API_SRC, f), "utf8"));
   const codeFile = (file: string): string | null => (existsSync(join(REPO, file)) ? readFileSync(join(REPO, file), "utf8") : null);
 
@@ -753,6 +763,30 @@ describe("(4) the disclosure match: each privacy sentence is on the page exactly
   it("holds for the page, the committed vars block and the tables as they are", () => {
     const page = plain(read("../../web/src/components/legal/LegalPages.tsx"));
     expect(disclosureProblems({ page, vars: committedVars(), flagSentences: FLAG_SENTENCES, noSentence: FLAGS_WITHOUT_SENTENCE, alwaysOn: ALWAYS_ON, sources, codeFile })).toEqual([]);
+  });
+
+  it("the tables agree with the switch registry: a row's positions are positions its switch has, and the switches the registry says have a sentence are exactly the rows", () => {
+    for (const row of FLAG_SENTENCES) for (const at of row.at) expect(SWITCHES[row.flag].positions as readonly string[], `${row.flag} at ${at}`).toContain(at);
+    const withSentence = (Object.keys(SWITCHES) as SwitchName[]).filter((n) => SWITCHES[n].sentence).sort();
+    expect([...new Set(FLAG_SENTENCES.map((r) => r.flag))].sort()).toEqual(withSentence);
+    for (const name of Object.keys(FLAGS_WITHOUT_SENTENCE)) expect(Object.keys(SWITCHES), name).toContain(name);
+  });
+
+  it("a switch of the registry that the committed vars sets holds one of its positions, as its reader reads it (a value its reader takes as off, or as on, is not committed by mistake)", () => {
+    const vars = committedVars();
+    for (const name of Object.keys(SWITCHES) as SwitchName[]) {
+      if (!(name in vars)) continue;
+      const spec = SWITCHES[name];
+      const value = vars[name];
+      const asRead = spec.kind === "kill" && spec.read === "trimmed" && typeof value === "string" ? value.trim().toLowerCase() : value;
+      expect(spec.positions as readonly unknown[], `${name}: ${JSON.stringify(value)}`).toContain(asRead);
+    }
+  });
+
+  it("a source that only declares a switch is not counted as using it (the registry and the Env type name every switch)", () => {
+    expect(sources.length).toBeGreaterThan(100);
+    expect(sources.some((src) => src.includes("export const SWITCHES = {"))).toBe(false);
+    expect(sources.some((src) => src.includes("type SecretsAndVariables = {"))).toBe(false);
   });
 
   describe("the logic, on fixtures", () => {
