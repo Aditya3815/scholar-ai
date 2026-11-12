@@ -42,6 +42,8 @@ try {
     ok(body.jobs[0].name === "maintenance" && body.jobs[0].state === "ok", "it names the job and its state");
     ok(!("lastError" in body.jobs[0]) && !("failures" in body.jobs[0]), "the public answer carries no error text");
     ok((await fetch(`${APP}/api/v1/health`)).status === 200, "the ordinary health check is separate and unaffected");
+    // one answer counted today by this suite itself: in a named run (trending-on) the Worker starts empty and no other suite has answered anything yet
+    await sql("INSERT INTO answer_outcomes (day, feature, outcome, n) VALUES (date('now'), 'doc_ask', 'answered', 1) ON CONFLICT (day, feature, outcome) DO UPDATE SET n = n + 1");
     const o = await overview(admin);
     ok(Array.isArray(o.jobs) && o.jobs[0].state === "ok", "the admin overview lists the job as well");
     ok(Array.isArray(o.answers) && o.answers.length > 0 && o.answers.every((r) => typeof r.feature === "string" && typeof r.outcome === "string" && r.n > 0 && Object.keys(r).sort().join() === "feature,n,outcome"), "the admin overview carries how answers went in the last seven days, as counts only");
