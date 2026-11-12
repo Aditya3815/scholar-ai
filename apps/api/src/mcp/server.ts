@@ -4,7 +4,7 @@ import type { SearchBindings } from "../search/env";
 import { searchService } from "../search/service";
 import { referenceService, type ReferenceEnv } from "../references/service";
 import { retractionService, type RetractionServiceEnv } from "../search/retraction-service";
-import type { LimitEnv } from "../ratelimit";
+import { allows, type LimitEnv } from "../ratelimit";
 import { MAX_REFERENCE_CHARS, arxivIdFromDoi, type OaAskEvent, type Paper } from "@scholar/shared";
 import { embedderFor } from "../docs/routes";
 import { oaService, type OaEnv } from "../oa/service";
@@ -105,8 +105,7 @@ async function metered<R extends CallToolResult | InputRequiredResult = CallTool
     const bucket = ctx.env[limiter];
     if (bucket) {
       for (let i = 0; i < limiterHits; i++) {
-        const ok = await bucket.limit({ key: `mcp:${ctx.userId}` }).then((r) => r.success, () => true);
-        if (!ok) {
+        if (!(await allows(bucket, `mcp:${ctx.userId}`))) {
           outcome = "rate_limited";
           return failure("Too many requests in the last minute. Wait a minute and try again.");
         }
