@@ -69,6 +69,11 @@ const vars = {
   // Only the browser smoke test searches; it needs the real provider keys (passed through from the environment).
   ...Object.fromEntries(["OPENALEX_API_KEY", "S2_API_KEY", "NCBI_API_KEY"].filter((k) => process.env[k]).map((k) => [k, process.env[k]])),
 };
+// The suites read INTEGRATION_VARS to know which position each switch is at. They are given the Worker's own: the committed `vars` of wrangler.jsonc with this run's on top, so that a
+// switch turned on in wrangler.jsonc is seen by them exactly as one turned on for the run.
+const suiteVars = Object.entries({ ...cfg.vars, ...integrationVars, MCP: vars.MCP, MCP_CHECK_CLAIM: vars.MCP_CHECK_CLAIM, ...(vars.TRENDING ? { TRENDING: vars.TRENDING } : {}) })
+  .map(([k, v]) => `${k}:${v}`)
+  .join(",");
 const server = spawn("npx", ["wrangler", "dev", "--config", CONFIG, "--port", String(PORT), "--persist-to", STATE, "--test-scheduled", ...Object.entries(vars).flatMap(([k, v]) => ["--var", `${k}:${v}`])], {
   cwd: api, shell: isWin, stdio: ["ignore", "pipe", "pipe"], detached: !isWin,
 });
@@ -117,7 +122,7 @@ const run = async (label, file, args = [], cwd = api) => {
   // Not spawnSync: that stops this process's event loop for the whole suite, so the `data` handlers above stop reading the Worker's log pipe, and once the pipe is full (about 175 KB on
   // Windows: a suite of three minutes and more) the Worker stops answering (pending requests, 30 s timeouts at a different step each run). An async child keeps the loop, and the pipe, going.
   const code = await new Promise((resolve) => {
-    const child = spawn(process.execPath, [file, ...args], { cwd, stdio: "inherit", env: { ...process.env, APP: `http://localhost:${PORT}` } });
+    const child = spawn(process.execPath, [file, ...args], { cwd, stdio: "inherit", env: { ...process.env, APP: `http://localhost:${PORT}`, INTEGRATION_VARS: suiteVars } });
     child.on("error", (e) => { console.error(`could not start ${file}: ${e.message}`); resolve(1); });
     child.on("close", (c) => resolve(c ?? 1)); // a suite that was killed by a signal has no exit code: that is a failure
   });
@@ -141,7 +146,7 @@ try {
   ok = await run("literature scan integration", "scripts/litscan-e2e.mjs") && ok;
   ok = await run("feedback integration", "scripts/feedback-e2e.mjs") && ok;
   ok = await run("MCP server integration", "scripts/mcp-e2e.mjs") && ok;
-  // CHAT_TOOLS (docs/design/chat-tools.md): unset here, so the suite checks that a list is still offered; INTEGRATION_VARS="CHAT_TOOLS:on" (--only="chat tools") checks the tools run in the reply
+  // CHAT_TOOLS (docs/design/chat-tools.md): on in wrangler.jsonc, so the suite checks the tools run in the reply; INTEGRATION_VARS="CHAT_TOOLS:off" (--only="chat tools") checks a list is still offered
   ok = await run("chat tools integration", "scripts/chat-tools-e2e.mjs") && ok;
   if (withBrowser) {
     ok = await run("browser: smoke + axe", "e2e/smoke.mjs", [`http://localhost:${PORT}`], web) && ok;
