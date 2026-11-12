@@ -1,0 +1,45 @@
+name: Alert
+
+# Called by every scheduled or deploying workflow as its last job: opens (or updates) one issue per workflow when a job of it failed, so a failure reaches you by e-mail instead of waiting
+# to be noticed, and closes it when the workflow passes again (.github/scripts/workflow-alert.mjs). The caller passes its `needs` as JSON, and may pass one line of detail.
+#   alert:
+#     needs: [check]
+#     if: always()
+#     uses: ./.github/workflows/alert.yml
+#     permissions: { contents: read, issues: write }
+#     with: { needs: "${{ toJSON(needs) }}" }
+# A called workflow runs with the caller's `github` context, so the issue is named after the calling workflow ("Workflow failed: CI"), as before. Only for runs on main that are not pull
+# requests: that rule is here once (the script checks pull requests again, and its tests rely on that).
+on:
+  workflow_call:
+    inputs:
+      needs:
+        description: "toJSON(needs) of the calling job"
+        type: string
+        required: true
+      detail:
+        description: "One line that goes into the issue (e.g. what the watchdog saw)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  alert:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          install: "false"
+      - run: node .github/scripts/workflow-alert.mjs auto
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEEDS: ${{ inputs.needs }}
+          ALERT_DETAIL: ${{ inputs.detail }}

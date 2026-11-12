@@ -1,14 +1,14 @@
 # Runbook
 
-Production: https://sodhsetu.in (the CI health check and the watchdog use it; https://scholar.shodhsetu.workers.dev still answers while people move over, `www` redirects to the bare name; Worker `scholar`, D1 `scholar-db`, R2 `scholar-files`, queue `scholar-jobs`).
+Production: https://sodhsetu.in (the CI health check, the watchdog and the weekly Trending check use it, through the repository variable `PRODUCTION_URL`; https://scholar.shodhsetu.workers.dev still answers while people move over, `www` redirects to the bare name; Worker `scholar`, D1 `scholar-db`, R2 `scholar-files`, queue `scholar-jobs`).
 
 ## Deploy
 
 Every push to `main` runs CI, and only if it passes, deploys:
 
-1. typecheck, unit tests, citation eval (replay), web build, **integration** (real Worker + local D1 + fake IdP), `npm audit`
+1. typecheck, unit tests, citation eval (replay), colour contrast, web build and its size budget, **integration** (real Worker + local D1 + fake IdP), `npm audit`; the built web app is kept as the run's artifact `web-dist`
 2. apply D1 migrations to production
-3. `wrangler deploy`
+3. `wrangler deploy`, with the web app of step 1 (the deploy job does not build it again)
 4. check `GET /api/v1/health` (fails the run if the service is down or the database is not migrated)
 
 Manual deploy (only if CI is unavailable): `npx wrangler login`, then `npm run deploy`.
@@ -210,7 +210,7 @@ What can go wrong and what notices it. Everything below sends a GitHub issue, wh
 | --- | --- | --- |
 | The site, its database or its web app are down, or a deploy left the database unmigrated | **Watchdog** workflow, hourly (`.github/workflows/watchdog.yml`, script `.github/scripts/watchdog.mjs`): `/api/v1/health`, `/api/v1/health/jobs`, `/`. Each is tried 3 times, 15 s apart, before it counts | issue "Workflow failed: Watchdog" with the reason (for example `service: HTTP 503 (ok=false db=error migrations=0)`) |
 | The daily job did not run, threw, or hung | the `job_runs` heartbeat, read by the Watchdog (`daily job`), by `/admin` ("Scheduled jobs") and by Sentry (the exception) | same issue, and the admin page |
-| A workflow failed: CI on `main` (including the deploy), Q&A quality, Eval (live APIs), Browser e2e, Watchdog | an `alert` job at the end of each (`.github/scripts/workflow-alert.mjs`) | one issue per workflow, "Workflow failed: <name>", with the run link and commit. A workflow that keeps failing adds one comment every 6 hours, not one per run. The issue **closes itself** when the workflow passes again. Not for pull requests or other branches |
+| A workflow failed: CI on `main` (including the deploy), Q&A quality, Eval (live APIs), Browser e2e, Switch matrix, Trending (live), Watchdog | an `alert` job at the end of each, which calls `.github/workflows/alert.yml` (`.github/scripts/workflow-alert.mjs`) | one issue per workflow, "Workflow failed: <name>", with the run link and commit. A workflow that keeps failing adds one comment every 6 hours, not one per run. The issue **closes itself** when the workflow passes again. Not for pull requests or other branches |
 | An unexpected error in production, or in a browser | Sentry | the Sentry project; rules below |
 
 Set up once (yours):
@@ -435,7 +435,7 @@ What it is: `https://sodhsetu.in/mcp`, a remote MCP server (Streamable HTTP) on 
 4. In Claude Desktop or claude.ai (Settings, Connectors, Add custom connector) add `https://sodhsetu.in/mcp`; it opens the consent page; Allow. Ask it to check a reference list. ChatGPT (developer mode, connectors) and Cursor (`mcp.json`: `{ "url": "https://sodhsetu.in/mcp" }`) the same way. Watch the admin page's panel and Sentry.
 5. `on` when the beta has run clean; the privacy sentence already covers it.
 
-Local: `npm run integration -w apps/api` starts the Worker with `MCP=on` and a local `OAUTH_KV`, and runs `scripts/mcp-e2e.mjs` (the whole OAuth exchange with PKCE, and the tools over the real protocol) and `e2e/mcp.mjs` (the consent page and Connected apps in a browser, with axe); `INTEGRATION_MCP=off` runs the first with the switch off (every path 404). `npm run eval -w apps/api` includes `eval/mcp.eval.ts` (70 fabricated references through MCP, 0 verified; 70 real ones, 70 verified as the right record) and `eval/claim.eval.ts` (check_claim on the support judge's hand-labelled claims; to record again after a change to the strict prompt: `CLAIM_EVAL=record npx vitest run -c vitest.eval.config.ts eval/claim.eval.ts --silent=false` from `apps/api`, with `npx wrangler whoami` showing the account). MCP Inspector, headless: `npx @modelcontextprotocol/inspector --cli http://localhost:8788/mcp --transport http --header "Authorization: Bearer <token>" --method tools/list`.
+Local: `npm run integration -w apps/api` starts the Worker with `MCP=on` and a local `OAUTH_KV`, and runs `scripts/mcp-e2e.mjs` (the whole OAuth exchange with PKCE, and the tools over the real protocol) and `e2e/mcp.mjs` (the consent page and Connected apps in a browser, with axe); `INTEGRATION_MCP=off` runs the first with the switch off (every path 404). `npm run eval -w apps/api` includes `eval/mcp.eval.ts` (70 fabricated references through MCP, 0 verified; 70 real ones, 70 verified as the right record) and `eval/claim.eval.ts` (check_claim on the support judge's hand-labelled claims; to record again after a change to the strict prompt: `EVAL_MODE=record npx vitest run -c vitest.eval.config.ts eval/claim.eval.ts --silent=false` from `apps/api`, with `npx wrangler whoami` showing the account). MCP Inspector, headless: `npx @modelcontextprotocol/inspector --cli http://localhost:8788/mcp --transport http --header "Authorization: Bearer <token>" --method tools/list`.
 
 ## Staging
 

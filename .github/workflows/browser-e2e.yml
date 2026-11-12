@@ -1,14 +1,23 @@
 name: Browser e2e
 
-# Real-browser checks (Playwright + axe accessibility scan + CSP violations) against a local Worker. Slower and dependent on
-# live search APIs for the smoke test, so it runs weekly and on demand instead of on every push.
+# Real-browser checks (Playwright + axe accessibility scan + CSP violations) against a local Worker. Slower and dependent on live search APIs for the smoke test, so it runs on pull
+# requests that change what the browser gets (apps/web, or packages/shared, which the page bundles: decision 12 of docs/design/untangle.md), weekly, and on demand; not on every push.
 on:
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - "packages/shared/**"
   schedule:
     - cron: "41 4 * * 1"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# A newer push to a pull request replaces its older run.
+concurrency:
+  group: browser-e2e-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   e2e:
@@ -23,11 +32,7 @@ jobs:
       CROSSREF_MAILTO: ${{ secrets.CROSSREF_MAILTO }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup
       - run: npm run build
       - run: npm run integration -w apps/api -- --browser
       - name: Keep screenshots
@@ -39,19 +44,12 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # Opens (or updates) one issue per workflow when a job above fails, so a failure reaches you by e-mail instead of waiting to be noticed, and
-  # closes it when the workflow passes again. Not for pull requests or other branches. See .github/scripts/workflow-alert.mjs.
   alert:
     needs: [e2e]
-    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    if: always()
+    uses: ./.github/workflows/alert.yml
     permissions:
       contents: read
       issues: write
-    steps:
-      - uses: actions/checkout@v7
-      - run: node .github/scripts/workflow-alert.mjs auto
-        env:
-          GH_TOKEN: ${{ github.token }}
-          NEEDS: ${{ toJSON(needs) }}
+    with:
+      needs: ${{ toJSON(needs) }}
