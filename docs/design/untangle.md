@@ -1037,3 +1037,44 @@ The special cases the redesign keeps on purpose (they are requirements, not acci
 - A typical change lands in one place: spot-check with three recent releases (a new chat switch, a new search source, a new per-person table) by writing down which files each would touch in the new layout; each is one feature folder plus at most one line in shared vocabulary or the registry.
 - A subagent pass over each audit area finds no hidden link, needless link or surplus worth fixing.
 - Behaviour is the same as at 1c3b3db apart from the bugs of section 5 and the owner's answers in section 6: goldens at every switch position, `npm run eval` gate table identical, integration with `--browser` and the switch matrix green, budget lines equal or lower, and a final side-by-side click-through of Home, chat, papers, verify, Idea Check, literature scan, settings and /admin on the old and the new build.
+
+---
+
+## Progress
+
+### W1, step 1: F0 (12 Nov 2026, branch `untangle`, on main 002314d)
+
+Commits: the decision log; web dead code and CSS; chat-fold removed (decision 10); API and shared dead code; the scripts archive (decision 11); trending-subfields reads `CROSSREF_MAILTO` (decision 11). Deletions only, apart from the path rewrites of the archived scripts; nothing a person sees and nothing sent to another service changes.
+
+Done as planned: every F0 item of section 2 not listed below, each checked by grep over `apps/`, `packages/`, `.github/`, the scripts and `e2e/` before it went. Things that became unused because of a deletion went with it (the imports of `HighlightsTools.tsx`, `d1Store` in `llm/d1.ts`, `NoRouteError` in `llm/gateway.ts`, `withGate` in `oa/workflow.ts`, `ABSTRACT_READ_CHARS` in `shared/chat.ts`, the `@keyframes ask-bounce` of `.ask-dots`). Aliases with callers were replaced by their target at the call (`tallyOf` -> `refTally`, `notesToMarkdown` -> `notesMarkdown`, `sanitizeInsightsRequest` -> `sanitizeCompareRequest`, `IdeaInsightsRequest` -> `IdeaCompareRequest`, `MAX_TIGHTEN_ABSTRACT` -> `ABSTRACT_READ_CHARS`, `findRetracted` -> the keys of `findRetractionNotices`, `servedPayload` -> `readTrending(...).payload`, `GRANTABLE` -> `SCOPES`).
+
+Kept against the plan, with the reason:
+- `api/understand/understand-counters.ts` `isUnderstandCounterName`: legal-match rule 3 loads every `understand/` module and calls each function a plain string can call, with fetch and the AI binding throwing; this is the module's only such function, so without it the run-time check of the module is empty (the test fails). Kept, with a comment that says so; its test now uses `und_retry`. `und_change` itself went.
+- `api/oa/sources.ts:163`, `:182` `.catch(() => null)`: not redundant. The lookups run inside `gated(...)`, and `withGate` throws `GateBusy` when the lane is full; the catch turns that into "no record". Removing it would change what happens under load.
+- `.github/scripts/workflow-alert.mjs` modes `failure` and `success`: `docs/runbook.md` ("Test it") uses them as the alert self-test.
+- Root `package.json` `deploy` script: `docs/runbook.md` ("Manual deploy (only if CI is unavailable)") uses it.
+- `public/sw.js` still accepts the `"clear"` message (the page no longer has the type; the service-worker contract is F19's).
+- Of the scripts named by decision 11 (SU3 to SU6), kept in place because something calls them: `scripts/staging-session.mjs` (imported by other scripts, read by `api/legal-text.test.ts`), `scripts/intent-holdout.mjs` (its node test runs it; the sealing steps of `docs/eval/intent-writing-guide.md` are still to come), `scripts/intent-replay-plan.mjs` (the E1 recording plan of `docs/eval/README.md`), `scripts/restore-rehearsal.mjs` (the backup rehearsal of `docs/runbook.md`), `eval/build-intent-cases.mjs` (imported by `eval/intent-data.eval.ts`), `scripts/trending-live.mjs` and `scripts/trending-contract-live.mjs` (run by `.github/workflows/trending-live.yml`). The 26 archived ones are listed in `apps/api/scripts/archive/README.md`; every doc that names one now points at `scripts/archive/`.
+
+Kept on purpose (F0 says so): the PARKED split view and colour names, the `ABSTRACT_READ_CHARS` lever (decision 3; only its sibling check that could not fail went), the stand-ins integration uses.
+
+Pending:
+- Decision 8, the unused `JOBS` queue binding and the empty `usage_ledger` and `jobs` tables: needs a migration and a `wrangler.jsonc` change, so it is its own small PR.
+- Newly local after chat-fold went: `shared/chat-state.ts` `answerWords`, `scanTurns` and `type FinishedTurn` are exported but used only inside the file (depgraph lists them as test-only through a namespace import); their `export` goes with F2.
+- A personal address is still hard-coded in `docs/spikes/R8/` (fetchability.mjs, run.mjs, src/index.ts), a finished spike kept as documentation; outside decision 11's list.
+
+Tests removed (unit totals 185 files / 4,485 tests -> 181 / 4,415, 3 skipped before and after): `api/understand/understand-flag.test.ts`, `api/chat/chat-fold.test.ts`, `api/chat/chat-fold-walk.test.ts`, `api/chat/chat-fold-canary.test.ts` (65 cases together); in `api/chat/new-topic.test.ts` the block "the fold starts at the marker too" (4) and two `foldState` lines; in `api/understand/frame.test.ts` "cleanRequest is the topic of a Reading..." (1) and two `cleanRequest` lines. Cases kept with a line less: `support.test.ts` (the `dropUnmarkedNo: false` half), `kv.test.ts` (two `cacheTtl` calls), `abstract-read.test.ts` (the `MAX_TIGHTEN_ABSTRACT` line), `services.test.ts` and `trending/routes.test.ts` (call the function the alias pointed at), `context-before.test.ts` (notices built by a helper, as the function reads only the kind).
+
+Verification (before = main 1c3b3db, after = `untangle` on 002314d): typecheck clean; `npm test` 4,482 passed / 3 skipped -> 4,412 / 3; `npm run test:scripts` 179 -> 179; `npm run eval` 441 passed / 1 skipped -> the same; build clean; `node apps/api/scripts/integration.mjs` all passed, 0 FAIL: 1,034 checks -> 1,048, every suite the same count except "chat tools integration" 3 -> 17, which is main's CHAT_TOOLS turned on (002314d), not this change.
+
+Budget (`npm run budget -w apps/web`, gzip), before -> after: first-load scripts 243.5 -> 243.4 KB (of 250); first-load style sheet 23.8 -> 23.5 KB (of 26); preloaded fonts 166.6 -> 166.6; intro chunk script 14.4 -> 14.4, style 6.6 -> 6.6; PDF reader 62.0 -> 62.0; Rive runtime 55.7 -> 55.7, wasm 336.6 -> 336.6, Rive files 5.3 -> 5.3.
+
+Measures (depgraph.mjs, `--months=6 --max-commit-files=50`):
+
+| Measure | Before (1c3b3db) | After |
+| --- | --- | --- |
+| 4a files nothing imports (entries excluded) | 0 | 0 in production; the 26 archived CLIs show here because depgraph's script-entry rule matches `apps/api/scripts/*.mjs` only, not `scripts/archive/` |
+| 4b production files only tests import | 4 (`clean-cases.ts`, `trending/fake-kv.ts`, `hostile-messages.ts`, `understand-flag.ts`) | 3 (`understand-flag.ts` gone) |
+| 7.5 dead exports | 11 | 0 |
+| 7.5 local-only exports | 253 | 237 |
+| 7.5 test-only exports | 392 | 377 |
