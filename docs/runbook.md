@@ -454,12 +454,14 @@ Production does not read this file: its secrets live in Cloudflare (`npx wrangle
 ## Test everything locally
 
 ```sh
-npm run build && npm run integration -w apps/api              # auth + library against a real local Worker
+npm run build && npm run integration -w apps/api              # the default run: the API suites against a real local Worker with production's switch positions (wrangler.jsonc's vars: TRENDING off, MCP beta)
 npm run integration -w apps/api -- --browser                  # plus the Playwright/axe suites (E2E_BROWSER=chrome|msedge)
-npm run integration -w apps/api -- --browser --only="browser: admin,operations"   # some suites only (substrings of their names, comma separated)
-npm run integration -w apps/api -- --only="trending"          # the Trending list alone (scripts/trending-e2e.mjs: route, headers, kill switch, stale files, a scheduled run, a failing source)
-INTEGRATION_TRENDING=off npm run integration -w apps/api -- --only="trending"   # the same suite against a Worker started with the variable TRENDING=off (checks that other kill switch)
-INTEGRATION_TRENDING=dark npm run integration -w apps/api -- --only="trending"  # ... with TRENDING=dark, the step after the launch state: the job makes the list, the route hides it (the test copy of wrangler.jsonc has no TRENDING line, so the other runs see the list)
+npm run integration -w apps/api -- --browser --only="browser: admin,operations"   # some suites only (substrings of their labels, comma separated)
+npm run integration -w apps/api -- --browser --run=trending-on,mcp-on   # named runs (apps/api/scripts/lib/suites.mjs, RUNS): other positions and the suites written for them; --run=all runs every one
+npm run integration -w apps/api -- --run=trending-on --only="trending"  # the Trending list shown (scripts/trending-e2e.mjs: route, headers, kill switch, stale files, a scheduled run, a failing source)
+npm run integration -w apps/api -- --only="trending"          # the same suite against production's TRENDING=off (it checks that kill switch)
+npm run integration -w apps/api -- --run=trending-dark        # ... with TRENDING=dark, the step after the launch state: the job makes the list, the route hides it
+INTEGRATION_PORT=8789 INTEGRATION_IDP_PORT=9912 npm run integration -w apps/api -- --only="auth"   # a second run beside another: its own Worker, sign-in port, state folder and config copy
 npm run test:scripts                                          # the tests of the alert and watchdog scripts (.github/scripts) and the rehearsal helpers
 ```
 

@@ -13,8 +13,8 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
+import { APP } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
 const dir = process.argv[2];
 const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7).split(",");
 // --tag=<name> names the result file, so runs of different models or settings (docs/spikes/R5-cost.md) sit side by side
@@ -34,7 +34,7 @@ if (!dir) throw new Error("usage: node scripts/qa-eval.mjs <folder with pdf + tx
 
 const { questions } = JSON.parse(readFileSync(fileURLToPath(new URL("./r2/questions.json", import.meta.url)), "utf8"));
 const papers = [...new Set(questions.map((q) => q.paper))].filter((p) => !only || only.includes(p));
-const idp = await startFakeIdp(9911);
+const idp = await startFakeIdp();
 
 const rows = [];
 for (const paper of papers) {
