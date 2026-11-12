@@ -3,19 +3,18 @@ import type { ConnectedApp, ConnectedApps } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { deny } from "../problem";
 import { mcpMode } from "./flag";
-import type { McpOAuthEnv } from "./oauth";
 import { SCOPES, baseUrlOf } from "./scopes";
+import type { Env, EnvPick, HonoEnv } from "../platform/env";
 
 /** The OAuth library's helpers, loaded when a request needs them (the library imports the Workers runtime, which a unit test of the account code cannot load). */
-const oauthApi = async (env: McpOAuthEnv, base: string) => (await import("./oauth")).oauthApi(env, base);
+const oauthApi = async (env: Pick<Env, "OAUTH_KV">, base: string) => (await import("./oauth")).oauthApi(env, base);
 
 /**
  * Settings, "Connected apps" (docs "Sodhsetu understanding, follow-ups and MCP (design)", page 12): the AI apps a person allowed to use Sodhsetu for them, and a button that disconnects one (its
  * grant and every token of it are revoked at once, by the OAuth library). While the MCP server is off the list does not exist (404), so the page shows nothing about it.
  */
 
-type Env = { Bindings: McpOAuthEnv };
-export const connectedAppsRoutes = new Hono<Env>();
+export const connectedAppsRoutes = new Hono<HonoEnv>();
 
 connectedAppsRoutes.use("*", async (c, next) => {
   await next();
@@ -61,9 +60,9 @@ connectedAppsRoutes.delete("/:id", async (c) => {
 });
 
 /** Every app an account connected, disconnected: when the account is erased (src/account/erase.ts). Works whatever the switch says; a namespace that cannot be read is reported to the caller. */
-export async function revokeAllApps(env: { OAUTH_KV?: KVNamespace; PUBLIC_BASE_URL?: string }, userId: string): Promise<number> {
+export async function revokeAllApps(env: EnvPick<"PUBLIC_BASE_URL", "OAUTH_KV">, userId: string): Promise<number> {
   if (!env.OAUTH_KV) return 0;
-  const api = await oauthApi(env as McpOAuthEnv, (env.PUBLIC_BASE_URL ?? "https://sodhsetu.in").replace(/\/+$/, ""));
+  const api = await oauthApi(env as Pick<Env, "OAUTH_KV">, (env.PUBLIC_BASE_URL ?? "https://sodhsetu.in").replace(/\/+$/, ""));
   let n = 0;
   for (let round = 0; round < 20; round++) {
     const r = await api.listUserGrants(userId);

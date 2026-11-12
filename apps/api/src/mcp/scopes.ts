@@ -3,6 +3,8 @@
  * the tools and their tests can use them without loading it.
  */
 
+import type { Env } from "../platform/env";
+
 /** What a grant lets an app do. Phase 1 (search, reference and retraction checks) uses the first two; Phase 2 adds the library (get_library reads it, save_paper writes to it). */
 export const SCOPES = {
   "papers:read": "Search scholarly papers and read their details",
@@ -21,7 +23,7 @@ export const DEFAULT_SCOPES: readonly Scope[] = ["papers:read", "references:veri
 export type McpProps = { userId: string; client: string };
 
 /** The public address of this deployment: PUBLIC_BASE_URL when set (production: https://sodhsetu.in), otherwise the address the request came to (a local run). */
-export const baseUrlOf = (env: { PUBLIC_BASE_URL?: string }, request: Request): string => {
+export const baseUrlOf = (env: Pick<Env, "PUBLIC_BASE_URL">, request: Request): string => {
   const base = env.PUBLIC_BASE_URL ?? new URL(request.url).origin;
   // Trailing slashes are cut by a loop, not a regex: /\/+$/ is slow on a long run of '/' (CodeQL js/polynomial-redos).
   let end = base.length;

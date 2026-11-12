@@ -5,6 +5,7 @@ import type { Picked } from "./answer";
 import { shownSentence } from "./evidence";
 import { STRICT_SCHEMA, STRICT_SYSTEM, buildJudgePrompt, readVerdicts, type Claim } from "./support";
 import { stubStrictStream } from "./stub";
+import type { Env } from "../platform/env";
 
 /**
  * One claim checked against one to five papers (the MCP tool check_claim; docs "Sodhsetu understanding, follow-ups and MCP (design)", page 10, tool 5). It is the support judge of the prompt
@@ -61,7 +62,7 @@ export async function judgeClaim(args: { claim: string; papers: readonly ClaimPa
   return { verdict: v.verdict === "yes" ? "supported" : "partly", evidence, reason: null, model: r.model };
 }
 
-type JudgeEnv = LlmEnv & { ENABLE_DEV_ROUTES?: string; QA_STUB?: string };
+type JudgeEnv = LlmEnv & Pick<Env, "QA_STUB">;
 
 /** The strict reading's model for a person (`subject`: the day's allowance is theirs), PRIVATE, as "Check strictly" calls it; the offline stand-in under QA_STUB. */
 export function strictJudgeFor(env: JudgeEnv, subject: string, abort: AbortSignal): StreamComplete {

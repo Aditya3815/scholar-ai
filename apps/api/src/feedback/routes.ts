@@ -4,9 +4,9 @@ import { currentUser, sameOrigin } from "../auth/http";
 import { d1KeyStore, fingerprintOf, readKey, runIdempotent } from "../idempotency";
 import { scrubText } from "../idea/plan";
 import { deny } from "../problem";
+import type { HonoEnv } from "../platform/env";
 
-type Env = { Bindings: { DB: D1Database } };
-export const feedbackRoutes = new Hono<Env>();
+export const feedbackRoutes = new Hono<HonoEnv>();
 
 feedbackRoutes.use("*", async (c, next) => {
   await next();

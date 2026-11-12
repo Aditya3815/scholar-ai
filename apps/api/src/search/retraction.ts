@@ -3,7 +3,8 @@ import { normalizeDoi } from "./normalize";
 import { crossrefFetch, SEARCH_GATE_WAIT_MS } from "../references/crossref-gate";
 import { getMany, type CacheStore } from "../cache/store";
 import { cacheKey } from "./cache";
-type RetractionEnv = { CROSSREF_MAILTO: string; fetch?: typeof fetch };
+import type { Env } from "../platform/env";
+type RetractionEnv = Pick<Env, "CROSSREF_MAILTO"> & { fetch?: typeof fetch };
 
 type NoticeItem = { DOI?: string; "update-to"?: { DOI?: string; type?: string }[] };
 

@@ -1,8 +1,9 @@
 import { withGate, type GateName } from "../gate";
 import type { SourceDeps } from "./sources";
 import { stubFetch } from "./stub";
+import type { Env } from "../platform/env";
 
-type DepsEnv = { ENABLE_DEV_ROUTES?: string; QA_STUB?: string; CROSSREF_MAILTO: string; OPENALEX_API_KEY?: string };
+type DepsEnv = Pick<Env, "ENABLE_DEV_ROUTES" | "QA_STUB" | "CROSSREF_MAILTO" | "OPENALEX_API_KEY">;
 
 /** How long a step waits for its lane to let it start before giving up (the Workflow then tries the step again, later). */
 const LANE_WAIT_MS = 30_000;

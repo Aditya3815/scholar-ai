@@ -6,9 +6,9 @@ import { SESSION_COOKIE } from "../auth/session";
 import { fromSqliteTime } from "../library/validate";
 import { PRIVACY_VERSION } from "@scholar/shared";
 import { eraseAccount } from "./erase";
+import type { HonoEnv } from "../platform/env";
 
-type Env = { Bindings: { DB: D1Database; FILES: R2Bucket } };
-export const accountRoutes = new Hono<Env>();
+export const accountRoutes = new Hono<HonoEnv>();
 
 accountRoutes.use("*", async (c, next) => {
   await next();

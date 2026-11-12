@@ -29,6 +29,7 @@ import { expand, isBatchFile, scanBatch, type BatchFile } from "./scan";
 import { BudgetError, CallBudget, SourceError, makePacer, mapLimit, type Http } from "./sources";
 import { BATCH_TTL_SECONDS, FILE_TTL_SECONDS, POOL_TTL_SECONDS, TRENDING_KEYS } from "./store";
 import { STUB_FAULT_KEY, STUB_SUBFIELDS, makeStubTrending, parseStubFault } from "./stub";
+import type { Env } from "../platform/env";
 
 /**
  * The Trending job (docs/design/chatview-and-trending.md, T3, T4, T8): once a day, inside the 03:17 UTC run, it makes the one file the page reads. It does two things.
@@ -601,7 +602,7 @@ async function daily(ctx: Ctx, pool: Pool): Promise<NonNullable<TrendingResult["
 
 /* ---------------------------------------------------------------- the Worker's side */
 
-export type TrendingJobEnv = SearchBindings & { TRENDING?: string; ENABLE_DEV_ROUTES?: string; QA_STUB?: string };
+export type TrendingJobEnv = SearchBindings & Pick<Env, "TRENDING" | "ENABLE_DEV_ROUTES" | "QA_STUB">;
 
 /**
  * The environment of the verifier's searches: the product's own (keys, the Semantic Scholar lane), with a cache of its own IN MEMORY, one for the whole run. With the visitors' cache a cold search

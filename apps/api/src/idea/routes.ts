@@ -4,7 +4,6 @@ import { currentUser, sameOrigin } from "../auth/http";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "../docs/embed";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
-import type { S2Throttle } from "../s2-throttle";
 import { sseStream } from "../sse";
 import { PlanError, planIdea, scrubText } from "./plan";
 import { compareIdea, sanitizeCompareRequest } from "./compare";
@@ -13,24 +12,9 @@ import { runIdeaSearch, sanitizeRequest } from "./search";
 import { stubCompareStream, stubInsightsStream, stubPlan, stubSearch } from "./stub";
 import { searchEnvFrom } from "../search/env";
 import { deny } from "../problem";
+import type { Env, HonoEnv } from "../platform/env";
 
-type Bindings = {
-  DB: D1Database;
-  CACHE?: KVNamespace;
-  AI?: Ai;
-  S2_THROTTLE: DurableObjectNamespace<S2Throttle>;
-  GEMINI_API_KEY?: string;
-  CROSSREF_MAILTO: string;
-  OPENALEX_API_KEY?: string;
-  NCBI_API_KEY?: string;
-  S2_API_KEY?: string;
-  CORE_API_KEY?: string;
-  ENABLE_DEV_ROUTES?: string;
-  /** "1" (with ENABLE_DEV_ROUTES) swaps the model, embeddings and literature services for stand-ins in local tests. */
-  QA_STUB?: string;
-};
-type Env = { Bindings: Bindings };
-export const ideaRoutes = new Hono<Env>();
+export const ideaRoutes = new Hono<HonoEnv>();
 
 ideaRoutes.use("*", async (c, next) => {
   await next();
@@ -38,9 +22,9 @@ ideaRoutes.use("*", async (c, next) => {
 });
 
 
-const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+const stubbed = (env: Env) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
 
-function completeFor(env: Bindings, subject: string): Complete | null {
+function completeFor(env: Env, subject: string): Complete | null {
   if (stubbed(env)) return stubPlan;
   const gateway = gatewayFromEnv(env);
   return async (req) => {
@@ -50,7 +34,7 @@ function completeFor(env: Bindings, subject: string): Complete | null {
   };
 }
 
-function streamFor(env: Bindings, subject: string, abort: AbortSignal, stub: StreamComplete = stubCompareStream, timeoutMs = 90_000): StreamComplete | null {
+function streamFor(env: Env, subject: string, abort: AbortSignal, stub: StreamComplete = stubCompareStream, timeoutMs = 90_000): StreamComplete | null {
   if (stubbed(env)) return stub;
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
@@ -60,7 +44,7 @@ function streamFor(env: Bindings, subject: string, abort: AbortSignal, stub: Str
   };
 }
 
-const embedderFor = (env: Bindings): Embedder | null => (stubbed(env) ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null);
+const embedderFor = (env: Env): Embedder | null => (stubbed(env) ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null);
 
 /* ---------------------------------------------------------------- plan */
 

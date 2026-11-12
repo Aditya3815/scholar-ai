@@ -20,17 +20,15 @@ import { d1Ledger } from "../llm/d1";
 import { AllProvidersFailedError, NoRouteError, QuotaError } from "../llm";
 import { DEFAULT_CONFIG } from "../llm/config";
 import { sseStream } from "../sse";
-import type { LitscanEnv, LitscanParams } from "./workflow";
 import { planModel } from "./model";
 import { ScanPlanError, planScan, sanitizeApproved } from "./plan";
 import { createShare, publicScan, revokeShare, shareOf } from "./share";
 import { fromSqliteTime } from "../library/validate";
 import { createScan, deleteScan, endScan, failIfStale, getScan, listScans, partsOf, refundScan, runningScan, snapshotOf, takeScan, tickOf } from "./store";
 import { deny } from "../problem";
+import type { HonoEnv } from "../platform/env";
 
-type Bindings = LitscanEnv & { LITSCAN: Workflow<LitscanParams> };
-type Env = { Bindings: Bindings };
-export const litscanRoutes = new Hono<Env>();
+export const litscanRoutes = new Hono<HonoEnv>();
 
 litscanRoutes.use("*", async (c, next) => {
   await next();
@@ -49,14 +47,14 @@ function resolveLanguage(choice: unknown, topic: string): LitscanLanguage {
 }
 
 /** The checks every call that spends the person's allowance starts with: signed in, and the privacy note read (the topic is the person's own text). */
-async function requireUser(c: Context<Env>) {
+async function requireUser(c: Context<HonoEnv>) {
   // reading changes nothing (and a page cannot read the answer of another origin); every call that changes something must come from our own pages
   if (c.req.method !== "GET" && !sameOrigin(c)) return { error: deny(c, 403, "forbidden", "Cross-origin request blocked") };
   const user = await currentUser(c);
   if (!user) return { error: deny(c, 401, "unauthorized", "Sign in to scan the literature") };
   return { user };
 }
-const needsAck = (c: Context<Env>, user: { privacyAck: string | null }) =>
+const needsAck = (c: Context<HonoEnv>, user: { privacyAck: string | null }) =>
   user.privacyAck === PRIVACY_VERSION ? null : deny(c, 403, "privacy_ack_required", "Please read how your topics are handled first", "A short note appears before your first scan.");
 
 /* ---------------------------------------------------------------- plan */

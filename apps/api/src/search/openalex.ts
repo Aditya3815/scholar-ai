@@ -1,5 +1,6 @@
 import { invertedIndexToText, normalizeDoi, sanitizeQuery } from "./normalize";
 import type { Provider, ProviderPaper } from "./types";
+import type { Env } from "../platform/env";
 
 const SELECT =
   "id,doi,title,publication_year,cited_by_count,is_retracted,primary_location,open_access,authorships,abstract_inverted_index,ids";
@@ -75,7 +76,7 @@ export const openalex: Provider = {
  * paragraph describing an idea finds papers that use different words for it. Needs the API key, reads the first 2,000 characters,
  * returns at most 50 papers, one request per second. Used by Idea Check only, not by the regular search.
  */
-export async function openalexSemantic(text: string, limit: number, env: { OPENALEX_API_KEY?: string }, signal: AbortSignal): Promise<ProviderPaper[]> {
+export async function openalexSemantic(text: string, limit: number, env: Pick<Env, "OPENALEX_API_KEY">, signal: AbortSignal): Promise<ProviderPaper[]> {
   if (!env.OPENALEX_API_KEY) throw new Error("OPENALEX_API_KEY not configured");
   const params = new URLSearchParams({ "search.semantic": text.slice(0, 2000), "per-page": String(Math.min(limit, 50)), select: IDEA_SELECT, api_key: env.OPENALEX_API_KEY });
   const res = await fetch(`https://api.openalex.org/works?${params}`, { signal });
@@ -88,7 +89,7 @@ export async function openalexSemantic(text: string, limit: number, env: { OPENA
  * Records by DOI (at most 10, one request): what a paper the browser says was listed earlier in a chat really is (M5, the Understand step's `ask_results`). The browser's copy of a paper is never used as a
  * fact; only what OpenAlex answers for its DOI is. A DOI OpenAlex does not know is simply not in the answer.
  */
-export async function openalexByDois(dois: readonly string[], env: { OPENALEX_API_KEY?: string }, signal: AbortSignal): Promise<ProviderPaper[]> {
+export async function openalexByDois(dois: readonly string[], env: Pick<Env, "OPENALEX_API_KEY">, signal: AbortSignal): Promise<ProviderPaper[]> {
   const list = [...new Set(dois.map((d) => normalizeDoi(d)).filter((d): d is string => !!d && !/[|,]/.test(d)))].slice(0, 10);
   if (list.length === 0) return [];
   const params = new URLSearchParams({ filter: `doi:${list.map((d) => `https://doi.org/${d}`).join("|")}`, "per-page": String(list.length), select: SELECT });

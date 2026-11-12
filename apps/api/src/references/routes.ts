@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { MAX_REFERENCE_CHARS } from "@scholar/shared";
 import { sameOrigin } from "../auth/http";
-import { referenceService, type ReferenceEnv } from "./service";
+import { referenceService } from "./service";
+import type { HonoEnv } from "../platform/env";
 
 
-export const referenceRoutes = new Hono<{ Bindings: ReferenceEnv }>();
+export const referenceRoutes = new Hono<HonoEnv>();
 
 referenceRoutes.post("/verify", async (c) => {
   if (!sameOrigin(c)) return c.json({ type: "forbidden", title: "Cross-origin request blocked" }, 403);

@@ -39,7 +39,7 @@ import {
 } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { answerAboutHighlights } from "./highlights-qa";
-import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
+import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv, type LlmEnv } from "../llm";
 import { fromSqliteTime } from "../library/validate";
 import { cacheStore } from "../cache";
 import { chunkPage } from "./chunk";
@@ -54,27 +54,9 @@ import { workersAiReader, type PageReader } from "../ocr/read";
 import { stubReader } from "../ocr/stub";
 import { askOutcome, countOutcome } from "../outcomes";
 import { deny } from "../problem";
+import type { Env, EnvPick, HonoEnv } from "../platform/env";
 
-type Bindings = {
-  DB: D1Database;
-  CACHE?: KVNamespace;
-  FILES: R2Bucket;
-  AI?: Ai;
-  GEMINI_API_KEY?: string;
-  CROSSREF_MAILTO: string;
-  OPENALEX_API_KEY?: string;
-  ENABLE_DEV_ROUTES?: string;
-  /** "1" (with ENABLE_DEV_ROUTES) swaps the model and embeddings for deterministic stand-ins in local tests. */
-  QA_STUB?: string;
-  /** Pages of a scanned paper one person may have read per day (default OCR_PAGES_PER_DAY). */
-  OCR_PAGES_PER_DAY?: string;
-  /** Cost experiments only, with ENABLE_DEV_ROUTES (docs/spikes/R5-cost.md): passages shown to the model, and the model / thinking effort (read by llm/index.ts). */
-  QA_TOP_K?: string;
-  LLM_QA_MODEL?: string;
-  LLM_REASONING?: string;
-};
-type Env = { Bindings: Bindings };
-export const documentRoutes = new Hono<Env>();
+export const documentRoutes = new Hono<HonoEnv>();
 
 documentRoutes.use("*", async (c, next) => {
   await next();
@@ -111,28 +93,28 @@ export function safeFilename(raw: string | undefined | null): string {
 }
 const titleFrom = (filename: string) => filename.replace(/\.pdf$/i, "").replace(/[_]+/g, " ").trim().slice(0, 200) || "Untitled paper";
 
-async function owned(c: Context<Env>, userId: string, id: string): Promise<Row | null> {
+async function owned(c: Context<HonoEnv>, userId: string, id: string): Promise<Row | null> {
   return c.env.DB.prepare(`SELECT ${COLS} FROM documents WHERE id = ?1 AND user_id = ?2`).bind(id, userId).first<Row>();
 }
 
-const stubbed = (env: Bindings) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
-const readerFor = (env: Bindings): PageReader | null => (stubbed(env) ? stubReader : env.AI ? workersAiReader(env.AI) : null);
+const stubbed = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_STUB">) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+const readerFor = (env: EnvPick<"ENABLE_DEV_ROUTES" | "QA_STUB", "AI">): PageReader | null => (stubbed(env) ? stubReader : env.AI ? workersAiReader(env.AI) : null);
 /** Pages per person per day. A value that is not a whole number from 1 to 2000 is ignored (the default is used), so a typo cannot switch the limit off. */
-export function ocrPerDay(env: Pick<Bindings, "OCR_PAGES_PER_DAY">): number {
+export function ocrPerDay(env: Pick<Env, "OCR_PAGES_PER_DAY">): number {
   const n = Number(env.OCR_PAGES_PER_DAY);
   return Number.isInteger(n) && n >= 1 && n <= 2000 ? n : OCR_PAGES_PER_DAY;
 }
 
 /** Dev-only: passages per question for the cost experiments. Undefined (the default of 6) everywhere else. */
-const devTopK = (env: Bindings): number | undefined => {
+const devTopK = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_TOP_K">): number | undefined => {
   const n = Number(env.QA_TOP_K);
   return env.ENABLE_DEV_ROUTES === "1" && Number.isInteger(n) && n >= 1 && n <= 12 ? n : undefined;
 };
 
-export const embedderFor = (env: Bindings): Embedder | null =>
+export const embedderFor = (env: EnvPick<"ENABLE_DEV_ROUTES" | "QA_STUB", "AI">): Embedder | null =>
   env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null;
 
-function completeFor(env: Bindings, subject: string): Complete | null {
+function completeFor(env: LlmEnv & Pick<Env, "QA_STUB">, subject: string): Complete | null {
   if (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1") return stubComplete;
   const gateway = gatewayFromEnv(env);
   return async (req) => {
@@ -142,7 +124,7 @@ function completeFor(env: Bindings, subject: string): Complete | null {
   };
 }
 
-export function streamFor(env: Bindings, subject: string, abort: AbortSignal): StreamComplete | null {
+export function streamFor(env: LlmEnv & Pick<Env, "QA_STUB">, subject: string, abort: AbortSignal): StreamComplete | null {
   if (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1") return stubStream;
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
@@ -341,7 +323,7 @@ documentRoutes.patch("/:id", async (c) => {
 });
 
 /** Deletes the PDF, its cover, its text and its question history. Irreversible. */
-export async function deleteDocument(env: Pick<Bindings, "DB" | "FILES">, userId: string, id: string): Promise<void> {
+export async function deleteDocument(env: Pick<Env, "DB" | "FILES">, userId: string, id: string): Promise<void> {
   await Promise.all([env.FILES.delete(pdfKey(userId, id)), env.FILES.delete(coverKey(userId, id))]);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM doc_notes WHERE doc_id = ?1").bind(id),

@@ -6,6 +6,7 @@ import { tokenize } from "../references/match";
 import { cacheKey } from "./cache";
 import { crossrefHeaders } from "./crossref";
 import { normalizeTitle, plainText } from "./normalize";
+import type { Env } from "../platform/env";
 
 /**
  * Citation integrity for search results. Indexes do contain DOIs that do not exist (spike/eval findings: bogus `10.63544/*`
@@ -18,7 +19,7 @@ import { normalizeTitle, plainText } from "./normalize";
  */
 export type DoiCheck = { status: "registered" | "resolves" | "unresolvable" | "unchecked"; title?: string };
 
-type Env = { store: CacheStore; CROSSREF_MAILTO: string };
+type DoiCheckEnv = Pick<Env, "CROSSREF_MAILTO"> & { store: CacheStore };
 const MAX_HANDLE_CHECKS = 12;
 /** A DOI that exists keeps existing; one that does not may be registered tomorrow (a new paper), so that answer is kept shorter. "unchecked" (a hiccup) is not kept at all. */
 const TTL_BY_STATUS: Record<DoiCheck["status"], number> = { registered: 7 * 24 * 3600, resolves: 7 * 24 * 3600, unresolvable: 6 * 3600, unchecked: 0 };
@@ -29,7 +30,7 @@ const containment = (a: string, b: string) => {
   return A.size && B.size ? Math.max(inter / A.size, inter / B.size) : 0;
 };
 
-async function crossrefBatch(dois: string[], env: Env, signal: AbortSignal): Promise<Map<string, string>> {
+async function crossrefBatch(dois: string[], env: DoiCheckEnv, signal: AbortSignal): Promise<Map<string, string>> {
   const params = new URLSearchParams({
     filter: dois.map((d) => `doi:${d}`).join(","),
     rows: String(Math.min(dois.length, 100)),
@@ -43,7 +44,7 @@ async function crossrefBatch(dois: string[], env: Env, signal: AbortSignal): Pro
 }
 
 /** Asks Crossref and doi.org about these DOIs (no cache). */
-async function liveChecks(dois: string[], env: Env, signal: AbortSignal): Promise<Record<string, DoiCheck>> {
+async function liveChecks(dois: string[], env: DoiCheckEnv, signal: AbortSignal): Promise<Record<string, DoiCheck>> {
   const result: Record<string, DoiCheck> = {};
   const registered = await crossrefBatch(dois, env, signal);
   const rest: string[] = [];
@@ -69,7 +70,7 @@ async function liveChecks(dois: string[], env: Env, signal: AbortSignal): Promis
  * almost never shared an entry). The kept ones are read in one operation, the rest are asked in one Crossref call plus doi.org for the leftovers, and each answer is kept
  * as long as that kind of answer stays true.
  */
-export async function checkDois(dois: string[], env: Env, signal: AbortSignal): Promise<Record<string, DoiCheck>> {
+export async function checkDois(dois: string[], env: DoiCheckEnv, signal: AbortSignal): Promise<Record<string, DoiCheck>> {
   const usable = [...new Set(dois)].filter((d) => d && !d.includes(",")).sort();
   const out: Record<string, DoiCheck> = {};
   if (usable.length === 0) return out;

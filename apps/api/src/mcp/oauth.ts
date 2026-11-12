@@ -7,6 +7,7 @@ import type { SessionUser } from "../auth/users";
 import { mcpAllowedFor, mcpMode, type McpFlagEnv } from "./flag";
 import { DEFAULT_SCOPES, SCOPES, baseUrlOf, grantedScopes, type McpProps } from "./scopes";
 import { closedBetaPage, consentPage, errorPage, signInPage } from "./pages";
+import type { Env, HonoEnv } from "../platform/env";
 
 /**
  * Sodhsetu as an OAuth 2.1 authorization server for MCP clients (docs "Sodhsetu understanding, follow-ups and MCP (design)", page 12), on @cloudflare/workers-oauth-provider. The library serves
@@ -19,10 +20,10 @@ import { closedBetaPage, consentPage, errorPage, signInPage } from "./pages";
  * authorization waiting for Allow or Cancel), ten minutes each.
  */
 
-export type McpOAuthEnv = AuthEnv & McpFlagEnv & { DB: D1Database; OAUTH_KV: KVNamespace };
+export type McpOAuthEnv = AuthEnv & McpFlagEnv & Pick<Env, "DB" | "OAUTH_KV">;
 
 /** The provider's options for one address of the Worker. `apiHandler` is the MCP server (src/mcp/server.ts), passed in so that this file does not import it. */
-export function oauthOptions(base: string, apiHandler: OAuthProviderOptions<McpOAuthEnv>["apiHandler"], defaultHandler: OAuthProviderOptions<McpOAuthEnv>["defaultHandler"]): OAuthProviderOptions<McpOAuthEnv> {
+export function oauthOptions<E>(base: string, apiHandler: OAuthProviderOptions<E>["apiHandler"], defaultHandler: OAuthProviderOptions<E>["defaultHandler"]): OAuthProviderOptions<E> {
   return {
     apiRoute: `${base}/mcp`,
     apiHandler,
@@ -41,16 +42,16 @@ export function oauthOptions(base: string, apiHandler: OAuthProviderOptions<McpO
   };
 }
 
-const providers = new Map<string, OAuthProvider<McpOAuthEnv>>();
+const providers = new Map<string, OAuthProvider<Env>>();
 /** One provider per address, made on first use (an isolate serves one address in production; a local run has its own). */
-export function providerFor(base: string, apiHandler: OAuthProviderOptions<McpOAuthEnv>["apiHandler"], defaultHandler: OAuthProviderOptions<McpOAuthEnv>["defaultHandler"]): OAuthProvider<McpOAuthEnv> {
+export function providerFor(base: string, apiHandler: OAuthProviderOptions<Env>["apiHandler"], defaultHandler: OAuthProviderOptions<Env>["defaultHandler"]): OAuthProvider<Env> {
   let p = providers.get(base);
-  if (!p) providers.set(base, (p = new OAuthProvider<McpOAuthEnv>(oauthOptions(base, apiHandler, defaultHandler))));
+  if (!p) providers.set(base, (p = new OAuthProvider<Env>(oauthOptions(base, apiHandler, defaultHandler))));
   return p;
 }
 
 /** The library's helpers (parse and complete an authorization, list and revoke grants), for code outside its own fetch. The handlers are not used by these helpers. */
-export const oauthApi = (env: McpOAuthEnv, base: string): OAuthHelpers => getOAuthApi(oauthOptions(base, { fetch: () => new Response(null, { status: 404 }) }, { fetch: () => new Response(null, { status: 404 }) }), env);
+export const oauthApi = (env: Pick<Env, "OAUTH_KV">, base: string): OAuthHelpers => getOAuthApi(oauthOptions<Pick<Env, "OAUTH_KV">>(base, { fetch: () => new Response(null, { status: 404 }) }, { fetch: () => new Response(null, { status: 404 }) }), env);
 
 // ---- the authorization page ----
 
@@ -61,8 +62,7 @@ const CONSENT_PREFIX = "mcp-consent:";
 const PENDING_TTL_S = 600;
 
 type Pending = { userId: string; request: AuthRequest; client: string };
-type Env = { Bindings: McpOAuthEnv };
-export const oauthPages = new Hono<Env>();
+export const oauthPages = new Hono<HonoEnv>();
 
 oauthPages.use("*", async (c, next) => {
   await next();
@@ -75,10 +75,10 @@ oauthPages.use("*", async (c, next) => {
   c.header("X-Content-Type-Options", "nosniff");
 });
 
-const html = (c: Context<Env>, body: string, status = 200) => c.html(body, status as 200);
+const html = (c: Context<HonoEnv>, body: string, status = 200) => c.html(body, status as 200);
 
 /** The request the app sent, or the one kept while the person signed in. */
-async function originalRequest(c: Context<Env>): Promise<Request | null> {
+async function originalRequest(c: Context<HonoEnv>): Promise<Request | null> {
   const url = new URL(c.req.url);
   const resume = url.searchParams.get("resume");
   if (!resume) return c.req.raw;

@@ -1,12 +1,13 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
 import { workersAiEmbedder, hashEmbedder, type Embedder } from "../docs/embed";
-import { remoteGate, type ApiGate } from "../gate/api-gate";
+import { remoteGate } from "../gate/api-gate";
 import { installGates } from "../gate";
 import { EMBED_BATCH, IngestError, recordFailure, stepEmbed, stepFetch, stepFinish, stepRead, type IngestDeps } from "./ingest";
 import { keepOld } from "./store";
 import { OA_REFRESH_DAYS } from "@scholar/shared";
 import { sourceDepsFor } from "./deps";
+import type { Env, EnvPick } from "../platform/env";
 
 /**
  * The reading of one open-access paper as a Cloudflare Workflow (spike R9): named steps, each retried by the engine on its own and checkpointed, so a failure in the middle
@@ -14,20 +15,10 @@ import { sourceDepsFor } from "./deps";
  * `oa-<hash of the paper>-<attempt>`, so a second person asking for the same paper while it is being read finds the instance that exists and joins it.
  * The row in D1 (oa_papers) is what the screen reads; the Workflow's own state is not looked at.
  */
-export type OaEnv = {
-  DB: D1Database;
-  FILES: R2Bucket;
-  AI?: Ai;
-  API_GATE?: DurableObjectNamespace<ApiGate>;
-  ENABLE_DEV_ROUTES?: string;
-  QA_STUB?: string;
-  CROSSREF_MAILTO: string;
-  OPENALEX_API_KEY?: string;
-};
 /** `refresh`: the paper is ready already and is being fetched again because it was read long ago (it keeps answering meanwhile; a failure to fetch leaves it as it is). */
 export type OaParams = { key: string; attempt: number; refresh?: boolean };
 
-const embedderFor = (env: OaEnv): Embedder => (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? hashEmbedder : workersAiEmbedder(env.AI!));
+const embedderFor = (env: EnvPick<"ENABLE_DEV_ROUTES" | "QA_STUB", "AI">): Embedder => (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? hashEmbedder : workersAiEmbedder(env.AI!));
 
 /** The error as the engine should see it: a reason that waiting cannot cure stops the retries at once. */
 async function guard<T>(run: () => Promise<T>): Promise<T> {
@@ -39,7 +30,7 @@ async function guard<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
-export class OaIngest extends WorkflowEntrypoint<OaEnv, OaParams> {
+export class OaIngest extends WorkflowEntrypoint<Env, OaParams> {
   async run(event: WorkflowEvent<OaParams>, step: WorkflowStep): Promise<{ key: string; chunks: number }> {
     const env = this.env;
     installGates(env.API_GATE ? remoteGate(env.API_GATE) : null);
