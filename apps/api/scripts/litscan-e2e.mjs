@@ -1,24 +1,13 @@
 // Literature scan (docs/design/litscan.md): the real Worker with a local D1 and a local Workflow, the fake identity provider, and the offline stand-ins for the model and the search
 // (QA_STUB=1: src/litscan/stub.ts). `npm run integration -w apps/api` starts everything. The words of a sub-question steer the stand-ins: "nothing" finds no papers, "unanswerable"
 // makes the model say the papers do not answer, "hallucinate" makes it cite a sentence that does not exist, "boom" makes the model service fail, "snail" makes the answer take 5 s.
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
 import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
+import { APP, ok, countFailure, finish, startIdp, createClient, loginWith, sqlResults, readEvents, sleep } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
-const login = async (sub, email, name, { ack = true } = {}) => {
-  idp.setUser({ sub, email, email_verified: true, name });
-  const c = createClient(APP);
-  await c.follow(`${APP}/api/v1/auth/google/start`);
-  if (ack) await c.ack();
-  return c;
-};
-const sql = async (...statements) => (await (await fetch(`${APP}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: statements }) })).json()).results ?? [];
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const idp = await startIdp();
+const login = loginWith(idp);
+const sql = async (...statements) => (await sqlResults(statements)) ?? [];
 
 const item = (question, searchQuery = question.toLowerCase().replace(/[^a-z ]/g, "")) => ({ question, searchQuery });
 const plan = (c, body, origin = APP) => c.api("/api/v1/litscan/plan", { method: "POST", body, origin });
@@ -29,22 +18,7 @@ const get = async (c, id) => (await c.api(`/api/v1/litscan/${id}`)).json();
 async function events(c, id, { after = 0, stopAfter = Infinity, label = "" } = {}) {
   const res = await c.send(`${APP}/api/v1/litscan/${id}/events?after=${after}`, { headers: { Accept: "text/event-stream" } });
   if (!res.ok) return { res, events: [] };
-  const out = [];
-  const dec = new TextDecoder();
-  let buf = "";
-  const ctl = res.body.getReader();
-  outer: for (;;) {
-    const { done, value } = await ctl.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let i;
-    while ((i = buf.indexOf("\n\n")) >= 0) {
-      const data = buf.slice(0, i).split("\n").find((l) => l.startsWith("data:"));
-      buf = buf.slice(i + 2);
-      if (data) out.push(JSON.parse(data.slice(5)));
-      if (out.length >= stopAfter) { await ctl.cancel(); break outer; }
-    }
-  }
+  const { events: out } = await readEvents(res, { stopWhen: (_, all) => all.length >= stopAfter });
   if (out.length < stopAfter) checkStream("litscan", out, label || id.slice(0, 8));
   return { res, events: out };
 }
@@ -268,10 +242,9 @@ try {
   reportStreams(ok);
 } catch (e) {
   console.error(e);
-  failures++;
+  countFailure();
 } finally {
   idp.close?.();
 }
 
-console.log(failures === 0 ? "\nall literature scan checks passed" : `\n${failures} check(s) FAILED`);
-process.exit(failures === 0 ? 0 : 1);
+finish("all literature scan checks passed", (n) => `${n} check(s) FAILED`);

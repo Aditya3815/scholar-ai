@@ -1,24 +1,14 @@
 // Scanned papers integration test: real Worker + local D1 + local R2 + fake IdP, with the offline stand-in for the two reading models (QA_STUB=1,
 // see src/ocr/stub.ts) and the daily limit set low (OCR_PAGES_PER_DAY, see integration.mjs). `npm run integration -w apps/api` starts everything.
 import sharp from "sharp";
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
 import { makePageJpeg, makeScanPdf } from "./lib/make-scan-pdf.mjs";
+import { APP, ok, countFailure, finish, startIdp, createClient, loginWith, sqlResults } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
 const PER_DAY = Number(process.env.OCR_PER_DAY ?? 25);
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
-const login = async (sub, email, name) => {
-  idp.setUser({ sub, email, email_verified: true, name });
-  const c = createClient(APP);
-  await c.follow(`${APP}/api/v1/auth/google/start`);
-  await c.ack();
-  return c;
-};
-const sql = async (...statements) => (await (await fetch(`${APP}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: statements }) })).json()).results;
+const idp = await startIdp();
+const login = loginWith(idp);
+const sql = (...statements) => sqlResults(statements);
 
 const page1 = await makePageJpeg({ lines: ["Scanned report, page one"] });
 const upload = async (c, pages = 7) => {
@@ -256,8 +246,7 @@ try {
   ok(del.status === 200 && erased[0] === 0 && erased[1] === 0, `erasing the account removes the usage rows and the page lists (${del.status})`);
 } catch (e) {
   console.error(e);
-  failures++;
+  countFailure();
 }
 idp.close?.();
-console.log(failures === 0 ? "\nscanned papers: all passed" : `\nscanned papers: ${failures} FAILED`);
-process.exit(failures === 0 ? 0 : 1);
+finish("scanned papers: all passed", (n) => `scanned papers: ${n} FAILED`);
