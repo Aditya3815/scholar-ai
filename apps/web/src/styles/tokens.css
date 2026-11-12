@@ -22,6 +22,11 @@
   --danger-fg: #ffffff;
   --danger-soft: #fbeceb;
   --ok-soft: #e6f4ec;
+  /* what the four highlight colours mean in the new Paper Reader (lib/meanings.ts): the dots and chips of our own UI, never the marks on the page (those are --hl-*); >= 3:1 on --surface and --surface-2 */
+  --mean-key: #a37800;
+  --mean-method: #2e8746;
+  --mean-question: #3b74cf;
+  --mean-result: #cc3f80;
 
   --shadow-1: 0 1px 2px rgb(22 24 29 / 0.06), 0 1px 1px rgb(22 24 29 / 0.04);
   --shadow-2: 0 8px 24px -8px rgb(22 24 29 / 0.18), 0 2px 6px rgb(22 24 29 / 0.06);
@@ -75,6 +80,10 @@
   --danger-fg: #3a0b08;
   --danger-soft: #3a1f1d;
   --ok-soft: #14301f;
+  --mean-key: #f2cf3e;
+  --mean-method: #7fcf93;
+  --mean-question: #7ab0ee;
+  --mean-result: #f08fb4;
   --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow-2: 0 10px 28px -8px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
   --orb-1: rgb(147 166 255 / 0.12);
@@ -99,6 +108,10 @@
   --danger-fg: #ffffff;
   --danger-soft: #f3dcd0;
   --ok-soft: #e3ead0;
+  --mean-key: #956d00;
+  --mean-method: #2d7b40;
+  --mean-question: #3669bb;
+  --mean-result: #b83a72;
   --shadow-1: 0 1px 2px rgb(59 50 38 / 0.08);
   --shadow-2: 0 8px 22px -8px rgb(59 50 38 / 0.22), 0 2px 6px rgb(59 50 38 / 0.08);
   --orb-1: rgb(122 75 22 / 0.10);
@@ -126,6 +139,10 @@
     --danger-fg: #3a0b08;
     --danger-soft: #3a1f1d;
     --ok-soft: #14301f;
+    --mean-key: #f2cf3e;
+    --mean-method: #7fcf93;
+    --mean-question: #7ab0ee;
+    --mean-result: #f08fb4;
     --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
     --shadow-2: 0 10px 28px -8px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
     --orb-1: rgb(147 166 255 / 0.12);

@@ -7,13 +7,16 @@ import { fileURLToPath } from "node:url";
 
 const TOKENS = fileURLToPath(new URL("../src/styles/tokens.css", import.meta.url));
 
-/** [foreground, background, minimum ratio]: 4.5 is WCAG AA for body text; a border is decorative (1.0 only says it is drawn at all). */
+/** [foreground, background, minimum ratio]: 4.5 is WCAG AA for body text; 3 is WCAG 1.4.11 for a part of the UI that is not text; a border is decorative (1.0 only says it is drawn at all). */
 const PAIRS = [
   ["text", "bg", 4.5], ["text", "surface", 4.5], ["text", "surface-2", 4.5],
   ["muted", "bg", 4.5], ["muted", "surface", 4.5], ["muted", "surface-2", 4.5],
   ["accent", "bg", 4.5], ["accent", "surface", 4.5], ["accent", "accent-soft", 4.5], ["accent-fg", "accent", 4.5],
   ["ok", "surface", 4.5], ["warn", "surface", 4.5], ["warn", "surface-2", 4.5], ["danger", "surface", 4.5],
   ["danger", "bg", 4.5], ["ok", "surface-2", 4.5], ["danger", "surface-2", 4.5], ["danger-fg", "danger", 4.5], ["border", "bg", 1.0],
+  // the meaning dots of the new Paper Reader (docs/design/paper-reader.md, 5): not text, so WCAG 1.4.11's 3:1, on both surfaces the dots and chips sit on
+  ["mean-key", "surface", 3], ["mean-key", "surface-2", 3], ["mean-method", "surface", 3], ["mean-method", "surface-2", 3],
+  ["mean-question", "surface", 3], ["mean-question", "surface-2", 3], ["mean-result", "surface", 3], ["mean-result", "surface-2", 3],
 ];
 
 /**
@@ -64,7 +67,7 @@ for (const [name, t] of Object.entries(themes)) {
     const allowed = !ok && ALLOWED.includes(id);
     if (allowed) allowedSeen.add(id);
     else if (!ok) problems.push(`${id} is ${r.toFixed(2)}, under ${min}`);
-    console.log(`  ${ok ? "ok " : allowed ? "LOW (allowed)" : "LOW"} ${fg.padEnd(11)} on ${bg.padEnd(11)} ${r.toFixed(2)}${min > 1 ? "" : " (decorative)"}`);
+    console.log(`  ${ok ? "ok " : allowed ? "LOW (allowed)" : "LOW"} ${fg.padEnd(11)} on ${bg.padEnd(11)} ${r.toFixed(2)}${min > 3 ? "" : min > 1 ? " (non-text, 3:1)" : " (decorative)"}`);
   }
 }
 for (const id of ALLOWED) if (!allowedSeen.has(id)) problems.push(`"${id}" is in ALLOWED but does not fail: take it out of the list`);
