@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - run: npm run build
-      - run: npm run integration -w apps/api -- --browser
+      - run: npm run integration -w apps/api -- --browser --run=default,trending-on,mcp-on
       - name: Keep screenshots
         if: always()
         uses: actions/upload-artifact@v7

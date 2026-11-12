@@ -3,9 +3,10 @@ name: Switch matrix
 # Nightly on main (decision 12 of docs/design/untangle.md): the integration suites with the switches in positions the per-push run never sets (docs/design/untangle.md, section 2,
 # "switch matrix"; [ti] T2), so a check written for a switch's other position runs before that position reaches production:
 #   chat switches on   every gate flag of the chat on at once (INTEGRATION_VARS), the API suites and the browser suites
-#   trending dark      TRENDING=dark: the Trending suites only (as scripts/integration.mjs says to run them)
-#   mcp off            MCP=off: the MCP suites only (every MCP path answers 404)
-# A failure opens the usual issue (alert.yml). The runner reads these variables today; F24 of the plan turns them into named runs of a table, and this list follows it.
+#   chat one by one    each chat switch on by itself, the named runs of scripts/lib/suites.mjs (the API suites that read it)
+#   trending dark      the named run trending-dark: TRENDING=dark, the Trending suites only
+#   mcp off            the named run mcp-off: MCP=off, the MCP suites only (every MCP path answers 404)
+# A failure opens the usual issue (alert.yml). The runs are rows of the table in apps/api/scripts/lib/suites.mjs.
 on:
   schedule:
     - cron: "37 21 * * *" # 21:37 UTC, 03:07 in India, away from the hour and from the weekly jobs
@@ -30,12 +31,15 @@ jobs:
           - name: chat switches on
             env: INTEGRATION_VARS=CHAT_UNDERSTAND:on,CHAT_FLOOR:on,CHAT_SAFETY:core,CHAT_CLEAN:on,CHAT_COUNTERS:on,CHAT_THINK:on,CHAT_TOOLS:on
             args: "--browser"
+          - name: chat one by one
+            env: ""
+            args: "--run=chat-counters-failpolicy,chat-safety,chat-floor,chat-understand,chat-think,chat-tools-off"
           - name: trending dark
-            env: INTEGRATION_TRENDING=dark
-            args: "--browser --only=trending"
+            env: ""
+            args: "--browser --run=trending-dark"
           - name: mcp off
-            env: INTEGRATION_MCP=off
-            args: "--browser --only=MCP"
+            env: ""
+            args: "--browser --run=mcp-off"
     env:
       E2E_BROWSER: chrome # preinstalled on GitHub's Ubuntu runners; playwright-core does not download browsers
       OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
@@ -46,7 +50,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - run: npm run build
-      # `env NAME=value`: only the run's own variable is set (an empty INTEGRATION_MCP would not mean "on" to the runner)
+      # `env NAME=value`: only the run's own variable is set; a named run needs none (`env` with no assignment just runs the command)
       - run: env ${{ matrix.env }} npm run integration -w apps/api -- ${{ matrix.args }}
       - name: Keep screenshots
         if: always()
