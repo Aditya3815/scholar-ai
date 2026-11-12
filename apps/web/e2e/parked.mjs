@@ -1,17 +1,13 @@
 // Browser e2e for the two features that are built but set aside (decision of 25 Oct): naming the highlight colours, and two papers side by side.
 // They are off for everyone; this test switches them on in its own browser (localStorage "scholar.parked") to keep them working until they are brought back.
 //   node e2e/parked.mjs [baseUrl]
-import { chromium } from "playwright-core";
 import { readFileSync } from "node:fs";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
+import { BASE, countFailure, finish, launch, ok, startIdp } from "./lib/browser.mjs";
 
-const BASE = process.argv[2] ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "ws-parked-1", email: "dev.p@example.edu", email_verified: true, name: "Dev P" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
 try {
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 }, acceptDownloads: true });
@@ -83,10 +79,9 @@ try {
   ok(errors.length === 0, `no console or page errors${errors.length ? ": " + errors.slice(0, 3).join(" | ") : ""}`);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   idp.close();
-  console.log(failures ? `\n${failures} FAILED` : "\nall parked-feature checks passed");
-  process.exit(failures ? 1 : 0);
+  finish("all parked-feature checks passed");
 }

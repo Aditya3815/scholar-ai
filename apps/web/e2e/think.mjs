@@ -7,62 +7,21 @@
 // The streams are the page's own fetch answered by this script (a stand-in that feeds events one by one, so a reply can be looked at while it works); the server's side of the events is pinned by the unit tests
 // (since-year.test.ts, think.test.ts). Needs the Worker with the fake identity provider: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/think.mjs [baseUrl]    (default http://localhost:8788)
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, CHAT_STAND_IN, REFUSED_OR_BUSY, UNSTICK_ALL, at, axeCheck, desk, finish, launch, ok, phone, setTheme, sleep, startIdp, watchPage } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "think-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
-const watch = (p) => {
-  p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409|429|503)/.test(m.text())) errors.push("console: " + m.text()); });
-};
+const watch = (p) => watchPage(p, errors, { allowed: REFUSED_OR_BUSY });
 const VP = {
-  1280: { viewport: { width: 1280, height: 800 } },
-  390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
-  320: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  1280: desk(1280, 800),
+  390: phone(390, 844),
+  320: phone(320, 640),
 };
-const setTheme = (p, t) => p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), t);
-async function axe(label, p) {
-  const unstick = await p.addStyleTag({ content: ".hm-box { position: static !important; } .chat-list > li { content-visibility: visible !important; } * { transition: none !important; animation: none !important; }" });
-  await sleep(300);
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  await unstick.evaluate((el) => el.remove());
-  ok(res.length === 0, `axe [${label}]`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
+const axe = (label, p) => axeCheck(p, label, { css: `${UNSTICK_ALL} * { transition: none !important; animation: none !important; }`, settle: () => sleep(300) });
 
-/** Runs in every page before its own scripts: once a part arms it (`window.__think = {}`), the next POST to /api/v1/chat is answered by a stream this script feeds event by event. */
-const STREAM_STANDIN = () => {
-  const real = window.fetch.bind(window);
-  window.fetch = (input, init) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    if (window.__think && !window.__think.emit && new URL(url, location.href).pathname === "/api/v1/chat" && (init?.method ?? "GET") === "POST") {
-      const enc = new TextEncoder();
-      let ctrl;
-      const body = new ReadableStream({ start(c) { ctrl = c; } });
-      window.__think.sent = init?.body ? JSON.parse(init.body) : null;
-      window.__think.emit = (e) => ctrl.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
-      window.__think.end = () => { try { ctrl.close(); } catch { /* closed */ } };
-      return Promise.resolve(new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } }));
-    }
-    return real(input, init);
-  };
-};
 
 const PAPERS = [1, 2, 3, 4, 5].map((n) => ({ id: `doi:10.1000/th.${n}`, doi: `10.1000/th.${n}`, pmid: null, title: `Low-rank adaptation for medical question answering, part ${n}`, authors: [`Wei Li${n}`, "A. Rao"], year: 2020 + n, venue: "Journal of Tests", abstract: "We adapted a large model with low-rank updates. It answered medical questions about images. Accuracy rose by five points.", citationCount: n, oaUrl: null, retracted: n === 3, retractionSources: n === 3 ? ["openalex"] : [], sources: ["openalex"], score: 1 - n / 10, doiStatus: "verified" }));
 const T = (id, kind, text, counts, actions) => ({ type: "think", id, kind, text, ...(counts ? { counts } : {}), ...(actions ? { actions } : {}) });
@@ -107,7 +66,7 @@ const GREETING = [
 let state;
 const signedIn = async (vp) => {
   const ctx = await browser.newContext({ ...VP[vp], ...(state ? { storageState: state } : {}), colorScheme: "light", reducedMotion: "reduce" });
-  await ctx.addInitScript(STREAM_STANDIN);
+  await ctx.addInitScript(CHAT_STAND_IN, { key: "__think", sent: "last" });
   const page = await ctx.newPage();
   watch(page);
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -206,7 +165,7 @@ try {
     const second = await ask(page, "only after 2022", PLAIN);
     const body = await second.sent();
     // M4: the ledger goes only while the Understand step reads it (CHAT_UNDERSTAND shadow or on for this run); otherwise the body is what it was
-    if (/(^|,)CHAT_UNDERSTAND:(shadow|on)(,|$)/.test(process.env.INTEGRATION_VARS ?? "")) ok(Object.keys(body).join() === "mode,message,history,ledger" && body.ledger.length === 1 && body.ledger[0].papers.length === 5, `with the Understand step reading it, the ledger goes with the next message (${Object.keys(body).join()})`);
+    if (at("CHAT_UNDERSTAND", "shadow", "on")) ok(Object.keys(body).join() === "mode,message,history,ledger" && body.ledger.length === 1 && body.ledger[0].papers.length === 5, `with the Understand step reading it, the ledger goes with the next message (${Object.keys(body).join()})`);
     else ok(!("ledger" in body) && Object.keys(body).join() === "mode,message,history", `the next message is sent as before: no ledger leaves the browser (${Object.keys(body).join()})`);
     await ctx.close();
   }
@@ -271,5 +230,4 @@ try {
   idp.close?.();
 }
 ok(errors.length === 0, `no page error or console error in the whole run (${errors.length}${errors.length ? ": " + errors.slice(0, 3).join(" | ").slice(0, 300) : ""})`);
-console.log(failures === 0 ? "\nall Thinking block checks passed" : `\n${failures} check(s) failed`);
-process.exit(failures === 0 ? 0 : 1);
+finish("all Thinking block checks passed", (n) => `${n} check(s) failed`);

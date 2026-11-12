@@ -3,21 +3,17 @@
 // turned (/Rotate 90) or cropped (CropBox with an offset) the marks land where they were on screen. The last one is checked by reading pixels:
 // the copy is uploaded as a paper, shown by pdf.js, and the colour is read from the canvas where each stroke should be.
 //   node e2e/annotated.mjs [baseUrl]    (default http://localhost:8788; `npm run integration -w apps/api -- --browser` starts the Worker)
-import { chromium } from "playwright-core";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 import { PDFDocument, degrees } from "@cantoo/pdf-lib";
+import { BASE, countFailure, finish, launch, ok, startIdp } from "./lib/browser.mjs";
 
-const BASE = process.argv[2] ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 const sha = (b) => createHash("sha256").update(b).digest("hex");
 
-const idp = await startFakeIdp(Number(process.env.INTEGRATION_IDP_PORT ?? 9911));
+const idp = await startIdp();
 idp.setUser({ sub: "ws-annot-1", email: "ravi.k@example.edu", email_verified: true, name: "Ravi K" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
 const failedCalls = [];
 
@@ -175,10 +171,9 @@ try {
   for (const d of (await (await page.request.get(BASE + "/api/v1/documents")).json()).items) await page.request.delete(`${BASE}/api/v1/documents/${d.id}`, H);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   idp.close();
-  console.log(failures ? `\n${failures} FAILED` : "\nall annotated PDF checks passed");
-  process.exit(failures ? 1 : 0);
+  finish("all annotated PDF checks passed");
 }

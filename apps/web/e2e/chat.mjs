@@ -2,34 +2,27 @@
 // notices in plain words, chats kept in the browser (reload, recent list, another tab, storage that refuses), signing out clears them.
 // Needs the Worker with the fake identity provider and the offline stand-ins: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/chat.mjs [baseUrl]
-import { chromium } from "playwright-core";
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, REFUSED_OR_BUSY, UNSTICK_ALL, at, axeCheck, countFailure, desk, finish, launch, noSideways, ok, setTheme, startIdp, untilInPage as until, watchPage } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const OUT = fileURLToPath(new URL("./shots/chat-", import.meta.url));
 mkdirSync(fileURLToPath(new URL("./shots/", import.meta.url)), { recursive: true });
-let failures = 0;
 /** Thrown to leave the run early (CHAT_ONLY=actions runs only the message actions). */
 class Stop extends Error {}
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
 // M5: this suite holds the page over the RULES' path (the router's follow-up context, "too long for a search", the body of a follow-up): with CHAT_UNDERSTAND "on" the Understand step decides instead, and the
 // page over the step is held by e2e/understand.mjs (and the Worker by src/chat/understand-route.test.ts). A run with it on says so and checks nothing here; with it off or in shadow everything runs.
-if (/(^|,)CHAT_UNDERSTAND:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "")) {
+if (at("CHAT_UNDERSTAND", "on")) {
   console.log("  ok   skipped: CHAT_UNDERSTAND is on, so the Understand step decides and the rules' path this suite holds is not taken (e2e/understand.mjs holds the step)");
   process.exit(0);
 }
 // M2: with CHAT_THINK on, the line "I understood ..." with its Change, and "I searched for ..." with "Use my exact words", are lines of the Thinking block, which is folded once the reply is done. Before
 // such a control is used it is opened (`openThink`); with the switch off there is no block and nothing is done, so the run is what it was.
-const THINK = /(^|,)CHAT_THINK:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "");
+const THINK = at("CHAT_THINK", "on");
 // CHAT_TOOLS on (wrangler.jsonc since 10 Nov): a pasted list is checked in the reply instead of offered; e2e/chat-tools.mjs holds what that reply shows.
-const TOOLS = /(^|,)CHAT_TOOLS:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "");
+const TOOLS = at("CHAT_TOOLS", "on");
 /** Opens every folded Thinking block in `scope` (a page or a turn). Nothing with CHAT_THINK off. */
 const openThink = async (scope) => {
   if (!THINK) return;
@@ -45,14 +38,11 @@ const searchedFor = async (scope, nth = 0) => (THINK ? (await thinkLine(scope, "
 /** A search chosen by hand says so in the block, in the language of the message, and is never "understood" (src/chat/think.ts, chosenSearch). */
 const CHOSEN_LINE = /^(?:Searching papers, as you chose|Aapke chune hisaab se papers dhundh raha hoon|आपके चुनने के हिसाब से शोध-पत्र खोज रहा हूँ)/;
 const saysChosen = async (scope) => CHOSEN_LINE.test((await thinkLine(scope, "note")).trim()) && (await thinkLine(scope, "understood")) === "";
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "chat-ui-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
-const watch = (p) => {
-  p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409|429|503)/.test(m.text())) errors.push("console: " + m.text()); });
-};
+const watch = (p) => watchPage(p, errors, { allowed: REFUSED_OR_BUSY });
 const newCtx = (opts = {}) => browser.newContext({ viewport: { width: 1360, height: 900 }, ...opts });
 
 /**
@@ -74,39 +64,13 @@ const stillPage = () => new Promise((resolve) => {
   };
   requestAnimationFrame(tick);
 });
-async function axe(label, p) {
-  // The box that sticks to the bottom of the window covers whatever is scrolled under it, and axe reports a link or a button that is partly under it (target-size, "partially obscured"): which one
-  // depends on where the page happens to be scrolled, and a row more under a message was enough to move it. For the run the box is in the flow of the page instead, so that nothing is under it and
-  // what axe reads is the page and not its scroll position (that a focused button is never left behind the box is checked separately, below).
-  // (And every reply is drawn: a reply far from the window is skipped by the browser (content-visibility), and axe cannot find what lies behind an element that has no box, so it takes the page to be white: in the
-  // dark and the reading themes every button of a skipped reply was reported as light text on white. A skipped reply is drawn when the reader scrolls to it, and then it is as the other replies are.)
-  const unstick = await p.addStyleTag({ content: ".hm-box { position: static !important; } .chat-list > li { content-visibility: visible !important; }" });
-  await p.evaluate(stillPage);
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    const list = (items, impact) => items.map((v) => ({ id: v.id, impact: impact ?? v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-    // axe answers "incomplete" (not a violation) when it cannot size a small target (the size of a button with a hidden or overflowing part): that is read as a failure too
-    return [...list(r.violations), ...list(r.incomplete.filter((i) => i.id === "target-size"), "incomplete")];
-  });
-  await unstick.evaluate((el) => el.remove());
-  ok(res.length === 0, `axe [${label}]`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
-/**
- * Waits until `fn`, run in the page, gives something true. For what has to be asked of the page asynchronously (the browser's storage): `waitForFunction` takes the Promise that an async function
- * returns for a true value and is done at once, so it cannot be used for that (the first version of `settled` below did not wait for anything).
- */
-async function until(p, fn, arg, timeout = 15000) {
-  const t = Date.now();
-  while (!(await p.evaluate(fn, arg))) {
-    if (Date.now() - t > timeout) throw new Error(`timed out waiting for ${fn.toString().slice(0, 90).replace(/[^ -~]+| {2,}/g, " ")}`);
-    await new Promise((r) => setTimeout(r, 100));
-  }
-}
-const noSideways = (p) => p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
-const setTheme = (p, t) => p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), t);
-
+// The box that sticks to the bottom of the window covers whatever is scrolled under it, and axe reports a link or a button that is partly under it (target-size, "partially obscured"): which one
+// depends on where the page happens to be scrolled, and a row more under a message was enough to move it. For the run the box is in the flow of the page instead, so that nothing is under it and
+// what axe reads is the page and not its scroll position (that a focused button is never left behind the box is checked separately, below).
+// (And every reply is drawn: a reply far from the window is skipped by the browser (content-visibility), and axe cannot find what lies behind an element that has no box, so it takes the page to be white: in the
+// dark and the reading themes every button of a skipped reply was reported as light text on white. A skipped reply is drawn when the reader scrolls to it, and then it is as the other replies are.)
+// axe answers "incomplete" (not a violation) when it cannot size a small target (the size of a button with a hidden or overflowing part): that is read as a failure too
+const axe = (label, p) => axeCheck(p, label, { css: UNSTICK_ALL, settle: (q) => q.evaluate(stillPage), incompleteTargetSize: true });
 try {
   const ctx = await newCtx();
   const page = await ctx.newPage();
@@ -979,7 +943,7 @@ try {
     const NONE = "No paper matches “convoluton nueral netwrk” closely. These are the nearest records and may be off topic. Check the spelling, or try fewer or different words.";
     const FEW = "Only 2 of these papers match your words closely. The others are weaker matches and are listed after them.";
     const BG = "In general terms this is a well studied question, and the usual answer depends on the setting, the people involved and how the outcome is measured.";
-    const cx = await newCtx({ viewport: { width: 1280, height: 900 } });
+    const cx = await newCtx(desk(1280, 900));
     const P = await cx.newPage();
     watch(P);
     const paper = (n, title, year) => ({ id: `doi:10.1000/fl.${n}`, doi: `10.1000/fl.${n}`, pmid: null, title, authors: ["A. Rao"], year, venue: "Journal of Tests", abstract: "We looked at one thing in a small group. The result was clear.", citationCount: 3, oaUrl: null, retracted: false, retractionSources: [], sources: ["crossref"], score: 1 });
@@ -1079,9 +1043,9 @@ try {
     ok(await P.evaluate(() => window.__card), "a reply the Worker writes an answer for did hold the card while it was read and written (so the observer above could have seen one)");
 
     // the Worker of this run, when the floor is set for it (INTEGRATION_VARS="CHAT_FLOOR:on" or ":writer"): the real stream, with its own pacing, for a list in which nothing matches ("offtopic" keeps the stand-in's own records)
-    const vars = process.env.INTEGRATION_VARS ?? "";
-    const floorOn = /CHAT_FLOOR:on/.test(vars);
-    const floorWriter = /CHAT_FLOOR:writer/.test(vars);
+    // read as the Worker reads the variable (the registry): "CHAT_FLOOR:onx" is off, not on (bug T-B1 of docs/design/untangle.md)
+    const floorOn = at("CHAT_FLOOR", "on");
+    const floorWriter = at("CHAT_FLOOR", "writer");
     if (floorOn || floorWriter) {
       console.log("  on the real Worker, with CHAT_FLOOR=" + (floorOn ? "on" : "writer") + ": a list in which no paper matches the words");
       await P.evaluate(() => { window.__card = false; });
@@ -1116,7 +1080,7 @@ try {
     const M_CRISIS = "I want to kill myself";
     const M_DECISION = "can I take paracetamol with my blood pressure tablets";
     const M_CARE = "i am 8 weeks pregnant, what does research say about caffeine and miscarriage";
-    const cx = await newCtx({ viewport: { width: 1280, height: 900 } });
+    const cx = await newCtx(desk(1280, 900));
     const F = await cx.newPage();
     watch(F);
     const paper = (n, title, year) => ({ id: `doi:10.1000/sf.${n}`, doi: `10.1000/sf.${n}`, pmid: null, title, authors: ["A. Rao"], year, venue: "Journal of Tests", abstract: "We looked at one thing in a small group. The result was clear.", citationCount: 3, oaUrl: null, retracted: false, retractionSources: [], sources: ["openalex"], score: 1 - n / 10 });
@@ -1323,8 +1287,7 @@ try {
     await fresh();
     await sendF(M_URGENT);
     await doneN(F, 1);
-    const flag = process.env.INTEGRATION_VARS ?? "";
-    const laneOn = /CHAT_SAFETY:(core|on)/.test(flag);
+    const laneOn = at("CHAT_SAFETY", "core", "on");
     const t6 = F.locator(".chat-turn").first();
     if (laneOn) ok(await t6.locator(".chat-safety-card").count() === 1 && await t6.locator(".result").count() === 0, "the Worker started with CHAT_SAFETY core or on answers an emergency with the card, and searches nothing");
     else ok(await t6.locator(".chat-safety-card").count() === 0 && await t6.locator(".result").count() > 0, "with the flag unset the same words are searched as they were");
@@ -1348,9 +1311,8 @@ try {
     const NOTE_COUNT = "“top 5” was left out of the words searched.";
     const NOTE_NEG = "This search cannot leave a topic out yet, so “but not in children” was left out of the words. Some papers may still mention it.";
     const NOTE_AUTHOR = "This box cannot filter by author yet, so “by Geoffrey Hinton” was searched as words.";
-    const flag = process.env.INTEGRATION_VARS ?? "";
-    const cleanOn = /CHAT_CLEAN:on/.test(flag);
-    const cx = await newCtx({ viewport: { width: 1280, height: 900 } });
+    const cleanOn = at("CHAT_CLEAN", "on");
+    const cx = await newCtx(desk(1280, 900));
     const R = await cx.newPage();
     watch(R);
     const paper = (n, title, year) => ({ id: `doi:10.1000/rd.${n}`, doi: `10.1000/rd.${n}`, pmid: null, title, authors: ["A. Rao"], year, venue: "Journal of Tests", abstract: "We looked at one thing in a small group. The result was clear.", citationCount: 3, oaUrl: null, retracted: false, retractionSources: [], sources: ["openalex"], score: 1 - n / 10 });
@@ -2562,7 +2524,7 @@ try {
   console.log("the page does not move under the reader");
   // While a conversation is on screen the box is fixed to the bottom of the window. A rule meant to keep focused things clear of it (scroll-padding on the whole page) also applied to the
   // box's own text field, so the browser kept trying to scroll the field out from behind the box it sits in: the page crept down with every letter typed, and jumped when the logo focused the field.
-  const still = await newCtx({ viewport: { width: 1360, height: 560 } });
+  const still = await newCtx(desk(1360, 560));
   const sp = await still.newPage();
   watch(sp);
   await sp.goto(BASE + "/home", { waitUntil: "networkidle" });
@@ -2641,11 +2603,10 @@ try {
 } catch (e) {
   if (!(e instanceof Stop)) {
     console.log(" FAIL unexpected error:", e);
-    failures++;
+    countFailure();
   }
 } finally {
   await browser.close();
   idp.close();
-  console.log(failures ? `\n${failures} FAILED` : "\nall chat browser checks passed");
-  process.exit(failures ? 1 : 0);
+  finish("all chat browser checks passed");
 }

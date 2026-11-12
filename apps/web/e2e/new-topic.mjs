@@ -5,53 +5,29 @@
 // reduced motion. Needs the Worker with the fake identity provider and the offline stand-ins: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/new-topic.mjs [baseUrl]    (default http://localhost:8788)
 // The browser is started WITH its scroll bars (as polish-chat.mjs does), so that nothing hides a bar that takes room.
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, UNSTICK_ALL, axeCheck, countFailure, desk, finish, launch, ok, phone, setTheme, sleep, startIdp, watchPage } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 const note = (msg) => console.log(`        ${msg}`);
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "new-topic-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });
+const browser = await launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
 const errors = [];
 let currentPart = "-";
-const watch = (p) => {
-  p.on("pageerror", (e) => { errors.push("pageerror: " + e.message); console.log(`        (page error in part ${currentPart}: ${e.message.slice(0, 70)})`); });
-  p.on("console", (m) => { // (net::ERR_FAILED is the browser reporting the connection this suite cuts on purpose, to make a reply fail)
-    if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409|429|503|net::ERR_FAILED)/.test(m.text())) errors.push("console: " + m.text()); });
-};
+const watch = (p) => watchPage(p, errors, { allowed: /Failed to load resource.*(401|403|404|409|429|503|net::ERR_FAILED)/, onPageError: (e) => console.log(`        (page error in part ${currentPart}: ${e.message.slice(0, 70)})`) });
 const VP = {
-  1280: { viewport: { width: 1280, height: 800 } },
-  768: { viewport: { width: 768, height: 900 } },
-  640: { viewport: { width: 640, height: 844 } },
-  600: { viewport: { width: 600, height: 844 } },
-  390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
-  360: { viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
-  320: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  1280: desk(1280, 800),
+  768: desk(768, 900),
+  640: desk(640, 844),
+  600: desk(600, 844),
+  390: phone(390, 844),
+  360: phone(360, 740),
+  320: phone(320, 640),
 };
-const setTheme = (p, t) => p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), t);
 
-async function axe(label, p) {
-  // the conversation's box is put in the flow for the run, as the other chat suites do: what axe reads is the page and not where it happens to be scrolled
-  const unstick = await p.addStyleTag({ content: ".hm-box { position: static !important; } .chat-list > li { content-visibility: visible !important; }" });
-  await sleep(300);
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  await unstick.evaluate((el) => el.remove());
-  ok(res.length === 0, `axe [${label}]`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
+
+// the conversation's box is put in the flow for the run, as the other chat suites do: what axe reads is the page and not where it happens to be scrolled
+const axe = (label, p) => axeCheck(p, label, { css: UNSTICK_ALL, settle: () => sleep(300) });
 
 let state;
 const signedIn = async (vp, opts = {}) => {
@@ -118,7 +94,7 @@ const asked = (id, text, over = {}) => ({ id, role: "user", text, at: 1_000, ...
 const section = async (name, fn) => {
   if (process.env.PARTS && !process.env.PARTS.split(",").includes(name)) return;
   currentPart = name;
-  try { await fn(); } catch (e) { failures++; console.log(` FAIL  [part ${name}] stopped: ${String(e.message).split(/\r?\n/)[0].slice(0, 200)}`); }
+  try { await fn(); } catch (e) { countFailure(); console.log(` FAIL  [part ${name}] stopped: ${String(e.message).split(/\r?\n/)[0].slice(0, 200)}`); }
 };
 const NT = 'Do not use the earlier messages of this chat for your next message';
 
@@ -567,5 +543,4 @@ try {
   idp.close?.();
 }
 ok(errors.length === 0, `no page error or console error in the whole run (${errors.length}${errors.length ? ": " + errors.slice(0, 3).join(" | ").slice(0, 300) : ""})`);
-console.log(failures === 0 ? "\nall new-topic checks passed" : `\n${failures} check(s) failed`);
-process.exit(failures === 0 ? 0 : 1);
+finish("all new-topic checks passed", (n) => `${n} check(s) failed`);

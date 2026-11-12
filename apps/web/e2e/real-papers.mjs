@@ -3,13 +3,12 @@
 // that are not in the repo.
 //   REAL_PDFS="C:/path/to/pdfs" npm run integration -w apps/api -- --browser --only="browser: real"   (see scripts/integration.mjs)
 //   or against a running Worker with the fake identity provider:  node e2e/real-papers.mjs <folder> [baseUrl]
-import { chromium } from "playwright-core";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { APP, desk, launch, startIdp } from "./lib/browser.mjs";
 
 const dir = process.argv[2] ?? process.env.REAL_PDFS;
-const BASE = process.argv.find((a, i) => i >= 3 && a.startsWith("http")) ?? "http://localhost:8788";
+const BASE = process.argv.find((a, i) => i >= 3 && a.startsWith("http")) ?? APP;
 // --verify also runs every extracted reference through the live Reference Verifier and prints how they came out.
 const VERIFY = process.argv.includes("--verify");
 const totals = {};
@@ -17,10 +16,10 @@ const totals = {};
 const unresolved = [];
 if (!dir) throw new Error("usage: node e2e/real-papers.mjs <folder with .pdf files> [baseUrl]");
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "real-pdfs", email: "real@example.edu", email_verified: true, name: "Real PDFs" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
-const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+const browser = await launch();
+const page = await (await browser.newContext(desk(1280, 900))).newPage();
 
 await page.goto(BASE + "/papers", { waitUntil: "networkidle" });
 await page.getByRole("button", { name: "Continue with Google" }).click();
