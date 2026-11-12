@@ -11,14 +11,13 @@ import { ResultCard, SkeletonCard } from "./components/ResultCard";
 import { SearchBox } from "./components/SearchBox";
 import { SourceStatus } from "./components/SourceStatus";
 import type { View } from "./lib/view";
-import { DocWorkspace } from "./components/papers/DocWorkspace";
 import { PapersPage } from "./components/papers/PapersPage";
 import { takeAuthError, useAuth } from "./lib/auth";
 import { easeOut } from "./lib/motion";
 import { clearNotice, showNotice, useNotice } from "./lib/notice";
 import { CommandPalette, ShortcutSheet, useGlobalKeys } from "./workspace/CommandPalette";
 import { useBaseCommands } from "./workspace/baseCommands";
-import { resumeOffline } from "./lib/offline";
+import { offlineOn, resumeOffline } from "./lib/offline";
 import { openPreview } from "./lib/preview";
 import { useSearch } from "./lib/search";
 import { PAPERS_NAME } from "./lib/workspace";
@@ -38,6 +37,10 @@ const LitscanPage = lazy(() => import("./components/litscan/LitscanPage").then((
 const AdminPage = lazy(() => import("./components/admin/AdminPage").then((m) => ({ default: m.AdminPage })));
 const PrivacyPage = lazy(() => import("./components/legal/LegalPages").then((m) => ({ default: m.PrivacyPage })));
 const TermsPage = lazy(() => import("./components/legal/LegalPages").then((m) => ({ default: m.TermsPage })));
+// The reader of a paper (today's, and the new one when the READER switch is on) is a chunk of its own too (docs/design/paper-reader.md, 14): it is fetched while the list of papers is on
+// screen, in idle time, and at once when offline reading is on, so that a paper opened before still opens without a connection.
+const loadReader = () => import("./components/papers/DocWorkspace");
+const DocWorkspace = lazy(() => loadReader().then((m) => ({ default: m.DocWorkspace })));
 const HowWeVerifyPage = lazy(() => import("./components/legal/LegalPages").then((m) => ({ default: m.HowWeVerifyPage })));
 // Someone who has never signed in on this browser is probably about to see the intro page: ask for its chunk now, in parallel with the "who am I" request, not after it.
 if (typeof localStorage !== "undefined" && !(() => { try { return localStorage.getItem("scholar.signedin") === "1"; } catch { return false; } })()) void loadIntro();
@@ -127,6 +130,12 @@ export function App() {
   useEffect(() => {
     resumeOffline();
   }, []);
+  // the reader's chunk: wanted soon on the list of papers, and kept by the offline worker once it has been fetched
+  useEffect(() => {
+    if (view !== "papers" && !offlineOn()) return;
+    const t = window.setTimeout(() => void loadReader().catch(() => {}), view === "papers" ? 600 : 3000);
+    return () => window.clearTimeout(t);
+  }, [view]);
   // the command palette (Ctrl+K) and the list of shortcuts (?)
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);

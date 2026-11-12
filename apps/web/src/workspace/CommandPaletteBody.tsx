@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { paletteRank } from "@scholar/shared";
 import { useProviders, type Command } from "../lib/commands";
 import { easeOut } from "../lib/motion";
+import { useDeskOpen } from "../lib/desk";
 
 /**
  * The command palette and the list of shortcuts, in a chunk of their own (`CommandPalette.tsx` loads it the first time one is opened, and a little after the page is idle): neither is wanted by a first
@@ -186,8 +187,22 @@ const SECTIONS: { name: string; rows: [string[], string][] }[] = [
   },
 ];
 
+/** The new Paper Reader's own keys (docs/design/paper-reader.md, 3 and 4), listed only while it is on screen (with the READER switch off the list is exactly as it was). */
+const DESK_SECTION: { name: string; rows: [string[], string][] } = {
+  name: "Reading a paper: tools",
+  rows: [
+    [["V"], "Select and read"],
+    [["H"], "Highlight: every selection becomes a highlight in the meaning chosen (inside the drawing tools, H is the freehand highlighter)"],
+    [["D"], "Draw: open the drawing tools"],
+    [["Tab"], "From a selection in the paper, into its pop-up (arrows move in it, Esc goes back)"],
+    [["Ctrl", "K"], "Agents: type “Agents” in the palette (no single key: A is the arrow in the drawing tools)"],
+  ],
+};
+
 /** Every shortcut in one place; opened with ? (and from the palette). */
 export function SheetBody({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const desk = useDeskOpen();
+  const sections = desk ? [SECTIONS[0]!, SECTIONS[1]!, DESK_SECTION, ...SECTIONS.slice(2)] : SECTIONS;
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <AnimatePresence>
@@ -204,7 +219,7 @@ export function SheetBody({ open, onOpenChange }: { open: boolean; onOpenChange:
                     <Dialog.Close className="icon-btn icon-btn-sm" aria-label="Close"><X size={16} aria-hidden="true" /></Dialog.Close>
                   </div>
                   <Dialog.Description id="keys-desc" className="modal-sub">On a Mac, use Cmd where it says Ctrl.</Dialog.Description>
-                  {SECTIONS.map((s) => (
+                  {sections.map((s) => (
                     <section key={s.name} className="keys-sec" aria-label={s.name}>
                       <h3 className="keys-h">{s.name}</h3>
                       <dl className="keys-list">

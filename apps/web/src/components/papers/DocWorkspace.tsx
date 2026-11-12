@@ -1,10 +1,10 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowLeft, BookMarked, Columns2, ExternalLink, FileWarning, Highlighter, Loader2, Maximize2, MessageSquareText, Minimize2, Pencil, PanelRightClose, PanelRightOpen, ScrollText, X } from "lucide-react";
+import { ArrowLeft, BookMarked, Columns2, ExternalLink, FileWarning, Highlighter, Loader2, Maximize2, MessageSquareText, Minimize2, PanelRightClose, PanelRightOpen, ScrollText, X } from "lucide-react";
 import { leaveFullscreen, toggleFullscreen, useFullscreen } from "../../lib/fullscreen";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { analyzeScan, planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type OutlineItem, type PaperInfo, type ScanInfo } from "@scholar/shared";
+import { analyzeScan, planNewHighlight, type Citation, type DocNote, type PaperInfo } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
-import { ApiError, continueScan, fetchDocument, fileUrl, pauseScan, postProgress, reindexDoc, renameDoc, savePaperInfo, loadDocs, useDocs, useJobs } from "../../lib/documents";
+import { ApiError, continueScan, fetchDocument, fileUrl, pauseScan, postProgress, reindexDoc, savePaperInfo, loadDocs, useDocs, useJobs } from "../../lib/documents";
 import { registerCommands } from "../../lib/commands";
 import { useOnline } from "../../lib/offline";
 import { takeJump } from "../../lib/jump";
@@ -28,70 +28,13 @@ import { NotesPanel } from "./NotesPanel";
 import { ReferencesPanel } from "./ReferencesPanel";
 import { ScanBanner } from "./ScanBanner";
 import type { NewNote, ViewerHandle } from "./PdfViewer";
+import { OpeningPaper, TitleEditor, authorsLine, contentsOf, type Load, type Pdf } from "./ReaderParts";
+import type { DeskProps } from "./desk/Desk";
 
 // The viewer (and pdf.js with it) is its own chunk: it is only downloaded when a paper is opened.
 const PdfViewer = lazy(() => import("./PdfViewer").then((m) => ({ default: m.PdfViewer })));
-
-type Load = { status: "loading" } | { status: "error"; message: string; notFound?: boolean } | { status: "ready"; doc: DocumentInfo; history: Answer[]; info: PaperInfo | null; scan: ScanInfo | null };
-type Pdf = { status: "loading"; progress: number } | { status: "error"; message: string } | { status: "ready"; pdf: PDFDocumentProxy };
-
-function TitleEditor({ doc, onChange }: { doc: DocumentInfo; onChange: (d: DocumentInfo) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(doc.title);
-  const input = useRef<HTMLInputElement>(null);
-  useEffect(() => setValue(doc.title), [doc.title]);
-  useEffect(() => {
-    if (editing) input.current?.select();
-  }, [editing]);
-  async function save() {
-    const next = value.replace(/\s+/g, " ").trim();
-    setEditing(false);
-    if (!next || next === doc.title) return setValue(doc.title);
-    try {
-      await renameDoc(doc.id, next);
-      onChange({ ...doc, title: next });
-    } catch {
-      setValue(doc.title);
-      showNotice("The title could not be changed. Please try again.");
-    }
-  }
-  return editing ? (
-    <form className="dw-title-edit" onSubmit={(e) => { e.preventDefault(); void save(); }}>
-      <label className="sr-only" htmlFor="dw-title">Paper title</label>
-      <input id="dw-title" ref={input} value={value} maxLength={200} onChange={(e) => setValue(e.target.value)} onBlur={() => void save()} onKeyDown={(e) => { if (e.key === "Escape") { setValue(doc.title); setEditing(false); } }} />
-    </form>
-  ) : (
-    <h1 className="dw-title">
-      <span>{doc.title}</span>
-      <button type="button" className="dc-rename" aria-label="Rename this paper" title="Rename" onClick={() => setEditing(true)}>
-        <Pencil size={14} aria-hidden="true" />
-      </button>
-    </h1>
-  );
-}
-
-/** Bookmarks when the PDF has a few, otherwise detected headings (and say which, because detected ones can be incomplete). */
-function contentsOf(info: PaperInfo | null): { items: OutlineItem[]; detected: boolean } | undefined {
-  if (!info) return undefined;
-  const outline = info.outline.filter((o) => o.page >= 1);
-  if (outline.length >= 3) return { items: outline, detected: false };
-  const headings = info.headings.filter((o) => o.page >= 1);
-  return headings.length >= 2 ? { items: headings, detected: true } : undefined;
-}
-
-const authorsLine = (a: string[]) => (a.length <= 3 ? a.join(", ") : `${a.slice(0, 3).join(", ")} et al.`);
-
-function OpeningPaper({ progress }: { progress: number }) {
-  return (
-    <div className="dw-opening" role="status" aria-live="polite">
-      <svg className="dw-ring" width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">
-        <circle cx="28" cy="28" r="24" fill="none" stroke="var(--border)" strokeWidth="4" />
-        <m.circle cx="28" cy="28" r="24" fill="none" stroke="var(--accent)" strokeWidth="4" strokeLinecap="round" transform="rotate(-90 28 28)" initial={false} animate={{ pathLength: Math.max(0.08, progress) }} transition={spring} />
-      </svg>
-      <p>Opening the paper{progress > 0 ? ` · ${Math.round(progress * 100)}%` : "…"}</p>
-    </div>
-  );
-}
+// The new Paper Reader (docs/design/paper-reader.md), drawn when the server says READER is on for this account: a chunk of its own, never downloaded while the switch is off.
+const Desk = lazy(() => import("./desk/Desk").then((m) => ({ default: m.Desk })));
 
 export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void }) {
   const { status: authStatus, user } = useAuth();
@@ -146,7 +89,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const fetchIt = useCallback(async () => {
     try {
       const r = await fetchDocument(id);
-      setLoad({ status: "ready", doc: r.document, history: r.history, info: r.info, scan: r.scan });
+      setLoad({ status: "ready", doc: r.document, history: r.history, info: r.info, scan: r.scan, reader: r.features?.reader === true });
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setLoad({ status: "error", message: "Sign in to open your papers." });
       else if (e instanceof ApiError && e.status === 404) setLoad({ status: "error", message: "We could not find that paper. It may have been deleted.", notFound: true });
@@ -372,9 +315,10 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
 
   // what the command palette (Ctrl+K) can do while this paper is open
   const doc0 = load.status === "ready" ? load.doc : null;
+  const deskOn = load.status === "ready" && load.reader === true;
   const hasOthers = otherPapers.length > 0;
   useEffect(() => {
-    if (!doc0) return;
+    if (!doc0 || deskOn) return;
     return registerCommands({
       id: "reader",
       commands: () => [
@@ -398,7 +342,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
         return n && total > 0 && Number(n) >= 1 && Number(n) <= total ? [{ id: "r-page", label: `Go to page ${Number(n)} of ${total}`, group: "This paper", run: () => viewer.current?.goTo(Number(n)) }] : [];
       },
     });
-  }, [doc0, sideAway, putSideAway, fs.available, fs.on, split, hasOthers, pdf, onBack]);
+  }, [doc0, deskOn, sideAway, putSideAway, fs.available, fs.on, split, hasOthers, pdf, onBack]);
   // F: full screen (not while typing, not with a modifier), as in a video player
   useEffect(() => {
     if (!fs.available) return;
@@ -436,6 +380,45 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   }
 
   const { doc, history, info, scan } = load;
+  if (load.reader) {
+    const desk: DeskProps = {
+      doc,
+      history,
+      info,
+      scan,
+      onDoc: (d) => setLoad((l) => (l.status === "ready" ? { ...l, doc: d } : l)),
+      pdf,
+      notes,
+      ink,
+      viewer,
+      page,
+      onPage: setPage,
+      focusNote,
+      setFocusNote,
+      resumedFrom,
+      setResumedFrom,
+      fs,
+      onBack,
+      online,
+      verify,
+      citeRefs,
+      itemOf,
+      savedIds,
+      analyzing: analyzing || (needsInfo && pdf.status !== "error"),
+      scanLeft,
+      scanRunning,
+      reindexing,
+      onContinueScan: () => void continueScan(doc),
+      onPauseScan: () => myJob && pauseScan(myJob.key),
+      onReindex: () => void (doc.scanned ? continueScan(doc) : reindexDoc(doc)),
+      onUseReferenceList,
+    };
+    return (
+      <Suspense fallback={<div className="dw dw-center"><OpeningPaper progress={0} /></div>}>
+        <Desk {...desk} />
+      </Suspense>
+    );
+  }
   const meta = info?.metadata;
   const refCount = info?.references.length ?? 0;
   return (

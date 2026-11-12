@@ -57,6 +57,36 @@ const NO_CITES: PageCite[] = [];
 /** What the reader chose in the paper: a highlight in a colour, or a note. */
 export type NewNote = { page: number; quote: string; color: NoteColor; withNote: boolean };
 
+/**
+ * What the new Paper Reader puts into the viewer (docs/design/paper-reader.md, sections 3 and 4). The pieces are drawn by the reader's own chunk and handed in here, so the viewer's chunk
+ * hardly grows; without `desk` the viewer is exactly today's.
+ */
+export type DeskSlots = {
+  /** The tool segment (Select, Highlight, Draw) and the meaning picker, after the page numbers. `draw` opens or closes the drawing tools, which stay the viewer's own. */
+  tools: (draw: { open: boolean; toggle: () => void; close: () => void }) => ReactNode;
+  /** The one Download menu at the end of the toolbar (in place of the two download buttons). */
+  download: ReactNode;
+  /** Highlight mode: a selection made with the pointer becomes a highlight in this colour at once, with no pop-up. null: Select. */
+  highlight: NoteColor | null;
+  /** The pop-up of a selection, or of an existing highlight that was clicked. */
+  popup: (p: DeskPopup) => ReactNode;
+  /** Told whenever the drawing tools open or close. */
+  onDraw: (open: boolean) => void;
+};
+export type DeskPopup = {
+  page: number;
+  quote: string;
+  /** The highlight that was clicked; null for a new selection. */
+  note: DocNote | null;
+  /** Where the pop-up goes (the middle of its top edge), in the window. */
+  left: number;
+  top: number;
+  /** A highlight of the selection, as the old pill made it (a note box opened with `withNote`). */
+  create: (color: NoteColor, withNote: boolean) => void;
+  /** The pop-up goes; `refocus` gives the focus back to the pages. */
+  close: (refocus: boolean) => void;
+};
+
 export type ViewerHandle = {
   /** Scroll to a page and, if a quote is given, highlight it once the page's text layer exists. */
   goTo: (page: number, quote?: string, instant?: boolean) => void;
@@ -371,7 +401,7 @@ function Contents({ items, detected, current, onPick }: { items: OutlineItem[]; 
   );
 }
 
-export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote, ink, idPrefix = "pdfv", toolbarEnd, citations }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; docId: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void; /** Drawing on the paper (My Workspace). Without it the viewer has no drawing tools. */ ink?: InkApi; /** Start of the ids inside the viewer: a second viewer on the page needs another one. */ idPrefix?: string; /** What the page puts at the end of the toolbar (the reader's side-panel button). */ toolbarEnd?: ReactNode; /** The paper's citations with their cards (My Workspace). */ citations?: CitationsProps }) {
+export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, contents, notes, onCreateNote, focusNoteId = null, onOpenNote, ink, idPrefix = "pdfv", toolbarEnd, citations, desk }: { pdf: PDFDocumentProxy; ref?: Ref<ViewerHandle>; title: string; docId: string; downloadHref: string; onPage?: (n: number) => void; contents?: { items: OutlineItem[]; detected: boolean }; notes?: DocNote[]; onCreateNote?: (n: NewNote) => void; focusNoteId?: string | null; onOpenNote?: (id: string) => void; /** Drawing on the paper (My Workspace). Without it the viewer has no drawing tools. */ ink?: InkApi; /** Start of the ids inside the viewer: a second viewer on the page needs another one. */ idPrefix?: string; /** What the page puts at the end of the toolbar (the reader's side-panel button). */ toolbarEnd?: ReactNode; /** The paper's citations with their cards (My Workspace). */ citations?: CitationsProps; /** The new Paper Reader's pieces (READER on); absent: today's viewer. */ desk?: DeskSlots }) {
   const scroller = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
   const [zoomLevel, setZoomLevel] = useState(readZoom);
@@ -391,7 +421,12 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
   notesRef.current = notes ?? [];
   const [marks, setMarks] = useState<Record<number, PageMark[]>>({});
   const notesById = useMemo(() => new Map((notes ?? []).map((x) => [x.id, x])), [notes]);
-  const [sel, setSel] = useState<{ page: number; quote: string; x: number; y: number; hidden?: boolean } | null>(null);
+  // `noteId`: the pop-up of an existing highlight that was clicked (the new reader); it has no selection of its own
+  const [sel, setSel] = useState<{ page: number; quote: string; x: number; y: number; hidden?: boolean; noteId?: string } | null>(null);
+  const deskRef = useRef(desk);
+  deskRef.current = desk;
+  const onCreateRef = useRef(onCreateNote);
+  onCreateRef.current = onCreateNote;
   const selFrame = useRef(0);
   const pending = useRef<{ page: number; quote: string } | null>(null);
   const pendingFind = useRef<{ page: number; query: string; k: number } | null>(null);
@@ -751,7 +786,7 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
   }, [notes, paintSaved]);
 
   /* ---- the toolbar that appears when text is selected ---- */
-  const captureSelection = useCallback(() => {
+  const captureSelection = useCallback((byPointer?: boolean) => {
     const s = window.getSelection();
     if (!s || s.isCollapsed || s.rangeCount === 0) return setSel(null);
     const node = s.anchorNode;
@@ -760,9 +795,36 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
     if (!box || !scroller.current?.contains(box) || !el?.closest(".textLayer")) return setSel(null);
     const quote = s.toString().replace(/\s+/g, " ").trim();
     if (quote.length < 3) return setSel(null);
+    // the new reader's Highlight mode: what is selected with the pointer is highlighted at once in the meaning chosen, with no pop-up (with the keyboard the pop-up still comes, to choose)
+    const mark = deskRef.current?.highlight;
+    if (mark && byPointer === true) {
+      onCreateRef.current?.({ page: Number(box.dataset.page), quote: quote.slice(0, 600), color: mark, withNote: false });
+      s.removeAllRanges();
+      return setSel(null);
+    }
     const r = s.getRangeAt(0).getBoundingClientRect();
     const view = scroller.current.getBoundingClientRect();
     setSel({ page: Number(box.dataset.page), quote: quote.slice(0, 600), x: r.left + r.width / 2, y: Math.max(r.top, view.top + 52) });
+  }, []);
+  /** The new reader: a click on a highlight (with nothing selected) opens its pop-up. The marks take no pointer (the text under them must stay selectable), so the point is looked up. */
+  const openMarkAt = useCallback((x: number, y: number, target: EventTarget | null) => {
+    const s = window.getSelection();
+    if (s && !s.isCollapsed) return;
+    const box = (target as Element | null)?.closest?.("[data-page]");
+    if (!box) return;
+    let id: string | null = null;
+    let top = 0;
+    box.querySelectorAll<HTMLElement>(".pdfp-hl").forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+        id = el.dataset.note ?? null;
+        top = r.top;
+      }
+    });
+    const note = id ? notesRef.current.find((n) => n.id === id) : undefined;
+    if (!note || !scroller.current) return;
+    const view = scroller.current.getBoundingClientRect();
+    setSel({ page: note.page, quote: note.quote, x, y: Math.max(top, view.top + 52), noteId: note.id });
   }, []);
   /**
    * The toolbar belongs to the selected text, not to the spot on the screen where it appeared: while the page is scrolled it follows the text (and waits at the top
@@ -777,14 +839,15 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
       if (!s || s.isCollapsed || s.rangeCount === 0 || !view) return setSel(null);
       const r = s.getRangeAt(0).getBoundingClientRect();
       const out = r.bottom < view.top + 8 || r.top > view.bottom - 8;
-      setSel((cur) => (cur ? { ...cur, hidden: out, x: Math.min(Math.max(r.left + r.width / 2, view.left + 120), view.right - 120), y: Math.max(r.top, view.top + 52) } : cur));
+      setSel((cur) => (cur && !cur.noteId ? { ...cur, hidden: out, x: Math.min(Math.max(r.left + r.width / 2, view.left + 120), view.right - 120), y: Math.max(r.top, view.top + 52) } : cur));
     });
   }, []);
   useEffect(() => () => cancelAnimationFrame(selFrame.current), []);
   useEffect(() => {
     const onChange = () => {
       const s = window.getSelection();
-      if (!s || s.isCollapsed) setSel(null);
+      // the pop-up of a clicked highlight has no selection to lose
+      if (!s || s.isCollapsed) setSel((cur) => (cur?.noteId ? cur : null));
     };
     document.addEventListener("selectionchange", onChange);
     return () => document.removeEventListener("selectionchange", onChange);
@@ -903,6 +966,9 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
 
   const drawOpenRef = useRef(false);
   drawOpenRef.current = drawOpen;
+  useEffect(() => {
+    deskRef.current?.onDraw(drawOpen);
+  }, [drawOpen]);
   const toggleDraw = useCallback(() => {
     if (!inkRef.current) return;
     if (drawOpenRef.current) closeDraw();
@@ -948,11 +1014,12 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
             <ChevronRight size={16} aria-hidden="true" />
           </button>
         </div>
+        {desk && ink && <div className="pdfv-tools">{desk.tools({ open: drawOpen, toggle: toggleDraw, close: closeDraw })}</div>}
         <div className="pdfv-zoom">
           <button type="button" className="icon-btn icon-btn-sm" aria-label="Find in this paper" aria-pressed={findOpen} title="Find in this paper (Ctrl+F)" onClick={() => (findOpen ? closeFind() : openFind())}>
             <Search size={15} aria-hidden="true" />
           </button>
-          {ink && (
+          {ink && !desk && (
             <button type="button" className="btn btn-ghost btn-sm pdfv-draw" aria-pressed={drawOpen} title="Draw and highlight on the paper" onClick={() => (drawOpen ? closeDraw() : (setDrawOpen(true), setPrefs((p) => (p.tool === "hand" ? { ...p, tool: "pen" } : p))))}>
               <PencilLine size={15} aria-hidden="true" />
               <span>Draw</span>
@@ -983,10 +1050,16 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
           <button type="button" className="icon-btn icon-btn-sm pdfv-fit" aria-label="Fit to width" onClick={() => zoomTo(1)}>
             <MoveHorizontal size={15} aria-hidden="true" />
           </button>
-          <a className="icon-btn icon-btn-sm" href={downloadHref} download aria-label={`Download ${title}`} title="Download the PDF">
-            <Download size={15} aria-hidden="true" />
-          </a>
-          {ink && <AnnotatedDownload docId={docId} pdf={pdf} title={title} notes={notes ?? []} strokes={ink.strokes} />}
+          {desk ? (
+            desk.download
+          ) : (
+            <>
+              <a className="icon-btn icon-btn-sm" href={downloadHref} download aria-label={`Download ${title}`} title="Download the PDF">
+                <Download size={15} aria-hidden="true" />
+              </a>
+              {ink && <AnnotatedDownload docId={docId} pdf={pdf} title={title} notes={notes ?? []} strokes={ink.strokes} />}
+            </>
+          )}
           {toolbarEnd}
         </div>
       </div>
@@ -1029,7 +1102,24 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
         </div>
       )}
 
-      {sel && !sel.hidden && onCreateNote && (
+      {sel && !sel.hidden && onCreateNote && desk &&
+        desk.popup({
+          page: sel.page,
+          quote: sel.quote,
+          note: sel.noteId ? (notesById.get(sel.noteId) ?? null) : null,
+          left: Math.min(Math.max(sel.x, 150), window.innerWidth - 150),
+          top: Math.max(sel.y - 48, 8),
+          create: createFromSelection,
+          close: (refocus) => {
+            setSel(null);
+            // Esc: the selection goes with its pop-up (else the key's own release would bring the pop-up back), and the focus returns to the pages
+            if (refocus) {
+              window.getSelection()?.removeAllRanges();
+              scroller.current?.focus({ preventScroll: true });
+            }
+          },
+        })}
+      {sel && !sel.hidden && onCreateNote && !desk && (
         <div
           className="pdfv-sel"
           role="toolbar"
@@ -1054,7 +1144,31 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
             <Thumb key={n} pdf={pdf} n={n} active={n === current} root={rail} onPick={(p) => goTo(p)} />
           ))}
         </div>
-        <div ref={scroller} className="pdfv-scroll" tabIndex={0} role="region" aria-label={`Pages of ${title}`} onMouseUp={onCreateNote ? captureSelection : undefined} onKeyUp={onCreateNote ? captureSelection : undefined} onScroll={sel ? followSelection : undefined}>
+        <div
+          ref={scroller}
+          className="pdfv-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label={`Pages of ${title}`}
+          onMouseUp={onCreateNote ? () => captureSelection(true) : undefined}
+          onKeyUp={onCreateNote ? () => captureSelection(false) : undefined}
+          onScroll={sel ? followSelection : undefined}
+          onClick={desk && onCreateNote ? (e) => openMarkAt(e.clientX, e.clientY, e.target) : undefined}
+          onKeyDown={
+            desk
+              ? (e) => {
+                  // the new reader: Tab from the pages goes into the pop-up of the selection (a toolbar: the arrows move in it, Esc gives the focus back)
+                  if (e.key === "Tab" && !e.shiftKey && sel && !sel.hidden) {
+                    const first = document.querySelector<HTMLElement>(".desk-pop button:not([disabled])");
+                    if (first) {
+                      e.preventDefault();
+                      first.focus();
+                    }
+                  } else if (e.key === "Escape" && sel) setSel(null);
+                }
+              : undefined
+          }
+        >
           <div ref={pagesEl} className="pdfv-pages">
             {pages.map((n) => (
               <PdfPage key={n} pdf={pdf} n={n} scale={scale} size={sizes[n] ?? first} root={scroller} onSize={onSize} onText={onText} marks={marks[n] ?? NO_MARKS} notesById={notesById} focusId={focusNoteId} onOpenNote={onOpenNote} draw={draw} cites={cites[n] ?? NO_CITES} />

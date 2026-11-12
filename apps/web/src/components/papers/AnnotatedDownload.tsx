@@ -8,11 +8,14 @@ import type { PDFDocumentProxy } from "../../lib/pdf";
 
 const fileName = (title: string) => `${title.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").slice(0, 60) || "paper"}-marked.pdf`;
 
+type Args = { docId: string; pdf: PDFDocumentProxy; title: string; notes: DocNote[]; strokes: InkItem[] };
+
 /**
  * "Download with my marks": a copy of the paper with the reader's highlights, highlighter and pen drawn into it, and the notes listed on a last page. Built in the
- * browser from the original file (pdf-lib is loaded only now); the paper itself is not changed.
+ * browser from the original file (pdf-lib is loaded only now); the paper itself is not changed. The button below, and the new reader's Download menu, use it; the command
+ * palette asks for the same thing with the event "scholar:annotated", which whoever uses this answers.
  */
-export function AnnotatedDownload({ docId, pdf, title, notes, strokes }: { docId: string; pdf: PDFDocumentProxy; title: string; notes: DocNote[]; strokes: InkItem[] }) {
+export function useAnnotatedDownload({ docId, pdf, title, notes, strokes }: Args) {
   const legend = useLegend();
   const [busy, setBusy] = useState(false);
   const empty = notes.length === 0 && strokes.length === 0;
@@ -64,8 +67,13 @@ export function AnnotatedDownload({ docId, pdf, title, notes, strokes }: { docId
     return () => window.removeEventListener("scholar:annotated", go);
   }, []);
 
+  return { run: () => void run(), busy, empty };
+}
+
+export function AnnotatedDownload(props: Args) {
+  const { run, busy, empty } = useAnnotatedDownload(props);
   return (
-    <button type="button" className="icon-btn icon-btn-sm" aria-label="Download a copy with my marks" title={empty ? "Download a copy with my marks (nothing is marked yet)" : "Download a copy with my marks"} disabled={busy} onClick={() => void run()}>
+    <button type="button" className="icon-btn icon-btn-sm" aria-label="Download a copy with my marks" title={empty ? "Download a copy with my marks (nothing is marked yet)" : "Download a copy with my marks"} disabled={busy} onClick={run}>
       {busy ? <Loader2 className="spin" size={15} aria-hidden="true" /> : <FileDown size={15} aria-hidden="true" />}
     </button>
   );

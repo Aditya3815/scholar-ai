@@ -83,6 +83,10 @@ const ALLOW: string[] = [
   "web/components/papers/DocWorkspace.tsx -> web/components/Pop.tsx",
   "web/components/papers/DocWorkspace.tsx -> web/components/ThemeSwitch.tsx",
   "web/components/papers/DropBox.tsx -> web/components/RivePiece.tsx",
+  // the new Paper Reader (docs/design/paper-reader.md, phase 1): the same edges as DocWorkspace's, and the shared announcer the plan asks for (section 12)
+  "web/components/papers/desk/Desk.tsx -> web/components/ThemeSwitch.tsx",
+  "web/components/papers/desk/Desk.tsx -> web/workspace/announcer.tsx",
+  "web/components/papers/desk/DeskBits.tsx -> web/components/Pop.tsx",
   "web/components/papers/PapersPage.tsx -> web/components/ConfirmDialog.tsx",
   "web/components/papers/PapersPage.tsx -> web/components/ProviderButtons.tsx",
   "web/components/papers/PapersPage.tsx -> web/components/legal/PrivacyCard.tsx",

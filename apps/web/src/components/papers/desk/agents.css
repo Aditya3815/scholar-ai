@@ -1,0 +1,118 @@
+/*
+ * The Agents drawer of the new Paper Reader (docs/design/paper-reader.md, 9.2): its own chunk ("agents"), with this sheet. A sheet from the right on a wide screen, a bottom sheet on a phone.
+ * Tokens only, so it works in Light, Dark, Read and the system's dark; the entrance is a slide that the reduced-motion rule of tokens.css turns off.
+ */
+.desk-agents {
+  position: fixed;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+}
+.desk-agents[hidden] { display: none; }
+.desk-agents[data-wide="true"] {
+  top: 0.75rem;
+  right: calc(0.75rem + env(safe-area-inset-right));
+  bottom: 0.75rem;
+  width: min(26rem, calc(100vw - 1.5rem));
+  border-radius: var(--radius);
+  animation: desk-agents-in 0.28s var(--ease) both;
+}
+.desk-agents[data-wide="false"] {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 88dvh;
+  padding-bottom: env(safe-area-inset-bottom);
+  border-bottom: 0;
+  border-radius: var(--radius-l) var(--radius-l) 0 0;
+  animation: desk-sheet-in 0.3s var(--ease) both;
+  transition: transform 0.18s var(--ease);
+}
+@keyframes desk-agents-in {
+  from { opacity: 0; transform: translateX(24px); }
+}
+@keyframes desk-sheet-in {
+  from { transform: translateY(40%); }
+}
+.desk-sheet-backdrop {
+  position: fixed;
+  z-index: 79;
+  inset: 0;
+  background: color-mix(in srgb, var(--text) 38%, transparent);
+  animation: desk-fade 0.2s var(--ease) both;
+}
+@keyframes desk-fade {
+  from { opacity: 0; }
+}
+.desk-agents-head {
+  flex: none;
+  padding: 0.7rem 0.9rem 0.65rem;
+  border-bottom: 1px solid var(--border);
+}
+.desk-agents[data-wide="false"] .desk-agents-head { padding-top: 0.45rem; touch-action: none; }
+.desk-grab {
+  display: block;
+  width: 40px;
+  height: 5px;
+  margin: 0 auto 0.45rem;
+  border-radius: 3px;
+  background: var(--border-strong);
+}
+.desk-agents-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.desk-agents-title h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  font-weight: 680;
+}
+.desk-agents-title h2 svg { color: var(--accent); }
+.desk-agents-x { width: 40px; height: 40px; }
+.desk-agents-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin: 0.45rem 0 0;
+}
+.desk-agent-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 0.8rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+.desk-agents-what { color: var(--muted); font-size: 0.8125rem; }
+.desk-agents-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+/* the standing line below says it for every agent */
+.desk-agents .ask > .ask-fine { display: none; }
+.desk-agents .ask-head { padding-top: 0.6rem; }
+.desk-agents-fine {
+  flex: none;
+  margin: 0;
+  padding: 0.5rem 0.9rem 0.65rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.78rem;
+}

@@ -21,6 +21,12 @@ export const LIMITS = {
   // 7 KB when the film began to play in every window (1 Nov 2026: the room of a frame, the narrow and the short compositions): 6.6 KB measured, about 1 ms more on the slow profile
   "the intro page chunk, style (gzip)": 7 * KB,
   "the PDF reader chunk, script and style (gzip)": 66 * KB,
+  // The new Paper Reader (docs/design/paper-reader.md, 14), behind the READER switch: its layout, toolbar pieces, pop-up, panel tabs and toasts ("reader"), and the Agents drawer ("agents"),
+  // each fetched only when the switch is on. The plan's budgets, set 13 Nov 2026 before the first build. While both readers exist, the Ask panel stays in the page's chunk (today's reader shows it at once).
+  // The page of a paper (DocWorkspace, with today's reader) left the first load on 13 Nov 2026 (the first load fell from 243.4 to 233.1 KB): 19.5 KB measured, plus about 10%.
+  "the paper page chunk (DocWorkspace), script and style (gzip)": 22 * KB,
+  "the new reader chunk (Desk), script and style (gzip)": 28 * KB,
+  "the Agents drawer chunk, script and style (gzip)": 20 * KB,
   // The Rive pieces (docs/design/setu-rive.md, rive-ideas.md), fetched only when a picture is wanted: 57.6, 331 and 8.4 KB measured on 1 Nov 2026, plus about 10%. None of them may be in the first load.
   "the Rive runtime chunk, script (gzip)": 64 * KB,
   "the Rive runtime, wasm (gzip)": 365 * KB,
@@ -51,6 +57,9 @@ const filesOf = (id, { js = true, css = true } = {}) => {
 
 const INTRO = "src/workspace/intro/IntroPage.tsx";
 const PDF_READER = "src/components/papers/PdfViewer.tsx";
+const READER_PAGE = "src/components/papers/DocWorkspace.tsx";
+const DESK = "src/components/papers/desk/Desk.tsx";
+const AGENTS = "src/components/papers/desk/AgentsDrawer.tsx";
 const RIVE_RUNTIME = "../../node_modules/@rive-app/canvas-lite/rive.js";
 const RIVE_WASM = "../../node_modules/@rive-app/canvas-lite/rive.wasm";
 const rivFiles = Object.entries(manifest).filter(([id]) => id.endsWith(".riv")).map(([, e]) => asset(e.file));
@@ -63,6 +72,9 @@ const measured = {
   "the intro page chunk, script (gzip)": sum(filesOf(INTRO, { css: false }), gz),
   "the intro page chunk, style (gzip)": sum(filesOf(INTRO, { js: false }), gz),
   "the PDF reader chunk, script and style (gzip)": sum(filesOf(PDF_READER), gz),
+  "the paper page chunk (DocWorkspace), script and style (gzip)": sum(filesOf(READER_PAGE), gz),
+  "the new reader chunk (Desk), script and style (gzip)": sum(filesOf(DESK), gz),
+  "the Agents drawer chunk, script and style (gzip)": sum(filesOf(AGENTS), gz),
   "the Rive runtime chunk, script (gzip)": sum(filesOf(RIVE_RUNTIME), gz),
   "the Rive runtime, wasm (gzip)": sum(filesOf(RIVE_WASM), gz),
   "the Rive files of the pictures (gzip)": sum(rivFiles, gz),
@@ -86,6 +98,9 @@ const HEAVY = [
   "../../node_modules/@cantoo/pdf-lib/es/index.js",
   "src/lib/annotated-pdf.ts",
   PDF_READER,
+  READER_PAGE,
+  DESK,
+  AGENTS,
   INTRO,
   RIVE_RUNTIME,
   "src/components/litscan/Setu.tsx",

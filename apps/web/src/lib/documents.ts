@@ -15,7 +15,8 @@ export { ApiError };
 
 export type Usage = { count: number; maxCount: number; bytes: number; maxBytes: number };
 
-export const fetchDocument = (id: string) => request<{ document: DocumentInfo; history: Answer[]; info: PaperInfo | null; scan: ScanInfo | null }>(`/${id}`);
+/** `features.reader`: the new Paper Reader is on for this account (the server's READER switch; absent from an older server or a kept offline copy, which is today's reader). */
+export const fetchDocument = (id: string) => request<{ document: DocumentInfo; history: Answer[]; info: PaperInfo | null; scan: ScanInfo | null; features?: { reader?: boolean } }>(`/${id}`);
 
 /** Store what was learned from reading the PDF; the server adds registry metadata and may give the paper its real title. */
 export const savePaperInfo = (id: string, info: PaperInfo) => request<{ document: DocumentInfo; info: PaperInfo }>(`/${id}/info`, json("PUT", info));
