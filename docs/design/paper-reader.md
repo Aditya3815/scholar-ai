@@ -391,3 +391,46 @@ Phase 2 changes the privacy version (`PRIVACY_VERSION`), and `legal-match.test.t
 - **Free placement of blocks on a note page**: free placement exists on the paper (Draw), and a column is what reads, reflows and exports.
 - **A second set of highlight colours** for meanings: the four stored colours stay, and only their names change. The freehand highlighter keeps its own five colours, because it is drawing, not meaning.
 - **Rich text with ProseMirror or Tiptap**: too heavy for what notes need. Markdown is the format people export to anyway.
+
+## 18. Phase 1 as built (13 Nov 2026)
+
+Phase 1 ("Desk") is built on the branch `reader-v2`, behind `READER`, which is not set in `wrangler.jsonc`: production keeps today's reader. Where the build differs from the sections above, this is what was done and why.
+
+**The switch.**
+- `READER` is a gate with the positions `off`, `dark` and `on`. The registry's gate reader had no `dark` (it knew `core`, `writer` and `beta`, each for one flag), so it learned `dark` the same way, for a flag that lists it (`FLAG_POSITIONS`, `positionOfVariable`'s fifth argument). Every other switch reads exactly as before: the switch table gained READER's rows and no other row changed. `shadow`, which every gate's reader takes, counts as off for READER.
+- `dark` reads `READER_BETA_USERS` (a secret, like `MCP_BETA_USERS`). The page is told `features.reader` on `GET /documents/:id`.
+
+**Layout.**
+- Today's code keeps the side panel "put away" as `scholar.focus = "1"`, not `"closed"`: both are read as Paper, once, and from then on the choice is kept as `scholar.view`.
+- When a wide screen turns into a phone while Split is on, the view shows Paper, but the choice kept on the device is not overwritten: it was the person's, and a wide screen offers Split again.
+- On a phone the header has two rows under the title: the status and the theme on one, the view switch across the width under them (`[ Paper | Notes ]`). The mock put the theme in the title row; the theme switch is four buttons wide and does not fit there at 390 px.
+- In Split the paper's toolbar and thumbnails follow the paper's own width (a container query): on a tablet upright the thumbnails go and the meanings and tools show icons, with their names kept as accessible names and tooltips.
+- On a wide screen the Agents drawer starts below the paper's header while the header is in sight, so the view switch and the theme stay reachable while it is open.
+
+**The pop-up.**
+- Highlight mode makes a highlight at once only for a selection made with the pointer. A selection made with the keyboard (Shift and the arrows) still shows the pop-up, so that a keyboard user is not given a highlight at every key.
+- A keyboard user reaches the pop-up with Tab from the pages (nothing else could take the focus there without stealing it from a selection being made); the arrows move inside it, Esc closes it, clears the selection and gives the focus back to the pages.
+- An existing highlight's pop-up also has **Add note** (it opens the highlight's note), as the table in section 4 has it, besides the recolour, Explain, Copy and Remove of the brief.
+- Copy uses the app's shared copy (`lib/copy.ts`: the clipboard, then the older copy command), so "Could not copy. Select the text and press Ctrl+C." shows only when both fail. It is said in the notice banner (`role="alert"`); "Copied" is a toast.
+- "That text is already highlighted" is a toast in the new reader (it is not an error), and the notice banner in today's.
+- Undo after Remove makes the highlight again with its meaning and its note text; it gets a new id from the server.
+
+**The Agents.**
+- Phase 1 shows Ask alone: "Ask" is a label, not a control, and no other agent is shown until it works. Ask is today's `AskPanel`, unchanged except for an optional `prefill` (Explain puts `Explain: "…"` into its question box); today's reader does not pass it. Inside the drawer the panel's own fine print is hidden by the drawer's style sheet, because the standing line says the same.
+- On a phone the sheet is modal and covers the button, so the sheet's own × is its Close (in its header, with the grab bar); on a wide screen the button becomes Close and moves to the left of the drawer, so it never covers the question box.
+- The `agents` chunk is the drawer alone (2.2 KB). `AskPanel` stays where it was: today's reader shows it at once and the open-access sheet uses its pieces, so while both readers exist it cannot move into a chunk that only the new reader loads. It moves when the old reader is deleted.
+
+**Weight.**
+- There was no hover preload of the PDF chunk on a paper card to copy. Instead the paper page's chunk is fetched in idle time while the list of papers is on screen, and a few seconds after start when offline reading is on (the offline worker keeps what is fetched, so a paper opened before still opens offline).
+- Moving the page of a paper out of the first load made a chunk of its own (DocWorkspace, today's reader and the state both readers share); it has a budget line of its own beside the plan's `reader` and `agents` lines, and all three are on the HEAVY list.
+
+**Other.**
+- The colour dots of the Highlights list, its filter chips and its group headings use the meaning tokens and letters in the new reader (style sheet only, under `.desk`); today's reader keeps its colours.
+- The legend that names the colours is switched by the new reader being on screen (`lib/desk.ts`), so the Markdown, a question about the highlights and the notes page of the marked PDF use the meanings only then.
+- Three import edges were added to the layer rule's allowlist (`layers.test.ts`), of the same kind as DocWorkspace's own: `desk/Desk.tsx` to `ThemeSwitch` and to the shared announcer, `desk/DeskBits.tsx` to `Pop`.
+- Today's reader has a small display fault the pictures showed: in the Highlights list the sliding pill of "By page | By colour" covers the chosen word. It is fixed in the new reader only, to keep today's reader as it is.
+
+**Tests.**
+- `e2e/reader.mjs` runs in the named run `reader-on` (READER on), with the documents suite and the two reader suites of today's reader that apply to the new one: `cites.mjs` (Draw is a radio of the tool segment; the old phone tab bar is not drawn, so that part is left out) and `polish-reader.mjs` (Draw as a radio, Ask in the Agents drawer, and the Paper view, so the drawing toolbar is measured at the paper's full width as in today's reader under 1000 px). With READER off both take exactly the old path. `papers.mjs` and `workspace.mjs` run in the default run only: their reader checks are of today's layout, which the new reader replaces.
+- The table test of the integration runner lists what the default run skips; it gained the new suite, on purpose. `ci.yml` and `browser-e2e.yml` add `reader-on`.
+- `e2e/shots-reader.mjs` takes the before and after pictures (not a suite).
