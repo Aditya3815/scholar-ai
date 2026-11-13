@@ -37,6 +37,8 @@ async function grab(p, label) {
   await p.getByRole("button", { name: "Download", exact: true }).click();
   const [dl] = await Promise.all([p.waitForEvent("download"), p.getByRole("menuitem", { name: new RegExp(`^${label}`) }).click()]);
   const path = await dl.path();
+  // the menu fades out after a choice; an axe run during the fade reads its half-transparent text as low contrast (seen once on CI)
+  await p.getByRole("menu").waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
   return { name: dl.suggestedFilename(), text: readFileSync(path, "utf8"), bytes: readFileSync(path) };
 }
 
