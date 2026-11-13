@@ -27,11 +27,13 @@ export type AgentsDrawerProps = {
   onReindex: () => void;
   reindexing: boolean;
   prefill: { text: string; tick: number };
+  /** On a wide screen: where the sheet starts, in the window (below the paper's header while that is in sight, so the view switch and the theme stay reachable). */
+  top?: number;
 };
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function AgentsDrawer({ open, wide, onClose, doc, history, notes, scan, onCite, onGoToPage, onReindex, reindexing, prefill }: AgentsDrawerProps) {
+export function AgentsDrawer({ open, wide, onClose, doc, history, notes, scan, onCite, onGoToPage, onReindex, reindexing, prefill, top }: AgentsDrawerProps) {
   const box = useRef<HTMLElement>(null);
   const swipe = useRef<{ y: number; dy: number } | null>(null);
   const modal = open && !wide;
@@ -111,6 +113,7 @@ export function AgentsDrawer({ open, wide, onClose, doc, history, notes, scan, o
         role={wide ? "complementary" : "dialog"}
         aria-modal={modal ? true : undefined}
         aria-label="Agents"
+        style={wide && top !== undefined ? { top } : undefined}
         onKeyDown={onKey}
       >
         <header className="desk-agents-head" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>

@@ -309,6 +309,20 @@ export function Desk(props: DeskProps) {
     [meaning, openAgents, updateNote, removeNote, addNote, openNote],
   );
 
+  /* ---- on a wide screen the drawer starts below the paper's header while that is in sight (the view switch and the theme stay reachable) ---- */
+  const [drawerTop, setDrawerTop] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (!agentsOpen || !wide) return;
+    const fit = () => setDrawerTop(Math.max(12, Math.round(gridEl.current?.getBoundingClientRect().top ?? 12)));
+    fit();
+    window.addEventListener("scroll", fit, { passive: true });
+    window.addEventListener("resize", fit);
+    return () => {
+      window.removeEventListener("scroll", fit);
+      window.removeEventListener("resize", fit);
+    };
+  }, [agentsOpen, wide]);
+
   /* ---- the Agents button keeps clear of the pop-up and the toast ---- */
   const [popRect, setPopRect] = useState<DOMRect | null>(null);
   const [toastRect, setToastRect] = useState<DOMRect | null>(null);
@@ -388,7 +402,7 @@ export function Desk(props: DeskProps) {
   const meta = info?.metadata;
   const refCount = info?.references.length ?? 0;
   const views = viewsFor(wide);
-  const drawerProps: AgentsDrawerProps = { open: agentsOpen, wide, onClose: closeAgents, doc, history, notes: notes.notes, scan: doc.scanned ? scan : null, onCite, onGoToPage, onReindex: props.onReindex, reindexing: props.reindexing, prefill };
+  const drawerProps: AgentsDrawerProps = { open: agentsOpen, wide, onClose: closeAgents, doc, history, notes: notes.notes, scan: doc.scanned ? scan : null, onCite, onGoToPage, onReindex: props.onReindex, reindexing: props.reindexing, prefill, top: drawerTop };
 
   return (
     <m.div ref={deskEl} className="dw desk" data-view={shown} data-wide={wide} data-drawing={drawOpen} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: easeOut }}>

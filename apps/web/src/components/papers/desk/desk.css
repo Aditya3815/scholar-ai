@@ -320,3 +320,10 @@
 .desk .sres-dot[data-color="green"] { background: var(--mean-method); }
 .desk .sres-dot[data-color="blue"] { background: var(--mean-question); }
 .desk .sres-dot[data-color="pink"] { background: var(--mean-result); }
+
+/* the Highlights list's "By page | By colour": its word sits above the sliding pill (in today's reader the pill covers the chosen word; that is left as it is there) */
+.desk .hl-group .hl-seg-label { position: relative; }
+.desk .hl-group .seg-btn { flex-wrap: nowrap; white-space: nowrap; }
+/* its buttons wrap in a narrow panel instead of running out of it (Split on a tablet, a phone) */
+.desk .notes-actions { flex-wrap: wrap; row-gap: 0.4rem; }
+.desk .notes-actions .btn { white-space: nowrap; }

@@ -60,8 +60,11 @@ async function open({ state, docId }, device, theme, { view, viewport } = {}) {
   }, [theme, view ?? null]);
   const page = await ctx.newPage();
   await page.goto(BASE + "/papers/" + docId, { waitUntil: "networkidle" });
-  await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
-  await page.locator('[data-page="1"] .pdfp-hl').first().waitFor({ timeout: 15000 }).catch(() => {});
+  if (view === "notes") await page.locator(".note").first().waitFor({ timeout: 30000 }); // the Notes view: the paper is not drawn
+  else {
+    await page.locator(".pdfp-canvas[data-painted=true]").first().waitFor({ timeout: 30000 });
+    await page.locator('[data-page="1"] .pdfp-hl').first().waitFor({ timeout: 15000 }).catch(() => {});
+  }
   await sleep(1200);
   return { ctx, page };
 }
