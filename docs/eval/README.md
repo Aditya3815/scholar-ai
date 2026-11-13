@@ -137,7 +137,7 @@ This is the measuring tape for the work that turns what a person types into what
 - **Hold-out seal**: `node apps/api/scripts/intent-holdout.mjs` with `keygen`, `check`, `seal`, `verify`, `aggregate` and `reveal`. The sealed file (`apps/api/eval/data/intent-holdout.enc`, AES-256-GCM, header authenticated) is opened only with a key that stays outside the repository; `check` tests plain files against the schema with no key; only `reveal`, which the owner alone may run, prints a case, and that case then moves to DEV. The file does not exist yet.
 - **Replay plan**: `node apps/api/scripts/intent-replay-plan.mjs` prints, with no network call, which searches a recording of the cases would need (raw, read and oracle forms), how many requests that is per source, and what it costs in OpenAlex calls. It records nothing. `docs/eval/openalex-budget.md` is the budget page for it.
 - **Guides**: `docs/eval/intent-writing-guide.md` (how the people who write the sets work, the 80 hold-out scenarios in four sheets, the draft safety brief for the clinician, the owner's checklist).
-- **Tests**: `eval/intent-data.eval.ts` (the data), `eval/metrics.eval.ts` (the statistics), `eval/intent-gates.eval.ts` (the gates file against a second, independent transcription of the plan table), and `.node-test.mjs` files for the hold-out seal, the replay plan and the canonical hash.
+- **Tests**: `eval/intent-data.eval.ts` (the data), `eval/lib/metrics.test.ts` (the statistics; a unit test, part of `npm test`), `eval/intent-gates.eval.ts` (the gates file against a second, independent transcription of the plan table), and `.node-test.mjs` files for the hold-out seal, the replay plan and the canonical hash.
 
 **What is NOT built yet**
 - The scoring layers that need the product (L1 to L5 of plan 8.3: `eval/intent.eval.ts`, the replay recordings, the human-label layer, the real-model layer): each comes with the release that has something to measure.
@@ -148,7 +148,7 @@ This is the measuring tape for the work that turns what a person types into what
 **Commands**
 ```bash
 cd apps/api
-npx vitest run -c vitest.eval.config.ts eval/intent-data.eval.ts eval/metrics.eval.ts eval/intent-gates.eval.ts   # also part of npm run eval
+npx vitest run -c vitest.eval.config.ts eval/intent-data.eval.ts eval/intent-gates.eval.ts   # also part of npm run eval (the statistics: npx vitest run eval/lib/metrics.test.ts)
 INTENT_STUDY_DIR=<folder of the five study files> npx vitest run -c vitest.eval.config.ts eval/intent-data.eval.ts   # also compares every DEV record with the study files on disk
 node scripts/intent-gates-hash.mjs                      # the hash for the commit message
 node scripts/intent-replay-plan.mjs                     # dry run, no network

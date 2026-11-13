@@ -8,10 +8,8 @@
 // screen reader.
 // Needs the Worker with the fake identity provider and the offline stand-ins: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/chat-perf.mjs [baseUrl]    (default http://localhost:8788)
-import { chromium } from "playwright-core";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, countFailure, failed, finish, launch, ok, startIdp } from "./lib/browser.mjs";
 
-const BASE = process.argv[2] ?? "http://localhost:8788";
 /**
  * The lines. A machine that is busy with other work runs this page three to five times slower than a quiet one (the same build opened the stored chat in 1.4 s and in 7 s on 3 and 4 Nov 2026), so a line in
  * milliseconds alone either flakes or means nothing. Each of the lines that depend on the processor therefore has TWO: a wide one in milliseconds, which only a page that has become slow on any machine crosses,
@@ -27,8 +25,6 @@ const TURNS = 20;
 const CARDS = 20;
 const SLOW = 4;
 
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 const note = (msg) => console.log(`        ${msg}`);
 
 /* ---------------------------------------------------------------- the stored conversation */
@@ -254,9 +250,9 @@ async function widthsProbe(list) {
   }
 }
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "chat-perf-1", email: "perf.reader@example.edu", email_verified: true, name: "Perf Reader" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
 const watchErrors = (p) => {
   p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
@@ -359,10 +355,10 @@ function tell(r) {
 try {
   if (process.env.PERF_ONLY_WIDTHS) {
     await widthsProbe(WIDTHS);
-    console.log(failures ? `${failures} FAILED` : "the widths are within the lines");
+    console.log(failed() ? `${failed()} FAILED` : "the widths are within the lines");
     await browser.close();
     idp.close();
-    process.exit(failures ? 1 : 0);
+    process.exit(failed() ? 1 : 0);
   }
   /* ============ first, the same reply under a chat of one turn: what the reply itself costs on this machine today ============ */
   console.log("first, for comparison: the same reply under a chat of one turn");
@@ -589,10 +585,9 @@ try {
   ok(errors.length === 0, `no console or page errors${errors.length ? ": " + errors.slice(0, 4).join(" | ") : ""}`);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   idp.close();
-  console.log(failures ? `\n${failures} FAILED` : "\nall chat performance checks passed");
-  process.exit(failures ? 1 : 0);
+  finish("all chat performance checks passed");
 }

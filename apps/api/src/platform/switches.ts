@@ -1,4 +1,18 @@
 /**
+ * Every switch of the Worker, declared once (docs/design/untangle.md, F6), and the readers that every read of a switch goes through: `flag(env, name)` for a gate, `killSwitch(env, name)` for a kill
+ * switch. SWITCHES (at the end of this file) says, for each name, its kind, its positions, its KV key and whether the privacy page has a sentence for it (legal-match.test.ts); a reader takes only a
+ * name of the registry, and what a name may be set to is read from there, not written at the call. What each switch does is documented on its variable (platform/env.ts).
+ *
+ * Two kinds:
+ *   - gate: unset is off. The variable says where it starts, a value that is not exactly one of its positions is off (and reported), and the KV key `flag:<NAME>` can only lower it. Below.
+ *   - kill: on unless the variable says otherwise (a rollback that needs no new code). Whether the variable is read as written or trimmed and in any case, and whether a KV key can lower it, is
+ *     the switch's own row of SWITCHES; a kill switch's KV key is read by the code that owns it (Trending reads it in the same KV operation as its file), through `lowerByKey`.
+ *
+ * This file is platform: it imports nothing (so a Node script loads it as it is, with the types stripped: scripts read SWITCHES for the positions of a run), and `understand/` may import its types
+ * (legal-match.test.ts rule 3: it never reaches a network client; it takes the KV namespace as an argument and reads from it).
+ */
+
+/**
  * Gate flags of the understanding releases (docs/design/intent-and-state.md: P3, 4.0 and H0 item 1). Every new behaviour has one switch with three positions, `off` (today, byte for byte), `shadow`
  * (compute and count, change nothing on the wire) and `on`; the safety lane also has `core`, between `shadow` and `on`, and the relevance floor has `writer` in the same place. The Worker variable says where a flag starts and it is **unset is off**:
  * the release commit sets `shadow` or `on` in the `vars` block of wrangler.jsonc. A value that is not exactly one of the positions (`ON`, `true`, an empty string) is off and reported as a bad value,
@@ -58,8 +72,9 @@ export const resetFlagCache = (): void => {
   isolateCaches = new WeakMap();
 };
 
+/** What flagOf is told about a flag's middle positions. `flag(env, name)` derives the three from the positions SWITCHES gives the name; only a test of the reader itself writes them. */
 export type FlagOptions = {
-  /** The names whose caller says they have a `core` position (the safety lane): a caller writes one reader per flag, so that this is said once. */
+  /** The flag has a `core` position (the safety lane). */
   allowCore?: boolean;
   /** The same for a `writer` position (the relevance floor, R9): only the writer's gate acts, with no reorder and no line; it stands between `shadow` and `on`. */
   allowWriter?: boolean;
@@ -148,4 +163,93 @@ export async function flagOf<E extends object>(env: E & FlagEnv, name: string, o
   reading.override = override;
   if (rank(override) < rank(variable)) reading.position = override;
   return reading;
+}
+
+/* ---------------------------------------------------------------- the registry */
+
+/** The positions of a kill switch, lowest first: `dark` (Trending) is the middle one, where the work goes on and nobody is shown it. */
+export const KILL_POSITIONS = ["off", "dark", "on"] as const;
+export type KillPosition = (typeof KILL_POSITIONS)[number];
+
+type GateSpec = {
+  kind: "gate";
+  /** The positions the variable may hold, lowest first (the reader always takes off, shadow and on; a middle one is the flag's own). */
+  positions: readonly FlagPosition[];
+  /** The privacy page has a sentence for this switch, pinned by legal-match.test.ts (FLAG_SENTENCES); false: none is needed today. */
+  sentence: boolean;
+};
+type KillSpec = {
+  kind: "kill";
+  /** The positions, lowest first; anything else the variable holds (or none) is `on`. */
+  positions: readonly KillPosition[];
+  /** "exact": only the very text of a position counts (`OFF` is on). "trimmed": spaces around and the case do not matter. */
+  read: "exact" | "trimmed";
+  /** A KV key whose presence, with any value, lowers the switch to `to`; null: the variable alone. */
+  kv: { key: string; to: KillPosition } | null;
+  sentence: boolean;
+};
+export type SwitchSpec = GateSpec | KillSpec;
+
+const gate = <const P extends readonly FlagPosition[]>(positions: P, sentence = false) => ({ kind: "gate", positions, sentence }) as const;
+
+/**
+ * Every switch, once. A gate's KV key is `flag:<NAME>` (flagKey); a kill switch's is in its row. What each one does: its variable in platform/env.ts. The order of the rows is not used.
+ * A new switch is one row here (and its variable in env.ts); its readers then take the name, and a name that is not here does not compile.
+ */
+export const SWITCHES = {
+  CHAT_COUNTERS: gate(["off", "shadow", "on"]),
+  CHAT_FAILPOLICY: gate(["off", "shadow", "on"]),
+  /** the safety lane: `core` answers only the unmistakable phrases */
+  CHAT_SAFETY: gate(["off", "shadow", "core", "on"]),
+  CHAT_CLEAN: gate(["off", "shadow", "on"]),
+  /** the relevance floor: `writer` acts only on what the writer reads */
+  CHAT_FLOOR: gate(["off", "shadow", "writer", "on"]),
+  CHAT_THINK: gate(["off", "shadow", "on"]),
+  CHAT_UNDERSTAND: gate(["off", "shadow", "on"], true),
+  CHAT_UNDERSTAND_VISITORS: gate(["off", "shadow", "on"], true),
+  CHAT_TOOLS: gate(["off", "shadow", "on"], true),
+  /** the MCP server: `beta` lets in the accounts of MCP_BETA_USERS; `shadow` is a position the reader takes and the server treats as off */
+  MCP: gate(["off", "shadow", "beta", "on"], true),
+  MCP_CHECK_CLAIM: gate(["off", "shadow", "beta", "on"]),
+  CHAT_JUDGE: { kind: "kill", positions: ["off", "on"], read: "exact", kv: null, sentence: false },
+  CHAT_CONTEXT: { kind: "kill", positions: ["off", "on"], read: "exact", kv: null, sentence: false },
+  SEARCH_PLAINTEXT: { kind: "kill", positions: ["off", "on"], read: "exact", kv: null, sentence: false },
+  /** "off" stops the daily job and hides the list; "dark" runs the job and hides the list; the KV key hides the list and leaves the job running (dark) */
+  TRENDING: { kind: "kill", positions: ["off", "dark", "on"], read: "trimmed", kv: { key: "trending:v1:off", to: "dark" }, sentence: false },
+} as const satisfies Record<string, SwitchSpec>;
+
+export type SwitchName = keyof typeof SWITCHES;
+export type GateName = { [N in SwitchName]: (typeof SWITCHES)[N]["kind"] extends "gate" ? N : never }[SwitchName];
+export type KillName = { [N in SwitchName]: (typeof SWITCHES)[N]["kind"] extends "kill" ? N : never }[SwitchName];
+/** The positions one switch has. */
+export type PositionOf<N extends SwitchName> = (typeof SWITCHES)[N]["positions"][number];
+
+export const SWITCH_NAMES = Object.keys(SWITCHES) as SwitchName[];
+export const isSwitchName = (name: unknown): name is SwitchName => typeof name === "string" && Object.prototype.hasOwnProperty.call(SWITCHES, name);
+
+/** The KV key that can lower a switch: `flag:<NAME>` for a gate, the row's key for a kill switch that has one, else null. */
+export function kvKeyOf(name: SwitchName): string | null {
+  const spec: SwitchSpec = SWITCHES[name];
+  return spec.kind === "gate" ? flagKey(name) : (spec.kv?.key ?? null);
+}
+
+/** Where a gate stands for this request: flagOf, told the middle positions this name has. Unset is off; an off flag reads nothing from KV. */
+export function flag<E extends object>(env: E & FlagEnv, name: GateName, options: Pick<FlagOptions, "now" | "cache"> = {}): Promise<FlagReading> {
+  const positions: readonly FlagPosition[] = SWITCHES[name].positions;
+  return flagOf(env, name, { ...options, allowCore: positions.includes("core"), allowWriter: positions.includes("writer"), allowBeta: positions.includes("beta") });
+}
+
+/** Where a kill switch's variable puts it: a position of its row (read as the row says), and `on` for anything else or nothing. Reads no KV and never throws. */
+export function killSwitch<N extends KillName>(env: { readonly [K in N]?: unknown } | undefined, name: N): PositionOf<N> {
+  const spec: KillSpec = SWITCHES[name];
+  const raw = env?.[name];
+  const value = spec.read === "exact" ? raw : typeof raw === "string" ? raw.trim().toLowerCase() : raw;
+  return ((spec.positions as readonly unknown[]).includes(value) ? value : "on") as PositionOf<N>;
+}
+
+/** A kill switch after its KV key was read: `text` is what the key holds (null or undefined: no key). Present, with any value, lowers it to the row's position; it never raises. */
+export function lowerByKey<N extends KillName>(name: N, position: PositionOf<N>, text: unknown): PositionOf<N> {
+  const kv = (SWITCHES[name] as KillSpec).kv;
+  if (!kv || text === null || text === undefined) return position;
+  return (KILL_POSITIONS.indexOf(kv.to) < KILL_POSITIONS.indexOf(position as KillPosition) ? kv.to : position) as PositionOf<N>;
 }

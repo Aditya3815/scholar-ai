@@ -24,8 +24,8 @@
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
 import { CASES as TUNED, GROUPS, HOLDOUT } from "@scholar/test-support/router-cases.mjs";
+import { APP } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
 const gate = process.argv.includes("--gate");
 // the follow-up list is gated on all of its cases unless a set is named: the tuned list alone has 4 language cases, 9 year cases and 12 topic switches, so one answer moves a gate
 const set = process.argv.find((a) => a.startsWith("--set="))?.slice(6) ?? (process.argv.includes("--followup") ? "all" : "tuned");
@@ -40,7 +40,7 @@ const FOLLOWUP_LIMITS = { intent: 0.85, intentHinglish: 0.8, intentHindi: 0.8, f
 
 if (process.argv.includes("--followup")) process.exit(await followUpMain());
 
-const idp = await startFakeIdp(9911);
+const idp = await startFakeIdp();
 const clients = new Map();
 const run = Date.now(); // a new set of accounts for every run: the allowance is counted per account (and an account is found by its e-mail address)
 async function clientFor(i) {
@@ -154,7 +154,7 @@ async function followUpMain() {
   const { TUNED: FOLLOW_TUNED, HOLDOUT: FOLLOW_HOLDOUT, HOLDOUT2: FOLLOW_HOLDOUT2, CLASSES, LANGS } = await import("@scholar/test-support/router-followup-cases.mjs");
   const { scoreCase, formatReport } = await import("./lib/followup-score.mjs");
   const cases = set === "holdout" ? FOLLOW_HOLDOUT : set === "holdout2" ? FOLLOW_HOLDOUT2 : set === "all" ? [...FOLLOW_TUNED, ...FOLLOW_HOLDOUT, ...FOLLOW_HOLDOUT2] : FOLLOW_TUNED;
-  const idp = await startFakeIdp(9911);
+  const idp = await startFakeIdp();
   const clients = new Map();
   const stamp = Date.now(); // a new set of accounts for every run: the allowance is counted per account
   const clientFor = (i) => {

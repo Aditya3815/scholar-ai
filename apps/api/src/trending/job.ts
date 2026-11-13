@@ -30,6 +30,7 @@ import { BudgetError, CallBudget, SourceError, makePacer, mapLimit, type Http } 
 import { BATCH_TTL_SECONDS, FILE_TTL_SECONDS, POOL_TTL_SECONDS, TRENDING_KEYS } from "./store";
 import { STUB_FAULT_KEY, STUB_SUBFIELDS, makeStubTrending, parseStubFault } from "./stub";
 import type { Env } from "../platform/env";
+import { killSwitch } from "../platform/switches";
 
 /**
  * The Trending job (docs/design/chatview-and-trending.md, T3, T4, T8): once a day, inside the 03:17 UTC run, it makes the one file the page reads. It does two things.
@@ -273,7 +274,6 @@ type Ctx = {
 };
 
 const oaDeps = (ctx: Ctx): OaDeps => ({ http: ctx.http, mailto: ctx.oaBase.mailto, ...(ctx.oaBase.apiKey ? { apiKey: ctx.oaBase.apiKey } : {}), budget: ctx.budget });
-const off = (v: unknown): boolean => typeof v === "string" && v.trim().toLowerCase() === "off";
 const isMonday = (day: string): boolean => new Date(Date.parse(day)).getUTCDay() === 1;
 const cmp = (p: string, q: string): number => (p < q ? -1 : p > q ? 1 : 0);
 const bestFirst = (x: Candidate, y: Candidate): number => y.score - x.score || y.a - x.a || cmp(x.phrase, y.phrase);
@@ -283,7 +283,8 @@ export async function runTrending(deps: TrendingDeps, scheduledTime: number): Pr
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const started = clock();
   const asOf = isoDay(scheduledTime);
-  if (off(deps.variable)) return { skipped: "off", asOf, calls: 0, kvOps: 0, ms: 0 };
+  // only "off" stops the job ("dark" and the KV key hide the list and leave the job running): read trimmed and in any case, as the route reads it (platform/switches.ts)
+  if (killSwitch({ TRENDING: deps.variable }, "TRENDING") === "off") return { skipped: "off", asOf, calls: 0, kvOps: 0, ms: 0 };
   const L: TrendingLimits = { ...TRENDING_LIMITS, ...deps.limits };
   const store = new Store(deps.kv, clock, sleep);
   const budget = new CallBudget(L.runCalls, "calls to OpenAlex, arXiv and the search");

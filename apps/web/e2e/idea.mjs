@@ -2,44 +2,29 @@
 // the closest papers with how they were found, and what was searched.
 // Needs the Worker with the fake identity provider AND the offline stand-ins (QA_STUB=1): `npm run integration -w apps/api -- --browser`.
 //   node e2e/idea.mjs [baseUrl]    (default http://localhost:8788)
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { strToU8, zipSync } from "fflate";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
+import { BASE, axeCheck, clickTheme, countFailure, desk, finish, launch, ok, startIdp } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const OUT = fileURLToPath(new URL("./shots/", import.meta.url));
 mkdirSync(OUT, { recursive: true });
 
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "idea-ui-1", email: "meera@example.edu", email_verified: true, name: "Meera Nair" });
 
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+const browser = await launch();
+const ctx = await browser.newContext(desk(1280, 900));
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401)/.test(m.text())) errors.push("console: " + m.text()); });
 
-async function axe(label, p = page) {
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  ok(res.length === 0, `axe [${label}]: ${res.length ? "" : "no violations"}`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
+const axe = (label, p = page) => axeCheck(p, label, { said: true });
 const shot = (name) => page.screenshot({ path: OUT + name + ".png" });
-const setTheme = async (label) => { await page.getByRole("button", { name: `${label} theme` }).click(); await page.waitForTimeout(500); };
+const setTheme = (label) => clickTheme(page, label, 500);
 const textbox = () => page.getByRole("textbox", { name: "Your idea" });
 const openFile = async (name, mimeType, buffer) => page.locator('input[type="file"]').setInputFiles({ name, mimeType, buffer: Buffer.from(buffer) });
 
@@ -298,8 +283,7 @@ try {
   ok(errors.length === 0, `no console/page errors${errors.length ? ": " + errors.join(" | ").slice(0, 500) : ""}`);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 }
 await browser.close();
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall idea check browser checks passed");
-process.exit(failures ? 1 : 0);
+finish("all idea check browser checks passed", (n) => `${n} check(s) FAILED`);

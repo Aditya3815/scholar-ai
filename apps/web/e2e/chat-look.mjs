@@ -11,22 +11,13 @@
 //   - axe in light, dark and read at 1280 and 390, no sideways scroll at 320 with Hindi, a 31-letter word and marks, targets of the rows of buttons, reduced motion.
 // Needs the Worker with the fake identity provider and the offline stand-ins: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/chat-look.mjs [baseUrl]
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, CHAT_STAND_IN, UNSTICK_ALL, axeViolations, countFailure, desk, finish, launch, ok, phone, sleep, startIdp } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const ORIGIN = new URL(BASE).origin;
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const DESK = { viewport: { width: 1280, height: 800 } };
-const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
-const NARROW = { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
+const DESK = desk(1280, 800);
+const PHONE = phone(390, 844);
+const NARROW = phone(320, 640);
 
 /* ------------------------------------------------------------------ the conversation the test stores (the page keeps a chat in IndexedDB and a list in localStorage: lib/chat.ts) */
 const WORD = "dichlorodiphenyltrichloroethane"; // 31 letters
@@ -80,9 +71,9 @@ async function store(page, id, messages) {
 }
 
 /* ------------------------------------------------------------------ the run */
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "look-ui-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
 const leftTheApp = [];
 let storageState;
@@ -113,13 +104,12 @@ async function open(kind, device, { theme = "light", extra = {}, fonts = null } 
 }
 /** axe on the page with the box in the flow of the page and every reply drawn, as e2e/chat.mjs does it: the box that sticks to the bottom covers whatever is scrolled under it, and axe reports a button that is partly under it (target-size), which one depends on where the page happens to be scrolled */
 const axeRun = async (page) => {
-  const style = await page.addStyleTag({ content: ".hm-box { position: static !important; } .chat-list > li { content-visibility: visible !important; }" });
+  const style = await page.addStyleTag({ content: UNSTICK_ALL });
   await page.waitForTimeout(400);
-  const v = await axeOn(page);
+  const v = (await axeViolations(page)).map((x) => `${x.id}: ${x.nodes} (${x.sample})`);
   await style.evaluate((el) => el.remove());
   return v;
 };
-const axeOn = (page) => page.evaluate(async (src) => { if (!window.axe) (0, eval)(src); const r = await window.axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] }); return r.violations.map((v) => `${v.id}: ${v.nodes.length} (${v.nodes[0]?.target?.join(" ")})`); }, axeSource);
 const style = (page, sel, props) => page.locator(sel).first().evaluate((el, props) => { const s = getComputedStyle(el); return Object.fromEntries(props.map((p) => [p, s.getPropertyValue(p)])); }, props);
 
 try {
@@ -319,7 +309,7 @@ try {
   console.log("print in the dark theme");
   {
     // browsers do not print backgrounds: light text meant for a dark page, and the white text of the question's bubble, would print as nothing on the white paper
-    const { page, ctx } = await open("english", { viewport: { width: 794, height: 1123 } }, { theme: "dark" }); // the width of an A4 page: the rules for a window under 920 px are the ones a printout is laid out with
+    const { page, ctx } = await open("english", desk(794, 1123), { theme: "dark" }); // the width of an A4 page: the rules for a window under 920 px are the ones a printout is laid out with
     await page.emulateMedia({ media: "print" });
     await sleep(500);
     const lum = (rgb) => { const m = (rgb.match(/[0-9.]+/g) ?? ["0", "0", "0"]).map(Number); return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
@@ -418,21 +408,7 @@ try {
     const ctx = await browser.newContext({ ...DESK, storageState });
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-    await page.addInitScript(() => {
-      const real = window.fetch.bind(window);
-      window.fetch = (input, init) => {
-        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-        if (window.__look && !window.__look.emit && new URL(url, location.href).pathname === "/api/v1/chat" && (init?.method ?? "GET") === "POST") {
-          const enc = new TextEncoder();
-          let ctrl;
-          const body = new ReadableStream({ start(c) { ctrl = c; } });
-          window.__look.emit = (e) => ctrl.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
-          window.__look.end = () => { try { ctrl.close(); } catch { /* closed */ } };
-          return Promise.resolve(new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } }));
-        }
-        return real(input, init);
-      };
-    });
+    await page.addInitScript(CHAT_STAND_IN, { key: "__look" });
     await page.goto(BASE + "/", { waitUntil: "networkidle" });
     await page.locator("#hm-h").waitFor({ timeout: 20000 });
     await page.evaluate(() => { window.__look = {}; });
@@ -477,7 +453,7 @@ try {
       const box = document.querySelector(".hm-box").getBoundingClientRect();
       return { top, box: box.top, strip: box.top - top, vh: innerHeight, sticky: [".ws-top", ".chat-head", ".hm-box"].map((s) => getComputedStyle(document.querySelector(s)).position) };
     });
-    const SHORT = { viewport: { width: 320, height: 256 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
+    const SHORT = phone(320, 256);
     const { page, ctx } = await open("english", SHORT);
     await page.evaluate(() => window.scrollTo(0, 300));
     await sleep(300);
@@ -514,10 +490,9 @@ try {
   ok(errors.length === 0, `no errors in the page${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""}`);
 } catch (e) {
   console.error(e);
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   idp.close();
 }
-console.log(failures === 0 ? "\nchat look: all passed" : `\nchat look: ${failures} FAIL`);
-process.exit(failures === 0 ? 0 : 1);
+finish("chat look: all passed", (n) => `chat look: ${n} FAIL`);

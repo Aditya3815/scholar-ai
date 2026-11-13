@@ -11,6 +11,7 @@ import { doajAll, doajIndia, openalexIndia, shodhganga } from "./india";
 import { FEW_RESULTS, interleave, queryVariants } from "./query";
 import { s2 } from "./s2";
 import type { Provider, ProviderPaper, SearchEnv } from "./types";
+import { killSwitch } from "../platform/switches";
 
 /**
  * The sources of each scope, in the order their answers are merged. The regular search is not changed by the Indian one: the search eval replays recorded answers of
@@ -50,7 +51,7 @@ export async function runProvider(p: Provider, q: string, env: SearchEnv) {
   );
   // Made plain text after the cache, not before it: an answer kept for a day before this existed is cleaned as it is read, and the key stays what it was (a new key would drop every source's answers at once;
   // Idea Check, the scan and Trending read the same cache). What the cache keeps is what the source sent. SEARCH_PLAINTEXT=off gives that back.
-  const value = env.SEARCH_PLAINTEXT === "off" ? answered : plainPapers(answered);
+  const value = killSwitch(env, "SEARCH_PLAINTEXT") === "off" ? answered : plainPapers(answered);
   return { value, status: { ok: true, count: value.length, ms: Date.now() - t0, cached: hit } satisfies ProviderStatus };
 }
 

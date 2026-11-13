@@ -1,31 +1,17 @@
 // Running the service: the scheduled-job heartbeat (/api/v1/health/jobs), the file-and-record check, and deletions that survive a restore.
 // Real Worker + local D1 + local R2 + fake IdP. `npm run integration -w apps/api` starts everything (the Worker runs with --test-scheduled).
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
+import { APP, ok, countFailure, finish, startIdp, createClient, loginWith, sqlResults, at } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
 /**
  * Runs SQL statements through the Worker itself (a dev-only route). Not with `wrangler d1 execute --local` from a second process: writing to the
  * database file while `wrangler dev` has it open left the dev server spinning at 100% CPU and answering nothing.
  */
-async function sql(...statements) {
-  const res = await fetch(`${APP}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: statements }) });
-  if (!res.ok) throw new Error(`sql failed: HTTP ${res.status} ${await res.text()}`);
-  return (await res.json()).results.flat();
-}
+const sql = async (...statements) => (await sqlResults(statements, { strict: true })).flat();
 
-const idp = await startFakeIdp(9911);
-const login = async (sub, email, name) => {
-  idp.setUser({ sub, email, email_verified: true, name });
-  const c = createClient(APP);
-  await c.follow(`${APP}/api/v1/auth/google/start`);
-  await c.ack();
-  return c;
-};
+const idp = await startIdp();
+const login = loginWith(idp);
 const jobsHealth = async () => {
   const res = await fetch(`${APP}/api/v1/health/jobs`);
   return { res, body: await res.json() };
@@ -56,6 +42,8 @@ try {
     ok(body.jobs[0].name === "maintenance" && body.jobs[0].state === "ok", "it names the job and its state");
     ok(!("lastError" in body.jobs[0]) && !("failures" in body.jobs[0]), "the public answer carries no error text");
     ok((await fetch(`${APP}/api/v1/health`)).status === 200, "the ordinary health check is separate and unaffected");
+    // one answer counted today by this suite itself: in a named run (trending-on) the Worker starts empty and no other suite has answered anything yet
+    await sql("INSERT INTO answer_outcomes (day, feature, outcome, n) VALUES (date('now'), 'doc_ask', 'answered', 1) ON CONFLICT (day, feature, outcome) DO UPDATE SET n = n + 1");
     const o = await overview(admin);
     ok(Array.isArray(o.jobs) && o.jobs[0].state === "ok", "the admin overview lists the job as well");
     ok(Array.isArray(o.answers) && o.answers.length > 0 && o.answers.every((r) => typeof r.feature === "string" && typeof r.outcome === "string" && r.n > 0 && Object.keys(r).sort().join() === "feature,n,outcome"), "the admin overview carries how answers went in the last seven days, as counts only");
@@ -74,7 +62,8 @@ try {
     const trending = await fetch(`${APP}/api/v1/home/trending`, { headers: { cookie: "sid=not-a-session" } });
     const file = await trending.json();
     ok(trending.status === 200 && trending.headers.get("cache-control") === "public, max-age=300" && !trending.headers.has("set-cookie"), "GET /api/v1/home/trending answers 200 with Cache-Control public, max-age=300, and sets no cookie");
-    ok(file.version === 1 && file.disabled === false && file.groups?.global?.chips?.length >= 8 && file.groups.global.chips.length <= 12 && Date.parse(file.validUntil) > Date.now(), "the job's first run made a file of 8 to 12 phrases, valid for the next two days (the page's own reader checks the rest)");
+    // the list is shown only with TRENDING on (--run=trending-on); production's "off" (the default run) and "dark" hide it from the route, which the trending suite checks
+    if (at("TRENDING", "on")) ok(file.version === 1 && file.disabled === false && file.groups?.global?.chips?.length >= 8 && file.groups.global.chips.length <= 12 && Date.parse(file.validUntil) > Date.now(), "the job's first run made a file of 8 to 12 phrases, valid for the next two days (the page's own reader checks the rest)");
     const row2 = (await sql("SELECT last_result, last_error, failures FROM job_runs WHERE name = 'trending'"))[0];
     ok(row2.last_result === "ok" && row2.last_error === null && row2.failures === 0, "the Trending job's row says it finished well, with no error");
     ok(Date.now() - Date.parse(body.jobs[0].lastOkAt) < 120_000, "its last good run is now");
@@ -126,6 +115,7 @@ try {
   }
 
   console.log("the heartbeat itself missing or unreadable");
+  let hidden = false;
   try {
     await sql("DELETE FROM job_runs");
     const { res, body } = await jobsHealth();
@@ -133,12 +123,14 @@ try {
     await runCron();
     ok((await jobsHealth()).res.status === 200, "a run writes the record again");
     await sql("ALTER TABLE job_runs RENAME TO job_runs_hidden");
+    hidden = true;
     const bad = await jobsHealth();
     ok(bad.res.status === 503 && bad.body.error === "db" && bad.body.ok === false, "an unreadable heartbeat is a 503, with no detail");
     const o = await admin.api("/api/v1/admin/overview");
     ok(o.status === 200 && (await o.json()).jobs.length === 0, "the admin page still opens when the heartbeat cannot be read");
   } finally {
-    try { await sql("ALTER TABLE job_runs_hidden RENAME TO job_runs"); } catch { /* it was never renamed */ }
+    // put back only what was renamed, and say so if that fails (it used to be swallowed: bug T-B10 of docs/design/untangle.md), since every later check reads job_runs
+    if (hidden) await sql("ALTER TABLE job_runs_hidden RENAME TO job_runs");
   }
 
   console.log("files and records agree");
@@ -269,8 +261,7 @@ try {
   }
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 }
 await idp.close?.();
-console.log(failures ? `\n${failures} operations check(s) FAILED` : "\nall operations checks passed");
-process.exit(failures ? 1 : 0);
+finish("all operations checks passed", (n) => `${n} operations check(s) FAILED`);

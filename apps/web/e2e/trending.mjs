@@ -8,21 +8,14 @@
 //   - only our own origin is called, with no cookie; axe in light, dark and read at 1280 and 390; target sizes; reduced motion; keyboard order (box, Try, Trending, Why); accessible names; layout shift.
 // Needs the Worker with the fake identity provider and the offline stand-ins: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/trending.mjs [baseUrl]
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, axeCheck, countFailure, desk, finish, launch, ok, phone, setTheme, startIdp, watchPage } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const ORIGIN = new URL(BASE).origin;
 const OUT = fileURLToPath(new URL("./shots/trending-", import.meta.url));
 mkdirSync(fileURLToPath(new URL("./shots/", import.meta.url)), { recursive: true });
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 const note = (msg) => console.log(`        ${msg}`);
 const same = (a, b, msg) => ok(JSON.stringify(a) === JSON.stringify(b), `${msg}${JSON.stringify(a) === JSON.stringify(b) ? "" : `  [got ${JSON.stringify(a)}, wanted ${JSON.stringify(b)}]`}`);
 
@@ -36,17 +29,13 @@ const ENGLISH = ALL.filter((t) => S.inEnglish(t));
 const VIA_AUTO = ALL.filter((t) => !S.inEnglish(t));
 if (ENGLISH.length < 2 || VIA_AUTO.length < 2) throw new Error("starters.ts must hold at least two English chips and two chips in Hinglish");
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "trend-ui-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
-const watch = (p) => {
-  p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  // a feed that is blocked or never answers is part of the test: the browser reports it as a failed request, and that is not an error of the page
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errors.push("console: " + m.text()); });
-};
-const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
-const DESK = { viewport: { width: 1280, height: 800 } };
+const watch = (p) => watchPage(p, errors, { allowed: /Failed to load resource/ });
+const PHONE = phone(390, 844);
+const DESK = desk(1280, 800);
 
 /* ------------------------------------------------------------------ the list the test serves */
 const NOW = Date.now();
@@ -138,19 +127,8 @@ const feedDone = async (p, seen, want = 1) => { await p.waitForFunction(() => tr
 const storedCopy = (p) => p.evaluate((k) => localStorage.getItem(k), COPY_KEY);
 const boxValue = (p) => p.locator(".hm-input").inputValue();
 const caret = (p) => p.locator(".hm-input").evaluate((el) => ({ start: el.selectionStart, end: el.selectionEnd, len: el.value.length, focused: document.activeElement === el }));
-const setTheme = (p, t) => p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), t);
 const still = (p) => p.evaluate(() => new Promise((resolve) => { const t0 = performance.now(); const running = () => document.getAnimations().some((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity); let n = 0; const tick = () => { n = running() ? 0 : n + 1; if (n >= 8 || performance.now() - t0 > 4000) resolve(true); else requestAnimationFrame(tick); }; requestAnimationFrame(tick); }));
-async function axe(label, p) {
-  await still(p);
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    const list = (items, impact) => items.map((v) => ({ id: v.id, impact: impact ?? v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-    return [...list(r.violations), ...list(r.incomplete.filter((i) => i.id === "target-size"), "incomplete")];
-  });
-  ok(res.length === 0, `axe [${label}]`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
+const axe = (label, p) => axeCheck(p, label, { settle: still, incompleteTargetSize: true });
 const size = (loc) => loc.evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
 const signIn = async (p) => {
   await p.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -544,7 +522,7 @@ try {
     // window, under the opaque bar of the page (the year filter, the first row of the box, was hidden under it); a mouse brought nothing into view at all (reviewer, 4 Nov 2026)
     console.log("a fill puts the box where it can be seen: clear of the bar on a phone, and on a desktop window too");
     const seeSince = (p) => p.evaluate(() => { const c = document.querySelector('.hm-bar-top .chat-chip[data-kind="since"]'); const r = c?.getBoundingClientRect(); const bar = document.querySelector(".ws-top"); const barBottom = bar && getComputedStyle(bar).display !== "none" ? bar.getBoundingClientRect().bottom : 0; const box = document.querySelector(".hm-box").getBoundingClientRect(); return { has: !!c, top: r?.top, bottom: r?.bottom, barBottom, vh: innerHeight, boxTop: box.top, boxBottom: box.bottom }; });
-    for (const [name, vp, where] of [["phone, the box wholly above the window", PHONE, "above"], ["phone, the box's top under the bar (a few pixels of it 'in view')", PHONE, "under"], ["desktop (a window 600 px high: in a taller one the page cannot be scrolled far enough to lose the box), the box wholly above the window", { viewport: { width: 1280, height: 600 } }, "above"]]) {
+    for (const [name, vp, where] of [["phone, the box wholly above the window", PHONE, "above"], ["phone, the box's top under the bar (a few pixels of it 'in view')", PHONE, "under"], ["desktop (a window 600 px high: in a taller one the page cannot be scrolled far enough to lose the box), the box wholly above the window", desk(1280, 600), "above"]]) {
       const A = await open(vp, { copy: copyOf(makePayload()), serve: makePayload() });
       const p = A.page;
       await p.evaluate((w) => { const box = document.querySelector(".hm-box").getBoundingClientRect(); window.scrollTo(0, w === "above" ? box.bottom + window.scrollY + 40 : box.top + window.scrollY - 20); }, where);
@@ -626,7 +604,7 @@ try {
   }
   {
     // at 320 px a Try chip that is longer than the line wraps to two lines inside its capsule: its lines are centred, as the one-line chips beside it are (they were left-aligned in a full-width pill)
-    const A = await open({ viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }, { copy: copyOf(makePayload()), serve: makePayload() });
+    const A = await open(phone(320, 640), { copy: copyOf(makePayload()), serve: makePayload() });
     const chips = await A.page.locator(".hm-starters .chip-btn").evaluateAll((els) => els.map((el) => ({ h: el.getBoundingClientRect().height, align: getComputedStyle(el).textAlign, text: el.textContent.trim().slice(0, 30) })));
     const wrapped = chips.filter((c) => c.h > 44);
     ok(chips.length >= 4 && chips.every((c) => c.align === "center"), `at 320 px every chip's text is centred, the ${wrapped.length} that wrap to two lines too (${[...new Set(chips.map((c) => c.align))].join(", ")})`);
@@ -842,10 +820,9 @@ try {
   for (const e of errors.slice(0, 8)) console.log("        " + e);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   idp.close();
   await browser.close();
-  console.log(failures ? `\n${failures} FAILED` : "\nall trending browser checks passed");
-  process.exit(failures ? 1 : 0);
+  finish("all trending browser checks passed");
 }

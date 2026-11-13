@@ -2,9 +2,7 @@
 // Ten calls sent at once to the Crossref lane must start one at a time (340 ms apart), never more than three together, and none may be lost.
 // `npm run integration -w apps/api` starts everything. The CORE lane (a minute-long window, a daily allowance that the object keeps) is covered by unit tests:
 // its state survives between runs, which would make a repeated local run depend on the one before.
-const APP = process.env.APP ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
+import { APP, ok, countFailure, finish } from "./lib/harness.mjs";
 const burst = async (body) => {
   const res = await fetch(`${APP}/api/v1/dev/gate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   return { status: res.status, ...(await res.json()) };
@@ -43,7 +41,6 @@ try {
   ok(after.results.every((x) => "startedAt" in x), "after a pause three more calls go through (places of refused callers were not kept, finished calls released theirs)");
 } catch (e) {
   console.error(e);
-  failures++;
+  countFailure();
 }
-console.log(failures ? `\n${failures} FAILED` : "\ngate integration passed");
-process.exit(failures ? 1 : 0);
+finish("gate integration passed");

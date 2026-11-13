@@ -3,48 +3,32 @@
 // Needs the Worker with the fake identity provider, the offline model stand-ins (QA_STUB=1, see apps/api/src/ocr/stub.ts) and OCR_PAGES_PER_DAY=25:
 // `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/scan.mjs [baseUrl]    (default http://localhost:8788)
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 import { makePageJpeg, makeScanPdf } from "../../api/scripts/lib/make-scan-pdf.mjs";
+import { BASE, axeCheck, clickTheme, countFailure, desk, finish, launch, noSideways, ok, until as poll, sqlResults, startIdp } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const OUT = fileURLToPath(new URL("./shots/", import.meta.url));
 const PER_DAY = 25;
 mkdirSync(OUT, { recursive: true });
 
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "scan-ui-1", email: "meera@example.edu", email_verified: true, name: "Meera Iyer" });
 
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
-const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+const browser = await launch();
+const ctx = await browser.newContext(desk(1360, 900));
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|429)/.test(m.text())) errors.push("console: " + m.text()); });
 
-async function axe(label) {
-  await page.evaluate(axeSource);
-  const res = await page.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  ok(res.length === 0, `axe [${label}]: ${res.length ? "" : "no violations"}`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
+const axe = (label) => axeCheck(page, label, { said: true });
 const shot = (name) => page.screenshot({ path: OUT + name + ".png" });
-const setTheme = async (label) => { await page.getByRole("button", { name: `${label} theme` }).click(); await page.waitForTimeout(500); };
-const until = async (fn, ms = 20000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await page.waitForTimeout(150); } return false; };
-const sql = async (...s) => (await (await fetch(`${BASE}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: s }) })).json()).results;
+const setTheme = (label) => clickTheme(page, label, 500);
+const until = (fn, ms = 20000) => poll(fn, { ms, every: 150 });
+const sql = (...s) => sqlResults(s, { base: BASE });
 const api = async (path) => (await page.request.get(`${BASE}/api/v1${path}`)).json();
-const noSideways = () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 
 /** A scanned PDF of `n` pages (a picture per page, no text). `blankPages` are empty sheets. */
 const scanPdf = async (n, { blankPages = [], title = "Scanned report" } = {}) =>
@@ -224,11 +208,11 @@ try {
   console.log("phone width");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(BASE + "/papers", { waitUntil: "networkidle" });
-  ok(await noSideways(), "the papers page does not scroll sideways at 390 px");
+  ok(await noSideways(page), "the papers page does not scroll sideways at 390 px");
   await card("scanned report").locator(".dc-open").click();
   await page.locator(".scan").waitFor();
   await page.waitForTimeout(700);
-  ok(await noSideways(), "the banner does not make the paper scroll sideways at 390 px");
+  ok(await noSideways(page), "the banner does not make the paper scroll sideways at 390 px");
   await shot("88-scan-mobile");
   await axe("scan banner, phone");
   await setTheme("Dark"); await shot("89-scan-mobile-dark"); await axe("scan banner, phone, dark"); await setTheme("Light");
@@ -237,8 +221,7 @@ try {
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
   await shot("89-scan-failure").catch(() => {});
-  failures++;
+  countFailure();
 }
 await browser.close();
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall scanned-paper browser checks passed");
-process.exit(failures ? 1 : 0);
+finish("all scanned-paper browser checks passed", (n) => `${n} check(s) FAILED`);

@@ -3,47 +3,23 @@
 // Needs the Worker with the fake identity provider and the offline stand-ins: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/polish-chat.mjs [baseUrl]    (default http://localhost:8788)
 // The browser is started WITH its scroll bars (Playwright hides them by default in a headless browser: a box that grows a bar would show nothing in a picture and take no room in a measurement).
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, REFUSED_OR_BUSY, UNSTICK_ALL, axeCheck, countFailure, desk, finish, launch, ok, phone, setTheme, sleep, startIdp, watchPage } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 const note = (msg) => console.log(`        ${msg}`);
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "polish-chat-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });
+const browser = await launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
 const errors = [];
 let currentPart = "-";
-const watch = (p) => {
-  p.on("pageerror", (e) => { errors.push("pageerror: " + e.message); console.log(`        (page error in part ${currentPart}: ${e.message.slice(0, 70)})`); });
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409|429|503)/.test(m.text())) errors.push("console: " + m.text()); });
-};
+const watch = (p) => watchPage(p, errors, { allowed: REFUSED_OR_BUSY, onPageError: (e) => console.log(`        (page error in part ${currentPart}: ${e.message.slice(0, 70)})`) });
 const VP = {
-  1280: { viewport: { width: 1280, height: 800 } },
-  390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  1280: desk(1280, 800),
+  390: phone(390, 844),
 };
-const setTheme = (p, t) => p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), t);
 
-async function axe(label, p) {
-  // the conversation's box is put in the flow for the run, as the other chat suites do: what axe reads is the page and not where it happens to be scrolled
-  const unstick = await p.addStyleTag({ content: ".hm-box { position: static !important; } .chat-list > li { content-visibility: visible !important; }" });
-  await sleep(300);
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  await unstick.evaluate((el) => el.remove());
-  ok(res.length === 0, `axe [${label}]`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
+// the conversation's box is put in the flow for the run, as the other chat suites do: what axe reads is the page and not where it happens to be scrolled
+const axe = (label, p) => axeCheck(p, label, { css: UNSTICK_ALL, settle: () => sleep(300) });
 
 /* ---------------------------------------------------------------- a stored conversation of `turns` replies (the way e2e/chat-perf.mjs makes one, with fewer cards) */
 const TOPICS = ["glaucoma screening", "diabetic retinopathy", "asthma in children", "tuberculosis treatment", "dengue vaccines", "hypertension in India", "iron deficiency anaemia", "sleep and memory", "air pollution and lungs", "stroke rehabilitation", "malaria nets", "kidney stones", "dental caries", "thyroid disease", "anaemia in pregnancy", "snakebite care", "heat stroke", "hepatitis B", "leprosy", "oral health"];
@@ -119,7 +95,7 @@ const near = (a, b, d = 8) => a.every((v, i) => Math.abs(v - b[i]) <= d);
 const section = async (name, fn) => {
   if (process.env.PARTS && !process.env.PARTS.split(",").includes(name)) return;
   currentPart = name;
-  try { await fn(); } catch (e) { failures++; console.log(` FAIL  [part ${name}] stopped: ${String(e.message).split(/\r?\n/)[0].slice(0, 200)}`); }
+  try { await fn(); } catch (e) { countFailure(); console.log(` FAIL  [part ${name}] stopped: ${String(e.message).split(/\r?\n/)[0].slice(0, 200)}`); }
 };
 try {
   await section("5", async () => {
@@ -473,12 +449,11 @@ try {
     }
   });
 } catch (e) {
-  failures++;
+  countFailure();
   console.log(` FAIL unexpected: ${e.stack?.split("\n").slice(0, 4).join(" | ")}`);
 } finally {
   ok(errors.length === 0, `no page error and no console error (${errors.length ? errors[0].slice(0, 160) : "none"})`);
   await browser.close();
   idp.close();
 }
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall checks passed");
-process.exit(failures ? 1 : 0);
+finish("all checks passed", (n) => `${n} check(s) FAILED`);

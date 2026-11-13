@@ -2,8 +2,10 @@
 // code_verifier must hash to the authorize request's code_challenge) and the client secret, and codes are single use.
 import http from "node:http";
 import crypto from "node:crypto";
+// The port and the client secret are the harness's (scripts/lib/harness.mjs: INTEGRATION_IDP_PORT, default 9911), so the Worker, the runner and every suite agree on them.
+import { IDP_PORT, IDP_SECRET } from "./lib/harness.mjs";
 
-export async function startFakeIdp(port = 9911) {
+export async function startFakeIdp(port = IDP_PORT) {
   const codes = new Map(); // code -> { challenge, orcid }
   let user = { sub: "g-111", email: "scholar@example.com", email_verified: true, name: "Test Scholar" };
 
@@ -26,7 +28,7 @@ export async function startFakeIdp(port = 9911) {
       const entry = codes.get(p.get("code"));
       codes.delete(p.get("code"));
       const verifierOk = entry && crypto.createHash("sha256").update(p.get("code_verifier") ?? "").digest("base64url") === entry.challenge;
-      const secretOk = p.get("client_secret") === "dev-secret";
+      const secretOk = p.get("client_secret") === IDP_SECRET;
       if (!entry || !verifierOk || !secretOk) {
         res.writeHead(400, { "Content-Type": "application/json" }).end('{"error":"invalid_grant"}');
         return;

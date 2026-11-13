@@ -1,0 +1,18 @@
+name: Setup
+description: >-
+  Node (the version in .nvmrc, the file nvm reads on a laptop too), the npm cache, and the repository's dependencies from package-lock.json.
+  Every job that runs the project's code starts with actions/checkout (a local action can only be read after the checkout) and then this.
+inputs:
+  install:
+    description: "Run npm ci (false for a job that only runs a script with Node's own modules)"
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+        cache: ${{ inputs.install == 'true' && 'npm' || '' }}
+    - if: inputs.install == 'true'
+      run: npm ci
+      shell: bash

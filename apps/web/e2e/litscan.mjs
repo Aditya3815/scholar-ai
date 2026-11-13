@@ -3,43 +3,24 @@
 // to it after a reload, the files (Markdown, CSV, BibTeX, RIS), deleting it, the notice, a shared link. Light, dark and phone width, with axe.
 // Needs the Worker with the fake identity provider and the offline stand-ins: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/litscan.mjs [baseUrl]
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
 import { mkdirSync, readFileSync } from "node:fs";
 import { strFromU8, unzipSync } from "fflate";
 import { fileURLToPath } from "node:url";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, axeCheck, countFailure, desk, finish, launch, noSideways, ok, phone, setTheme as setThemeOn, sleep, startIdp, watchPage } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const OUT = fileURLToPath(new URL("./shots/litscan-", import.meta.url));
 mkdirSync(fileURLToPath(new URL("./shots/", import.meta.url)), { recursive: true });
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "ls-ui-1", email: "tara.n@example.edu", email_verified: true, name: "Tara N" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
-const watch = (p) => {
-  p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409)/.test(m.text())) errors.push("console: " + m.text()); });
-};
+const watch = (p) => watchPage(p, errors);
 
-async function axe(label, p) {
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  ok(res.length === 0, `axe [${label}]`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
+const axe = (label, p) => axeCheck(p, label);
 // colours transition when the theme changes: axe must not read them mid-way
-const setTheme = async (p, t) => { await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), t); await new Promise((r) => setTimeout(r, 1300)); };
-const noSideways = (p) => p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const setTheme = (p, t) => setThemeOn(p, t, 1300);
+
 const theme = (p, i) => p.locator(".ls-theme").nth(i);
 /** Opens theme i (from 0) for editing, fills what is given, and closes it again. */
 async function editTheme(p, i, { name, question, words }) {
@@ -56,6 +37,8 @@ async function grab(p, label) {
   await p.getByRole("button", { name: "Download", exact: true }).click();
   const [dl] = await Promise.all([p.waitForEvent("download"), p.getByRole("menuitem", { name: new RegExp(`^${label}`) }).click()]);
   const path = await dl.path();
+  // the menu fades out after a choice; an axe run during the fade reads its half-transparent text as low contrast (seen once on CI)
+  await p.getByRole("menu").waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
   return { name: dl.suggestedFilename(), text: readFileSync(path, "utf8"), bytes: readFileSync(path) };
 }
 
@@ -325,7 +308,7 @@ try {
   await page.getByRole("button", { name: "Sharing is on" }).waitFor();
   ok(true, "the button now says that sharing is on");
 
-  const visitor = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const visitor = await browser.newContext(desk(1280, 860));
   const vp = await visitor.newPage();
   watch(vp);
   await vp.goto(link, { waitUntil: "networkidle" });
@@ -374,11 +357,10 @@ try {
   ok(errors.length === 0, `no console errors${errors.length ? ": " + errors.slice(0, 3).join(" | ") : ""}`);
 } catch (e) {
   console.error(e);
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   idp.close?.();
 }
 
-console.log(failures === 0 ? "\nall literature scan browser checks passed" : `\n${failures} check(s) FAILED`);
-process.exit(failures === 0 ? 0 : 1);
+finish("all literature scan browser checks passed", (n) => `${n} check(s) FAILED`);

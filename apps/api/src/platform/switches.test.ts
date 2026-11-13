@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FLAG_CACHE_MS, FLAG_KV_TIMEOUT_MS, flagKey, flagOf, positionOfVariable, resetFlagCache, type FlagCache, type FlagPosition } from "./flags";
+import { FLAG_CACHE_MS, FLAG_KV_TIMEOUT_MS, flagKey, flagOf, positionOfVariable, resetFlagCache, type FlagCache, type FlagPosition } from "./switches";
 
 /**
  * Gate flags (docs/design/intent-and-state.md, P3 and H0 item 1). The variable says where a flag starts; a KV override, `flag:<NAME>` in the same namespace as the public cache and the Trending switch,
@@ -228,7 +228,7 @@ describe("a KV that cannot be read leaves the variable as it is, and never throw
   });
 
   // Pinned as the behaviour today, not as the last word: a malformed key (a typo such as `of`, quotes around `off`) is ignored and counted, it does not lower. Whether it should lower to off, as the
-  // Trending switch does, is the owner's call (see the header of flags.ts); this test and that header are the two places to change if it is decided.
+  // Trending switch does, is the owner's call (see the header of switches.ts); this test and that header are the two places to change if it is decided.
   it.each([[""], ["banana"], ["{\"position\":\"off\"}"], ["off shadow"], ["0"], ["null"], ["raise"], ["of"], ["\"off\""], ["off."]])("when the value is text that is not a position: %j", async (text) => {
     const { kv } = fakeKv({ [flagKey("CHAT_X")]: text });
     expect(await flagOf({ CHAT_X: "on", CACHE: kv }, "CHAT_X", deps())).toEqual(standing({ badOverride: true }));

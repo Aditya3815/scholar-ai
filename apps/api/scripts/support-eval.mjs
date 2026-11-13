@@ -16,8 +16,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
+import { APP } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
 const arg = (k) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3);
 const gate = process.argv.includes("--gate");
 const split = arg("split") ?? "all";
@@ -29,7 +29,7 @@ const dump = arg("dump");
 const gold = JSON.parse(readFileSync(new URL("./fixtures/support-gold.json", import.meta.url), "utf8"));
 const cases = gold.cases.filter((c) => (split === "all" || c.split === split) && (!only || only.includes(c.id)));
 
-const idp = await startFakeIdp(9911);
+const idp = await startFakeIdp();
 let n = 0;
 // accounts are matched by e-mail: a name used in an earlier run would bring that run's tokens of the day with it
 const run = Date.now().toString(36);

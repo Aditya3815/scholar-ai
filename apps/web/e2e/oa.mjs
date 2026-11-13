@@ -2,40 +2,22 @@
 // quotes the text (a section for XML, a page for a PDF), a paper that cannot be read is answered from its abstract and says so, signed-out visitors are asked to sign in.
 // Needs the Worker with the fake identity provider and the offline stand-ins: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/oa.mjs [baseUrl]
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, axeCheck, countFailure, desk, finish, launch, noSideways, ok, setTheme, startIdp, watchPage } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const OUT = fileURLToPath(new URL("./shots/oa-", import.meta.url));
 mkdirSync(fileURLToPath(new URL("./shots/", import.meta.url)), { recursive: true });
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "oa-ui-1", email: "meera.k@example.edu", email_verified: true, name: "Meera K" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
-const watch = (p) => {
-  p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409)/.test(m.text())) errors.push("console: " + m.text()); });
-};
+const watch = (p) => watchPage(p, errors);
 
-async function axe(label, p) {
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  ok(res.length === 0, `axe [${label}]`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
-const setTheme = (p, t) => p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), t);
-const noSideways = (p) => p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+const axe = (label, p) => axeCheck(p, label);
+
+
 
 /** Chooses a tool in the mode menu of Home (a choice that is already made stays). */
 async function pick(p, name) {
@@ -59,7 +41,7 @@ const ask = async (p, q) => {
 };
 
 try {
-  const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+  const ctx = await browser.newContext(desk(1360, 900));
   const page = await ctx.newPage();
   watch(page);
 
@@ -165,7 +147,7 @@ try {
   await page.setViewportSize({ width: 1360, height: 900 });
 
   console.log("without signing in");
-  const anon = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+  const anon = await browser.newContext(desk(1360, 900));
   const ap = await anon.newPage();
   watch(ap);
   await ap.goto(BASE + "/home", { waitUntil: "networkidle" });
@@ -190,10 +172,9 @@ try {
   ok(errors.length === 0, `no console or page errors${errors.length ? ": " + errors.slice(0, 4).join(" | ") : ""}`);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   idp.close();
-  console.log(failures ? `\n${failures} FAILED` : "\nall open-access browser checks passed");
-  process.exit(failures ? 1 : 0);
+  finish("all open-access browser checks passed");
 }

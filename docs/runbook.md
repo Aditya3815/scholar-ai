@@ -1,14 +1,14 @@
 # Runbook
 
-Production: https://sodhsetu.in (the CI health check and the watchdog use it; https://scholar.shodhsetu.workers.dev still answers while people move over, `www` redirects to the bare name; Worker `scholar`, D1 `scholar-db`, R2 `scholar-files`, queue `scholar-jobs`).
+Production: https://sodhsetu.in (the CI health check, the watchdog and the weekly Trending check use it, through the repository variable `PRODUCTION_URL`; https://scholar.shodhsetu.workers.dev still answers while people move over, `www` redirects to the bare name; Worker `scholar`, D1 `scholar-db`, R2 `scholar-files`, queue `scholar-jobs`).
 
 ## Deploy
 
 Every push to `main` runs CI, and only if it passes, deploys:
 
-1. typecheck, unit tests, citation eval (replay), web build, **integration** (real Worker + local D1 + fake IdP), `npm audit`
+1. typecheck, unit tests, citation eval (replay), colour contrast, web build and its size budget, **integration** (real Worker + local D1 + fake IdP), `npm audit`; the built web app is kept as the run's artifact `web-dist`
 2. apply D1 migrations to production
-3. `wrangler deploy`
+3. `wrangler deploy`, with the web app of step 1 (the deploy job does not build it again)
 4. check `GET /api/v1/health` (fails the run if the service is down or the database is not migrated)
 
 Manual deploy (only if CI is unavailable): `npx wrangler login`, then `npm run deploy`.
@@ -150,7 +150,7 @@ Design: [design/oa-w4.md](design/oa-w4.md). A paper is read once into `oa_papers
 
 - **A provider's text is made plain text as it is read** (`plainText` in `apps/api/src/search/normalize.ts`, applied in `runProvider`): the title, journal, authors and abstract lose HTML entities (`&amp;`), tags, tabs, line breaks and invisible characters, and keep Devanagari's joiners. It is applied **after** the cache, so the cache key and what the cache keeps are what the source sent: nothing to purge, going either way. Idea Check, the literature scan and Trending read the same cache and get the same clean text.
 - **Switch it off: the Worker variable `SEARCH_PLAINTEXT` set to exactly `off`** (lowercase; `OFF` or `off ` leave the fix on). It gives back what the adapters returned for the title, journal, authors and the OpenAlex, Semantic Scholar and PubMed abstracts. It does **not** reach the adapters' own `stripJats`: Crossref's abstract and DOAJ's title and abstract are cleaned while the response is read, with the switch off too. Idea Check's meaning-search lane is not cleaned at all. As with `CHAT_CONTEXT`, a variable set by hand lasts only until the next deploy: to keep it, put it in the `vars` of `apps/api/wrangler.jsonc`.
-- **Flags of the understanding work** (`apps/api/src/understand/flags.ts`; none exists yet, the reader is ready). Each new behaviour has one flag with the positions `off` (today, byte for byte), `shadow` (compute and count, change nothing on the wire) and `on`; the safety lane also has `core`. **Unset is off.** A variable that is not exactly one of the positions (`ON`, `true`, an empty string) is off and counted as a bad value, because a flag turns behaviour on and a typo must not.
+- **Flags of the understanding work** (`apps/api/src/platform/switches.ts`: every switch of the Worker is one row of `SWITCHES` there, with its positions and its KV key). Each new behaviour has one flag with the positions `off` (today, byte for byte), `shadow` (compute and count, change nothing on the wire) and `on`; the safety lane also has `core`. **Unset is off.** A variable that is not exactly one of the positions (`ON`, `true`, an empty string) is off and counted as a bad value, because a flag turns behaviour on and a typo must not.
 - **Lowering a flag without a deploy: a KV override.** The key `flag:<NAME>` in the `CACHE` namespace holds a position, and the flag stands at the **lower** of that and the variable. An override can never raise a flag; that takes a deploy. Write it exactly `off`, `shadow` or `core` (case and spaces do not matter) and **read it back**: `wrangler kv key put "flag:<NAME>" off --namespace-id <id> --remote`, then `wrangler kv key get "flag:<NAME>" --namespace-id <id> --remote`. A key that holds anything else (`of`, `"off"` with its quotes, an empty string) is ignored and counted as a bad override, so the flag stays where the variable puts it: a typo in an incident does not lower it. It reaches a place in about a minute (KV's shortest edge cache is 30 s, and a Worker keeps what it read for 30 s). With the variable `off` there is no KV read at all.
 
 ## What it costs (and how to look)
@@ -210,7 +210,7 @@ What can go wrong and what notices it. Everything below sends a GitHub issue, wh
 | --- | --- | --- |
 | The site, its database or its web app are down, or a deploy left the database unmigrated | **Watchdog** workflow, hourly (`.github/workflows/watchdog.yml`, script `.github/scripts/watchdog.mjs`): `/api/v1/health`, `/api/v1/health/jobs`, `/`. Each is tried 3 times, 15 s apart, before it counts | issue "Workflow failed: Watchdog" with the reason (for example `service: HTTP 503 (ok=false db=error migrations=0)`) |
 | The daily job did not run, threw, or hung | the `job_runs` heartbeat, read by the Watchdog (`daily job`), by `/admin` ("Scheduled jobs") and by Sentry (the exception) | same issue, and the admin page |
-| A workflow failed: CI on `main` (including the deploy), Q&A quality, Eval (live APIs), Browser e2e, Watchdog | an `alert` job at the end of each (`.github/scripts/workflow-alert.mjs`) | one issue per workflow, "Workflow failed: <name>", with the run link and commit. A workflow that keeps failing adds one comment every 6 hours, not one per run. The issue **closes itself** when the workflow passes again. Not for pull requests or other branches |
+| A workflow failed: CI on `main` (including the deploy), Q&A quality, Eval (live APIs), Browser e2e, Switch matrix, Trending (live), Watchdog | an `alert` job at the end of each, which calls `.github/workflows/alert.yml` (`.github/scripts/workflow-alert.mjs`) | one issue per workflow, "Workflow failed: <name>", with the run link and commit. A workflow that keeps failing adds one comment every 6 hours, not one per run. The issue **closes itself** when the workflow passes again. Not for pull requests or other branches |
 | An unexpected error in production, or in a browser | Sentry | the Sentry project; rules below |
 
 Set up once (yours):
@@ -304,7 +304,7 @@ The prompt box in Auto can send the earlier turns of the chat (`history`) with a
 
 ## The Thinking block (CHAT_THINK, M2 of the understanding plan)
 
-The prompt box can show what it did for a reply, line by line ("Searched for ...", "4 of 5 sources answered with 47 records ...", "Reading 3 abstracts", "1 claim read against the sentences they cite: 1 kept"): `think` events built by `apps/api/src/chat/think.ts` from the real counts of each stage ([design/understand-m1-m2.md](design/understand-m1-m2.md)). **The Worker variable `CHAT_THINK`** decides it: unset, `off` or any other value sends none and the stream is the golden byte for byte; `on` adds the lines and changes nothing else (`since-year.test.ts` holds both; a KV key `flag:CHAT_THINK` can only lower it, as for the other gate flags in `understand/flags.ts`). To turn it on for good, add `"CHAT_THINK": "on"` to the top-level `vars` of `apps/api/wrangler.jsonc` (and `env.staging.vars` for staging) and push; to turn it off at once, set the KV key to `off` (`npx wrangler kv key put --binding=CACHE flag:CHAT_THINK off --remote`), which takes effect within about a minute. **Turn it on only when a build that knows the event has been live for a day**: a page loaded before that build had no place in its reducer for an event it did not know, and an open old tab would break on the first line. No line is logged, and none needs a privacy sentence: the lines say what the server already did with the message, on the person's own page.
+The prompt box can show what it did for a reply, line by line ("Searched for ...", "4 of 5 sources answered with 47 records ...", "Reading 3 abstracts", "1 claim read against the sentences they cite: 1 kept"): `think` events built by `apps/api/src/chat/think.ts` from the real counts of each stage ([design/understand-m1-m2.md](design/understand-m1-m2.md)). **The Worker variable `CHAT_THINK`** decides it: unset, `off` or any other value sends none and the stream is the golden byte for byte; `on` adds the lines and changes nothing else (`since-year.test.ts` holds both; a KV key `flag:CHAT_THINK` can only lower it, as for the other gate flags in `platform/switches.ts`). To turn it on for good, add `"CHAT_THINK": "on"` to the top-level `vars` of `apps/api/wrangler.jsonc` (and `env.staging.vars` for staging) and push; to turn it off at once, set the KV key to `off` (`npx wrangler kv key put --binding=CACHE flag:CHAT_THINK off --remote`), which takes effect within about a minute. **Turn it on only when a build that knows the event has been live for a day**: a page loaded before that build had no place in its reducer for an event it did not know, and an open old tab would break on the first line. No line is logged, and none needs a privacy sentence: the lines say what the server already did with the message, on the person's own page.
 
 ## The Understand step (CHAT_UNDERSTAND, M4/M5 of the understanding plan)
 
@@ -435,7 +435,7 @@ What it is: `https://sodhsetu.in/mcp`, a remote MCP server (Streamable HTTP) on 
 4. In Claude Desktop or claude.ai (Settings, Connectors, Add custom connector) add `https://sodhsetu.in/mcp`; it opens the consent page; Allow. Ask it to check a reference list. ChatGPT (developer mode, connectors) and Cursor (`mcp.json`: `{ "url": "https://sodhsetu.in/mcp" }`) the same way. Watch the admin page's panel and Sentry.
 5. `on` when the beta has run clean; the privacy sentence already covers it.
 
-Local: `npm run integration -w apps/api` starts the Worker with `MCP=on` and a local `OAUTH_KV`, and runs `scripts/mcp-e2e.mjs` (the whole OAuth exchange with PKCE, and the tools over the real protocol) and `e2e/mcp.mjs` (the consent page and Connected apps in a browser, with axe); `INTEGRATION_MCP=off` runs the first with the switch off (every path 404). `npm run eval -w apps/api` includes `eval/mcp.eval.ts` (70 fabricated references through MCP, 0 verified; 70 real ones, 70 verified as the right record) and `eval/claim.eval.ts` (check_claim on the support judge's hand-labelled claims; to record again after a change to the strict prompt: `CLAIM_EVAL=record npx vitest run -c vitest.eval.config.ts eval/claim.eval.ts --silent=false` from `apps/api`, with `npx wrangler whoami` showing the account). MCP Inspector, headless: `npx @modelcontextprotocol/inspector --cli http://localhost:8788/mcp --transport http --header "Authorization: Bearer <token>" --method tools/list`.
+Local: `npm run integration -w apps/api -- --run=mcp-on` starts the Worker with `MCP=on` and a local `OAUTH_KV`, and runs `scripts/mcp-e2e.mjs` (the whole OAuth exchange with PKCE, and the tools over the real protocol) and `e2e/mcp.mjs` (the consent page and Connected apps in a browser, with axe); `--run=mcp-off` runs the first with the switch off (every path 404). `npm run eval -w apps/api` includes `eval/mcp.eval.ts` (70 fabricated references through MCP, 0 verified; 70 real ones, 70 verified as the right record) and `eval/claim.eval.ts` (check_claim on the support judge's hand-labelled claims; to record again after a change to the strict prompt: `EVAL_MODE=record npx vitest run -c vitest.eval.config.ts eval/claim.eval.ts --silent=false` from `apps/api`, with `npx wrangler whoami` showing the account). MCP Inspector, headless: `npx @modelcontextprotocol/inspector --cli http://localhost:8788/mcp --transport http --header "Authorization: Bearer <token>" --method tools/list`.
 
 ## Staging
 
@@ -454,12 +454,14 @@ Production does not read this file: its secrets live in Cloudflare (`npx wrangle
 ## Test everything locally
 
 ```sh
-npm run build && npm run integration -w apps/api              # auth + library against a real local Worker
+npm run build && npm run integration -w apps/api              # the default run: the API suites against a real local Worker with production's switch positions (wrangler.jsonc's vars: TRENDING off, MCP beta)
 npm run integration -w apps/api -- --browser                  # plus the Playwright/axe suites (E2E_BROWSER=chrome|msedge)
-npm run integration -w apps/api -- --browser --only="browser: admin,operations"   # some suites only (substrings of their names, comma separated)
-npm run integration -w apps/api -- --only="trending"          # the Trending list alone (scripts/trending-e2e.mjs: route, headers, kill switch, stale files, a scheduled run, a failing source)
-INTEGRATION_TRENDING=off npm run integration -w apps/api -- --only="trending"   # the same suite against a Worker started with the variable TRENDING=off (checks that other kill switch)
-INTEGRATION_TRENDING=dark npm run integration -w apps/api -- --only="trending"  # ... with TRENDING=dark, the step after the launch state: the job makes the list, the route hides it (the test copy of wrangler.jsonc has no TRENDING line, so the other runs see the list)
+npm run integration -w apps/api -- --browser --only="browser: admin,operations"   # some suites only (substrings of their labels, comma separated)
+npm run integration -w apps/api -- --browser --run=trending-on,mcp-on   # named runs (apps/api/scripts/lib/suites.mjs, RUNS): other positions and the suites written for them; --run=all runs every one
+npm run integration -w apps/api -- --run=trending-on --only="trending"  # the Trending list shown (scripts/trending-e2e.mjs: route, headers, kill switch, stale files, a scheduled run, a failing source)
+npm run integration -w apps/api -- --only="trending"          # the same suite against production's TRENDING=off (it checks that kill switch)
+npm run integration -w apps/api -- --run=trending-dark        # ... with TRENDING=dark, the step after the launch state: the job makes the list, the route hides it
+INTEGRATION_PORT=8789 INTEGRATION_IDP_PORT=9912 npm run integration -w apps/api -- --only="auth"   # a second run beside another: its own Worker, sign-in port, state folder and config copy
 npm run test:scripts                                          # the tests of the alert and watchdog scripts (.github/scripts) and the rehearsal helpers
 ```
 

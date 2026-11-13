@@ -6,19 +6,14 @@
 // The test does not wait for a race: `burst()` puts 120 input events into the box in ONE task, so no scheduler turn can come between them, and the old code fails every time (measured on the build of 5aa49ef: 7 of 12 boxes, in each of 3 runs).
 // Needs the Worker with the fake identity provider and the offline stand-ins: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/typing-burst.mjs [baseUrl]    (default http://localhost:8788)
-import { chromium } from "playwright-core";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
+import { BASE, countFailure, finish, launch, ok, sleep, startIdp } from "./lib/browser.mjs";
 
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const CHARS = 120; // more than twice React's limit of 50
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "burst-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 
 /* ---------------------------------------------------------------- a stored conversation (the way e2e/polish-chat.mjs makes one) */
 const TOPICS = ["glaucoma screening", "diabetic retinopathy", "asthma in children", "tuberculosis treatment"];
@@ -174,7 +169,7 @@ try {
       ok(errors.length === 0 && r.done === CHARS, `${name}: ${CHARS} keys in one task raise no error (${errors[0] ?? "none"})`);
       ok((await page.getByText("Something went wrong").count()) === 0, "...and the page is still the page, not the error page of the app");
     } catch (e) {
-      failures++;
+      countFailure();
       console.log(` FAIL  ${name}: stopped: ${String(e.message).split(/\r?\n/)[0].slice(0, 200)}`);
     }
     await ctx.close();
@@ -183,5 +178,4 @@ try {
   await browser.close();
   idp.close();
 }
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall checks passed");
-process.exit(failures ? 1 : 0);
+finish("all checks passed", (n) => `${n} check(s) FAILED`);

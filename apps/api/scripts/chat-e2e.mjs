@@ -1,33 +1,23 @@
 // The prompt box's endpoint (W2): POST /api/v1/chat in "search" mode. Real Worker + local D1 + fake IdP, with the offline stand-ins for the search and the model (QA_STUB=1).
 // `npm run integration -w apps/api` starts everything.
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
 import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
+import { APP, ok, failed, countFailure, startIdp, createClient, loginWith, readEvents, workerVars, position, at, sqlResults } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 // M2: the Thinking block's lines (`think` events) come only with CHAT_THINK "on" (INTEGRATION_VARS="CHAT_THINK:on" sets it for this run). Every stream of this suite is read with them taken out, so with the
 // flag on every check below still holds only if the lines are purely ADDED; and each line is checked as it comes: every number it states (outside its “ ” quotes) is one of its counts.
-const THINK_ON = /(^|,)CHAT_THINK:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "");
+const THINK_ON = at("CHAT_THINK", "on");
 const thinkSeen = [];
 const thinkHonest = (t) => { const have = new Set(Object.values(t.counts ?? {})); return [...String(t.text).replace(/“[^”]*”/g, "“”").matchAll(/\d[\d,]*(?:\.\d+)?/g)].every((m) => have.has(Number(m[0].replace(/,/g, "")))); };
 
 // M5: this suite holds the RULES' path (the router, the page's own small talk, the follow-up context, the cleaner): with CHAT_UNDERSTAND "on" the Understand step decides instead, and what it does is held by
 // src/chat/understand-route.test.ts, since-year.understand.golden.json and e2e/understand.mjs. So a run with it on says so and checks nothing here (shadow changes nothing on the wire and runs it all).
-if (/(^|,)CHAT_UNDERSTAND:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "")) {
+if (at("CHAT_UNDERSTAND", "on")) {
   console.log("  ok   skipped: CHAT_UNDERSTAND is on, so the Understand step decides and the rules' path of this suite is not taken (its own suites hold it)");
   process.exit(0);
 }
 
-const idp = await startFakeIdp(9911);
-const login = async (sub, email, name) => {
-  idp.setUser({ sub, email, email_verified: true, name });
-  const c = createClient(APP);
-  await c.follow(`${APP}/api/v1/auth/google/start`);
-  await c.ack();
-  return c;
-};
+const idp = await startIdp();
+const login = loginWith(idp);
 
 /** Sends a message and reads the whole stream (or stops after `stopAfter` events by aborting, as the Stop button does). */
 async function chat(client, message, { mode = "search", origin = APP, stopAfter, stopWhen, raw } = {}) {
@@ -38,28 +28,11 @@ async function chat(client, message, { mode = "search", origin = APP, stopAfter,
     body: raw ?? JSON.stringify({ mode, message }),
   });
   if (!res.ok || !String(res.headers.get("content-type")).includes("text/event-stream")) return { res, events: [] };
-  const events = [];
-  const dec = new TextDecoder();
-  let buf = "";
-  let stopped = false;
-  try {
-    for await (const part of res.body) {
-      buf += dec.decode(part, { stream: true });
-      let i;
-      while ((i = buf.indexOf("\n\n")) >= 0) {
-        const block = buf.slice(0, i);
-        buf = buf.slice(i + 2);
-        const data = block.split("\n").find((l) => l.startsWith("data:"));
-        const e = data ? JSON.parse(data.slice(5)) : null;
-        if (e?.type === "think") thinkSeen.push(e);
-        else if (e) events.push(e);
-        if ((stopAfter && events.length >= stopAfter) || (stopWhen && stopWhen(events.at(-1)))) { ctl.abort(); return { res, events }; }
-      }
-    }
-  } catch (e) {
-    if (e?.name !== "AbortError") throw e;
-    stopped = true;
-  }
+  const { events, stopped } = await readEvents(res, {
+    keep: (e) => (e.type === "think" ? (thinkSeen.push(e), false) : true),
+    stopWhen: (e, all) => (stopAfter && all.length >= stopAfter) || (stopWhen && stopWhen(e)),
+    ctl,
+  });
   if (!stopped) checkStream("chat", events, message.slice(0, 30)); // a stream the test stopped half way has no end, by design
   return { res, events };
 }
@@ -220,7 +193,7 @@ try {
   const REFS = "[1] LeCun, Y., Bengio, Y., & Hinton, G. (2015). Deep learning. Nature, 521, 436-444.\n[2] Vaswani, A., Shazeer, N., Parmar, N., et al. (2017). Attention is all you need. NeurIPS.\n[3] Krizhevsky, A., Sutskever, I., & Hinton, G. E. (2012). ImageNet classification with deep convolutional neural networks. NIPS.";
   const a2 = await auto(A, REFS);
   // with CHAT_TOOLS on the list is checked in the reply (scripts/chat-tools-e2e.mjs holds what that shows); off, the stream ends and the tool opens on its own page
-  const toolsOn = /(^|,)CHAT_TOOLS:on(,|$)/.test(process.env.INTEGRATION_VARS ?? "");
+  const toolsOn = at("CHAT_TOOLS", "on");
   ok(understood(a2).mode === "verify" && understood(a2).how === "rules" && understood(a2).confidence === 1 && a2.events.at(-1).reason === (toolsOn ? "tool" : "routed") && a2.events.at(-1).answered === false, toolsOn ? "a pasted list of references is Check references, checked in the reply (CHAT_TOOLS on)" : "a pasted list of references is Check references, and the stream ends: the tool opens on its own page");
   ok(!types(a2.events).includes("papers") && !types(a2.events).includes("token") && !types(a2.events).includes("step"), "...nothing was searched, written or asked of a model");
   const a3 = await auto(A, "10.1038/nature14539");
@@ -364,20 +337,21 @@ try {
 
   console.log("nothing is kept on the server");
   const me = await A.me();
-  const rows = await (await A.api("/api/v1/dev/sql", { method: "POST", body: { sql: ["SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE '%chat%'"] } })).json();
-  ok((rows.results?.[0] ?? []).length === 0 && !!me, "there is no chat table: the chat is kept in the browser only");
+  const rows = await sqlResults(["SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE '%chat%'"]);
+  ok((rows?.[0] ?? []).length === 0 && !!me, "there is no chat table: the chat is kept in the browser only");
 
   console.log("how answers went is counted, as counts");
-  const counted = await (await A.api("/api/v1/dev/sql", { method: "POST", body: { sql: ["SELECT outcome, SUM(n) AS n FROM answer_outcomes WHERE feature = 'chat' GROUP BY outcome", "SELECT name FROM pragma_table_info('answer_outcomes')"] } })).json();
-  const byOutcome = Object.fromEntries((counted.results?.[0] ?? []).map((r) => [r.outcome, r.n]));
+  const counted = await sqlResults(["SELECT outcome, SUM(n) AS n FROM answer_outcomes WHERE feature = 'chat' GROUP BY outcome", "SELECT name FROM pragma_table_info('answer_outcomes')"]);
+  const byOutcome = Object.fromEntries((counted?.[0] ?? []).map((r) => [r.outcome, r.n]));
   ok(byOutcome.answered >= 1 && byOutcome.not_answered >= 1 && byOutcome.not_grounded >= 1 && byOutcome.small_talk >= 1 && byOutcome.sign_in >= 1 && byOutcome.routed >= 1, `the prompt box counts answered, not answered, refused by the check, small talk, signed-out and offered-another-tool (${JSON.stringify(byOutcome)})`);
-  ok((counted.results?.[1] ?? []).map((r) => r.name).join() === "day,feature,outcome,n", "and the table holds a day, a feature, an outcome and a count: no text, no person");
+  ok((counted?.[1] ?? []).map((r) => r.name).join() === "day,feature,outcome,n", "and the table holds a day, a feature, an outcome and a count: no text, no person");
   ok(byOutcome.followup_answered >= 1 && byOutcome.followup_rewrite_failed >= 1, `a follow-up is counted by name: answered, and one whose restatement was not used (${JSON.stringify(byOutcome)})`);
   // The gate flags of the understanding releases (docs/design/intent-and-state.md): unset in wrangler.jsonc, so a default run looks at them OFF; INTEGRATION_VARS="CHAT_COUNTERS:on,CHAT_FAILPOLICY:on" (or
   // shadow) starts the Worker with them, and these checks then look at what they do on the real Worker and the real local database.
   console.log("the gate flags: off they store and change nothing; on they count closed names, never text, and a follow-up that could not be read gets no answer");
-  const VARS = Object.fromEntries((process.env.INTEGRATION_VARS ?? "").split(",").filter(Boolean).map((p) => [p.slice(0, p.indexOf(":")), p.slice(p.indexOf(":") + 1)]));
-  const sqlRows = async (stmt) => (await (await A.api("/api/v1/dev/sql", { method: "POST", body: { sql: [stmt] } })).json()).results?.[0] ?? [];
+  // each position as the Worker reads it (the registry); a switch the run does not set is left out, so the messages below still say "unset"
+  const VARS = Object.fromEntries(["CHAT_COUNTERS", "CHAT_FAILPOLICY", "CHAT_SAFETY", "CHAT_CLEAN", "CHAT_FLOOR"].filter((n) => workerVars[n] !== undefined).map((n) => [n, position(n)]));
+  const sqlRows = async (stmt) => (await sqlResults([stmt]))?.[0] ?? [];
   const countsOf = async (feature) => Object.fromEntries((await sqlRows(`SELECT outcome, SUM(n) AS n FROM answer_outcomes WHERE feature = '${feature}' GROUP BY outcome`)).map((r) => [r.outcome, r.n]));
   const delta = (before, after) => Object.fromEntries(Object.entries(after).map(([k, n]) => [k, n - (before[k] ?? 0)]).filter(([, n]) => n !== 0));
   const WORDS = "Can you search about CRISPR off-target effects since 2019, all papers please";
@@ -562,11 +536,11 @@ try {
   reportStreams(ok);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   idp.close();
-  console.log(failures ? `\n${failures} FAILED` : "\nall chat checks passed");
+  console.log(failed() ? `\n${failed()} FAILED` : "\nall chat checks passed");
   if (THINK_ON) ok(thinkSeen.length > 20 && thinkSeen.every(thinkHonest), `CHAT_THINK on: ${thinkSeen.length} think lines over this suite's streams, every number of each is one of its counts${thinkSeen.filter((t) => !thinkHonest(t)).slice(0, 2).map((t) => ` (NOT: ${t.text})`).join("")}`);
   else ok(thinkSeen.length === 0, "CHAT_THINK not on: no think event in any stream");
-  process.exit(failures ? 1 : 0);
+  process.exit(failed() ? 1 : 0);
 }
