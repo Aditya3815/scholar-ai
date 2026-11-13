@@ -1,4 +1,4 @@
-import { DOI_START, DOI_KEPT, plainLine } from "@scholar/shared";
+import { LEDGER_VISITOR_TURNS, LEDGER_USER_CHARS, LEDGER_TITLE_CHARS, LEDGER_STANDALONE_CHARS, LEDGER_REPLY_CHARS, LEDGER_PAPERS, LEDGER_FULL_TURNS, LEDGER_AUTHOR_CHARS, DOI_START, DOI_KEPT, plainLine } from "@scholar/shared";
 import { UNDERSTAND_INTENTS, type UnderstandIntent } from "./understanding";
 
 /**
@@ -9,7 +9,7 @@ import { UNDERSTAND_INTENTS, type UnderstandIntent } from "./understanding";
  * Its papers are never shown as facts from here: what a model is told about them is "this is what the browser says was listed", and the caller re-resolves the ids before any of them is used
  * (`paperRefsToResolve`). The writer and the judge never get the ledger, only the standalone question and the re-resolved papers.
  *
- * The browser applies the same caps when it builds what it sends (packages/shared, built by M2); the server applies them again because a browser can send anything.
+ * The browser applies the same caps when it builds what it sends (packages/shared/src/vocab/ledger.ts, one set since untangle F4); the server applies them again because a browser can send anything.
  */
 
 export type LedgerPaper = { n: number; id: string | null; doi: string | null; title: string; year: number | null; first_author: string | null };
@@ -30,14 +30,8 @@ export type LedgerTurn = {
 };
 
 export const LEDGER_MAX_TURNS_SENT = 40;
-export const LEDGER_FULL_TURNS = 6;
-export const LEDGER_VISITOR_TURNS = 3;
-export const LEDGER_MAX_PAPERS = 10;
-export const LEDGER_USER_CHARS = 600;
-export const LEDGER_STANDALONE_CHARS = 300;
-export const LEDGER_REPLY_CHARS = 300;
-export const LEDGER_TITLE_CHARS = 250;
-export const LEDGER_AUTHOR_CHARS = 60;
+/** The caps of a turn are the browser's (vocab/ledger.ts, decision 15): the same numbers on both sides. */
+const LEDGER_MAX_PAPERS = LEDGER_PAPERS;
 /** About 3,000 tokens at four characters a token: the whole ledger as rendered for the model. */
 export const LEDGER_MAX_CHARS = 12_000;
 

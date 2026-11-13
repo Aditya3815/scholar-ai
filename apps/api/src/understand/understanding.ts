@@ -1,4 +1,4 @@
-import { FILTER_YEARS, isInt, isYear, plainLine } from "@scholar/shared";
+import { type Intent, type AnswerLanguage, INTENTS, ANSWER_LANGUAGES, FILTER_YEARS, isInt, isYear, plainLine } from "@scholar/shared";
 
 /**
  * The Understand step's output (docs/design/understand-and-mcp.md, from the design of 6 Nov 2026 "Sodhsetu: understanding, follow-ups and MCP", page 4): ONE shape for every message, asked of a
@@ -8,10 +8,11 @@ import { FILTER_YEARS, isInt, isYear, plainLine } from "@scholar/shared";
  * Pure and total: nothing here calls a model, reads the network or throws.
  */
 
-export const UNDERSTAND_INTENTS = ["chat", "search", "refine_search", "ask_results", "ask_paper", "offer_tool", "clarify"] as const;
-export type UnderstandIntent = (typeof UNDERSTAND_INTENTS)[number];
-export const UNDERSTAND_LANGUAGES = ["en", "hi", "hinglish"] as const;
-export type UnderstandLanguage = (typeof UNDERSTAND_LANGUAGES)[number];
+/** The intents of a message and the three languages of an answer (shared vocab). */
+export const UNDERSTAND_INTENTS = INTENTS;
+export type UnderstandIntent = Intent;
+export const UNDERSTAND_LANGUAGES = ANSWER_LANGUAGES;
+export type UnderstandLanguage = AnswerLanguage;
 /** The tools a card can offer (never start): Check references, Idea Check, a literature scan. */
 export const UNDERSTAND_TOOLS = ["verify", "idea", "litscan"] as const;
 export type UnderstandTool = (typeof UNDERSTAND_TOOLS)[number];

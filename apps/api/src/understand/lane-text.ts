@@ -1,4 +1,4 @@
-import type { Lang, SafetyNoticeKind } from "@scholar/shared";
+import { threeWay, type AnswerLanguage, type Lang, type SafetyNoticeKind } from "@scholar/shared";
 
 /**
  * The fixed sentences of the safety lane (docs/design/intent-and-state.md, 5.1) and the one constant that guards the numbers in them. No model writes any of them: the page speaks these, and code fills only
@@ -11,7 +11,7 @@ import type { Lang, SafetyNoticeKind } from "@scholar/shared";
  * variant without a number, and that variant is what is given), a test fails if one does, and a second test fails if CHAT_SAFETY stands above `shadow` in the committed wrangler.jsonc. The variant with the
  * numbers is the plan's own text, pinned to the plan by a test, and is given only when this constant is set.
  */
-export type LaneLang = "en" | "hinglish" | "hi";
+export type LaneLang = AnswerLanguage;
 
 /** Null: nothing has been checked. When set: the date, and the official page each number was read from. */
 export const HELPLINE_CHECKED = null as null | { date: string; emergency: string; teleManas: string };
@@ -77,7 +77,7 @@ const TEXT = {
 } satisfies Record<string, Sentence>;
 type TextName = keyof typeof TEXT;
 
-const laneOf = (language: Lang | LaneLang): LaneLang => (language === "hinglish" || language === "hi" ? language : "en");
+const laneOf = (language: Lang | LaneLang): LaneLang => threeWay(language);
 
 /** Whether the numbers may be given: a person has checked them. */
 export const helplinesChecked = (): boolean => HELPLINE_CHECKED !== null;

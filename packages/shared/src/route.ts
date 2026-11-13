@@ -1,3 +1,4 @@
+import { type Lang } from "./vocab/languages";
 import { MAX_CHAT_CHARS } from "./chat";
 import { splitReferences } from "./references";
 import { ARXIV_INPUT, DOI_INPUT, DOI_START, hasMark } from "./ids";
@@ -13,7 +14,6 @@ export const ROUTE_MODES = ["search", "verify", "idea", "paper"] as const;
 export type RouteMode = (typeof ROUTE_MODES)[number];
 export const ROUTE_NAMES: Record<RouteMode, string> = { search: "Search papers", verify: "Check references", idea: "Idea Check", paper: "Ask a paper" };
 
-export type Lang = "en" | "hi" | "hinglish" | "other";
 
 /** How the choice was made: the reader chose, the rules, the model, or neither could (so the cheap, safe default was taken). */
 export type RouteHow = "chosen" | "rules" | "model" | "fallback";

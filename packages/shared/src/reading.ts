@@ -1,4 +1,4 @@
-import type { AnswerLanguage } from "./chat-context";
+import type { AnswerLanguage } from "./vocab/languages";
 
 /**
  * The Reading (docs/design/intent-and-state.md, 3.2, 4.8 and 5.3): what the page understood of a message in Auto, shown under the line "I searched for". R8 (the request-frame cleaner) is the only release that

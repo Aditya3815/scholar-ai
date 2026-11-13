@@ -1,4 +1,4 @@
-import type { Lang } from "./route";
+import type { Lang } from "./vocab/languages";
 import { FILTER_YEARS } from "./text";
 
 /**
@@ -58,9 +58,6 @@ export const YEAR_FILTER_SEARCH_LIMIT = 40;
 export const FOLLOW_UP_INTENTS = ["new", "refine", "same_papers"] as const;
 export type FollowUpIntent = (typeof FOLLOW_UP_INTENTS)[number];
 
-/** The languages an answer can be asked for in (the router's enum; anything else is no request). */
-export const ANSWER_LANGUAGES = ["en", "hi", "hinglish"] as const;
-export type AnswerLanguage = (typeof ANSWER_LANGUAGES)[number];
 
 /** A paper the last reply cited, as the person saw it: its place in that reply's list, its title and its year. */
 export type HistoryPaper = { n: number; title: string; year: number | null };

@@ -1,9 +1,13 @@
+import { type Lang, isLang } from "./vocab/languages";
+import { isLaneReason, isNoTraceNotice, isNoTraceReason } from "./vocab/lane";
+import { isIntent } from "./vocab/intents";
+import { STEP_ORDER, type ChatStep } from "./vocab/steps";
 import { stripMarks } from "./ids";
 import type { Paper, SearchScope } from "./index";
 import { cutWhole, FILTER_YEARS, isYear, oneLine, PUBLICATION_YEARS, stripInvisible } from "./text";
-import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatRequestMode, type ChatStep, type GeneralKind, type NoticeKind, type TightenRequest, type TightenResponse, type UnderstoodByModel } from "./chat";
+import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatRequestMode, type GeneralKind, type NoticeKind, type TightenRequest, type TightenResponse, type UnderstoodByModel } from "./chat";
 import { MAX_FILTER_YEAR, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MIN_SINCE_YEAR, historySizeOf as sizeOf, type ChatContextInfo, type HistoryEntry, type HistoryPaper } from "./chat-context";
-import { MAX_AUTO_CHARS, type Lang, type RouteHow } from "./route";
+import { MAX_AUTO_CHARS, type RouteHow } from "./route";
 import { abstractRead } from "./sentences";
 import type { Reading } from "./reading";
 import { withThinkLine, type ThinkLine } from "./think";
@@ -88,7 +92,6 @@ export type AssistantMsg = {
 export type IdeaMsg = { id: string; role: "idea"; text: string; at: number };
 export type ChatMsg = UserMsg | AssistantMsg | IdeaMsg;
 
-const STEP_ORDER: ChatStep[] = ["route", "search", "read", "write", "check", "general"];
 /** "route" and "general" are steps only when they really happened. */
 const happened = (m: AssistantMsg, s: ChatStep, now: ChatStep | null) => s !== "route" && s !== "general" ? true : m.step === s || m.stepsDone.includes(s) || now === s;
 
@@ -102,14 +105,13 @@ export const startAssistant = (id: string, query: string, at: number, auto = fal
 /** A year a request may carry as `sinceYear`: a whole number from 1990 (what the server reads) to 2100 (the server also holds it to this year, by its own clock: the page's chips are held to the device's). Anything else is not sent. */
 export const isSinceYear = (y: unknown): y is number => typeof y === "number" && Number.isInteger(y) && y >= MIN_SINCE_YEAR && y <= MAX_FILTER_YEAR;
 
-const UND_INTENTS = new Set(["chat", "search", "refine_search", "ask_results", "ask_paper", "offer_tool", "clarify"]);
 /**
  * The Understand step's fields of an `understood` event, as a reply keeps them: defensive about what came off the wire (a field of the wrong shape is dropped, never repaired), and nothing at all for an event
  * that has none.
  */
 export function understoodByModel(e: Partial<UnderstoodByModel>): UnderstoodByModel {
   const out: UnderstoodByModel = {};
-  if (typeof e.intent === "string" && UND_INTENTS.has(e.intent)) out.intent = e.intent;
+  if (isIntent(e.intent)) out.intent = e.intent;
   if (typeof e.statusLine === "string" && e.statusLine.trim()) out.statusLine = oneLine(e.statusLine).slice(0, 200);
   if (e.confirm === true) out.confirm = true;
   if (e.fallback === true) out.fallback = true;
@@ -404,7 +406,6 @@ export function yearRangeWords(from?: number, to?: number): string | null {
   return r.from !== undefined && r.to !== undefined ? (r.from === r.to ? `${r.from}` : `${r.from} to ${r.to}`) : r.from !== undefined ? `${r.from} or later` : `${r.to} or earlier`;
 }
 
-const LANGS: readonly Lang[] = ["en", "hi", "hinglish", "other"];
 type AskedEntry = Extract<HistoryEntry, { role: "user" }>;
 type ReplyEntry = Extract<HistoryEntry, { role: "assistant" }>;
 
@@ -443,7 +444,7 @@ export function answerWords(a: AssistantMsg): string | undefined {
  */
 export function leavesNoTrace(m: AssistantMsg): boolean {
   if (m.status === "working") return false;
-  return m.reason === "urgent" || m.reason === "safety" || m.notices.some((n) => n.kind === "safety_crisis" || n.kind === "safety_urgent");
+  return isNoTraceReason(m.reason) || m.notices.some((n) => isNoTraceNotice(n.kind));
 }
 
 /**
@@ -455,7 +456,7 @@ function historyTurn(u: UserMsg, a: AssistantMsg): { asked: AskedEntry; reply: R
   if (a.status !== "done" || a.mode !== "search" || a.reason === "routed" || a.reason === "small_talk" || a.reason === "too_long" || a.reason === "stopped" || a.general?.kind === "not_research") return null;
   // the safety lane (docs/design/intent-and-state.md, 4.5): a message that described an emergency, said the person may hurt themselves, or asked what to take never rides along as context (and is not in the turn
   // ledger). Its reply is not an answer about anything the next message could lean on.
-  if (a.reason === "urgent" || a.reason === "safety" || a.reason === "decision" || a.notices.some((n) => n.kind === "safety_crisis" || n.kind === "safety_urgent")) return null;
+  if (isLaneReason(a.reason) || a.notices.some((n) => isNoTraceNotice(n.kind))) return null;
   const text = askable(u.text);
   if (!text) return null;
   // what the indexes were asked: the words the reply says it searched; else, for a reply made from other words than the person wrote (searched again as written, with the year filter taken off), the words it was made from
@@ -463,7 +464,7 @@ function historyTurn(u: UserMsg, a: AssistantMsg): { asked: AskedEntry; reply: R
   const searched = askable(a.searchQuery) ?? (own && own !== text ? own : undefined);
   const reply: ReplyEntry = { role: "assistant" };
   if (searched) reply.searchQuery = searched;
-  if (LANGS.includes(a.language)) reply.language = a.language;
+  if (isLang(a.language)) reply.language = a.language;
   const papers = citedPapers(a);
   if (papers.length > 0) reply.papers = papers;
   const years = yearRange(a.context?.yearFrom, a.context?.yearTo);

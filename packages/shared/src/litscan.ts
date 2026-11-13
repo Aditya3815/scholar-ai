@@ -1,7 +1,7 @@
 import { MARK } from "./ids";
 import type { ChatCitation } from "./chat";
 import type { SearchScope } from "./index";
-import type { Lang } from "./route";
+import type { Lang } from "./vocab/languages";
 import { flatLine } from "./text";
 
 /**

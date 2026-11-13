@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { ABSTRACTS_NOTICE, MARK, stripInvisible, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MAX_OA_ABSTRACT_CHARS, MIN_SINCE_YEAR, type AskStreamEvent, type ChatRetraction, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, refTally, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
+import { ABSTRACTS_NOTICE, isLaneReason, MARK, stripInvisible, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MAX_OA_ABSTRACT_CHARS, MIN_SINCE_YEAR, type AskStreamEvent, type ChatRetraction, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, refTally, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
 import { currentUser, requireUser } from "../auth/service";
 import { readJson } from "../platform/http/body";
 import type { Complete, StreamComplete } from "../docs/qa";
@@ -305,7 +305,7 @@ chatRoutes.post("/", async (c) => {
                 : FOLLOW_UP_OUTCOMES.notGrounded
           : plain;
       // the safety lane's own endings are a new name in a table that is kept: counted only when CHAT_COUNTERS is on, like every other count that is new (the privacy page says what is counted before that is switched on)
-      if (reason !== "urgent" && reason !== "safety" && reason !== "decision") await countOutcome(c.env.DB, "chat", counted);
+      if (!isLaneReason(reason)) await countOutcome(c.env.DB, "chat", counted);
       else if ((await gate(c.env, "CHAT_COUNTERS")) === "on") await countOutcome(c.env.DB, "chat", counted);
       return send({ type: "done", answered, ...(reason ? { reason } : {}), tookMs: Date.now() - started });
     };

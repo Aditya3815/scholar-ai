@@ -46,7 +46,6 @@ function rule(e: Edge): string | null {
 
 /** Today's edges against the rule. */
 const ALLOW: string[] = [
-  "shared/chat-context.ts -> shared/route.ts",
   "shared/chat-copy.ts -> shared/chat-state.ts",
   "shared/chat-copy.ts -> shared/chat.ts",
   "shared/chat-copy.ts -> shared/index.ts",
@@ -80,12 +79,10 @@ const ALLOW: string[] = [
   "shared/litscan-review.ts -> shared/litscan.ts",
   "shared/litscan.ts -> shared/chat.ts",
   "shared/litscan.ts -> shared/index.ts",
-  "shared/litscan.ts -> shared/route.ts",
   "shared/notes-md.ts -> shared/documents.ts",
   "shared/oa.ts -> shared/documents.ts",
   "shared/oa.ts -> shared/index.ts",
   "shared/paperinfo.ts -> shared/references.ts",
-  "shared/reading.ts -> shared/chat-context.ts",
   "shared/rive.ts -> shared/litscan.ts",
   "shared/route.ts -> shared/chat.ts",
   "shared/route.ts -> shared/references.ts",

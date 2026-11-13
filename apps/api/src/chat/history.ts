@@ -1,5 +1,6 @@
 import {
   cutWhole,
+  isLang,
   DOI_START,
   FILTER_YEARS,
   historySizeOf as sizeOf,
@@ -18,7 +19,6 @@ import {
   stripInvisible,
   type HistoryEntry,
   type HistoryPaper,
-  type Lang,
 } from "@scholar/shared";
 
 /**
@@ -53,7 +53,6 @@ export type ChatHistory = {
   dropped: number;
 };
 
-const LANGS: readonly Lang[] = ["en", "hi", "hinglish", "other"];
 
 /**
  * What kind of failure a provider reported, as one of five words, for a log line about a message that came with earlier turns: a provider's own error text can echo what it was sent (a rejected
@@ -159,7 +158,7 @@ function read(raw: unknown): { ok: true; history: ChatHistory } | Refusal {
       }
     }
     if (!absent(e.language)) {
-      const language = LANGS.find((l) => l === e.language);
+      const language = isLang(e.language) ? e.language : undefined;
       if (!language) return bad(`The language of entry ${at} is not one that is known.`);
       out.language = language;
     }
