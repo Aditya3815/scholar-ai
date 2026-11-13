@@ -12,7 +12,7 @@ import { sseStream } from "../sse";
 import { searchComplete } from "./complete";
 import { answerFromResults, pickEvidencePapers, type Picked } from "./answer";
 import { judgeAnswer, type JudgeReport } from "./support";
-import { readTighten } from "./tighten";
+import { MAX_TIGHTEN_BODY_BYTES, readTighten } from "./tighten";
 import { answerGeneral } from "./general";
 import { askedOf, contextInfo, ownQuestions, routeContextOf, routeFollowUp, routeMessage, routerCallFailed, type FollowUp, type RouterContext } from "./router";
 import { errorKind, readHistory, stripInvisible, type ChatHistory } from "./history";
@@ -895,7 +895,7 @@ chatRoutes.post("/judge", async (c) => {
   const got = await requireUser(c, { signIn: { status: 403, type: "forbidden", title: "Sign in first" } });
   if (got instanceof Response) return got;
   const { user } = got;
-  const sent = await readJson(c, MAX_CHAT_BODY_BYTES);
+  const sent = await readJson(c, MAX_TIGHTEN_BODY_BYTES);
   if (sent.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
   const body = sent.value as { text?: unknown; papers?: unknown; model?: unknown; reasoning?: unknown; timeoutMs?: unknown; strict?: unknown; recheck?: unknown } | null;
   const text = typeof body?.text === "string" ? body.text.slice(0, 3000) : "";
@@ -943,8 +943,8 @@ chatRoutes.post("/tighten", async (c) => {
   const { user } = got;
   // the switch that turns the support judge off (CHAT_JUDGE=off) turns the strict check off too: a page that was opened before it still shows the button
   if (killSwitch(c.env, "CHAT_JUDGE") === "off") return c.json({ type: "unavailable", title: "The strict check is switched off", detail: "Try again later." }, 503);
-  // the chat's limit on the size of a body (bug B7: this body was read with none)
-  const sent = await readJson(c, MAX_CHAT_BODY_BYTES);
+  // a limit on the size of the body, from the most the page can send (bug B7: this body was read with none)
+  const sent = await readJson(c, MAX_TIGHTEN_BODY_BYTES);
   if (sent.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
   const read = readTighten(sent.value);
   if (!read.ok) return deny(c, 400, "invalid_request", "That answer cannot be checked", read.detail);
