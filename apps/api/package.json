@@ -23,7 +23,7 @@
     "@cloudflare/workers-oauth-provider": "1.2.4",
     "@modelcontextprotocol/server": "2.3.1",
     "@scholar/shared": "*",
-    "hono": "^4.13.13",
+    "hono": "^4.13.16",
     "unpdf": "1.9.1",
     "zod": "4.6.7"
   },
