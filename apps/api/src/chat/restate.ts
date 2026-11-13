@@ -1,4 +1,4 @@
-import { DOI_START, MAX_RESTATED_QUESTION_CHARS, subjectWords } from "@scholar/shared";
+import { statedNumbers, sentenceWords, NEGATIONS_RESTATE, DOI_START, MAX_RESTATED_QUESTION_CHARS, subjectWords } from "@scholar/shared";
 
 /**
  * The deterministic part of letting a model restate a follow-up (docs/design/chat-actions-context.md, section 5), in the spirit of chat/rewrite.ts: words written by a model act only if they pass
@@ -23,14 +23,10 @@ export type RestatementOptions = { foreign?: boolean };
 /** "question" is the standalone question (in the person's language, at most 200 characters); "search" is the English search words (at most 300, as every search is). */
 export type RestatementKind = "question" | "search";
 
-const tokens = (s: string): string[] => s.normalize("NFKC").toLowerCase().match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
-
+const tokens = (s: string): string[] => sentenceWords(s);
 /** Hindi digits are numbers too ("२०२०"), and 12,000 is 12000. */
-const DEVANAGARI_DIGITS = "०१२३४५६७८९";
-export const asciiDigits = (s: string): string => s.replace(/[०-९]/g, (d) => String(DEVANAGARI_DIGITS.indexOf(d)));
-export const numbersIn = (s: string): string[] => asciiDigits(s.normalize("NFKC")).replace(/(\d),(?=\d{3}\b)/g, "$1").match(/\d+(?:\.\d+)?/g) ?? [];
-
-const NEGATIONS = new Set(["no", "not", "nor", "never", "none", "neither", "without", "cannot", "nothing", "nahi", "nahin", "nhi", "bina", "mat", "नहीं", "नही", "बिना", "मत", "न"]);
+const numbersIn = (s: string): string[] => statedNumbers(s, { devanagari: true });
+const NEGATIONS = NEGATIONS_RESTATE;
 /** "paper no. 2" is a number, not a "no". */
 const hasNegation = (s: string): boolean => {
   const t = s.replace(/\bno\.?\s*(?=\d)/gi, "number ");

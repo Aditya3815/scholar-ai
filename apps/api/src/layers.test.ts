@@ -198,7 +198,6 @@ const ALLOW: string[] = [
   "api/search/crossref.ts -> api/references/crossref-gate.ts",
   "api/search/doi-check.ts -> api/references/crossref-gate.ts",
   "api/search/doi-check.ts -> api/references/lookup.ts",
-  "api/search/doi-check.ts -> api/references/match.ts",
   "api/search/plain-text.test.ts -> web/lib/",
   "api/search/retraction-service.ts -> api/library/retraction-stub.ts",
   "api/search/retraction.ts -> api/references/crossref-gate.ts",

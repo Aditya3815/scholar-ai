@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { memoryStore } from "../src/cache/store";
 import { runIdeaSearch } from "../src/idea/search";
-import { tokenize } from "../src/references/match";
+import { tokenize } from "@scholar/shared";
 import { FetchLayer } from "./lib/fetch-layer";
 import { evalMode } from "./lib/mode";
 

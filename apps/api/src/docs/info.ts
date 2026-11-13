@@ -1,5 +1,4 @@
-import { DOI_KEPT, ARXIV_OLD, ARXIV_NEW, MAX_PAPER_REFERENCES, lookupDoi, type OutlineItem, type PaperInfo, type PaperMetadata } from "@scholar/shared";
-import { tokenize } from "../references/match";
+import { tokenize, DOI_KEPT, ARXIV_OLD, ARXIV_NEW, MAX_PAPER_REFERENCES, lookupDoi, type OutlineItem, type PaperInfo, type PaperMetadata } from "@scholar/shared";
 import { crossrefByDoi, crossrefReferenceStrings, openAlexByDoi, type LookupEnv } from "../references/lookup";
 
 const DOI = DOI_KEPT;

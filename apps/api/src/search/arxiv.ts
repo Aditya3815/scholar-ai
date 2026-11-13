@@ -1,4 +1,4 @@
-import { arxivDoi, normalizeDoi, foldTitle, plainText } from "@scholar/shared";
+import { arxivDoi, normalizeDoi, plainText, queryTerms } from "@scholar/shared";
 import type { Provider, ProviderPaper } from "./types";
 
 /**
@@ -16,7 +16,7 @@ const tag = (xml: string, name: string) => decode(new RegExp(`<${name}[^>]*>([\\
 
 /** Every word that carries meaning, all of which must appear ("smartphone fundus photography glaucoma" -> all:smartphone AND all:fundus ...). */
 export function arxivQuery(q: string): string {
-  const terms = [...new Set(foldTitle(q, { latinOnly: true }).split(" ").filter((w) => w.length > 2 && !STOP.has(w)))].slice(0, 6);
+  const terms = queryTerms(q, STOP, 6);
   return terms.map((w) => `all:${w}`).join(" AND ");
 }
 

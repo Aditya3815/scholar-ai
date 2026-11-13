@@ -15,7 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { memoryStore } from "../src/cache/store";
-import { tokenize } from "../src/references/match";
+import { tokenize } from "@scholar/shared";
 import { runSearch } from "../src/search";
 import { MAX_TIER_STEMS, isStubRecord, listState, tiererFor, type Tier } from "../src/understand/tiers";
 import { wilson } from "./lib/metrics";

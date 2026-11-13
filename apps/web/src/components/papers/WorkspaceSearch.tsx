@@ -1,10 +1,11 @@
+import { searchWords } from "@scholar/shared";
 import { FileText, Highlighter, Quote, Search, WifiOff, X } from "lucide-react";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { searchWorkspace, type WorkspaceHits } from "../../lib/documents";
 import { requestJump } from "../../lib/jump";
 
-/** The words of a query as they were searched for (same rule as the server: letters and numbers, two or more characters). */
-const words = (q: string) => [...new Set(q.toLowerCase().normalize("NFKC").split(/[^\p{L}\p{M}\p{N}]+/u).filter((w) => w.length >= 2))].slice(0, 6);
+/** The words of a query as they were searched for (the server's own rule, searchWords). */
+const words = searchWords;
 
 /** Text with the searched words marked. Marking is by position in the lower-cased text, which has the same length as the text for the scripts we use; where it does not, the text is shown unmarked. */
 function Marked({ text, q }: { text: string; q: string }): ReactNode {

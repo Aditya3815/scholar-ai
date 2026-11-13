@@ -236,6 +236,41 @@ export function plainText(s: unknown, opts: { tags?: boolean } = {}): string {
 /** Lower-case words and numbers; diacritics folded so "Résumé" and "resume" compare equal. Punctuation is dropped. */
 export const words = (s: string): string[] => s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").match(/[\p{L}\p{N}]+/gu) ?? [];
 
+/**
+ * The words of a reference and of a record's title as the reference check compares them: decomposed first (NFKD), then diacritics folded and lower case, so a compatibility letter ("ℂ", "ﬁ") reads as
+ * the plain one. `words` folds the case first; the two differ for some 700 such letters, and each keeps its own order so that what it compared does not change.
+ */
+export const tokenize = (s: string): string[] => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+
+/** The words of a query in a person's own papers (the page marks the same words it searched for): lower case, letters, marks and digits, two characters or more, each once, at most six. */
+export const searchWords = (q: string): string[] => [...new Set(q.toLowerCase().normalize("NFKC").split(/[^\p{L}\p{M}\p{N}]+/u).filter((w) => w.length >= 2))].slice(0, 6);
+
+/** The words of a query that carry meaning, for a source asked in English (arXiv, DOAJ): the Latin fold, longer than two letters, not in `stop`, each once, at most `max`. */
+export const queryTerms = (q: string, stop: ReadonlySet<string>, max: number): string[] => [...new Set(foldTitle(q, { latinOnly: true }).split(" ").filter((w) => w.length > 2 && !stop.has(w)))].slice(0, max);
+
+/* ---------------------------------------------------------------- numbers and negations in a sentence */
+
+/** The words of a sentence for the checks of a model's restatement: NFKC, lower case, letters, marks and digits. `splitNot`: "doesn't" is read as "does not" (the rewrite check). */
+export const sentenceWords = (s: string, opts: { splitNot?: boolean } = {}): string[] => {
+  const t = s.normalize("NFKC").toLowerCase();
+  return (opts.splitNot ? t.replace(/(\w)n['’]t/g, "$1 not") : t).match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
+};
+
+/** Devanagari digits as 0 to 9 ("२०२०" is 2020). */
+export const asciiDigits = (s: string): string => s.replace(/[०-९]/g, (d) => String("०१२३४५६७८९".indexOf(d)));
+/** The numbers a sentence states ("12,000" is 12000, "0.5" stays), in order. `devanagari`: Devanagari digits count too. */
+export const statedNumbers = (s: string, opts: { devanagari?: boolean } = {}): string[] => {
+  const t = s.normalize("NFKC");
+  return (opts.devanagari ? asciiDigits(t) : t).replace(/(\d),(?=\d{3}\b)/g, "$1").match(/\d+(?:\.\d+)?/g) ?? [];
+};
+
+/**
+ * The words that negate, as each check reads them: the restatement check of a follow-up (with the Hinglish "nhi", "bina", "mat" and the Hindi "मत") and the check of a shorter claim (with "नहि").
+ * Two named lists until the follow-up eval shows that their union changes nothing (docs/design/untangle.md, F3).
+ */
+export const NEGATIONS_RESTATE: ReadonlySet<string> = new Set(["no", "not", "nor", "never", "none", "neither", "without", "cannot", "nothing", "nahi", "nahin", "nhi", "bina", "mat", "नहीं", "नही", "बिना", "मत", "न"]);
+export const NEGATIONS_REWRITE: ReadonlySet<string> = new Set(["no", "not", "nor", "never", "none", "neither", "without", "cannot", "nothing", "nahi", "nahin", "नहीं", "नही", "न", "बिना", "नहि"]);
+
 export type Run = { /** words of `needle` found together */ len: number; /** index in `hay` where the run starts */ start: number };
 
 /** The longest stretch of consecutive `needle` words that also appears, unbroken and in order, in `hay`. */

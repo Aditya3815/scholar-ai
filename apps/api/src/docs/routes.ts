@@ -1,3 +1,4 @@
+import { searchWords } from "@scholar/shared";
 import { Hono, type Context } from "hono";
 import { rememberOne } from "./remember";
 import { d1KeyStore, readKey, runIdempotent } from "../idempotency";
@@ -168,7 +169,6 @@ documentRoutes.get("/", async (c) => {
 /* these two are before "/:id" on purpose: a path segment "search" or "remember" must not be taken for a paper id */
 const likeWord = (w: string) => `%${w.replace(/[\\%_]/g, (m) => "\\" + m)}%`;
 /** The words of a search (at least two characters, at most six, lower case). */
-export const searchWords = (q: string): string[] => [...new Set(q.toLowerCase().normalize("NFKC").split(/[^\p{L}\p{M}\p{N}]+/u).filter((w) => w.length >= 2))].slice(0, 6);
 const snippet = (text: string, words: string[], len = 220): string => {
   const flat = text.replace(/\s+/g, " ");
   const at = Math.min(...words.map((w) => { const i = flat.toLowerCase().indexOf(w); return i < 0 ? Infinity : i; }));

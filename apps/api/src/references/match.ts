@@ -1,4 +1,4 @@
-import { DOI_START } from "@scholar/shared";
+import { tokenize, findRun, DOI_START } from "@scholar/shared";
 /**
  * Pure matching logic for the Reference Verifier: given the text of a reference exactly as a scholar pasted it, and a
  * candidate record from Crossref/OpenAlex, decide whether they are the same paper. No network, no LLM.
@@ -46,10 +46,6 @@ export type MatchChecks = {
 export type MatchVerdict = "verified" | "title_only" | "different" | "no_authors";
 
 const GROUP_NAME = /\b(collaborat\w*|consortium|committee|investigators|working group|study group|task force|writing group|network|initiative|commission)\b/i;
-
-const fold = (s: string) => s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase();
-
-export const tokenize = (s: string): string[] => fold(s).match(/[\p{L}\p{N}]+/gu) ?? [];
 
 const tidyDoi = (raw: string): string => raw.replace(/%0[ad][^]*$/i, "").replace(/\s+/g, "").replace(/[\u2010-\u2013]/g, "-").replace(/[.,;:)\]}>'"]+$/, "").toLowerCase();
 
@@ -110,24 +106,7 @@ export function extractYears(text: string): number[] {
   return [...clean.matchAll(/(?<![\d])(19\d{2}|20\d{2})(?![\d])/g)].map((m) => Number(m[1]));
 }
 
-/** The longest run of consecutive words of `needle` that appears, in order and unbroken, in `haystack`: its length and where it starts. */
-function locateRun(needle: string[], haystack: string[]): { len: number; start: number } {
-  let best = { len: 0, start: -1 };
-  let prev = new Array<number>(haystack.length + 1).fill(0);
-  for (const n of needle) {
-    const cur = new Array<number>(haystack.length + 1).fill(0);
-    for (let j = 1; j <= haystack.length; j++) {
-      if (haystack[j - 1] === n) {
-        cur[j] = prev[j - 1]! + 1;
-        if (cur[j]! > best.len) best = { len: cur[j]!, start: j - cur[j]! };
-      }
-    }
-    prev = cur;
-  }
-  return best;
-}
-
-const longestRun = (needle: string[], haystack: string[]): number => locateRun(needle, haystack).len;
+const longestRun = (needle: string[], haystack: string[]): number => findRun(needle, haystack).len;
 
 /**
  * The words of a reference, read the way the record writes its title. A PDF breaks words ("im- age"), loses a space ("filtersimultaneous") or adds one ("Under water"), and a hyphen at
@@ -181,7 +160,7 @@ export function checkMatch(refText: string, c: Candidate): MatchChecks {
   // The title words must also appear TOGETHER, in order, the way a title is written: a short generic record title
   // ("Consensus in Blockchain") is otherwise "covered" by any long reference that happens to contain those words scattered
   // through a different title. Allow some drift (typos, a dropped subtitle): the longest run must cover most of the title.
-  const run = locateRun(allTitle, refWords);
+  const run = findRun(allTitle, refWords);
   if (allTitle.length > 0 && run.len / allTitle.length < 0.75) title = Math.min(title, 0.4);
   // A record whose title is the name of the VENUE the reference was published in ("Advances in Neural Information Processing
   // Systems 19", "Neural Networks", a conference's proceedings) sits right after "In" in the reference. That is where a venue is

@@ -1,4 +1,4 @@
-import { arxivDoi } from "@scholar/shared";
+import { tokenize, arxivDoi } from "@scholar/shared";
 import type { RefStatus } from "@scholar/shared";
 import { retractedDois } from "../search/retraction";
 import {
@@ -12,7 +12,7 @@ import {
   openAlexSearchTitle,
   type LookupEnv,
 } from "./lookup";
-import { spacedTitle, checkIdentified, checkLocator, checkMatch, confidence, doiCandidates, dropBrokenWords, extractArxivId, extractYears, firstAuthorFamily, joinHyphenated, nearestYear, pickBest, referenceKind, searchTitle, tokenize, verdict, type Candidate, type MatchChecks, type MatchVerdict } from "./match";
+import { spacedTitle, checkIdentified, checkLocator, checkMatch, confidence, doiCandidates, dropBrokenWords, extractArxivId, extractYears, firstAuthorFamily, joinHyphenated, nearestYear, pickBest, referenceKind, searchTitle, verdict, type Candidate, type MatchChecks, type MatchVerdict } from "./match";
 
 /**
  *  verified      the reference matches a real record: title covered, plus author or year, nothing contradicting

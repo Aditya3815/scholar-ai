@@ -14,6 +14,7 @@ import {
   languageWithContext,
   needsContext,
   neutralise,
+  statedNumbers,
   offlineRoute,
   ruleRoute,
   type AnswerLanguage,
@@ -27,7 +28,7 @@ import type { Complete } from "../docs/qa";
 import { AllProvidersFailedError } from "../llm";
 import { isMalformedReply } from "./malformed";
 import { errorKind, type ChatHistory } from "./history";
-import { bleeds, checkRestatement, numbersIn, type RestatementReason } from "./restate";
+import { bleeds, checkRestatement, type RestatementReason } from "./restate";
 
 /**
  * The router of Home's prompt box in Auto mode: rules first (`ruleRoute`, free and always the same), then a small model that can only answer with one of four tool names and,
@@ -338,7 +339,7 @@ export function parseFollowUp(raw: unknown, text: string, language: Lang, ctx: R
   const to = o.year_to;
   const asked = [from, to].filter((y) => y !== undefined && y !== null && y !== 0);
   if (asked.length > 0) {
-    const stated = numbersIn(message).map(Number).filter((n) => n >= 1000 && n <= 2999);
+    const stated = statedNumbers(message, { devanagari: true }).map(Number).filter((n) => n >= 1000 && n <= 2999);
     const slack = YEAR_BOUND_WORD.test(message) ? 1 : 0;
     const good = asked.every((y) => isYear(y, FILTER_YEARS) && stated.some((n) => Math.abs(n - (y as number)) <= slack));
     const ordered = !(isInt(from) && isInt(to) && from > to && from !== 0 && to !== 0);
