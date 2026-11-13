@@ -79,6 +79,9 @@ export function arxivIdFromDoi(doi: string): string | null {
  */
 export const MARK = /\[(\d{1,2})\]/g;
 export const MARK_WIDE = /\[(\d{1,3})\]/g;
+/** A text cut at its marks, each mark a piece of its own ("a [1] b" -> "a ", "[1]", " b"), and the number of a piece that is a mark (else undefined): how a page draws an answer with its marks. */
+export const splitAtMarks = (s: string, opts: { wide?: boolean } = {}): string[] => s.split(opts.wide ? /(\[\d{1,3}\])/g : /(\[\d{1,2}\])/g);
+export const markOf = (piece: string, opts: { wide?: boolean } = {}): string | undefined => (opts.wide ? /^\[(\d{1,3})\]$/ : /^\[(\d{1,2})\]$/).exec(piece)?.[1];
 /** Does the text hold a mark [n] (one or two digits)? */
 export const hasMark = (s: string): boolean => /\[\d{1,2}\]/.test(s);
 /** The text without its marks [n] and the space before each. `unfinished`: also a mark still being written at the end ("... [1", "... ["), as a reply that is still arriving shows it. */

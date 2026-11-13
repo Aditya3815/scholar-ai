@@ -1,3 +1,4 @@
+import { stripMarks } from "./ids";
 import type { Paper, SearchScope } from "./index";
 import { cutWhole, FILTER_YEARS, isYear, oneLine, PUBLICATION_YEARS, stripInvisible } from "./text";
 import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatRequestMode, type ChatStep, type GeneralKind, type NoticeKind, type TightenRequest, type TightenResponse, type UnderstoodByModel } from "./chat";
@@ -431,7 +432,7 @@ function citedPapers(a: AssistantMsg): HistoryPaper[] {
 export function answerWords(a: AssistantMsg): string | undefined {
   const ans = a.answer;
   if (!ans || !ans.grounded || typeof ans.text !== "string") return undefined;
-  const t = cutWhole(oneLine(ans.text).replace(/\s*\[\d{1,2}\]/g, "").trim(), MAX_HISTORY_ANSWER_CHARS).trim();
+  const t = cutWhole(stripMarks(oneLine(ans.text)).trim(), MAX_HISTORY_ANSWER_CHARS).trim();
   return t || undefined;
 }
 

@@ -1,3 +1,4 @@
+import { MARK } from "./ids";
 import type { ChatCitation } from "./chat";
 import type { SearchScope } from "./index";
 import type { Lang } from "./route";
@@ -184,7 +185,7 @@ export function assembleReport(items: readonly LitscanItem[], parts: Readonly<Re
       map.set(s.n, g);
     }
     const text = part.text
-      .replace(/\[(\d{1,2})\]/g, (m, d: string) => (map.has(Number(d)) ? `[${map.get(Number(d))}]` : m))
+      .replace(MARK, (m, d: string) => (map.has(Number(d)) ? `[${map.get(Number(d))}]` : m))
       .replace(/(\[\d{1,3}\])(?:\s*\1)+/g, "$1");
     const evidence = part.citations.flatMap((c) => (map.has(c.n) ? [{ g: map.get(c.n)!, sentence: c.sentence }] : [])).sort((a, b) => a.g - b.g);
     return { idx, title, question: item.question, searchQuery: item.searchQuery, status: "answered", text, evidence };

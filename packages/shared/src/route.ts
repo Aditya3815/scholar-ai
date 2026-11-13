@@ -1,6 +1,6 @@
 import { MAX_CHAT_CHARS } from "./chat";
 import { splitReferences } from "./references";
-import { ARXIV_INPUT, DOI_INPUT, DOI_START } from "./ids";
+import { ARXIV_INPUT, DOI_INPUT, DOI_START, hasMark } from "./ids";
 
 /**
  * Which tool does a message on Home belong to? The rules here cost nothing and always give the same answer; they settle what is plain, and everything else goes to a small
@@ -319,9 +319,8 @@ const DEPENDS_DEVANAGARI = wholeWord(
   "उसका|उसके|उसकी|उसमें|उसे|उसको|इसका|इसके|इसकी|इसमें|इसे|इसको|उनका|उनके|उनकी|उनमें|उनको|इनका|इनके|इनकी|इनमें|इनको|वही|यही|आगे|पहला|पहली|पहले|दूसरा|दूसरी|दूसरे|पिछला|पिछली|पिछले|यह|वह|ये|वो|सिर्फ़|सिर्फ|केवल|दोबारा",
   "और|फिर",
 );
-const MARK_POINTER = /\[\d{1,2}\]/;
 
-export const hasDependencyCue = (text: string): boolean => DEPENDS_EN.test(text) || DEPENDS_HINGLISH.test(text) || DEPENDS_DEVANAGARI.test(text) || MARK_POINTER.test(text);
+export const hasDependencyCue = (text: string): boolean => DEPENDS_EN.test(text) || DEPENDS_HINGLISH.test(text) || DEPENDS_DEVANAGARI.test(text) || hasMark(text);
 
 const wordCount = (text: string): number => (text.match(/[\p{L}\p{M}\p{N}]+/gu) ?? []).length;
 

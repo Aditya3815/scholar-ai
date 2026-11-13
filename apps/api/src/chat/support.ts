@@ -1,4 +1,4 @@
-import { splitSentences, type ChatAnswer, type ChatCitation } from "@scholar/shared";
+import { stripMarks, MARK, splitSentences, type ChatAnswer, type ChatCitation } from "@scholar/shared";
 import type { StreamComplete } from "../docs/qa";
 import type { Picked } from "./answer";
 import { checkRewrite, type RewriteReason } from "./rewrite";
@@ -15,12 +15,11 @@ import { abstractOf, dedupeMarkRuns, MAX_SENTENCES_PER_PAPER, shownSentence, tid
 /** One claim of the answer: a sentence, the papers it cites and the sentence without its marks. */
 export type Claim = { index: number; text: string; plain: string; marks: number[] };
 
-const MARK = /\[(\d{1,2})\]/g;
 /** Marks at the start of a piece of text, and what follows them. */
 const LEADING_MARKS = /^((?:\[\d{1,2}\]\s*)+)([\s\S]*)$/;
 
 const marksOf = (s: string): number[] => [...new Set([...s.matchAll(MARK)].map((m) => Number(m[1])))];
-const plainOf = (s: string): string => s.replace(/\s*\[\d{1,2}\]/g, "").replace(/\s+([.,;:।])/g, "$1").replace(/\s{2,}/g, " ").trim();
+const plainOf = (s: string): string => stripMarks(s).replace(/\s+([.,;:।])/g, "$1").replace(/\s{2,}/g, " ").trim();
 const hasWords = (s: string): boolean => /[\p{L}\p{N}]/u.test(plainOf(s));
 
 /**

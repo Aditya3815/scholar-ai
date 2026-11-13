@@ -1,3 +1,4 @@
+import { markOf, splitAtMarks } from "@scholar/shared";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Check, CircleAlert, Copy, Download, FileSpreadsheet, FileText, Landmark, Loader2, Printer, Search, ShieldCheck, X } from "lucide-react";
 import { Fragment, useId, useMemo, useState } from "react";
@@ -68,8 +69,8 @@ function MarkedText({ text, rows, sentences }: { text: string; rows: Map<number,
   return (
     <>
       <p className="reading ls-text">
-        {text.split(/(\[\d{1,3}\])/g).map((part, i) => {
-          const g = /^\[(\d{1,3})\]$/.exec(part)?.[1];
+        {splitAtMarks(text, { wide: true }).map((part, i) => {
+          const g = markOf(part, { wide: true });
           if (!g) return <Fragment key={i}>{part}</Fragment>;
           const r = rows.get(Number(g));
           return (

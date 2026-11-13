@@ -1,4 +1,4 @@
-import { abstractRead, sentenceAt, type Paper } from "@scholar/shared";
+import { MARK_WIDE, abstractRead, sentenceAt, type Paper } from "@scholar/shared";
 
 /**
  * What the answer writer (answer.ts) and the support judge (support.ts) must agree on: how much of an abstract the model reads, how a sentence is numbered and cut, and how marks
@@ -40,7 +40,7 @@ export function tidyMarkPunctuation(text: string): string {
 export function dedupeMarkRuns(text: string): string {
   return text.replace(/(?:\[\d{1,3}\][ \t]*)+/g, (run) => {
     const seen: string[] = [];
-    for (const m of run.matchAll(/\[(\d{1,3})\]/g)) if (!seen.includes(m[1]!)) seen.push(m[1]!);
+    for (const m of run.matchAll(MARK_WIDE)) if (!seen.includes(m[1]!)) seen.push(m[1]!);
     return `${seen.map((d) => `[${d}]`).join("")}${/\s$/.test(run) ? " " : ""}`;
   });
 }

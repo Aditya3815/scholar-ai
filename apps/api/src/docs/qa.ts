@@ -1,4 +1,4 @@
-import { findRun, words, type Answer, type AskStreamEvent, type Citation } from "@scholar/shared";
+import { MARK, hasMark, findRun, words, type Answer, type AskStreamEvent, type Citation } from "@scholar/shared";
 import { AnswerFieldStreamer } from "./stream-json";
 import type { Embedder } from "./embed";
 import { rank } from "./vector";
@@ -105,9 +105,9 @@ export function verifyAnswer(raw: unknown, ex: Retrieved[], question: string, me
   }
   // Markers that point at a passage we could not verify are removed rather than left looking authoritative.
   const ok = new Set(citations.map((c) => c.n));
-  answer = answer.replace(/\[(\d{1,2})\]/g, (m, d: string) => (ok.has(Number(d)) ? m : "")).replace(/\s{2,}/g, " ").replace(/\s+([.,;:])/g, "$1").trim();
+  answer = answer.replace(MARK, (m, d: string) => (ok.has(Number(d)) ? m : "")).replace(/\s{2,}/g, " ").replace(/\s+([.,;:])/g, "$1").trim();
   // The model sometimes cites in the evidence list but forgets the inline markers: add them so every claim shows its source.
-  if (citations.length > 0 && !/\[\d{1,2}\]/.test(answer)) answer = `${answer} ${citations.map((c) => `[${c.n}]`).join("")}`.trim();
+  if (citations.length > 0 && !hasMark(answer)) answer = `${answer} ${citations.map((c) => `[${c.n}]`).join("")}`.trim();
   return { ...meta, question, found: true, answer, verified: citations.length > 0 && answer.length > 0, citations };
 }
 

@@ -1,3 +1,4 @@
+import { stripMarks } from "./ids";
 import { activePath, topicStart, type AssistantMsg, type ChatMsg, type UserMsg } from "./chat-state";
 import { cutWhole, oneLine } from "./text";
 
@@ -68,7 +69,7 @@ export function firstAuthor(authors: readonly unknown[] | undefined): string | n
 export function replyStart(a: AssistantMsg): string | null {
   if (a.status !== "done") return null;
   const text = a.answer && typeof a.answer.text === "string" ? a.answer.text : typeof a.general?.text === "string" ? a.general.text : "";
-  return cutWhole(oneLine(text).replace(/\s*\[\d{1,2}\]/g, "").trim(), LEDGER_REPLY_CHARS).trim();
+  return cutWhole(stripMarks(oneLine(text)).trim(), LEDGER_REPLY_CHARS).trim();
 }
 
 const ledgerPapers = (a: AssistantMsg): LedgerPaper[] =>

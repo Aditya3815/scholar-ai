@@ -1,4 +1,4 @@
-import { cutWhole, MAX_SAME_PAPERS_ANSWER_CHARS, neutralise, splitSentences, words, type ChatAnswer, type ChatCitation, type ChatEvent, type Lang, type Paper } from "@scholar/shared";
+import { MARK, hasMark, cutWhole, MAX_SAME_PAPERS_ANSWER_CHARS, neutralise, splitSentences, words, type ChatAnswer, type ChatCitation, type ChatEvent, type Lang, type Paper } from "@scholar/shared";
 import { AnswerFieldStreamer } from "../docs/stream-json";
 import { plainAnswer } from "./history";
 import { isMalformedReply } from "./malformed";
@@ -180,9 +180,9 @@ export function verifyChatAnswer(raw: unknown, picked: readonly Picked[], opts: 
   if (citations.length === 0 || !text) return { text: "", citations: [], grounded: false, enough };
   const ok = new Set(citations.map((c) => c.n));
   // a marker that points at nothing that was checked is taken out rather than left looking sure
-  text = dedupeMarkRuns(tidyMarkPunctuation(text.replace(/\[(\d{1,2})\]/g, (m, d: string) => (ok.has(Number(d)) ? m : "")).replace(/\s{2,}/g, " ").replace(/\s+([.,;:])/g, "$1").trim()));
+  text = dedupeMarkRuns(tidyMarkPunctuation(text.replace(MARK, (m, d: string) => (ok.has(Number(d)) ? m : "")).replace(/\s{2,}/g, " ").replace(/\s+([.,;:])/g, "$1").trim()));
   // the model sometimes cites in the evidence list and forgets the markers: add them, so every claim shows where it came from
-  if (opts.addMissingMarks !== false && !/\[\d{1,2}\]/.test(text)) text = `${text} ${[...ok].map((n) => `[${n}]`).join("")}`.trim();
+  if (opts.addMissingMarks !== false && !hasMark(text)) text = `${text} ${[...ok].map((n) => `[${n}]`).join("")}`.trim();
   return { text, citations, grounded: true, enough };
 }
 

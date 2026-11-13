@@ -2,7 +2,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, m } from "motion/react";
 import { ArrowUp, Check, Copy, CornerDownRight, FileStack, RefreshCw, SearchX, ShieldAlert, ShieldCheck, Square, TriangleAlert, X } from "lucide-react";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
-import { MAX_QUESTION_CHARS, OA_UNREADABLE_TEXT, textAttrs, type Answer, type Citation, type OaPaperEvent } from "@scholar/shared";
+import { splitAtMarks, markOf, MAX_QUESTION_CHARS, OA_UNREADABLE_TEXT, textAttrs, type Answer, type Citation, type OaPaperEvent } from "@scholar/shared";
 import { useGrowingField } from "../../lib/autogrow";
 import { askPaper, closeOaAsk, isAsking, keyOf, restoreFocus, stopAsking, useOaAsk, type OaTurn } from "../../lib/oa-ask";
 import { useAuth } from "../../lib/auth";
@@ -109,8 +109,8 @@ export function AnswerCard({ turn }: { turn: OaTurn }) {
         <span className="ask-tools">{a.found && <CopyButton answer={a} />}</span>
       </div>
       <p className="reading ask-text">
-        {a.answer.split(/(\[\d{1,2}\])/g).map((part, i) => {
-          const n = /^\[(\d{1,2})\]$/.exec(part)?.[1];
+        {splitAtMarks(a.answer).map((part, i) => {
+          const n = markOf(part);
           const c = n ? a.citations.find((x) => x.n === Number(n)) : undefined;
           return c ? (
             <button key={i} type="button" className="cite-chip" aria-label={`Source ${c.n}: ${placeOf(c)}. Show the quote`} onClick={() => cite(c.n)}>
