@@ -50,6 +50,7 @@ class FakeXhr {
 
 const g = globalThis as unknown as Record<string, unknown>;
 const docs = await import("./documents");
+const { ApiError } = await import("./api/client");
 
 let net: Net;
 let delays: number[];
@@ -104,7 +105,7 @@ describe("the papers' requests", () => {
     net.reply = () => problem(401, { type: "unauthorized", title: "Sign in to see your papers" });
     const e = await docs.fetchDocument("d1").catch((x) => x);
     expect(e).toMatchObject({ status: 401, type: "unauthorized", message: "Sign in to see your papers" });
-    expect(e).toBeInstanceOf(docs.ApiError);
+    expect(e).toBeInstanceOf(ApiError);
     await docs.loadDocs();
     expect(docs.useDocs()).toMatchObject({ status: "error", error: "Sign in to see your papers" });
     net.reply = () => problem(500, "oops");
@@ -126,7 +127,7 @@ describe("a question about a paper, as a stream", () => {
     expect(await docs.askDocumentStream("d1", "q", () => {}).catch((e) => e)).toMatchObject({ status: 429, type: "quota", message: "Today's allowance is used" });
     net.reply = () => sse([{ type: "error", code: "ai_unavailable", title: "The model is busy", detail: "Try again" }]);
     const e = await docs.askDocumentStream("d1", "q", () => {}).catch((x) => x);
-    expect(e).toBeInstanceOf(docs.ApiError);
+    expect(e).toBeInstanceOf(ApiError);
     expect(e).toMatchObject({ status: 200, message: "The model is busy. Try again" });
     net.reply = () => sse([{ type: "delta", text: "Hi" }]);
     const cut = await docs.askDocumentStream("d1", "q", () => {}).catch((x) => x);

@@ -1,19 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type DocNote, type NoteColor } from "@scholar/shared";
-import { ApiError } from "./documents";
+import { api, type Req } from "./api/client";
 
-async function call<T>(docId: string, path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`/api/v1/documents/${docId}/notes${path}`, {
-    credentials: "same-origin",
-    ...init,
-    headers: init.body ? { "Content-Type": "application/json" } : undefined,
-  });
-  if (!res.ok) {
-    const j = (await res.json().catch(() => null)) as { type?: string; title?: string; detail?: string } | null;
-    throw new ApiError(res.status, j?.type ?? "error", j?.title ?? "That could not be saved", j?.detail);
-  }
-  return (await res.json()) as T;
-}
+const call = <T>(docId: string, path: string, req: Req = {}): Promise<T> => api<T>(`/api/v1/documents/${docId}/notes${path}`, { ...req, fallback: "That could not be saved" });
 
 export type NotesApi = {
   status: "loading" | "ready" | "error";
@@ -49,7 +38,7 @@ export function useNotes(docId: string): NotesApi {
   const add = useCallback<NotesApi["add"]>(
     async (n) => {
       try {
-        const { note } = await call<{ note: DocNote }>(docId, "", { method: "POST", body: JSON.stringify(n) });
+        const { note } = await call<{ note: DocNote }>(docId, "", { method: "POST", json: n });
         setState((s) => ({ ...s, error: "", notes: [...s.notes, note].sort(byPage) }));
         return note;
       } catch (e) {
@@ -63,7 +52,7 @@ export function useNotes(docId: string): NotesApi {
   const update = useCallback<NotesApi["update"]>(
     async (id, change) => {
       try {
-        const { note } = await call<{ note: DocNote }>(docId, `/${id}`, { method: "PATCH", body: JSON.stringify(change) });
+        const { note } = await call<{ note: DocNote }>(docId, `/${id}`, { method: "PATCH", json: change });
         setState((s) => ({ ...s, error: "", notes: s.notes.map((x) => (x.id === id ? note : x)) }));
       } catch (e) {
         fail(e);

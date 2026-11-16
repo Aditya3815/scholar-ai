@@ -3,7 +3,7 @@ import { Lightbulb, LockKeyhole, ShieldCheck, Telescope } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { COMPARE_PAPERS, MIN_IDEA_CHARS, PRIVACY_VERSION, buildIdeaReport, relatedIds, type IdeaPlan } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
-import { ApiError } from "../../lib/documents";
+import { ApiError } from "../../lib/api/client";
 import { compareIdea, insightsIdea, isData, planIdea, reportFileName, searchIdea } from "../../lib/idea";
 import { downloadText } from "../../lib/download";
 import { easeOut, stagger } from "../../lib/motion";

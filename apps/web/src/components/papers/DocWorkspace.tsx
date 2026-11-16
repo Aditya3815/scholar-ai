@@ -4,7 +4,8 @@ import { leaveFullscreen, toggleFullscreen, useFullscreen } from "../../lib/full
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { analyzeScan, planNewHighlight, type Citation, type DocNote, type PaperInfo } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
-import { ApiError, continueScan, fetchDocument, fileUrl, pauseScan, postProgress, reindexDoc, savePaperInfo, loadDocs, useDocs, useJobs } from "../../lib/documents";
+import { ApiError } from "../../lib/api/client";
+import { continueScan, fetchDocument, fileUrl, pauseScan, postProgress, reindexDoc, savePaperInfo, loadDocs, useDocs, useJobs } from "../../lib/documents";
 import { registerCommands } from "../../lib/commands";
 import { useOnline } from "../../lib/offline";
 import { takeJump } from "../../lib/jump";

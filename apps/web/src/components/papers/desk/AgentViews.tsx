@@ -18,7 +18,7 @@ import {
   type NotebookAgent,
   type NotesDraft,
 } from "@scholar/shared";
-import { ApiError } from "../../../lib/docs-api";
+import { ApiError } from "../../../lib/api/client";
 import { askAgentStream, draftNotes, type AgentAsk } from "../../../lib/agents-api";
 import { useGrowingField } from "../../../lib/autogrow";
 import { useLegend } from "../../../lib/legend";
