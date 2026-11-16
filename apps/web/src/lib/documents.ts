@@ -3,7 +3,7 @@ import {
   MAX_CHARS_PER_BATCH, MAX_DOC_BYTES, MAX_DOC_PAGES, MAX_PAGES_PER_BATCH, analyzePaper, analyzeScan, isScanned, mergeScanInfo, needsReading,
   type Answer, type AskStreamEvent, type PaperAccess, type DocumentInfo, type Legend, type Line, type PageText, type PaperInfo, type ReadState, type ScanInfo,
 } from "@scholar/shared";
-import { readSse } from "./sse";
+import { readSse } from "./api/stream";
 import { openPdf, readOutline, readPage, renderCover, PdfError, type PDFDocumentProxy } from "./pdf";
 import { ApiError, json, request } from "./docs-api";
 import { fetchScan, fetchScanText, readScannedPages, registerScan } from "./scan";

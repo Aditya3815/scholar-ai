@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { emptyView, reduceView, type LitscanEvent, type LitscanListItem, type LitscanPlan, type LitscanPublic, type LitscanSnapshot, type LitscanStartRequest, type LitscanView, type LitscanLanguage } from "@scholar/shared";
 import { ApiError } from "./documents";
-import { readSse } from "./sse";
+import { readSse } from "./api/stream";
 
 const BASE = "/api/v1/litscan";
 const json = (method: string, body?: unknown, signal?: AbortSignal): RequestInit => ({ method, headers: body === undefined ? undefined : { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), credentials: "same-origin", signal });

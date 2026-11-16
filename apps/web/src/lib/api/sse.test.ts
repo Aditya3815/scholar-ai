@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readSse } from "./sse";
-import { sse } from "../test/fake-net";
+import { sse } from "../../test/fake-net";
 
 /** The page's event-stream reader (docs/design/untangle.md, F9): how it splits a stream into events, what it skips, how it stops, and bug B1. */
 

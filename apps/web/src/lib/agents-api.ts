@@ -1,6 +1,6 @@
 import type { Answer, AskStreamEvent, Critique, Legend, NotesDraft } from "@scholar/shared";
 import { ApiError, json, request } from "./docs-api";
-import { readSse } from "./sse";
+import { readSse } from "./api/sse";
 
 /**
  * The Paper Reader's agents (docs/design/paper-reader.md, 9.3 and 23), as the drawer asks them. Only the drawer's chunk imports this, so none of it is in the first load.

@@ -19,7 +19,7 @@ Asked: A2UI, AG-UI, SSE, checkpointing, delta events, token streaming, multi-age
 
 **What.** A response that stays open and sends `event:`/`data:` blocks. The HTML standard adds `id` and `retry` fields, `Last-Event-ID` on reconnect, comment lines (a line starting with a colon, suggested about every 15 s) to stop proxies from dropping an idle connection, and a 204 to tell the client to stop reconnecting.
 
-**Here.** `POST /chat`, `/idea/search|compare|insights`, `/documents/:id/ask`. One-way, same-origin, cookie auth, no extra infrastructure. The browser's `EventSource` cannot be used (it cannot send a POST body); `lib/sse.ts` reads the stream with `fetch`, which also means **no automatic reconnect and no `Last-Event-ID`**: a dropped stream is an error line with "Search again".
+**Here.** `POST /chat`, `/idea/search|compare|insights`, `/documents/:id/ask`. One-way, same-origin, cookie auth, no extra infrastructure. The browser's `EventSource` cannot be used (it cannot send a POST body); `lib/api/sse.ts` reads the stream with `fetch`, which also means **no automatic reconnect and no `Last-Event-ID`**: a dropped stream is an error line with "Search again".
 
 **Reliable?** Mostly, for what we do:
 - A Worker streaming a response has no wall-clock limit while the client is connected (Cloudflare limits page). When the client leaves, outstanding work may be cancelled; `ctx.waitUntil` extends it up to 30 s. Our handlers already abort the model call on disconnect.

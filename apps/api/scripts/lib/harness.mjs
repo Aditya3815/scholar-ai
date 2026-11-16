@@ -2,13 +2,13 @@
 //   - where the Worker and the fake identity provider are (INTEGRATION_PORT, INTEGRATION_IDP_PORT; APP when a runner names the Worker's address itself);
 //   - ok() and the exit code;
 //   - signing a fake person in (with the privacy note read, unless a suite says otherwise);
-//   - reading a server-sent-event stream with the page's own reader (apps/web/src/lib/sse.ts);
+//   - reading a server-sent-event stream with the page's own reader (apps/web/src/lib/api/sse.ts);
 //   - the dev-only SQL route; waiting for something to become true;
 //   - where each switch stands in this run, read from the registry (apps/api/src/platform/switches.ts) out of the Worker's own variables, which scripts/integration.mjs passes in INTEGRATION_VARS.
 // A suite then says only what it checks. Node loads the two TypeScript files as they are (type stripping; neither imports anything).
 import { startFakeIdp } from "../fake-idp.mjs";
 import { createClient } from "../test-client.mjs";
-import { readSse as readSseOfThePage } from "../../../web/src/lib/sse.ts";
+import { readSse as readSseOfThePage } from "../../../web/src/lib/api/sse.ts";
 import { SWITCHES, killSwitch, positionOfVariable } from "../../src/platform/switches.ts";
 
 export { createClient };
@@ -93,7 +93,7 @@ export async function sqlResults(statements, { strict = false, base = APP } = {}
 /* ---------- server-sent events ---------- */
 
 /**
- * Reads a server-sent-event stream with the page's own reader (apps/web/src/lib/sse.ts: a blank line ends an event, its `data:` line is JSON). Every event goes to `events`, unless `keep(e)` says
+ * Reads a server-sent-event stream with the page's own reader (apps/web/src/lib/api/sse.ts: a blank line ends an event, its `data:` line is JSON). Every event goes to `events`, unless `keep(e)` says
  * false. `stopWhen(e, events)` true after an event stops reading there: the stream is cancelled, or `ctl` (the request's AbortController) is aborted, as the Stop button does.
  * Returns the events and whether it was stopped.
  */

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { MAX_OA_ABSTRACT_CHARS, oaKey, refFromPaper, type Answer, type AskStage, type OaAskEvent, type OaIngestEvent, type OaPaperEvent, type Paper } from "@scholar/shared";
-import { readSse } from "./sse";
+import { readSse } from "./api/stream";
 
 /**
  * "Ask this paper" on any search result (W4). The sheet shows the questions asked about one paper at a time; they are kept for the visit (in memory, per paper) and nowhere else:

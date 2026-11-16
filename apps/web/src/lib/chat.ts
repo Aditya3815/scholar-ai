@@ -6,7 +6,7 @@ import {
 } from "@scholar/shared";
 import { idbClear, idbDelete, idbRead, idbSwap } from "./idb";
 import { showNotice } from "./notice";
-import { readSse } from "./sse";
+import { readSse } from "./api/stream";
 
 /**
  * The conversations of the prompt box. They live in this browser and nowhere else: the list in localStorage (so the rail can show it at once, and another tab hears of a change),
