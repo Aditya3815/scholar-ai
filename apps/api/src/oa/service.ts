@@ -167,7 +167,7 @@ type AskArgs = { /** what the answer is made from: the paper's text, or only its
 async function ask(env: OaEnv, s: AskSession, a: AskArgs): Promise<void> {
   const stream = streamFor(env, a.subject, a.abort.signal);
   if (!stream) return void (await s.send({ type: "error", code: "ai_unavailable", title: "Answering is unavailable right now" }));
-  const topK = devMode(env) && Number.isInteger(Number(env.QA_TOP_K)) && Number(env.QA_TOP_K) >= 1 ? Number(env.QA_TOP_K) : undefined;
+  const topK = devOptions(env).topK;
   // Only with the local dev switch (and not the stand-ins): print what the model said and was shown, to tune prompts. Never in production.
   const onRaw = devMode(env) && !standIns(env) ? (raw: unknown, ex: { idx: number; section?: string; text: string }[]) => console.log(JSON.stringify({ msg: "oa_debug", raw, excerpts: ex.map((e) => ({ idx: e.idx, section: e.section, text: e.text })) })) : undefined;
   const answer = await answerQuestionStream({ question: a.question, chunks: a.chunks, embed: a.embed, stream, meta: { id: crypto.randomUUID().replace(/-/g, "").slice(0, 20), createdAt: Date.now() }, emit: s.send, topK, onRaw });
