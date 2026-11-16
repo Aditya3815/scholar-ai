@@ -1,6 +1,6 @@
 import type { IdeaCompareEvent, IdeaCompareRequest, IdeaComparison, IdeaInsights, IdeaInsightsEvent, IdeaPaper, IdeaPlan, IdeaSearchEvent, IdeaSearchRequest, IdeaSearchResult } from "@scholar/shared";
 import { ApiError } from "./documents";
-import { readSse } from "./sse";
+import { readSse } from "./api/stream";
 
 /** Dataset and software deposits are not prior art the way a paper is: hidden by default and never sent to the comparison. */
 export const isData = (p: IdeaPaper) => p.kind === "data";
