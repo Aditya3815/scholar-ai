@@ -224,12 +224,7 @@
   /* a phone: the panel takes the height under the header (measured: --desk-phone-h) */
   .ws-shell .desk .dw-panel,
   .desk .dw-panel { position: static; height: var(--desk-phone-h, calc(100dvh - 9rem)); min-height: 16rem; }
-  /* the header's end on a phone: the status and the theme on one row, the view switch under them across the width (Paper | Notes) */
   .desk-head-end { justify-content: space-between; row-gap: 0.6rem; }
-  .desk-head-end > .meta-chip { order: 1; }
-  .desk-head-end > .seg[aria-label="Theme"] { order: 2; }
-  .desk-head-end > .desk-views { order: 3; flex: 1 0 100%; }
-  .desk-views .desk-view { flex: 1; }
   /* the toolbar scrolls sideways inside itself; the page never does */
   .desk .pdfv-bar { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
   .desk .pdfv-bar > * { flex: none; }
@@ -327,3 +322,13 @@
 /* its buttons wrap in a narrow panel instead of running out of it (Split on a tablet, a phone) */
 .desk .notes-actions { flex-wrap: wrap; row-gap: 0.4rem; }
 .desk .notes-actions .btn { white-space: nowrap; }
+
+/* a phone upright: the status and the theme on one row, the view switch under them across the width (Paper | Notes); on its side all of it fits one row */
+@media not all and (min-width: 744px) and (min-height: 520px) {
+  @media (max-width: 600px) {
+    .desk-head-end > .meta-chip { order: 1; }
+    .desk-head-end > .seg[aria-label="Theme"] { order: 2; }
+    .desk-head-end > .desk-views { order: 3; flex: 1 0 100%; }
+    .desk-views .desk-view { flex: 1; }
+  }
+}

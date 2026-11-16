@@ -403,7 +403,7 @@ Phase 1 ("Desk") is built on the branch `reader-v2`, behind `READER`, which is n
 **Layout.**
 - Today's code keeps the side panel "put away" as `scholar.focus = "1"`, not `"closed"`: both are read as Paper, once, and from then on the choice is kept as `scholar.view`.
 - When a wide screen turns into a phone while Split is on, the view shows Paper, but the choice kept on the device is not overwritten: it was the person's, and a wide screen offers Split again.
-- On a phone the header has two rows under the title: the status and the theme on one, the view switch across the width under them (`[ Paper | Notes ]`). The mock put the theme in the title row; the theme switch is four buttons wide and does not fit there at 390 px.
+- On a phone held upright (600 px or less) the header has two rows under the title: the status and the theme on one, the view switch across the width under them (`[ Paper | Notes ]`). The mock put the theme in the title row; the theme switch is four buttons wide and does not fit there at 390 px. A phone on its side has all of it in one row, to keep its little height for the paper.
 - In Split the paper's toolbar and thumbnails follow the paper's own width (a container query): on a tablet upright the thumbnails go and the meanings and tools show icons, with their names kept as accessible names and tooltips.
 - On a wide screen the Agents drawer starts below the paper's header while the header is in sight, so the view switch and the theme stay reachable while it is open.
 
