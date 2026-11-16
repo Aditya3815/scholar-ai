@@ -45,6 +45,7 @@ describe("asking a paper", () => {
   it("a refusal's words: signed out, too many questions, the problem, a reply with no problem", async () => {
     const cases: [Response, unknown][] = [
       [problem(401, { type: "unauthorized", title: "x" }), { code: "sign_in", title: "Sign in to ask this paper" }],
+      [problem(401, { type: "unauthorized", title: "x", detail: "Your session ended" }), { code: "sign_in", title: "Sign in to ask this paper", detail: "Your session ended" }],
       [problem(429, { type: "rate_limited", title: "x", detail: "y" }), { code: "rate_limited", title: "Too many questions just now", detail: "Please wait a minute and try again." }],
       [problem(400, { type: "invalid_question", title: "That question is too long", detail: "Use fewer words" }), { code: "invalid_question", title: "That question is too long", detail: "Use fewer words" }],
       [problem(500, "x"), { code: "error", title: "That could not be sent" }],
