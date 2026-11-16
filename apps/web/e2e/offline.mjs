@@ -150,6 +150,8 @@ try {
   await page.goto(BASE + "/settings", { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Remove .* from this device/ }).first().click();
   await until(async () => (await cacheKeys("scholar-papers-v1")).length === 0, "the paper's copy to be removed");
+  // the page empties the papers cache first and the reads after it (lib/offline.ts removeCachedPaper), so the reads are waited for too (seen once on CI: checked in between)
+  await until(async () => (await cacheKeys("scholar-data-v1")).every((k) => !k.includes(docId)), "the reads kept with it to be removed", 10000).catch(() => {});
   ok((await cacheKeys("scholar-data-v1")).every((k) => !k.includes(docId)), "'Remove from this device' deletes the paper's file and the reads kept with it");
   // open it again so that there is something to clear, then sign out
   await page.goto(`${BASE}/papers/${docId}`, { waitUntil: "networkidle" });
