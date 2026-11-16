@@ -30,6 +30,19 @@ const IDLE: SearchState = {
   error: null,
 };
 
+/**
+ * What the old results page says when its stream fails: the title of the server's `error` event, "Search failed" when the event has none or cannot be read (bug B3: it was parsed with
+ * no guard inside the listener, so a broken event threw there and the page waited for the connection to drop), and "Connection lost" for the browser's own error (no data).
+ */
+export function searchErrorText(data: string | undefined): string {
+  if (!data) return "Connection lost";
+  try {
+    return (JSON.parse(data) as { title?: string } | null)?.title ?? "Search failed";
+  } catch {
+    return "Search failed";
+  }
+}
+
 /** SSE se streaming search: har source ke aate hi results merge hokar aate hain. */
 export function useSearch() {
   const [state, setState] = useState<SearchState>(IDLE);
@@ -89,7 +102,7 @@ export function useSearch() {
       es.addEventListener("error", (e) => {
         // Server-sent `error` event (data ke saath) ya connection error (data nahi).
         const data = (e as MessageEvent<string>).data;
-        fail(data ? ((JSON.parse(data) as { title?: string }).title ?? "Search failed") : "Connection lost");
+        fail(searchErrorText(data));
       });
     },
     [cancel],
