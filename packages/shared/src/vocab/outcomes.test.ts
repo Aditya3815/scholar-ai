@@ -1,38 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { outcomeTotal } from "@scholar/shared";
-import { FLOOR_OUTCOMES, FOLLOW_UP_OUTCOMES, OUTCOME_FEATURES, UNREAD_OUTCOMES } from "./outcomes";
-import { INPUT_SHAPE_NAMES, SUBJECT_NAMES } from "./understand/input-shape";
-import { UNDERSTAND_COUNTER_NAMES } from "./understand/understand-counters";
+import {
+  FEATURE_LABELS,
+  FLOOR_OUTCOMES,
+  FOLLOW_UP_OUTCOMES,
+  INPUT_SHAPE_LABELS,
+  INPUT_SHAPE_NAMES,
+  OUTCOME_COUNTS,
+  OUTCOME_FEATURES,
+  OUTCOME_LABELS,
+  SUBJECT_NAMES,
+  UNDERSTAND_COUNTER_NAMES,
+  UNDERSTAND_LABELS,
+  UNREAD_OUTCOMES,
+  outcomeLabels,
+  outcomeTotal,
+} from "./outcomes";
 
 /**
- * /admin tells the owner what the counts are (apps/web/src/components/admin/AdminOps.tsx). The page is a React file this workspace does not render, so this reads it as source, as legal-text.test.ts
- * reads the privacy page: every name that the code can count has one plain label there, the label of a name is never the name itself, and a label for a name nothing can count is a leftover.
- * (docs/design/intent-and-state.md, 4.4: "AdminOps.tsx OUTCOME_TEXT gets one plain label per name".)
+ * /admin tells the owner what the counts are: every name that the code can count has one plain label, the label of a name is never the name itself, and a label for a name nothing can count is a
+ * leftover (docs/design/intent-and-state.md, 4.4). The labels are data beside the names (untangle F4), so this reads them by import; it used to read AdminOps.tsx as source
+ * (apps/api/src/outcome-labels.test.ts).
  */
-const SOURCE = readFileSync(fileURLToPath(new URL("../../web/src/components/admin/AdminOps.tsx", import.meta.url)), "utf8");
-
-/** The entries of `const NAME: Record<string, string> = { key: "text", ... };` (a key per line, a double-quoted text, no escapes in it). */
-function table(name: string): Record<string, string> {
-  const start = SOURCE.indexOf(`const ${name}: Record<string, string> = {`);
-  if (start < 0) throw new Error(`no table ${name} in AdminOps.tsx`);
-  const body = SOURCE.slice(SOURCE.indexOf("{", start) + 1, SOURCE.indexOf("\n};", start));
-  const out: Record<string, string> = {};
-  for (const line of body.split("\n")) {
-    const m = /^\s*([a-z][a-z_0-9]*):\s*"([^"\\]*)",?\s*$/.exec(line);
-    if (m) {
-      if (m[1]! in out) throw new Error(`${name}: ${m[1]} is there twice`);
-      out[m[1]!] = m[2]!;
-    }
-  }
-  return out;
-}
-
-const OUTCOME_TEXT = table("OUTCOME_TEXT");
-const INPUT_TEXT = table("INPUT_TEXT");
-const FEATURE_NAME = table("FEATURE_NAME");
-const UNDERSTAND_TEXT = table("UNDERSTAND_TEXT");
+const FEATURE_NAME: Record<string, string> = FEATURE_LABELS;
+const INPUT_TEXT: Record<string, string> = INPUT_SHAPE_LABELS;
+const UNDERSTAND_TEXT: Record<string, string> = UNDERSTAND_LABELS;
+const OUTCOME_TEXT: Record<string, string> = OUTCOME_LABELS;
 
 const plainly = (label: string) => {
   expect(label.trim(), label).toBe(label);
@@ -89,7 +81,11 @@ describe("the labels of /admin", () => {
   });
 
   it("the page reads the labels of the shape of messages from their own table, so that a name of one feature can never take the words of another's", () => {
-    expect(SOURCE).toMatch(/f === "chat_input" \? INPUT_TEXT : f === "chat_understand" \? UNDERSTAND_TEXT : OUTCOME_TEXT/);
+    expect(outcomeLabels("chat_input")).toBe(INPUT_TEXT);
+    expect(outcomeLabels("chat_understand")).toBe(UNDERSTAND_TEXT);
+    for (const f of OUTCOME_FEATURES.filter((x) => x !== "chat_input" && x !== "chat_understand")) expect(outcomeLabels(f)).toBe(OUTCOME_TEXT);
+    expect(OUTCOME_COUNTS.chat_input.names).toBe(INPUT_SHAPE_NAMES);
+    expect(OUTCOME_COUNTS.chat_understand.names).toBe(UNDERSTAND_COUNTER_NAMES);
   });
 
   it("M4/M5: every counter name of the Understand step has one plain label of its own, there is none for a name the list does not have, and the share of the step is of the messages it read", () => {
@@ -124,6 +120,5 @@ describe("the share of a name is of the messages counted (not of the sum of all 
   });
   it("for chat_input with no subject count (only `anyway` so far) it is 0, and the page then shows no share", () => {
     expect(outcomeTotal("chat_input", [{ outcome: "anyway", n: 4 }])).toBe(0);
-    expect(SOURCE).toMatch(/total > 0/);
   });
 });

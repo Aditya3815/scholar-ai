@@ -1,6 +1,6 @@
-import type { AnswerOutcomeRow } from "@scholar/shared";
-import { INPUT_SHAPE_NAMES, SUBJECT_NAMES } from "./understand/input-shape";
-import { UNDERSTAND_COUNTER_NAMES } from "./understand/understand-counters";
+import { OUTCOME_COUNTS, type AnswerOutcomeRow, type OutcomeFeature } from "@scholar/shared";
+
+export { FLOOR_OUTCOMES, FOLLOW_UP_OUTCOMES, OUTCOME_FEATURES, UNREAD_OUTCOMES, type OutcomeFeature } from "@scholar/shared";
 
 /**
  * How answers went, as counts (migration 0019). One increment per answered question, never any text or person: the counts say how often the model wrote an answer that our own check then
@@ -9,43 +9,9 @@ import { UNDERSTAND_COUNTER_NAMES } from "./understand/understand-counters";
  *
  * `chat_input` is not about an answer: it counts what a message in the prompt box looked like (a polite frame, a year, an id: the closed names of src/understand/input-shape.ts), one count for each
  * name a message has (docs/design/intent-and-state.md, 4.4). Names only, never any of the text. The headline of /admin reads feature `chat` alone, so it does not move.
+ *
+ * The features, their closed names and how each is counted are data (packages/shared/src/vocab/outcomes.ts, `OUTCOME_COUNTS`): this counter has no rule of one feature's own.
  */
-export const OUTCOME_FEATURES = ["chat", "oa_ask", "oa_ask_abstract", "doc_ask", "litscan", "chat_input", "chat_understand"] as const;
-export type OutcomeFeature = (typeof OUTCOME_FEATURES)[number];
-
-/**
- * What a message that came with the turns before it (a follow-up, docs/design/chat-actions-context.md; whether or not a model had to read them) counts as, in the place of "answered" and
- * "not_grounded" (every other ending keeps its name):
- * `followup_answered` and `followup_not_grounded` say how the follow-ups went apart from the first messages; `followup_rewrite_failed` is a follow-up whose restatement did not pass the server's
- * checks and was searched as written (so /admin shows how often the model's reading is not used); `followup_context_ignored` is one that carried turns while the CHAT_CONTEXT switch was off. Counts
- * only, at most 40 characters each.
- */
-export const FOLLOW_UP_OUTCOMES = {
-  answered: "followup_answered",
-  notGrounded: "followup_not_grounded",
-  rewriteFailed: "followup_rewrite_failed",
-  contextIgnored: "followup_context_ignored",
-} as const;
-
-/**
- * The two names of the follow-up failure policy (R5, docs/design/intent-and-state.md, 4.6), kept apart from the four above (those belong to the context release and are pinned as four). `followup_unread`
- * (CHAT_FAILPOLICY=on) is a follow-up whose router call FAILED: the papers were shown and no answer was written, so it is neither answered nor refused, and the headline of /admin
- * (`chatRefusalShare`) leaves it out on purpose. `followup_unread_shadow` (CHAT_FAILPOLICY=shadow) counts the same follow-ups while the answer is still written as before, so it is counted IN ADDITION to
- * how that answer ended (a message of it is in two rows). Counts only, at most 40 characters each.
- */
-export const UNREAD_OUTCOMES = {
-  unread: "followup_unread",
-  shadow: "followup_unread_shadow",
-} as const;
-
-/**
- * The ending of the relevance floor (R9, docs/design/intent-and-state.md, 4.9), kept apart from the names above: a list in which no paper matched the words closely was not given to the writer. The reply says
- * `not_answered` (the page shows no answer), but `chatRefusalShare` counts `not_answered` as a question the papers could have answered and the model said they could not, and here no model was asked, so
- * the count has a name of its own and the headline of /admin does not move (the share leaves it out, as it leaves out `followup_unread`). Counts only, at most 40 characters.
- */
-export const FLOOR_OUTCOMES = {
-  skipped: "floor_skipped",
-} as const;
 
 const MAX_KEEP_DAYS = 90;
 export const OUTCOME_RETENTION_SQL = `DELETE FROM answer_outcomes WHERE day < date('now', '-${MAX_KEEP_DAYS} days')`;
@@ -64,11 +30,6 @@ export async function countOutcome(db: D1Database, feature: OutcomeFeature, outc
 /** The most names one message writes: every query of an invocation counts toward the Worker's limit on subrequests (as src/docs/routes.ts notes), so a message keeps to a small batch. */
 export const MAX_OUTCOME_NAMES = 8;
 
-const SHAPE_NAMES: ReadonlySet<string> = new Set(INPUT_SHAPE_NAMES);
-/** `chat_understand` (M4/M5, CHAT_UNDERSTAND shadow or on): the Understand step's closed counter names (understand/understand-counters.ts), never text. */
-const UNDERSTAND_NAMES: ReadonlySet<string> = new Set(UNDERSTAND_COUNTER_NAMES);
-const SUBJECT: ReadonlySet<string> = new Set(SUBJECT_NAMES);
-
 /**
  * One message, several names: each different name (cut to forty characters, as `countOutcome` cuts) adds one to its count, all in ONE batch (one round trip, all or none). Past `MAX_OUTCOME_NAMES`
  * the first ones, in the order given, are written and the rest are not: nothing is chosen at random, and one line says how many were left out (a number, never a name). A failure is logged as
@@ -82,18 +43,15 @@ const SUBJECT: ReadonlySet<string> = new Set(SUBJECT_NAMES);
 export async function countOutcomes(db: D1Database, feature: OutcomeFeature, names: readonly string[]): Promise<void> {
   try {
     let kept = [...new Set(names.map((n) => n.slice(0, 40)).filter((n) => n.length > 0))];
-    if (feature === "chat_input") {
-      const closed = kept.filter((n) => SHAPE_NAMES.has(n));
-      const subjects = closed.filter((n) => SUBJECT.has(n));
-      const others = closed.filter((n) => !SUBJECT.has(n));
-      const rejected = kept.length - others.length - Math.min(subjects.length, 1);
+    // a feature with a closed list keeps to it whoever calls, and writes its one-of names (the subject count of a message) first and once
+    const { names: closedList, one } = OUTCOME_COUNTS[feature];
+    if (closedList) {
+      const closed = kept.filter((n) => closedList.includes(n));
+      const firsts = one ? closed.filter((n) => one.includes(n)) : [];
+      const others = one ? closed.filter((n) => !one.includes(n)) : closed;
+      const rejected = kept.length - others.length - Math.min(firsts.length, 1);
       if (rejected > 0) console.warn(JSON.stringify({ level: "warn", msg: "outcome_names_rejected", feature, rejected }));
-      kept = [...subjects.slice(0, 1), ...others];
-    }
-    if (feature === "chat_understand") {
-      const closed = kept.filter((n) => UNDERSTAND_NAMES.has(n));
-      if (closed.length < kept.length) console.warn(JSON.stringify({ level: "warn", msg: "outcome_names_rejected", feature, rejected: kept.length - closed.length }));
-      kept = closed;
+      kept = [...firsts.slice(0, 1), ...others];
     }
     if (kept.length > MAX_OUTCOME_NAMES) console.warn(JSON.stringify({ level: "warn", msg: "outcome_names_dropped", feature, dropped: kept.length - MAX_OUTCOME_NAMES }));
     if (kept.length === 0) return;

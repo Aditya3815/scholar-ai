@@ -128,6 +128,7 @@ export * from "./vocab/languages";
 export * from "./vocab/intents";
 export * from "./vocab/lane";
 export * from "./vocab/steps";
+export * from "./vocab/outcomes";
 export * from "./vocab/ledger";
 export * from "./zoom";
 export * from "./paperinfo";
@@ -156,7 +157,6 @@ export * from "./chat-context";
 export * from "./chat-state";
 // tools run in the reply (CHAT_TOOLS)
 export * from "./chat-tools";
-export * from "./outcome-counts";
 export * from "./chat-copy";
 export * from "./copy-through";
 export * from "./chat-memory";

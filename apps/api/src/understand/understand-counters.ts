@@ -1,3 +1,4 @@
+import { UNDERSTAND_COUNTER_NAMES, type UnderstandCounterName } from "@scholar/shared";
 import type { FollowUpIntent, Route } from "@scholar/shared";
 import type { UnderstandDecision } from "./understand";
 import type { UnderstandIntent } from "./understanding";
@@ -18,21 +19,7 @@ import type { UnderstandIntent } from "./understanding";
  *   und_retry           the first reading was invalid and the model was asked once more
  *   und_chat_leak       a conversation reply was thrown away by the post-check (counted by the caller of writeChatReply)
  */
-export const UNDERSTAND_COUNTER_NAMES = [
-  "und_turn",
-  "und_src_guard", "und_src_greeting", "und_src_model", "und_src_fallback",
-  "und_fb_timeout", "und_fb_invalid", "und_fb_down", "und_fb_quota", "und_fb_no_model",
-  "und_int_chat", "und_int_search", "und_int_refine_search", "und_int_ask_results", "und_int_ask_paper", "und_int_offer_tool", "und_int_clarify",
-  "und_conf_high", "und_conf_mid", "und_conf_low",
-  "und_confirm",
-  "und_ms_lt500", "und_ms_lt1200", "und_ms_lt2500", "und_ms_lt5000", "und_ms_ge5000",
-  "und_agree", "und_disagree",
-  "und_fix_years_dropped", "und_fix_india_dropped", "und_fix_language_rules", "und_fix_status_template", "und_fix_refers_to_dropped", "und_fix_that_paper_resolved",
-  "und_fix_that_paper_clarify", "und_fix_no_results_to_ask", "und_fix_no_search_to_refine", "und_fix_low_confidence_clarify", "und_fix_chat_greeting_kept", "und_fix_language_switch",
-  "und_retry",
-  "und_chat_leak",
-] as const;
-export type UnderstandCounterName = (typeof UNDERSTAND_COUNTER_NAMES)[number];
+export { UNDERSTAND_COUNTER_NAMES, type UnderstandCounterName } from "@scholar/shared";
 /** Is this a name of the closed list? Kept although no writer uses it yet: it is the one function of this module a plain string can call, which the run-time check of legal-match rule 3 needs. */
 export const isUnderstandCounterName = (name: unknown): name is UnderstandCounterName => typeof name === "string" && (UNDERSTAND_COUNTER_NAMES as readonly string[]).includes(name);
 

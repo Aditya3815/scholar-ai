@@ -191,7 +191,6 @@ const ALLOW: string[] = [
   "api/oa/workflow.ts -> api/docs/embed.ts",
   "api/ocr/process.ts -> api/docs/chunk.ts",
   "api/ocr/process.ts -> api/docs/vector.ts",
-  "api/outcome-labels.test.ts -> web/components/admin/AdminOps.tsx",
   "api/references/lookup.ts -> api/search/cache.ts",
   "api/references/service.ts -> api/search/cache.ts",
   "api/references/verify.ts -> api/search/retraction.ts",

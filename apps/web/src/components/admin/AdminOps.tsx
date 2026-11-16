@@ -1,6 +1,6 @@
 import { CircleAlert, CircleCheck, DatabaseBackup, FolderSearch, UserX } from "lucide-react";
 import { useState } from "react";
-import { chatRefusalShare, outcomeTotal, type AnswerOutcomeRow, type IntegrityReport, type JobState, type JobStatus } from "@scholar/shared";
+import { chatRefusalShare, featureLabel, outcomeLabels, outcomeTotal, type AnswerOutcomeRow, type IntegrityReport, type JobState, type JobStatus } from "@scholar/shared";
 
 const JOB_NAME: Record<string, string> = { maintenance: "Daily clean-up", retraction_check: "Retraction re-check of saved papers" };
 const STATE_TEXT: Record<JobState, string> = {
@@ -11,141 +11,7 @@ const STATE_TEXT: Record<JobState, string> = {
 };
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "never");
 
-const FEATURE_NAME: Record<string, string> = {
-  chat: "Questions in the prompt box",
-  oa_ask: "Ask this paper (from its text)",
-  oa_ask_abstract: "Ask this paper (from its abstract only)",
-  doc_ask: "Questions about papers people uploaded",
-  litscan: "Literature scan (each sub-question of each scan)",
-  chat_input: "What a first message in the prompt box looked like (a message can have several of these, and Share is of the messages counted; its words are never kept)",
-  chat_understand: "The Understand step, in shadow or on (a message can have several of these, and Share is of the messages it read; its words are never kept)",
-};
-/** M4/M5: the Understand step's counts (apps/api/src/understand/understand-counters.ts): who decided, the intent, the agreement with the rules in shadow, the time it took, why the rules took over. Names only. */
-const UNDERSTAND_TEXT: Record<string, string> = {
-  und_turn: "Messages the step read (the share of every other row is of these)",
-  und_src_guard: "Settled by a fixed check before any model (a DOI, a reference list, a tool chosen by hand)",
-  und_src_greeting: "A greeting, answered without any model",
-  und_src_model: "Read by the model",
-  und_src_fallback: "The model could not be used, so the rules decided",
-  und_fb_timeout: "The rules decided: the model did not answer in time",
-  und_fb_invalid: "The rules decided: the model's reading was not valid twice",
-  und_fb_down: "The rules decided: every model was down",
-  und_fb_quota: "The rules decided: the day's AI allowance was used",
-  und_fb_no_model: "The rules decided: no model for this person (a visitor past the day's cap)",
-  und_int_chat: "Taken as conversation (no search)",
-  und_int_search: "Taken as a new search",
-  und_int_refine_search: "Taken as a change to the last search",
-  und_int_ask_results: "Taken as a question about papers already in the chat",
-  und_int_ask_paper: "Taken as a question about an uploaded paper",
-  und_int_offer_tool: "Taken as work for another tool (offered as a card)",
-  und_int_clarify: "Answered with one question back",
-  und_conf_high: "The model was sure (0.75 or more)",
-  und_conf_mid: "The model was fairly sure (0.45 to 0.75)",
-  und_conf_low: "The model was unsure (under 0.45)",
-  und_confirm: "Shown with “Did you want this?”",
-  und_ms_lt500: "Took under half a second",
-  und_ms_lt1200: "Took half a second to 1.2 seconds",
-  und_ms_lt2500: "Took 1.2 to 2.5 seconds",
-  und_ms_lt5000: "Took 2.5 to 5 seconds",
-  und_ms_ge5000: "Took 5 seconds or more",
-  und_agree: "Shadow: the model and the rules agreed on the intent",
-  und_disagree: "Shadow: the model and the rules did not agree on the intent",
-  und_fix_years_dropped: "A check dropped years the person did not say",
-  und_fix_india_dropped: "A check dropped an Indian sources choice the person did not make",
-  und_fix_language_rules: "A check corrected the language of the reply",
-  und_fix_status_template: "A check replaced the model's status line with a fixed one",
-  und_fix_refers_to_dropped: "A check dropped a pointer to a turn or paper that does not exist",
-  und_fix_that_paper_resolved: "A check worked out which paper “that paper” meant",
-  und_fix_that_paper_clarify: "A check asked which paper “that paper” meant",
-  und_fix_no_results_to_ask: "A question about earlier papers with none in the chat: searched instead",
-  und_fix_no_search_to_refine: "A change to a search with none in the chat: searched instead",
-  und_fix_low_confidence_clarify: "Too unsure for a costly action: asked a question instead",
-  und_fix_chat_greeting_kept: "The model asked a question about a greeting: answered as conversation",
-  und_fix_language_switch: "Messages like “Hindi mein batao”: the last answer again in that language",
-  und_retry: "The model was asked a second time after an invalid reading",
-  und_chat_leak: "A conversation reply that cited something was thrown away, and the message searched",
-};
-const OUTCOME_TEXT: Record<string, string> = {
-  clarify: "Answered with one question back before searching (the Understand step)",
-  answered: "Answered, every claim checked",
-  not_in_paper: "The paper does not contain it (it said so)",
-  unverified: "Found, but a quote did not check out (shown with a warning)",
-  not_answered: "The papers do not answer it (it said so)",
-  not_grounded: "The model wrote an answer that our own check then refused",
-  no_abstracts: "Papers found, none with an abstract to read",
-  nothing_found: "No papers were found for it",
-  no_relevant: "Papers were found, none of them about it",
-  too_slow: "The answer took too long and was stopped",
-  quota: "The person's daily allowance was used",
-  unavailable: "The AI service was unavailable",
-  stopped: "Stopped by the person",
-  routed: "Offered another tool",
-  small_talk: "A greeting or thanks, answered by the page",
-  // the safety lane (CHAT_SAFETY, apps/api/src/understand/lane.ts): counted only while CHAT_COUNTERS is on
-  urgent: "Described an emergency: the page answered with a fixed text and searched nothing",
-  safety: "Said the writer may hurt themselves, or plainly asked for help: the page answered with a fixed text and searched nothing",
-  decision: "Asked what the writer should take: the papers are shown and no answer was written",
-  sign_in: "A signed-out visitor: papers, no written answer",
-  too_long: "Too long to search for",
-  // a message that came with the turns before it (a follow-up) is booked under these instead of "answered" and "not_grounded" (apps/api/src/outcomes.ts)
-  followup_answered: "A follow-up (read with the turns before it): answered, every claim checked",
-  followup_not_grounded: "A follow-up: the model wrote an answer that our own check then refused",
-  followup_rewrite_failed: "A follow-up whose restatement was not used, so it was searched as written (answered or refused)",
-  followup_context_ignored: "A follow-up sent while the switch that ignores earlier turns was on (answered or refused)",
-  // CHAT_FAILPOLICY (apps/api/src/chat/routes.ts): the model that reads a follow-up could not be used at all
-  followup_unread: "A follow-up the model could not read: its words were searched on their own, the papers are shown and no answer was written",
-  followup_unread_shadow: "A follow-up the model could not read, counted while that rule is only being tried: the answer was written as before, so it is also counted under how it ended",
-  // CHAT_FLOOR (apps/api/src/understand/tiers.ts): the papers were listed and the writer was not asked, because none of them matched the words closely
-  floor_skipped: "No paper matched the words closely, so no written answer was tried: the papers are shown with a line that says so",
-  other: "Something else",
-};
 
-/**
- * The names of the shape of a message (apps/api/src/understand/input-shape.ts), one plain label each: what the first message of a question looked like, counted by name and never by its words. The
- * four about topic words add up to the messages counted. The names that nothing counts yet have their label here so that the day one does, its row is read, not guessed.
- */
-const INPUT_TEXT: Record<string, string> = {
-  frame: "Has request words around the topic (for example “can you search about”, “please”, “all papers”)",
-  frame_polite: "Has a politeness or a greeting (please, thanks, hello)",
-  frame_all: "Asks for “all papers” (the box shows 20)",
-  qty: "Asks for a number of papers (for example “top 5”)",
-  year: "Names a year or a range (for example “since 2019”)",
-  neg: "Ends with something to leave out (“but not …”, “without …”)",
-  order: "Reads like an order to the box (for example “ignore the instructions”)",
-  long: "Is longer than 300 characters",
-  first_person: "Speaks about the writer (I, my, we)",
-  subj0: "Has no topic word",
-  subj1: "Has one topic word",
-  subj2_6: "Has two to six topic words",
-  subj7p: "Has seven or more topic words",
-  id: "Holds a DOI, a PubMed number or an arXiv number",
-  lane_urgent: "Describes an urgent symptom (the page answered with a fixed text)",
-  lane_crisis: "Says that the writer may hurt themselves (the page answered with a fixed text)",
-  lane_help: "Asks for help in plain words with nothing to look up (the page answered with a fixed text)",
-  lane_decision: "Asks what the writer should take, a medicine or a dose (the papers were shown and no answer written)",
-  lane_care: "Tells a health or distress story with a research question (a line was shown above the papers)",
-  would_urgent: "Read as an urgent symptom, not yet acted on (the question was searched as before)",
-  would_crisis: "Read as saying the writer may hurt themselves, not yet acted on (searched as before)",
-  would_help: "Read as a plain call for help, not yet acted on (searched as before)",
-  would_decision: "Read as asking what the writer should take, not yet acted on (searched and answered as before)",
-  would_care: "Read as a health or distress story with a research question, not yet acted on",
-  would_clean: "Would have had words that only make a request left out of the search, not yet acted on (searched as written)",
-  clean_applied: "Had words that only make a request left out of the search (the answer says what was left out)",
-  would_tier_none: "No paper matched the words closely, not yet acted on (the list was shown and answered as before)",
-  would_tier_few: "Only one or two papers matched the words closely, not yet acted on (the list was shown as before)",
-  lane_notsearch: "Asks for something the box cannot do (writing, translating, the weather)",
-  cue_paper: "Points at a paper (for example “this paper”)",
-  cue_list: "Holds a list of references",
-  cue_paste: "Is a long text that was pasted",
-  ask_acronym: "Has an acronym that could mean two things",
-  ask_broad: "Names a whole field with nothing narrower",
-  spell_candidate: "Has a word that may be misspelt",
-  scrub: "Holds an e-mail address, a web address or a phone number",
-  one_source: "The papers found came from one source only",
-  tier_none: "No paper matched the words closely",
-  tier_few: "Only one or two papers matched the words closely",
-  anyway: "A search sent by pressing a “… anyway” button, after the page took the message for something else",
-};
 
 /**
  * How answers went in the last seven days, as counts (no text, no person, no paper). The line to watch is how often the model wrote an answer that our own check refused: if it is
@@ -171,10 +37,10 @@ export function AnswerOutcomes({ rows }: { rows: AnswerOutcomeRow[] }) {
             const own = rows.filter((r) => r.feature === f);
             // the shape of messages has several names a message: its share is of the messages counted (outcomeTotal), not of the sum of the names
             const total = outcomeTotal(f, own);
-            const words = f === "chat_input" ? INPUT_TEXT : f === "chat_understand" ? UNDERSTAND_TEXT : OUTCOME_TEXT;
+            const words = outcomeLabels(f);
             return (
               <table className="admin-table" key={f}>
-                <caption>{FEATURE_NAME[f] ?? f}</caption>
+                <caption>{featureLabel(f)}</caption>
                 <thead>
                   <tr><th scope="col">What happened</th><th scope="col" className="num">Times</th><th scope="col" className="num">Share</th></tr>
                 </thead>
