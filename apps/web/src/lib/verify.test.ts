@@ -16,14 +16,18 @@ beforeEach(() => {
   net = fakeNet();
   delays = [];
   vi.useFakeTimers();
+  // the waits, whether they are asked of window.setTimeout or of setTimeout
+  const real = globalThis.setTimeout;
+  vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void, ms?: number) => (delays.push(ms ?? 0), real(fn, ms))) as typeof setTimeout);
   (globalThis as unknown as { window: unknown }).window = {
-    setTimeout: (fn: () => void, ms: number) => (delays.push(ms), setTimeout(fn, ms)),
+    setTimeout: (fn: () => void, ms: number) => (delays.push(ms), real(fn, ms)),
     clearTimeout: (t: ReturnType<typeof setTimeout>) => clearTimeout(t),
   };
 });
 afterEach(() => {
   unmount();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 const VERDICT = { status: "verified", input: "x" };
@@ -80,5 +84,14 @@ describe("useVerify", () => {
     net.reply = () => problem(400, { type: "invalid_reference", title: "That is not a reference" });
     expect((await check("A")).items[0]).toMatchObject({ state: "error", error: "The service answered 400" });
     expect(net.calls).toHaveLength(1);
+  });
+
+  // Bug B2 (docs/design/untangle.md, section 5): "do not retry a 4xx" was a regex on the message "The service answered 4..", which a detail from the server replaces, so a refusal
+  // with a detail was sent once more. The retry is now decided by the status.
+  it("B2: a refusal (a 4xx) is not tried again when the server sent a detail either", async () => {
+    net.reply = () => problem(400, { type: "invalid_reference", title: "Not a reference", detail: "That reference is too long to check" });
+    expect((await check("A")).items[0]).toMatchObject({ state: "error", error: "That reference is too long to check" });
+    expect(net.calls).toHaveLength(1);
+    expect(delays).toEqual([]);
   });
 });
