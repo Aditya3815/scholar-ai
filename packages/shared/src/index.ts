@@ -129,6 +129,7 @@ export * from "./vocab/intents";
 export * from "./vocab/lane";
 export * from "./vocab/steps";
 export * from "./vocab/notices";
+export * from "./vocab/references";
 export * from "./vocab/outcomes";
 export * from "./protocol/problem";
 export * from "./vocab/ledger";

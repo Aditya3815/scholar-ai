@@ -3,7 +3,7 @@ import { AnimatePresence } from "motion/react";
 // preloads (+2 to 3 KB measured on 9 Nov 2026, with the Check references page's card and its status table imported here; +0.1 KB with these icons). e2e/chat-tools.mjs and the budget hold it.
 import { ArrowRight, Check, Info, RefreshCw, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import { useState } from "react";
-import { refTally, type AssistantMsg, type ChatAskState, type ChatRefItem, type ChatToolResult, type RefStatus, type RefVerdict } from "@scholar/shared";
+import { REF_STATUS_WORDS, refTally, type AssistantMsg, type ChatAskState, type ChatRefItem, type ChatToolResult, type RefStatus, type RefVerdict } from "@scholar/shared";
 import { AnswerCard, Basis, ERROR_HELP, Reading, STAGE_SAY } from "../components/oa/OaAskSheet";
 import { StreamingText } from "../components/papers/AskPanel";
 import { SignInDialog } from "../components/SignInDialog";
@@ -12,17 +12,14 @@ import type { VerifyItem } from "../lib/verify";
 import "../styles/chat-tools.css";
 
 /**
- * The Check references page's words for a verdict (lib/refStatus.ts STATUS: the same labels, tones and buckets; only the icons differ, see above). Repeated here and not imported, for the same reason.
+ * The Check references page's words for a verdict (shared vocab/references.ts, as lib/refStatus.ts STATUS has them; only the icons differ, see above, so the page's table is not imported).
  * e2e/chat-tools.mjs reads these words on the screen.
  */
-export const REF_STATUS: Record<RefStatus | "error", { label: string; Icon: typeof Check; tone: "ok" | "danger" | "warn" | "muted"; bucket: "verified" | "attention" | "unchecked" }> = {
-  verified: { label: "Verified", Icon: Check, tone: "ok", bucket: "verified" },
-  mismatch: { label: "Details don’t match", Icon: TriangleAlert, tone: "warn", bucket: "attention" },
-  not_found: { label: "Not found", Icon: X, tone: "danger", bucket: "attention" },
-  unverifiable: { label: "Could not verify", Icon: Info, tone: "muted", bucket: "unchecked" },
-  unparsed: { label: "Not a full reference", Icon: Info, tone: "muted", bucket: "unchecked" },
-  error: { label: "Check failed", Icon: Info, tone: "muted", bucket: "unchecked" },
-};
+const REF_ICON: Record<RefStatus | "error", typeof Check> = { verified: Check, mismatch: TriangleAlert, not_found: X, unverifiable: Info, unparsed: Info, error: Info };
+export const REF_STATUS = Object.fromEntries(Object.entries(REF_STATUS_WORDS).map(([k, w]) => [k, { label: w.label, tone: w.tone, bucket: w.bucket, Icon: REF_ICON[k as RefStatus | "error"] }])) as Record<
+  RefStatus | "error",
+  { label: string; Icon: typeof Check; tone: "ok" | "danger" | "warn" | "muted"; bucket: "verified" | "attention" | "unchecked" }
+>;
 const statusOf = (it: VerifyItem) => (it.state === "done" && it.verdict ? REF_STATUS[it.verdict.status] : REF_STATUS.error);
 
 /**

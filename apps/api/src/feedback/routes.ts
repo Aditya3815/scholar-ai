@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { scrubText, FEEDBACK_KINDS, FEEDBACK_PROBLEMS, MAX_FEEDBACK_NOTE_CHARS, MAX_FEEDBACK_PER_DAY, MAX_KEYWORD_QUERIES, MAX_KEYWORD_QUERY_CHARS, MAX_SEMANTIC_QUERY_CHARS, type FeedbackKind } from "@scholar/shared";
+import { scrubText, isRefStatus, FEEDBACK_KINDS, FEEDBACK_PROBLEMS, MAX_FEEDBACK_NOTE_CHARS, MAX_FEEDBACK_PER_DAY, MAX_KEYWORD_QUERIES, MAX_KEYWORD_QUERY_CHARS, MAX_SEMANTIC_QUERY_CHARS, type FeedbackKind } from "@scholar/shared";
 import { requireUser } from "../auth/service";
 import { readJson } from "../platform/http/body";
 import { d1KeyStore, fingerprintOf, readKey, runIdempotent } from "../idempotency";
@@ -10,7 +10,6 @@ export const feedbackRoutes = new Hono<HonoEnv>();
 
 
 const randomId = () => [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("");
-const REF_STATUSES = new Set(["verified", "mismatch", "not_found", "unverifiable", "unparsed"]);
 const MAX_CONTEXT_CHARS = 20_000;
 
 /**
@@ -47,7 +46,7 @@ feedbackRoutes.post("/", async (c) => {
       context = { paper: row.title, question: row.question, answer: JSON.parse(row.answer) };
     } else if (kind === "reference") {
       const reference = scrubText(b.reference, 1000);
-      const status = typeof b.status === "string" && REF_STATUSES.has(b.status) ? b.status : "unknown";
+      const status = typeof b.status === "string" && isRefStatus(b.status) ? b.status : "unknown";
       if (reference.length < 10) return deny(c, 400, "invalid_report", "The reference text is missing");
       context = { reference, status, reason: scrubText(b.reason, 500) };
     } else if (kind === "idea") {

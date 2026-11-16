@@ -1,4 +1,5 @@
 import { squash } from "./text";
+import type { RefStatus } from "./vocab/references";
 
 /**
  * Reference Verifier: types shared by the API and the web app, plus the splitter that turns whatever a scholar pastes
@@ -12,7 +13,6 @@ import { squash } from "./text";
  *  unverifiable  we could not decide (databases unreachable, or the record has no authors to compare)
  *  unparsed      too short or not recognisable as a reference
  */
-export type RefStatus = "verified" | "mismatch" | "not_found" | "unverifiable" | "unparsed";
 
 export type RefRecord = {
   doi: string | null;
