@@ -116,4 +116,15 @@ describe("useScan, a scan followed live", () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(net.calls.map((c) => c.url)).toEqual(["/api/v1/litscan/s1", "/api/v1/litscan/s1/events?after=0", "/api/v1/litscan/s1", "/api/v1/litscan/s1/events?after=0", "/api/v1/litscan/s1"]);
   });
+
+  // Bug B1 (docs/design/untangle.md, section 5): the scan's `error` event was thrown inside the reader's handler and swallowed, so useScan took it for a stream that was merely cut
+  // (failures back to 0, read again after 1 s) and never said "offline" however often the scan's stream failed. It now reaches useScan as a failure.
+  it("B1: the stream's error event reaches useScan as a failure (read again after 2 s, offline at the second)", async () => {
+    net.reply = (c) => (c.url.includes("/events") ? sse([{ type: "error", code: "internal_error", title: "Something went wrong" }]) : json(running(0)));
+    render(() => lib.useScan("s1"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(delays.filter((d) => d >= 1000)).toEqual([2000]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(render(() => lib.useScan("s1")).problem).toBe("offline");
+  });
 });

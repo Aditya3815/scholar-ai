@@ -45,4 +45,16 @@ describe("readSse", () => {
   it("throws a TypeError for a reply without a body", async () => {
     await expect(readSse(new Response(null), () => {})).rejects.toBeInstanceOf(TypeError);
   });
+
+  // Bug B1 (docs/design/untangle.md, section 5): a throw from the handler was swallowed as if the event were malformed, so a literature scan's `error` event never reached useScan.
+  it("B1: lets an exception thrown by the handler reach the caller, and reads no further", async () => {
+    const res = sse([{ type: "a" }, { type: "error" }, { type: "late" }]);
+    const seen: unknown[] = [];
+    const p = readSse<{ type: string }>(res, (e) => {
+      seen.push(e);
+      if (e.type === "error") throw new Error("the stream said error");
+    });
+    await expect(p).rejects.toThrow("the stream said error");
+    expect(seen).toEqual([{ type: "a" }, { type: "error" }]);
+  });
 });
