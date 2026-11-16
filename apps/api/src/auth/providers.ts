@@ -1,6 +1,7 @@
 import { ORCID } from "@scholar/shared";
 import type { TokenResponse } from "./oauth";
 import type { Env } from "../platform/env";
+import { devOptions } from "../platform/dev";
 
 export type ProviderId = "google" | "orcid";
 
@@ -31,7 +32,7 @@ type GoogleUserInfo = { sub?: string; email?: string; email_verified?: boolean; 
 
 export function configuredProviders(env: AuthEnv): ProviderDef[] {
   const defs: ProviderDef[] = [];
-  const devIdp = env.ENABLE_DEV_ROUTES === "1" ? env.DEV_IDP_URL : undefined;
+  const devIdp = devOptions(env).idpUrl;
 
   if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
     const userinfo = devIdp ? `${devIdp}/userinfo` : "https://openidconnect.googleapis.com/v1/userinfo";

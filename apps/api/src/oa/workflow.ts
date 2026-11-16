@@ -8,6 +8,7 @@ import { keepOld } from "./store";
 import { OA_REFRESH_DAYS } from "@scholar/shared";
 import { sourceDepsFor } from "./deps";
 import type { Env, EnvPick } from "../platform/env";
+import { standIns } from "../platform/dev";
 
 /**
  * The reading of one open-access paper as a Cloudflare Workflow (spike R9): named steps, each retried by the engine on its own and checkpointed, so a failure in the middle
@@ -18,7 +19,7 @@ import type { Env, EnvPick } from "../platform/env";
 /** `refresh`: the paper is ready already and is being fetched again because it was read long ago (it keeps answering meanwhile; a failure to fetch leaves it as it is). */
 export type OaParams = { key: string; attempt: number; refresh?: boolean };
 
-const embedderFor = (env: EnvPick<"ENABLE_DEV_ROUTES" | "QA_STUB", "AI">): Embedder => (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? hashEmbedder : workersAiEmbedder(env.AI!));
+const embedderFor = (env: EnvPick<"ENABLE_DEV_ROUTES" | "QA_STUB", "AI">): Embedder => (standIns(env) ? hashEmbedder : workersAiEmbedder(env.AI!));
 
 /** The error as the engine should see it: a reason that waiting cannot cure stops the retries at once. */
 async function guard<T>(run: () => Promise<T>): Promise<T> {
@@ -37,7 +38,7 @@ export class OaIngest extends WorkflowEntrypoint<Env, OaParams> {
     const deps: IngestDeps = { db: env.DB, files: env.FILES, embed: embedderFor(env), source: sourceDepsFor(env) };
     const { key, refresh = false } = event.payload;
     // the local end-to-end run waits a second between tries instead of the real delays (a test cannot wait twenty seconds)
-    const fast = env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+    const fast = standIns(env);
     const wait = (real: string) => (fast ? "1 second" : real) as `${number} ${"second" | "seconds"}`;
     // a refresh that cannot fetch the new file leaves the copy that works (it is looked at again in thirty days); once the new file is being read, a failure is a failure like any other
     let fetching = true;

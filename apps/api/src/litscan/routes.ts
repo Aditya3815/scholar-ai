@@ -27,6 +27,7 @@ import { fromSqliteTime } from "../library/validate";
 import { type ScanRow, createScan, deleteScan, endScan, failIfStale, getScan, listScans, partsOf, refundScan, runningScan, snapshotOf, takeScan, tickOf } from "./store";
 import { deny } from "../problem";
 import type { HonoEnv } from "../platform/env";
+import { devOptions } from "../platform/dev";
 
 export const litscanRoutes = new Hono<HonoEnv>();
 
@@ -173,7 +174,7 @@ litscanRoutes.get("/:id/events", async (c) => {
   const total = (JSON.parse(row.plan) as unknown[]).length;
   const db = c.env.DB;
   // a quiet scan is asked less and less often (a scan is a minute or two of work; the first answers come fast, the long waits do not need a read a second)
-  const polls = c.env.ENABLE_DEV_ROUTES === "1" ? [400] : STREAM_POLLS_MS;
+  const polls = devOptions(c.env).scanPollsMs ?? STREAM_POLLS_MS;
 
   return sseStream<LitscanEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" } }, async (s) => {
     const send = s.send;

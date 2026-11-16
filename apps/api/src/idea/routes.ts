@@ -14,6 +14,7 @@ import { stubCompareStream, stubInsightsStream, stubPlan, stubSearch } from "./s
 import { searchEnvFrom } from "../search/env";
 import { deny } from "../problem";
 import type { Env, HonoEnv } from "../platform/env";
+import { devMode, standIns } from "../platform/dev";
 
 export const ideaRoutes = new Hono<HonoEnv>();
 
@@ -22,7 +23,7 @@ export const ideaRoutes = new Hono<HonoEnv>();
 const IDEA: Door = { signIn: "Sign in to check an idea" };
 const IDEA_TEXT: Door = { ...IDEA, ack: { title: "Please read how your ideas are handled first", detail: "A short note appears before your first check." } };
 
-const stubbed = (env: Env) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+const stubbed = (env: Env) => standIns(env);
 
 export function completeFor(env: Env, subject: string): Complete | null {
   if (stubbed(env)) return stubPlan;
@@ -141,7 +142,7 @@ ideaRoutes.post("/compare", async (c) => {
         stream,
         hooks: { onStage: (stage) => void send({ type: "stage", stage }) },
         // Only with the local dev switch: show why a quote was dropped, to tune the prompt. Never in production.
-        onDropped: c.env.ENABLE_DEV_ROUTES === "1" && !stubbed(c.env) ? (d) => console.log(JSON.stringify({ msg: "compare_dropped", facet: d.facet, quote: d.quote, abstract: d.abstract.slice(0, 700) })) : undefined,
+        onDropped: devMode(c.env) && !stubbed(c.env) ? (d) => console.log(JSON.stringify({ msg: "compare_dropped", facet: d.facet, quote: d.quote, abstract: d.abstract.slice(0, 700) })) : undefined,
       });
       await send({ type: "done", comparison });
     } catch (e) {
@@ -188,7 +189,7 @@ ideaRoutes.post("/insights", async (c) => {
         stream,
         hooks: { onStage: (stage) => void send({ type: "stage", stage }) },
         // Only with the local dev switch: show why a claim was dropped, to tune the prompt. Never in production.
-        onDropped: c.env.ENABLE_DEV_ROUTES === "1" && !stubbed(c.env) ? (d) => console.log(JSON.stringify({ msg: "insights_dropped", kind: d.kind, quote: d.quote, statement: d.statement, abstract: d.abstract })) : undefined,
+        onDropped: devMode(c.env) && !stubbed(c.env) ? (d) => console.log(JSON.stringify({ msg: "insights_dropped", kind: d.kind, quote: d.quote, statement: d.statement, abstract: d.abstract })) : undefined,
       });
       await send({ type: "done", insights });
     } catch (e) {

@@ -63,6 +63,7 @@ import {
   type SaveOut as SaveOutT,
 } from "./tools";
 import type { EnvPick } from "../platform/env";
+import { standIns } from "../platform/dev";
 
 /**
  * The MCP server itself (docs "Sodhsetu understanding, follow-ups and MCP (design)", pages 11-12): Streamable HTTP at /mcp, stateless (a fresh server per request, as @modelcontextprotocol/server's
@@ -157,7 +158,7 @@ function canElicit(sctx: ServerContext): boolean {
  */
 async function paperByDoi(env: McpEnv, doi: string): Promise<Paper | null> {
   // the offline stand-in of the chat's search under QA_STUB (tests and the local end-to-end run only), as the chat route does
-  const found = env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? stubSearchFor(doi) : await searchService.run(env, { q: doi, limit: 5, scope: "all" });
+  const found = standIns(env) ? stubSearchFor(doi) : await searchService.run(env, { q: doi, limit: 5, scope: "all" });
   const p = found.results.find((r) => r.doi?.toLowerCase() === doi);
   if (!p) return null;
   return parsePaper({ ...p, authors: p.authors.slice(0, 50).map((a) => a.slice(0, 200)), sources: p.sources.slice(0, 8), retractionSources: p.retractionSources.slice(0, 5), abstract: p.abstract ? p.abstract.slice(0, 10_000) : null, venue: p.venue ? p.venue.slice(0, 500) : null, title: p.title.slice(0, 1000) });

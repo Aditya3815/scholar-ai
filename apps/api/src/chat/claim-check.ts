@@ -6,6 +6,7 @@ import { shownSentence } from "./evidence";
 import { STRICT_SCHEMA, STRICT_SYSTEM, buildJudgePrompt, readVerdicts, type Claim } from "./support";
 import { stubStrictStream } from "./stub";
 import type { Env } from "../platform/env";
+import { standIns } from "../platform/dev";
 
 /**
  * One claim checked against one to five papers (the MCP tool check_claim; docs "Sodhsetu understanding, follow-ups and MCP (design)", page 10, tool 5). It is the support judge of the prompt
@@ -66,7 +67,7 @@ type JudgeEnv = LlmEnv & Pick<Env, "QA_STUB">;
 
 /** The strict reading's model for a person (`subject`: the day's allowance is theirs), PRIVATE, as "Check strictly" calls it; the offline stand-in under QA_STUB. */
 export function strictJudgeFor(env: JudgeEnv, subject: string, abort: AbortSignal): StreamComplete {
-  if (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1") return stubStrictStream;
+  if (standIns(env)) return stubStrictStream;
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
     const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: 4500, timeoutMs: 75_000, label: req.label }, hooks, abort);

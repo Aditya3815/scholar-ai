@@ -30,6 +30,7 @@ import { BudgetError, CallBudget, SourceError, makePacer, mapLimit, type Http } 
 import { BATCH_TTL_SECONDS, FILE_TTL_SECONDS, POOL_TTL_SECONDS, TRENDING_KEYS } from "./store";
 import { STUB_FAULT_KEY, STUB_SUBFIELDS, makeStubTrending, parseStubFault } from "./stub";
 import type { Env } from "../platform/env";
+import { standIns } from "../platform/dev";
 import { killSwitch } from "../platform/switches";
 
 /**
@@ -619,7 +620,7 @@ export const jobSearchEnv = (env: SearchBindings): SearchEnv => ({ ...searchEnvF
 export async function runTrendingFromEnv(env: TrendingJobEnv, scheduledTime: number): Promise<TrendingResult> {
   const kv = env.CACHE;
   if (!kv) return { skipped: "no_kv", asOf: isoDay(scheduledTime), calls: 0, kvOps: 0, ms: 0 };
-  if (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1") {
+  if (standIns(env)) {
     // no real waiting: a clock of its own that only the pauses move (the KV's pause between two writes of a key, the pause between arXiv requests)
     let now = scheduledTime;
     // a stand-in can be made to fail from outside, for the local end-to-end run (stub.ts, STUB_FAULT_KEY): read here and nowhere else, so the production path below has no such switch

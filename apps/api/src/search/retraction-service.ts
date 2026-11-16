@@ -3,6 +3,7 @@ import { cacheStore, type CacheEnv } from "../cache";
 import { stubCrossrefFetch } from "../library/retraction-stub";
 import { findRetractionNotices, retractedDois } from "./retraction";
 import type { Env } from "../platform/env";
+import { standIns } from "../platform/dev";
 
 /**
  * Is a paper retracted, as a service (docs/design: "service layer"): "Ask this paper" and the MCP tool `check_retractions` call it. Crossref's retraction data (which carries the Retraction
@@ -19,7 +20,7 @@ export type RetractionCheck = {
 };
 
 /** Only in a local test run (the same switch src/index.ts uses for the nightly job): Crossref's answers are made up from the DOI (src/library/retraction-stub.ts). */
-const fetchFor = (env: RetractionServiceEnv) => (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? { fetch: stubCrossrefFetch } : {});
+const fetchFor = (env: RetractionServiceEnv) => (standIns(env) ? { fetch: stubCrossrefFetch } : {});
 
 /** Is one DOI retracted? `false` also when that could not be found out: for a screen that marks retracted papers and stays quiet otherwise. */
 export async function isRetracted(env: RetractionServiceEnv, doi: string, timeoutMs = 4000): Promise<boolean> {

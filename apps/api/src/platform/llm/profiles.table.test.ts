@@ -52,7 +52,7 @@ function fakeDb(rows: Row["ledger"]) {
 
 const REQ = { system: "SYSTEM TEXT", user: "USER TEXT", schema: { type: "object", properties: { ok: { type: "boolean" } } }, maxTokens: 123, label: "the_caller_label" };
 
-type Env0 = Partial<Env> & Record<string, unknown>;
+type Env0 = Record<string, unknown>;
 type Use = { kind: "complete"; make: (env: Env0) => Complete } | { kind: "stream"; make: (env: Env0, abort: AbortSignal) => StreamComplete };
 
 const SUBJECT = "user-1";

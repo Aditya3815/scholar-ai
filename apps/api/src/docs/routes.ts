@@ -61,6 +61,7 @@ import { stubReader } from "../ocr/stub";
 import { askOutcome, countOutcome } from "../outcomes";
 import { deny } from "../problem";
 import type { Env, EnvPick, HonoEnv } from "../platform/env";
+import { devMode, devOptions, standIns } from "../platform/dev";
 
 export const documentRoutes = new Hono<HonoEnv>();
 
@@ -107,7 +108,7 @@ const VIEW_PAPER: Door<Row> = { ...VIEW, owns: { find: paperOf, missing: "Paper 
 const VIEW_COVER: Door<Row> = { ...VIEW, owns: { find: paperOf, missing: "No cover" } };
 const UPLOAD: Door = { signIn: "Sign in to upload papers", ack: { title: "Please read how your papers are handled first", detail: "A short note appears before your first upload." } };
 
-const stubbed = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_STUB">) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+const stubbed = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_STUB">) => standIns(env);
 const readerFor = (env: EnvPick<"ENABLE_DEV_ROUTES" | "QA_STUB", "AI">): PageReader | null => (stubbed(env) ? stubReader : env.AI ? workersAiReader(env.AI) : null);
 /** Pages per person per day. A value that is not a whole number from 1 to 2000 is ignored (the default is used), so a typo cannot switch the limit off. */
 export function ocrPerDay(env: Pick<Env, "OCR_PAGES_PER_DAY">): number {
@@ -116,16 +117,13 @@ export function ocrPerDay(env: Pick<Env, "OCR_PAGES_PER_DAY">): number {
 }
 
 /** Dev-only: passages per question for the cost experiments. Undefined (the default of 6) everywhere else. */
-const devTopK = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_TOP_K">): number | undefined => {
-  const n = Number(env.QA_TOP_K);
-  return env.ENABLE_DEV_ROUTES === "1" && Number.isInteger(n) && n >= 1 && n <= 12 ? n : undefined;
-};
+const devTopK = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_TOP_K">): number | undefined => devOptions(env).topK;
 
 export const embedderFor = (env: EnvPick<"ENABLE_DEV_ROUTES" | "QA_STUB", "AI">): Embedder | null =>
-  env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null;
+  standIns(env) ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null;
 
 export function completeFor(env: LlmEnv & Pick<Env, "QA_STUB">, subject: string): Complete | null {
-  if (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1") return stubComplete;
+  if (standIns(env)) return stubComplete;
   const gateway = gatewayFromEnv(env);
   return async (req) => {
     // An uploaded paper and the questions about it are PRIVATE: the gateway will only use privacy-safe providers.
@@ -135,7 +133,7 @@ export function completeFor(env: LlmEnv & Pick<Env, "QA_STUB">, subject: string)
 }
 
 export function streamFor(env: LlmEnv & Pick<Env, "QA_STUB">, subject: string, abort: AbortSignal): StreamComplete | null {
-  if (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1") return stubStream;
+  if (standIns(env)) return stubStream;
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
     // Same PRIVATE route, same quota and ledger as the non-streaming call; `abort` stops the model when the reader leaves.
@@ -550,7 +548,7 @@ documentRoutes.post("/:id/ask", async (c) => {
     answer = await answerQuestion({
       question, chunks, embed, complete, meta: { id: randomId(), createdAt: Date.now() }, topK: devTopK(c.env),
       // Only with the local dev switch: print what the model said and saw, to tune prompts. Never in production.
-      onRaw: c.env.ENABLE_DEV_ROUTES === "1" ? (raw, ex) => console.log(JSON.stringify({ msg: "qa_debug", raw, excerpts: ex.map((e) => ({ page: e.page, text: e.text.slice(0, 160) })) })) : undefined,
+      onRaw: devMode(c.env) ? (raw, ex) => console.log(JSON.stringify({ msg: "qa_debug", raw, excerpts: ex.map((e) => ({ page: e.page, text: e.text.slice(0, 160) })) })) : undefined,
     });
   } catch (e) {
     const d = describeAskError(e);

@@ -9,6 +9,7 @@ import { claimAttempt, claimRefresh, createPaper, failIfStale, getPaper, instanc
 import { isRetracted } from "../search/retraction-service";
 import { askOutcome, countOutcome } from "../outcomes";
 import type { EnvPick } from "../platform/env";
+import { devMode, devOptions, standIns } from "../platform/dev";
 import type { LlmEnv } from "../llm";
 
 /**
@@ -135,7 +136,7 @@ export async function askOpenAccess(env: OaEnv, a: { userId: string; ref: OaRef;
         await send({ type: "ingest", status: row!.status, progress: peak, ...(row!.source ? { source: row!.source } : {}), started: startedByMe });
       }
       if (Date.now() > deadline) return void (await err("still_reading", "This paper is still being read", "It keeps going without you. Ask again in a minute."));
-      await sleep(env.ENABLE_DEV_ROUTES === "1" ? 150 : 800);
+      await sleep(devOptions(env).readingPollMs ?? 800);
       row = (await getPaper(db, key)) ?? row;
       if (isWorking(row) && (await failIfStale(db, key, Date.now()))) row = await getPaper(db, key);
     }
@@ -166,9 +167,9 @@ type AskArgs = { /** what the answer is made from: the paper's text, or only its
 async function ask(env: OaEnv, s: AskSession, a: AskArgs): Promise<void> {
   const stream = streamFor(env, a.subject, a.abort.signal);
   if (!stream) return void (await s.send({ type: "error", code: "ai_unavailable", title: "Answering is unavailable right now" }));
-  const topK = env.ENABLE_DEV_ROUTES === "1" && Number.isInteger(Number(env.QA_TOP_K)) && Number(env.QA_TOP_K) >= 1 ? Number(env.QA_TOP_K) : undefined;
+  const topK = devMode(env) && Number.isInteger(Number(env.QA_TOP_K)) && Number(env.QA_TOP_K) >= 1 ? Number(env.QA_TOP_K) : undefined;
   // Only with the local dev switch (and not the stand-ins): print what the model said and was shown, to tune prompts. Never in production.
-  const onRaw = env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB !== "1" ? (raw: unknown, ex: { idx: number; section?: string; text: string }[]) => console.log(JSON.stringify({ msg: "oa_debug", raw, excerpts: ex.map((e) => ({ idx: e.idx, section: e.section, text: e.text })) })) : undefined;
+  const onRaw = devMode(env) && !standIns(env) ? (raw: unknown, ex: { idx: number; section?: string; text: string }[]) => console.log(JSON.stringify({ msg: "oa_debug", raw, excerpts: ex.map((e) => ({ idx: e.idx, section: e.section, text: e.text })) })) : undefined;
   const answer = await answerQuestionStream({ question: a.question, chunks: a.chunks, embed: a.embed, stream, meta: { id: crypto.randomUUID().replace(/-/g, "").slice(0, 20), createdAt: Date.now() }, emit: s.send, topK, onRaw });
   if (s.gone) return;
   await countOutcome(env.DB, a.basis === "abstract" ? "oa_ask_abstract" : "oa_ask", askOutcome(answer));

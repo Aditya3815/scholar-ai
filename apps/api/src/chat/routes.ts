@@ -48,6 +48,7 @@ import { describeAskError, embedderFor, streamFor as docStreamFor } from "../doc
 import { answerQuestionStream, type StoredChunk } from "../docs/qa";
 import { decodeVec } from "../docs/vector";
 import type { Env, HonoEnv } from "../platform/env";
+import { devMode, standIns } from "../platform/dev";
 
 export const chatRoutes = new Hono<HonoEnv>();
 
@@ -56,7 +57,7 @@ chatRoutes.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
 });
 
-const stubbed = (env: Env) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+const stubbed = (env: Env) => standIns(env);
 
 /**
  * Where a gate flag of the chat stands for this request (platform/switches.ts: unset is off, an off flag reads nothing from KV, and the positions of each name are its row of SWITCHES). A value that is
@@ -324,7 +325,7 @@ chatRoutes.post("/", async (c) => {
           language,
           stream: streamFor(c.env, subject, abort.signal),
           emit: send,
-          onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !stubbed(c.env) && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_general_debug", raw })) : undefined,
+          onRaw: devMode(c.env) && !stubbed(c.env) && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_general_debug", raw })) : undefined,
         });
         if (!s.gone) await send({ type: "general", kind: g.kind, text: g.text });
       } catch (e) {
@@ -816,7 +817,7 @@ chatRoutes.post("/", async (c) => {
         // the question the answer is for is what the person wrote (so it is answered in their language), not the English words the indexes were asked; for a follow-up it is the standalone question,
         // and for the same papers only, the earlier answer goes with it as context the writer is told is not evidence. The judge is given neither (it reads claims and the abstracts they cite).
         // The debug log of what a model said is for the first message in development; a follow-up never uses it.
-        answer = await answerFromResults({ question: asked, language: spoken, languageAsked: u ? u.language !== "en" : !!(follow?.answerLanguage ?? reading?.answerLanguage), earlierAnswer: follow?.intent === "same_papers" ? (ctx?.history.lastAnswer ?? undefined) : undefined, picked, stream: streamFor(c.env, user.id, abort.signal), judge: killSwitch(c.env, "CHAT_JUDGE") === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: (r) => { judged = r; logJudged(r); }, emit: async (e) => { await send(e); if (e.type === "step" && e.step === "write") await think(thinkWriting(spoken)); }, onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
+        answer = await answerFromResults({ question: asked, language: spoken, languageAsked: u ? u.language !== "en" : !!(follow?.answerLanguage ?? reading?.answerLanguage), earlierAnswer: follow?.intent === "same_papers" ? (ctx?.history.lastAnswer ?? undefined) : undefined, picked, stream: streamFor(c.env, user.id, abort.signal), judge: killSwitch(c.env, "CHAT_JUDGE") === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: (r) => { judged = r; logJudged(r); }, emit: async (e) => { await send(e); if (e.type === "step" && e.step === "write") await think(thinkWriting(spoken)); }, onRaw: devMode(c.env) && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
       } catch (e) {
         if (s.gone) return;
         if (e instanceof QuotaError) return void (await done(false, "quota"));
@@ -863,7 +864,7 @@ chatRoutes.get("/config", async (c) => {
  * reason if they did not pass) and `usage` (what the calls cost), so that `--followup` can score them. Without them the answer is the route and nothing more, as it always was.
  */
 chatRoutes.post("/route", async (c) => {
-  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.notFound();
+  if (!devMode(c.env)) return c.notFound();
   const read = await readJson(c, MAX_CHAT_BODY_BYTES);
   if (read.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
   const body = read.value as { message?: unknown; history?: unknown } | null;
@@ -891,7 +892,7 @@ chatRoutes.post("/route", async (c) => {
  * over a labelled list of claims (docs/design/claim-support.md). The body is the answer text and the papers it cites; `model` and `reasoning` try another Workers AI model for the call.
  */
 chatRoutes.post("/judge", async (c) => {
-  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.notFound();
+  if (!devMode(c.env)) return c.notFound();
   const got = await requireUser(c, { signIn: { status: 403, type: "forbidden", title: "Sign in first" } });
   if (got instanceof Response) return got;
   const { user } = got;

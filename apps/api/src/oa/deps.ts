@@ -2,6 +2,7 @@ import { withGate, type GateName } from "../gate";
 import type { SourceDeps } from "./sources";
 import { stubFetch } from "./stub";
 import type { Env } from "../platform/env";
+import { standIns } from "../platform/dev";
 
 type DepsEnv = Pick<Env, "ENABLE_DEV_ROUTES" | "QA_STUB" | "CROSSREF_MAILTO" | "OPENALEX_API_KEY">;
 
@@ -13,7 +14,7 @@ const LANE_WAIT_MS = 30_000;
  * service (the shared lanes), and who we are (a contact address, which is the polite thing to send and what arXiv, Europe PMC and OpenAlex ask for).
  */
 export function sourceDepsFor(env: DepsEnv): SourceDeps {
-  const stub = env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+  const stub = standIns(env);
   return {
     ...(stub ? { fetchImpl: stubFetch } : { gated: <T,>(lane: GateName, run: () => Promise<T>) => withGate(lane, LANE_WAIT_MS, () => run()) }),
     userAgent: `Sodhsetu/1.0 (+https://sodhsetu.in; mailto:${env.CROSSREF_MAILTO})`,

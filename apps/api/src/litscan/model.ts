@@ -7,11 +7,12 @@ import { runSearch } from "../search";
 import { withGate } from "../gate";
 import { searchEnvFrom, type SearchBindings } from "../search/env";
 import type { Env } from "../platform/env";
+import { standIns } from "../platform/dev";
 
 /** What the scan needs from the Worker's environment, for the request that plans it and for the Workflow that runs it. */
 export type ScanEnv = LlmEnv & SearchBindings & Pick<Env, "QA_STUB" | "CHAT_JUDGE">;
 
-export const stubbed = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_STUB">) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
+export const stubbed = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_STUB">) => standIns(env);
 
 /** The planning call. The topic is the person's own text: PRIVATE, so the gateway only uses providers that do not keep or train on it. */
 export function planModel(env: ScanEnv, subject: string): Complete {

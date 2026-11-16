@@ -6,25 +6,24 @@ import { geminiProvider } from "./providers/gemini";
 import { workersAiProvider } from "./providers/workersai";
 import type { LlmProvider } from "./types";
 import type { EnvPick } from "../platform/env";
+import { modelOverrides, type ModelOverrides } from "../platform/dev";
 
 /** What the gateway reads: the ledger and the cache, the providers, and the development-only model choices (platform/env.ts says what each is). */
 export type LlmEnv = EnvPick<"DB" | "GEMINI_API_KEY" | "ENABLE_DEV_ROUTES" | "LLM_QA_MODEL" | "LLM_CLASSIFY_MODEL" | "LLM_VERIFY_MODEL" | "LLM_REASONING", "CACHE" | "AI">;
 
-/** Providers that are not configured (no binding / no key) are simply absent; routing skips them. */
-export function gatewayFromEnv(env: LlmEnv) {
+/**
+ * Providers that are not configured (no binding / no key) are simply absent; routing skips them. `overrides` are the development model choices (platform/dev.ts: one map, empty outside
+ * development mode): each sends its private task to the Workers AI model it names, and `reasoning` sets how long a gpt-oss model thinks.
+ */
+export function gatewayFromEnv(env: LlmEnv, overrides: ModelOverrides = modelOverrides(env)) {
   const providers: Record<string, LlmProvider> = {};
-  const dev = env.ENABLE_DEV_ROUTES === "1";
-  const effort = dev && ["low", "medium", "high"].includes(env.LLM_REASONING ?? "") ? (env.LLM_REASONING as "low" | "medium" | "high") : undefined;
-  if (env.AI) providers.workersai = workersAiProvider(env.AI, { reasoning: effort });
+  if (env.AI) providers.workersai = workersAiProvider(env.AI, { reasoning: overrides.reasoning });
   if (env.GEMINI_API_KEY) providers.gemini = geminiProvider(env.GEMINI_API_KEY);
-  const model = dev ? env.LLM_QA_MODEL?.trim() : undefined;
-  const classify = dev ? env.LLM_CLASSIFY_MODEL?.trim() : undefined;
-  const verify = dev ? env.LLM_VERIFY_MODEL?.trim() : undefined;
-  const MODEL = /^@cf\/[\w.\-/]+$/;
   let config = DEFAULT_CONFIG;
-  if (model && MODEL.test(model)) config = { ...config, routes: { ...config.routes, qa: { ...config.routes.qa, private: [{ provider: "workersai", model }] } } };
-  if (classify && MODEL.test(classify)) config = { ...config, routes: { ...config.routes, classify: { ...config.routes.classify, private: [{ provider: "workersai", model: classify }] } } };
-  if (verify && MODEL.test(verify)) config = { ...config, routes: { ...config.routes, verify: { ...config.routes.verify, private: [{ provider: "workersai", model: verify }] } } };
+  for (const task of ["qa", "classify", "verify"] as const) {
+    const model = overrides[task];
+    if (model) config = { ...config, routes: { ...config.routes, [task]: { ...config.routes[task], private: [{ provider: "workersai", model }] } } };
+  }
   return createGateway({
     providers,
     ledger: d1Ledger(env.DB),
