@@ -1,57 +1,41 @@
 import { useSyncExternalStore } from "react";
 import {
-  MAX_CHARS_PER_BATCH, MAX_DOC_BYTES, MAX_DOC_PAGES, MAX_PAGES_PER_BATCH, analyzePaper, analyzeScan, isScanned, mergeScanInfo, needsReading,
+  IDEMPOTENCY_HEADER, MAX_CHARS_PER_BATCH, MAX_DOC_BYTES, MAX_DOC_PAGES, MAX_PAGES_PER_BATCH, analyzePaper, analyzeScan, isScanned, mergeScanInfo, needsReading,
   type Answer, type AskStreamEvent, type PaperAccess, type DocumentInfo, type Legend, type Line, type PageText, type PaperInfo, type ReadState, type ScanInfo,
 } from "@scholar/shared";
-import { readSse } from "./api/stream";
+import { ApiError, api, problemError } from "./api/client";
+import { retry, type RetryPolicy } from "./api/retry";
+import { postStream, streamResult } from "./api/stream";
 import { openPdf, readOutline, readPage, renderCover, PdfError, type PDFDocumentProxy } from "./pdf";
-import { ApiError, json, request } from "./docs-api";
 import { fetchScan, fetchScanText, readScannedPages, registerScan } from "./scan";
 import { removeCachedPaper } from "./offline";
-
-export { ApiError };
 
 /* ---------------------------------------------------------------- API client */
 
 export type Usage = { count: number; maxCount: number; bytes: number; maxBytes: number };
 
+const DOCS = "/api/v1/documents";
+
 /** `features.reader`: the new Paper Reader is on for this account (the server's READER switch; absent from an older server or a kept offline copy, which is today's reader). */
 export const fetchDocument = (id: string) =>
-  request<{ document: DocumentInfo; history: Answer[]; info: PaperInfo | null; scan: ScanInfo | null; features?: { reader?: boolean; share?: boolean; comments?: number; live?: boolean }; access?: PaperAccess }>(`/${id}`);
+  api<{ document: DocumentInfo; history: Answer[]; info: PaperInfo | null; scan: ScanInfo | null; features?: { reader?: boolean; share?: boolean; comments?: number; live?: boolean }; access?: PaperAccess }>(`${DOCS}/${id}`);
 
 /** Store what was learned from reading the PDF; the server adds registry metadata and may give the paper its real title. */
-export const savePaperInfo = (id: string, info: PaperInfo) => request<{ document: DocumentInfo; info: PaperInfo }>(`/${id}/info`, json("PUT", info));
+export const savePaperInfo = (id: string, info: PaperInfo) => api<{ document: DocumentInfo; info: PaperInfo }>(`${DOCS}/${id}/info`, { method: "PUT", json: info });
 /** A question about what the reader marked in this paper. `used` of `total` highlights were shown to the model (all of them unless there are very many). Not added to the paper's question history. */
 export const askHighlights = (id: string, question: string, legend: Legend, signal?: AbortSignal) =>
-  request<{ answer: Answer; used: number; total: number }>(`/${id}/ask-highlights`, { ...json("POST", { question, legend }), signal });
+  api<{ answer: Answer; used: number; total: number }>(`${DOCS}/${id}/ask-highlights`, { method: "POST", json: { question, legend }, signal });
 /**
  * Ask with progress: `onEvent` gets the stages, the pages being read, the answer text as it is written, and finally the verified
  * answer. Resolves with that answer; rejects with an ApiError (or an AbortError if `signal` aborts).
  */
 export async function askDocumentStream(id: string, question: string, onEvent: (e: AskStreamEvent) => void, signal?: AbortSignal): Promise<Answer> {
-  const res = await fetch(`/api/v1/documents/${id}/ask?stream=1`, { ...json("POST", { question }), credentials: "same-origin", signal });
-  if (!res.ok) {
-    const j = (await res.json().catch(() => null)) as { type?: string; title?: string; detail?: string } | null;
-    throw new ApiError(res.status, j?.type ?? "error", j?.title ?? `The service answered ${res.status}`, j?.detail);
-  }
-  let answer: Answer | null = null;
-  let failure: ApiError | null = null;
-  await readSse<AskStreamEvent>(
-    res,
-    (e) => {
-      if (e.type === "answer") answer = e.answer;
-      else if (e.type === "error") failure = new ApiError(res.status, e.code, e.title, e.detail);
-      onEvent(e);
-    },
-    signal,
-  );
-  if (failure) throw failure;
-  if (!answer) throw new TypeError("The answer was cut off. Please try again.");
-  return answer;
+  const res = await postStream(`${DOCS}/${id}/ask?stream=1`, { question }, { signal });
+  return streamResult<AskStreamEvent, Answer>(res, "answer", (e) => (e as Extract<AskStreamEvent, { type: "answer" }>).answer, "The answer was cut off. Please try again.", onEvent, signal);
 }
 
-export const coverUrl = (d: Pick<DocumentInfo, "id" | "updatedAt">) => `/api/v1/documents/${d.id}/cover?v=${d.updatedAt}`;
-export const fileUrl = (id: string) => `/api/v1/documents/${id}/file`;
+export const coverUrl = (d: Pick<DocumentInfo, "id" | "updatedAt">) => `${DOCS}/${d.id}/cover?v=${d.updatedAt}`;
+export const fileUrl = (id: string) => `${DOCS}/${id}/file`;
 
 /* ---------------------------------------------------------------- list store */
 
@@ -75,7 +59,7 @@ export const useDocs = (): DocsState =>
 export async function loadDocs(): Promise<void> {
   setDocs({ status: docs.status === "ready" ? "ready" : "loading", error: null });
   try {
-    const r = await request<{ items: DocumentInfo[]; usage: Usage; sharedWithMe?: number }>("");
+    const r = await api<{ items: DocumentInfo[]; usage: Usage; sharedWithMe?: number }>(DOCS);
     setDocs({ status: "ready", items: r.items, usage: r.usage, shared: r.sharedWithMe ?? 0 });
   } catch (e) {
     setDocs({ status: "error", error: e instanceof Error ? e.message : "Could not load your papers" });
@@ -87,20 +71,20 @@ export function resetDocs() {
 }
 
 export async function renameDoc(id: string, title: string): Promise<void> {
-  const { document } = await request<{ document: DocumentInfo }>(`/${id}`, json("PATCH", { title }));
+  const { document } = await api<{ document: DocumentInfo }>(`${DOCS}/${id}`, { method: "PATCH", json: { title } });
   setDocs({ items: docs.items.map((d) => (d.id === id ? document : d)) });
 }
 
 /** Reading status and tags (My Workspace). The server tidies the tags, so what comes back is what the card shows. */
 export async function setMeta(id: string, change: { readState?: ReadState; tags?: string[] }): Promise<DocumentInfo> {
-  const { document } = await request<{ document: DocumentInfo }>(`/${id}/meta`, json("PUT", change));
+  const { document } = await api<{ document: DocumentInfo }>(`${DOCS}/${id}/meta`, { method: "PUT", json: change });
   setDocs({ items: docs.items.map((d) => (d.id === id ? document : d)) });
   return document;
 }
 
 /** Where the reader is. Fire and forget on purpose: a place that is not saved costs the reader nothing but a page. */
 export function postProgress(id: string, page: number, keepalive = false): void {
-  void request<{ document: DocumentInfo }>(`/${id}/progress`, { ...json("POST", { page }), keepalive })
+  void api<{ document: DocumentInfo }>(`${DOCS}/${id}/progress`, { method: "POST", json: { page }, keepalive })
     .then(({ document }) => setDocs({ items: docs.items.map((d) => (d.id === id ? document : d)) }))
     .catch(() => {});
 }
@@ -110,13 +94,13 @@ export type WorkspaceHits = {
   passages: { docId: string; title: string; page: number; snippet: string }[];
   highlights: { docId: string; title: string; page: number; quote: string; note: string | null; color: string }[];
 };
-export const searchWorkspace = (q: string, signal?: AbortSignal) => request<WorkspaceHits>(`/search?q=${encodeURIComponent(q)}`, { signal });
+export const searchWorkspace = (q: string, signal?: AbortSignal) => api<WorkspaceHits>(`${DOCS}/search?q=${encodeURIComponent(q)}`, { signal });
 
 export type Remembered = { docId: string; title: string; page: number; quote: string; note: string | null; color: string };
-export const fetchRemember = (skip = 0) => request<{ highlight: Remembered | null; total: number }>(`/remember?skip=${skip}`);
+export const fetchRemember = (skip = 0) => api<{ highlight: Remembered | null; total: number }>(`${DOCS}/remember?skip=${skip}`);
 
 export async function removeDoc(id: string): Promise<void> {
-  await request<{ ok: true }>(`/${id}`, { method: "DELETE" });
+  await api<{ ok: true }>(`${DOCS}/${id}`, { method: "DELETE" });
   void removeCachedPaper(id); // a deleted paper is not kept on this device either
   setDocs({ items: docs.items.filter((d) => d.id !== id) });
   void loadDocs();
@@ -181,24 +165,29 @@ const mb = (n: number) => `${(n / 1024 / 1024).toFixed(n > 10 * 1024 * 1024 ? 0 
 /** A random key for one upload. It is sent again, unchanged, if the upload is tried again, so a reply that never arrived cannot make the server store the paper twice. */
 const newIdempotencyKey = () => crypto.randomUUID();
 
+/** The upload: a lost connection, or a first try the server is still finishing, is tried again with the same key; three tries in all, 900 and 1800 ms apart. */
+const UPLOAD_RETRY: RetryPolicy = { tries: 3, delayMs: (attempt) => 900 * attempt, again: (e) => e instanceof TypeError || (e instanceof ApiError && e.type === "idempotency_in_progress") };
+/** A batch of pages: one more try after 900 ms for a hiccup (a lost connection, a 5xx, a 429), none for a refusal (another 4xx). */
+const INDEX_RETRY: RetryPolicy = { tries: 2, delayMs: () => 900, again: (e) => !(e instanceof ApiError && e.status < 500 && e.status !== 429) };
+
 /** POST the file with upload progress (fetch cannot report it). */
 function uploadFile(file: File, idempotencyKey: string, onProgress: (f: number) => void): Promise<DocumentInfo> {
   return new Promise((resolve, reject) => {
     const x = new XMLHttpRequest();
-    x.open("POST", "/api/v1/documents");
+    x.open("POST", DOCS);
     x.withCredentials = true;
     x.setRequestHeader("Content-Type", "application/pdf");
     x.setRequestHeader("X-Filename", encodeURIComponent(file.name));
-    x.setRequestHeader("Idempotency-Key", idempotencyKey);
+    x.setRequestHeader(IDEMPOTENCY_HEADER, idempotencyKey);
     x.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
     x.onerror = () => reject(new TypeError("network"));
     x.onload = () => {
-      let body: { document?: DocumentInfo; title?: string; detail?: string; type?: string } = {};
+      let body: { document?: DocumentInfo } | null = null;
       try {
         body = JSON.parse(x.responseText);
       } catch { /* non-JSON error page */ }
-      if (x.status === 201 && body.document) resolve(body.document);
-      else reject(new ApiError(x.status, body.type ?? "error", body.title ?? `The upload failed (${x.status})`, body.detail));
+      if (x.status === 201 && body?.document) resolve(body.document);
+      else reject(problemError(x.status, body, `The upload failed (${x.status})`));
     };
     x.send(file);
   });
@@ -226,23 +215,17 @@ async function indexPages(key: string, docId: string, pages: PageText[], total =
   const groups = batches(pages);
   for (const [i, group] of groups.entries()) {
     patchJob(key, { step: "indexing", progress: i / groups.length, detail: `Indexing pages ${group[0]!.page}–${group.at(-1)!.page} of ${pages.length}` });
-    try {
-      await request(`/${docId}/pages`, json("POST", { pages: group }));
-    } catch (e) {
-      if (e instanceof ApiError && e.status < 500 && e.status !== 429) throw e;
-      await new Promise((r) => setTimeout(r, 900)); // one retry for a hiccup
-      await request(`/${docId}/pages`, json("POST", { pages: group }));
-    }
+    await retry(INDEX_RETRY, () => api(`${DOCS}/${docId}/pages`, { method: "POST", json: { pages: group } }));
   }
   patchJob(key, { progress: 1, detail: "Finishing up" });
-  return (await request<{ document: DocumentInfo }>(`/${docId}/finish`, json("POST", { pages: total }))).document;
+  return (await api<{ document: DocumentInfo }>(`${DOCS}/${docId}/finish`, { method: "POST", json: { pages: total } })).document;
 }
 
 /** Index the few pages of a scanned paper that do have text (the pictures are read separately). No "finish": the paper is ready when its pictures are read. */
 async function indexTextPages(key: string, docId: string, pages: PageText[]): Promise<void> {
   for (const [i, group] of batches(pages).entries()) {
     patchJob(key, { step: "indexing", progress: i / Math.max(1, batches(pages).length), detail: `Indexing pages ${group[0]!.page}–${group.at(-1)!.page}` });
-    await request(`/${docId}/pages`, json("POST", { pages: group }));
+    await api(`${DOCS}/${docId}/pages`, { method: "POST", json: { pages: group } });
   }
 }
 
@@ -351,19 +334,9 @@ export async function startUpload(file: File): Promise<void> {
     patchJob(key, { step: "uploading", progress: 0, detail: `Uploading ${mb(file.size)}`, scanned });
     // A lost connection, or a first try the server is still finishing, is tried again with the same key (at most three tries): the server stores the paper once.
     const idem = newIdempotencyKey();
-    let doc: DocumentInfo | undefined;
-    for (let attempt = 1; !doc; attempt++) {
-      try {
-        doc = await uploadFile(file, idem, (f) => patchJob(key, { progress: f }));
-      } catch (e) {
-        const again = e instanceof TypeError || (e instanceof ApiError && e.type === "idempotency_in_progress");
-        if (!again || attempt >= 3) throw e;
-        patchJob(key, { progress: 0, detail: "The connection was lost. Trying again" });
-        await new Promise((r) => setTimeout(r, 900 * attempt));
-      }
-    }
+    const doc = await retry(UPLOAD_RETRY, () => uploadFile(file, idem, (f) => patchJob(key, { progress: f })), () => patchJob(key, { progress: 0, detail: "The connection was lost. Trying again" }));
     patchJob(key, { docId: doc.id });
-    if (cover) await request(`/${doc.id}/cover`, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: cover }).catch(() => {});
+    if (cover) await api(`${DOCS}/${doc.id}/cover`, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: cover }).catch(() => {});
 
     if (scanned) {
       // A paper of page pictures: the pages with some text are indexed as usual, the others are read from their pictures (and never refused as "no text").

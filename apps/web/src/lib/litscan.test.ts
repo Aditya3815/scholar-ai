@@ -7,8 +7,7 @@ vi.mock("react", async () => (await import("../test/fake-react")).react);
 /** The literature scan's requests and its live stream, as they were before the one browser client (docs/design/untangle.md, F9), and bug B1. */
 
 const lib = await import("./litscan");
-/** The id of the running scan an error names, if it names one (today a ScanRunningError). */
-const runningScanId = (e: unknown): string | null => (e instanceof lib.ScanRunningError ? e.id : null);
+const { runningScanId } = lib;
 
 let net: Net;
 beforeEach(() => {

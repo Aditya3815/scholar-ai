@@ -10,7 +10,8 @@ import {
   type ScanInfo,
   type ScanPageResult,
 } from "@scholar/shared";
-import { ApiError, json, request } from "./docs-api";
+import { ApiError, api } from "./api/client";
+import { sleep } from "./api/retry";
 import type { PDFDocumentProxy, PDFPageProxy } from "./pdf";
 
 /**
@@ -21,13 +22,15 @@ import type { PDFDocumentProxy, PDFPageProxy } from "./pdf";
 
 /* ---------------------------------------------------------------- the server calls */
 
-export const registerScan = (id: string, pages: number, scanPages: number[]) => request<{ document: DocumentInfo; scan: ScanInfo | null }>(`/${id}/scan`, json("POST", { pages, scanPages }));
-export const fetchScan = (id: string) => request<{ scan: ScanInfo | null }>(`/${id}/scan`).then((r) => r.scan);
-export const fetchScanText = (id: string) => request<{ pages: PageText[] }>(`/${id}/scan/text`).then((r) => r.pages);
+const DOCS = "/api/v1/documents";
+
+export const registerScan = (id: string, pages: number, scanPages: number[]) => api<{ document: DocumentInfo; scan: ScanInfo | null }>(`${DOCS}/${id}/scan`, { method: "POST", json: { pages, scanPages } });
+export const fetchScan = (id: string) => api<{ scan: ScanInfo | null }>(`${DOCS}/${id}/scan`).then((r) => r.scan);
+export const fetchScanText = (id: string) => api<{ pages: PageText[] }>(`${DOCS}/${id}/scan/text`).then((r) => r.pages);
 
 export const sendPage = (id: string, page: number, picture: Blob | null, signal?: AbortSignal) =>
-  request<{ result: ScanPageResult; document: DocumentInfo }>(
-    `/${id}/ocr?page=${page}${picture ? "" : "&blank=1"}`,
+  api<{ result: ScanPageResult; document: DocumentInfo }>(
+    `${DOCS}/${id}/ocr?page=${page}${picture ? "" : "&blank=1"}`,
     picture ? { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: picture, signal } : { method: "POST", signal },
   );
 
@@ -95,11 +98,11 @@ export type ScanEnd = {
   lastResult: ScanPageResult | null;
 };
 
-const wait = (ms: number, signal?: AbortSignal) =>
-  new Promise<void>((resolve) => {
-    const t = setTimeout(resolve, ms);
-    signal?.addEventListener("abort", () => { clearTimeout(t); resolve(); }, { once: true });
-  });
+/**
+ * Trying a page again: a 429 waits 4 s and the page is tried three times in all; any other failure that says nothing about the page (a 5xx, a lost connection) waits 1.5 s and the page is
+ * tried twice in all, and that many failures in a row mean the service is down; a page the models could not reach ("retry") is tried twice in all.
+ */
+const SCAN_RETRY = { busy: { tries: 3, waitMs: 4000 }, failed: { tries: 2, waitMs: 1500, downAfter: 4 }, unread: { tries: 2 } } as const;
 
 /**
  * Reads `pages` of `pdf`, several at a time. First the first pages and the last ones (title, DOI, references), then the rest. A page whose reading failed for
@@ -144,7 +147,7 @@ export async function readScannedPages(args: {
       document = r.document;
       lastResult = r.result;
       if (r.result.status === "retry") {
-        if ((tries.get(page) ?? 0) < 2) queue.push(page);
+        if ((tries.get(page) ?? 0) < SCAN_RETRY.unread.tries) queue.push(page);
         return;
       }
       left.delete(page);
@@ -154,15 +157,15 @@ export async function readScannedPages(args: {
       if (e instanceof ApiError && e.type === "ocr_daily_limit") stop = "limit";
       else if (e instanceof ApiError && (e.status === 401 || e.status === 403)) stop = "signin";
       else if (e instanceof ApiError && e.status === 429) {
-        if ((tries.get(page) ?? 0) < 3) {
+        if ((tries.get(page) ?? 0) < SCAN_RETRY.busy.tries) {
           queue.push(page);
-          await wait(4000, signal);
+          await sleep(SCAN_RETRY.busy.waitMs, signal);
         }
       } else {
         // a dropped connection or a 5xx: once more later, and if it keeps happening the service is down
-        if ((tries.get(page) ?? 0) < 2) queue.push(page);
-        if (++failures >= 4) stop = "unavailable";
-        else await wait(1500, signal);
+        if ((tries.get(page) ?? 0) < SCAN_RETRY.failed.tries) queue.push(page);
+        if (++failures >= SCAN_RETRY.failed.downAfter) stop = "unavailable";
+        else await sleep(SCAN_RETRY.failed.waitMs, signal);
       }
     }
   };
