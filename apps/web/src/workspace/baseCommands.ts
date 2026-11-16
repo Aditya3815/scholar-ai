@@ -1,3 +1,4 @@
+import { READ_STATE_LABEL } from "@scholar/shared";
 import { useEffect, useRef } from "react";
 import { useAuth } from "../lib/auth";
 import { registerCommands, type Command } from "../lib/commands";
@@ -26,7 +27,7 @@ export function useBaseCommands({ navigate, goHome, openSheet }: { navigate: (v:
       go("Literature scan", () => live.current.navigate("litscan"), "survey review topic overview"),
       ...(user ? [go("Settings", () => live.current.navigate("settings"), "account data export delete")] : []),
       ...(["auto", "light", "dark", "read"] as const).map((t): Command => ({ id: `theme-${t}`, label: `${t[0]!.toUpperCase()}${t.slice(1)} theme`, group: "Theme", keywords: t === "dark" ? "night" : t === "read" ? "reading sepia" : t === "auto" ? "system" : "day", run: () => setThemePref(t) })),
-      ...docs.map((d): Command => ({ id: `paper-${d.id}`, label: d.title, group: "Your papers", keywords: `${d.tags.join(" ")} open`, hint: d.readState === "done" ? "Done" : d.readState === "reading" ? "Reading" : undefined, run: () => live.current.navigate("papers", d.id) })),
+      ...docs.map((d): Command => ({ id: `paper-${d.id}`, label: d.title, group: "Your papers", keywords: `${d.tags.join(" ")} open`, hint: d.readState === "to_read" ? undefined : READ_STATE_LABEL[d.readState], run: () => live.current.navigate("papers", d.id) })),
       { id: "help-keys", label: "Keyboard shortcuts", group: "Help", keywords: "keys shortcuts help", hint: "?", run: () => live.current.openSheet() },
     ];
     return registerCommands({

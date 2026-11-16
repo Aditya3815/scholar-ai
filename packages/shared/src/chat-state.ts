@@ -1,3 +1,4 @@
+import { type NoticeKind } from "./vocab/notices";
 import { type Lang, isLang } from "./vocab/languages";
 import { isLaneReason, isNoTraceNotice, isNoTraceReason } from "./vocab/lane";
 import { isIntent } from "./vocab/intents";
@@ -5,7 +6,7 @@ import { STEP_ORDER, type ChatStep } from "./vocab/steps";
 import { stripMarks } from "./ids";
 import type { Paper, SearchScope } from "./index";
 import { cutWhole, FILTER_YEARS, isYear, oneLine, PUBLICATION_YEARS, stripInvisible } from "./text";
-import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatRequestMode, type GeneralKind, type NoticeKind, type TightenRequest, type TightenResponse, type UnderstoodByModel } from "./chat";
+import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatRequestMode, type GeneralKind, type TightenRequest, type TightenResponse, type UnderstoodByModel } from "./chat";
 import { MAX_FILTER_YEAR, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MIN_SINCE_YEAR, historySizeOf as sizeOf, type ChatContextInfo, type HistoryEntry, type HistoryPaper } from "./chat-context";
 import { MAX_AUTO_CHARS, type RouteHow } from "./route";
 import { abstractRead } from "./sentences";

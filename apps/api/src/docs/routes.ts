@@ -1,4 +1,4 @@
-import { searchWords } from "@scholar/shared";
+import { type ProblemType, searchWords } from "@scholar/shared";
 import { Hono, type Context } from "hono";
 import { rememberOne } from "./remember";
 import { d1KeyStore, readKey, runIdempotent } from "../idempotency";
@@ -145,7 +145,7 @@ export function streamFor(env: LlmEnv & Pick<Env, "QA_STUB">, subject: string, a
 }
 
 /** One place that turns a failure into what the browser is told (as an HTTP error, or as a stream `error` event). */
-export function describeAskError(e: unknown): { status: 429 | 502 | 503; code: string; title: string; detail?: string } | null {
+export function describeAskError(e: unknown): { status: 429 | 502 | 503; code: Extract<ProblemType, "quota" | "ai_unavailable" | "ai_failed">; title: string; detail?: string } | null {
   if (e instanceof QuotaError) return { status: 429, code: "quota", title: "You have used today's AI allowance", detail: e.message };
   if (e instanceof NoRouteError) return { status: 503, code: "ai_unavailable", title: "Answering is unavailable right now" };
   if (e instanceof AllProvidersFailedError) {

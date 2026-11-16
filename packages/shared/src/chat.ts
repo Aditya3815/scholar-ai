@@ -1,3 +1,4 @@
+import { type NoticeKind } from "./vocab/notices";
 import { type Lang } from "./vocab/languages";
 import { type ChatStep } from "./vocab/steps";
 import { type Intent } from "./vocab/intents";
@@ -94,11 +95,6 @@ export const ABSTRACTS_NOTICE = "Answered from the abstracts of papers already i
  * The four lines of the safety lane (one kind for each, because the reducer keeps one notice of a kind): the crisis line, the urgent line (also for a plain call for help), the line for a personal
  * medicine decision, and the care line (a health or distress story with a research question). They are drawn under the Understood line, above the offer, the answer and the papers.
  */
-export const SAFETY_NOTICE_KINDS = ["safety_crisis", "safety_urgent", "safety_decision", "safety_care"] as const;
-export type SafetyNoticeKind = (typeof SAFETY_NOTICE_KINDS)[number];
-
-export const NOTICE_KINDS = ["partial", "nothing", "retracted", "years", "weak", "unfinished", "abstracts", ...SAFETY_NOTICE_KINDS] as const;
-export type NoticeKind = (typeof NOTICE_KINDS)[number];
 
 export type ChatEvent =
   /**

@@ -6,6 +6,7 @@
 export const LANE_REASONS = ["urgent", "safety", "decision"] as const;
 export type LaneReason = (typeof LANE_REASONS)[number];
 export const NO_TRACE_REASONS = ["urgent", "safety"] as const satisfies readonly LaneReason[];
+/** (kinds of SAFETY_NOTICE_KINDS, vocab/notices.ts) */
 export const NO_TRACE_NOTICES = ["safety_crisis", "safety_urgent"] as const;
 
 export const isLaneReason = (r: unknown): r is LaneReason => typeof r === "string" && (LANE_REASONS as readonly string[]).includes(r);
