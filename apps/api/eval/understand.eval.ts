@@ -2,21 +2,17 @@
 // conversation-reply writer over the three label sets, with the model's answers RECORDED once from live Workers AI and replayed here, so `npm run eval` (and CI) checks the gates offline.
 //
 //   npm run eval                                                       replay (CI): fails if a prompt has no recording (re-record after any prompt change)
-//   UNDERSTAND_EVAL=record UNDERSTAND_MODELS=@cf/openai/gpt-oss-120b,@cf/openai/gpt-oss-20b npx vitest run -c vitest.eval.config.ts eval/understand.eval.ts
-//                                                                      record: live Workers AI through `wrangler`'s own login (no key is read from any file), then replay
+//   EVAL_MODE=record UNDERSTAND_MODELS=@cf/openai/gpt-oss-120b,@cf/openai/gpt-oss-20b npx vitest run -c vitest.eval.config.ts eval/understand.eval.ts
+//                                                                      record what is missing: live Workers AI through `wrangler`'s own login (no key is read from any file), then replay
+//                                                                      (eval/lib/model-layer.ts; the recording is data/understand-recorded.json.gz)
+// UNDERSTAND_MODELS names the models to run (any mode); without it every recorded model runs, and the shipped one.
 //
 // The gates apply to the model the step ships with (UNDERSTAND_CHAIN[0] in src/llm/config.ts); every other recorded model is measured and printed for comparison only.
-import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { gunzipSync, gzipSync } from "node:zlib";
 import { afterAll, describe, expect, it } from "vitest";
 import type { Complete } from "../src/docs/qa";
-import { DEFAULT_CONFIG, UNDERSTAND_CHAIN } from "../src/llm/config";
-import { createGateway } from "../src/llm/gateway";
-import { workersAiProvider } from "../src/llm/providers/workersai";
+import { UNDERSTAND_CHAIN } from "../src/llm/config";
 import { chatReplyLeaks, writeChatReply } from "../src/understand/chat-reply";
 import { understandTurn, UNDERSTAND_TIMEOUT_MS, type UnderstandDecision } from "../src/understand/understand";
 import {
@@ -32,10 +28,10 @@ import {
   type MultiChat,
   type SingleItem,
 } from "./lib/understand-score";
+import { understandRecording } from "./lib/understand-recording";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const SETS = HERE + "../../../docs/eval/understand/";
-const RECORDING = HERE + "data/understand-recorded.json.gz";
 const YEAR = 2026;
 const readJson = <T>(p: string): T => JSON.parse(readFileSync(p, "utf8")) as T;
 // UNDERSTAND_LIMIT=n: the first n of each set only (a smoke run while recording; the gates are not meant for it)
@@ -44,83 +40,14 @@ const single = readJson<{ items: SingleItem[] }>(SETS + "single.json").items.sli
 const multi = readJson<{ chats: MultiChat[] }>(SETS + "multi.json").chats.slice(0, LIMIT);
 const chats = readJson<{ items: ChatItem[] }>(SETS + "chat.json").items.slice(0, LIMIT);
 
-type Call = { ok: boolean; json?: unknown; error?: string; ms: number; tokensIn: number | null; tokensOut: number | null };
-type Recording = { version: 1; recordedAt: string; note: string; calls: Record<string, Record<string, Call[]>> };
-const keyOf = (system: string, user: string) => createHash("sha256").update(system).update("\u0000").update(user).digest("hex").slice(0, 24);
-
-const recording: Recording = existsSync(RECORDING)
-  ? (JSON.parse(gunzipSync(readFileSync(RECORDING)).toString("utf8")) as Recording)
-  : { version: 1, recordedAt: "", note: "", calls: {} };
-const RECORD = process.env.UNDERSTAND_EVAL === "record";
-const MODELS = RECORD ? (process.env.UNDERSTAND_MODELS ?? UNDERSTAND_CHAIN[0]!.model).split(",").map((m) => m.trim()).filter(Boolean) : Object.keys(recording.calls);
+const layer = understandRecording();
+const RECORD = layer.mode === "record";
 const SHIPPED = UNDERSTAND_CHAIN[0]!.model;
-
-/* ---------------------------------------------------------------- the model: live (record) or recorded (replay) */
-
-let live: ((model: string) => Complete) | null = null;
-let dispose: (() => Promise<void>) | null = null;
-async function startLive() {
-  // a config of its own with the AI binding only: no D1, KV or Durable Object of the app is started, and wrangler's own login is used
-  const dir = mkdtempSync(join(tmpdir(), "understand-record-"));
-  const config = join(dir, "wrangler.jsonc");
-  writeFileSync(config, JSON.stringify({ name: "understand-record", compatibility_date: "2026-10-01", ai: { binding: "AI", remote: true } }));
-  const { getPlatformProxy } = await import("wrangler");
-  const proxy = await getPlatformProxy<{ AI: Ai }>({ configPath: config });
-  dispose = () => proxy.dispose();
-  const provider = workersAiProvider(proxy.env.AI);
-  live = (model) => {
-    const gateway = createGateway({
-      providers: { workersai: provider },
-      ledger: { tokensToday: async () => 0, record: async () => {} },
-      config: { ...DEFAULT_CONFIG, routes: { ...DEFAULT_CONFIG.routes, understand: { public: [{ provider: "workersai", model }], private: [{ provider: "workersai", model }] } } },
-    });
-    return async (req) => {
-      const r = await gateway.complete({ task: "understand", sensitivity: "private", subject: "eval", system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 30_000, label: req.label });
-      return { json: r.json, model: r.model, tokensIn: r.tokensIn, tokensOut: r.tokensOut } as Awaited<ReturnType<Complete>>;
-    };
-  };
-}
-
-const missing = new Set<string>();
-/** A Complete for one evaluation: each call is answered by the recording (in order, per prompt); in record mode a prompt that has none is asked live and recorded. */
-function completeFor(model: string): Complete {
-  const used = new Map<string, number>();
-  const store = (recording.calls[model] ??= {});
-  return async (req) => {
-    const key = keyOf(req.system, req.user);
-    const i = used.get(key) ?? 0;
-    used.set(key, i + 1);
-    let call = store[key]?.[i];
-    if (!call && RECORD && live) {
-      const t0 = Date.now();
-      try {
-        const r = (await live(model)(req)) as { json: unknown; tokensIn?: number | null; tokensOut?: number | null };
-        call = { ok: true, json: r.json, ms: Date.now() - t0, tokensIn: r.tokensIn ?? null, tokensOut: r.tokensOut ?? null };
-      } catch (e) {
-        // the error's class and a short reason only: never the prompt
-        const msg = e instanceof Error ? `${e.name}: ${e.message}`.replace(/\s+/g, " ").slice(0, 160) : "error";
-        call = { ok: false, error: msg, ms: Date.now() - t0, tokensIn: null, tokensOut: null };
-      }
-      (store[key] ??= []).push(call);
-    }
-    if (!call) {
-      missing.add(`${model} ${key}`);
-      throw new Error("no recording");
-    }
-    // a recorded call slower than the step's give-up point is a timeout here too, so replay decides as live would
-    if (call.ms > UNDERSTAND_TIMEOUT_MS && req.label === "chat_understand") throw new Error("understand timeout (recorded)");
-    if (!call.ok) {
-      const err = new Error(call.error ?? "failed");
-      if (/AllProvidersFailedError/.test(call.error ?? "")) err.name = "AllProvidersFailedError";
-      throw err;
-    }
-    return { json: call.json, model };
-  };
-}
+const MODELS = process.env.UNDERSTAND_MODELS ? process.env.UNDERSTAND_MODELS.split(",").map((m) => m.trim()).filter(Boolean) : [...new Set([...layer.models(), SHIPPED])];
 
 /** Recorded milliseconds of the Understand calls one evaluation made. */
 function msOf(model: string, keys: string[]): number {
-  return keys.reduce((s, k) => s + (recording.calls[model]?.[k] ?? []).reduce((a, c) => a + c.ms, 0), 0);
+  return keys.reduce((s, k) => s + layer.recorded(model, k).reduce((a, c) => a + c.ms, 0), 0);
 }
 
 /* ---------------------------------------------------------------- running the sets */
@@ -134,8 +61,8 @@ async function evaluate(model: string): Promise<Result> {
   const s: SingleScore = { n: 0, dropped: 0, correct: 0, greetingSearches: 0, wrong: [], fieldMiss: {}, fieldWrong: [], fallbacks: 0, latencies: [] };
   const run = async (text: string, ledger: ReturnType<typeof goldLedger>) => {
     const seen: string[] = [];
-    const base = completeFor(model);
-    const complete: Complete = async (req) => (seen.push(keyOf(req.system, req.user)), base(req));
+    const base = layer.session(model);
+    const complete: Complete = async (req) => (seen.push(layer.keyOf(model, req.system, req.user)), base(req));
     const d: UnderstandDecision = await understandTurn({ text, mode: "auto" }, { ledger, year: YEAR }, { complete, timeoutMs: RECORD ? 60_000 : UNDERSTAND_TIMEOUT_MS });
     return { d, ms: msOf(model, [...new Set(seen)]), called: seen.length > 0 };
   };
@@ -194,7 +121,7 @@ async function evaluate(model: string): Promise<Result> {
   const c: ChatScore = { n: 0, finalLeaks: 0, rawLeaks: 0, failed: 0, overWords: 0 };
   await pool(chats, async (item) => {
     c.n++;
-    const r = await writeChatReply(item.message, item.language, completeFor(model));
+    const r = await writeChatReply(item.message, item.language, layer.session(model));
     if (r.ok) {
       if (chatReplyLeaks(r.reply).length) c.finalLeaks++;
       if (r.reply.split(/\s+/).length > 80) c.overWords++;
@@ -207,26 +134,19 @@ async function evaluate(model: string): Promise<Result> {
 /* ---------------------------------------------------------------- the tests */
 
 const results: Result[] = [];
-const hasRecording = RECORD || Object.keys(recording.calls).length > 0;
 
-describe.skipIf(!hasRecording)("Understand eval", () => {
+describe("Understand eval", () => {
   it("runs every set for every recorded model", { timeout: 3 * 60 * 60 * 1000 }, async () => {
-    if (RECORD) await startLive();
     try {
       for (const model of MODELS) results.push(await evaluate(model));
     } finally {
-      await dispose?.();
-    }
-    if (RECORD) {
-      recording.recordedAt = new Date().toISOString();
-      recording.note = "Live Workers AI through wrangler's remote proxy from a laptop: latency includes that round trip and is higher than inside a Worker.";
-      writeFileSync(RECORDING, gzipSync(JSON.stringify(recording)));
+      await layer.close();
     }
     expect(results.length).toBeGreaterThan(0);
   });
 
   it("has a recording for every prompt (re-record after a prompt change)", () => {
-    expect([...missing].slice(0, 5), `${missing.size} prompts have no recording`).toEqual([]);
+    expect([...layer.missing].slice(0, 5), `${layer.missing.size} prompts have no recording`).toEqual([]);
   });
 
   it("passes the gates with the model the step ships with", () => {

@@ -1,22 +1,12 @@
 // Uploaded papers + grounded Q&A integration test: real Worker + local D1 + local R2 + fake IdP, with the offline model stand-in
 // (QA_STUB=1). Same setup as library-e2e.mjs; `npm run integration -w apps/api` starts everything.
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
+import { APP, ok, countFailure, finish, startIdp, createClient, loginWith, readEvents, sqlResults } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
-const login = async (sub, email, name) => {
-  idp.setUser({ sub, email, email_verified: true, name });
-  const c = createClient(APP);
-  await c.follow(`${APP}/api/v1/auth/google/start`);
-  await c.ack();
-  return c;
-};
+const idp = await startIdp();
+const login = loginWith(idp);
 const pdf = makePdf(SAMPLE_PAPER, { title: "Glaucoma screening" });
 const upload = (c, body, { name = "glaucoma_screening.pdf", origin = APP, type = "application/pdf", key } = {}) =>
   c.send(`${APP}/api/v1/documents`, { method: "POST", headers: { ...(origin ? { Origin: origin } : {}), "Content-Type": type, "X-Filename": encodeURIComponent(name), ...(key ? { "Idempotency-Key": key } : {}) }, body });
@@ -162,28 +152,16 @@ try {
     });
     return res;
   };
-  async function readEvents(res, { stopAfter } = {}) {
-    const events = [];
-    const dec = new TextDecoder();
-    let buf = "";
-    for await (const part of res.body) {
-      buf += dec.decode(part, { stream: true });
-      let i;
-      while ((i = buf.indexOf("\n\n")) >= 0) {
-        const block = buf.slice(0, i);
-        buf = buf.slice(i + 2);
-        const data = block.split("\n").find((l) => l.startsWith("data:"));
-        if (data) events.push(JSON.parse(data.slice(5)));
-        if (stopAfter && events.filter((e) => e.type === "delta").length >= stopAfter) return events;
-      }
-    }
-    checkStream("ask", events, "paper question");
+  /** The whole stream, checked against the event rule; or, with `stopAfter`, up to that many pieces of the answer (the request's own `ctl` is then aborted, as a reader who leaves). */
+  async function readAnswer(res, { stopAfter, ctl } = {}) {
+    const { events, stopped } = await readEvents(res, { stopWhen: (_, all) => stopAfter && all.filter((e) => e.type === "delta").length >= stopAfter, ctl });
+    if (!stopped) checkStream("ask", events, "paper question");
     return events;
   }
   const t0 = Date.now();
   const res1 = await sse("How were participants recruited?");
   ok(res1.status === 200 && /event-stream/.test(res1.headers.get("content-type") ?? ""), "an answer can be requested as a server-sent-event stream");
-  const ev = await readEvents(res1);
+  const ev = await readAnswer(res1);
   const kinds = ev.map((e) => (e.type === "stage" ? "stage:" + e.stage : e.type));
   ok(kinds[0] === "stage:retrieving" && kinds[1] === "sources", `it starts with retrieval and the pages it will read (${kinds.slice(0, 3).join(", ")})`);
   ok(kinds.indexOf("stage:thinking") > 1 && kinds.indexOf("stage:writing") > kinds.indexOf("stage:thinking"), "then thinking, then writing");
@@ -197,7 +175,7 @@ try {
 
   const ctl = new AbortController();
   const res2 = await sse("How were participants recruited?", { signal: ctl.signal });
-  await readEvents(res2, { stopAfter: 1 });
+  await readAnswer(res2, { stopAfter: 1, ctl });
   ctl.abort();
   await new Promise((r) => setTimeout(r, 1200));
   ok((await (await A.api(P)).json()).history.length === 4, "a reader who leaves mid-answer leaves nothing half-saved");
@@ -369,23 +347,22 @@ try {
   ok(expDoc.highlightsAndNotes.every((n) => typeof n.colour === "string"), "...and the colour of each highlight");
   ok(exp.uploadedPapers.length === 2 && exp.uploadedPapers.find((d) => d.id === doc.id).questions.length === 4, "the data export lists the papers and the questions asked");
   ok((await A.api(P, { method: "DELETE" })).status === 200, "DELETE removes the paper");
-  const gone = async (table) => ((await (await A.api("/api/v1/dev/sql", { method: "POST", body: { sql: [`SELECT COUNT(*) AS n FROM ${table} WHERE doc_id = '${doc.id}'`] } })).json()).results?.[0]?.[0]?.n);
+  const gone = async (table) => (await sqlResults([`SELECT COUNT(*) AS n FROM ${table} WHERE doc_id = '${doc.id}'`]))?.[0]?.[0]?.n;
   ok((await gone("doc_tags")) === 0 && (await gone("doc_notes")) === 0, "...and its tags and highlights are gone with it");
   ok((await A.api(P)).status === 404 && (await A.api(`${P}/file`)).status === 404, "...and its file");
   ok(!(await inStorage(doc.id)) && (await inStorage(scanned.id)), "...and the PDF is gone from storage, while the other paper's stays");
-  ok(((await (await A.api("/api/v1/dev/sql", { method: "POST", body: { sql: [`SELECT COUNT(*) AS n FROM doc_ink WHERE doc_id = '${doc.id}'`] } })).json()).results?.[0]?.[0]?.n) === 0, "...and its drawing is deleted with it");
+  ok((await sqlResults([`SELECT COUNT(*) AS n FROM doc_ink WHERE doc_id = '${doc.id}'`]))?.[0]?.[0]?.n === 0, "...and its drawing is deleted with it");
   ok((await A.api("/api/v1/account", { method: "DELETE", body: { confirm: "DELETE" } })).status === 200, "deleting the account succeeds with papers present");
   ok(!(await inStorage(scanned.id)), "deleting the account removes every uploaded PDF from storage");
   const A2 = await login("doc-a", "a@example.com", "Alice");
   ok((await (await A2.api("/api/v1/documents")).json()).items.length === 0, "a new account with the same sign-in has no papers left");
 
-  const counted = await (await A.api("/api/v1/dev/sql", { method: "POST", body: { sql: ["SELECT outcome, SUM(n) AS n FROM answer_outcomes WHERE feature = 'doc_ask' GROUP BY outcome"] } })).json();
-  ok((counted.results?.[0] ?? []).some((r) => r.outcome === "answered" && r.n >= 1), "a question about a paper of your own is counted as answered");
+  const counted = await sqlResults(["SELECT outcome, SUM(n) AS n FROM answer_outcomes WHERE feature = 'doc_ask' GROUP BY outcome"]);
+  ok((counted?.[0] ?? []).some((r) => r.outcome === "answered" && r.n >= 1), "a question about a paper of your own is counted as answered");
   reportStreams(ok);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 }
 await idp.close?.();
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall document checks passed");
-process.exit(failures ? 1 : 0);
+finish("all document checks passed", (n) => `${n} check(s) FAILED`);

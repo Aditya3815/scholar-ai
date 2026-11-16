@@ -1,54 +1,18 @@
 // Auth integration test: real Worker + local D1 + a fake identity provider that ENFORCES PKCE and the client secret.
 //
-//   terminal 1:  npx wrangler d1 migrations apply scholar-db --local
-//                npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret \
-//                  --var ORCID_CLIENT_ID:dev --var ORCID_CLIENT_SECRET:dev-secret \
-//                  --var DEV_IDP_URL:http://localhost:9911 --var ORCID_BASE_URL:http://localhost:9911/orcid
-//   terminal 2:  node scripts/auth-e2e.mjs
+//   node scripts/integration.mjs --only="auth integration"   (starts both; scripts/lib/harness.mjs has the ports, the secret and the client)
 //
-// (DEV_IDP_URL only works because .dev.vars sets ENABLE_DEV_ROUTES=1; production never does.)
-
-import { startFakeIdp } from "./fake-idp.mjs";
-
-const APP = process.env.APP ?? "http://localhost:8788";
-const IDP_PORT = 9911;
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
+// (DEV_IDP_URL only works with ENABLE_DEV_ROUTES=1, which the test Worker sets; production never does.)
+import { APP, ok, startIdp, createClient, countFailure, finish } from "./lib/harness.mjs";
 
 /* ---------- fake IdP (shared with the browser e2e) ---------- */
-const idp = await startFakeIdp(IDP_PORT);
+const idp = await startIdp();
 let nextUser; void nextUser;
 const setNext = (u) => { nextUser = u; idp.setUser(u); };
 setNext({ sub: "g-111", email: "scholar@example.com", email_verified: true, name: "Test Scholar" });
 
-/* ---------- tiny HTTP client with a cookie jar and manual redirects ---------- */
-function client() {
-  const jar = new Map();
-  const send = async (url, init = {}) => {
-    const cookie = [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
-    const res = await fetch(url, { redirect: "manual", ...init, headers: { ...(init.headers ?? {}), ...(cookie ? { cookie } : {}) } });
-    for (const sc of res.headers.getSetCookie?.() ?? []) {
-      const [pair] = sc.split(";");
-      const [k, ...v] = pair.split("=");
-      if (/max-age=0|expires=thu, 01 jan 1970/i.test(sc) || v.join("=") === "") jar.delete(k); else jar.set(k, v.join("="));
-    }
-    return res;
-  };
-  /** Follows redirects across the app and the fake IdP until a response that is not a redirect, or a redirect back to the app root. */
-  const follow = async (url) => {
-    let res = await send(url);
-    const hops = [];
-    for (let i = 0; i < 6 && res.status >= 300 && res.status < 400; i++) {
-      const loc = new URL(res.headers.get("location"), url);
-      hops.push(loc.toString());
-      if (loc.origin === APP && !loc.pathname.startsWith("/api/")) return { res, final: loc, hops };
-      url = loc.toString();
-      res = await send(url);
-    }
-    return { res, final: new URL(url), hops };
-  };
-  return { send, follow, jar };
-}
+/* ---------- the test client (scripts/test-client.mjs): a cookie jar and manual redirects ---------- */
+const client = () => createClient(APP);
 const me = async (c) => (await (await c.send(`${APP}/api/v1/auth/me`)).json()).user;
 
 try {
@@ -145,9 +109,8 @@ try {
   ok(wu && wu.email === null, "an UNVERIFIED email is never stored (cannot be squatted)");
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   idp.close();
 }
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall auth checks passed");
-process.exit(failures ? 1 : 0);
+finish("all auth checks passed", (n) => `${n} check(s) FAILED`);

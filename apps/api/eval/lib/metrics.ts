@@ -1,6 +1,6 @@
 // The statistics the intent eval reads its gates with (plan docs/design/intent-and-state.md, 8.3 and 8.5). Pure, deterministic, no dependency, no network.
 // Reading rules (8.5, line 784): every gate states its n and is reported with an interval; a rate gate needs n >= n_min or it is `insufficient_n`, never a pass;
-// a paired gate is one-sided; only the owner loosens a number. Tested by eval/metrics.eval.ts.
+// a paired gate is one-sided; only the owner loosens a number. Tested by eval/lib/metrics.test.ts (part of `npm test`).
 
 /* ---------- special functions (Lanczos, Lentz continued fractions, bisection): accurate to about 1e-13 ---------- */
 

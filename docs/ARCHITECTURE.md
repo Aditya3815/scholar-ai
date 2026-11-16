@@ -208,7 +208,7 @@ the daily quota). The MCP server's OAuth clients, grants and tokens are in KV `O
 
 ## 6. The understanding work (`apps/api/src/understand`, plan `docs/design/intent-and-state.md`)
 
-Built in releases, each behind its own switch read by `understand/flags.ts` (unset is off; a KV override can only lower a
+Built in releases, each behind its own switch read by `platform/switches.ts` (unset is off; a KV override can only lower a
 switch). **Every switch below is unset (off) in production**; with a switch off the stream is byte-identical to before (golden
 tests). Turning one on needs its privacy sentence read first.
 

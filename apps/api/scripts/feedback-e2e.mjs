@@ -1,18 +1,9 @@
 // "Report a problem" and the admin overview: real Worker + local D1 + fake IdP. `npm run integration -w apps/api` starts everything.
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
+import { APP, ok, countFailure, finish, startIdp, createClient, loginWith, sqlResults } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
-const login = async (sub, email, name) => {
-  idp.setUser({ sub, email, email_verified: true, name });
-  const c = createClient(APP);
-  await c.follow(`${APP}/api/v1/auth/google/start`);
-  return c;
-};
+const idp = await startIdp();
+const login = loginWith(idp, { ack: false });
 const report = (c, body, origin = APP, headers = {}) => c.api("/api/v1/feedback", { method: "POST", body, origin, headers });
 
 try {
@@ -34,7 +25,7 @@ try {
   {
     const key = "44444444-5555-4666-8777-888888888888";
     const body = { kind: "other", problem: "other", note: "sent twice because the reply was lost" };
-    const count = async () => (await (await fetch(`${APP}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: ["SELECT COUNT(*) AS n FROM feedback WHERE note LIKE 'sent twice%'"] }) })).json()).results?.[0]?.[0]?.n;
+    const count = async () => (await sqlResults(["SELECT COUNT(*) AS n FROM feedback WHERE note LIKE 'sent twice%'"]))?.[0]?.[0]?.n;
     const a = await report(U, body, APP, { "Idempotency-Key": key });
     const b = await report(U, body, APP, { "Idempotency-Key": key });
     ok(a.status === 201 && b.status === 201 && b.headers.get("idempotent-replayed") === "true", "the second try gets the first reply back");
@@ -57,12 +48,12 @@ try {
   ok(Array.isArray(o.byFeature) && o.scans && typeof o.scans.costCents === "number", "...and cost by feature and for scanned pages");
   ok(o.openAccess && ["ready", "working", "failed", "unreadable"].every((k) => typeof o.openAccess[k] === "number") && Array.isArray(o.openAccess.bySource) && Array.isArray(o.openAccess.reasons), "...and the shared index of open-access papers, as numbers");
   // cost is read from the ledger: three calls of two kinds, one scanned-page day
-  await fetch(`${APP}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: [
+  await sqlResults([
     "INSERT INTO llm_usage (subject, task, sensitivity, provider, model, tokens_in, tokens_out, cost_cents, ok, ms, label) VALUES ('t', 'qa', 'private', 'workersai', '@cf/openai/gpt-oss-120b', 1000, 300, 0.05, 1, 100, 'doc_qa')",
     "INSERT INTO llm_usage (subject, task, sensitivity, provider, model, tokens_in, tokens_out, cost_cents, ok, ms, label) VALUES ('t', 'qa', 'private', 'workersai', '@cf/openai/gpt-oss-120b', 2000, 3000, 0.3, 1, 100, 'idea_compare')",
     "INSERT INTO llm_usage (subject, task, sensitivity, provider, model, tokens_in, tokens_out, cost_cents, ok, ms, label) VALUES ('t', 'qa', 'private', 'workersai', '@cf/openai/gpt-oss-120b', 0, 0, 0, 0, 100, 'idea_compare')",
     "INSERT INTO ocr_usage (user_id, day, pages, neurons) SELECT id, date('now'), 10, 1800 FROM users LIMIT 1",
-  ] }) });
+  ]);
   const o2 = await (await U.api("/api/v1/admin/overview")).json();
   const cmp = o2.byFeature.find((f) => f.feature === "idea_compare");
   ok(cmp && cmp.calls === 2 && cmp.failed === 1 && cmp.tokensOut === 3000 && Math.abs(cmp.costCents - 0.3) < 1e-6, "cost by feature adds up what each step used, failed calls included");
@@ -96,8 +87,7 @@ try {
   ok(after.feedback.length === 0, "deleting the account removed every report it had sent");
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 }
 await idp.close?.();
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall feedback checks passed");
-process.exit(failures ? 1 : 0);
+finish("all feedback checks passed", (n) => `${n} check(s) FAILED`);

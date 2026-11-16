@@ -1,16 +1,12 @@
 // The MCP server (src/mcp) end to end: real Worker + local D1 + local KV + the fake identity provider. An app registers itself, sends a person through Sodhsetu's sign-in and consent with PKCE, gets a
-// token, and calls the tools over the real MCP protocol (Phase 1, then ask_paper, the library tools with a second app that asks for the library, and check_claim); the person sees it under Connected apps and disconnects it. With INTEGRATION_MCP=off (a second run, --only="MCP server integration") every
-// path of the server answers 404, as before it existed.
+// token, and calls the tools over the real MCP protocol (Phase 1, then ask_paper, the library tools with a second app that asks for the library, and check_claim); the person sees it under Connected apps and disconnects it. With MCP off (the named run --run=mcp-off of scripts/integration.mjs)
+// every path of the server answers 404, as before it existed. Written for MCP "on" (--run=mcp-on) and "off"; the default run (production's "beta") skips it.
 import crypto from "node:crypto";
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
+import { APP, ok, countFailure, finish, startIdp, createClient, at, sqlResults } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
-const sql = async (statements) => (await (await fetch(`${APP}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: statements }) })).json()).results;
+const sql = (statements) => sqlResults(statements);
 
-if (process.env.INTEGRATION_MCP === "off") {
+if (at("MCP", "off")) {
   console.log("the switch off: every path of the MCP server is the 404 it was before");
   for (const p of ["/mcp", "/oauth/authorize", "/oauth/token", "/oauth/register", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp", "/api/v1/connected-apps"]) {
     const r = await fetch(`${APP}${p}`, { redirect: "manual" });
@@ -19,11 +15,10 @@ if (process.env.INTEGRATION_MCP === "off") {
   }
   const post = await fetch(`${APP}/mcp`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
   ok(post.status === 404, "a POST to /mcp: 404 too");
-  console.log(failures === 0 ? "\nall MCP (off) checks passed" : `\n${failures} FAILED`);
-  process.exit(failures === 0 ? 0 : 1);
+  finish("all MCP (off) checks passed");
 }
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 const b64url = (buf) => Buffer.from(buf).toString("base64url");
 const pkce = () => {
   const verifier = b64url(crypto.randomBytes(32));
@@ -178,9 +173,8 @@ try {
   ok(adm.mode === "on" && adm.tools.some((x) => x.tool === "check_retractions" && x.ok >= 1) && adm.clients.some((x) => x.client === "Test MCP App"), "an admin sees calls by tool and by app");
 } catch (e) {
   console.error(e);
-  failures++;
+  countFailure();
 } finally {
   idp.close?.();
 }
-console.log(failures === 0 ? "\nall MCP checks passed" : `\n${failures} FAILED`);
-process.exit(failures === 0 ? 0 : 1);
+finish("all MCP checks passed");

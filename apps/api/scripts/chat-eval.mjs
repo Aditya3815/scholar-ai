@@ -13,8 +13,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
+import { APP } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
 const gate = process.argv.includes("--gate");
 // --dump=<file>: what each answer said and the sentences it rests on, to be read by a person (P7: comparing models by what they write, not only by the checks)
 const tag = process.argv.find((a) => a.startsWith("--tag="))?.slice(6);
@@ -52,7 +52,7 @@ const TOPIC_QUESTIONS = process.argv.includes("--questions=gold") ? [...new Set(
 const groups = process.argv.find((a) => a.startsWith("--groups="))?.slice(9)?.split(",");
 const want = (g) => !groups || groups.includes(g);
 
-const idp = await startFakeIdp(9911);
+const idp = await startFakeIdp();
 const results = [];
 let n = 0;
 

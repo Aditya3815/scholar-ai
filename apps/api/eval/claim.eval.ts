@@ -2,26 +2,21 @@
 // hand-labelled claims of the support judge (scripts/fixtures/support-gold.json): each labelled claim is checked ALONE against the papers it cites, as an AI app would send it (the claim and its
 // DOIs), with the model's answers RECORDED once from live Workers AI and replayed here, so `npm run eval` (and CI) checks the gate offline:
 //   npm run eval                                                  replay (CI): fails if a prompt has no recording (re-record after any change to the strict prompt or to judgeClaim)
-//   CLAIM_EVAL=record npx vitest run -c vitest.eval.config.ts eval/claim.eval.ts --silent=false
-//                                                                 record: live Workers AI through `wrangler`'s own login (no key is read from any file), then replay
+//   EVAL_MODE=record npx vitest run -c vitest.eval.config.ts eval/claim.eval.ts --silent=false
+//                                                                 record what is missing: live Workers AI through `wrangler`'s own login (no key is read from any file), then replay
+//                                                                 (eval/lib/model-layer.ts; the recording is data/claim-recorded.json.gz)
 // The gate: no claim a person labelled "no" (not supported) is called supported. Partial verdicts on those claims, and what happens to the claims labelled yes and partial, are printed.
 import { afterAll, describe, expect, it } from "vitest";
-import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { gunzipSync, gzipSync } from "node:zlib";
-import type { StreamComplete } from "../src/docs/qa";
 import { judgeClaim, type ClaimJudgement, type ClaimPaper } from "../src/chat/claim-check";
 import { splitClaims } from "../src/chat/support";
 import { DEFAULT_CONFIG } from "../src/llm/config";
 import { createGateway } from "../src/llm/gateway";
 import { workersAiProvider } from "../src/llm/providers/workersai";
+import { ModelLayer } from "./lib/model-layer";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
-const RECORDING = HERE + "data/claim-recorded.json.gz";
-const RECORD = process.env.CLAIM_EVAL === "record";
 /** The model the strict reading uses (the private `qa` chain, as "Check strictly" and check_claim call it). */
 const MODEL = DEFAULT_CONFIG.routes.qa!.private[0]!.model;
 
@@ -41,56 +36,25 @@ const items: Item[] = gold.cases.flatMap((c) => {
   });
 });
 
-type Call = { ok: boolean; json?: unknown; error?: string; ms: number };
-type Recording = { version: 1; recordedAt: string; model: string; note: string; calls: Record<string, Call> };
-const recording: Recording = existsSync(RECORDING) ? (JSON.parse(gunzipSync(readFileSync(RECORDING)).toString("utf8")) as Recording) : { version: 1, recordedAt: "", model: MODEL, note: "", calls: {} };
-const keyOf = (system: string, user: string) => createHash("sha256").update(`${MODEL}\n${system}\n${user}`).digest("hex").slice(0, 32);
-
-let live: StreamComplete | null = null;
-let dispose: (() => Promise<void>) | null = null;
-async function startLive() {
-  // a config of its own with the AI binding only: nothing of the app is started, and wrangler's own login is used
-  const dir = mkdtempSync(join(tmpdir(), "claim-record-"));
-  const config = join(dir, "wrangler.jsonc");
-  writeFileSync(config, JSON.stringify({ name: "claim-record", compatibility_date: "2026-10-01", ai: { binding: "AI", remote: true } }));
-  const { getPlatformProxy } = await import("wrangler");
-  const proxy = await getPlatformProxy<{ AI: Ai }>({ configPath: config });
-  dispose = () => proxy.dispose();
-  const gateway = createGateway({ providers: { workersai: workersAiProvider(proxy.env.AI) }, ledger: { tokensToday: async () => 0, record: async () => {} }, config: DEFAULT_CONFIG });
-  live = async (req, hooks) => {
-    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject: "eval", system: req.system, user: req.user, schema: req.schema, maxTokens: 4500, timeoutMs: 120_000, label: req.label }, hooks);
-    return { json: r.json, model: r.model };
-  };
-}
-
-const missing: string[] = [];
-const judge: StreamComplete = async (req, hooks) => {
-  const key = keyOf(req.system, req.user);
-  let call = recording.calls[key];
-  if (!call && RECORD && live) {
-    const t0 = Date.now();
-    try {
-      const r = await live(req, hooks);
-      call = { ok: true, json: r.json, ms: Date.now() - t0 };
-    } catch (e) {
-      // the error's class and a short reason only: never the prompt
-      call = { ok: false, error: e instanceof Error ? `${e.name}: ${e.message}`.replace(/\s+/g, " ").slice(0, 160) : "error", ms: Date.now() - t0 };
-    }
-    recording.calls[key] = call;
-  }
-  if (!call) {
-    missing.push(key);
-    throw new Error("no recording");
-  }
-  if (!call.ok) throw new Error(call.error ?? "failed");
-  return { json: call.json, model: MODEL };
-};
+const layer = new ModelLayer({
+  file: HERE + "data/claim-recorded.json.gz",
+  layout: { kind: "flat", model: MODEL },
+  note: "Live Workers AI through wrangler's remote proxy from a laptop; each claim of scripts/fixtures/support-gold.json alone, against the papers it cites.",
+  ask: (ai) => {
+    const gateway = createGateway({ providers: { workersai: workersAiProvider(ai) }, ledger: { tokensToday: async () => 0, record: async () => {} }, config: DEFAULT_CONFIG });
+    return async (_model, req, hooks) => {
+      const r = await gateway.stream({ task: "qa", sensitivity: "private", subject: "eval", system: req.system, user: req.user, schema: req.schema, maxTokens: 4500, timeoutMs: 120_000, label: req.label }, hooks ?? {});
+      return { json: r.json };
+    };
+  },
+});
+const RECORD = layer.mode === "record";
+const judge = layer.session(MODEL);
 
 const results: { item: Item; j: ClaimJudgement }[] = [];
 
 describe("check_claim on the support judge's labelled claims", () => {
   it("checks every labelled claim", { timeout: 2 * 60 * 60 * 1000 }, async () => {
-    if (RECORD) await startLive();
     try {
       const queue = [...items];
       await Promise.all(
@@ -99,13 +63,7 @@ describe("check_claim on the support judge's labelled claims", () => {
         }),
       );
     } finally {
-      if (RECORD) {
-        recording.recordedAt = new Date().toISOString();
-        recording.model = MODEL;
-        recording.note = "Live Workers AI through wrangler's remote proxy from a laptop; each claim of scripts/fixtures/support-gold.json alone, against the papers it cites.";
-        writeFileSync(RECORDING, gzipSync(JSON.stringify(recording)));
-        await dispose?.();
-      }
+      await layer.close();
     }
     expect(results.length).toBe(items.length);
   });
@@ -123,7 +81,7 @@ describe("check_claim on the support judge's labelled claims", () => {
   });
 
   it("needs no prompt that was not recorded (replay)", () => {
-    if (!RECORD) expect(missing).toEqual([]);
+    expect([...layer.missing]).toEqual([]);
   });
 });
 
@@ -133,7 +91,7 @@ afterAll(() => {
     const n = (v: string) => rs.filter((r) => r.j.verdict === v).length;
     return `${label} ${rs.length}: supported ${n("supported")}, partly ${n("partly")}, not_supported ${n("not_supported")}, cannot_check ${n("cannot_check")}`;
   };
-  const ms = Object.values(recording.calls).map((c) => c.ms).sort((a, b) => a - b);
+  const ms = layer.recorded(MODEL).map((c) => c.ms).sort((a, b) => a - b);
   const pct = (p: number) => (ms.length ? ms[Math.min(ms.length - 1, Math.floor((p / 100) * ms.length))] : 0);
-  process.stdout.write(`\ncheck_claim (${RECORD ? "record" : "replay"}, ${recording.model}): ${by("no")}; ${by("partial")}; ${by("yes")}; recorded p50 ${pct(50)} ms, p95 ${pct(95)} ms${missing.length ? `; ${missing.length} without a recording` : ""}\n`);
+  process.stdout.write(`\ncheck_claim (${layer.mode}, ${layer.recordedModel}): ${by("no")}; ${by("partial")}; ${by("yes")}; recorded p50 ${pct(50)} ms, p95 ${pct(95)} ms${layer.missing.size ? `; ${layer.missing.size} without a recording` : ""}\n`);
 });

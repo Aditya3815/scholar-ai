@@ -4,27 +4,15 @@
 // with Save-Data, on a 2g connection, without WebAssembly, and when the runtime cannot be fetched. And that none of it is in the first load.
 // Needs the Worker with the fake identity provider and the offline stand-ins: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/rive.mjs [baseUrl]
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, REFUSED, axeCheck, countFailure, desk, finish, launch, ok, setTheme as setThemeOn, sleep, startIdp, watchPage } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "rive-ui-1", email: "rhea.k@example.edu", email_verified: true, name: "Rhea K" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
-const watch = (p, allow = /^$/) => {
-  p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409)/.test(m.text()) && !allow.test(m.text())) errors.push("console: " + m.text()); });
-};
+const watch = (p, allow = /^$/) => watchPage(p, errors, { allowed: { test: (t) => REFUSED.test(t) || allow.test(t) } });
 /** The addresses of what the page fetched that belong to the Rive runtime or its files. */
 const watchRive = (p) => {
   const seen = [];
@@ -32,16 +20,8 @@ const watchRive = (p) => {
   return seen;
 };
 
-async function axe(label, p) {
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  ok(res.length === 0, `axe [${label}]`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
-const setTheme = async (p, t) => { await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), t); await sleep(1300); };
+const axe = (label, p) => axeCheck(p, label);
+const setTheme = (p, t) => setThemeOn(p, t, 1300);
 async function signIn(page) {
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
   await page.locator(".in-head").getByRole("button", { name: /^Sign in$/ }).click();
@@ -76,7 +56,7 @@ try {
   /* ============================ none of it in the first load ============================ */
   console.log("the first load");
   {
-    const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+    const ctx = await browser.newContext(desk(1360, 900));
     const page = await ctx.newPage();
     watch(page);
     const seen = watchRive(page);
@@ -89,7 +69,7 @@ try {
 
   /* ============================ the bridge, in a real scan ============================ */
   console.log("the bridge while a scan runs");
-  const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+  const ctx = await browser.newContext(desk(1360, 900));
   const page = await ctx.newPage();
   watch(page);
   const seen = watchRive(page);
@@ -287,7 +267,7 @@ try {
   }
   {
     // allowed, but the runtime cannot be fetched
-    const c = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+    const c = await browser.newContext(desk(1360, 900));
     const p = await c.newPage();
     // the runtime says so in the console when it cannot start (this one is meant to fail), and then asks a CDN for its own fallback, which the CSP refuses
     watch(p, /Failed to load resource|ERR_|wasm streaming compile failed|falling back to ArrayBuffer|failed to asynchronously prepare wasm|Failed to fetch|Aborted\(|jsdelivr|Content Security Policy/);
@@ -304,9 +284,8 @@ try {
   ok(errors.length === 0, `no errors in the browser console${errors.length ? ": " + errors.slice(0, 3).join(" | ") : ""}`);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 }
 idp.close();
 await browser.close();
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall Rive picture checks passed");
-process.exit(failures ? 1 : 0);
+finish("all Rive picture checks passed", (n) => `${n} check(s) FAILED`);

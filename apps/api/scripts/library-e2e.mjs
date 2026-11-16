@@ -1,14 +1,7 @@
 // Library + account integration test: real Worker + local D1 + fake IdP. Same setup as auth-e2e.mjs:
-//   npx wrangler d1 migrations apply scholar-db --local
-//   npx wrangler dev --port 8788 --var GOOGLE_CLIENT_ID:dev --var GOOGLE_CLIENT_SECRET:dev-secret \
-//     --var DEV_IDP_URL:http://localhost:9911
-//   node scripts/library-e2e.mjs
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
+//   node scripts/integration.mjs --only="library integration"
+import { APP, ok, countFailure, finish, startIdp, createClient, loginWith } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
 const paper = (n, over = {}) => ({
   id: `doi:10.1000/test.${n}`, doi: `10.1000/test.${n}`, pmid: null, title: `Test paper ${n}`, authors: ["A. Author", "B. Writer"],
@@ -17,13 +10,8 @@ const paper = (n, over = {}) => ({
 });
 const enc = (id) => encodeURIComponent(id);
 
-const idp = await startFakeIdp(9911);
-const login = async (sub, email, name) => {
-  idp.setUser({ sub, email, email_verified: true, name });
-  const c = createClient(APP);
-  await c.follow(`${APP}/api/v1/auth/google/start`);
-  return c;
-};
+const idp = await startIdp();
+const login = loginWith(idp);
 
 try {
   console.log("anonymous access is refused");
@@ -93,9 +81,8 @@ try {
   ok(newId !== oldId && (await lib(A2)).length === 0, "signing in again creates a brand-new empty account (nothing survived deletion)");
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   idp.close();
 }
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall library/account checks passed");
-process.exit(failures ? 1 : 0);
+finish("all library/account checks passed", (n) => `${n} check(s) FAILED`);

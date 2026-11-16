@@ -1,3 +1,5 @@
+import { SWITCHES } from "../platform/switches";
+
 /**
  * The names of what the Trending feed keeps in Workers KV (the `CACHE` namespace the public lookups already use: docs/spikes/R6-kv-cache.md). Everything here is public data made from OpenAlex
  * and arXiv counts: no person, no text a person wrote. The keys are not under the cache's `v1:` prefix, so the cache's "throw everything away" (a new KV_VERSION) leaves them alone.
@@ -11,7 +13,8 @@
  */
 export const TRENDING_KEYS = {
   file: "trending:v1",
-  off: "trending:v1:off",
+  /** the KV key of the switch TRENDING, declared with it (platform/switches.ts) */
+  off: SWITCHES.TRENDING.kv.key,
   pool: "trending:v1:pool",
   scan: "trending:v1:scan",
   deny: "trending:v1:deny",

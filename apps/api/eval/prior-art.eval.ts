@@ -7,12 +7,13 @@
 // NOT measured here: the AI step that writes the plan (a person's idea is not as clean as an abstract) and the meaning re-rank, which needs
 // the embedding model; both are checked by hand and in the live run (scripts/archive/idea-live.mjs). So this is the retrieval's floor, not the whole product.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { memoryStore } from "../src/cache/store";
 import { runIdeaSearch } from "../src/idea/search";
 import { tokenize } from "../src/references/match";
-import { FetchLayer, type Mode } from "./lib/fetch-layer";
+import { FetchLayer } from "./lib/fetch-layer";
+import { evalMode } from "./lib/mode";
 
 /* Gates: set a little below the first recording (22 Oct 2026: hit rate 85%, three or more found 48%, mean recall 7.4%), so a real drop fails the build and ordinary data drift does not. */
 const GATES = {
@@ -22,16 +23,15 @@ const GATES = {
   meanRecall: 0.06,
 };
 
-const MODE = (process.env.EVAL_MODE ?? "replay") as Mode;
+const MODE = evalMode();
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 type Ref = { doi: string; title: string };
 type Item = { group: "india" | "global"; doi: string; title: string; year: number; abstract: string; refs: Ref[] };
 const items = JSON.parse(readFileSync(HERE + "data/prior_art.json", "utf8")) as Item[];
 
 const FIXTURES = HERE + "fixtures-prior-art.json.gz";
-/** Until the first recording exists (it needs a valid OpenAlex key: the meaning search refuses calls without one) this eval is skipped in replay. */
-const SKIP = MODE === "replay" && !existsSync(FIXTURES);
-const layer = new FetchLayer(SKIP ? "live" : MODE, FIXTURES);
+// In replay a fixtures file that is not there fails this eval (FetchLayer throws): a lost recording must not turn the gate into a pass.
+const layer = new FetchLayer(MODE, FIXTURES);
 // every check gets a fresh store: its DOI and retraction checks then ask for the whole set of DOIs, which is what the recorded requests are
 const env = {
   OPENALEX_API_KEY: process.env.OPENALEX_API_KEY ?? "eval",
@@ -66,7 +66,6 @@ const rowsBy: Record<ConfigName, Row[]> = { base: [], "+PubMed": [], "+arXiv": [
 const SHIPPED: ConfigName = "all";
 
 beforeAll(async () => {
-  if (SKIP) return;
   layer.install();
   for (const it of items) {
     for (const name of Object.keys(CONFIGS) as ConfigName[]) {
@@ -79,7 +78,6 @@ beforeAll(async () => {
 }, 90 * 60 * 1000);
 
 afterAll(() => {
-  if (SKIP) return;
   layer.save();
   layer.uninstall();
 });
@@ -88,7 +86,7 @@ const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.l
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const stats = (rs: Row[]) => ({ n: rs.length, hit: mean(rs.map((r) => (r.found > 0 ? 1 : 0))), recall: mean(rs.map((r) => r.found / r.refs)), atLeast3: mean(rs.map((r) => (r.found >= 3 ? 1 : 0))) });
 
-describe.skipIf(SKIP)("prior-art recall", () => {
+describe("prior-art recall", () => {
   it("reports and gates", () => {
     const rows = rowsBy[SHIPPED];
     const all = stats(rows);
@@ -109,7 +107,7 @@ describe.skipIf(SKIP)("prior-art recall", () => {
       ...rows.filter((r) => r.found === 0).map((r) => `  [${r.group}] ${r.title.slice(0, 90)} (${r.refs} refs)`),
     ];
     process.stdout.write(lines.join("\n") + "\n");
-    if (MODE === "replay") expect(layer.missing.slice(0, Number(process.env.EVAL_LIST_MISSING ?? 3)), "re-record the prior-art fixtures if the search code changed on purpose").toEqual([]);
+    expect(layer.missing.slice(0, Number(process.env.EVAL_LIST_MISSING ?? 3)), "re-record the prior-art fixtures if the search code changed on purpose").toEqual([]);
     expect(all.hit, "share of papers with at least one reference found").toBeGreaterThanOrEqual(GATES.hitRate);
     expect(all.recall, "mean share of references found").toBeGreaterThanOrEqual(GATES.meanRecall);
   });

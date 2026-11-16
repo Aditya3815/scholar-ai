@@ -16,8 +16,8 @@
 import { readFileSync } from "node:fs";
 import { startFakeIdp } from "./fake-idp.mjs";
 import { createClient } from "./test-client.mjs";
+import { APP } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
 const gate = process.argv.includes("--gate");
 const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7);
 const LIMITS = { readable: 0.8, answered: 0.75, correct: 0.7, controls: 0.8, slice: 0.7, script: 0.9 };
@@ -96,7 +96,7 @@ const PAPERS = [
 
 // Against a deployed Worker (staging) there is no fake identity provider: SESSIONS is a file of session cookies made by scripts/staging-session.mjs, one account per paper.
 const SESSIONS = process.env.SESSIONS ? JSON.parse(readFileSync(process.env.SESSIONS, "utf8")) : null;
-const idp = SESSIONS ? { close() {} } : await startFakeIdp(9911);
+const idp = SESSIONS ? { close() {} } : await startFakeIdp();
 const run = Date.now();
 let n = 0;
 async function client() {

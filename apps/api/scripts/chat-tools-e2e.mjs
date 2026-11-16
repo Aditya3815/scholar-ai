@@ -2,33 +2,21 @@
 // check (src/chat/tools-stub.ts), Crossref's retraction data (src/library/retraction-stub.ts) and the open-access network (src/oa/stub.ts). The retraction service, "Ask this paper" and a paper's
 // own ask are the real ones.
 // - Default run (CHAT_TOOLS "on" in wrangler.jsonc, which scripts/integration.mjs passes on in INTEGRATION_VARS): the cheap tools run in the reply.
-// - INTEGRATION_VARS="CHAT_TOOLS:off" (with --only="chat tools"): a pasted list is still OFFERED (the card), and nothing runs.
+// - CHAT_TOOLS off (the named run --run=chat-tools-off of scripts/integration.mjs): a pasted list is still OFFERED (the card), and nothing runs.
 // - Add CHAT_UNDERSTAND:on to also see a question about one paper of the chat answered from that paper.
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
 import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
+import { APP, ok, countFailure, finish, startIdp, createClient, loginWith, at, readEvents } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
-const VARS = process.env.INTEGRATION_VARS ?? "";
-const TOOLS_ON = /(^|,)CHAT_TOOLS:on(,|$)/.test(VARS);
-const UND_ON = /(^|,)CHAT_UNDERSTAND:on(,|$)/.test(VARS);
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
+const TOOLS_ON = at("CHAT_TOOLS", "on");
+const UND_ON = at("CHAT_UNDERSTAND", "on");
 
-const idp = await startFakeIdp(9911);
-const login = async (sub, email, name) => {
-  idp.setUser({ sub, email, email_verified: true, name });
-  const c = createClient(APP);
-  await c.follow(`${APP}/api/v1/auth/google/start`);
-  await c.ack();
-  return c;
-};
+const idp = await startIdp();
+const login = loginWith(idp);
 
 async function chat(client, body) {
   const res = await client.send(`${APP}/api/v1/chat`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify(body) });
-  const text = await res.text();
-  const all = text.split("\n\n").flatMap((b) => { const d = b.split("\n").find((l) => l.startsWith("data:")); return d ? [JSON.parse(d.slice(5))] : []; });
+  const { events: all } = await readEvents(res);
   const events = all.filter((e) => e.type !== "think");
   return { res, events, think: all.filter((e) => e.type === "think"), tools: events.filter((e) => String(e.type).startsWith("tool")), done: events.at(-1), understood: events.find((e) => e.type === "understood") };
 }
@@ -119,9 +107,8 @@ try {
   reportStreams(ok);
 } catch (e) {
   console.error(e);
-  failures++;
+  countFailure();
 } finally {
   idp.close?.();
 }
-console.log(failures ? `\n${failures} FAIL` : "\nall ok");
-process.exit(failures ? 1 : 0);
+finish("all ok", (n) => `${n} FAIL`);

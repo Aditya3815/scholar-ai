@@ -1,21 +1,11 @@
 // W4: asking any open-access paper. Real Worker + local D1, R2 and Workflows + fake IdP, with the offline stand-ins for the network (Europe PMC, OpenAlex, arXiv, publishers) and for
 // the model and embeddings (QA_STUB=1). `npm run integration -w apps/api` starts everything. The DOI says what the stand-in network does: see src/oa/stub.ts.
-import { startFakeIdp } from "./fake-idp.mjs";
-import { createClient } from "./test-client.mjs";
 import { checkStream, reportStreams } from "./lib/stream-rule.mjs";
+import { APP, ok, countFailure, finish, startIdp, createClient, loginWith, sqlResults, readEvents } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
-const login = async (sub, email, name) => {
-  idp.setUser({ sub, email, email_verified: true, name });
-  const c = createClient(APP);
-  await c.follow(`${APP}/api/v1/auth/google/start`);
-  await c.ack();
-  return c;
-};
+const idp = await startIdp();
+const login = loginWith(idp);
 
 /** Asks a paper and reads the whole stream. */
 async function ask(client, ref, question, { origin = APP, abstract, raw } = {}) {
@@ -24,26 +14,12 @@ async function ask(client, ref, question, { origin = APP, abstract, raw } = {}) 
     headers: { ...(origin ? { Origin: origin } : {}), "Content-Type": "application/json", Accept: "text/event-stream" },
     body: raw ?? JSON.stringify({ ...ref, question, ...(abstract ? { abstract } : {}) }),
   });
-  if (!res.ok || !String(res.headers.get("content-type")).includes("text/event-stream")) return { res, events: [], text: "" };
-  const events = [];
-  const dec = new TextDecoder();
-  let buf = "";
-  let text = "";
-  for await (const part of res.body) {
-    const s = dec.decode(part, { stream: true });
-    text += s;
-    buf += s;
-    let i;
-    while ((i = buf.indexOf("\n\n")) >= 0) {
-      const data = buf.slice(0, i).split("\n").find((l) => l.startsWith("data:"));
-      buf = buf.slice(i + 2);
-      if (data) events.push(JSON.parse(data.slice(5)));
-    }
-  }
+  if (!res.ok || !String(res.headers.get("content-type")).includes("text/event-stream")) return { res, events: [] };
+  const { events } = await readEvents(res);
   checkStream("ask", events, JSON.stringify(ref).slice(0, 40));
-  return { res, events, text };
+  return { res, events };
 }
-const sql = async (...statements) => (await (await fetch(`${APP}/api/v1/dev/sql`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sql: statements }) })).json()).results ?? [];
+const sql = async (...statements) => (await sqlResults(statements)) ?? [];
 const paperRow = async (key) => (await sql(`SELECT * FROM oa_papers WHERE key = '${key}'`))[0]?.[0];
 const of = (events, type) => events.filter((e) => e.type === type);
 const last = (events) => events.at(-1);
@@ -220,10 +196,9 @@ try {
   reportStreams(ok);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   idp.close();
-  console.log(failures ? `\n${failures} FAILED` : "\nall open-access checks passed");
-  process.exit(failures ? 1 : 0);
+  finish("all open-access checks passed");
 }
 

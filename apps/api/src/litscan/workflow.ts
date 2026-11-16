@@ -8,6 +8,7 @@ import { answerModel, judgeModel, searchFor, stubbed } from "./model";
 import { appendEvent, endScan, getScanForRun, itemsOf, partsOf } from "./store";
 import { answerSubQuestion } from "./worker";
 import type { Env } from "../platform/env";
+import { killSwitch } from "../platform/switches";
 
 /**
  * A literature scan as a Cloudflare Workflow (spike R10, docs/design/litscan.md): one instance per scan, one named step per sub-question, all started at once. A step that fails is tried
@@ -55,7 +56,7 @@ export class LitscanRun extends WorkflowEntrypoint<Env, LitscanParams> {
               idx,
               item,
               language: scan.language,
-              deps: { search: searchFor(env, scan.scope), stream, judge: env.CHAT_JUDGE === "off" ? undefined : judge },
+              deps: { search: searchFor(env, scan.scope), stream, judge: killSwitch(env, "CHAT_JUDGE") === "off" ? undefined : judge },
               onStage: async (stage) => void (await appendEvent(db, id, `w:${idx}:${stage}`, { type: "worker", idx, stage })),
               signal: clock.signal,
             });

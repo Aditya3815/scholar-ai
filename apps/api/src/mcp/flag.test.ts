@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { MCP_PATHS, betaUsers, checkClaimAllowedFor, isMcpPath, mcpAllowedFor, mcpMode } from "./flag";
-import { positionOfVariable } from "../understand/flags";
+import { positionOfVariable } from "../platform/switches";
 
 const kv = (value: string | null) => ({ get: async () => value }) as unknown as KVNamespace;
 const OAUTH = { OAUTH_KV: kv(null) };

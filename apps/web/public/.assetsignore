@@ -1,0 +1,3 @@
+# Files of the build that are not served (wrangler reads this file in the assets directory, apps/web/dist, and does not upload it either).
+# The build manifest (vite.config.ts build.manifest), read only by scripts/budget.mjs.
+.vite

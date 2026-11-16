@@ -2,45 +2,30 @@
 // Needs the Worker with the fake identity provider AND the offline model stand-in (QA_STUB=1):
 // `npm run integration -w apps/api -- --browser` starts it. Search results are mocked so the preview checks are deterministic.
 //   node e2e/papers.mjs [baseUrl]    (default http://localhost:8788)
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 import { SAMPLE_PAPER, makePdf, makePdfLines } from "@scholar/test-support/make-pdf.mjs";
+import { BASE, axeCheck, clickTheme, countFailure, finish, launch, ok, until as poll, startIdp } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
 // Injected with evaluate(), which CSP does not apply to, so the policy under test stays strict.
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const OUT = fileURLToPath(new URL("./shots/", import.meta.url));
 mkdirSync(OUT, { recursive: true });
 
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(Number(process.env.INTEGRATION_IDP_PORT ?? 9911));
+const idp = await startIdp();
 idp.setUser({ sub: "papers-ui-1", email: "kavya@example.edu", email_verified: true, name: "Kavya Menon" });
 
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 }, acceptDownloads: true });
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401)/.test(m.text())) errors.push("console: " + m.text()); });
 
-async function axe(label, p = page) {
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  ok(res.length === 0, `axe [${label}]: ${res.length ? "" : "no violations"}`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
+const axe = (label, p = page) => axeCheck(p, label, { said: true });
 const shot = (name, p = page) => p.screenshot({ path: OUT + name + ".png" });
-const setTheme = async (label) => { await page.getByRole("button", { name: `${label} theme` }).click(); await page.waitForTimeout(500); };
-const until = async (fn, ms = 15000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await page.waitForTimeout(150); } return false; };
+const setTheme = (label) => clickTheme(page, label, 500);
+const until = (fn, ms = 15000) => poll(fn, { ms, every: 150 });
 
 const papers = [1, 2, 3].map((n) => ({
   id: `doi:10.1000/prev.${n}`, doi: `10.1000/prev.${n}`, pmid: n === 2 ? "123456" : null, title: `Preview test paper number ${n}: effects on outcomes`,
@@ -669,8 +654,7 @@ try {
   ok(errors.length === 0, `no console/page errors${errors.length ? ": " + errors.join(" | ").slice(0, 500) : ""}`);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 }
 await browser.close();
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall papers browser checks passed");
-process.exit(failures ? 1 : 0);
+finish("all papers browser checks passed", (n) => `${n} check(s) FAILED`);

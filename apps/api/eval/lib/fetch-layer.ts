@@ -1,4 +1,4 @@
-// Record / replay / live HTTP for the eval harness.
+// Record / replay / live HTTP for the eval harness (the mode is EVAL_MODE, read by mode.ts; model calls have the same layer in model-layer.ts).
 //   replay: every request is answered from eval/fixtures.json.gz (deterministic, offline, free). A request with no fixture is
 //           recorded in `missing` and fails loudly: it means the code now asks for something we never recorded.
 //   record: real network, throttled per host, bodies trimmed to the fields our code reads, saved to the fixtures file.
@@ -9,7 +9,9 @@ import { gunzipSync, gzipSync } from "node:zlib";
 // @ts-expect-error plain .mjs shared with the scrub script
 import { trimBody } from "./trim.mjs";
 
-export type Mode = "replay" | "record" | "live";
+import type { Mode } from "./mode";
+
+export type { Mode } from "./mode";
 type Fixture = { s: number; b: string };
 
 const realFetch = globalThis.fetch.bind(globalThis);

@@ -11,22 +11,14 @@
 // Pictures (light, dark, desktop, phone; cards off = before, on = after) go to SHOTS_DIR (default e2e/shots/).
 // Needs the Worker with the fake identity provider: `npm run integration -w apps/api -- --browser --only="browser: citation cards"`.
 //   node e2e/cites.mjs [baseUrl]    (default http://localhost:8788)
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 import { makePdf } from "@scholar/test-support/make-pdf.mjs";
+import { BASE, REFUSED_OR_BUSY, axeCheck, countFailure, desk, finish, launch, ok, phone, sleep, startIdp, watchPage } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const SHOTS = process.env.SHOTS_DIR ?? fileURLToPath(new URL("./shots/", import.meta.url));
 mkdirSync(SHOTS, { recursive: true });
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const PAPER = [
   [
@@ -57,26 +49,14 @@ function verdictFor(reference) {
   return { ...base, status: "unverifiable", match: null };
 }
 
-const idp = await startFakeIdp(Number(process.env.INTEGRATION_IDP_PORT ?? 9911));
+const idp = await startIdp();
 idp.setUser({ sub: "cites-1", email: "meera.k@example.edu", email_verified: true, name: "Meera K" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
-const watch = (p) => {
-  p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409|429|503)/.test(m.text())) errors.push("console: " + m.text()); });
-};
-async function axe(label, p) {
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    // A citation is a target inside a sentence, as large as its words: WCAG 2.2's target-size criterion (2.5.8) excepts such inline targets ("the size of the target is constrained
-    // by the line-height of non-target text"). axe cannot tell (the buttons are laid over the page's text, not in it), so only those nodes of that one rule are left out.
-    for (const v of r.violations) if (v.id === "target-size") v.nodes = v.nodes.filter((n) => !n.target.join(" ").includes("data-cite"));
-    return r.violations.filter((v) => v.nodes.length > 0).map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  ok(res.length === 0, `axe [${label}]`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
+const watch = (p) => watchPage(p, errors, { allowed: REFUSED_OR_BUSY });
+// A citation is a target inside a sentence, as large as its words: WCAG 2.2's target-size criterion (2.5.8) excepts such inline targets ("the size of the target is constrained
+// by the line-height of non-target text"). axe cannot tell (the buttons are laid over the page's text, not in it), so only those nodes of that one rule are left out.
+const axe = (label, p) => axeCheck(p, label, { inlineCites: true });
 const verifyRoute = async (ctx) => {
   await ctx.route("**/api/v1/references/verify", async (route) => {
     const body = JSON.parse(route.request().postData() ?? "{}");
@@ -89,7 +69,7 @@ const statusText = (p) => p.evaluate(() => { const s = document.querySelector(".
 
 try {
   /* ================================================================ sign in and upload the paper */
-  const c0 = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const c0 = await browser.newContext(desk(1280, 860));
   const p0 = await c0.newPage();
   watch(p0);
   await p0.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -351,10 +331,9 @@ try {
   ok(errors.length === 0, `no errors in the page${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""}`);
 } catch (e) {
   console.log(" FAIL  " + (e?.stack ?? e));
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   await idp.close?.();
 }
-console.log(failures ? `\n${failures} failure(s)` : "\nall citation card checks passed");
-process.exit(failures ? 1 : 0);
+finish("all citation card checks passed", (n) => `${n} failure(s)`);

@@ -74,7 +74,7 @@ type SecretsAndVariables = {
   CHAT_CONTEXT?: string;
   /**
    * R3 (docs/design/intent-and-state.md, 4.4): "on" counts what a message in the prompt box looked like, by closed names and never any of its text (feature `chat_input`). Unset, "off" and "shadow" count
-   * nothing: a counter that counts is its own shadow, and nothing new may be stored before the privacy page says so. A gate flag: unset is off (understand/flags.ts).
+   * nothing: a counter that counts is its own shadow, and nothing new may be stored before the privacy page says so. A gate flag: unset is off (platform/switches.ts).
    */
   CHAT_COUNTERS?: string;
   /**

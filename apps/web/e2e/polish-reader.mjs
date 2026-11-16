@@ -4,45 +4,24 @@
 // Needs the Worker with the fake identity provider and the offline stand-ins: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/polish-reader.mjs [baseUrl]    (default http://localhost:8788)
 // The browser is started WITH its scroll bars (Playwright hides them by default in a headless browser: a box that grows a bar would show nothing in a picture and take no room in a measurement).
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
+import { BASE, REFUSED_OR_BUSY, axeCheck, countFailure, desk, finish, launch, ok, phone, setTheme, sleep, startIdp, watchPage } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 const note = (msg) => console.log(`        ${msg}`);
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const idp = await startFakeIdp(Number(process.env.INTEGRATION_IDP_PORT ?? 9911));
+const idp = await startIdp();
 idp.setUser({ sub: "polish-reader-1", email: "isha.m@example.edu", email_verified: true, name: "Isha M" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });
+const browser = await launch({ ignoreDefaultArgs: ["--hide-scrollbars"] });
 const errors = [];
-const watch = (p) => {
-  p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409|429|503)/.test(m.text())) errors.push("console: " + m.text()); });
-};
+const watch = (p) => watchPage(p, errors, { allowed: REFUSED_OR_BUSY });
 const VP = {
-  1280: { viewport: { width: 1280, height: 800 } },
-  1024: { viewport: { width: 1024, height: 768 } },
-  768: { viewport: { width: 768, height: 900 } },
-  390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  1280: desk(1280, 800),
+  1024: desk(1024, 768),
+  768: desk(768, 900),
+  390: phone(390, 844),
 };
 
-async function axe(label, p) {
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  ok(res.length === 0, `axe [${label}]`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
-const setTheme = (p, t) => p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), t);
+const axe = (label, p) => axeCheck(p, label);
 
 /** Runs in the page: parses a computed colour (rgb, rgba, or color(srgb ...)) to [r, g, b, a] in 0..255. */
 const colourParser = () => {
@@ -364,12 +343,11 @@ try {
     await ctx.close();
   }
 } catch (e) {
-  failures++;
+  countFailure();
   console.log(` FAIL unexpected: ${e.stack?.split("\n").slice(0, 4).join(" | ")}`);
 } finally {
   ok(errors.length === 0, `no page error and no console error (${errors.length ? errors[0].slice(0, 120) : "none"})`);
   await browser.close();
   idp.close();
 }
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall checks passed");
-process.exit(failures ? 1 : 0);
+finish("all checks passed", (n) => `${n} check(s) FAILED`);

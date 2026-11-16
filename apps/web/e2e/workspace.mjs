@@ -2,27 +2,20 @@
 // the rail, the Library and Settings pages, My Workspace (the paper opens on the whole window; pen, highlighter, eraser, undo and redo, saved with the paper). Three themes, a phone, reduced motion.
 // Needs the Worker with the fake identity provider: `npm run integration -w apps/api -- --browser` starts it.
 //   node e2e/workspace.mjs [baseUrl]    (default http://localhost:8788)
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
 import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
+import { BASE, UNSTICK, axeCheck, axeViolations, countFailure, finish, launch, noSideways, ok, phone, setTheme, startIdp } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const OUT = fileURLToPath(new URL("./shots/ws-", import.meta.url));
 mkdirSync(fileURLToPath(new URL("./shots/", import.meta.url)), { recursive: true });
 const LOGO_PATH = "M16 9.5c-2.2-1.4-5-1.8-8-1.3v13.3c3-.5 5.8-.1 8 1.3V9.5Z";
 
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(Number(process.env.INTEGRATION_IDP_PORT ?? 9911));
+const idp = await startIdp();
 idp.setUser({ sub: "ws-ui-1", email: "asha.rao@example.edu", email_verified: true, name: "Asha Rao" });
 
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
 const failedCalls = [];
 const watch = (p) => {
@@ -33,22 +26,10 @@ const watch = (p) => {
 };
 const newCtx = (opts = {}) => browser.newContext({ viewport: { width: 1360, height: 900 }, ...opts });
 
-async function axe(label, p) {
-  // In a conversation the prompt box sticks to the bottom of the window and covers whatever is scrolled under it; axe reports a button that is partly under it (target-size, "partially obscured"),
-  // and which one depends on where the page happens to be scrolled, so a row more under a message was enough to move it. For the run the box is in the flow of the page, so what axe reads is the
-  // page and not its scroll position (that a focused button is never left behind the box is checked in chat.mjs). The same two lines are in chat.mjs's axe().
-  const unstick = await p.addStyleTag({ content: ".hm-box { position: static !important; }" });
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  await unstick.evaluate((el) => el.remove());
-  ok(res.length === 0, `axe [${label}]`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
-const noSideways = (p) => p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
-const setTheme = (p, t) => p.evaluate((t) => { document.documentElement.setAttribute("data-theme", t); }, t);
+// In a conversation the prompt box sticks to the bottom of the window and covers whatever is scrolled under it; axe reports a button that is partly under it (target-size, "partially obscured"),
+// and which one depends on where the page happens to be scrolled, so a row more under a message was enough to move it. For the run the box is in the flow of the page, so what axe reads is the
+// page and not its scroll position (that a focused button is never left behind the box is checked in chat.mjs). The same two lines are in chat.mjs's axe().
+const axe = (label, p) => axeCheck(p, label, { css: UNSTICK });
 /** Scroll so that scene `id` is at progress p (0..1) of its pinned stretch. */
 const toScene = async (p, id, f) => { await p.evaluate(([id, f]) => { const s = document.getElementById("film-" + id); const r = s.getBoundingClientRect(); window.scrollTo({ top: scrollY + r.top + (s.offsetHeight - innerHeight) * f, behavior: "instant" }); }, [id, f]); await p.waitForTimeout(450); };
 const cssVar = (p, sel, name) => p.evaluate(([sel, name]) => parseFloat(getComputedStyle(document.querySelector(sel)).getPropertyValue(name)), [sel, name]);
@@ -214,8 +195,7 @@ try {
     let clean = true;
     for (const id of SCENES) {
       await toScene(page, id, 0.97);
-      await page.evaluate(axeSource);
-      const v = await page.evaluate(async () => (await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } })).violations.map((x) => `${x.id} ${x.nodes[0]?.target?.join(" ")}`));
+      const v = (await axeViolations(page)).map((x) => `${x.id} ${x.sample}`);
       if (v.length) { clean = false; console.log(`        ${theme} ${id}: ${v.join(" | ")}`); }
     }
     ok(clean, `axe [the end of every scene, ${theme}]`);
@@ -240,7 +220,7 @@ try {
 
   /* ============================ phone: the film plays here too ============================ */
   console.log("intro on a phone");
-  const mctx = await newCtx({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const mctx = await newCtx(phone(390, 844));
   const mp = await mctx.newPage();
   watch(mp);
   await mp.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -275,8 +255,7 @@ try {
     let clean = true;
     for (const id of SCENES) {
       await toScene(mp, id, 0.97);
-      await mp.evaluate(axeSource);
-      const v = await mp.evaluate(async () => (await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } })).violations.map((x) => `${x.id} ${x.nodes[0]?.target?.join(" ")}`));
+      const v = (await axeViolations(mp)).map((x) => `${x.id} ${x.sample}`);
       if (v.length) { clean = false; console.log(`        phone ${theme} ${id}: ${v.join(" | ")}`); }
     }
     ok(clean, `axe [the end of every scene, on a phone, ${theme}]`);
@@ -1171,10 +1150,9 @@ try {
   console.log(" FAIL unexpected error:", e);
   await globalThis.__page?.screenshot({ path: OUT + "zz-failure.png" }).catch(() => {});
   console.log("        errors seen so far:", errors.slice(0, 6), "failed calls:", failedCalls.slice(-6));
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   idp.close();
-  console.log(failures ? `\n${failures} FAILED` : "\nall workspace checks passed");
-  process.exit(failures ? 1 : 0);
+  finish("all workspace checks passed");
 }

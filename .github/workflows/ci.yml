@@ -19,11 +19,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup
       # Known-vulnerable production dependencies fail the build (dev-only tooling is excluded; Dependabot covers it).
       - run: npm audit --omit=dev --audit-level=high
       # The Worker's bindings and vars as types (apps/api/worker-configuration.d.ts, read by src/platform/env.ts) must be what `wrangler types` makes of the
@@ -36,11 +32,24 @@ jobs:
       # Citation-accuracy gates (replays recorded API responses: offline, deterministic). Fails the build if a fabricated
       # reference gets verified, a retracted paper is missed, or a DOI we return does not resolve.
       - run: npm run eval
+      # Every text and background pair of every theme meets WCAG AA (apps/web/scripts/contrast.mjs reads the colours from src/styles/tokens.css).
+      - run: npm run contrast -w apps/web
       - run: npm run build
       # What a first visit downloads has a size budget (apps/web/scripts/budget.mjs, docs/design/w6.md): over it fails the build.
       - run: npm run budget -w apps/web
+      # The web app exactly as it was built and measured here is what the deploy job below puts live (it does not build again). Dot files are kept: dist/.assetsignore tells wrangler
+      # which built files are not served (dist/.vite, the build manifest).
+      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: apps/web/dist
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
       # Real Worker + local D1 + fake identity provider: sign-in (PKCE, replay, CSRF), library sync, export and account deletion.
-      - run: npm run integration -w apps/api
+      # The default run has production's switch positions; trending-on and mcp-on add the Trending list shown and MCP on, which production does not have yet.
+      - run: npm run integration -w apps/api -- --run=default,trending-on,mcp-on
 
   deploy:
     needs: check
@@ -50,14 +59,17 @@ jobs:
     concurrency:
       group: deploy-production
       cancel-in-progress: false
+    env:
+      # The production address, a repository variable (Settings > Secrets and variables > Actions > Variables), shared with watchdog.yml and trending-live.yml.
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: ./.github/actions/setup
+      # The build the check job tested (decision 14 of docs/design/untangle.md), where wrangler.jsonc's `assets.directory` looks for it.
+      - uses: actions/download-artifact@v7
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+          name: web-dist
+          path: apps/web/dist
       - name: Apply D1 migrations
         run: npm run db:migrate:remote
         env:
@@ -70,21 +82,14 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       # The deploy only counts if the live service answers and reports a migrated database (health returns 503 otherwise).
       - name: Verify production health
-        run: curl --fail --silent --show-error --retry 6 --retry-delay 5 --retry-all-errors https://sodhsetu.in/api/v1/health
+        run: curl --fail --silent --show-error --retry 6 --retry-delay 5 --retry-all-errors "${PRODUCTION_URL:?the repository variable PRODUCTION_URL is not set}/api/v1/health"
 
-  # Opens (or updates) one issue per workflow when a job above fails, so a failure reaches you by e-mail instead of waiting to be noticed, and
-  # closes it when the workflow passes again. Not for pull requests or other branches. See .github/scripts/workflow-alert.mjs.
   alert:
     needs: [check, deploy]
-    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    if: always()
+    uses: ./.github/workflows/alert.yml
     permissions:
       contents: read
       issues: write
-    steps:
-      - uses: actions/checkout@v7
-      - run: node .github/scripts/workflow-alert.mjs auto
-        env:
-          GH_TOKEN: ${{ github.token }}
-          NEEDS: ${{ toJSON(needs) }}
+    with:
+      needs: ${{ toJSON(needs) }}

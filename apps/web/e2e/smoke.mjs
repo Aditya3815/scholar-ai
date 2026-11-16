@@ -1,16 +1,12 @@
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { BASE, axeViolations, clickTheme, launch, phone, printViolations } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
 // Injected with evaluate(), which CSP does not apply to, so the policy under test stays strict.
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8787";
 const OUT = fileURLToPath(new URL("./shots/", import.meta.url));
 mkdirSync(OUT, { recursive: true });
 
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
 const page = await ctx.newPage();
 const errors = [];
@@ -18,19 +14,17 @@ page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push("console: " + m.text()); });
 
 let violations = 0;
+/** This suite counts violations and fails at its end (it has no ok()): the same axe run as every suite's (e2e/lib/browser.mjs). */
 async function axe(label) {
-  await page.evaluate(axeSource);
-  const res = await page.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
+  const res = await axeViolations(page);
   violations += res.length;
   console.log(`axe [${label}]: ${res.length ? "" : "no violations"}`);
-  for (const v of res) console.log(`   ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
+  printViolations(res);
   return res;
 }
 const shot = (name) => page.screenshot({ path: OUT + name + ".png" });
-const setTheme = async (label) => { await page.getByRole("button", { name: `${label} theme` }).click(); await page.waitForTimeout(1300); /* the intro demo is still rising and fading when a theme is switched: axe would read a colour half way */ };
+// the intro demo is still rising and fading when a theme is switched: axe would read a colour half way
+const setTheme = (label) => clickTheme(page, label, 1300);
 
 await page.goto(BASE, { waitUntil: "networkidle" });
 await page.waitForTimeout(2200); // hero animations settle
@@ -90,7 +84,7 @@ await shot("13-retracted");
 await axe("retracted-results");
 
 // Mobile
-const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+const mobile = await browser.newContext(phone(390, 844));
 const mp = await mobile.newPage();
 mp.on("pageerror", (e) => errors.push("mobile pageerror: " + e.message));
 await mp.goto(BASE, { waitUntil: "networkidle" });

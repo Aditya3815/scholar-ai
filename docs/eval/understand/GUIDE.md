@@ -87,6 +87,6 @@ The reply language differs from the label on 3 single messages: "can you talk in
 
 **Re-recording.** After any change to the prompts (`UNDERSTAND_SYSTEM`, the examples, `understandPrompt`, `CHAT_SYSTEM`), replay lists the prompts that have no recording, and the eval fails. To record again, run this from `apps/api` on a machine where `npx wrangler whoami` shows the account (no key file is read):
 
-    UNDERSTAND_EVAL=record UNDERSTAND_MODELS=@cf/qwen/qwen3-30b-a3b-fp8,@cf/openai/gpt-oss-120b npx vitest run -c vitest.eval.config.ts eval/understand.eval.ts --silent=false
+    EVAL_MODE=record UNDERSTAND_MODELS=@cf/qwen/qwen3-30b-a3b-fp8,@cf/openai/gpt-oss-120b npx vitest run -c vitest.eval.config.ts eval/understand.eval.ts --silent=false
 
 One model takes about 15 to 30 minutes and roughly 1,100 calls (cents of Workers AI).

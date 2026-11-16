@@ -18,9 +18,8 @@ import { openalex } from "../src/search/openalex";
 import { pubmed } from "../src/search/pubmed";
 import { s2 } from "../src/search/s2";
 import type { Provider, ProviderPaper } from "../src/search/types";
-import { FetchLayer, type Mode } from "./lib/fetch-layer";
+import { FetchLayer } from "./lib/fetch-layer";
 
-const MODE = (process.env.EVAL_MODE ?? "replay") as Mode;
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const FIXTURES = HERE + "fixtures.json.gz";
 const log = (s: string) => process.stdout.write(s + "\n");
@@ -83,7 +82,9 @@ const tally = (list: ProviderPaper[]): Tally => {
   return t;
 };
 
-const layer = new FetchLayer(MODE, FIXTURES);
+// Replay in every mode: this eval reads what the citation eval recorded (the queries are taken from the recording itself), so it has nothing to ask the network, and a weekly live run or a
+// recording run checks the same 200 searches as CI instead of skipping the gate.
+const layer = new FetchLayer("replay", FIXTURES);
 const lists = { before: [] as ProviderPaper[][], after: [] as ProviderPaper[][] };
 const sample = { before: [] as ProviderPaper[], after: [] as ProviderPaper[] };
 type Merge = { q: string; before: string[]; after: string[]; sources: { before: number; after: number }; providers: number };
@@ -91,7 +92,6 @@ const merges: Merge[] = [];
 const ALL: Provider[] = [openalex, s2, crossref, pubmed, doajAll];
 
 beforeAll(async () => {
-  if (MODE !== "replay") return;
   layer.install();
   const run = (p: Provider, q: string, off: boolean) => runProvider(p, q, { ...env, store: memoryStore(), ...(off ? { SEARCH_PLAINTEXT: OFF } : {}) }).then((r) => r.value);
   for (const q of queries) {
@@ -122,7 +122,7 @@ beforeAll(async () => {
 }, 10 * 60_000);
 
 afterAll(() => {
-  if (MODE !== "replay" || queries.length === 0) return;
+  if (queries.length === 0) return;
   const cols = [
     ["gate sample", tally(sample.before), tally(sample.after)],
     ["all recorded searches", tally(lists.before.flat()), tally(lists.after.flat())],
@@ -153,7 +153,7 @@ afterAll(() => {
   for (const m of first.slice(0, 12)) log(`  first place  ${m.before[0]} -> ${m.after[0]}  "${m.q.slice(0, 80)}"`);
 });
 
-describe.skipIf(MODE !== "replay")("R2 gate: provider text is plain text", () => {
+describe("R2 gate: provider text is plain text", () => {
   it("replayed the 200 recorded searches and the 200-record sample (an emptied replay would pass every gate below)", () => {
     expect(queries).toHaveLength(200);
     expect(sample.before).toHaveLength(200);

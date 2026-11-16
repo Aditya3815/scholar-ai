@@ -12,16 +12,15 @@
 //   - the job's own heartbeat row (migration 0025) and its place in /api/v1/health/jobs
 // The stand-ins are made to fail through the dev-only KV route (src/index.ts, /api/v1/dev/kv) and the key trending:v1:stub-fault (src/trending/stub.ts): both exist only with ENABLE_DEV_ROUTES=1 and QA_STUB=1.
 //
-// INTEGRATION_TRENDING=off node scripts/integration.mjs --only="trending" starts the Worker with the variable TRENDING=off (the other kill switch) and runs only the last section of this file.
-// INTEGRATION_TRENDING=dark does the same with TRENDING=dark, the step after the committed launch state "off" (wrangler.jsonc): the job runs and makes the list, and the route hides it.
+// The default run of scripts/integration.mjs has TRENDING=off, production's launch state (the other kill switch), and runs only the last section of this file; --run=trending-on runs the rest.
+// --run=trending-dark does the same with TRENDING=dark, the step after the committed launch state "off" (wrangler.jsonc): the job runs and makes the list, and the route hides it.
 import { readFileSync } from "node:fs";
 import { transformSync } from "esbuild";
+import { APP, ok, countFailure, finish, at, sqlResults } from "./lib/harness.mjs";
 
-const APP = process.env.APP ?? "http://localhost:8788";
-const VARIABLE_OFF = (process.env.INTEGRATION_TRENDING ?? "").toLowerCase() === "off";
-const VARIABLE_DARK = (process.env.INTEGRATION_TRENDING ?? "").toLowerCase() === "dark";
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
+// where the switch stands in this run, read as the Worker reads TRENDING (the registry): the default run has production's "off", --run=trending-dark "dark", --run=trending-on the list shown
+const VARIABLE_OFF = at("TRENDING", "off");
+const VARIABLE_DARK = at("TRENDING", "dark");
 
 // The page's own reader and freshness rule: the very file the browser bundles, turned into JavaScript here.
 const clientSource = readFileSync(new URL("../../../packages/shared/src/trending-client.ts", import.meta.url), "utf8");
@@ -35,11 +34,7 @@ const NINE = ["retrieval-augmented generation", "AI literacy", "plant microbiome
 const NOT_SHOWN = ["tirzepatide", "environmental DNA", "single-atom catalysts", "solid-state batteries"];
 
 const post = (path, body) => fetch(`${APP}${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-const sql = async (...statements) => {
-  const res = await post("/api/v1/dev/sql", { sql: statements });
-  if (!res.ok) throw new Error(`sql failed: HTTP ${res.status} ${await res.text()}`);
-  return (await res.json()).results.flat();
-};
+const sql = async (...statements) => (await sqlResults(statements, { strict: true })).flat();
 const kvOp = async (body) => {
   const res = await post("/api/v1/dev/kv", body);
   if (!res.ok) throw new Error(`dev/kv ${body.op} ${body.key ?? body.prefix ?? ""}: HTTP ${res.status} ${await res.text()}`);
@@ -338,7 +333,7 @@ try {
   }
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   // leave the stack as the other suites expect it: no flag, no stand-in fault, a good heartbeat
   try {
@@ -346,13 +341,12 @@ try {
       await kvDel(KEYS.off);
       await kvDel(KEYS.fault);
       const last = await run();
-      if (last.after.last_result !== "ok") { console.log(" FAIL the final run did not end well:", last.after.last_error); failures++; }
+      if (last.after.last_result !== "ok") { console.log(" FAIL the final run did not end well:", last.after.last_error); countFailure(); }
     }
     await sql(`UPDATE job_runs SET failures = ${Number(baseline?.failures ?? 0)} WHERE name = 'trending'`); // the failures this suite caused on purpose are not the next suite's
   } catch (e) {
     console.log(" FAIL cleanup:", e);
-    failures++;
+    countFailure();
   }
 }
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall trending list checks passed");
-process.exit(failures ? 1 : 0);
+finish("all trending list checks passed", (n) => `${n} check(s) FAILED`);

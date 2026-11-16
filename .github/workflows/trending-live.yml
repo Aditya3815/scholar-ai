@@ -32,15 +32,11 @@ jobs:
       detail: ${{ steps.contract.outputs.detail }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup
       - id: contract
         run: node apps/api/scripts/trending-contract-live.mjs --out=trending-contract.json
         env:
-          BASE_URL: https://sodhsetu.in
+          BASE_URL: ${{ vars.PRODUCTION_URL }}
       - if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -55,14 +51,11 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup
       # the product's own search is the deployed one (it has the shared Semantic Scholar lane and every key), asked at most once every 2.5 seconds
-      - run: node apps/api/scripts/trending-live.mjs --out=trending-live-out --max-runs=6 --search=https://sodhsetu.in
+      - run: node apps/api/scripts/trending-live.mjs --out=trending-live-out --max-runs=6 --search="${PRODUCTION_URL:?the repository variable PRODUCTION_URL is not set}"
         env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           TRENDING_MAILTO: ${{ secrets.CROSSREF_MAILTO }}
       - if: always()
@@ -79,20 +72,13 @@ jobs:
             trending-live-out/report.txt
           if-no-files-found: ignore
 
-  # Opens (or updates) one issue per workflow when the weekly check above fails, so a failure reaches you by e-mail instead of waiting to be noticed, and closes it when the workflow passes
-  # again. Not for pull requests or other branches. See .github/scripts/workflow-alert.mjs.
   alert:
     needs: [contract]
-    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    if: always()
+    uses: ./.github/workflows/alert.yml
     permissions:
       contents: read
       issues: write
-    steps:
-      - uses: actions/checkout@v7
-      - run: node .github/scripts/workflow-alert.mjs auto
-        env:
-          GH_TOKEN: ${{ github.token }}
-          NEEDS: ${{ toJSON(needs) }}
-          ALERT_DETAIL: ${{ needs.contract.outputs.detail }}
+    with:
+      needs: ${{ toJSON(needs) }}
+      detail: ${{ needs.contract.outputs.detail }}

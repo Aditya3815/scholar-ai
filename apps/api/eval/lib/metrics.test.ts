@@ -22,7 +22,7 @@ import {
   upper95,
   wilson,
   type Gate,
-} from "./lib/metrics";
+} from "./metrics";
 
 const close = (a: number, b: number, tol: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(tol);
 const relClose = (a: number, b: number, rel: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(rel * Math.abs(b));

@@ -1,44 +1,29 @@
 // The MCP server's pages in a real browser: the consent page an AI app sends a person to (written by the Worker, no script) and Settings, Connected apps, with axe on both, in light and dark, on
-// a desktop and a phone, and the Disconnect button. Needs the server on (scripts/integration.mjs starts the Worker with MCP=on and a local OAUTH_KV). Pictures go to e2e/shots/ (or SHOTS_DIR).
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { mkdirSync, readFileSync } from "node:fs";
+// a desktop and a phone, and the Disconnect button. Needs the server on: `scripts/integration.mjs --browser --run=mcp-on` starts the Worker with MCP=on and a local OAUTH_KV (production's "beta", the default run, skips it). Pictures go to e2e/shots/ (or SHOTS_DIR).
+import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, at, axeCheck, countFailure, desk, finish, launch, ok, startIdp } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const OUT = process.env.SHOTS_DIR ? process.env.SHOTS_DIR.replace(/[\\/]?$/, "/") : fileURLToPath(new URL("./shots/", import.meta.url));
 mkdirSync(OUT, { recursive: true });
 
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
-if (process.env.INTEGRATION_MCP === "off") {
+if (at("MCP", "off")) {
   console.log("the MCP server is off in this run: nothing to look at");
   process.exit(0);
 }
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "mcp-ui-1", email: "asha@example.edu", email_verified: true, name: "Asha Verma" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+const browser = await launch();
+const ctx = await browser.newContext(desk(1280, 900));
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 // the app's own address after Allow or Cancel: nothing listens there in a test, so the browser is answered here
 await ctx.route("http://localhost:9933/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>Back in the app</title><p>Back in the app</p>" }));
 
-async function axe(label) {
-  await page.evaluate(axeSource);
-  const res = await page.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  ok(res.length === 0, `axe [${label}]: ${res.length ? "" : "no violations"}`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
+const axe = (label) => axeCheck(page, label, { said: true });
 const b64 = (b) => Buffer.from(b).toString("base64url");
 const form = (o) => new URLSearchParams(o).toString();
 
@@ -139,10 +124,9 @@ try {
   ok(errors.length === 0, `no page error${errors.length ? `: ${errors.join(" | ")}` : ""}`);
 } catch (e) {
   console.error(e);
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   idp.close();
 }
-console.log(failures === 0 ? "\nall MCP page checks passed" : `\n${failures} FAILED`);
-process.exit(failures === 0 ? 0 : 1);
+finish("all MCP page checks passed");

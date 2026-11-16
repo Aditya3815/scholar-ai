@@ -1,50 +1,35 @@
 // Browser e2e: library sync, settings, data export and account deletion, in the new look (W6: the Library and Settings pages of the rail). Same setup as e2e/auth.mjs
 // (Worker on :8788 with a fake identity provider, `npm run build` done). The sign-in and sign-out journey is e2e/auth.mjs. Run:  node e2e/library.mjs [baseUrl]
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { BASE, axeCheck, countFailure, desk, finish, launch, ok, phone, until as poll, setTheme as setThemeOn, startIdp } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
 // Injected with evaluate(), which CSP does not apply to, so the policy under test stays strict.
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const OUT = fileURLToPath(new URL("./shots/", import.meta.url));
 mkdirSync(OUT, { recursive: true });
 
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "lib-ui-1", email: "meera@example.edu", email_verified: true, name: "Meera Iyer" });
 
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
-const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+const browser = await launch();
+const ctx = await browser.newContext(desk(1360, 900));
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401)/.test(m.text())) errors.push("console: " + m.text()); });
 
-async function axe(label, p = page) {
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  ok(res.length === 0, `axe [${label}]: ${res.length ? "" : "no violations"}`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
+const axe = (label, p = page) => axeCheck(p, label, { said: true });
 const shot = (name, p = page) => p.screenshot({ path: OUT + name + ".png" });
 const rail = (p = page) => p.locator(".ws-rail");
 /** The number beside Library in the rail ("0" when there is none: the rail shows it only above zero). */
 const badge = async (p = page) => { const el = rail(p).locator('a[href="/library"] .ws-count'); return (await el.count()) ? (await el.first().innerText()).trim() : "0"; };
 const serverLibrary = async (p = page) => (await (await p.request.get(BASE + "/api/v1/library")).json()).items ?? [];
 const localLibrary = (p = page) => p.evaluate(() => JSON.parse(localStorage.getItem("scholar.library.v1") ?? "[]"));
-const until = async (fn, ms = 8000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await page.waitForTimeout(150); } return false; };
+const until = (fn, ms = 8000) => poll(fn, { ms, every: 150 });
 const results = () => page.locator(".result:not(.skeleton)");
 const saveBtn = (i) => results().nth(i).getByRole("button", { name: /^(Save|Saved)$/ });
-const setTheme = async (t) => { await page.evaluate((t) => { document.documentElement.setAttribute("data-theme", t); }, t); await page.waitForTimeout(500); };
+const setTheme = (t) => setThemeOn(page, t, 500);
 const openLibrary = async () => { await rail().getByRole("link", { name: /^Library/ }).click(); await page.getByRole("heading", { level: 1, name: "Library" }).waitFor(); await page.waitForTimeout(400); };
 const openSettings = async () => { await rail().getByRole("link", { name: "Settings", exact: true }).click(); await page.getByRole("heading", { level: 1, name: "Settings" }).waitFor(); await page.waitForTimeout(500); };
 
@@ -154,7 +139,7 @@ try {
   ok((await badge()) === "0" && (await serverLibrary()).length === 0, "nothing survived the deletion");
 
   console.log("mobile settings page");
-  const mctx = await browser.newContext({ viewport: { width: 390, height: 780 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const mctx = await browser.newContext(phone(390, 780));
   const mp = await mctx.newPage();
   await mp.goto(BASE + "/home", { waitUntil: "networkidle" });
   await mp.getByRole("button", { name: "Open the menu" }).click();
@@ -175,10 +160,9 @@ try {
   ok(errors.length === 0, `no console/page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   idp.close();
 }
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall library/settings browser checks passed");
-process.exit(failures ? 1 : 0);
+finish("all library/settings browser checks passed", (n) => `${n} check(s) FAILED`);

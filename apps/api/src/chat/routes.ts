@@ -18,7 +18,7 @@ import { errorKind, readHistory, stripInvisible, type ChatHistory } from "./hist
 import { stubChatStream, stubJudgeStream, stubSearchFor, stubStrictStream } from "./stub";
 import { stubRoute } from "./stub-route";
 import { FLOOR_OUTCOMES, FOLLOW_UP_OUTCOMES, UNREAD_OUTCOMES, askOutcome, countOutcome, countOutcomes } from "../outcomes";
-import { flagOf, type FlagPosition } from "../understand/flags";
+import { flag, killSwitch, type FlagPosition, type GateName } from "../platform/switches";
 import { NO_PLAN, planLane, safetyRead, type LanePlan } from "../understand/lane";
 import { noticeText, replyText } from "../understand/lane-text";
 import { inputShape } from "../understand/input-shape";
@@ -58,12 +58,11 @@ chatRoutes.use("*", async (c, next) => {
 const stubbed = (env: Env) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
 
 /**
- * Where a gate flag of the understanding releases stands for this request (understand/flags.ts: unset is off, and an off flag reads nothing from KV). A value that is not exactly a position is off, and
- * one line says WHICH FLAG held it (a constant name, never anything of a message): a typo must not turn behaviour on, and must not pass unseen either.
+ * Where a gate flag of the chat stands for this request (platform/switches.ts: unset is off, an off flag reads nothing from KV, and the positions of each name are its row of SWITCHES). A value that is
+ * not exactly a position is off, and one line says WHICH FLAG held it (a constant name, never anything of a message): a typo must not turn behaviour on, and must not pass unseen either.
  */
-async function gate(env: Env, name: "CHAT_COUNTERS" | "CHAT_FAILPOLICY" | "CHAT_SAFETY" | "CHAT_CLEAN" | "CHAT_FLOOR" | "CHAT_THINK" | "CHAT_UNDERSTAND" | "CHAT_UNDERSTAND_VISITORS" | "CHAT_TOOLS"): Promise<FlagPosition> {
-  // the safety lane has a fourth position, `core`, between shadow and on, and the relevance floor has `writer` in the same place
-  const r = await flagOf(env, name, { allowCore: name === "CHAT_SAFETY", allowWriter: name === "CHAT_FLOOR" });
+async function gate(env: Env, name: Extract<GateName, `CHAT_${string}`>): Promise<FlagPosition> {
+  const r = await flag(env, name);
   if (r.badVariable) console.warn(JSON.stringify({ level: "warn", msg: "flag_bad_value", flag: name }));
   return r.position;
 }
@@ -193,7 +192,7 @@ function withSince(own: YearRange | null, since: number | undefined): YearRange 
 
 /**
  * M4/M5: where the Understand step stands for THIS requester: CHAT_UNDERSTAND's position for a person who is signed in; for a visitor, the same only while CHAT_UNDERSTAND_VISITORS is "on" (else "off").
- * Unset flags read nothing (understand/flags.ts), so with both unset nothing at all is looked up.
+ * Unset flags read nothing (platform/switches.ts), so with both unset nothing at all is looked up.
  */
 async function understandFor(env: Env, signedIn: boolean): Promise<FlagPosition> {
   const position = await gate(env, "CHAT_UNDERSTAND");
@@ -250,7 +249,7 @@ chatRoutes.post("/", async (c) => {
   // whoever sends them, read by a model only for a signed-in person, and not even looked at while CHAT_CONTEXT is "off" (a server that did not know the field would ignore it).
   // `earlier` (questions of OTHER chats) is never read: that feature was removed on 6 Nov 2026 (design PDF "Sodhsetu understanding, follow-ups and MCP", M1). A tab opened before the release may still send
   // it; it is ignored, not refused, so that tab's messages are answered as a message without it, and nothing of it reaches a model or a log.
-  const contextOn = c.env.CHAT_CONTEXT !== "off";
+  const contextOn = killSwitch(c.env, "CHAT_CONTEXT") === "on";
   const carries = body.history !== undefined && body.history !== null;
   if (carries && contextOn && !auto) return deny(c, 400, "invalid_flag", "That option is not available");
   let history: ChatHistory | null = null;
@@ -849,7 +848,7 @@ chatRoutes.post("/", async (c) => {
         // the question the answer is for is what the person wrote (so it is answered in their language), not the English words the indexes were asked; for a follow-up it is the standalone question,
         // and for the same papers only, the earlier answer goes with it as context the writer is told is not evidence. The judge is given neither (it reads claims and the abstracts they cite).
         // The debug log of what a model said is for the first message in development; a follow-up never uses it.
-        answer = await answerFromResults({ question: asked, language: spoken, languageAsked: u ? u.language !== "en" : !!(follow?.answerLanguage ?? reading?.answerLanguage), earlierAnswer: follow?.intent === "same_papers" ? (ctx?.history.lastAnswer ?? undefined) : undefined, picked, stream: streamFor(c.env, user.id, abort.signal), judge: c.env.CHAT_JUDGE === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: (r) => { judged = r; logJudged(r); }, emit: async (e) => { await send(e); if (e.type === "step" && e.step === "write") await think(thinkWriting(spoken)); }, onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
+        answer = await answerFromResults({ question: asked, language: spoken, languageAsked: u ? u.language !== "en" : !!(follow?.answerLanguage ?? reading?.answerLanguage), earlierAnswer: follow?.intent === "same_papers" ? (ctx?.history.lastAnswer ?? undefined) : undefined, picked, stream: streamFor(c.env, user.id, abort.signal), judge: killSwitch(c.env, "CHAT_JUDGE") === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: (r) => { judged = r; logJudged(r); }, emit: async (e) => { await send(e); if (e.type === "step" && e.step === "write") await think(thinkWriting(spoken)); }, onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
       } catch (e) {
         if (s.gone) return;
         if (e instanceof QuotaError) return void (await done(false, "quota"));
@@ -974,7 +973,7 @@ chatRoutes.post("/tighten", async (c) => {
   const user = await currentUser(c);
   if (!user) return deny(c, 403, "sign_in", "Sign in to check an answer strictly");
   // the switch that turns the support judge off (CHAT_JUDGE=off) turns the strict check off too: a page that was opened before it still shows the button
-  if (c.env.CHAT_JUDGE === "off") return c.json({ type: "unavailable", title: "The strict check is switched off", detail: "Try again later." }, 503);
+  if (killSwitch(c.env, "CHAT_JUDGE") === "off") return c.json({ type: "unavailable", title: "The strict check is switched off", detail: "Try again later." }, 503);
   const read = readTighten(await c.req.json().catch(() => null));
   if (!read.ok) return deny(c, 400, "invalid_request", "That answer cannot be checked", read.detail);
   const { text, picked, citations } = read.input;

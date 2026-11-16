@@ -8,63 +8,26 @@
 // - kept: the result is there again after a reload; axe in light and dark at 1280 and 390; nothing goes sideways at 320; no page error.
 // Pictures (before and after, desktop and phone) go to SHOTS_DIR (default e2e/shots/chat-tools).
 //   node e2e/chat-tools.mjs [baseUrl]    (default http://localhost:8788)
-import { chromium } from "playwright-core";
-import { createRequire } from "node:module";
-import { mkdirSync, readFileSync } from "node:fs";
-import { startFakeIdp } from "../../api/scripts/fake-idp.mjs";
+import { mkdirSync } from "node:fs";
+import { BASE, CHAT_STAND_IN, REFUSED_OR_BUSY, UNSTICK_ALL, axeCheck, countFailure, desk, finish, launch, ok, phone, setTheme, sleep, startIdp, watchPage } from "./lib/browser.mjs";
 
-const require = createRequire(import.meta.url);
-const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-const BASE = process.argv[2] ?? "http://localhost:8788";
 const SHOTS = process.env.SHOTS_DIR ?? new URL("./shots/chat-tools/", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 mkdirSync(SHOTS, { recursive: true });
-let failures = 0;
-const ok = (cond, msg) => { console.log(`${cond ? "  ok  " : " FAIL "} ${msg}`); if (!cond) failures++; };
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const idp = await startFakeIdp(9911);
+const idp = await startIdp();
 idp.setUser({ sub: "tools-1", email: "tools.e2e@example.edu", email_verified: true, name: "Tara S" });
-const browser = await chromium.launch({ channel: process.env.E2E_BROWSER ?? "msedge", headless: true });
+const browser = await launch();
 const errors = [];
-const watch = (p) => {
-  p.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource.*(401|403|404|409|429|503)/.test(m.text())) errors.push("console: " + m.text()); });
-};
+const watch = (p) => watchPage(p, errors, { allowed: REFUSED_OR_BUSY });
 const VP = {
-  1280: { viewport: { width: 1280, height: 900 } },
-  390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
-  320: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  1280: desk(1280, 900),
+  390: phone(390, 844),
+  320: phone(320, 640),
 };
-const setTheme = (p, t) => p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), t);
-async function axe(label, p) {
-  const unstick = await p.addStyleTag({ content: ".hm-box { position: static !important; } .chat-list > li { content-visibility: visible !important; } * { transition: none !important; animation: none !important; }" });
-  await sleep(300);
-  await p.evaluate(axeSource);
-  const res = await p.evaluate(async () => {
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
-  });
-  await unstick.evaluate((el) => el.remove());
-  ok(res.length === 0, `axe [${label}]`);
-  for (const v of res) console.log(`        ${v.impact} ${v.id} x${v.nodes} ${v.sample} :: ${v.msg}`);
-}
 
-/** Once armed (`window.__tools = {}`), the next POST to /api/v1/chat is answered by a stream this script feeds event by event. */
-const STREAM_STANDIN = () => {
-  const real = window.fetch.bind(window);
-  window.fetch = (input, init) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    if (window.__tools && !window.__tools.emit && new URL(url, location.href).pathname === "/api/v1/chat" && (init?.method ?? "GET") === "POST") {
-      const enc = new TextEncoder();
-      let ctrl;
-      const body = new ReadableStream({ start(c) { ctrl = c; } });
-      window.__tools.emit = (e) => ctrl.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
-      window.__tools.end = () => { try { ctrl.close(); } catch { /* closed */ } };
-      return Promise.resolve(new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } }));
-    }
-    return real(input, init);
-  };
-};
+const axe = (label, p) => axeCheck(p, label, { css: `${UNSTICK_ALL} * { transition: none !important; animation: none !important; }`, settle: () => sleep(300) });
+
+
 
 const LIST = [
   "[1] Watson, J. D., & Crick, F. H. C. (1953). Molecular structure of nucleic acids. Nature, 171, 737-738.",
@@ -131,7 +94,7 @@ const ASK_OFF = [
 let state;
 const signedIn = async (vp, scheme = "light") => {
   const ctx = await browser.newContext({ ...VP[vp], ...(state ? { storageState: state } : {}), colorScheme: scheme, reducedMotion: "reduce" });
-  await ctx.addInitScript(STREAM_STANDIN);
+  await ctx.addInitScript(CHAT_STAND_IN, { key: "__tools" });
   const page = await ctx.newPage();
   watch(page);
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -281,10 +244,9 @@ try {
   ok(errors.length === 0, `no page error in the whole run (${errors.slice(0, 3).join(" | ")})`);
 } catch (e) {
   console.error(e);
-  failures++;
+  countFailure();
 } finally {
   await browser.close();
   idp.close?.();
 }
-console.log(failures ? `\n${failures} FAIL` : "\nall ok");
-process.exit(failures ? 1 : 0);
+finish("all ok", (n) => `${n} FAIL`);
