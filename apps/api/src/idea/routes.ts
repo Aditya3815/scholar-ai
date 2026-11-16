@@ -24,7 +24,7 @@ const IDEA_TEXT: Door = { ...IDEA, ack: { title: "Please read how your ideas are
 
 const stubbed = (env: Env) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
 
-function completeFor(env: Env, subject: string): Complete | null {
+export function completeFor(env: Env, subject: string): Complete | null {
   if (stubbed(env)) return stubPlan;
   const gateway = gatewayFromEnv(env);
   return async (req) => {
@@ -34,7 +34,7 @@ function completeFor(env: Env, subject: string): Complete | null {
   };
 }
 
-function streamFor(env: Env, subject: string, abort: AbortSignal, stub: StreamComplete = stubCompareStream, timeoutMs = 90_000): StreamComplete | null {
+export function streamFor(env: Env, subject: string, abort: AbortSignal, stub: StreamComplete = stubCompareStream, timeoutMs = 90_000): StreamComplete | null {
   if (stubbed(env)) return stub;
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {

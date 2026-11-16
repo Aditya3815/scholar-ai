@@ -124,7 +124,7 @@ const devTopK = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_TOP_K">): number | und
 export const embedderFor = (env: EnvPick<"ENABLE_DEV_ROUTES" | "QA_STUB", "AI">): Embedder | null =>
   env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null;
 
-function completeFor(env: LlmEnv & Pick<Env, "QA_STUB">, subject: string): Complete | null {
+export function completeFor(env: LlmEnv & Pick<Env, "QA_STUB">, subject: string): Complete | null {
   if (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1") return stubComplete;
   const gateway = gatewayFromEnv(env);
   return async (req) => {

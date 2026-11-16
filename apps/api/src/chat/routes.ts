@@ -73,7 +73,7 @@ const logJudged = (r: JudgeReport) =>
   console.log(JSON.stringify({ level: r.error ? "warn" : "info", msg: "chat_judge", ms: r.ms, model: r.model, ...r.counts, leftOut: r.leftOut, rewritten: r.rewritten ?? 0, offered: r.rewrites?.length ?? 0, ...(r.checkMs === undefined ? {} : { checkMs: r.checkMs }), ...(r.error ? { error: r.error } : {}) }));
 
 /** The model, for the person's own message: PRIVATE, so the gateway only uses providers that do not keep or train on it. `abort` stops it when the reader presses Stop or leaves. */
-function streamFor(env: Env, subject: string, abort: AbortSignal): StreamComplete {
+export function streamFor(env: Env, subject: string, abort: AbortSignal): StreamComplete {
   if (stubbed(env)) return stubChatStream;
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
@@ -86,7 +86,7 @@ function streamFor(env: Env, subject: string, abort: AbortSignal): StreamComplet
  * The support judge's model (chat/support.ts): the answer to the person's own question, so PRIVATE. Shorter timeout than the answer's: a judge that takes longer is not waited for
  * (the answer is then shown as written and says it was not checked).
  */
-function judgeStreamFor(env: Env, subject: string, abort: AbortSignal, timeoutMs = 20_000): StreamComplete {
+export function judgeStreamFor(env: Env, subject: string, abort: AbortSignal, timeoutMs = 20_000): StreamComplete {
   if (stubbed(env)) return stubJudgeStream(env);
   const gateway = gatewayFromEnv(env);
   return async (req, hooks) => {
@@ -99,7 +99,7 @@ function judgeStreamFor(env: Env, subject: string, abort: AbortSignal, timeoutMs
  * The router's model: the person's own free text, so PRIVATE (the gateway only uses providers that do not keep or train on it). `onUsage` hears what a call cost, for the development route that
  * measures a follow-up (scripts/router-eval.mjs); the stream never uses it.
  */
-function routeCompleteFor(env: Env, subject: string, onUsage?: (u: { tokensIn?: number | null; tokensOut?: number | null }) => void): Complete {
+export function routeCompleteFor(env: Env, subject: string, onUsage?: (u: { tokensIn?: number | null; tokensOut?: number | null }) => void): Complete {
   if (stubbed(env)) return stubRoute;
   const gateway = gatewayFromEnv(env);
   return async (req) => {
@@ -918,7 +918,7 @@ chatRoutes.post("/judge", async (c) => {
 });
 
 /** The strict check's model: the stronger one that wrote the answer (it thinks before it answers: 20 to 45 s), always PRIVATE. */
-function strictStreamFor(env: Env, subject: string, abort: AbortSignal, onQuota: () => void): StreamComplete {
+export function strictStreamFor(env: Env, subject: string, abort: AbortSignal, onQuota: () => void): StreamComplete {
   const gateway = stubbed(env) ? null : gatewayFromEnv(env);
   return async (req, hooks) => {
     try {
