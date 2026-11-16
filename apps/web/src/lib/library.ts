@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { titleKey, type LibraryAlert, type Paper } from "@scholar/shared";
+import { ApiError, send } from "./api/client";
 import { getAuthState, subscribeAuth } from "./auth";
 import { showNotice } from "./notice";
 import { createPersistedStore } from "./store";
@@ -31,16 +32,11 @@ function recompute() {
 }
 local.subscribe(recompute);
 
-const jsonInit = (method: string, body?: unknown): RequestInit => ({
-  method,
-  credentials: "same-origin",
-  headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
-  body: body !== undefined ? JSON.stringify(body) : undefined,
-});
+const LIBRARY = "/api/v1/library";
 
 async function loadServer(userId: string): Promise<{ items: SavedPaper[]; alerts: LibraryAlert[] } | null> {
-  const res = await fetch("/api/v1/library", { credentials: "same-origin" }).catch(() => null);
-  if (!res?.ok || serverUserId !== userId) return null;
+  const res = await send(LIBRARY).catch(() => null);
+  if (!res || serverUserId !== userId) return null;
   const body = (await res.json()) as { items: SavedPaper[]; alerts?: LibraryAlert[] };
   loadedAt = Date.now();
   return { items: body.items, alerts: body.alerts ?? [] };
@@ -56,8 +52,8 @@ async function syncAfterLogin(userId: string) {
   }
   const device = local.get();
   if (device.length > 0) {
-    const res = await fetch("/api/v1/library/import", jsonInit("POST", { items: device.slice(0, 500) })).catch(() => null);
-    if (res?.ok) {
+    const res = await send(`${LIBRARY}/import`, { method: "POST", json: { items: device.slice(0, 500) } }).catch(() => null);
+    if (res) {
       const again = await loadServer(userId);
       items = again?.items ?? items;
       alerts = again?.alerts ?? alerts;
@@ -132,27 +128,35 @@ export function dismissAlerts(paperIds?: string[]) {
   serverAlerts = paperIds ? before.filter((a) => !paperIds.includes(a.paperId)) : [];
   recompute();
   pending++;
-  void fetch("/api/v1/library/alerts/seen", jsonInit("POST", paperIds ? { paperIds } : {}))
-    .catch(() => null)
-    .then((res) => {
-      if (res?.ok) return;
-      serverAlerts = before;
-      recompute();
-      showNotice("That could not be saved. Please check your connection and try again.");
-    })
+  void send(`${LIBRARY}/alerts/seen`, { method: "POST", json: paperIds ? { paperIds } : {} })
+    .then(
+      () => {},
+      () => {
+        serverAlerts = before;
+        recompute();
+        showNotice("That could not be saved. Please check your connection and try again.");
+      },
+    )
     .finally(() => pending--);
 }
 
-async function pushServer(op: () => Promise<Response | null>, rollback: () => void) {
+/** The library's words for a change that was not saved: a full library (409) has its own. */
+const LIBRARY_REFUSED: Partial<Record<number, string>> = { 409: "Your library is full (2,000 papers)." };
+
+async function pushServer(op: () => Promise<unknown>, rollback: () => void) {
   pending++;
-  const res = await op().finally(() => pending--);
-  if (!res?.ok) {
+  const failure = await op().then(
+    () => null,
+    (e: unknown) => ({ e }),
+  );
+  pending--;
+  if (failure) {
     rollback();
-    showNotice(res?.status === 409 ? "Your library is full (2,000 papers)." : "That change could not be saved. Please check your connection and try again.");
+    showNotice((failure.e instanceof ApiError && LIBRARY_REFUSED[failure.e.status]) || "That change could not be saved. Please check your connection and try again.");
   }
 }
 
-const idPath = (id: string) => `/api/v1/library/${encodeURIComponent(id)}`;
+const idPath = (id: string) => `${LIBRARY}/${encodeURIComponent(id)}`;
 
 /**
  * The id a saved paper has in a search today. A paper with no DOI or PMID whose title has no Latin letter or digit was saved under `t:|<year>` before the search gave such a title a key of its own
@@ -179,7 +183,7 @@ export function toggleSaved(paper: Paper) {
   if (has) serverAlerts = serverAlerts.filter((a) => a.paperId !== id); // removing the paper settles its notice (the server does the same)
   recompute();
   void pushServer(
-    () => fetch(idPath(id), has ? jsonInit("DELETE") : jsonInit("PUT", paper)).catch(() => null),
+    () => send(idPath(id), has ? { method: "DELETE" } : { method: "PUT", json: paper }),
     () => {
       serverItems = before;
       serverAlerts = alertsBefore;
