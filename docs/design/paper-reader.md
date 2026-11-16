@@ -416,8 +416,9 @@ Phase 1 ("Desk") is built on the branch `reader-v2`, behind `READER`, which is n
 - Undo after Remove makes the highlight again with its meaning and its note text; it gets a new id from the server.
 
 **The Agents.**
-- Phase 1 shows Ask alone: "Ask" is a label, not a control, and no other agent is shown until it works. Ask is today's `AskPanel`, unchanged except for an optional `prefill` (Explain puts `Explain: "…"` into its question box); today's reader does not pass it. Inside the drawer the panel's own fine print is hidden by the drawer's style sheet, because the standing line says the same.
-- On a phone the sheet is modal and covers the button, so the sheet's own × is its Close (in its header, with the grab bar); on a wide screen the button becomes Close and moves to the left of the drawer, so it never covers the question box.
+- Phase 1 shows Ask alone: "Ask" is a label, not a control, and no other agent is shown until it works. Ask is today's `AskPanel`, unchanged except for two optional props that today's reader does not pass: `prefill` (Explain puts `Explain: "…"` into its question box) and `embedded` (inside the drawer, whose heading already says Agents and Ask, the panel's own title row "Ask this paper" is left out; its line about the passages stays). Inside the drawer the panel's own fine print is hidden by the drawer's style sheet, because the standing line says the same.
+- The button does not become Close (section 9.1): there is one Close only, the × in the drawer's header (and Esc). On a phone the modal sheet covers the button; on a wide screen the button is hidden while the drawer is open, and when the drawer closes it comes back with the focus.
+- The panel's lists (Highlights, References, and the Notes view) and, on a phone, the paper keep room under their last item for the button (`--fab-clear`: its 56 px, its 20 px offset, 16 px and the safe area), so nothing ends up under it.
 - The `agents` chunk is the drawer alone (2.2 KB). `AskPanel` stays where it was: today's reader shows it at once and the open-access sheet uses its pieces, so while both readers exist it cannot move into a chunk that only the new reader loads. It moves when the old reader is deleted.
 
 **Weight.**

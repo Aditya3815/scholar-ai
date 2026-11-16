@@ -264,7 +264,6 @@
 }
 .desk-fab[hidden] { display: none; }
 .desk-fab[data-wide="false"] { width: 56px; padding: 0; }
-.desk-fab[data-open="true"][data-wide="true"] { right: calc(26rem + 2rem + env(safe-area-inset-right)); }
 .desk-fab:hover { filter: brightness(1.06); }
 .desk-fab:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .desk-fab-ico { display: inline-grid; place-items: center; }
@@ -331,4 +330,12 @@
     .desk-head-end > .desk-views { order: 3; flex: 1 0 100%; }
     .desk-views .desk-view { flex: 1; }
   }
+}
+
+/* room under the last item for the Agents button: the panel's lists (Highlights, References; also the Notes view) and, on a phone, the paper scroll clear of it */
+.desk { --fab-clear: calc(56px + 20px + 16px + env(safe-area-inset-bottom)); }
+.desk .notes-body,
+.desk .refs-panel .ask-scroll { padding-bottom: var(--fab-clear); }
+@media not all and (min-width: 744px) and (min-height: 520px) {
+  .desk .pdfv-pages { padding-bottom: var(--fab-clear); }
 }

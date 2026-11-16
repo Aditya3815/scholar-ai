@@ -208,10 +208,17 @@ export function Desk(props: DeskProps) {
     setAgentsEver(true);
     setAgentsOpen(true);
   }, []);
+  // closed (the drawer's x, Esc): the focus goes back to the Agents button once it is shown again (on a wide screen it is hidden while the drawer is open)
+  const refocusFab = useRef(false);
   const closeAgents = useCallback(() => {
+    refocusFab.current = true;
     setAgentsOpen(false);
-    window.setTimeout(() => fab.current?.focus({ preventScroll: true }), 0);
   }, []);
+  useEffect(() => {
+    if (agentsOpen || !refocusFab.current) return;
+    refocusFab.current = false;
+    fab.current?.focus({ preventScroll: true });
+  }, [agentsOpen]);
   // the drawer's chunk is fetched in idle time once the paper is open, so the first press does not wait for it
   useEffect(() => {
     const t = window.setTimeout(() => void loadAgents().catch(() => {}), 2500);
@@ -533,7 +540,7 @@ export function Desk(props: DeskProps) {
         </div>
       </div>
 
-      <AgentsFab open={agentsOpen} wide={wide} lift={agentsOpen ? 0 : lift} hidden={drawOpen} fabRef={fab} onToggle={() => (agentsOpen ? closeAgents() : openAgents())} />
+      <AgentsFab open={agentsOpen} wide={wide} lift={agentsOpen ? 0 : lift} hidden={drawOpen || (agentsOpen && wide)} fabRef={fab} onToggle={() => (agentsOpen ? closeAgents() : openAgents())} />
       {agentsEver && (
         <Suspense fallback={null}>
           <AgentsDrawer {...drawerProps} />

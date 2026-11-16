@@ -248,7 +248,7 @@ function AnswerCard({ answer, docId, scan, onCite }: { answer: Answer; docId: st
   );
 }
 
-export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoToPage, onReindex, prefill }: { doc: DocumentInfo; history: Answer[]; /** The reader's highlights and notes on this paper: a question about them is answered from them. */ notes?: DocNote[]; scan?: ScanInfo | null; onCite: (c: Citation) => void; onGoToPage: (page: number) => void; onReindex: () => void; /** The new reader's Explain: words put into the question box (each new `tick` puts them again), to be sent or changed. */ prefill?: { text: string; tick: number } }) {
+export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoToPage, onReindex, prefill, embedded = false }: { doc: DocumentInfo; history: Answer[]; /** The reader's highlights and notes on this paper: a question about them is answered from them. */ notes?: DocNote[]; scan?: ScanInfo | null; onCite: (c: Citation) => void; onGoToPage: (page: number) => void; onReindex: () => void; /** The new reader's Explain: words put into the question box (each new `tick` puts them again), to be sent or changed. */ prefill?: { text: string; tick: number }; /** Inside the new reader's Agents drawer, whose own heading names it: the panel's title row is left out (its line about the passages stays). */ embedded?: boolean }) {
   const [turns, setTurns] = useState<Turn[]>(() => history.map((a) => ({ key: a.id, question: a.question, answer: a })));
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -385,9 +385,11 @@ export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoTo
   return (
     <section className="ask" aria-label="Ask this paper">
       <header className="ask-head">
-        <h2 className="ask-title">
-          <Sparkles size={16} aria-hidden="true" /> Ask this paper
-        </h2>
+        {!embedded && (
+          <h2 className="ask-title">
+            <Sparkles size={16} aria-hidden="true" /> Ask this paper
+          </h2>
+        )}
         <p className="ask-sub">
           {ready ? (
             <>

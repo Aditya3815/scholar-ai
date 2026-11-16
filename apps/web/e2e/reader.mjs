@@ -406,6 +406,8 @@ try {
       await page.mouse.up();
       await sleep(300);
       ok(!(await sheet.isVisible()), "a swipe down on its top closes it");
+      const ppad = await page.locator(".pdfv-pages").evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom));
+      ok(ppad >= 56 + 20 + 16 - 1, `on a phone the paper keeps room under its last page for the button (padding ${ppad} px)`);
       // Notes on a phone: the panel alone
       await page.getByRole("radio", { name: "Notes" }).click();
       await sleep(300);
@@ -420,11 +422,16 @@ try {
       const sw = await boxOf(side);
       ok(Math.abs(sw.width - 26 * 16) < 2, `a sheet from the right, 26rem (${sw.width.toFixed(0)} px)`);
       const fab = page.locator(".desk-fab");
-      ok((await fab.getAttribute("aria-label")) === "Close the agents" && (await fab.innerText()).includes("Close") && !overlap(await boxOf(fab), sw), "the button becomes Close, beside the drawer");
+      ok(!(await fab.isVisible()), "the Agents button is hidden while the drawer is open (one Close only: the drawer's own)");
+      ok((await page.getByRole("button", { name: "Close the agents" }).count()) === 1, "exactly one Close button");
+      ok((await side.locator(".ask-title").count()) === 0 && (await side.getByText(/passages indexed/).count()) === 1, "inside the drawer the Ask panel's own title is left out; its line about the passages stays");
       await axe(page, "the Agents drawer, wide");
-      await fab.click();
-      await sleep(200);
-      ok(!(await side.isVisible()), "Close closes it");
+      await side.getByRole("button", { name: "Close the agents" }).click();
+      await sleep(250);
+      ok(!(await side.isVisible()) && (await fab.isVisible()) && (await page.evaluate(() => document.activeElement?.classList.contains("desk-fab"))), "the drawer's x closes it, the button is back and has the focus");
+      const pad = await page.locator(".notes-body").evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom));
+      const fb = await boxOf(fab);
+      ok(pad >= fb.height + 20 + 16 - 1, `the panel's list keeps room under its last item for the button (padding ${pad} px)`);
     }
     await ctx.close();
   }

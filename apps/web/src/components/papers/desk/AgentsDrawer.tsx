@@ -132,7 +132,7 @@ export function AgentsDrawer({ open, wide, onClose, doc, history, notes, scan, o
           </p>
         </header>
         <div className="desk-agents-body">
-          <AskPanel doc={doc} history={history} notes={notes} scan={scan} onCite={onCite} onGoToPage={onGoToPage} onReindex={onReindex} prefill={prefill} />
+          <AskPanel doc={doc} history={history} notes={notes} scan={scan} onCite={onCite} onGoToPage={onGoToPage} onReindex={onReindex} prefill={prefill} embedded />
           {reindexing && (
             <p className="ask-fine" role="status">
               Indexing again…
