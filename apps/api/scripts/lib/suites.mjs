@@ -29,6 +29,8 @@ export const SUITES = [
   { label: "MCP server integration", file: "api/scripts/mcp-e2e.mjs", browser: false, reset: true, needs: { MCP: ["on", "off"] } },
   // CHAT_TOOLS (docs/design/chat-tools.md): on in wrangler.jsonc, so the suite checks the tools run in the reply; --run=chat-tools-off checks a list is still offered
   { label: "chat tools integration", file: "api/scripts/chat-tools-e2e.mjs", browser: false, reset: true },
+  // the Notebook of the new Paper Reader, phase 2 (docs/design/paper-reader.md, 19): its routes do not exist with READER off (production), so it runs in --run=reader-on
+  { label: "notebook integration (READER on)", file: "api/scripts/notebook-e2e.mjs", browser: false, reset: true, needs: { READER: ["on"] } },
   { label: "browser: smoke + axe", file: "web/e2e/smoke.mjs", browser: true, reset: false },
   { label: "browser: auth", file: "web/e2e/auth.mjs", browser: true, reset: true },
   { label: "browser: library", file: "web/e2e/library.mjs", browser: true, reset: true },
@@ -93,7 +95,7 @@ const MCP_SUITES = ["MCP server integration", "browser: AI apps (MCP consent and
  * new one too (cites.mjs and polish-reader.mjs follow READER where the layout differs). papers.mjs and workspace.mjs are not here: their reader checks are of today's layout (its phone tabs,
  * the side panel put away, the colours' plain names, the old pop-up), which the new reader replaces; they keep running in the default run, where READER is off.
  */
-const READER_SUITES = ["documents integration", "browser: the new Paper Reader, phase 1 (READER on)", "browser: reader polish (back, drawing tools, question box)", "browser: citation cards in the reader"];
+const READER_SUITES = ["documents integration", "notebook integration (READER on)", "browser: the new Paper Reader, phase 1 (READER on)", "browser: reader polish (back, drawing tools, question box)", "browser: citation cards in the reader"];
 
 /**
  * The runs. `default` is production's positions (decision 13): wrangler.jsonc's `vars` as committed (TRENDING off, MCP beta, CHAT_TOOLS on, every other gate unset), and every suite that is
