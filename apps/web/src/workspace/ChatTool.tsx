@@ -3,12 +3,13 @@ import { AnimatePresence } from "motion/react";
 // preloads (+2 to 3 KB measured on 9 Nov 2026, with the Check references page's card and its status table imported here; +0.1 KB with these icons). e2e/chat-tools.mjs and the budget hold it.
 import { ArrowRight, Check, Info, RefreshCw, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import { useState } from "react";
-import { REF_STATUS_WORDS, refTally, type AssistantMsg, type ChatAskState, type ChatRefItem, type ChatToolResult, type RefStatus, type RefVerdict } from "@scholar/shared";
+import { REF_STATUS_WORDS, refTally, type AssistantMsg, type ChatAskState, type ChatRefItem, type ChatToolResult, type RefStatus } from "@scholar/shared";
 import { AnswerCard, Basis, ERROR_HELP, Reading, STAGE_SAY } from "../components/oa/OaAskSheet";
 import { StreamingText } from "../components/papers/AskPanel";
 import { SignInDialog } from "../components/SignInDialog";
 import type { OaTurn } from "../lib/oa-ask";
-import type { VerifyItem } from "../lib/verify";
+import { ApiError } from "../lib/api/client";
+import { checkReference, type VerifyItem } from "../lib/verify";
 import "../styles/chat-tools.css";
 
 /**
@@ -41,6 +42,10 @@ export default function ChatTool({ msg, onOpen }: { msg: AssistantMsg; onOpen: (
 
 const LABEL: Record<ChatToolResult["kind"], string> = { verify: "References checked", retractions: "Retractions checked", ask_paper: "The paper's answer", ask_doc: "Your paper's answer" };
 
+/** The card's words for a reference that could not be checked again: too many checks (429), any other refusal, or the network's own message. */
+const recheckWords = (e: unknown): string =>
+  e instanceof ApiError ? (e.status === 429 ? "Too many checks just now. Wait a minute and try again." : "The check could not be made just now.") : e instanceof Error ? e.message : "The check could not be made just now.";
+
 const asItem = (i: ChatRefItem): VerifyItem => ({ id: i.n, input: i.input, state: i.verdict ? "done" : "error", ...(i.verdict ? { verdict: i.verdict } : {}), ...(i.error ? { error: i.error } : {}) });
 
 function Verify({ t, working, onOpen }: { t: Extract<ChatToolResult, { kind: "verify" }>; working: boolean; onOpen: () => void }) {
@@ -53,12 +58,10 @@ function Verify({ t, working, onOpen }: { t: Extract<ChatToolResult, { kind: "ve
     if (!one) return;
     setAgain((a) => ({ ...a, [id]: { id, input: one.input, state: "checking" } }));
     try {
-      const res = await fetch("/api/v1/references/verify", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference: one.input }) });
-      if (!res.ok) throw new Error(res.status === 429 ? "Too many checks just now. Wait a minute and try again." : "The check could not be made just now.");
-      const verdict = (await res.json()) as RefVerdict;
+      const verdict = await checkReference(one.input);
       setAgain((a) => ({ ...a, [id]: { id, input: one.input, state: "done", verdict } }));
     } catch (e) {
-      setAgain((a) => ({ ...a, [id]: { id, input: one.input, state: "error", error: e instanceof Error ? e.message : "The check could not be made just now." } }));
+      setAgain((a) => ({ ...a, [id]: { id, input: one.input, state: "error", error: recheckWords(e) } }));
     }
   };
   return (
