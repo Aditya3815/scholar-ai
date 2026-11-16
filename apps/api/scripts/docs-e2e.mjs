@@ -220,6 +220,10 @@ try {
   const edited = await A.api(`${NP}/${note.id}`, { method: "PATCH", body: { note: "Sample size is 214, not 241", color: "green" } });
   ok(edited.status === 200 && (await edited.json()).note.note === "Sample size is 214, not 241", "a note can be edited, and its colour changed");
   ok((await A.api(`${NP}/${note.id}`, { method: "PATCH", body: { color: "blue" } })).status === 200 && (await (await A.api(NP)).json()).items.find((n) => n.id === note.id).note.startsWith("Sample size"), "changing only the colour keeps the note text");
+  const lines3 = (await (await A.api(`${NP}/${note.id}`, { method: "PATCH", body: { note: "First   line  \r\nSecond line\n\n\n\n\nThird\tline " } })).json()).note;
+  const lines3back = (await (await A.api(NP)).json()).items.find((n) => n.id === note.id).note;
+  ok(lines3?.note === "First line\nSecond line\n\n\nThird line" && lines3back.split("\n").filter(Boolean).length === 3, `a note written on three lines comes back on three lines, spaces made single and at most two blank lines kept (${JSON.stringify(lines3back)})`);
+  await A.api(`${NP}/${note.id}`, { method: "PATCH", body: { note: "Sample size is 214, not 241" } });
   ok((await A.api(NP, { method: "POST", body: { page: 0, quote: "some words here" } })).status === 400 && (await A.api(NP, { method: "POST", body: { page: 999, quote: "some words here" } })).status === 400, "a page that is not in the paper is refused");
   ok((await A.api(NP, { method: "POST", body: { page: 1, quote: "ab" } })).status === 400 && (await A.api(NP, { method: "POST", body: "nonsense" })).status === 400, "an empty selection and garbage are refused");
   ok((await A.api(NP, { method: "POST", body: { page: 1, quote: "some words here" }, origin: null })).status === 403, "notes have the cross-origin check");

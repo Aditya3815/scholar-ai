@@ -13,6 +13,7 @@ import {
   READ_STATES,
   cleanLegend,
   checkInk,
+  cleanNoteText,
   cleanTag,
   tagKey,
   type ReadState,
@@ -701,6 +702,7 @@ documentRoutes.put("/:id/ink", async (c) => {
 
 type NoteRow = { id: string; page: number; quote: string; note: string | null; color: NoteColor; created_at: string; updated_at: string };
 const toNote = (r: NoteRow): DocNote => ({ id: r.id, page: r.page, quote: r.quote, note: r.note ?? "", color: r.color, createdAt: fromSqliteTime(r.created_at), updatedAt: fromSqliteTime(r.updated_at) });
+/** A quote comes from the paper's text layer: one line. A note keeps its line breaks (cleanNoteText, docs/design/paper-reader.md 19.6). */
 const cleanText = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
 const NOTE_COLS = "id, page, quote, note, color, created_at, updated_at";
 
@@ -725,7 +727,7 @@ documentRoutes.post("/:id/notes", async (c) => {
   if (typeof page !== "number" || !Number.isInteger(page) || page < 1 || page > (row.pages ?? MAX_DOC_PAGES)) return deny(c, 400, "invalid_note", "That page is not in this paper");
   if (quote.length < MIN_NOTE_QUOTE_CHARS) return deny(c, 400, "invalid_note", "Select some text first");
   const color = NOTE_COLORS.includes(b?.color as NoteColor) ? (b!.color as NoteColor) : "yellow";
-  const note = cleanText(b?.note, MAX_NOTE_CHARS);
+  const note = cleanNoteText(b?.note, MAX_NOTE_CHARS);
   const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM doc_notes WHERE doc_id = ?1").bind(row.id).first<{ n: number }>();
   if ((count?.n ?? 0) >= MAX_NOTES_PER_DOC) return deny(c, 409, "notes_full", "This paper has as many notes as it can hold", `The limit is ${MAX_NOTES_PER_DOC}.`);
   const id = randomId();
@@ -744,7 +746,7 @@ documentRoutes.patch("/:id/notes/:nid", async (c) => {
   if (!existing) return deny(c, 404, "not_found", "Note not found");
   const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!b) return deny(c, 400, "invalid_note", "Nothing to change");
-  const note = "note" in b ? cleanText(b.note, MAX_NOTE_CHARS) : (existing.note ?? "");
+  const note = "note" in b ? cleanNoteText(b.note, MAX_NOTE_CHARS) : (existing.note ?? "");
   const color = NOTE_COLORS.includes(b.color as NoteColor) ? (b.color as NoteColor) : existing.color;
   await c.env.DB.prepare("UPDATE doc_notes SET note = ?2, color = ?3, updated_at = datetime('now') WHERE id = ?1").bind(existing.id, note || null, color).run();
   const saved = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE id = ?1`).bind(existing.id).first<NoteRow>();
