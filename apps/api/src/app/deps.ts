@@ -3,7 +3,7 @@ import { devOptions, standIns } from "../platform/dev";
 import type { Deps } from "../platform/deps";
 import type { Env, HonoEnv } from "../platform/env";
 import { gatewayModels } from "../platform/llm/models";
-import { workersAiEmbedder } from "../docs/embed";
+import { workersAiEmbedder } from "../platform/llm/embedder";
 import { workersAiReader } from "../ocr/read";
 import { searchService } from "../search/service";
 import { searchEnvFrom } from "../search/env";

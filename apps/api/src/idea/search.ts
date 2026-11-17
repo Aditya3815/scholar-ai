@@ -14,7 +14,7 @@ import {
   type Paper,
   titleKey,
 } from "@scholar/shared";
-import type { Embedder } from "../docs/embed";
+import type { Embedder } from "../platform/llm/embedder";
 import { cosine } from "../docs/vector";
 import { applyDoiIntegrity, applyRetractions, runProvider } from "../search";
 import { mergeAndRank } from "../search/merge";

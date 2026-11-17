@@ -1,9 +1,10 @@
 import { OCR_MAX_TOKENS, OCR_MODEL_CHECK, OCR_MODEL_PRIMARY, OCR_PROMPT, type Reading } from "@scholar/shared";
 import type { PageReader } from "../platform/llm/port";
+import { runWorkersAi, usageOf } from "../platform/llm/workers-ai";
 
 /**
  * Reads one page picture with two different models, side by side. Both run inside our own Cloudflare account (Workers AI), which is the only route
- * a person's own files may take (see llm/providers/workersai.ts and docs/llm-providers.md); nothing here can reach another provider. The picture is
+ * a person's own files may take (platform/llm/workers-ai.ts, which every Workers AI call goes through, and docs/llm-providers.md); nothing here can reach another provider. The picture is
  * sent to the models and then forgotten: it is not stored, and neither it nor the text is logged.
  */
 export type { PageRead, PageReader } from "../platform/llm/port";
@@ -24,20 +25,18 @@ export function toDataUri(bytes: Uint8Array): string {
 
 async function callModel(ai: Ai, model: string, uri: string): Promise<{ reading: Reading; neurons: number }> {
   const run = () =>
-    Promise.race([
-      (ai as unknown as { run(m: string, b: unknown): Promise<AiChat | string> }).run(model, {
-        messages: [{ role: "user", content: [{ type: "text", text: OCR_PROMPT }, { type: "image_url", image_url: { url: uri } }] }],
-        max_tokens: OCR_MAX_TOKENS,
-        temperature: 0,
-      }),
-      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), CALL_TIMEOUT_MS)),
-    ]);
+    runWorkersAi<AiChat | string>(
+      ai,
+      model,
+      { messages: [{ role: "user", content: [{ type: "text", text: OCR_PROMPT }, { type: "image_url", image_url: { url: uri } }] }], max_tokens: OCR_MAX_TOKENS, temperature: 0 },
+      { signal: AbortSignal.timeout(CALL_TIMEOUT_MS), privacy: "private" },
+    );
   // One retry: the AI binding occasionally drops a call, and a page is worth one more try before it is called unreadable.
   const out = await run().catch(() => new Promise<AiChat | string>((resolve, reject) => setTimeout(() => run().then(resolve, reject), 500)));
   if (typeof out === "string") return { reading: { text: out, cutOff: false }, neurons: 0 };
   const text = typeof out.response === "string" ? out.response : (out.choices?.[0]?.message?.content ?? "");
   const cutOff = (out.usage?.completion_tokens ?? 0) >= OCR_MAX_TOKENS || out.choices?.[0]?.finish_reason === "length";
-  return { reading: { text, cutOff }, neurons: out.usage?.neurons ?? 0 };
+  return { reading: { text, cutOff }, neurons: usageOf(out).neurons };
 }
 
 export function workersAiReader(ai: Ai): PageReader {

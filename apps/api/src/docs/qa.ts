@@ -1,6 +1,6 @@
 import { MARK, hasMark, findRun, words, type Answer, type AskStreamEvent, type Citation } from "@scholar/shared";
 import { AnswerFieldStreamer } from "./stream-json";
-import type { Embedder } from "./embed";
+import type { Embedder } from "../platform/llm/embedder";
 import { rank } from "./vector";
 
 /** `section` is set for a paper read from XML, which has no pages (`page` is then the number of the section): "Methods > Participants". */
