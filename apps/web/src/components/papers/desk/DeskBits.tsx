@@ -1,5 +1,5 @@
 import { AnimatePresence, m } from "motion/react";
-import { Check, ChevronDown, Columns2, Copy, Download, FileDown, Highlighter, Loader2, MousePointer2, NotebookText, PencilLine, ScrollText, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, Columns2, Copy, Crop, Download, FileDown, Highlighter, Loader2, MousePointer2, NotebookText, PencilLine, ScrollText, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { DocNote, InkItem, NoteColor } from "@scholar/shared";
 import type { DeskView } from "../../../lib/desk";
@@ -58,9 +58,10 @@ const TOOLS: { id: DeskTool; label: string; key: string; Icon: typeof ScrollText
   { id: "select", label: "Select", key: "V", Icon: MousePointer2, hint: "Select and read: a selection shows what can be done with it" },
   { id: "highlight", label: "Highlight", key: "H", Icon: Highlighter, hint: "Highlight: every selection becomes a highlight in the meaning chosen" },
   { id: "draw", label: "Draw", key: "D", Icon: PencilLine, hint: "Draw, highlight by hand and write on the paper" },
+  { id: "capture", label: "Capture", key: "C", Icon: Crop, hint: "Capture a part of a page into your notes: drag a frame over it" },
 ];
 
-/** The tool segment of the paper's toolbar: Select V, Highlight H, Draw D (Capture comes in phase 3). Icons only on a phone; the name is always the button's. */
+/** The tool segment of the paper's toolbar: Select V, Highlight H, Draw D, Capture C (phase 2.5). Icons only on a phone; the name is always the button's. */
 export function ToolSegment({ tool, onTool }: { tool: DeskTool; onTool: (t: DeskTool) => void }) {
   return (
     <div className="seg desk-tools" role="radiogroup" aria-label="Tool" onKeyDown={(e) => radioKeys(e, TOOLS.map((t) => t.id), tool, (t) => onTool(t as DeskTool))}>

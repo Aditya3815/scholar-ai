@@ -1,6 +1,6 @@
 import { DEFAULT_LEGEND, STICKY_SIDE, arrowHead, itemHex, quadsForQuote, shapeOutline, type DocNote, type InkItem, type Legend, type NoteColor, type Quad, type TextBox } from "@scholar/shared";
 import type { PDFDocumentProxy, PDFPageProxy } from "./pdf";
-import { penOutline } from "../components/papers/InkLayer";
+import { penOutline } from "./ink-path";
 
 /** The colours of the text highlights on screen (`--hl-*` in workspace.css), for a white page. */
 const NOTE_HEX: Record<NoteColor, string> = { yellow: "#f2cf3e", green: "#7fcf93", blue: "#7ab0ee", pink: "#f08fb4" };

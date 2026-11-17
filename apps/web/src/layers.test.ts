@@ -97,7 +97,6 @@ const ALLOW: string[] = [
   "web/components/verify/RefCard.tsx -> web/components/CiteMenu.tsx",
   "web/components/verify/RefCard.tsx -> web/components/ReportButton.tsx",
   "web/components/verify/VerifySummary.tsx -> web/components/CiteMenu.tsx",
-  "web/lib/annotated-pdf.ts -> web/components/papers/InkLayer.tsx",
   "web/lib/trending.ts -> shared/trending-row.ts",
   "web/workspace/ChatTool.tsx -> web/components/SignInDialog.tsx",
   "web/workspace/ChatTool.tsx -> web/components/oa/OaAskSheet.tsx",

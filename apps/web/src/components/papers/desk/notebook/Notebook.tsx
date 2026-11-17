@@ -1,13 +1,13 @@
-import { Bold, ChevronDown, GripVertical, Heading, Italic, List, ListOrdered, MoreHorizontal, Plus, TextQuote, Trash2, Type, Underline, X } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { NOTEBOOK_STYLES, mdPlainText, type DocNote, type NotebookBlock, type NotebookStyle, type QuoteColor } from "@scholar/shared";
+import { Bold, ChevronDown, Crop, GripVertical, Heading, Italic, List, ListOrdered, MoreHorizontal, PenLine, Plus, TextQuote, Trash2, Type, Underline, X } from "lucide-react";
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { NOTEBOOK_STYLES, mdPlainText, type CaptureBlock, type DocNote, type NotebookBlock, type NotebookStyle, type QuoteColor } from "@scholar/shared";
 import { activeMarks, continueList, isOn, toggleHeading, toggleList, toggleMark, type Edit, type Mark } from "../../../../lib/md-edit";
 // the meanings and the copy come from the reader (props): imported here too, they would be cut out of the first load's chunks into chunks of their own
 import type { Meaning } from "../../../../lib/meanings";
 import { useNotebook, type NbPage, type NotebookStore } from "../../../../lib/notebook";
 import { showNotice } from "../../../../lib/notice";
 import { toast } from "../../../../lib/toast";
-import { MdView, QuoteBlockView, TextBlockView } from "./NbBlocks";
+import { CaptureBlockView, MdView, QuoteBlockView, TextBlockView } from "./NbBlocks";
 import { downloadMarkdown, markdownOf } from "./nb-export";
 import { NbItem, NbPop } from "./NbMenu";
 // its stylesheet (notebook.css) comes with the reader's own chunk (Desk.tsx): the Notes tab is the panel's first tab, so the page is styled before this chunk arrives
@@ -38,9 +38,16 @@ export type NotebookProps = {
   /** What each colour means (lib/meanings.ts), and the app's copy (lib/copy.ts): handed in by the reader. */
   meanings: Record<QuoteColor, Meaning>;
   copy: (text: string) => Promise<boolean>;
+  /** Capture (21.1, 6): the reader takes the paper's Capture tool up (Split on a wide screen, Paper on a phone), and the new block comes back here. */
+  onCapture?: () => void;
+  /** Draws a capture from the open paper into a canvas, `cssWidth` wide; resolves to its height. */
+  paintCapture?: (canvas: HTMLCanvasElement, b: CaptureBlock, cssWidth: number) => Promise<number>;
   /** PDF and Word (21.1, 4): made by the reader, which holds the open paper (the captures are drawn from it); without it, Export offers Markdown only. */
   exportFile?: (fmt: "pdf" | "docx", pages: NbPage[], docTitle: string, names: Record<QuoteColor, string>) => Promise<void>;
 };
+
+// a sketch is drawn and edited by a small chunk of its own (the pen, its outlines): most pages have none
+const SketchBlockView = lazy(() => import("./NbSketch").then((m) => ({ default: m.SketchBlockView })));
 
 const STYLE_NAME: Record<NotebookStyle, string> = { plain: "Plain", ruled: "Ruled", dotted: "Dotted", grid: "Graph" };
 
@@ -55,7 +62,7 @@ const isEmptyPage = (p: NbPage) => p.blocks.length === 1 && p.blocks[0]!.kind ==
  * paper's highlights), with a page picker, a page's own menu (move, paper style, delete), a formatting toolbar, reordering by drag or Alt+arrow, a drop target for quotes dragged from the paper,
  * the save line, and Copy or Download as Markdown. The `notebook` chunk: loaded when the reader needs it, never in the first load.
  */
-export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onDropQuote, announce, focus, meanings: MEANINGS, copy: copyText, exportFile }: NotebookProps) {
+export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onDropQuote, announce, focus, meanings: MEANINGS, copy: copyText, exportFile, onCapture, paintCapture }: NotebookProps) {
   const NAMES = useMemo(() => ({ yellow: MEANINGS.yellow.name, green: MEANINGS.green.name, blue: MEANINGS.blue.name, pink: MEANINGS.pink.name }), [MEANINGS]);
   const st = useNotebook(store);
   const page = st.pages.find((p) => p.id === st.openId) ?? st.pages[0] ?? null;
@@ -407,7 +414,22 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                   />
                 )}
               </NbPop>
-              {/* Capture and Draw join this group (phase 2.5, steps 3 and 4) */}
+              {onCapture && (
+                <Tool label="Capture" onPress={onCapture}>
+                  <Crop size={15} aria-hidden="true" />
+                  <span>Capture</span>
+                </Tool>
+              )}
+              <Tool
+                label="Draw"
+                onPress={() => {
+                  const at = store.addSketch({ pageId: page.id, index: insertAt() });
+                  if (at) announce(`A sketch is on ${at.title}: draw in it with the pen`);
+                }}
+              >
+                <PenLine size={15} aria-hidden="true" />
+                <span>Draw</span>
+              </Tool>
               </div>
               <div className="nb-tgroup" role="group" aria-label="Paper">
               {NOTEBOOK_STYLES.map((s) => (
@@ -484,7 +506,13 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                   ) : b.kind === "quote" ? (
                     <QuoteBlockView b={b} mean={MEANINGS[b.color]} removed={removed(b)} onGo={() => onGoTo(b.page, b.quote)} />
                   ) : (
-                    <p className="nb-later">{b.kind === "capture" ? `A part of page ${b.page}` : mdPlainText(b.text)}</p>
+                    b.kind === "capture" ? (
+                      <CaptureBlockView b={b} paint={paintCapture} onGo={() => onGoTo(b.page, "")} onCaption={(caption) => store.updateBlock(page.id, b.id, "capture", { caption })} onSize={(size) => store.updateBlock(page.id, b.id, "capture", { size })} />
+                    ) : b.kind === "sketch" ? (
+                      <Suspense fallback={<div className="nb-sketch-wait" style={{ height: b.height }} />}><SketchBlockView b={b} onStrokes={(strokes) => store.updateBlock(page.id, b.id, "sketch", { strokes })} onHeight={(height) => store.updateBlock(page.id, b.id, "sketch", { height })} onRefused={showNotice} /></Suspense>
+                    ) : (
+                      <p className="nb-later">{mdPlainText(b.text)}</p>
+                    )
                   )}
                 </div>
                 <NbPop

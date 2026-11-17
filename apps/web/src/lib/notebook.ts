@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { NOTEBOOK_LIMITS, type NotebookBlock, type NotebookPage, type NotebookStyle, type QuoteBlock, type QuoteColor, type TextBlock } from "@scholar/shared";
+import { NOTEBOOK_LIMITS, type NotebookBlock, type NotebookPage, type NotebookStyle, type QuoteColor, type TextBlock } from "@scholar/shared";
 import { idbDelete, idbGet, idbSet } from "./idb";
 
 /**
@@ -11,6 +11,9 @@ import { idbDelete, idbGet, idbSet } from "./idb";
 
 export type NbSave = "idle" | "saving" | "saved" | "offline" | "error" | "conflict";
 /** A page as this window has it. `saved`: the server has it (a page made here and never saved, like the first "Notes" page of a paper, has not). */
+/** Where a block went (Add to notes, a capture, a sketch), and how to take it back. */
+export type Placed = { pageId: string; blockId: string; title: string; undo: () => void };
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 export type NbPage = { id: string; title: string; style: NotebookStyle; position: number; blocks: NotebookBlock[]; rev: number; saved: boolean };
 export type NbState = {
   status: "loading" | "ready" | "error";
@@ -561,7 +564,28 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
      * A highlight as a quote block on the open page (or `pageId`), at `index` (the end when left out; a page whose only block is an empty text block has it replaced). With no page at all, a
      * page "Notes" is made. Returns where it went, for the toast and its Undo.
      */
-    addQuote(q: { noteId: string | null; page: number; quote: string; color: QuoteColor }, where: { pageId?: string; index?: number } = {}): { pageId: string; blockId: string; title: string; undo: () => void } | null {
+    addQuote(q: { noteId: string | null; page: number; quote: string; color: QuoteColor }, where: { pageId?: string; index?: number } = {}): Placed | null {
+      return this.insertBlock({ kind: "quote", noteId: q.noteId, page: q.page, quote: q.quote.replace(/\s+/g, " ").trim().slice(0, NOTEBOOK_LIMITS.quote), color: q.color }, where);
+    },
+    /** A part of the paper as a capture block (phase 2.5), placed as a quote is. */
+    addCapture(r: { page: number; x: number; y: number; w: number; h: number }, where: { pageId?: string; index?: number } = {}): Placed | null {
+      return this.insertBlock({ kind: "capture", page: r.page, x: r.x, y: r.y, w: r.w, h: r.h, caption: "", size: "m" }, where);
+    },
+    /** An empty sketch, 240 px high (phase 2.5), placed as a quote is. */
+    addSketch(where: { pageId?: string; index?: number } = {}): Placed | null {
+      return this.insertBlock({ kind: "sketch", height: 240, strokes: [] }, where);
+    },
+    /** Changes some fields of a block of the given kind (a caption, a size, a sketch's strokes or height); the block keeps its id and kind. */
+    updateBlock<K extends NotebookBlock["kind"]>(id: string, blockId: string, kind: K, patch: Partial<Omit<Extract<NotebookBlock, { kind: K }>, "id" | "kind">>) {
+      const s = slotOf(id);
+      if (!s) return;
+      setBlocks(s, s.page.blocks.map((b) => (b.id === blockId && b.kind === kind ? ({ ...b, ...patch } as NotebookBlock) : b)));
+    },
+    /**
+     * A block on the open page (or `pageId`), at `index` (the end when left out; a page whose only block is an empty text block has it replaced), with a text block to write in after it when
+     * it is the last. Returns where it went, for the toast and its Undo, which takes the block and the empty text block it brought.
+     */
+    insertBlock(made: DistributiveOmit<NotebookBlock, "id">, where: { pageId?: string; index?: number } = {}): Placed | null {
       const s = page(where.pageId) ?? openSlot();
       if (!s) return null;
       if (s.page.blocks.length >= NOTEBOOK_LIMITS.blocks) {
@@ -569,20 +593,20 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
         emit();
         return null;
       }
-      const b: QuoteBlock = { id: deps.newId(), kind: "quote", noteId: q.noteId, page: q.page, quote: q.quote.replace(/\s+/g, " ").trim().slice(0, NOTEBOOK_LIMITS.quote), color: q.color };
+      const b = { ...made, id: deps.newId() } as NotebookBlock;
       const only = s.page.blocks.length === 1 && isEmpty(s.page.blocks);
       const before = s.page.blocks;
       const list = only ? [] : [...before];
       const at = where.index === undefined || only ? list.length : Math.max(0, Math.min(list.length, where.index));
       list.splice(at, 0, b);
-      // a quote after the last block leaves a text block to write in after it
+      // a block after the last one leaves a text block to write in after it
       const tail: TextBlock | null = at === list.length - 1 ? { id: deps.newId(), kind: "text", md: "" } : null;
       if (tail) list.push(tail);
       setBlocks(s, list);
       const undo = () => {
         const now = slotOf(s.page.id);
         if (!now || !now.page.blocks.some((x) => x.id === b.id)) return;
-        // the quote goes, and the empty text block it brought; a page that was only an empty block gets it back
+        // the block goes, and the empty text block it brought; a page that was only an empty block gets it back
         const rest = now.page.blocks.filter((x) => x.id !== b.id && !(tail && x.id === tail.id && x.kind === "text" && !x.md.trim()));
         setBlocks(now, only && rest.length === 0 ? before : rest);
       };

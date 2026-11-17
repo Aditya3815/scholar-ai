@@ -30,6 +30,8 @@ import { ReferencesPanel } from "../ReferencesPanel";
 import { ScanBanner } from "../ScanBanner";
 import type { AgentsDrawerProps } from "./AgentsDrawer";
 import { AgentsFab, DownloadMenu, HighlightsExport, MeaningPicker, SIDE_KEY, SplitDivider, Toasts, ToolSegment, ViewSwitch, clampSide } from "./DeskBits";
+import { drawCapture } from "../../../lib/capture";
+import { CaptureLayer } from "./CaptureLayer";
 import { SelectionPopup, type PopupActions } from "./SelectionPopup";
 import "./desk.css";
 // the Notes tab's styles: the panel opens on it, so they come with the reader and the notes are never drawn unstyled while the notebook chunk arrives
@@ -178,7 +180,7 @@ export function Desk(props: DeskProps) {
   }, []);
 
   /* ---- the tool in hand ---- */
-  const [mode, setMode] = useState<"select" | "highlight">("select");
+  const [mode, setMode] = useState<"select" | "highlight" | "capture">("select");
   const [meaning, setMeaningState] = useState<NoteColor>(() => {
     const v = readStore(MEANING_KEY);
     return (NOTE_COLORS as readonly string[]).includes(v ?? "") ? (v as NoteColor) : "yellow";
@@ -198,6 +200,7 @@ export function Desk(props: DeskProps) {
       if (drawOpen) drawApi.current?.close();
       setMode(t);
       if (t === "highlight") announce(`Highlight: what you select is highlighted as ${MEANINGS[meaning].name}`);
+      else if (t === "capture") announce("Capture: drag a frame over a part of a page, or press Enter on a page to place one");
       else announce("Select: a selection shows what can be done with it");
     },
     [drawOpen, meaning, viewer],
@@ -382,6 +385,37 @@ export function Desk(props: DeskProps) {
     },
     [ensureNotebook, notes.error, wide, shown, tab, openInNotes],
   );
+  /* ---- Capture (phase 2.5, 21.1, 6): from the paper's tool, or the notes' toolbar (Notes view on a wide screen goes to Split; a phone goes to Paper and comes back after) ---- */
+  const captureBack = useRef(false);
+  const startCapture = useCallback(() => {
+    if (!wide) {
+      captureBack.current = shown !== "paper";
+      setView("paper");
+    } else if (shown === "notes") setView("split");
+    pickTool("capture");
+  }, [wide, shown, setView, pickTool]);
+  const onCaptured = useCallback(
+    async (r: { page: number; x: number; y: number; w: number; h: number }) => {
+      setMode("select");
+      const back = captureBack.current;
+      captureBack.current = false;
+      const store = await ensureNotebook().catch(() => null);
+      if (!store) return void showNotice("Your notes could not be opened. Check the connection, then try again.");
+      const at = store.addCapture(r);
+      if (!at) return;
+      announce(`A part of page ${r.page} is in ${at.title}`);
+      toast(`Capture from p. ${r.page} added to "${at.title}"`, { label: "Undo", run: () => (at.undo(), announce("Taken out of your notes")) }, !wide && !back ? { label: "Open", run: () => openInNotes(store, at) } : undefined);
+      if (back || (wide && tab === "notes")) openInNotes(store, at);
+    },
+    [ensureNotebook, wide, tab, openInNotes],
+  );
+  const paintCapture = useCallback(
+    async (canvas: HTMLCanvasElement, b: { page: number; x: number; y: number; w: number; h: number }, cssWidth: number) => {
+      if (pdf.status !== "ready") throw new Error("the paper is not open");
+      return drawCapture(pdf.pdf, canvas, b.page, b, cssWidth);
+    },
+    [pdf],
+  );
   const showInNotes = useCallback(
     (noteId: string) => {
       void ensureNotebook().then((store) => openInNotes(store, store.findQuote(noteId)));
@@ -527,8 +561,9 @@ export function Desk(props: DeskProps) {
       popup: (p) => <SelectionPopup key={p.note?.id ?? "sel"} p={p} wide={wide} actions={actions} onRect={setPopRect} />,
       onDraw: setDrawOpen,
       quoteDrag: true,
+      capture: mode === "capture" ? (n) => <CaptureLayer page={n} onCapture={(r) => void onCaptured(r)} onCancel={() => pickTool("select")} /> : undefined,
     }),
-    [mode, meaning, setMeaning, pickTool, pdfReady, pdf, doc.id, doc.title, notes.notes, ink.strokes, wide, actions],
+    [mode, meaning, setMeaning, pickTool, pdfReady, pdf, doc.id, doc.title, notes.notes, ink.strokes, wide, actions, onCaptured],
   );
 
   const meta = info?.metadata;
@@ -651,7 +686,7 @@ export function Desk(props: DeskProps) {
           <div className="dw-side desk-tabpanel" id="desk-tabpanel-notes" role="tabpanel" aria-labelledby="desk-tab-notes" hidden={tab !== "notes"}>
             {nb ? (
               <Suspense fallback={<p className="nb-wait" role="status">Loading your notes…</p>}>
-                <NotebookView store={nb} docTitle={doc.title} notes={existing} notesReady={notes.status === "ready"} wide={wide} onGoTo={goTo} onDropQuote={onDropQuote} announce={announce} focus={nbFocus} meanings={MEANINGS} copy={copyText} />
+                <NotebookView store={nb} docTitle={doc.title} notes={existing} notesReady={notes.status === "ready"} wide={wide} onGoTo={goTo} onDropQuote={onDropQuote} announce={announce} focus={nbFocus} meanings={MEANINGS} copy={copyText} onCapture={startCapture} paintCapture={paintCapture} />
               </Suspense>
             ) : (
               <p className="nb-wait" role="status">Loading your notes…</p>

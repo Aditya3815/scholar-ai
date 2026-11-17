@@ -5,11 +5,11 @@ import { TOOL_KEYS } from "../components/papers/InkToolbar";
 const out = { drawOpen: false, typing: false };
 
 describe("the reader's tool keys (docs/design/paper-reader.md, 3)", () => {
-  it("outside Draw: V Select, H Highlight, D Draw, in either case", () => {
+  it("outside Draw: V Select, H Highlight, D Draw, C Capture (phase 2.5), in either case", () => {
     expect(deskToolKey({ key: "v" }, out)).toBe("select");
     expect(deskToolKey({ key: "H" }, out)).toBe("highlight");
     expect(deskToolKey({ key: "d" }, out)).toBe("draw");
-    expect(deskToolKey({ key: "c" }, out)).toBeNull(); // Capture comes in phase 3
+    expect(deskToolKey({ key: "C" }, out)).toBe("capture");
     expect(deskToolKey({ key: "a" }, out)).toBeNull(); // no key for the Agents: A is the arrow in Draw
   });
 

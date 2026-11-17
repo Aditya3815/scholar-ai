@@ -383,3 +383,8 @@
 .desk .note-nb .btn { min-height: 30px; }
 .desk .note-innotes > svg,
 .desk-pop-innotes > svg { color: var(--ok); }
+
+/* phase 2.5 (21.1, 6): Capture over a page. A frame is dragged (or placed and moved by keyboard); the rest of the page is dimmed a little while it is there */
+.desk .desk-capture { position: absolute; inset: 0; z-index: 6; cursor: crosshair; touch-action: none; background: color-mix(in srgb, var(--accent) 4%, transparent); overflow: hidden; }
+.desk .desk-capture:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.desk .desk-capture-frame { position: absolute; border: 2px dashed var(--accent); border-radius: 2px; background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.16); pointer-events: none; }
