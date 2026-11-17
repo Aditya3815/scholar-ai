@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import type { AuthProviderInfo, AuthUser } from "@scholar/shared";
 import { beginWipe, clearChats, setChatOwner } from "./chat";
 import { clearOaAsk } from "./oa-ask";
-import { clearOfflineData, pendingDrawings } from "./offline";
+import { clearOfflineData, pendingDrawings, pendingNotebooks } from "./offline";
 
 export type AuthState = {
   status: "loading" | "ready";
@@ -75,6 +75,9 @@ export async function signOut(): Promise<void> {
   // drawings made offline that have not reached the server would be lost with the sign-out: ask first
   const pending = await pendingDrawings();
   if (pending > 0 && !window.confirm(`${pending === 1 ? "A drawing" : `${pending} drawings`} made without a connection ${pending === 1 ? "has" : "have"} not been sent yet and will be lost if you sign out now. Sign out anyway?`)) return;
+  // the same for notes written in the new reader's Notebook without a connection (there are none unless the new reader is on)
+  const notesWaiting = await pendingNotebooks();
+  if (notesWaiting > 0 && !window.confirm(`Notes written without a connection (in ${notesWaiting === 1 ? "one paper" : `${notesWaiting} papers`}) have not been sent yet and will be lost if you sign out now. Sign out anyway?`)) return;
   // the conversations are cleared below, after the session is ended: a tab that is closed before that is done leaves a mark, and the next page that loads finishes it. (Chats are NOT removed because a page
   // finds nobody signed in: a cookie that ran out is not a sign-out. Only this, "Delete all" and another person signing in remove a person's chats.)
   beginWipe();
