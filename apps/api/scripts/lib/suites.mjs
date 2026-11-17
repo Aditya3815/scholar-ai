@@ -56,6 +56,7 @@ export const SUITES = [
   { label: "browser: citation cards in the reader", file: "web/e2e/cites.mjs", browser: true, reset: true },
   // the new Paper Reader, phase 1 (docs/design/paper-reader.md): written for READER on; production (the default run) has it off, so it runs in --run=reader-on
   { label: "browser: the new Paper Reader, phase 1 (READER on)", file: "web/e2e/reader.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
+  { label: "browser: the Notebook of the new Paper Reader, phase 2 (READER on)", file: "web/e2e/notebook.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
   // the Home page's Trending row is read from the real route in one section: it is there only with the list shown
   { label: "browser: trending", file: "web/e2e/trending.mjs", browser: true, reset: true, needs: { TRENDING: ["on"] } },
   { label: "browser: ask any paper", file: "web/e2e/oa.mjs", browser: true, reset: true },
@@ -77,6 +78,7 @@ export const SUITES = [
 export const NOT_RUN = {
   "web/e2e/poc.mjs": "walks the static design page docs/design/poc/unified-workspace.html, not the app, and launches Edge by name (channel msedge), which the Linux CI does not have",
   "web/e2e/shots-reader.mjs": "takes the before and after pictures of the Paper Reader for the owner (it starts its own Workers, READER off and on) and checks nothing",
+  "web/e2e/shots-notebook.mjs": "takes the pictures of the Notebook (Paper Reader, phase 2) for the owner (it starts its own Worker, READER on) and checks nothing",
 };
 
 /** The suites whose checks follow the chat's gate flags (they read the switches through scripts/lib/harness.mjs): what each chat run of the matrix starts. */
@@ -95,7 +97,7 @@ const MCP_SUITES = ["MCP server integration", "browser: AI apps (MCP consent and
  * new one too (cites.mjs and polish-reader.mjs follow READER where the layout differs). papers.mjs and workspace.mjs are not here: their reader checks are of today's layout (its phone tabs,
  * the side panel put away, the colours' plain names, the old pop-up), which the new reader replaces; they keep running in the default run, where READER is off.
  */
-const READER_SUITES = ["documents integration", "notebook integration (READER on)", "browser: the new Paper Reader, phase 1 (READER on)", "browser: reader polish (back, drawing tools, question box)", "browser: citation cards in the reader"];
+const READER_SUITES = ["documents integration", "notebook integration (READER on)", "browser: the new Paper Reader, phase 1 (READER on)", "browser: the Notebook of the new Paper Reader, phase 2 (READER on)", "browser: reader polish (back, drawing tools, question box)", "browser: citation cards in the reader"];
 
 /**
  * The runs. `default` is production's positions (decision 13): wrangler.jsonc's `vars` as committed (TRENDING off, MCP beta, CHAT_TOOLS on, every other gate unset), and every suite that is

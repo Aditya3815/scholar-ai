@@ -67,18 +67,19 @@ const TAGS = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 
 /**
  * Runs axe (WCAG 2.0 A and AA, 2.1 AA, 2.2 AA) on the page and returns its violations. `inlineCites`: target-size is not reported for a citation button (data-cite), which WCAG 2.2
- * excepts as an inline target and axe cannot tell; `incompleteTargetSize`: target-size results axe could not decide count as violations too.
+ * excepts as an inline target and axe cannot tell; `incompleteTargetSize`: target-size results axe could not decide count as violations too; `context`: a selector, to check only that part of
+ * the page (an open pop-over, whose page behind was checked closed: axe takes a target the pop-over covers in part to be too small).
  */
-export async function axeViolations(p, { inlineCites = false, incompleteTargetSize = false } = {}) {
+export async function axeViolations(p, { inlineCites = false, incompleteTargetSize = false, context } = {}) {
   await p.evaluate(axeSource);
   return p.evaluate(
-    async ({ tags, inlineCites, incompleteTargetSize }) => {
-      const r = await window.axe.run(document, { runOnly: { type: "tag", values: tags } });
+    async ({ tags, inlineCites, incompleteTargetSize, context }) => {
+      const r = await window.axe.run(context ? { include: [[context]] } : document, { runOnly: { type: "tag", values: tags } });
       if (inlineCites) for (const v of r.violations) if (v.id === "target-size") v.nodes = v.nodes.filter((n) => !n.target.join(" ").includes("data-cite"));
       const list = (items, impact) => items.filter((v) => v.nodes.length > 0).map((v) => ({ id: v.id, impact: impact ?? v.impact, nodes: v.nodes.length, sample: v.nodes[0]?.target?.join(" "), msg: v.nodes[0]?.failureSummary?.split("\n")[1] }));
       return [...list(r.violations), ...(incompleteTargetSize ? list(r.incomplete.filter((i) => i.id === "target-size"), "incomplete") : [])];
     },
-    { tags: TAGS, inlineCites, incompleteTargetSize },
+    { tags: TAGS, inlineCites, incompleteTargetSize, context },
   );
 }
 /** Prints each violation under its check. */
@@ -88,12 +89,12 @@ export const printViolations = (res) => {
 
 /**
  * One axe check: "axe [<label>]" (with ": no violations" or ":" after it when `said`), no violation allowed. Before it, `css` is put into the page for the run and taken out after (the
- * conversation's box unstuck, every reply drawn, motion stopped) and `settle(p)` is awaited (a pause, or the page told to stand still); `inlineCites` and `incompleteTargetSize` as axeViolations.
+ * conversation's box unstuck, every reply drawn, motion stopped) and `settle(p)` is awaited (a pause, or the page told to stand still); `inlineCites`, `incompleteTargetSize` and `context` as axeViolations.
  */
-export async function axeCheck(p, label, { css, settle, said = false, inlineCites, incompleteTargetSize } = {}) {
+export async function axeCheck(p, label, { css, settle, said = false, inlineCites, incompleteTargetSize, context } = {}) {
   const style = css ? await p.addStyleTag({ content: css }) : null;
   if (settle) await settle(p);
-  const res = await axeViolations(p, { inlineCites, incompleteTargetSize });
+  const res = await axeViolations(p, { inlineCites, incompleteTargetSize, context });
   if (style) await style.evaluate((el) => el.remove());
   ok(res.length === 0, said ? `axe [${label}]: ${res.length ? "" : "no violations"}` : `axe [${label}]`);
   printViolations(res);

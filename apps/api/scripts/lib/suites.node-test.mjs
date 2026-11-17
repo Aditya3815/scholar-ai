@@ -27,7 +27,7 @@ test("the default run is production's positions, read from wrangler.jsonc throug
   // and a suite written for other positions is not run there, but in a named run that gives them
   const skipped = SUITES.filter((s) => Object.entries(s.needs ?? {}).some(([sw, ps]) => !ps.includes(position(sw, vars))));
   assert.equal(position("READER", vars), "off");
-  assert.deepEqual(skipped.map((s) => s.label).sort(), ["MCP server integration", "browser: AI apps (MCP consent and Connected apps)", "browser: trending", "browser: the new Paper Reader, phase 1 (READER on)", "notebook integration (READER on)"].sort());
+  assert.deepEqual(skipped.map((s) => s.label).sort(), ["MCP server integration", "browser: AI apps (MCP consent and Connected apps)", "browser: trending", "browser: the new Paper Reader, phase 1 (READER on)", "notebook integration (READER on)", "browser: the Notebook of the new Paper Reader, phase 2 (READER on)"].sort());
 });
 
 test("a suite marked last runs after every other suite of each run that has it", () => {
