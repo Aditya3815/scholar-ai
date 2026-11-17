@@ -19,6 +19,9 @@ const readSetting = (): boolean => {
   }
 };
 
+/** Offline reading is on in this browser (read once, for code that is not a component). */
+export const offlineOn = readSetting;
+
 export const useOfflineOn = (): boolean =>
   useSyncExternalStore(
     (l) => {

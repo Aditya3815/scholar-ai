@@ -5,7 +5,10 @@
 //   node e2e/polish-reader.mjs [baseUrl]    (default http://localhost:8788)
 // The browser is started WITH its scroll bars (Playwright hides them by default in a headless browser: a box that grows a bar would show nothing in a picture and take no room in a measurement).
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
-import { BASE, REFUSED_OR_BUSY, axeCheck, countFailure, desk, finish, launch, ok, phone, setTheme, sleep, startIdp, watchPage } from "./lib/browser.mjs";
+import { BASE, REFUSED_OR_BUSY, at, axeCheck, countFailure, desk, finish, launch, ok, phone, setTheme, sleep, startIdp, watchPage } from "./lib/browser.mjs";
+
+// With the new Paper Reader (READER on, the run reader-on), Draw is a tool of the toolbar's segment and Ask is in the Agents drawer; everything else is checked as it is.
+const DESK = at("READER", "on");
 
 const note = (msg) => console.log(`        ${msg}`);
 
@@ -62,6 +65,8 @@ try {
   const openReader = async (vp, { theme = "light", scale = 1 } = {}) => {
     const ctx = await browser.newContext({ ...VP[vp], ...(scale !== 1 ? { deviceScaleFactor: scale } : {}), storageState: state, colorScheme: "light" });
     await ctx.addInitScript((t) => { try { localStorage.setItem("theme", t); } catch { /* no storage */ } }, theme);
+    // with READER on, the paper has the window's width (the Paper view), as today's reader gives it under 1000 px: the drawing toolbar's rows are measured at the same width
+    if (DESK) await ctx.addInitScript(() => { try { localStorage.setItem("scholar.view", "paper"); } catch { /* no storage */ } });
     const page = await ctx.newPage();
     watch(page);
     await page.addInitScript(colourParser);
@@ -72,7 +77,7 @@ try {
     return { ctx, page };
   };
   const openTools = async (page) => {
-    await page.getByRole("button", { name: /^Draw$/ }).click();
+    await (DESK ? page.getByRole("radio", { name: "Draw" }) : page.getByRole("button", { name: /^Draw$/ })).click();
     await page.getByRole("toolbar", { name: "Draw on the paper" }).waitFor();
     await sleep(700); // the toolbar's own opening animation
   };
@@ -292,7 +297,8 @@ try {
   console.log("3. the question box of a paper");
   for (const vp of [1280, 390]) {
     const { ctx, page } = await openReader(vp);
-    if (vp === 390) await page.getByRole("tab", { name: /^Ask/ }).click();
+    if (DESK) await page.getByRole("button", { name: "Agents" }).click();
+    else if (vp === 390) await page.getByRole("tab", { name: /^Ask/ }).click();
     const ta = page.locator("#ask-input");
     await ta.waitFor();
     await sleep(500);

@@ -15,7 +15,7 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { makePdf } from "@scholar/test-support/make-pdf.mjs";
-import { BASE, REFUSED_OR_BUSY, axeCheck, countFailure, desk, finish, launch, ok, phone, sleep, startIdp, watchPage } from "./lib/browser.mjs";
+import { BASE, REFUSED_OR_BUSY, at, axeCheck, countFailure, desk, finish, launch, ok, phone, sleep, startIdp, watchPage } from "./lib/browser.mjs";
 
 const SHOTS = process.env.SHOTS_DIR ?? fileURLToPath(new URL("./shots/", import.meta.url));
 mkdirSync(SHOTS, { recursive: true });
@@ -242,7 +242,8 @@ try {
     ok(true, "and on again");
 
     /* ---------------- drawing */
-    await page.getByRole("button", { name: "Draw" }).click();
+    // with READER on, Draw is a tool of the toolbar's segment (a radio)
+    await (at("READER", "on") ? page.getByRole("radio", { name: "Draw" }) : page.getByRole("button", { name: "Draw" })).click();
     await sleep(300);
     const pe = await one.evaluate((e) => getComputedStyle(e).pointerEvents);
     ok(pe === "none", "while drawing, the citations take no pointer (the pen goes through)");
@@ -296,7 +297,9 @@ try {
 
   /* ================================================================ the reader's tab bar (Paper, Ask, References, Notes) on narrow screens */
   // Its icons sat at each tab's top-left corner, over the word, from 18 Oct 2026 (the icon was in the rule of the pill behind the tab): icon and word are now in one row.
-  for (const [w, h, phone] of [[320, 640, true], [390, 844, true], [768, 1000, false]]) {
+  // With the new Paper Reader (READER on, the run reader-on) this bar does not exist: a phone has the view switch Paper | Notes instead, which e2e/reader.mjs checks.
+  if (at("READER", "on")) console.log("        (the reader's old tab bar: not drawn with READER on; the new view switch is checked by e2e/reader.mjs)");
+  for (const [w, h, phone] of at("READER", "on") ? [] : [[320, 640, true], [390, 844, true], [768, 1000, false]]) {
     for (const theme of ["light", "dark"]) {
       const { ctx, page } = await open({ width: w, height: h }, { phone, theme, citesOff: true });
       const bar = await page.locator(".dw-tabs").evaluate((tl) => {

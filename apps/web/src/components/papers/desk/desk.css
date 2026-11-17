@@ -1,0 +1,341 @@
+/*
+ * The new Paper Reader, phase 1 "Desk" (docs/design/paper-reader.md). Loaded with its own chunk, so nothing here is in the first load, and nothing here applies to today's reader:
+ * every rule is under .desk or a desk-* class. Tokens only (tokens.css), so each piece works in Light, Dark, Read and the system's dark. The two media queries are the same test as
+ * lib/desk.ts's WIDE_QUERY (a unit test holds them together): a wide screen, and everything else (every phone, either way round).
+ */
+
+/* ---------------------------------------------------------------- the meanings: a ring in the meaning's colour, its letter inside */
+.desk-dot {
+  --dot: var(--mean-key);
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border: 3px solid var(--dot);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--dot) 16%, var(--surface));
+  color: var(--text);
+  font-size: 0.6875rem;
+  font-weight: 750;
+  line-height: 1;
+}
+.desk-dot[data-color="green"] { --dot: var(--mean-method); }
+.desk-dot[data-color="blue"] { --dot: var(--mean-question); }
+.desk-dot[data-color="pink"] { --dot: var(--mean-result); }
+
+/* the Highlights list in the new reader: each colour dot of a card is drawn like a meaning's dot, with its letter (the names are its accessible name and tooltip already) */
+.desk .note-dot {
+  --dot: var(--mean-key);
+  display: inline-grid;
+  place-items: center;
+  border: 3px solid var(--dot);
+  background: color-mix(in srgb, var(--dot) 16%, var(--surface));
+  color: var(--text);
+  font-size: 0.6875rem;
+  font-weight: 750;
+}
+.desk .note-dot[data-color="green"] { --dot: var(--mean-method); background: color-mix(in srgb, var(--dot) 16%, var(--surface)); }
+.desk .note-dot[data-color="blue"] { --dot: var(--mean-question); background: color-mix(in srgb, var(--dot) 16%, var(--surface)); }
+.desk .note-dot[data-color="pink"] { --dot: var(--mean-result); background: color-mix(in srgb, var(--dot) 16%, var(--surface)); }
+.desk .note-dot[data-color="yellow"] { background: color-mix(in srgb, var(--dot) 16%, var(--surface)); }
+.desk .note-dot[aria-pressed="true"] { border-color: var(--dot); box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--text); }
+.desk .note-dot[data-color="yellow"]::after { content: "K"; }
+.desk .note-dot[data-color="green"]::after { content: "M"; }
+.desk .note-dot[data-color="blue"]::after { content: "Q"; }
+.desk .note-dot[data-color="pink"]::after { content: "R"; }
+
+/* ---------------------------------------------------------------- the header: status, view switch, full screen, theme */
+.desk-head-end { flex-wrap: wrap; justify-content: flex-end; }
+.desk-views .seg-btn[aria-checked="true"],
+.desk-tools .seg-btn[aria-checked="true"] { color: var(--accent-fg); }
+.desk-view-label,
+.desk-tool-label { position: relative; }
+.desk-views .seg-btn,
+.desk-tools .seg-btn { min-height: 36px; padding: 0 0.7rem; }
+.seg-btn:focus-visible,
+.desk-meaning:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------------------------------------------------------------- the paper's toolbar */
+/* the paper's own width decides what fits (Split on a tablet leaves it narrow): the thumbnails go first, then the meanings' names, then the tools' words */
+.desk .pdfv { container: deskpaper / inline-size; }
+@container deskpaper (max-width: 600px) {
+  .desk .pdfv-rail { display: none; }
+}
+.pdfv-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.desk-tools { flex: none; }
+.desk-meanings {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.desk-meaning {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0 0.55rem 0 0.2rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 620;
+  cursor: pointer;
+}
+.desk-meaning[aria-checked="true"] { background: var(--accent-soft); color: var(--text); }
+.desk-meaning[aria-checked="true"] .desk-dot { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--text); }
+@container deskpaper (max-width: 1040px) {
+  .desk-meaning-name { display: none; }
+  .desk-meaning { padding: 0 0.2rem; }
+}
+@container deskpaper (max-width: 700px) {
+  .desk-tool-label { display: none; }
+}
+
+/* the Download menu */
+.desk-menu { display: grid; gap: 0.15rem; min-width: 15rem; }
+.desk-menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.55rem 0.6rem;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.desk-menu-item > svg { flex: none; margin-top: 0.15rem; color: var(--accent); }
+.desk-menu-item small { display: block; margin-top: 0.1rem; color: var(--muted); font-size: 0.75rem; font-weight: 450; }
+.desk-menu-item:hover,
+.desk-menu-item:focus-visible { background: var(--surface-2); outline: none; }
+.desk-menu-item:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.desk-menu-item:disabled { opacity: 0.6; cursor: progress; }
+.pop:has(> .desk-menu) { width: auto; padding: 0.4rem; }
+
+/* ---------------------------------------------------------------- the selection pop-up */
+.desk-pop {
+  position: fixed;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: calc(100vw - 16px);
+  padding: 0.3rem 0.4rem;
+  translate: -50% 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+.desk-pop-dots { display: flex; gap: 0.1rem; }
+.desk-pop-dot {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.desk-pop-dot:hover { transform: scale(1.1); }
+.desk-pop-dot[data-current] .desk-dot { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--text); }
+.desk-pop-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 620;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.desk-pop-btn:hover { background: var(--surface-2); }
+.desk-pop-btn > svg { color: var(--accent); }
+.desk-pop-remove > svg { color: var(--danger); }
+.desk-pop-dot:focus-visible,
+.desk-pop-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------------------------------------------------------------- the divider of Split */
+.desk-divider {
+  position: sticky;
+  top: 4.6rem;
+  display: grid;
+  place-items: center;
+  height: calc(100dvh - 8.4rem);
+  min-height: 24rem;
+  border-radius: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.ws-shell[data-focus="true"] .desk-divider { top: 0.6rem; height: calc(100dvh - 6.2rem); }
+.desk-divider-grip {
+  width: 4px;
+  height: 40px;
+  border-radius: 4px;
+  background: var(--border-strong);
+  transition: height var(--dur) var(--ease), background-color var(--dur-fast) var(--ease);
+}
+.desk-divider:hover .desk-divider-grip,
+.desk-divider:focus-visible .desk-divider-grip { height: 72px; background: var(--accent); }
+.desk-divider:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* ---------------------------------------------------------------- the views */
+.desk .dw-panel[hidden] { display: none; }
+.desk .desk-sidehead { display: flex; }
+.desk .desk-tabpanel[hidden] { display: none; }
+
+@media (min-width: 744px) and (min-height: 520px) {
+  .desk .desk-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .desk .desk-grid[data-view="split"] { grid-template-columns: minmax(0, 1.35fr) 1rem minmax(22rem, 0.65fr); }
+  .desk .desk-grid[data-view="split"][data-sized="true"] { grid-template-columns: minmax(0, 1fr) 1rem var(--desk-side); }
+  .desk .dw-panel { position: sticky; top: 4.6rem; height: calc(100dvh - 8.4rem); min-height: 24rem; }
+  /* Notes on a wide screen: the panel fills the window and its text keeps a reading width */
+  .desk .desk-grid[data-view="notes"] .desk-tabpanel > * { width: min(100%, var(--read-measure)); margin-inline: auto; }
+  .desk .desk-grid[data-view="notes"] .dw-sidetabs { justify-content: center; }
+}
+
+@media not all and (min-width: 744px) and (min-height: 520px) {
+  .desk .desk-grid { grid-template-columns: minmax(0, 1fr); }
+  /* a phone: the panel takes the height under the header (measured: --desk-phone-h) */
+  .ws-shell .desk .dw-panel,
+  .desk .dw-panel { position: static; height: var(--desk-phone-h, calc(100dvh - 9rem)); min-height: 16rem; }
+  .desk-head-end { justify-content: space-between; row-gap: 0.6rem; }
+  /* the toolbar scrolls sideways inside itself; the page never does */
+  .desk .pdfv-bar { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+  .desk .pdfv-bar > * { flex: none; }
+  .desk .pdfv-tools { flex-wrap: nowrap; }
+  .desk-tool-label,
+  .desk-meaning-name { display: none; }
+  .desk-meaning { padding: 0 0.2rem; }
+  /* the pop-up is a fixed pill at the bottom; its words stay its buttons' names */
+  .desk-pop { left: 50%; top: auto; bottom: calc(16px + env(safe-area-inset-bottom)); }
+  .desk-pop-btn { width: 40px; min-height: 40px; padding: 0; }
+  .desk-pop-btn > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .desk-pop-dot { width: 36px; height: 36px; }
+}
+
+/* ---------------------------------------------------------------- the Agents button */
+.desk-fab {
+  position: fixed;
+  z-index: 55;
+  right: calc(20px + env(safe-area-inset-right));
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 56px;
+  height: 56px;
+  padding: 0 1.2rem 0 1.05rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: var(--shadow-2);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.desk-fab[hidden] { display: none; }
+.desk-fab[data-wide="false"] { width: 56px; padding: 0; }
+.desk-fab:hover { filter: brightness(1.06); }
+.desk-fab:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.desk-fab-ico { display: inline-grid; place-items: center; }
+
+/* ---------------------------------------------------------------- toasts */
+.desk-toasts {
+  position: fixed;
+  z-index: 65;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  translate: -50% 0;
+  pointer-events: none;
+}
+.desk-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.4rem 0.35rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+  font-size: 0.875rem;
+  pointer-events: auto;
+}
+.desk-toast-act {
+  min-height: 32px;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.desk-toast-act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media not all and (min-width: 744px) and (min-height: 520px) {
+  /* above the Agents button on a phone */
+  .desk-toasts { bottom: calc(20px + 56px + 12px + env(safe-area-inset-bottom)); }
+}
+
+/* the colour chips of the Highlights list and its headings: the meaning's own colour (their name is written beside it) */
+.desk .sres-dot { background: var(--mean-key); }
+.desk .sres-dot[data-color="green"] { background: var(--mean-method); }
+.desk .sres-dot[data-color="blue"] { background: var(--mean-question); }
+.desk .sres-dot[data-color="pink"] { background: var(--mean-result); }
+
+/* the Highlights list's "By page | By colour": its word sits above the sliding pill (in today's reader the pill covers the chosen word; that is left as it is there) */
+.desk .hl-group .hl-seg-label { position: relative; }
+.desk .hl-group .seg-btn { flex-wrap: nowrap; white-space: nowrap; }
+/* its buttons wrap in a narrow panel instead of running out of it (Split on a tablet, a phone) */
+.desk .notes-actions { flex-wrap: wrap; row-gap: 0.4rem; }
+.desk .notes-actions .btn { white-space: nowrap; }
+
+/* a phone upright: the status and the theme on one row, the view switch under them across the width (Paper | Notes); on its side all of it fits one row */
+@media not all and (min-width: 744px) and (min-height: 520px) {
+  @media (max-width: 600px) {
+    .desk-head-end > .meta-chip { order: 1; }
+    .desk-head-end > .seg[aria-label="Theme"] { order: 2; }
+    .desk-head-end > .desk-views { order: 3; flex: 1 0 100%; }
+    .desk-views .desk-view { flex: 1; }
+  }
+}
+
+/* room under the last item for the Agents button: the panel's lists (Highlights, References; also the Notes view) and, on a phone, the paper scroll clear of it */
+.desk { --fab-clear: calc(56px + 20px + 16px + env(safe-area-inset-bottom)); }
+.desk .notes-body,
+.desk .refs-panel .ask-scroll { padding-bottom: var(--fab-clear); }
+@media not all and (min-width: 744px) and (min-height: 520px) {
+  .desk .pdfv-pages { padding-bottom: var(--fab-clear); }
+}

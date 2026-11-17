@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { SWITCHES, flag, killSwitch, type GateName, type KillName } from "./switches";
 import { checkClaimAllowedFor, mcpMode } from "../mcp/flag";
+import { readerOnFor } from "../docs/reader-flag";
 import { readTrending } from "../trending/routes";
 import { runTrending } from "../trending/job";
 import { fakeKv } from "../trending/fake-kv";
@@ -22,7 +23,7 @@ const kvStates = (): KvState[] => [
   { label: "(throws)", cache: { get: async () => { throw new Error("503"); } } as unknown as KVNamespace },
 ];
 
-const GATES = ["CHAT_COUNTERS", "CHAT_FAILPOLICY", "CHAT_SAFETY", "CHAT_CLEAN", "CHAT_FLOOR", "CHAT_THINK", "CHAT_UNDERSTAND", "CHAT_UNDERSTAND_VISITORS", "CHAT_TOOLS", "MCP", "MCP_CHECK_CLAIM"] as const;
+const GATES = ["CHAT_COUNTERS", "CHAT_FAILPOLICY", "CHAT_SAFETY", "CHAT_CLEAN", "CHAT_FLOOR", "CHAT_THINK", "CHAT_UNDERSTAND", "CHAT_UNDERSTAND_VISITORS", "CHAT_TOOLS", "MCP", "MCP_CHECK_CLAIM", "READER"] as const;
 type Gate = (typeof GATES)[number];
 
 /** The reading of one gate, as every caller makes it: through the registry. */
@@ -42,6 +43,10 @@ async function gateTable(name: Gate) {
       if (name === "MCP_CHECK_CLAIM") {
         const withUsers = { ...env, MCP_BETA_USERS: "u-in" };
         cell += `; listed ${await checkClaimAllowedFor(withUsers as never, "u-in")}, not listed ${await checkClaimAllowedFor(withUsers as never, "u-out")}`;
+      }
+      if (name === "READER") {
+        const withUsers = { ...env, READER_BETA_USERS: "u-in" };
+        cell += `; new reader for a listed account ${await readerOnFor(withUsers as never, "u-in")}, for another ${await readerOnFor(withUsers as never, "u-out")}`;
       }
       row[k.label] = cell;
     }

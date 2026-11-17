@@ -22,7 +22,8 @@ export type NotesApi = {
   error: string;
   add: (n: { page: number; quote: string; note?: string; color?: NoteColor }) => Promise<DocNote | null>;
   update: (id: string, change: { note?: string; color?: NoteColor }) => Promise<void>;
-  remove: (id: string) => Promise<void>;
+  /** true when the server removed it (on a failure `error` says why and the highlight stays) */
+  remove: (id: string) => Promise<boolean>;
 };
 
 /** The highlights and notes of one paper: loaded once, changed on the server first, then shown (a failed change leaves the list as it was). */
@@ -74,8 +75,10 @@ export function useNotes(docId: string): NotesApi {
       try {
         await call<{ ok: boolean }>(docId, `/${id}`, { method: "DELETE" });
         setState((s) => ({ ...s, error: "", notes: s.notes.filter((x) => x.id !== id) }));
+        return true;
       } catch (e) {
         fail(e);
+        return false;
       }
     },
     [docId],

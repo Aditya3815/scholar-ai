@@ -52,6 +52,8 @@ export const SUITES = [
   { label: "browser: chat tools (what the page draws for a tool run in the reply)", file: "web/e2e/chat-tools.mjs", browser: true, reset: true },
   { label: "browser: reader polish (back, drawing tools, question box)", file: "web/e2e/polish-reader.mjs", browser: true, reset: true },
   { label: "browser: citation cards in the reader", file: "web/e2e/cites.mjs", browser: true, reset: true },
+  // the new Paper Reader, phase 1 (docs/design/paper-reader.md): written for READER on; production (the default run) has it off, so it runs in --run=reader-on
+  { label: "browser: the new Paper Reader, phase 1 (READER on)", file: "web/e2e/reader.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
   // the Home page's Trending row is read from the real route in one section: it is there only with the list shown
   { label: "browser: trending", file: "web/e2e/trending.mjs", browser: true, reset: true, needs: { TRENDING: ["on"] } },
   { label: "browser: ask any paper", file: "web/e2e/oa.mjs", browser: true, reset: true },
@@ -72,6 +74,7 @@ export const SUITES = [
 /** Suite files that no run starts, each with the reason. Everything else under api/scripts/*-e2e.mjs and web/e2e/*.mjs must have a row above. */
 export const NOT_RUN = {
   "web/e2e/poc.mjs": "walks the static design page docs/design/poc/unified-workspace.html, not the app, and launches Edge by name (channel msedge), which the Linux CI does not have",
+  "web/e2e/shots-reader.mjs": "takes the before and after pictures of the Paper Reader for the owner (it starts its own Workers, READER off and on) and checks nothing",
 };
 
 /** The suites whose checks follow the chat's gate flags (they read the switches through scripts/lib/harness.mjs): what each chat run of the matrix starts. */
@@ -85,6 +88,12 @@ const CHAT_SUITES = [
 ];
 const TRENDING_SUITES = ["trending list integration", "operations integration", "browser: trending"];
 const MCP_SUITES = ["MCP server integration", "browser: AI apps (MCP consent and Connected apps)"];
+/**
+ * The new Paper Reader on (docs/design/paper-reader.md, 16): its own suite, the documents suite (features.reader is true), and the reader suites written for today's reader that apply to the
+ * new one too (cites.mjs and polish-reader.mjs follow READER where the layout differs). papers.mjs and workspace.mjs are not here: their reader checks are of today's layout (its phone tabs,
+ * the side panel put away, the colours' plain names, the old pop-up), which the new reader replaces; they keep running in the default run, where READER is off.
+ */
+const READER_SUITES = ["documents integration", "browser: the new Paper Reader, phase 1 (READER on)", "browser: reader polish (back, drawing tools, question box)", "browser: citation cards in the reader"];
 
 /**
  * The runs. `default` is production's positions (decision 13): wrangler.jsonc's `vars` as committed (TRENDING off, MCP beta, CHAT_TOOLS on, every other gate unset), and every suite that is
@@ -97,6 +106,7 @@ export const RUNS = {
   "trending-dark": { vars: { TRENDING: "dark" }, suites: ["trending list integration"], why: "the job makes the list and the route hides it" },
   "mcp-on": { vars: { MCP: "on", MCP_CHECK_CLAIM: "on" }, suites: MCP_SUITES, why: "the MCP server open to every account, check_claim listed" },
   "mcp-off": { vars: { MCP: "off", MCP_CHECK_CLAIM: "off" }, suites: MCP_SUITES, why: "every path of the MCP server answers 404, as before it existed" },
+  "reader-on": { vars: { READER: "on" }, suites: READER_SUITES, why: "the new Paper Reader for every account (production has READER off: today's reader)" },
   "chat-counters-failpolicy": { vars: { CHAT_COUNTERS: "on", CHAT_FAILPOLICY: "on" }, suites: CHAT_SUITES, why: "R3 and R5 on" },
   "chat-safety": { vars: { CHAT_SAFETY: "on", CHAT_COUNTERS: "on" }, suites: CHAT_SUITES, why: "the safety lane on (R4)" },
   "chat-floor": { vars: { CHAT_FLOOR: "on", CHAT_COUNTERS: "on" }, suites: CHAT_SUITES, why: "the relevance floor on (R9)" },

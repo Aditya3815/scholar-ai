@@ -140,7 +140,7 @@ export function position(name, vars = workerVars) {
   if (!spec) throw new Error(`no switch named ${name} in apps/api/src/platform/switches.ts`);
   if (spec.kind === "kill") return killSwitch(vars, name);
   const p = spec.positions;
-  return positionOfVariable(vars[name], p.includes("core"), p.includes("writer"), p.includes("beta")).position;
+  return positionOfVariable(vars[name], p.includes("core"), p.includes("writer"), p.includes("beta"), p.includes("dark")).position;
 }
 /** True when the switch stands at one of `positions` in this run. */
 export const at = (name, ...positions) => positions.includes(position(name));

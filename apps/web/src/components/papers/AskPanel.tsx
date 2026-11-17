@@ -248,7 +248,7 @@ function AnswerCard({ answer, docId, scan, onCite }: { answer: Answer; docId: st
   );
 }
 
-export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoToPage, onReindex }: { doc: DocumentInfo; history: Answer[]; /** The reader's highlights and notes on this paper: a question about them is answered from them. */ notes?: DocNote[]; scan?: ScanInfo | null; onCite: (c: Citation) => void; onGoToPage: (page: number) => void; onReindex: () => void }) {
+export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoToPage, onReindex, prefill, embedded = false }: { doc: DocumentInfo; history: Answer[]; /** The reader's highlights and notes on this paper: a question about them is answered from them. */ notes?: DocNote[]; scan?: ScanInfo | null; onCite: (c: Citation) => void; onGoToPage: (page: number) => void; onReindex: () => void; /** The new reader's Explain: words put into the question box (each new `tick` puts them again), to be sent or changed. */ prefill?: { text: string; tick: number }; /** Inside the new reader's Agents drawer, whose own heading names it: the panel's title row is left out (its line about the passages stays). */ embedded?: boolean }) {
   const [turns, setTurns] = useState<Turn[]>(() => history.map((a) => ({ key: a.id, question: a.question, answer: a })));
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -267,6 +267,18 @@ export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoTo
     setTurns((prev) => [...history.map((a) => ({ key: a.id, question: a.question, answer: a, source: "paper" as const })), ...prev.filter((t) => t.source === "highlights")]);
   }, [history]);
   useEffect(() => () => abort.current?.abort(), []);
+
+  // Explain in the new reader: the selection is put into the box as the question's context, and the cursor after it, so the reader can send it or add to it
+  useEffect(() => {
+    if (!prefill || prefill.tick === 0) return;
+    setQ(prefill.text.slice(0, MAX_QUESTION_CHARS));
+    window.setTimeout(() => {
+      const el = input.current;
+      if (!el || el.disabled) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    }, 0);
+  }, [prefill?.tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Grow the box with the text (up to a limit); fitted again when the tab is opened (a box that is not shown has no width and was left too short for its own line, with a scroll bar) and when the fonts arrive.
   useGrowingField(input, q, 150);
@@ -373,9 +385,11 @@ export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoTo
   return (
     <section className="ask" aria-label="Ask this paper">
       <header className="ask-head">
-        <h2 className="ask-title">
-          <Sparkles size={16} aria-hidden="true" /> Ask this paper
-        </h2>
+        {!embedded && (
+          <h2 className="ask-title">
+            <Sparkles size={16} aria-hidden="true" /> Ask this paper
+          </h2>
+        )}
         <p className="ask-sub">
           {ready ? (
             <>
