@@ -87,14 +87,40 @@ export function cutWhole(s: string, max: number): string {
  */
 export const neutralise = (s: string): string => s.replace(/"{3,}/g, "'''").replace(/<{3,}/g, "<<").replace(/>{3,}/g, ">>");
 
-/** An e-mail address inside a text (Latin letters and digits), to take it out. Global: for `replace` only. */
-export const EMAIL_IN_TEXT = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const LOCAL = /[A-Za-z0-9._%+-]/;
+const DOMAIN = /[A-Za-z0-9.-]/;
+const LETTER = /[A-Za-z]/;
+/**
+ * Every e-mail address inside a text (Latin letters and digits) replaced by `by`: what `s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, by)` gives, found from each "@" outwards
+ * (the name before it, as far back as it goes; after it, up to the last dot that two letters follow, and those letters), because that pattern is tried again from every start of a long run of
+ * name characters with no "@" (CodeQL js/polynomial-redos).
+ */
+export function replaceEmails(s: string, by: string): string {
+  let out = "";
+  let from = 0;
+  for (let at = s.indexOf("@"); at >= 0; at = s.indexOf("@", at + 1)) {
+    if (at < from) continue;
+    let start = at;
+    while (start > from && LOCAL.test(s[start - 1]!)) start--;
+    if (start === at) continue;
+    let end = at + 1;
+    while (end < s.length && DOMAIN.test(s[end]!)) end++;
+    let dot = -1;
+    for (let j = end - 1; j >= at + 2; j--) if (s[j] === "." && LETTER.test(s[j + 1] ?? "") && LETTER.test(s[j + 2] ?? "")) { dot = j; break; }
+    if (dot < 0) continue;
+    let stop = dot + 1;
+    while (stop < end && LETTER.test(s[stop]!)) stop++;
+    out += s.slice(from, start) + by;
+    from = stop;
+  }
+  return out + s.slice(from);
+}
 const LINK_IN_TEXT = /\bhttps?:\/\/\S+|\bwww\.\S+/gi;
 
 /** One line of plain text, bounded, with e-mail addresses and links taken out: what a person's free text may be before it is sent to a model or kept. */
 export function scrubText(v: unknown, max: number): string {
   if (typeof v !== "string") return "";
-  return v.replace(EMAIL_IN_TEXT, " ").replace(LINK_IN_TEXT, " ").replace(/[\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max).trim();
+  return replaceEmails(v, " ").replace(LINK_IN_TEXT, " ").replace(/[\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max).trim();
 }
 
 /* ---------------------------------------------------------------- numbers and years */

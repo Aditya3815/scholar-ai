@@ -23,7 +23,19 @@ export class SearchUnavailableError extends Error {}
 
 /** A title as the index wrote it can carry escaped markup ("&lt;b&gt;Title&lt;/b&gt;") and line breaks; the report shows plain text: decoded by the one decoder (plainText), then the tags it held taken out. */
 export function cleanTitle(title: string): string {
-  return squash(plainText(title).replace(/<[^>]*>/g, ""));
+  // every "<" up to the next ">" goes, found with indexOf: what `.replace(/<[^>]*>/g, "")` did, in one pass that leaves no tag behind (a "<" that is left has no ">" after it, CodeQL
+  // js/incomplete-multi-character-sanitization) and is linear on a long run of "<" (the pattern scanned to the end from each one)
+  const decoded = plainText(title);
+  let t = "";
+  let from = 0;
+  for (let open = decoded.indexOf("<"); open >= 0; open = decoded.indexOf("<", from)) {
+    const close = decoded.indexOf(">", open + 1);
+    if (close < 0) break;
+    t += decoded.slice(from, open);
+    from = close + 1;
+  }
+  t += decoded.slice(from);
+  return squash(t);
 }
 
 const gap = (idx: number, found: number, reason: LitscanGap): LitscanPart => ({ idx, status: "gap", found, reason });

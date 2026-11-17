@@ -17,6 +17,17 @@ export const DOI_LINKABLE = new RegExp(String.raw`^${DOI_START}[^\s<>]+$`);
 /** A message that is only a DOI: bare, after "doi:", or as a doi.org address (the rules and the Understand step's guards search it as written). */
 export const DOI_INPUT = new RegExp(String.raw`^(?:doi:\s*|https?:\/\/(?:dx\.)?doi\.org\/)?${DOI_START}\S+$`, "i");
 
+const isSpace = (c: string): boolean => /\s/.test(c);
+/**
+ * The text without the characters of `chars` (and white space, with `space`) at its end. A loop from the end, not a pattern: `/[...]+$/` is tried again from every start of a long run that does not
+ * reach the end, which is quadratic on a run of a thousand ")" (CodeQL js/polynomial-redos).
+ */
+function trimEnd(s: string, chars: string, space = false): string {
+  let end = s.length;
+  while (end > 0 && (chars.includes(s[end - 1]!) || (space && isSpace(s[end - 1]!)))) end--;
+  return s.slice(0, end);
+}
+
 /** A DOI anywhere in a text, to the next white space. */
 const DOI_ANYWHERE = new RegExp(String.raw`${DOI_START}\S+`, "i");
 /**
@@ -27,16 +38,13 @@ export function normalizeDoi(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const m = raw.trim().match(DOI_ANYWHERE);
   if (!m) return null;
-  return m[0]
-    .toLowerCase()
-    .replace(/[.,;)\]]+$/, "")
-    .replace(/\/(pdf|epdf|pdfdirect|full|fulltext|full-text|abstract|summary|html|xml|meta)$/, "");
+  return trimEnd(m[0].toLowerCase(), ".,;)]").replace(/\/(pdf|epdf|pdfdirect|full|fulltext|full-text|abstract|summary|html|xml|meta)$/, "");
 }
 
 /** A DOI as a lower-case bare identifier (a URL, "doi:" and surrounding junk removed), or null: what a person or a tool hands in. */
 export function cleanDoi(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  const s = raw.trim().replace(/^(?:https?:\/\/(?:dx\.)?doi\.org\/|doi:\s*)/i, "").replace(/[\s.,;)]+$/, "").toLowerCase();
+  const s = trimEnd(raw.trim().replace(/^(?:https?:\/\/(?:dx\.)?doi\.org\/|doi:\s*)/i, ""), ".,;)", true).toLowerCase();
   return s.length <= 200 && DOI_WHOLE.test(s) ? s : null;
 }
 
@@ -54,13 +62,31 @@ export const ARXIV_INPUT = new RegExp(String.raw`^(?:arxiv:\s*)?${ARXIV_NEW}(?:v
 /** The DOI arXiv (through DataCite) gives every preprint. */
 export const arxivDoi = (id: string): string => `10.48550/arxiv.${id}`;
 
+/**
+ * The id in an arxiv.org address ("https://arxiv.org/abs/1706.03762v5?context=cs" -> "1706.03762v5"): the shortest start of the path after /abs/, /pdf/ or /html/ that leaves nothing, ".pdf",
+ * a query or a fragment, or ".pdf" and one of them; null for anything else (also for an address with a line break, as the pattern this replaces read it). A loop, not the pattern
+ * `(.+?)(?:\.pdf)?(?:[?#].*)?$`, which tried every split of a long path (CodeQL js/polynomial-redos).
+ */
+function arxivPath(s: string): string | null {
+  const head = /^https?:\/\/(?:www\.)?arxiv\.org\/(?:abs|pdf|html)\//i.exec(s);
+  if (!head) return null;
+  const rest = s.slice(head[0].length);
+  if (/[\n\r\u2028\u2029]/.test(rest)) return null;
+  for (let k = 1; k <= rest.length; k++) {
+    const c = rest[k];
+    if (k === rest.length || c === "?" || c === "#") return rest.slice(0, k);
+    if (c === "." && rest.slice(k, k + 4).toLowerCase() === ".pdf" && (k + 4 === rest.length || rest[k + 4] === "?" || rest[k + 4] === "#")) return rest.slice(0, k);
+  }
+  return null;
+}
+
 const ARXIV_ID = new RegExp(String.raw`^(?:${ARXIV_NEW}|${ARXIV_OLD})(?:v\d+)?$`);
 /** An arXiv number without its version ("1706.03762v5" -> "1706.03762"), from a bare id, "arXiv:" or an arxiv.org address; or null. */
 export function cleanArxivId(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   let s = raw.trim().replace(/^arxiv:\s*/i, "");
-  const url = /^https?:\/\/(?:www\.)?arxiv\.org\/(?:abs|pdf|html)\/(.+?)(?:\.pdf)?(?:[?#].*)?$/i.exec(s);
-  if (url) s = url[1]!;
+  const url = arxivPath(s);
+  if (url !== null) s = url;
   s = s.replace(/v\d+$/, "");
   return ARXIV_ID.test(s) ? s : null;
 }
@@ -86,9 +112,33 @@ export const markOf = (piece: string, opts: { wide?: boolean } = {}): string | u
 export const hasMark = (s: string): boolean => /\[\d{1,2}\]/.test(s);
 /** The text without its marks [n] and the space before each. `unfinished`: also a mark still being written at the end ("... [1", "... ["), as a reply that is still arriving shows it. */
 export const stripMarks = (s: string, opts: { unfinished?: boolean } = {}): string => {
-  const t = s.replace(/\s*\[\d{1,2}\]/g, "");
-  return opts.unfinished ? t.replace(/\s*\[\d{0,2}$/, "") : t;
+  const t = replaceMarks(s, () => "");
+  if (!opts.unfinished) return t;
+  const open = /\[\d{0,2}$/.exec(t);
+  return open ? t.slice(0, spaceBefore(t, open.index, 0)) : t;
 };
+
+/** Where the run of white space that ends at `at` starts (not before `from`). */
+const spaceBefore = (s: string, at: number, from: number): number => {
+  let start = at;
+  while (start > from && isSpace(s[start - 1]!)) start--;
+  return start;
+};
+/**
+ * Every mark [n] of a text, with the white space before it, replaced by `by(whole, n)` (`whole` is the white space and the mark): what `s.replace(/\s*\[(\d{1,2})\]/g, by)` gives, found with
+ * the mark alone and the space counted back, because `\s*` before the mark is tried again from every start of a long run of white space (CodeQL js/polynomial-redos).
+ */
+export function replaceMarks(s: string, by: (whole: string, n: string) => string): string {
+  let out = "";
+  let from = 0;
+  for (const m of s.matchAll(MARK)) {
+    const start = spaceBefore(s, m.index!, from);
+    const end = m.index! + m[0].length;
+    out += s.slice(from, start) + by(s.slice(start, end), m[1]!);
+    from = end;
+  }
+  return out + s.slice(from);
+}
 
 /* ---------------------------------------------------------------- people */
 
