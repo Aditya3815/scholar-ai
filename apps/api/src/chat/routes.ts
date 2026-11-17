@@ -3,8 +3,10 @@ import type { Context } from "hono";
 import { ABSTRACTS_NOTICE, isLaneReason, MARK, stripInvisible, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MAX_OA_ABSTRACT_CHARS, MIN_SINCE_YEAR, type AskStreamEvent, type ChatRetraction, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, refTally, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
 import { currentUser, requireUser } from "../auth/service";
 import { readJson } from "../platform/http/body";
-import type { Complete, StreamComplete } from "../docs/qa";
-import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../platform/llm";
+import type { Complete, StreamComplete } from "../platform/llm/port";
+import { PROFILES, modelFor, withTimeout } from "../platform/llm/profiles";
+import { gatewayModels } from "../platform/llm/models";
+import { AllProvidersFailedError, NoRouteError, QuotaError } from "../platform/llm";
 import { DEFAULT_CONFIG } from "../platform/llm/config";
 import { d1Ledger } from "../platform/llm/d1";
 import { searchService } from "../search/service";
@@ -75,25 +77,15 @@ const logJudged = (r: JudgeReport) =>
 
 /** The model, for the person's own message: PRIVATE, so the gateway only uses providers that do not keep or train on it. `abort` stops it when the reader presses Stop or leaves. */
 export function streamFor(env: Env, subject: string, abort: AbortSignal): StreamComplete {
-  if (stubbed(env)) return stubChatStream;
-  const gateway = gatewayFromEnv(env);
-  return async (req, hooks) => {
-    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 60_000, label: req.label }, hooks, abort);
-    return { json: r.json, model: r.model };
-  };
+  return stubbed(env) ? stubChatStream : modelFor({ models: gatewayModels(env) }, PROFILES.write, subject, abort);
 }
 
 /**
  * The support judge's model (chat/support.ts): the answer to the person's own question, so PRIVATE. Shorter timeout than the answer's: a judge that takes longer is not waited for
  * (the answer is then shown as written and says it was not checked).
  */
-export function judgeStreamFor(env: Env, subject: string, abort: AbortSignal, timeoutMs = 20_000): StreamComplete {
-  if (stubbed(env)) return stubJudgeStream(env);
-  const gateway = gatewayFromEnv(env);
-  return async (req, hooks) => {
-    const r = await gateway.stream({ task: "verify", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs, label: req.label }, hooks, abort);
-    return { json: r.json, model: r.model };
-  };
+export function judgeStreamFor(env: Env, subject: string, abort: AbortSignal, timeoutMs?: number): StreamComplete {
+  return stubbed(env) ? stubJudgeStream(env) : modelFor({ models: gatewayModels(env) }, timeoutMs === undefined ? PROFILES.judge : withTimeout(PROFILES.judge, timeoutMs), subject, abort);
 }
 
 /**
@@ -102,10 +94,10 @@ export function judgeStreamFor(env: Env, subject: string, abort: AbortSignal, ti
  */
 export function routeCompleteFor(env: Env, subject: string, onUsage?: (u: { tokensIn?: number | null; tokensOut?: number | null }) => void): Complete {
   if (stubbed(env)) return stubRoute;
-  const gateway = gatewayFromEnv(env);
+  const route = modelFor({ models: gatewayModels(env) }, PROFILES.route, subject);
   return async (req) => {
-    const r = await gateway.complete({ task: "classify", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 30_000, label: req.label });
-    onUsage?.({ tokensIn: r.tokensIn, tokensOut: r.tokensOut });
+    const r = await route(req);
+    onUsage?.({ tokensIn: r.usage?.tokensIn, tokensOut: r.usage?.tokensOut });
     return { json: r.json, model: r.model };
   };
 }
@@ -920,12 +912,10 @@ chatRoutes.post("/judge", async (c) => {
 
 /** The strict check's model: the stronger one that wrote the answer (it thinks before it answers: 20 to 45 s), always PRIVATE. */
 export function strictStreamFor(env: Env, subject: string, abort: AbortSignal, onQuota: () => void): StreamComplete {
-  const gateway = stubbed(env) ? null : gatewayFromEnv(env);
+  const strict = stubbed(env) ? stubStrictStream : modelFor({ models: gatewayModels(env) }, PROFILES.strict, subject, abort);
   return async (req, hooks) => {
     try {
-      if (!gateway) return await stubStrictStream(req, hooks);
-      const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: 4500, timeoutMs: 75_000, label: req.label }, hooks, abort);
-      return { json: r.json, model: r.model };
+      return await strict(req, hooks);
     } catch (e) {
       if (e instanceof QuotaError) onQuota();
       throw e;

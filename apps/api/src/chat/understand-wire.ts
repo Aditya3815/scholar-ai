@@ -1,6 +1,8 @@
 import type { Paper } from "@scholar/shared";
-import type { Complete } from "../docs/qa";
-import { AllProvidersFailedError, gatewayFromEnv, type LlmEnv } from "../platform/llm";
+import type { Complete } from "../platform/llm/port";
+import { PROFILES, modelFor } from "../platform/llm/profiles";
+import { gatewayModels } from "../platform/llm/models";
+import { AllProvidersFailedError, type LlmEnv } from "../platform/llm";
 import { sha256Hex } from "../hash";
 import { applyDoiIntegrity, applyRetractions } from "../search";
 import { cacheKey, cached } from "../search/cache";
@@ -19,25 +21,14 @@ import { stubIndiaPapers, stubPapers } from "./stub";
  *   - a visitor's daily cap of Understand calls (migration 0027): a one-way code of the day and the address, never the address.
  */
 
-/** How long the Understand call may take in the gateway (the step itself gives up at UNDERSTAND_TIMEOUT_MS and lets the rules decide). */
-const UNDERSTAND_GATEWAY_MS = 8_000;
-
-/** The Understand step's model for `subject` (a person's id, or a visitor's code of the day): PRIVATE, counted in that subject's daily allowance like every other model call. */
+/** The Understand step's model for `subject` (a person's id, or a visitor's code of the day): PRIVATE, counted in that subject's daily allowance like every other model call. The step itself gives up sooner (understand.ts). */
 export function understandCompleteFor(env: LlmEnv, subject: string): Complete {
-  const gateway = gatewayFromEnv(env);
-  return async (req) => {
-    const r = await gateway.complete({ task: "understand", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: UNDERSTAND_GATEWAY_MS, label: req.label });
-    return { json: r.json, model: r.model };
-  };
+  return modelFor({ models: gatewayModels(env) }, PROFILES.understand, subject);
 }
 
 /** The conversation reply's model (intent `chat`): the same private chain, a short reply. */
 export function chatReplyCompleteFor(env: LlmEnv, subject: string): Complete {
-  const gateway = gatewayFromEnv(env);
-  return async (req) => {
-    const r = await gateway.complete({ task: "understand", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 15_000, label: req.label });
-    return { json: r.json, model: r.model };
-  };
+  return modelFor({ models: gatewayModels(env) }, PROFILES.chatReply, subject);
 }
 
 /* ---------------------------------------------------------------- the stand-ins (QA_STUB=1 with ENABLE_DEV_ROUTES=1: tests and the local end-to-end run only) */

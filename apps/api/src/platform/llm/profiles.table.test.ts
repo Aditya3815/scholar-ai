@@ -1,18 +1,14 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { judgeStreamFor, routeCompleteFor, streamFor as chatStreamFor, strictStreamFor } from "../../chat/routes";
-import { strictJudgeFor } from "../../chat/claim-check";
-import { chatReplyCompleteFor, understandCompleteFor } from "../../chat/understand-wire";
-import { completeFor as docsCompleteFor, streamFor as docsStreamFor } from "../../docs/routes";
-import { completeFor as ideaCompleteFor, streamFor as ideaStreamFor } from "../../idea/routes";
-import { answerModel, judgeModel, planModel } from "../../litscan/model";
-import { stubInsightsStream } from "../../idea/stub";
-import type { Complete, StreamComplete } from "../../docs/qa";
+import { modelOverrides } from "../dev";
+import { gatewayModels } from "./models";
+import { PROFILES, modelFor, withTimeout, type ProfileName } from "./profiles";
+import type { Complete, StreamComplete } from "./port";
 import type { Env } from "../env";
 
 /**
- * The model of every use, as the gateway asks it (untangle F8): for each profile, the request that reaches Workers AI (the model, the messages, the token limit, the JSON schema, the reasoning
+ * The model of every use, as the gateway asks it (untangle F8): for each profile (platform/llm/profiles.ts), the request that reaches Workers AI (the model, the messages, the token limit, the JSON schema, the reasoning
  * effort), the time limit the gateway gives the call, and the ledger's row (task, sensitivity, label). Written from the code before the model port (each feature's own adapter); after it, each
  * profile is asked for through the port, and the table must hold byte for byte. The development overrides (LLM_QA_MODEL, LLM_CLASSIFY_MODEL, LLM_VERIFY_MODEL, LLM_REASONING) and the development
  * judge's own model and time limit are rows too.
@@ -57,28 +53,35 @@ type Use = { kind: "complete"; make: (env: Env0) => Complete } | { kind: "stream
 
 const SUBJECT = "user-1";
 const asEnv = (e: Env0) => e as unknown as Env;
+const models = (env: Env0) => ({ models: gatewayModels(asEnv(env)) });
 
-/** Every model use of the API, by the profile it becomes, and how it was asked before the port. */
+/** Every model use of the API, by its profile (platform/llm/profiles.ts), asked through the port. */
+const byProfile = (name: ProfileName): Use => {
+  const p = PROFILES[name];
+  return p.kind === "complete" ? { kind: "complete", make: (env) => modelFor(models(env), p, SUBJECT) } : { kind: "stream", make: (env, abort) => modelFor(models(env), p, SUBJECT, abort) };
+};
 const USES: Record<string, Use> = {
-  route: { kind: "complete", make: (env) => routeCompleteFor(asEnv(env), SUBJECT) },
-  understand: { kind: "complete", make: (env) => understandCompleteFor(asEnv(env), SUBJECT) },
-  chatReply: { kind: "complete", make: (env) => chatReplyCompleteFor(asEnv(env), SUBJECT) },
-  write: { kind: "stream", make: (env, abort) => chatStreamFor(asEnv(env), SUBJECT, abort) },
-  judge: { kind: "stream", make: (env, abort) => judgeStreamFor(asEnv(env), SUBJECT, abort) },
-  strict: { kind: "stream", make: (env, abort) => strictStreamFor(asEnv(env), SUBJECT, abort, () => {}) },
-  "strict (check_claim)": { kind: "stream", make: (env, abort) => strictJudgeFor(asEnv(env), SUBJECT, abort) },
-  docsAsk: { kind: "complete", make: (env) => docsCompleteFor(asEnv(env), SUBJECT)! },
-  docsAskStream: { kind: "stream", make: (env, abort) => docsStreamFor(asEnv(env), SUBJECT, abort)! },
-  ideaPlan: { kind: "complete", make: (env) => ideaCompleteFor(asEnv(env), SUBJECT)! },
-  ideaCompare: { kind: "stream", make: (env, abort) => ideaStreamFor(asEnv(env), SUBJECT, abort)! },
-  ideaInsights: { kind: "stream", make: (env, abort) => ideaStreamFor(asEnv(env), SUBJECT, abort, stubInsightsStream, 150_000)! },
-  litscanPlan: { kind: "complete", make: (env) => planModel(asEnv(env), SUBJECT) },
-  litscanAnswer: { kind: "stream", make: (env, abort) => answerModel(asEnv(env), SUBJECT, abort) },
-  litscanJudge: { kind: "stream", make: (env, abort) => judgeModel(asEnv(env), SUBJECT, abort) },
+  route: byProfile("route"),
+  understand: byProfile("understand"),
+  chatReply: byProfile("chatReply"),
+  write: byProfile("write"),
+  judge: byProfile("judge"),
+  strict: byProfile("strict"),
+  // check_claim's strict reading is the strict profile (before the port it had an adapter of its own)
+  "strict (check_claim)": byProfile("strict"),
+  docsAsk: byProfile("docsAsk"),
+  docsAskStream: byProfile("docsAskStream"),
+  ideaPlan: byProfile("ideaPlan"),
+  ideaCompare: byProfile("ideaCompare"),
+  ideaInsights: byProfile("ideaInsights"),
+  litscanPlan: byProfile("litscanPlan"),
+  litscanAnswer: byProfile("litscanAnswer"),
+  litscanJudge: byProfile("litscanJudge"),
   // the development judge (POST /api/v1/chat/judge): the judge with the model and the reasoning the request names, and its time limit
   "devJudge (model, reasoning, 7000 ms)": {
     kind: "stream",
-    make: (env, abort) => judgeStreamFor(asEnv({ ...env, LLM_VERIFY_MODEL: "@cf/test/judge-model", LLM_REASONING: "high" }), SUBJECT, abort, 7000),
+    make: (env, abort) =>
+      modelFor({ models: gatewayModels(asEnv(env)).withOverrides(modelOverrides(asEnv({ ...env, LLM_VERIFY_MODEL: "@cf/test/judge-model", LLM_REASONING: "high" }))) }, withTimeout(PROFILES.judge, 7000), SUBJECT, abort),
   },
 };
 
@@ -131,9 +134,7 @@ describe("the model profiles (untangle F8)", () => {
     for (const key of Object.keys(table)) expect(computed[key], key).toEqual(table[key]);
   });
 
-  it("the strict check of the prompt box and check_claim are one profile (the same request)", async () => {
-    const a = await rowOf(USES.strict!, {});
-    const b = await rowOf(USES["strict (check_claim)"]!, {});
-    expect(a).toEqual(b);
+  it("names every profile in the table", () => {
+    for (const name of Object.keys(PROFILES)) expect(USES, name).toHaveProperty(name);
   });
 });

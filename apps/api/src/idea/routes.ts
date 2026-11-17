@@ -3,8 +3,10 @@ import { scrubText, IDEA_PLAN_INPUT_CHARS, MAX_IDEA_CHARS, MAX_IDEA_QUESTION_CHA
 import { requireUser, type Door } from "../auth/service";
 import { readJson } from "../platform/http/body";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "../docs/embed";
-import type { Complete, StreamComplete } from "../docs/qa";
-import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../platform/llm";
+import type { Complete, ModelProfile, StreamComplete } from "../platform/llm/port";
+import { PROFILES, modelFor } from "../platform/llm/profiles";
+import { gatewayModels } from "../platform/llm/models";
+import { AllProvidersFailedError, NoRouteError, QuotaError } from "../platform/llm";
 import { sseStream } from "../sse";
 import { PlanError, planIdea } from "./plan";
 import { compareIdea, sanitizeCompareRequest } from "./compare";
@@ -26,23 +28,13 @@ const IDEA_TEXT: Door = { ...IDEA, ack: { title: "Please read how your ideas are
 const stubbed = (env: Env) => standIns(env);
 
 export function completeFor(env: Env, subject: string): Complete | null {
-  if (stubbed(env)) return stubPlan;
-  const gateway = gatewayFromEnv(env);
-  return async (req) => {
-    // The idea is the researcher's own, unpublished work: PRIVATE, so the gateway only uses providers that do not keep or train on it.
-    const r = await gateway.complete({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, label: req.label });
-    return { json: r.json, model: r.model };
-  };
+  // The idea is the researcher's own, unpublished work: PRIVATE (platform/llm/profiles.ts).
+  return stubbed(env) ? stubPlan : modelFor({ models: gatewayModels(env) }, PROFILES.ideaPlan, subject);
 }
 
-export function streamFor(env: Env, subject: string, abort: AbortSignal, stub: StreamComplete = stubCompareStream, timeoutMs = 90_000): StreamComplete | null {
-  if (stubbed(env)) return stub;
-  const gateway = gatewayFromEnv(env);
-  return async (req, hooks) => {
-    // Same PRIVATE route, quota and ledger as the plan; `abort` stops the model when the researcher leaves.
-    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs, label: req.label }, hooks, abort);
-    return { json: r.json, model: r.model };
-  };
+export function streamFor(env: Env, subject: string, abort: AbortSignal, stub: StreamComplete = stubCompareStream, profile: ModelProfile<"stream"> = PROFILES.ideaCompare): StreamComplete | null {
+  // `abort` stops the model when the researcher leaves
+  return stubbed(env) ? stub : modelFor({ models: gatewayModels(env) }, profile, subject, abort);
 }
 
 const embedderFor = (env: Env): Embedder | null => (stubbed(env) ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null);
@@ -178,7 +170,7 @@ ideaRoutes.post("/insights", async (c) => {
   if (!req) return deny(c, 400, "invalid_insights", "There is nothing to read", "Send the idea's plan and the papers to read.");
   const abort = new AbortController();
   // the second reading is the longest answer (about 80 s with the real model): a longer allowance than the comparison's
-  const stream = streamFor(c.env, user.id, abort.signal, stubInsightsStream, 150_000);
+  const stream = streamFor(c.env, user.id, abort.signal, stubInsightsStream, PROFILES.ideaInsights);
   if (!stream) return deny(c, 503, "ai_unavailable", "Reading the papers is unavailable right now");
 
   return sseStream<IdeaInsightsEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (sse) => {

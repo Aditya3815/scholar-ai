@@ -45,13 +45,16 @@ import { readJson } from "../platform/http/body";
 import { answerAboutHighlights } from "./highlights-qa";
 import { readerOnFor, readerSwitchedOn } from "./reader-flag";
 import { deletePage, listPages, patchPage, putPage, type NotebookResult } from "./notebook";
-import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv, type LlmEnv } from "../platform/llm";
+import { AllProvidersFailedError, NoRouteError, QuotaError, type LlmEnv } from "../platform/llm";
+import { PROFILES, modelFor } from "../platform/llm/profiles";
+import { gatewayModels } from "../platform/llm/models";
 import { fromSqliteTime } from "../library/validate";
 import { cacheStore } from "../cache";
 import { chunkPage } from "./chunk";
 import { enrichPaperInfo, sanitizePaperInfo } from "./info";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "./embed";
-import { answerQuestion, answerQuestionStream, type Complete, type StoredChunk, type StreamComplete } from "./qa";
+import { answerQuestion, answerQuestionStream, type StoredChunk } from "./qa";
+import type { Complete, StreamComplete } from "../platform/llm/port";
 import { stubComplete, stubStream } from "./stub";
 import { decodeVec, encodeVec } from "./vector";
 import { readJpeg } from "../ocr/jpeg";
@@ -123,23 +126,11 @@ export const embedderFor = (env: EnvPick<"ENABLE_DEV_ROUTES" | "QA_STUB", "AI">)
   standIns(env) ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null;
 
 export function completeFor(env: LlmEnv & Pick<Env, "QA_STUB">, subject: string): Complete | null {
-  if (standIns(env)) return stubComplete;
-  const gateway = gatewayFromEnv(env);
-  return async (req) => {
-    // An uploaded paper and the questions about it are PRIVATE: the gateway will only use privacy-safe providers.
-    const r = await gateway.complete({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, label: req.label });
-    return { json: r.json, model: r.model };
-  };
+  return standIns(env) ? stubComplete : modelFor({ models: gatewayModels(env) }, PROFILES.docsAsk, subject);
 }
 
 export function streamFor(env: LlmEnv & Pick<Env, "QA_STUB">, subject: string, abort: AbortSignal): StreamComplete | null {
-  if (standIns(env)) return stubStream;
-  const gateway = gatewayFromEnv(env);
-  return async (req, hooks) => {
-    // Same PRIVATE route, same quota and ledger as the non-streaming call; `abort` stops the model when the reader leaves.
-    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, label: req.label }, hooks, abort);
-    return { json: r.json, model: r.model };
-  };
+  return standIns(env) ? stubStream : modelFor({ models: gatewayModels(env) }, PROFILES.docsAskStream, subject, abort);
 }
 
 /** One place that turns a failure into what the browser is told (as an HTTP error, or as a stream `error` event). */

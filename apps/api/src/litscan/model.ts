@@ -1,7 +1,9 @@
 import { stubPlanScan, stubScanSearch, stubScanStream } from "./stub";
 import { stubJudgeStream } from "../chat/stub";
-import type { Complete, StreamComplete } from "../docs/qa";
-import { gatewayFromEnv, type LlmEnv } from "../platform/llm";
+import type { Complete, StreamComplete } from "../platform/llm/port";
+import { PROFILES, modelFor } from "../platform/llm/profiles";
+import { gatewayModels } from "../platform/llm/models";
+import type { LlmEnv } from "../platform/llm";
 import type { SearchResponse, SearchScope } from "@scholar/shared";
 import { runSearch } from "../search";
 import { withGate } from "../gate";
@@ -16,22 +18,12 @@ export const stubbed = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_STUB">) => stan
 
 /** The planning call. The topic is the person's own text: PRIVATE, so the gateway only uses providers that do not keep or train on it. */
 export function planModel(env: ScanEnv, subject: string): Complete {
-  if (stubbed(env)) return stubPlanScan;
-  const gateway = gatewayFromEnv(env);
-  return async (req) => {
-    const r = await gateway.complete({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 45_000, label: req.label });
-    return { json: r.json, model: r.model };
-  };
+  return stubbed(env) ? stubPlanScan : modelFor({ models: gatewayModels(env) }, PROFILES.litscanPlan, subject);
 }
 
 /** The answering call of one sub-question: the same private route, quota and ledger as the prompt box. `signal` is the time limit of that one worker. */
 export function answerModel(env: ScanEnv, subject: string, signal: AbortSignal): StreamComplete {
-  if (stubbed(env)) return stubScanStream;
-  const gateway = gatewayFromEnv(env);
-  return async (req, hooks) => {
-    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 80_000, label: req.label }, hooks, signal);
-    return { json: r.json, model: r.model };
-  };
+  return stubbed(env) ? stubScanStream : modelFor({ models: gatewayModels(env) }, PROFILES.litscanAnswer, subject, signal);
 }
 
 /**
@@ -39,12 +31,7 @@ export function answerModel(env: ScanEnv, subject: string, signal: AbortSignal):
  * the judge stops too, and the answer stands as it was written (not marked as checked).
  */
 export function judgeModel(env: ScanEnv, subject: string, signal: AbortSignal): StreamComplete {
-  if (stubbed(env)) return stubJudgeStream();
-  const gateway = gatewayFromEnv(env);
-  return async (req, hooks) => {
-    const r = await gateway.stream({ task: "verify", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 25_000, label: req.label }, hooks, signal);
-    return { json: r.json, model: r.model };
-  };
+  return stubbed(env) ? stubJudgeStream() : modelFor({ models: gatewayModels(env) }, PROFILES.litscanJudge, subject, signal);
 }
 
 /** The search of one sub-question: what the prompt box does for a message, without the progressive lists, in the scan's scope (the regular sources, or only Indian ones). */

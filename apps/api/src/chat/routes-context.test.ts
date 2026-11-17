@@ -401,7 +401,8 @@ describe("what a model is given, stage by stage: the earlier turns reach the rou
       expect(named(path).length).toBeGreaterThan(200);
       expect(named(path)).not.toMatch(/history|earlier|readHistory|readEarlier|routeFollowUp|CHAT_CONTEXT/i);
     }
-    expect(src).toMatch(/function judgeStreamFor\(env: Env, subject: string, abort: AbortSignal, timeoutMs = 20_000\)/);
+    // the judge's model is its profile (platform/llm/profiles.ts), which takes a request and nothing of a conversation
+    expect(src).toMatch(/PROFILES\.judge\b/);
   });
 
   it("the strict check ignores a history that is sent to it", async () => {

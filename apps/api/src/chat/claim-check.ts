@@ -1,6 +1,8 @@
 import type { Paper } from "@scholar/shared";
-import type { StreamComplete } from "../docs/qa";
-import { QuotaError, gatewayFromEnv, type LlmEnv } from "../platform/llm";
+import type { StreamComplete } from "../platform/llm/port";
+import { PROFILES, modelFor } from "../platform/llm/profiles";
+import { gatewayModels } from "../platform/llm/models";
+import { QuotaError, type LlmEnv } from "../platform/llm";
 import type { Picked } from "./answer";
 import { shownSentence } from "./evidence";
 import { STRICT_SCHEMA, STRICT_SYSTEM, buildJudgePrompt, readVerdicts, type Claim } from "./support";
@@ -67,10 +69,5 @@ type JudgeEnv = LlmEnv & Pick<Env, "QA_STUB">;
 
 /** The strict reading's model for a person (`subject`: the day's allowance is theirs), PRIVATE, as "Check strictly" calls it; the offline stand-in under QA_STUB. */
 export function strictJudgeFor(env: JudgeEnv, subject: string, abort: AbortSignal): StreamComplete {
-  if (standIns(env)) return stubStrictStream;
-  const gateway = gatewayFromEnv(env);
-  return async (req, hooks) => {
-    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: 4500, timeoutMs: 75_000, label: req.label }, hooks, abort);
-    return { json: r.json, model: r.model };
-  };
+  return standIns(env) ? stubStrictStream : modelFor({ models: gatewayModels(env) }, PROFILES.strict, subject, abort);
 }
