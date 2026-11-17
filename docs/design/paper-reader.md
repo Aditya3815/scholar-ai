@@ -799,3 +799,57 @@ Needs new words, so it waits for the owner:
 6. Suites, pictures, and section 22 "as built".
 
 It ships behind READER, which stays `dark` (owner only), as phases 1 and 2 do.
+
+## 22. Phase 2.5 as built (18 Nov 2026)
+
+Built on the branch `reader-p25`, from main 531121b, in the order of 21.5, behind READER (still `dark`, the owner only). Where the build differs from section 21, or adds to it:
+
+**Scrollbars and chips (21.1, 7 and 8).** Every scroll area of the desk and the Agents drawer takes `scrollbar-width: thin` with an `--border-strong` thumb on a clear track (8 px `::-webkit-scrollbar` rules for browsers that need them). The chip row has 10 px above and below and 12 px at its sides; its fade starts after the padding.
+
+**Pages (21.1, 1 to 3).**
+- In the Notes view on a wide screen the page fills the panel, 32 px at its sides (the Highlights and References keep their reading width).
+- The page tabs are a `tablist` named Pages: ← → Home End move the focus, Enter or a click opens. Each tab shows a small swatch of its paper. The row scrolls with an edge fade and keeps the open tab in sight.
+- "+ Page" opens "Choose paper for the new page": four cards (Plain, Ruled, Dotted, Graph) drawn in our tokens; Esc and × close it.
+- The header: the title, the trash ("Delete this page", toast with Undo), the save line, Export ▾, and ⋯ (Move left, Move right, Rename).
+- The paper of the open page is chosen in the toolbar, whose groups are H B I U Mark | the lists | Text Quote Capture Draw | the four papers. On a phone that is up to four rows; a group never splits. **Text** adds a text block after the one being written in.
+- "Grid" is called **Graph** on screen, as in the mock; the stored value stays `grid`.
+
+**Capture (21.1, 6).**
+- C, or Capture in either toolbar. Notes view → Split first; a phone → Paper, then back to Notes after the capture (a toast with Open when it started on Paper).
+- The layer over each page (`CaptureLayer`) is handed to the viewer as a slot, so the viewer's chunk does not carry it. Keyboard: Enter places a frame (the middle half of the page), the arrows move it, Shift and the arrows resize it, Enter captures, Esc lets it go, a second Esc puts the tool down.
+- While the tool is in hand the page cannot be scrolled by touch (the layer takes the drag); the page arrows and the page number still move through the paper. **Owner to decide** whether a long press should start a frame instead, leaving the page to scroll.
+- A capture block is drawn from the open paper (`lib/capture.ts`, the page's viewport with its rotation and crop box) at the screen's pixels, again when its width changes by more than 24 px. Where the paper is not open it says so instead of a picture.
+- New blocks (a capture, a sketch, Add to notes) go in through one store method, `insertBlock`, with Undo.
+
+**Sketch (21.1, 5).**
+- `NbSketch.tsx` is a small lazy chunk (2.2 KB), fetched only when a page holds a sketch. It has pen, highlighter and eraser, the reader's pen and highlighter colours, three sizes, and Undo (the button, or Ctrl+Z inside it). It draws on the same white paper as the pages, dimmed as they are.
+- Strokes are kept as **fractions of the sketch's width on both axes** (the paper's ink convention), so a drawing keeps its shape at any width. Fractions of width and height (as 21.2 says) would stretch it 3× sideways between Split and the Notes view. A sketch shown wider than it was drawn grows taller instead of being cut off.
+- The height is set by dragging the bottom edge, or with Alt+↑ and Alt+↓ on it (40 px a step).
+- The ink outlines moved to `lib/ink-path.ts`, shared by the paper's drawing, the annotated PDF and the sketches. That took `annotated-pdf → InkLayer` off the layer rule's allowlist. It also seems to have moved `InkLayer` back into the PDF reader chunk, which grew 55.7 → 59.9 KB of its 66.
+
+**Export (21.1, 4).** Export ▾: This page | All pages, then PDF, Word (.docx), Markdown, and Copy as Markdown.
+- `lib/notes-export.ts` is a lazy chunk (3.0 KB) that lays the pages out in the browser.
+- **PDF:**
+  - Uses the lazy pdf-lib chunk already in the app.
+  - Helvetica for Latin. Devanagari is in Noto Sans Devanagari, the WOFF the app already ships, embedded as a subset with its text map, and only when the text has Devanagari.
+  - That needs **fontkit, a new dependency: `@cantoo/fontkit` 2.0.12** (MIT, the font library made for `@cantoo/pdf-lib`). It is 151 KB gzip, fetched only for such a PDF, with a budget line.
+  - pdf-lib places glyphs by their advance only. Substitutions (conjuncts) come out right, but a vowel sign may sit a little off where the font would shift it. **Owner to judge** the Hindi output.
+  - A letter Helvetica cannot draw (outside Western European and Devanagari) is written as "?".
+- **Word:** the shared writer gains a picture block (an inline drawing pointing at its PNG in word/media, sized to the page width).
+- Captures (drawn from the open paper) and sketches go in as PNG pictures, 900 px wide.
+
+**Data (21.2).** As planned: `capture {page, x, y, w, h, caption ≤ 500, size}` and `sketch {height 120..800, strokes ≤ 400, points ≤ 20,000}`. A sketch point's y may pass 1 (the sketch is taller than wide), up to 800/120. Limits: 128 KB a page, 2 MB a paper.
+
+**Weight.**
+
+| Chunk | Size (gzip) | Note |
+|---|---|---|
+| First load | 233.3 of 250 KB | unchanged |
+| Desk | 19.3 of 28 KB | |
+| Notebook | 14.8 of 16 KB | the sketch is a chunk of its own |
+| Sketch | 2.2 of 4 KB | new line |
+| Notes export | 3.0 of 5 KB | new line |
+| fontkit | 151 of 160 KB | new line |
+| PDF reader | 59.9 of 66 KB | |
+
+**Not built (21.1, 9).** Image upload, which waits for the owner's yes and its privacy words.
