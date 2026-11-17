@@ -1,5 +1,5 @@
 import { AnimatePresence, m } from "motion/react";
-import { Columns2, Download, FileDown, Highlighter, Loader2, MousePointer2, NotebookText, PencilLine, ScrollText, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, Columns2, Copy, Download, FileDown, Highlighter, Loader2, MousePointer2, NotebookText, PencilLine, ScrollText, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { DocNote, InkItem, NoteColor } from "@scholar/shared";
 import type { DeskView } from "../../../lib/desk";
@@ -156,6 +156,48 @@ export function DownloadMenu({ href, title, docId, pdf, notes, strokes }: { href
               A copy with my marks
               <small>{marked.empty ? "Nothing is marked yet" : "Highlights, drawings and notes"}</small>
             </span>
+          </button>
+        </div>
+      )}
+    </Pop>
+  );
+}
+
+/** The Highlights list's one Export menu (the new reader): Copy as Markdown and Download, in place of two buttons, so the list's head is one row. */
+export function HighlightsExport({ copy, download, copied }: { copy: () => void; download: () => void; copied: boolean }) {
+  return (
+    <Pop
+      label="Export"
+      align="end"
+      trigger={(open) => (
+        <button type="button" className="btn btn-ghost btn-sm notes-export" aria-haspopup="menu" aria-expanded={open}>
+          {copied && <Check size={14} aria-hidden="true" />}
+          <span>{copied ? "Copied" : "Export"}</span>
+          <ChevronDown size={14} aria-hidden="true" />
+        </button>
+      )}
+    >
+      {(close) => (
+        <div
+          className="desk-menu"
+          role="menu"
+          aria-label="Export"
+          onKeyDown={(e) => {
+            const items = [...e.currentTarget.querySelectorAll<HTMLElement>("[role=menuitem]")];
+            const i = items.indexOf(document.activeElement as HTMLElement);
+            const to = e.key === "ArrowDown" ? (i + 1) % items.length : e.key === "ArrowUp" ? (i - 1 + items.length) % items.length : -1;
+            if (to < 0) return;
+            e.preventDefault();
+            items[to]?.focus();
+          }}
+        >
+          <button type="button" role="menuitem" className="desk-menu-item" onClick={() => (close(), copy())}>
+            <Copy size={15} aria-hidden="true" />
+            <span>Copy as Markdown</span>
+          </button>
+          <button type="button" role="menuitem" className="desk-menu-item" onClick={() => (close(), download())}>
+            <Download size={15} aria-hidden="true" />
+            <span>Download (Markdown)</span>
           </button>
         </div>
       )}

@@ -29,7 +29,7 @@ import { OpeningPaper, TitleEditor, authorsLine, contentsOf, type Pdf } from "..
 import { ReferencesPanel } from "../ReferencesPanel";
 import { ScanBanner } from "../ScanBanner";
 import type { AgentsDrawerProps } from "./AgentsDrawer";
-import { AgentsFab, DownloadMenu, MeaningPicker, SIDE_KEY, SplitDivider, Toasts, ToolSegment, ViewSwitch, clampSide } from "./DeskBits";
+import { AgentsFab, DownloadMenu, HighlightsExport, MeaningPicker, SIDE_KEY, SplitDivider, Toasts, ToolSegment, ViewSwitch, clampSide } from "./DeskBits";
 import { SelectionPopup, type PopupActions } from "./SelectionPopup";
 import "./desk.css";
 
@@ -656,7 +656,7 @@ export function Desk(props: DeskProps) {
             )}
           </div>
           <div className="dw-side desk-tabpanel" id="desk-tabpanel-highlights" role="tabpanel" aria-labelledby="desk-tab-highlights" hidden={tab !== "highlights"}>
-            <NotesPanel doc={doc} api={notes} focusId={focusNote?.id ?? null} focusTick={focusNote?.tick ?? 0} onGo={onGoToNote} onFocusDone={(id) => setFocusNote((f) => (f?.id === id ? null : f))} notebook={notebookOnCard} />
+            <NotesPanel compact exportMenu={(a) => <HighlightsExport {...a} />} doc={doc} api={notes} focusId={focusNote?.id ?? null} focusTick={focusNote?.tick ?? 0} onGo={onGoToNote} onFocusDone={(id) => setFocusNote((f) => (f?.id === id ? null : f))} notebook={notebookOnCard} />
           </div>
           <div className="dw-side desk-tabpanel" id="desk-tabpanel-refs" role="tabpanel" aria-labelledby="desk-tab-refs" hidden={tab !== "refs"}>
             <ReferencesPanel

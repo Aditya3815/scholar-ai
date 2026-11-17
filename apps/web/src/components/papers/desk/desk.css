@@ -329,6 +329,18 @@
 /* its buttons wrap in a narrow panel instead of running out of it (Split on a tablet, a phone) */
 .desk .notes-actions { flex-wrap: wrap; row-gap: 0.4rem; }
 .desk .notes-actions .btn { white-space: nowrap; }
+/* the Highlights head is one row (the count, By page | By colour, Export) and the colour chips one line: no empty colour, and a line too long scrolls sideways with a fade on the side that
+   has more, so no chip ever sits alone under the others */
+.desk .notes-head { flex-wrap: wrap; padding: 0.6rem 0.9rem; }
+.desk .notes-actions { flex-wrap: nowrap; align-items: center; margin-left: auto; }
+.desk .notes-export { gap: 0.3rem; }
+.desk .hl-tools { padding-bottom: 0.4rem; }
+.desk .hl-filter[data-one-row] { flex-wrap: nowrap; margin: 0 -0.9rem; padding: 0.1rem 0.9rem 0.2rem; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.desk .hl-filter[data-one-row]::-webkit-scrollbar { display: none; }
+.desk .hl-filter[data-one-row] > .chip-btn { display: inline-flex; flex: none; align-items: center; min-height: 32px; padding: 0 0.75rem; font-size: 0.8125rem; white-space: nowrap; }
+.desk .hl-filter[data-more="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
+.desk .hl-filter[data-more="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent); }
+.desk .hl-filter[data-more="both"] { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }
 
 /* a phone upright: the status and the theme on one row, the view switch under them across the width (Paper | Notes); on its side all of it fits one row */
 @media not all and (min-width: 744px) and (min-height: 520px) {

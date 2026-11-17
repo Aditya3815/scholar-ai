@@ -1,6 +1,6 @@
 import { AnimatePresence, m } from "motion/react";
 import { Check, CircleCheck, Copy, Download, Highlighter, NotebookPen, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MAX_NOTE_CHARS, NOTE_COLORS, notesMarkdown, type DocNote, type DocumentInfo, type NoteColor } from "@scholar/shared";
 import { easeOut, spring } from "../../lib/motion";
 import { useLegend } from "../../lib/legend";
@@ -77,8 +77,11 @@ function NoteItem({ n, api, autoFocus, focusTick, onGo, onFocusDone, notebook }:
   );
 }
 
-/** Highlights and notes for the open paper, in page order: click one to jump to it, edit the words, change the colour, export them all. */
-export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone, notebook }: { doc: DocumentInfo; api: NotesApi; focusId: string | null; focusTick?: number; onGo: (n: DocNote) => void; onFocusDone?: (id: string) => void; notebook?: CardNotebook }) {
+/**
+ * Highlights and notes for the open paper, in page order: click one to jump to it, edit the words, change the colour, export them all. `compact` (the new reader): the head is one tidy row (the
+ * count, By page | By colour, and the reader's one Export menu for Copy and Download, `exportMenu`), and the colour chips stay on one line with no empty colour.
+ */
+export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone, notebook, compact = false, exportMenu }: { doc: DocumentInfo; api: NotesApi; focusId: string | null; focusTick?: number; onGo: (n: DocNote) => void; onFocusDone?: (id: string) => void; notebook?: CardNotebook; compact?: boolean; exportMenu?: (a: { copy: () => void; download: () => void; copied: boolean }) => ReactNode }) {
   const [copied, setCopied] = useState(false);
   const legend = useLegend();
   // the list can show one colour, or group the list by colour; the Markdown follows what is on screen
@@ -99,7 +102,7 @@ export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone
   return (
     <div className="notes">
       <div className="notes-head">
-        <p className="notes-count" role="status">{api.status === "loading" ? "Loading…" : api.notes.length === 0 ? "No highlights yet" : `${api.notes.length} ${api.notes.length === 1 ? "highlight or note" : "highlights and notes"}`}</p>
+        <p className={compact && api.status !== "loading" && api.notes.length > 0 ? "notes-count sr-only" : "notes-count"} role="status">{api.status === "loading" ? "Loading…" : api.notes.length === 0 ? "No highlights yet" : `${api.notes.length} ${compact ? (api.notes.length === 1 ? "highlight" : "highlights") : api.notes.length === 1 ? "highlight or note" : "highlights and notes"}`}</p>
         {api.notes.length > 0 && (
           <div className="notes-actions">
             <div className="seg hl-group" role="group" aria-label="Order of the list">
@@ -110,20 +113,26 @@ export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone
                 </button>
               ))}
             </div>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={copy}>
-              {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
-              <span>{copied ? "Copied" : "Copy as Markdown"}</span>
-            </button>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={download}>
-              <Download size={14} aria-hidden="true" />
-              <span>Download</span>
-            </button>
+            {exportMenu ? (
+              exportMenu({ copy: () => void copy(), download, copied })
+            ) : (
+              <>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={copy}>
+                  {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                  <span>{copied ? "Copied" : "Copy as Markdown"}</span>
+                </button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={download}>
+                  <Download size={14} aria-hidden="true" />
+                  <span>Download</span>
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
       {api.notes.length > 0 && (
         <div className="hl-tools">
-          <ColourFilter notes={api.notes} value={colour} onChange={setColour} />
+          <ColourFilter notes={api.notes} value={colour} onChange={setColour} oneRow={compact} />
           {PARKED.colourNames && <LegendEditor />}
         </div>
       )}

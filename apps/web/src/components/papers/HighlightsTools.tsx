@@ -1,18 +1,40 @@
 import { Pencil } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MAX_LEGEND_CHARS, NOTE_COLORS, type DocNote, type NoteColor } from "@scholar/shared";
 import { currentLegend, setLegendName, useLegend } from "../../lib/legend";
 
-/** Show all, or one colour. Each chip carries the reader's own name for the colour and how many highlights have it. */
-export function ColourFilter({ notes, value, onChange }: { notes: DocNote[]; value: NoteColor | "all"; onChange: (c: NoteColor | "all") => void }) {
+/**
+ * Show all, or one colour. Each chip carries the reader's own name for the colour and how many highlights have it. `oneRow` (the new reader): a colour with none is left out rather than shown
+ * disabled, and the chips stay on one line that scrolls sideways, with a fade on the side that has more (data-more), so none sits alone on a second line.
+ */
+export function ColourFilter({ notes, value, onChange, oneRow = false }: { notes: DocNote[]; value: NoteColor | "all"; onChange: (c: NoteColor | "all") => void; oneRow?: boolean }) {
   const legend = useLegend();
   const count = (c: NoteColor) => notes.filter((n) => n.color === c).length;
+  const row = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState("");
+  useEffect(() => {
+    const el = row.current;
+    if (!oneRow || !el) return;
+    const seen = () => {
+      const start = el.scrollLeft > 1;
+      const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setMore(start && end ? "both" : start ? "start" : end ? "end" : "");
+    };
+    seen();
+    el.addEventListener("scroll", seen, { passive: true });
+    const ro = new ResizeObserver(seen);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", seen);
+      ro.disconnect();
+    };
+  }, [oneRow, notes.length]);
   return (
-    <div className="hl-filter" role="group" aria-label="Show highlights by colour">
+    <div ref={row} className="hl-filter" data-one-row={oneRow || undefined} data-more={more || undefined} role="group" aria-label="Show highlights by colour">
       <button type="button" className="chip-btn" aria-pressed={value === "all"} onClick={() => onChange("all")}>
         All <span className="wfilters-n">{notes.length}</span>
       </button>
-      {NOTE_COLORS.map((c) => (
+      {NOTE_COLORS.filter((c) => !oneRow || count(c) > 0 || value === c).map((c) => (
         <button key={c} type="button" className="chip-btn hl-chip" aria-pressed={value === c} disabled={count(c) === 0 && value !== c} onClick={() => onChange(value === c ? "all" : c)}>
           <span className="sres-dot" data-color={c} aria-hidden="true" />
           {legend[c]} <span className="wfilters-n">{count(c)}</span>
