@@ -1,7 +1,8 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Maximize2, Minimize2, NotebookPen, X } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
-import { NOTE_COLORS, planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type NoteColor, type PaperInfo, type ScanInfo } from "@scholar/shared";
+import { NOTE_COLORS, planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type NoteColor, type NotebookBlock, type PaperInfo, type ScanInfo } from "@scholar/shared";
+import { downloadBlob } from "../../../lib/download";
 import { fileUrl } from "../../../lib/documents";
 import { registerCommands } from "../../../lib/commands";
 import { copyText } from "../../../lib/copy";
@@ -416,6 +417,19 @@ export function Desk(props: DeskProps) {
     },
     [pdf],
   );
+  /** Export ▾ in the notes (21.1, 4): a PDF or a Word file of this page or all pages, made by a lazy chunk (lib/notes-export.ts) that draws the captures from the open paper. */
+  const exportNotes = useCallback(
+    async (fmt: "pdf" | "docx", pages: { title: string; blocks: NotebookBlock[] }[], docTitle: string, names: Record<NoteColor, string>, all: boolean) => {
+      announce(fmt === "pdf" ? "Making the PDF…" : "Making the Word file…");
+      const out = await import("../../../lib/notes-export");
+      const args = { docTitle, pages, names, pdf: pdf.status === "ready" ? pdf.pdf : null };
+      const name = out.notesFileName(docTitle, all ? null : (pages[0]?.title ?? ""), fmt);
+      if (fmt === "pdf") downloadBlob(name, new Blob([(await out.notesPdf(args)) as BlobPart], { type: "application/pdf" }));
+      else downloadBlob(name, await out.notesDocx(args));
+      toast(fmt === "pdf" ? "The PDF is downloaded" : "The Word file is downloaded");
+    },
+    [pdf],
+  );
   const showInNotes = useCallback(
     (noteId: string) => {
       void ensureNotebook().then((store) => openInNotes(store, store.findQuote(noteId)));
@@ -686,7 +700,7 @@ export function Desk(props: DeskProps) {
           <div className="dw-side desk-tabpanel" id="desk-tabpanel-notes" role="tabpanel" aria-labelledby="desk-tab-notes" hidden={tab !== "notes"}>
             {nb ? (
               <Suspense fallback={<p className="nb-wait" role="status">Loading your notes…</p>}>
-                <NotebookView store={nb} docTitle={doc.title} notes={existing} notesReady={notes.status === "ready"} wide={wide} onGoTo={goTo} onDropQuote={onDropQuote} announce={announce} focus={nbFocus} meanings={MEANINGS} copy={copyText} onCapture={startCapture} paintCapture={paintCapture} />
+                <NotebookView store={nb} docTitle={doc.title} notes={existing} notesReady={notes.status === "ready"} wide={wide} onGoTo={goTo} onDropQuote={onDropQuote} announce={announce} focus={nbFocus} meanings={MEANINGS} copy={copyText} onCapture={startCapture} paintCapture={paintCapture} exportFile={exportNotes} />
               </Suspense>
             ) : (
               <p className="nb-wait" role="status">Loading your notes…</p>

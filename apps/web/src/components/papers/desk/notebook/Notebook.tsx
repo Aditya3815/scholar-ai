@@ -43,7 +43,7 @@ export type NotebookProps = {
   /** Draws a capture from the open paper into a canvas, `cssWidth` wide; resolves to its height. */
   paintCapture?: (canvas: HTMLCanvasElement, b: CaptureBlock, cssWidth: number) => Promise<number>;
   /** PDF and Word (21.1, 4): made by the reader, which holds the open paper (the captures are drawn from it); without it, Export offers Markdown only. */
-  exportFile?: (fmt: "pdf" | "docx", pages: NbPage[], docTitle: string, names: Record<QuoteColor, string>) => Promise<void>;
+  exportFile?: (fmt: "pdf" | "docx", pages: NbPage[], docTitle: string, names: Record<QuoteColor, string>, all: boolean) => Promise<void>;
 };
 
 // a sketch is drawn and edited by a small chunk of its own (the pen, its outlines): most pages have none
@@ -239,7 +239,7 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
   const exportAs = (fmt: ExportFormat, all: boolean) => {
     if (fmt === "md") return downloadMd(all);
     const pages = all ? st.pages : page ? [page] : [];
-    void exportFile?.(fmt, pages, docTitle, NAMES).catch(() => showNotice(`The ${fmt === "pdf" ? "PDF" : "Word file"} could not be made. Check the connection, then try again.`));
+    void exportFile?.(fmt, pages, docTitle, NAMES, all).catch(() => showNotice(`The ${fmt === "pdf" ? "PDF" : "Word file"} could not be made. Check the connection, then try again.`));
   };
 
   /* ---- the title field of a new page takes the focus ---- */
