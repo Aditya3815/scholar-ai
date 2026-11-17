@@ -18,7 +18,7 @@ import { violations } from "@scholar/test-support/layers.mjs";
 
 const ROOT_FILES = new Set(["index.ts", "jobs.ts", "maintenance.ts", "outcomes.ts"]);
 /** Platform modules by level: a module imports its own level and those below. */
-const LEVEL: Record<string, number> = { env: 0, switches: 0, dev: 0, deps: 0, config: 0, db: 1, cache: 1, gate: 1, monitoring: 1, services: 2, llm: 3, http: 4 };
+const LEVEL: Record<string, number> = { env: 0, switches: 0, dev: 0, config: 0, db: 1, cache: 1, gate: 1, monitoring: 1, services: 2, llm: 3, deps: 3.5, http: 4 };
 /** Today's places of platform code, until F5 to F11 move them under platform/. */
 const TODAY: Record<string, string> = {
   "cache": "cache",
@@ -109,7 +109,6 @@ const ALLOW: string[] = [
   "api/chat/routes.ts -> api/docs/routes.ts",
   "api/chat/routes.ts -> api/docs/vector.ts",
   "api/chat/routes.ts -> api/outcomes.ts",
-  "api/chat/routes.ts -> api/search/env.ts",
   "api/chat/routes.ts -> api/search/retraction-service.ts",
   "api/chat/routes.ts -> api/understand/chat-reply.ts",
   "api/chat/routes.ts -> api/understand/frame.ts",
@@ -133,8 +132,6 @@ const ALLOW: string[] = [
   "api/docs/routes.ts -> api/library/validate.ts",
   "api/docs/routes.ts -> api/ocr/jpeg.ts",
   "api/docs/routes.ts -> api/ocr/process.ts",
-  "api/docs/routes.ts -> api/ocr/read.ts",
-  "api/docs/routes.ts -> api/ocr/stub.ts",
   "api/docs/routes.ts -> api/outcomes.ts",
   "api/idea/compare.ts -> api/docs/qa.ts",
   "api/idea/routes.ts -> api/docs/embed.ts",
@@ -147,7 +144,7 @@ const ALLOW: string[] = [
   "api/idea/search.ts -> api/search/openalex.ts",
   "api/idea/search.ts -> api/search/pubmed.ts",
   "api/idea/search.ts -> api/search/s2.ts",
-  "api/idea/stub.ts -> api/docs/vector.ts",
+  "api/idea/testing/stub.ts -> api/docs/vector.ts",
   "api/legal-match.test.ts -> web/components/legal/LegalPages.tsx",
   "api/legal-text.test.ts -> shared/subfield-policy.ts",
   "api/legal-text.test.ts -> shared/trending.ts",
@@ -163,14 +160,11 @@ const ALLOW: string[] = [
   "api/litscan/routes.ts -> api/library/validate.ts",
   "api/litscan/share.ts -> api/library/validate.ts",
   "api/litscan/store.ts -> api/library/validate.ts",
-  "api/litscan/stub.ts -> api/chat/stub.ts",
   "api/litscan/worker.ts -> api/chat/answer.ts",
   "api/litscan/workflow.ts -> api/outcomes.ts",
   "api/mcp/oauth.ts -> api/auth/oauth.ts",
   "api/mcp/oauth.ts -> api/auth/providers.ts",
   "api/mcp/server.ts -> api/chat/claim-check.ts",
-  "api/mcp/server.ts -> api/chat/stub.ts",
-  "api/mcp/server.ts -> api/docs/routes.ts",
   "api/mcp/server.ts -> api/library/validate.ts",
   "api/mcp/server.ts -> api/search/retraction-service.ts",
   "api/mcp/tools.ts -> api/chat/claim-check.ts",
@@ -184,7 +178,6 @@ const ALLOW: string[] = [
   "api/oa/service.ts -> api/search/retraction-service.ts",
   "api/oa/sources.ts -> api/search/normalize.ts",
   "api/oa/store.ts -> api/docs/vector.ts",
-  "api/oa/workflow.ts -> api/docs/embed.ts",
   "api/ocr/process.ts -> api/docs/chunk.ts",
   "api/ocr/process.ts -> api/docs/vector.ts",
   "api/references/lookup.ts -> api/search/cache.ts",
@@ -194,7 +187,6 @@ const ALLOW: string[] = [
   "api/search/doi-check.ts -> api/references/crossref-gate.ts",
   "api/search/doi-check.ts -> api/references/lookup.ts",
   "api/search/plain-text.test.ts -> web/lib/",
-  "api/search/retraction-service.ts -> api/library/retraction-stub.ts",
   "api/search/retraction.ts -> api/references/crossref-gate.ts",
   "api/trending/arxiv.ts -> shared/trending.ts",
   "api/trending/contract.test.ts -> shared/trending-client.ts",
@@ -217,12 +209,10 @@ const ALLOW: string[] = [
   "api/trending/scan.ts -> shared/trending.ts",
   "api/trending/select.test.ts -> shared/subfield-policy.ts",
   "api/trending/select.test.ts -> shared/trending.ts",
-  "api/trending/stub.ts -> shared/trending.ts",
+  "api/trending/testing/stub.ts -> shared/trending.ts",
   "api/trending/text.test.ts -> shared/trending.ts",
   "api/trending/verify.test.ts -> shared/trending.ts",
-  "api/understand/chat-reply.ts -> api/docs/qa.ts",
   "api/understand/tiers.ts -> api/litscan/relevance.ts",
-  "api/understand/understand.ts -> api/docs/qa.ts",
 ];
 
 describe("the API's dependency rule (docs/design/untangle.md, 1.5)", () => {

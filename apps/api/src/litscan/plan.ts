@@ -1,5 +1,5 @@
 import { scrubText, LITSCAN_LANGUAGE_NAMES, LITSCAN_MAX_ITEMS, LITSCAN_MIN_ITEMS, LITSCAN_QUESTION_CHARS, LITSCAN_SEARCH_CHARS, LITSCAN_TITLE_CHARS, type LitscanItem, type LitscanLanguage } from "@scholar/shared";
-import type { Complete } from "../docs/qa";
+import type { Complete } from "../platform/llm/port";
 
 /**
  * Step 1 of a literature scan: the private model reads the topic and proposes the sub-questions. The topic itself goes only to the private model; what is later sent to the public paper

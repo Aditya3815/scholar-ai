@@ -22,15 +22,16 @@ const layer = understandRecording();
 /** The model port of the current turn: a fresh session per turn, so a retry is the second recorded call of the same prompt within that turn. */
 const turn = vi.hoisted(() => ({ session: null as ModelSession | null }));
 
+vi.mock("../src/chat/testing/understand", async (importOriginal) => ({ ...(await importOriginal<typeof import("../src/chat/testing/understand")>()), stubUnderstand: ((req) => turn.session!(req)) satisfies Complete }));
 vi.mock("../src/chat/understand-wire", async (importOriginal) => {
   const real = await importOriginal<typeof import("../src/chat/understand-wire")>();
-  const replay: Complete = (req) => turn.session!(req);
   // a paper named by the ledger, as a record (title and year as the ledger has them): the scoring is of the decision, not of the lookup
   const asPaper = (p: LedgerPaper, i: number): Paper => ({ id: p.id ?? `doi:${p.doi ?? `10.5555/eval.${i}`}`, doi: p.doi ?? `10.5555/eval.${i}`, pmid: null, title: p.title, authors: p.first_author ? [p.first_author] : [], year: p.year, venue: null, abstract: "An abstract that is long enough to be read by the writer of the answer in this evaluation.", citationCount: null, oaUrl: null, retracted: false, retractionSources: [], sources: ["openalex"], score: 1 }) as Paper;
-  return { ...real, stubUnderstand: replay, resolveLedgerPapers: async (_env: unknown, refs: readonly LedgerPaper[]) => refs.map(asPaper) };
+  return { ...real, resolveLedgerPapers: async (refs: readonly LedgerPaper[]) => refs.map(asPaper) };
 });
 
 import { chatRoutes } from "../src/chat/routes";
+import { withDeps } from "../src/app/deps";
 
 const TOKEN = "t".repeat(40);
 const sessionRow = { id: "user-1", name: "Test", email: "t@example.org", orcid: null, avatar_url: null, role: "scholar", privacy_ack: null, stale: 0, providers: "google" };
@@ -77,7 +78,7 @@ describe("the multi-turn set through the wired chat route (CHAT_UNDERSTAND=on, r
         n++;
         turn.session = layer.session(SHIPPED);
         const ledger = chat.turns.slice(start, k).map((x) => x.ledger).filter(Boolean);
-        const res = await chatRoutes.request("http://localhost/", { method: "POST", headers: { "content-type": "application/json", origin: "http://localhost", cookie: `sid=${TOKEN}` }, body: JSON.stringify({ mode: "auto", message: t.user, ...(ledger.length ? { ledger } : {}) }) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", CHAT_UNDERSTAND: "on" });
+        const res = await withDeps(chatRoutes).request("http://localhost/", { method: "POST", headers: { "content-type": "application/json", origin: "http://localhost", cookie: `sid=${TOKEN}` }, body: JSON.stringify({ mode: "auto", message: t.user, ...(ledger.length ? { ledger } : {}) }) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", CHAT_UNDERSTAND: "on" });
         const text = await res.text();
         expect(res.status, `${chat.id}#${t.turn}: ${text.slice(0, 200)}`).toBe(200);
         const ev = eventsOf(text);

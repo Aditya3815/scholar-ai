@@ -66,3 +66,28 @@ describe("a production Worker (untangle F7)", () => {
     expect(r.status).not.toBe(404);
   });
 });
+
+describe("the stand-ins (untangle F7)", () => {
+  it("are imported by app/stand-ins.ts only: no production module imports a testing/ module (one of the same testing/ folder may)", async () => {
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const { dirname, join, relative, resolve } = await import("node:path");
+    const slash = (p: string) => p.split(String.fromCharCode(92)).join("/");
+    const { fileURLToPath } = await import("node:url");
+    const SRC = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+    const files = (readdirSync(SRC, { recursive: true }) as string[]).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !f.endsWith(".d.ts")).map(slash);
+    const testingOf = (f: string) => /^([^/]+)\/testing\//.exec(f)?.[1] ?? null;
+    const importers: Record<string, string[]> = {};
+    for (const file of files) {
+      const source = readFileSync(join(SRC, file), "utf8");
+      for (const m of source.matchAll(/(?:from|import)\s*\(?\s*["'](\.[^"']+)["']/g)) {
+        const target = slash(relative(SRC, resolve(join(SRC, dirname(file)), m[1]!)));
+        const feature = testingOf(target);
+        if (!feature) continue;
+        if (testingOf(file) === feature) continue;
+        (importers[target] ??= []).push(file);
+      }
+    }
+    expect(Object.keys(importers).length).toBeGreaterThan(8);
+    for (const [target, from] of Object.entries(importers)) expect([target, [...new Set(from)]]).toEqual([target, ["app/stand-ins.ts"]]);
+  });
+});

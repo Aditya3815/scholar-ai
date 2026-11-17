@@ -6,14 +6,9 @@ import { rank } from "./vector";
 /** `section` is set for a paper read from XML, which has no pages (`page` is then the number of the section): "Methods > Participants". */
 export type StoredChunk = { idx: number; page: number; text: string; embedding: Float32Array | null; section?: string };
 
-/** The language model, injected: production passes the LLM Gateway (private route), tests pass a fake. */
-export type Complete = (req: { system: string; user: string; schema: Record<string, unknown>; maxTokens: number; label?: string }) => Promise<{ json: unknown; model: string }>;
-
-/** The language model, streaming: hooks fire as it thinks and as the JSON text arrives. Resolves with the full parsed JSON. */
-export type StreamComplete = (
-  req: { system: string; user: string; schema: Record<string, unknown>; maxTokens: number; label?: string },
-  hooks: { onThinking?: () => void; onContent?: (delta: string) => void },
-) => Promise<{ json: unknown; model: string }>;
+/** The language model, injected (the model port, platform/llm/port.ts; re-exported here for the tests that name it here, until the tests pass of the untangle). */
+export type { Complete, StreamComplete } from "../platform/llm/port";
+import type { Complete, StreamComplete } from "../platform/llm/port";
 
 const TOP_K = 6;
 const BROAD = /\b(summar\w*|overview|about|main (idea|point|contribution)s?|abstract|contribution\w*|tl;?dr|gist)\b/i;

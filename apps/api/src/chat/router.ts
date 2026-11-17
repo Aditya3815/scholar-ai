@@ -24,7 +24,7 @@ import {
   type Route,
   type RouteContext,
 } from "@scholar/shared";
-import type { Complete } from "../docs/qa";
+import type { Complete } from "../platform/llm/port";
 import { AllProvidersFailedError } from "../platform/llm";
 import { isMalformedReply } from "./malformed";
 import { errorKind, type ChatHistory } from "./history";

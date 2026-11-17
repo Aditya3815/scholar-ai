@@ -1,22 +1,12 @@
 import { OCR_MAX_TOKENS, OCR_MODEL_CHECK, OCR_MODEL_PRIMARY, OCR_PROMPT, type Reading } from "@scholar/shared";
+import type { PageReader } from "../platform/llm/port";
 
 /**
  * Reads one page picture with two different models, side by side. Both run inside our own Cloudflare account (Workers AI), which is the only route
  * a person's own files may take (see llm/providers/workersai.ts and docs/llm-providers.md); nothing here can reach another provider. The picture is
  * sent to the models and then forgotten: it is not stored, and neither it nor the text is logged.
  */
-export type PageRead = {
-  /** The primary model's reading; null if that call failed. */
-  first: Reading | null;
-  /** The checking model's reading; null if that call failed. */
-  second: Reading | null;
-  /** What Workers AI says the two calls used (for cost review). */
-  neurons: number;
-  /** Short error names of the calls that failed (never page text). */
-  errors: string[];
-};
-
-export type PageReader = (image: Uint8Array, ctx: { page: number; comment: string | null }) => Promise<PageRead>;
+export type { PageRead, PageReader } from "../platform/llm/port";
 
 type AiChat = {
   response?: unknown;

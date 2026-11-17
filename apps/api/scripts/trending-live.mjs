@@ -65,7 +65,7 @@ await build({
       'export { arxivCounts, arxivWindows, parseArxivCount } from "./src/trending/arxiv";',
       'export { CallBudget, makePacer } from "./src/trending/sources";',
       'export { TRENDING_KEYS } from "./src/trending/store";',
-      'export { makeStubTrending, STUB_SUBFIELDS } from "./src/trending/stub";',
+      'export { makeStubTrending, STUB_SUBFIELDS } from "./src/trending/testing/stub";',
       'export { runSearch } from "./src/search";',
       'export { memoryStore } from "./src/cache/store";',
       'export { YEAR_FILTER_SEARCH_LIMIT } from "@scholar/shared";',

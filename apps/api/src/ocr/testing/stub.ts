@@ -1,4 +1,4 @@
-import type { PageReader, PageRead } from "./read";
+import type { PageReader, PageRead } from "../read";
 
 /**
  * Offline stand-in for the two models, used ONLY by tests and the local end-to-end run (QA_STUB=1 together with ENABLE_DEV_ROUTES=1, neither of

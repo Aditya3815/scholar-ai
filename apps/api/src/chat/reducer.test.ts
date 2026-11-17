@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { INTERIM_ABSTRACT_CHARS, activePath, applyChatEvent, chatTitle, editUserMessage, interruptAssistant, interruptMessages, noticeOffersRetry, slimForInterim, startAssistant, stopAssistant, trimForStorage, trimMessagesForStorage, versionInfo, type ChatEvent, type ChatMsg, type Paper, type UserMsg } from "@scholar/shared";
-import { stubPapers } from "./stub";
+import { stubPapers } from "./testing/stub";
 
 const run = (events: ChatEvent[]) => events.reduce(applyChatEvent, startAssistant("a1", "glaucoma", 1));
 const papers: Paper[] = stubPapers();

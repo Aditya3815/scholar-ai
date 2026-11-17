@@ -5,6 +5,7 @@ import { testD1 } from "../test-d1";
 import { oaService } from "../oa/service";
 import { searchService } from "../search/service";
 import { buildServer, type McpEnv } from "./server";
+import { depsFor } from "../app/deps";
 import { MCP_TOOLS, logCall } from "./calls";
 import { AskPaperOut, ClaimOut, LibraryOut, SaveOut, askPaperOut, libraryOut, readAskPaperIn } from "./tools";
 
@@ -20,7 +21,7 @@ function setup(opts: { scopes?: string[]; checkClaim?: boolean; userId?: string;
   // stub: false leaves the stand-ins out, for a test that puts its own search behind searchService.run
   const env = { DB: db, CROSSREF_MAILTO: "t@example.org", ...(opts.stub === false ? {} : { ENABLE_DEV_ROUTES: "1", QA_STUB: "1" }) } as unknown as McpEnv;
   const deferred: Promise<unknown>[] = [];
-  const handler = createMcpHandler(() => buildServer({ env, userId: opts.userId ?? "u-1", client: "Test App", base: BASE, defer: (p) => deferred.push(p), checkClaim: opts.checkClaim }), { responseMode: "json" });
+  const handler = createMcpHandler(() => buildServer({ env, deps: depsFor(env as never), userId: opts.userId ?? "u-1", client: "Test App", base: BASE, defer: (p) => deferred.push(p), checkClaim: opts.checkClaim }), { responseMode: "json" });
   const scopes = opts.scopes ?? ["papers:read", "references:verify", "library:read", "library:write"];
   const protocol = opts.protocol ?? "2025-06-18";
   let id = 0;

@@ -5,7 +5,7 @@ import { phraseKey, type Candidate } from "@scholar/shared/src/trending";
 import type { SearchResponse } from "@scholar/shared";
 import { fakeKv, type FakeKvOptions } from "./fake-kv";
 import { BudgetError, SourceError } from "./sources";
-import { STUB_CAPPED_PHRASES, STUB_HELD_PHRASE, STUB_PHRASES, STUB_RETRACTED_PHRASE, STUB_SUBFIELDS, makeStubTrending } from "./stub";
+import { STUB_CAPPED_PHRASES, STUB_HELD_PHRASE, STUB_PHRASES, STUB_RETRACTED_PHRASE, STUB_SUBFIELDS, makeStubTrending } from "./testing/stub";
 import { TRENDING_KEYS } from "./store";
 import { TRENDING_LIMITS, runTrending, type TrendingLimits } from "./job";
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MAX_AUTO_CHARS, SMALL_TALK_REPLY, cleanAutoMessage, detectLanguage, isSmallTalk, looksLikeReferenceList, offlineRoute, ruleRoute, smallTalkReply } from "@scholar/shared";
 import { AllProvidersFailedError } from "../platform/llm";
 import { ROUTER_SYSTEM, parseRoute, routeMessage, routerPrompt } from "./router";
-import { stubRoute } from "./stub-route";
+import { stubRoute } from "./testing/stub-route";
 
 const REFS = `[1] LeCun, Y., Bengio, Y., & Hinton, G. (2015). Deep learning. Nature, 521, 436-444.
 [2] Vaswani, A., Shazeer, N., Parmar, N., et al. (2017). Attention is all you need. NeurIPS.

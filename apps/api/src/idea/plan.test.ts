@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { scrubText } from "@scholar/shared";
 import { SYSTEM, buildPlanPrompt, planIdea, sanitizePlan, PlanError } from "./plan";
-import { stubPlan } from "./stub";
+import { stubPlan } from "./testing/stub";
 
 describe("scrubText", () => {
   it("takes out e-mail addresses and links, control characters and extra space, and bounds the length", () => {

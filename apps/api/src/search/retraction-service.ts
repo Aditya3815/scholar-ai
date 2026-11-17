@@ -1,16 +1,14 @@
 import { normalizeDoi } from "@scholar/shared";
 import { cacheStore, type CacheEnv } from "../cache";
-import { stubCrossrefFetch } from "../library/retraction-stub";
 import { findRetractionNotices, retractedDois } from "./retraction";
 import type { Env } from "../platform/env";
-import { standIns } from "../platform/dev";
 
 /**
  * Is a paper retracted, as a service (docs/design: "service layer"): "Ask this paper" and the MCP tool `check_retractions` call it. Crossref's retraction data (which carries the Retraction
  * Watch database) through the public cache, which keeps each DOI's answer for a day. A lookup that fails says "unknown", never "not retracted".
  */
 
-export type RetractionServiceEnv = CacheEnv & Pick<Env, "CROSSREF_MAILTO" | "ENABLE_DEV_ROUTES" | "QA_STUB">;
+export type RetractionServiceEnv = CacheEnv & Pick<Env, "CROSSREF_MAILTO">;
 
 export type RetractionCheck = {
   /** The DOIs as they were read (lower case, without a resolver prefix), in the order given, each once. */
@@ -19,14 +17,14 @@ export type RetractionCheck = {
   invalid: string[];
 };
 
-/** Only in a local test run (the same switch src/index.ts uses for the nightly job): Crossref's answers are made up from the DOI (src/library/retraction-stub.ts). */
-const fetchFor = (env: RetractionServiceEnv) => (standIns(env) ? { fetch: stubCrossrefFetch } : {});
+/** `fetchImpl`: the network to Crossref (deps.fetch.crossref: a test run's stand-in, app/stand-ins.ts); the Worker's own when not given. */
+const fetchFor = (fetchImpl?: typeof fetch) => (fetchImpl ? { fetch: fetchImpl } : {});
 
 /** Is one DOI retracted? `false` also when that could not be found out: for a screen that marks retracted papers and stays quiet otherwise. */
-export async function isRetracted(env: RetractionServiceEnv, doi: string, timeoutMs = 4000): Promise<boolean> {
+export async function isRetracted(env: RetractionServiceEnv, doi: string, timeoutMs = 4000, fetchImpl?: typeof fetch): Promise<boolean> {
   const d = doi.toLowerCase();
   try {
-    const r = await retractedDois(cacheStore(env), [d], { CROSSREF_MAILTO: env.CROSSREF_MAILTO, ...fetchFor(env) }, AbortSignal.timeout(timeoutMs));
+    const r = await retractedDois(cacheStore(env), [d], { CROSSREF_MAILTO: env.CROSSREF_MAILTO, ...fetchFor(fetchImpl) }, AbortSignal.timeout(timeoutMs));
     return r.retracted.has(d);
   } catch {
     return false;
@@ -37,7 +35,7 @@ export async function isRetracted(env: RetractionServiceEnv, doi: string, timeou
  * Checks a list of DOIs. Each is answered retracted, not retracted or unknown (Crossref could not be asked, or a DOI with a comma, which its filter cannot take); a retracted one comes with
  * the DOIs of its retraction notices when Crossref names them (one more call, made only when something is retracted).
  */
-export async function checkRetractions(env: RetractionServiceEnv, given: string[], timeoutMs = 8000): Promise<RetractionCheck> {
+export async function checkRetractions(env: RetractionServiceEnv, given: string[], timeoutMs = 8000, fetchImpl?: typeof fetch): Promise<RetractionCheck> {
   const dois: string[] = [];
   const invalid: string[] = [];
   for (const g of given) {
@@ -46,7 +44,7 @@ export async function checkRetractions(env: RetractionServiceEnv, given: string[
     else if (!dois.includes(d)) dois.push(d);
   }
   if (dois.length === 0) return { checked: [], invalid };
-  const crossref = { CROSSREF_MAILTO: env.CROSSREF_MAILTO, ...fetchFor(env) };
+  const crossref = { CROSSREF_MAILTO: env.CROSSREF_MAILTO, ...fetchFor(fetchImpl) };
   const store = cacheStore(env);
   // Crossref takes the DOIs as one filter in the address: 40 at a time, as the nightly re-check does (src/library/retraction.ts); a batch that fails leaves only its own DOIs unknown
   const known = new Map<string, boolean>();

@@ -1,5 +1,5 @@
 import { DOI_START, GENERAL_KINDS, type ChatEvent, type GeneralKind, type Lang } from "@scholar/shared";
-import type { StreamComplete } from "../docs/qa";
+import type { StreamComplete } from "../platform/llm/port";
 import { AnswerFieldStreamer } from "../docs/stream-json";
 import { isMalformedReply } from "./malformed";
 

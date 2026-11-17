@@ -23,13 +23,15 @@ vi.mock("../docs/qa", async (importOriginal) => ({
 }));
 
 const { oaService } = await import("./service");
+const { depsFor } = await import("../app/deps");
 
 async function topKWith(env: Record<string, string>): Promise<number | undefined> {
   seen.topK.length = 0;
   const abort = new AbortController();
+  const e = { DB: {}, CROSSREF_MAILTO: "t@example.org", QA_STUB: "1", ...env } as never;
   await oaService.ask(
-    { DB: {}, CROSSREF_MAILTO: "t@example.org", QA_STUB: "1", ...env } as never,
-    { userId: "u", ref: { doi: "10.1/x" }, key: "doi:10.1/x", question: "What did they find?", clientAbstract: "", embed: async (t: string[]) => t.map(() => [1]), abort },
+    e,
+    { userId: "u", ref: { doi: "10.1/x" }, key: "doi:10.1/x", question: "What did they find?", clientAbstract: "", embed: async (t: string[]) => t.map(() => [1]), abort, deps: depsFor(e) },
     { gone: false, send: async () => {} },
   );
   return seen.topK[0];

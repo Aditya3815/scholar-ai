@@ -10,8 +10,8 @@ const calls = vi.hoisted(() => [] as { who: string; label?: string; system: stri
 /** A test can make the writer fail the way a provider does, with an error text that echoes what it was sent. */
 const fail = vi.hoisted(() => ({ writer: false }));
 
-vi.mock("./stub", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./stub")>();
+vi.mock("./testing/stub", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./testing/stub")>();
   const rec = (who: string, f: StreamComplete): StreamComplete => async (req, hooks) => {
     calls.push({ who, label: req.label, system: req.system, user: req.user });
     if (who === "writer" && fail.writer && req.label === "chat_search") {
@@ -22,14 +22,15 @@ vi.mock("./stub", async (importOriginal) => {
   };
   return { ...real, stubChatStream: rec("writer", real.stubChatStream), stubJudgeStream: (env?: unknown) => rec("judge", real.stubJudgeStream(env)), stubStrictStream: rec("strict", real.stubStrictStream) };
 });
-vi.mock("./stub-route", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./stub-route")>();
+vi.mock("./testing/stub-route", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./testing/stub-route")>();
   return { ...real, stubRoute: async (req: Parameters<typeof real.stubRoute>[0]) => (calls.push({ who: "router", label: req.label, system: req.system, user: req.user }), real.stubRoute(req)) };
 });
 
 import { EARLIER_ANSWER_SENTENCE } from "./answer";
 import { generalSystem } from "./general";
 import { chatRoutes } from "./routes";
+import { withDeps } from "../app/deps";
 
 const TOKEN = "t".repeat(40);
 const sessionRow = { id: "user-1", name: "Test", email: "t@example.org", orcid: null, avatar_url: null, role: "scholar", privacy_ack: null, stale: 0, providers: "google" };
@@ -61,7 +62,7 @@ type Opts = { signedIn?: boolean; used?: number; env?: Record<string, string>; h
 async function post(body: unknown, opts: Opts = {}) {
   const { db, outcomes } = fakeDb(opts.used ?? 0);
   const headers: Record<string, string> = { "content-type": "application/json", origin: "http://localhost", ...(opts.signedIn === false ? {} : { cookie: `sid=${TOKEN}` }), ...opts.headers };
-  const res = await chatRoutes.request(`http://localhost${opts.path ?? "/"}`, { method: "POST", headers, body: typeof body === "string" ? body : JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
+  const res = await withDeps(chatRoutes).request(`http://localhost${opts.path ?? "/"}`, { method: "POST", headers, body: typeof body === "string" ? body : JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
   const text = await res.text();
   return { res, text, outcomes, json: () => JSON.parse(text) as Record<string, unknown> };
 }

@@ -4,7 +4,7 @@ import { plainAnswer } from "./history";
 import { isMalformedReply } from "./malformed";
 import { judgeAnswer, type JudgeReport } from "./support";
 import { abstractOf, dedupeMarkRuns, MAX_SENTENCES_PER_PAPER, shownSentence, tidyMarkPunctuation } from "./evidence";
-import type { StreamComplete } from "../docs/qa";
+import type { StreamComplete } from "../platform/llm/port";
 
 /**
  * A short written answer to a search, made only from what the search found. The model sees numbered papers (the number is the paper's place in the list the reader sees)

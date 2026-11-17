@@ -3,7 +3,7 @@ import { phraseKey } from "@scholar/shared/src/trending";
 
 /**
  * Offline stand-ins for OpenAlex, arXiv and the product's own search, for the Trending job: the unit tests of the job and the local end-to-end run (QA_STUB=1 together with
- * ENABLE_DEV_ROUTES=1, see src/index.ts; never in production, the secrets script refuses to upload those). Nothing here is real data: thirteen made-up topics in thirteen subfields, with
+ * ENABLE_DEV_ROUTES=1, app/stand-ins.ts hands them out; never in production, the secrets script refuses to upload those). Nothing here is real data: thirteen made-up topics in thirteen subfields, with
  * counts of the shape the plan describes (a rise of 2 to 3 times in a quarter), enough to give a list of nine through every rule of the job.
  *
  *   - "tirzepatide" is in a held subfield (Endocrinology): the job must log it and never show it;
@@ -49,7 +49,7 @@ const atom = (total: number): Response =>
 const kw = (slug: string, name: string, count: number) => ({ key: `https://openalex.org/keywords/${slug}`, key_display_name: name, count });
 
 /**
- * A stand-in that fails, for the local end-to-end run (scripts/trending-e2e.mjs): the KV key below holds which source fails, and only the QA_STUB branch of the job reads it (job.ts). It is written
+ * A stand-in that fails, for the local end-to-end run (scripts/trending-e2e.mjs): the KV key below holds which source fails, and only the test run's job reads it (testing/job.ts). It is written
  * through the dev-only route /api/v1/dev/kv, so it exists only where ENABLE_DEV_ROUTES=1 and QA_STUB=1 are both set, never in production. It is not one of the feed's own keys (store.ts).
  *   openalex  every call to OpenAlex is answered with HTTP 500 (the scan fails)
  *   arxiv     arXiv answers its Error entry under HTTP 200, as the real one does (the day's confirmation fails)

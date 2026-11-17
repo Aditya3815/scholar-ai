@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { AskStreamEvent } from "@scholar/shared";
-import { hashEmbedder } from "./embed";
+import { hashEmbedder } from "./testing/embed";
 import { answerQuestionStream, type StoredChunk, type StreamComplete } from "./qa";
-import { stubStream } from "./stub";
+import { stubStream } from "./testing/stub";
 
 const chunks: StoredChunk[] = [
   { idx: 1000, page: 1, text: "Abstract. We study glaucoma screening with deep learning on retinal photographs.", embedding: null },

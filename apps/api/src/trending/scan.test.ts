@@ -5,7 +5,7 @@ import { TREND, scoreSubfields, trendWindows, type KeywordRow, type SubfieldInpu
 import { CallBudget, SourceError, type Http } from "./sources";
 import type { OaDeps } from "./openalex";
 import { compact, expand, isBatchFile, scanBatch } from "./scan";
-import { makeStubTrending, STUB_SUBFIELDS } from "./stub";
+import { makeStubTrending, STUB_SUBFIELDS } from "./testing/stub";
 
 /**
  * The weekly scan keeps, for each subfield and each group, the counts the ranker needs, in a form small enough to wait in KV between two runs. What is kept must give the ranker

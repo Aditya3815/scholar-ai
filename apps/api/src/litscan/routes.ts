@@ -20,7 +20,8 @@ import { d1Ledger } from "../platform/llm/d1";
 import { AllProvidersFailedError, NoRouteError, QuotaError } from "../platform/llm";
 import { DEFAULT_CONFIG } from "../platform/llm/config";
 import { sseStream } from "../sse";
-import { planModel } from "./model";
+import { depsOf } from "../platform/deps";
+import { PROFILES, modelFor } from "../platform/llm/profiles";
 import { ScanPlanError, planScan, sanitizeApproved } from "./plan";
 import { createShare, publicScan, revokeShare, shareOf } from "./share";
 import { fromSqliteTime } from "../library/validate";
@@ -70,7 +71,7 @@ litscanRoutes.post("/plan", async (c) => {
 
   const used = await d1Ledger(c.env.DB).tokensToday(user.id);
   try {
-    const { items } = await planScan({ topic, language, complete: planModel(c.env, user.id) });
+    const { items } = await planScan({ topic, language, complete: modelFor(depsOf(c), PROFILES.litscanPlan, user.id) });
     return c.json<{ plan: LitscanPlan }>({ plan: { topic, language, items, allowance: { limit: DEFAULT_CONFIG.dailyTokenQuota, used, estimate: estimateScanTokens(items.length) } } });
   } catch (e) {
     if (e instanceof QuotaError) return deny(c, 429, "quota", "You have used today's AI allowance", e.message);

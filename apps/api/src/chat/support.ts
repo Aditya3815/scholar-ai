@@ -1,5 +1,5 @@
 import { stripMarks, MARK, splitSentences, type ChatAnswer, type ChatCitation } from "@scholar/shared";
-import type { StreamComplete } from "../docs/qa";
+import type { StreamComplete } from "../platform/llm/port";
 import type { Picked } from "./answer";
 import { checkRewrite, type RewriteReason } from "./rewrite";
 import { abstractOf, dedupeMarkRuns, MAX_SENTENCES_PER_PAPER, shownSentence, tidyMarkPunctuation } from "./evidence";

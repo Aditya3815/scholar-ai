@@ -28,9 +28,7 @@ import { countriesOf, exactCount, venuesOf, type OaDeps } from "./openalex";
 import { expand, isBatchFile, scanBatch, type BatchFile } from "./scan";
 import { BudgetError, CallBudget, SourceError, makePacer, mapLimit, type Http } from "./sources";
 import { BATCH_TTL_SECONDS, FILE_TTL_SECONDS, POOL_TTL_SECONDS, TRENDING_KEYS } from "./store";
-import { STUB_FAULT_KEY, STUB_SUBFIELDS, makeStubTrending, parseStubFault } from "./stub";
 import type { Env } from "../platform/env";
-import { standIns } from "../platform/dev";
 import { killSwitch } from "../platform/switches";
 
 /**
@@ -602,7 +600,7 @@ async function daily(ctx: Ctx, pool: Pool): Promise<NonNullable<TrendingResult["
 
 /* ---------------------------------------------------------------- the Worker's side */
 
-export type TrendingJobEnv = SearchBindings & Pick<Env, "TRENDING" | "ENABLE_DEV_ROUTES" | "QA_STUB">;
+export type TrendingJobEnv = SearchBindings & Pick<Env, "TRENDING">;
 
 /**
  * The environment of the verifier's searches: the product's own (keys, the Semantic Scholar lane), with a cache of its own IN MEMORY, one for the whole run. With the visitors' cache a cold search
@@ -614,19 +612,12 @@ export type TrendingJobEnv = SearchBindings & Pick<Env, "TRENDING" | "ENABLE_DEV
 export const jobSearchEnv = (env: SearchBindings): SearchEnv => ({ ...searchEnvFrom(env), store: memoryStore() });
 
 /**
- * The job as the scheduled handler runs it (src/index.ts): the Worker's KV, its keys and the product's own search, or, in a local test run (QA_STUB=1 with ENABLE_DEV_ROUTES=1, never in
- * production), the stand-ins of stub.ts. Without KV bound there is nowhere to keep a list: it does nothing, and says so.
+ * The job as the scheduled handler runs it (src/index.ts): the Worker's KV, its keys and the product's own search (a test run runs testing/job.ts instead, chosen by app/deps.ts). Without KV
+ * bound there is nowhere to keep a list: it does nothing, and says so.
  */
 export async function runTrendingFromEnv(env: TrendingJobEnv, scheduledTime: number): Promise<TrendingResult> {
   const kv = env.CACHE;
   if (!kv) return { skipped: "no_kv", asOf: isoDay(scheduledTime), calls: 0, kvOps: 0, ms: 0 };
-  if (standIns(env)) {
-    // no real waiting: a clock of its own that only the pauses move (the KV's pause between two writes of a key, the pause between arXiv requests)
-    let now = scheduledTime;
-    // a stand-in can be made to fail from outside, for the local end-to-end run (stub.ts, STUB_FAULT_KEY): read here and nowhere else, so the production path below has no such switch
-    const stub = makeStubTrending({ asOf: () => isoDay(scheduledTime), fault: parseStubFault(await kv.get(STUB_FAULT_KEY)) });
-    return runTrending({ kv, mailto: env.CROSSREF_MAILTO, fetch: stub.fetch, search: stub.search, sleep: async (ms) => void (now += ms), clock: () => now, subfields: STUB_SUBFIELDS, variable: env.TRENDING, lane: false }, scheduledTime);
-  }
   const searchEnv = jobSearchEnv(env);
   return runTrending(
     {

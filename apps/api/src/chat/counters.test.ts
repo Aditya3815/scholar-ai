@@ -4,6 +4,7 @@ import { CANARY, HOSTILE_MESSAGES } from "../understand/hostile-messages";
 import { INPUT_SHAPE_NAMES, inputShape } from "../understand/input-shape";
 import { MAX_OUTCOME_NAMES } from "../outcomes";
 import { chatRoutes } from "./routes";
+import { withDeps } from "../app/deps";
 
 /**
  * R3, the hook (docs/design/intent-and-state.md, 4.4): with `CHAT_COUNTERS=on` the chat route counts what a message in the prompt box LOOKED like (the closed names of understand/input-shape.ts), one batch
@@ -71,7 +72,7 @@ async function post(body: unknown, opts: Opts = {}) {
   const con = spyConsole();
   try {
     const headers: Record<string, string> = { "content-type": "application/json", origin: "http://localhost", ...(opts.signedIn === false ? {} : { cookie: `sid=${TOKEN}` }) };
-    const res = await chatRoutes.request("http://localhost/", { method: "POST", headers, body: typeof body === "string" ? body : JSON.stringify(body) }, { DB: d.db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
+    const res = await withDeps(chatRoutes).request("http://localhost/", { method: "POST", headers, body: typeof body === "string" ? body : JSON.stringify(body) }, { DB: d.db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
     const text = await res.text();
     return { res, text, ...d, console: mine(con.lines), wire: text.replace(/"tookMs":\d+/g, '"tookMs":0') };
   } finally {
@@ -270,7 +271,7 @@ describe("no text of a message reaches a bound value or a log", () => {
     const noBatch = { prepare: d.db.prepare } as unknown as D1Database;
     const con = spyConsole();
     try {
-      const res = await chatRoutes.request("http://localhost/", { method: "POST", headers: { "content-type": "application/json", origin: "http://localhost", cookie: `sid=${TOKEN}` }, body: JSON.stringify(auto("effect of yoga on blood pressure")) }, { DB: noBatch, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...ON });
+      const res = await withDeps(chatRoutes).request("http://localhost/", { method: "POST", headers: { "content-type": "application/json", origin: "http://localhost", cookie: `sid=${TOKEN}` }, body: JSON.stringify(auto("effect of yoga on blood pressure")) }, { DB: noBatch, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...ON });
       const text = await res.text();
       expect(res.status).toBe(200);
       expect(eventsOf(text).at(-1)?.type).toBe("done");

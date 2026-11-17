@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * The scheduled handler (src/index.ts). Cloudflare documents that the runtime waits for the promise the handler RETURNS, up to the 15 minutes a Cron Trigger may last; for work handed to
@@ -37,6 +37,9 @@ beforeEach(() => {
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
+
+// the Worker is loaded once before the tests, outside their 5-second limit (it imports every feature and its stand-ins)
+beforeAll(async () => void (await import("./index")), 60_000);
 
 describe("the scheduled handler", () => {
   it("does not return before the three jobs are over: the Trending job's minutes are inside the promise the runtime waits for", async () => {

@@ -22,20 +22,21 @@ import { routeFollowUp, routerCallFailed, ROUTER_CONTEXT_SCHEMA, ROUTER_CONTEXT_
 /** Every call the stand-ins receive: the router, the writer (and the background, by its label), the judge and the strict check. */
 const calls = vi.hoisted(() => [] as { who: string; label?: string; system: string; user: string }[]);
 
-vi.mock("./stub", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./stub")>();
+vi.mock("./testing/stub", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./testing/stub")>();
   const rec = (who: string, f: StreamComplete): StreamComplete => async (req, hooks) => {
     calls.push({ who, label: req.label, system: req.system, user: req.user });
     return f(req, hooks);
   };
   return { ...real, stubChatStream: rec("writer", real.stubChatStream), stubJudgeStream: (env?: unknown) => rec("judge", real.stubJudgeStream(env)), stubStrictStream: rec("strict", real.stubStrictStream) };
 });
-vi.mock("./stub-route", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./stub-route")>();
+vi.mock("./testing/stub-route", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./testing/stub-route")>();
   return { ...real, stubRoute: async (req: Parameters<typeof real.stubRoute>[0]) => (calls.push({ who: "router", label: req.label, system: req.system, user: req.user }), real.stubRoute(req)) };
 });
 
 import { chatRoutes } from "./routes";
+import { withDeps } from "../app/deps";
 
 const must = <T extends { ok: boolean }>(r: T): Extract<T, { ok: true }> => {
   if (!r.ok) throw new Error("a fixture that must be valid was refused");
@@ -183,7 +184,7 @@ async function post(body: unknown, opts: Opts = {}) {
   const spies = (["log", "info", "warn", "error"] as const).map((m) => vi.spyOn(console, m).mockImplementation((...x: unknown[]) => void log.push(x.map((y) => (typeof y === "string" ? y : JSON.stringify(y))).join(" "))));
   try {
     const headers: Record<string, string> = { "content-type": "application/json", origin: "http://localhost", ...(opts.signedIn === false ? {} : { cookie: `sid=${TOKEN}` }) };
-    const res = await chatRoutes.request("http://localhost/", { method: "POST", headers, body: JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
+    const res = await withDeps(chatRoutes).request("http://localhost/", { method: "POST", headers, body: JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
     const text = await res.text();
     return { res, text, outcomes, log, wire: text.replace(/"tookMs":\d+/g, '"tookMs":0') };
   } finally {

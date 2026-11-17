@@ -1,5 +1,5 @@
 import { threeWay, detectLanguage, offlineRoute, type Route } from "@scholar/shared";
-import type { Complete } from "../docs/qa";
+import type { Complete } from "../platform/llm/port";
 import { chatReplyLeaks } from "./chat-reply";
 import { isGreeting, romanHindiSigns } from "./greeting";
 import { guards, scrubQueries, NO_SCRUB, type GuardDecision, type GuardInput, type Scrub } from "./guards";

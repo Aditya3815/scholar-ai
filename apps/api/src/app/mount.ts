@@ -20,6 +20,7 @@ import { trendingRoutes } from "../trending/routes";
 import { connectedAppsRoutes } from "../mcp/apps";
 import { sameOriginWrites, type RouteKey } from "../platform/http/guards";
 import type { Env, HonoEnv } from "../platform/env";
+import { withRequestDeps } from "./deps";
 
 /** The Worker's HTTP app: the middleware every request passes, and each feature's router mounted at its address. src/index.ts adds the routes of its own and serves it. */
 export const app = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
@@ -88,6 +89,8 @@ app.use("/api/*", async (c, next) => {
   }
   await next();
 });
+// the deps of the request (app/deps.ts): the real services and models, or a test run's stand-ins, decided once, before any router
+app.use("/api/*", withRequestDeps);
 app.use("/api/*", apiSecurityHeaders);
 app.use("/api/*", rateLimit());
 // inside the limiter (a 429 is not marked) and around the origin check (its refusal is)

@@ -4,18 +4,18 @@ import { INVALID_QUERY, searchService } from "./search/service";
 import { captureException } from "./monitoring/sentry";
 import { runMaintenance } from "./maintenance";
 import { recheckRetractions } from "./library/retraction";
-import { stubCrossrefFetch } from "./library/retraction-stub";
 import { readJobs, runJob, type JobName } from "./jobs";
 import { remoteGate } from "./gate/api-gate";
 import { installGates } from "./gate";
-import { runTrendingFromEnv } from "./trending/job";
 import { isMcpPath, mcpMode } from "./mcp/flag";
 import { baseUrlOf } from "./mcp/scopes";
-import { mcpApiHandler } from "./mcp/server";
+import { mcpApiHandlerWith } from "./mcp/server";
 import type { Env } from "./platform/env";
 import { app } from "./app/mount";
 import { devRoutes } from "./app/dev-routes";
-import { standIns } from "./platform/dev";
+import { depsFor, trendingJobFor } from "./app/deps";
+import { OaIngestFlow } from "./oa/workflow";
+import { LitscanFlow } from "./litscan/workflow";
 
 app.get("/api/v1/health", async (c) => {
   let db: HealthResponse["db"] = "ok";
@@ -104,8 +104,18 @@ app.onError((err, c) => {
 
 export { S2Throttle } from "./s2-throttle";
 export { ApiGate } from "./gate/api-gate";
-export { OaIngest } from "./oa/workflow";
-export { LitscanRun } from "./litscan/workflow";
+/** The reading of an open-access paper (oa/workflow.ts), with the deps of each run. */
+export class OaIngest extends OaIngestFlow {
+  protected depsFor(env: Env) {
+    return depsFor(env);
+  }
+}
+/** A literature scan (litscan/workflow.ts), with the deps of each run. */
+export class LitscanRun extends LitscanFlow {
+  protected depsFor(env: Env) {
+    return depsFor(env);
+  }
+}
 
 /**
  * The MCP server and its OAuth endpoints (src/mcp) own a few paths of their own (MCP_PATHS); everything else goes to the app as before. With the switch off those paths go to the app too, which has no
@@ -117,7 +127,7 @@ async function fetchWorker(request: Request, env: Env, ctx: ExecutionContext): P
   installGates(env.API_GATE ? remoteGate(env.API_GATE) : null);
   // loaded only here: the OAuth library imports the Workers runtime, and nothing else of the Worker needs it
   const { oauthPages, providerFor } = await import("./mcp/oauth");
-  return providerFor(baseUrlOf(env, request), mcpApiHandler, { fetch: (r, e, x) => oauthPages.fetch(r, e, x) }).fetch(request, env, ctx);
+  return providerFor(baseUrlOf(env, request), mcpApiHandlerWith((e) => depsFor(e as Env)), { fetch: (r, e, x) => oauthPages.fetch(r, e, x) }).fetch(request, env, ctx);
 }
 
 export default {
@@ -125,6 +135,9 @@ export default {
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     // the calls to Crossref take their turn in the shared lane, as they do in a request
     installGates(env.API_GATE ? remoteGate(env.API_GATE) : null);
+    // the deps of this run (app/deps.ts): Crossref's network for the re-check, and which Trending job runs (a test run's runs on its stand-ins)
+    const deps = depsFor(env);
+    const runTrendingFromEnv = trendingJobFor(env);
     const cron = <T,>(name: JobName, job: () => Promise<T>) =>
       runJob(env.DB, name, job).then(
         (result) => console.log(JSON.stringify({ level: "info", msg: name, result })),
@@ -139,7 +152,7 @@ export default {
     await Promise.all([
       cron("maintenance", () => runMaintenance(env.DB)),
       cron("retraction_check", () =>
-        recheckRetractions(env.DB, { CROSSREF_MAILTO: env.CROSSREF_MAILTO, ...(standIns(env) ? { fetch: stubCrossrefFetch } : {}) }),
+        recheckRetractions(env.DB, { CROSSREF_MAILTO: env.CROSSREF_MAILTO, ...(deps.fetch.crossref ? { fetch: deps.fetch.crossref } : {}) }),
       ),
       // the Home page's Trending list: its daily file and, on Mondays, the weekly scan it is made from (src/trending/job.ts); a failure leaves the last good file
       cron("trending", () => runTrendingFromEnv(env, controller.scheduledTime)),

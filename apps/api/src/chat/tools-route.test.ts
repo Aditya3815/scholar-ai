@@ -45,8 +45,8 @@ vi.mock("../oa/service", async (importOriginal) => {
 });
 
 // "undmaybe" in a message makes the stand-in Understand model only 0.6 sure of what it read (the 0.45 to 0.75 band), whatever it read
-vi.mock("./understand-wire", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./understand-wire")>();
+vi.mock("./testing/understand", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./testing/understand")>();
   return {
     ...real,
     stubUnderstand: async (req: Parameters<typeof real.stubUnderstand>[0]) => {
@@ -57,6 +57,7 @@ vi.mock("./understand-wire", async (importOriginal) => {
 });
 
 import { chatRoutes } from "./routes";
+import { withDeps } from "../app/deps";
 
 const TOKEN = "t".repeat(40);
 const sessionRow = { id: "user-1", name: "Test", email: "t@example.org", orcid: null, avatar_url: null, role: "scholar", privacy_ack: null, stale: 0, providers: "google" };
@@ -97,7 +98,7 @@ function fakeDb(o: Opts) {
 async function post(body: unknown, opts: Opts = {}) {
   const { db, outcomes, writes } = fakeDb(opts);
   const headers: Record<string, string> = { "content-type": "application/json", origin: "http://localhost", "cf-connecting-ip": "203.0.113.7", ...(opts.signedIn === false ? {} : { cookie: `sid=${TOKEN}` }) };
-  const res = await chatRoutes.request("http://localhost/", { method: "POST", headers, body: JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
+  const res = await withDeps(chatRoutes).request("http://localhost/", { method: "POST", headers, body: JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
   const text = await res.text();
   return { res, text, outcomes, writes };
 }

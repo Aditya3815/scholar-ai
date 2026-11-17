@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { MAX_OA_ABSTRACT_CHARS, MAX_QUESTION_CHARS, oaKey, type OaAskEvent } from "@scholar/shared";
 import { requireUser } from "../auth/service";
 import { readJson } from "../platform/http/body";
-import { embedderFor } from "../docs/routes";
+import { depsOf } from "../platform/deps";
 import { sseStream } from "../sse";
 import { isPermissiveLicense } from "./jats";
 import { getPaper } from "./store";
@@ -48,11 +48,12 @@ oaRoutes.post("/ask", async (c) => {
   if (question.length > MAX_QUESTION_CHARS) return deny(c, 400, "invalid_question", "That question is too long", `Keep it under ${MAX_QUESTION_CHARS} characters.`);
   // an abstract the browser already has (the card shows it): used only if the full text cannot be read, for this person's answer alone, never stored
   const clientAbstract = typeof body?.abstract === "string" ? body.abstract.replace(/\s+/g, " ").trim().slice(0, MAX_OA_ABSTRACT_CHARS) : "";
-  const embed = embedderFor(c.env);
+  const deps = depsOf(c);
+  const embed = deps.embedder;
   if (!embed) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
 
   const abort = new AbortController();
   return sseStream<OaAskEvent>(c, { terminal: ["answer", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, (s) =>
-    oaService.ask(c.env, { userId: user.id, ref, key, question, clientAbstract, embed, abort }, s),
+    oaService.ask(c.env, { userId: user.id, ref, key, question, clientAbstract, embed, abort, deps }, s),
   );
 });

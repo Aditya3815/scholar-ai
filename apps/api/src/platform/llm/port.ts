@@ -1,3 +1,4 @@
+import type { Reading } from "@scholar/shared";
 import type { ModelOverrides } from "../dev";
 import type { Sensitivity, TaskKind } from "./types";
 
@@ -24,6 +25,20 @@ export type StreamComplete = (req: ModelRequest, hooks: ModelHooks) => Promise<M
 
 /** Texts to vectors (the embeddings model). */
 export type Embedder = (texts: string[]) => Promise<number[][]>;
+
+/** One page picture read by the two OCR models (ocr/read.ts), side by side. */
+export type PageRead = {
+  /** The primary model's reading; null if that call failed. */
+  first: Reading | null;
+  /** The checking model's reading; null if that call failed. */
+  second: Reading | null;
+  /** What Workers AI says the two calls used (for cost review). */
+  neurons: number;
+  /** Short error names of the calls that failed (never page text). */
+  errors: string[];
+};
+
+export type PageReader = (image: Uint8Array, ctx: { page: number; comment: string | null }) => Promise<PageRead>;
 
 /**
  * One use of a model, named once (profiles.ts): the gateway's task and sensitivity, the time the call may take (the gateway's default when not set) and, when the use fixes it, its token limit

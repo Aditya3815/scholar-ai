@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { IdeaCompareRequest } from "@scholar/shared";
 import { SYSTEM, buildComparePrompt, compareIdea, levelOf, quoteIsInAbstract, sanitizeCompareRequest, verifyComparison } from "./compare";
-import { stubCompareStream } from "./stub";
+import { stubCompareStream } from "./testing/stub";
 
 const A1 = "We screen for glaucoma using smartphone fundus photographs and a convolutional neural network, tested against ophthalmologist grading in rural clinics.";
 const A2 = "A review of tonometry devices for measuring intraocular pressure in hospital settings, with a focus on calibration and cost across several countries.";

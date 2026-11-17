@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { testD1 } from "../test-d1";
 import { buildServer, TOOL_SCOPES, type McpEnv } from "./server";
+import { depsFor } from "../app/deps";
 import { MCP_CALLS_PER_DAY } from "./calls";
 import { MAX_OUTPUT_CHARS, SearchOut, readSearchIn, searchOut, searchRequestOf, searchText } from "./tools";
 import type { Paper, SearchResponse } from "@scholar/shared";
@@ -17,7 +18,7 @@ function setup(opts: { scopes?: string[]; limiter?: () => boolean; checkClaim?: 
   const { db, sql } = testD1();
   const env = { DB: db, CROSSREF_MAILTO: "t@example.org", ENABLE_DEV_ROUTES: "1", QA_STUB: "1", ...(opts.limiter ? { SEARCH_LIMITER: { limit: async () => ({ success: opts.limiter!() }) }, VERIFY_LIMITER: { limit: async () => ({ success: opts.limiter!() }) } } : {}) } as unknown as McpEnv;
   const deferred: Promise<unknown>[] = [];
-  const handler = createMcpHandler(() => buildServer({ env, userId: "u-1", client: "Test App", base: BASE, defer: (p) => deferred.push(p), checkClaim: opts.checkClaim }), { responseMode: "json" });
+  const handler = createMcpHandler(() => buildServer({ env, deps: depsFor(env as never), userId: "u-1", client: "Test App", base: BASE, defer: (p) => deferred.push(p), checkClaim: opts.checkClaim }), { responseMode: "json" });
   const scopes = opts.scopes ?? ["papers:read", "references:verify"];
   let id = 0;
   const rpc = async (method: string, params: unknown = {}) => {

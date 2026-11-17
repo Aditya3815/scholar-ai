@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { hashEmbedder } from "./embed";
+import { hashEmbedder } from "./testing/embed";
 import { answerQuestion, buildPrompt, quoteInText, retrieve, verifyAnswer, type Complete, type Retrieved, type StoredChunk } from "./qa";
-import { stubComplete } from "./stub";
+import { stubComplete } from "./testing/stub";
 
 const ex = (texts: string[]): Retrieved[] => texts.map((text, i) => ({ idx: (i + 1) * 1000, page: i + 1, text, embedding: null, score: 1 }));
 const meta = { id: "a1", createdAt: 1 };

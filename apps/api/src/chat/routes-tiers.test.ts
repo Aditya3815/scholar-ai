@@ -17,8 +17,8 @@ const calls = vi.hoisted(() => [] as { who: string; label?: string; system: stri
 const searchOverride = vi.hoisted(() => ({ fn: null as null | ((q: string) => unknown[]) }));
 const tiersBroken = vi.hoisted(() => ({ mode: "" as "" | "build" | "order" }));
 
-vi.mock("./stub", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./stub")>();
+vi.mock("./testing/stub", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./testing/stub")>();
   const rec = (who: string, f: StreamComplete): StreamComplete => async (req, hooks) => {
     calls.push({ who, label: req.label, system: req.system, user: req.user });
     return f(req, hooks);
@@ -34,8 +34,8 @@ vi.mock("./stub", async (importOriginal) => {
     stubStrictStream: rec("strict", real.stubStrictStream),
   };
 });
-vi.mock("./stub-route", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./stub-route")>();
+vi.mock("./testing/stub-route", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./testing/stub-route")>();
   return { ...real, stubRoute: async (req: Parameters<typeof real.stubRoute>[0]) => (calls.push({ who: "router", label: req.label, system: req.system, user: req.user }), real.stubRoute(req)) };
 });
 // the real module, except that a switch makes everything it returns throw: the route must treat that as "the page may not judge this", and the stream must be what it was
@@ -52,6 +52,7 @@ vi.mock("../understand/tiers", async (importOriginal) => {
 });
 
 import { chatRoutes } from "./routes";
+import { withDeps } from "../app/deps";
 
 const TOKEN = "t".repeat(40);
 const sessionRow = { id: "user-1", name: "Test", email: "t@example.org", orcid: null, avatar_url: null, role: "scholar", privacy_ack: null, stale: 0, providers: "google" };
@@ -86,7 +87,7 @@ type Opts = { signedIn?: boolean; env?: Record<string, string> };
 async function post(body: unknown, opts: Opts = {}) {
   const { db, outcomes } = fakeDb();
   const headers: Record<string, string> = { "content-type": "application/json", origin: "http://localhost", ...(opts.signedIn === false ? {} : { cookie: `sid=${TOKEN}` }) };
-  const res = await chatRoutes.request("http://localhost/", { method: "POST", headers, body: JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
+  const res = await withDeps(chatRoutes).request("http://localhost/", { method: "POST", headers, body: JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
   return { res, text: await res.text(), outcomes };
 }
 const eventsOf = (text: string): ChatEvent[] =>
@@ -148,7 +149,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("the stand-in search can be made to write the question's words into its records (QA_STUB_TOPIC), and keeps its own list otherwise", () => {
   it("without it, and with it for the word offtopic, the records are today's byte for byte", async () => {
-    const real = await vi.importActual<typeof import("./stub")>("./stub");
+    const real = await vi.importActual<typeof import("./testing/stub")>("./testing/stub");
     const plain = JSON.stringify(real.stubSearchFor("effect of yoga on blood pressure").results);
     expect(JSON.stringify(real.stubSearchFor("effect of yoga on blood pressure", "all", {}).results)).toBe(plain);
     expect(JSON.stringify(real.stubSearchFor("effect of yoga on blood pressure", "all", { topical: false }).results)).toBe(plain);
@@ -156,7 +157,7 @@ describe("the stand-in search can be made to write the question's words into its
     expect(JSON.stringify(real.stubSearchFor("nothing at all", "all", { topical: true }).results)).toBe("[]");
   });
   it("with it, every record says the words (in the first sentence of its abstract, or in its title when it has none), and the second sentence (the one the answers cite) is untouched", async () => {
-    const real = await vi.importActual<typeof import("./stub")>("./stub");
+    const real = await vi.importActual<typeof import("./testing/stub")>("./testing/stub");
     const topical = real.stubSearchFor("judgedrop glaucoma", "all", { topical: true }).results;
     const plain = real.stubSearchFor("judgedrop glaucoma").results;
     expect(topical.map((p) => p.id)).toEqual(plain.map((p) => p.id));
