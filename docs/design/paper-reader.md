@@ -666,3 +666,39 @@ The row "Papers you upload" (LegalPages.tsx) becomes:
 8. The privacy words on `reader-privacy` (19.7), as a PR of their own, held for the owner.
 
 Phase 2 merges the way phase 1 did: behind READER, which stays `off` in production until the owner turns `dark` on for their own account.
+
+## 20. Phase 2 as built (17 Nov 2026)
+
+Phase 2 ("Notebook") is built on the branch `reader-p2`, on top of phase 1 (`reader-v2`), behind `READER`, which is not set in `wrangler.jsonc`: production keeps today's reader. Where the build differs from section 19, this is what was done and why.
+
+**The server.**
+- F10 (`requireUser`, `readJson`, the route-guard table) is not on this base. The four routes are guarded the way the notes and the drawing of a paper are today, in `docs/routes.ts`: the same-origin check on a write, the signed-in person, their own paper (404 for anyone else's), and the body read with a size limit (`MAX_NOTEBOOK_BODY`, a page's 48 KB and 4 KB of envelope; the `Content-Length` and the text are both checked, as for ink). The notes and ink routes ask for no privacy note, so these do not either. **F10's door replaces these lines, and the route-guard table gains the four rows, when the W3 untangle merges.**
+- The routes stay in `docs/routes.ts` (the door) and call `docs/notebook.ts` (the store): a new file importing `auth/http.ts` would have been a new edge against the layer rule.
+- With READER off the routes answer 404 to everyone, signed in or not, before anything else (as the MCP server does when it is off); `shadow` counts as off, as in phase 1. At `dark`, an account not in `READER_BETA_USERS` gets the same 404 once signed in.
+- The table's key is `(doc_id, id)`, not `id` alone: the id is made by the browser, and with a key of its own one person's id could meet (and be refused by) another person's page.
+- `PUT` with a revision replaces the **blocks only**; the title, style and place are sent by `PUT` only when a page is made (no revision), and by `PATCH` after that. Otherwise a window holding an older title would put it back with every save of its blocks.
+- `PUT` with a revision on a page that is gone (deleted in another window) answers 404 `page_gone`; the page that was writing in it makes it again (no revision), so what was typed is not lost.
+- The 51st page is refused with 413 `notebook_full` (the plan's "413 over a limit"), checked in the same statement that inserts, so two windows cannot both make it.
+- The export has `notebook: [{docId, title, style, blocks, updatedAt}]` at its top level, as 19.3 says (always present; empty for everyone today).
+
+**The page.**
+- `lib/notebook.ts` is a store with its network, IndexedDB, clock and storage handed in (like the toast queue), and `useNotebook` reads it, so the merge, the offline queue and both Undos are tested in node. Pages not yet saved wait under `nb:<paper>` in the store drawings use; signing out clears them with the drawings, and asks first when some wait (a second question, said only when there are notes waiting: with READER off there never are).
+- **When the chunk loads.** Not only when the Notes tab opens: "Add to notes" (the pop-up on a phone in Paper view, a Highlights card) and the cards' "In notes" need the store while the Notes tab is closed. The chunk is fetched when the panel is shown, when Add to notes is pressed, or 2.5 s after the paper opens (as the Agents drawer is). It stays out of the first load and is on the HEAVY list.
+- The chunk imports neither `lib/meanings` nor `lib/copy`: the reader hands them in. Imported from the notebook chunk too, the bundler cut them (and one icon) out of the first load's chunks into chunks of their own, which cost the first load 0.5 KB of compression for nothing.
+- The Notes tab's pop-overs (the page picker, the menus, the quote picker) are the notebook's own small `NbPop`, not the app's `Pop` (a new layer edge); the menus wear the reader's own `.desk-menu` styles.
+- An empty text block is always its text field, so writing starts at once; the cursor goes into the empty page's block when the person opens the Notes tab (a click on the tab, Open, In notes), never when the reader loads, so the focus is not taken from the paper.
+- **H** makes the line a heading (`# `) or plain again; a block's headings are drawn as `h3` to `h5`, under the page's own heading (a hidden `h2` with the page's title).
+- A block's ⋯ menu has Delete (with Undo); moving is the handle's (drag, or Alt+↑ and Alt+↓, said through `announce()`).
+- **The pop-up**: "Add note" (phase 1) gives way to **Add to notes**, or **In notes ✓** for a highlight that is quoted, as section 4's table has it. A highlight's own note is still written in its Highlights card, and the note icon on the page still opens it. After Add to notes on a new selection the selection is let go (it is a highlight now).
+- The panel has three tabs now (Notes, Highlights, References). In the new reader they are a little tighter than the two of phase 1, and the row scrolls sideways rather than cut the last one off: at 834 px in Split it was cut off.
+- The formatting toolbar scrolls sideways on a narrow screen, so it sits in a row of its own that is the sticky box: a pop-over inside a scrolling box is clipped by it, and the quote picker was (Playwright still counted it as visible; the suite now checks the point at its middle).
+- The toast has a second action (`more`), for **Open** beside Undo on a phone in Paper view.
+- **Drag from the paper**: a selection (of new text or of a highlight's text) carries `{noteId: null, page, quote}`; on the drop the reader finds the highlight it already is (`planNewHighlight`) or makes one in the meaning chosen. Dropping works on a wide screen only.
+- Markdown: the Notes tab's ⋯ menu copies or downloads this page or all pages: `notes-<paper>-<date>.md`, or `notes-<paper>-<page>-<date>.md` for one page.
+- The paper styles are drawn with `--border-strong` at 38 %: `--border` at 35 % could not be seen at all in Light.
+- Two windows that each show the starter page "Notes" (nothing written yet) and both start writing make two pages called Notes; once a page exists on the server, both windows show it and merge as planned.
+- In the Markdown out, a text block's headings sit under the page's: `#` becomes `###` (the paper's title is `#`, each page `##`).
+
+**Weight.** The `notebook` chunk is 15.9 KB gzip of its 16 KB (17 Nov build), with the Markdown parser, the editor, the store and its merge in it. The first load grew by 0.09 KB gzip (233.07 to 233.16 KB), all of it the sign-out question about notes not yet sent (`lib/auth.ts`, `lib/offline.ts`), which has to be in the first load because signing out is. There is no new dependency, and the layer allowlists did not grow.
+
+**Privacy.** The words of 19.7 are on `reader-privacy`, one commit on top of this branch. `legal-match.test.ts` refuses a flag's sentence on the page while the flag is off, but 19.7 puts the words on the page before READER leaves `off`. So the READER row of `FLAG_SENTENCES` is pinned at `off`, `dark` and `on`: the page must say it at every position. That is the safe way round, since the page may say more is kept than is, never less. The row can drop `off` once READER is `on` in production.
