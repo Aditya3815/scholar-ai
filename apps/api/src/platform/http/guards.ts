@@ -1,15 +1,11 @@
 import type { Context, MiddlewareHandler } from "hono";
 import { matchedRoutes } from "hono/route";
 import { deny } from "../../problem";
+import type { ProblemType } from "@scholar/shared";
 import type { Env } from "../env";
 
-/**
- * The problem types a guard answers with. F4's `ProblemType` (shared/protocol/problem.ts) is the one list of every type the API sends; when it lands, these are its members and this union goes.
- */
-export type GuardProblemType = "forbidden" | "unauthorized" | "privacy_ack_required" | "not_found" | "sign_in";
-
 /** A refusal in words: what `deny` sends. */
-export type Refusal = { status: 401 | 403 | 404; type: GuardProblemType; title: string; detail?: string };
+export type Refusal = { status: 401 | 403 | 404; type: ProblemType; title: string; detail?: string };
 
 export const refuse = (c: Context, r: Refusal) => deny(c, r.status, r.type, r.title, r.detail);
 
