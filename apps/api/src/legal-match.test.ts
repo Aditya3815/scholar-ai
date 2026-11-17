@@ -289,7 +289,7 @@ async function touchedBy(load: () => Promise<Record<string, unknown>> | Record<s
   return { touched: [...touched], ran: [...ran] };
 }
 
-type FlagSentence = { flag: string; sentence: string; /** the positions of the flag at which the sentence must be on the page (`shadow` too for a flag whose shadow already sends or keeps something new) */ at: readonly ("shadow" | "core" | "beta" | "on")[] };
+type FlagSentence = { flag: string; sentence: string; /** the positions of the flag at which the sentence must be on the page (`shadow` too for a flag whose shadow already sends or keeps something new; `dark` for a flag that shows the new thing to some accounts; `off` too for words the page carries before the flag leaves off, read by the owner first) */ at: readonly ("off" | "shadow" | "dark" | "core" | "beta" | "on")[] };
 type AlwaysOn = { sentence: string; /** the code that makes it true now that no flag guards it: a file of the repository and a piece of text that must be in it */ codePath: { file: string; contains: string } };
 type Disclosure = {
   page: string;
@@ -367,7 +367,7 @@ function disclosureProblems(i: Disclosure): string[] {
     const unpinned = unpinnable(row.flag, sentence);
     if (unpinned) problems.push(unpinned);
     const value = i.vars[row.flag];
-    const { position } = positionOfVariable(value, row.at.includes("core"), false, row.at.includes("beta"));
+    const { position } = positionOfVariable(value, row.at.includes("core"), false, row.at.includes("beta"), row.at.includes("dark"));
     const flagOn = (row.at as readonly string[]).includes(position);
     const present = page.includes(sentence);
     const needs = `needs ${row.at.join(" or ")}; vars has ${value === undefined ? "nothing" : JSON.stringify(value)}`;
@@ -396,8 +396,8 @@ function disclosureProblems(i: Disclosure): string[] {
   }
   const decided = new Set([...i.flagSentences.map((f) => f.flag), ...Object.keys(i.noSentence)]);
   for (const [name, value] of Object.entries(i.vars)) {
-    const { position, bad } = positionOfVariable(value, true, true, true);
-    if (!bad && (position === "on" || position === "core" || position === "beta") && !decided.has(name)) {
+    const { position, bad } = positionOfVariable(value, true, true, true, true);
+    if (!bad && (position === "on" || position === "core" || position === "beta" || position === "dark") && !decided.has(name)) {
       problems.push(`${name}: the committed vars has it at ${position}, and there is no row for it: add one to FLAG_SENTENCES (the sentence the page gets) or to FLAGS_WITHOUT_SENTENCE (why it needs none)`);
     }
   }
@@ -474,6 +474,14 @@ const FLAG_SENTENCES: readonly (FlagSentence & { flag: SwitchName })[] = [
     at: ["beta", "on"],
     sentence:
       "If you connect an AI app (such as Claude or ChatGPT) to your Sodhsetu account, what it sends to Sodhsetu's tools (a search, a list of references, DOIs, a question about a paper, a claim to check) is handled exactly as on this website: a search goes to the public indexes named above, references are checked at Crossref and OpenAlex and DOIs at Crossref, a question about a paper or a claim to check is sent with the paper's text to the AI model run by Cloudflare (Workers AI) and counts against your daily AI allowance, a verdict (never your text) is kept for up to a day, and we keep only counts: which tool was used, by which app, how long it took and whether it worked. An app you allow to use your library can see the papers you saved and save a paper you agreed to save. What the app does with the answers is up to that app and its own privacy terms. You can disconnect an app at any time in Settings, under Connected apps.",
+  },
+  // The new Paper Reader's Notebook (docs/design/paper-reader.md 19.7): the pages of notes a person writes in the reader are kept with the paper. The plan puts the words on the page BEFORE READER
+  // leaves off (the owner reads them first), so the row is pinned at every position: the page must say it whether READER is off, dark or on. That is the safe way round (the page may say more is
+  // kept than is, never less). Drop "off" here once READER is on in production.
+  {
+    flag: "READER",
+    at: ["off", "dark", "on"],
+    sentence: "including pages of notes you write in the reader, with the passages you quote into them",
   },
 ];
 /** Flags that are on in the committed config and need no sentence on the page, each with the reason (nothing new is sent, kept or shown that the page does not already say). Empty until a release has one. */
@@ -825,6 +833,18 @@ describe("(4) the disclosure match: each privacy sentence is on the page exactly
       expect(disclosureProblems(base({ vars: { CHAT_FIXTURE: "on" }, page: "Intro.   A message that describes  an emergency is answered by the page itself and sent nowhere.  Outro." }))).toEqual([]);
       expect(disclosureProblems(base({ vars: { CHAT_FIXTURE: "on" }, flagSentences: [{ flag: "CHAT_FIXTURE", sentence: "A message that describes an emergency  is answered by the page\n itself and sent nowhere.", at: ["on"] }] }))).toEqual([]);
       expect(disclosureProblems(base({ vars: { CHAT_FIXTURE: "on" }, page: "Intro. A message that describes an emergency is answered by the page. Outro." })).join()).toMatch(/flag is on but the sentence is not on the page/);
+    });
+
+    it("a row pinned at off, dark and on (words put on the page before the flag leaves off) needs the sentence at each of them, unset included", () => {
+      const row = { flagSentences: [{ flag: "CHAT_FIXTURE", sentence: SENTENCE, at: ["off", "dark", "on"] as const }] };
+      for (const v of [{}, { CHAT_FIXTURE: "off" }, { CHAT_FIXTURE: "dark" }, { CHAT_FIXTURE: "on" }]) {
+        expect(disclosureProblems(base({ ...row, vars: v })), JSON.stringify(v)).toEqual([]);
+        expect(disclosureProblems(base({ ...row, vars: v, page: "Intro. Outro." })).join(), JSON.stringify(v)).toMatch(/the flag is on but the sentence is not on the page/);
+      }
+    });
+
+    it("a flag committed at dark needs a decision about the page, as one at on does", () => {
+      expect(disclosureProblems(base({ vars: { CHAT_FIXTURE: "dark" }, flagSentences: [], page: "Intro. Outro." })).join()).toMatch(/CHAT_FIXTURE: the committed vars has it at dark, and there is no row for it/);
     });
 
     it("for the safety lane the sentence is there at core and at on, and at no other position", () => {

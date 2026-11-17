@@ -215,7 +215,7 @@ export const SWITCHES = {
   MCP: gate(["off", "shadow", "beta", "on"], true),
   MCP_CHECK_CLAIM: gate(["off", "shadow", "beta", "on"]),
   /** the new Paper Reader (docs/design/paper-reader.md, 15): `dark` shows it only to the accounts of READER_BETA_USERS; `shadow`, which every gate's reader takes, is off for it */
-  READER: gate(["off", "dark", "on"]),
+  READER: gate(["off", "dark", "on"], true),
   CHAT_JUDGE: { kind: "kill", positions: ["off", "on"], read: "exact", kv: null, sentence: false },
   CHAT_CONTEXT: { kind: "kill", positions: ["off", "on"], read: "exact", kv: null, sentence: false },
   SEARCH_PLAINTEXT: { kind: "kill", positions: ["off", "on"], read: "exact", kv: null, sentence: false },
