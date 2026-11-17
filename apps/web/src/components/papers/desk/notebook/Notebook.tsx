@@ -1,4 +1,4 @@
-import { Bold, ChevronDown, GripVertical, Heading, Italic, List, ListOrdered, MoreHorizontal, Plus, TextQuote, Underline } from "lucide-react";
+import { Bold, ChevronDown, GripVertical, Heading, Italic, List, ListOrdered, MoreHorizontal, Plus, TextQuote, Trash2, Type, Underline, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { NOTEBOOK_STYLES, mdPlainText, type DocNote, type NotebookBlock, type NotebookStyle, type QuoteColor } from "@scholar/shared";
 import { activeMarks, continueList, isOn, toggleHeading, toggleList, toggleMark, type Edit, type Mark } from "../../../../lib/md-edit";
@@ -38,9 +38,13 @@ export type NotebookProps = {
   /** What each colour means (lib/meanings.ts), and the app's copy (lib/copy.ts): handed in by the reader. */
   meanings: Record<QuoteColor, Meaning>;
   copy: (text: string) => Promise<boolean>;
+  /** PDF and Word (21.1, 4): made by the reader, which holds the open paper (the captures are drawn from it); without it, Export offers Markdown only. */
+  exportFile?: (fmt: "pdf" | "docx", pages: NbPage[], docTitle: string, names: Record<QuoteColor, string>) => Promise<void>;
 };
 
-const STYLE_NAME: Record<NotebookStyle, string> = { plain: "Plain", ruled: "Ruled", dotted: "Dotted", grid: "Grid" };
+const STYLE_NAME: Record<NotebookStyle, string> = { plain: "Plain", ruled: "Ruled", dotted: "Dotted", grid: "Graph" };
+
+export type ExportFormat = "pdf" | "docx" | "md";
 
 const SAVE_WORDS = { idle: "", saving: "Saving…", saved: "Saved", offline: "Offline: kept on this device", error: "Not saved.", conflict: "Updated from another window" } as const;
 const EMPTY_HINT = "Write here, or select text in the paper and choose Add to notes.";
@@ -51,7 +55,7 @@ const isEmptyPage = (p: NbPage) => p.blocks.length === 1 && p.blocks[0]!.kind ==
  * paper's highlights), with a page picker, a page's own menu (move, paper style, delete), a formatting toolbar, reordering by drag or Alt+arrow, a drop target for quotes dragged from the paper,
  * the save line, and Copy or Download as Markdown. The `notebook` chunk: loaded when the reader needs it, never in the first load.
  */
-export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onDropQuote, announce, focus, meanings: MEANINGS, copy: copyText }: NotebookProps) {
+export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onDropQuote, announce, focus, meanings: MEANINGS, copy: copyText, exportFile }: NotebookProps) {
   const NAMES = useMemo(() => ({ yellow: MEANINGS.yellow.name, green: MEANINGS.green.name, blue: MEANINGS.blue.name, pink: MEANINGS.pink.name }), [MEANINGS]);
   const st = useNotebook(store);
   const page = st.pages.find((p) => p.id === st.openId) ?? st.pages[0] ?? null;
@@ -224,6 +228,12 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
     void copyText(markdown(all)).then((ok) => (ok ? toast(all ? "All pages copied as Markdown" : "This page copied as Markdown") : showNotice("Could not copy. Select the text and press Ctrl+C.")));
   };
   const downloadMd = (all: boolean) => downloadMarkdown(docTitle, all ? null : page?.title ?? "", markdown(all));
+  /** Export ▾: Markdown here; PDF and Word through the reader (exportFile), which can draw the captures from the open paper. */
+  const exportAs = (fmt: ExportFormat, all: boolean) => {
+    if (fmt === "md") return downloadMd(all);
+    const pages = all ? st.pages : page ? [page] : [];
+    void exportFile?.(fmt, pages, docTitle, NAMES).catch(() => showNotice(`The ${fmt === "pdf" ? "PDF" : "Word file"} could not be made. Check the connection, then try again.`));
+  };
 
   /* ---- the title field of a new page takes the focus ---- */
   const title = useRef<HTMLInputElement>(null);
@@ -259,109 +269,71 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
 
   return (
     <div className="nb" data-wide={wide}>
-      {/* one header: the page's title (written in place) with the list of pages beside it, + Page, the save line, and the page's one menu */}
+      {/* the pages as tabs (the mock's), each with its paper; + Page opens "Choose paper for the new page" */}
+      <PageTabs pages={st.pages} openId={page.id} onOpen={(id) => store.open(id)} onNew={(style) => store.addPage(undefined, style) && setTitleTick((t) => t + 1)} />
+      <div className="nb-pagepanel" role="tabpanel" id="nb-pagepanel" aria-labelledby={`nbt-${page.id}`}>
+      {/* the page's header: its title, Delete this page, the save line, Export, and a small menu for moving and renaming */}
       <div className="nb-bar">
-        <div className="nb-head">
-          <h2 className="sr-only">Notes: {page.title || "Untitled page"}</h2>
-          <input
-            ref={title}
-            className="nb-title"
-            aria-label="Page title"
-            // as wide as its words, so the list of pages sits right after it (field-sizing in CSS; `size` where that is not known)
-            size={Math.max(6, Math.min(36, (page.title || "Untitled page").length + 1))}
-            maxLength={120}
-            placeholder="Untitled page"
-            value={page.title}
-            onChange={(e) => store.rename(page.id, e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                const first = page.blocks.find((b) => b.kind === "text");
-                if (first) edit(first.id);
-              }
-            }}
-          />
-          <NbPop
-            kind="listbox"
-            label="Pages"
-            trigger={({ open, toggle, id, ref }) => (
-              <button ref={ref} type="button" className="nb-picker" aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? id : undefined} aria-label={`Page ${i + 1} of ${st.pages.length}: ${page.title || "Untitled page"}. Choose a page`} title="Your pages" onClick={toggle}>
-                {st.pages.length > 1 && <span aria-hidden="true">{`${i + 1}/${st.pages.length}`}</span>}
-                <ChevronDown size={16} aria-hidden="true" />
+        <h2 className="sr-only">Notes: {page.title || "Untitled page"}</h2>
+        <input
+          ref={title}
+          className="nb-title"
+          aria-label="Page title"
+          maxLength={120}
+          placeholder="Untitled page"
+          value={page.title}
+          onChange={(e) => store.rename(page.id, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const first = page.blocks.find((b) => b.kind === "text");
+              if (first) edit(first.id);
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="icon-btn icon-btn-sm nb-trash"
+          aria-label="Delete this page"
+          title="Delete this page"
+          onClick={() => {
+            const name = page.title || "Untitled page";
+            const undo = store.deletePage(page.id);
+            if (undo) toast(`Deleted "${name}"`, { label: "Undo", run: () => (undo(), announce(`"${name}" is back`)) });
+          }}
+        >
+          <Trash2 size={16} aria-hidden="true" />
+        </button>
+        <p className="nb-save" data-state={st.save}>
+          {SAVE_WORDS[st.save]}
+          {st.save === "error" && (
+            <>
+              {" "}
+              <button type="button" className="link-btn" onClick={() => store.retry()}>
+                Retry
               </button>
-            )}
-          >
-            {(close) => <PageList pages={st.pages} openId={page.id} onPick={(id) => (store.open(id), close())} />}
-          </NbPop>
-        </div>
-        <div className="nb-acts">
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm nb-addpage"
-            onClick={() => {
-              if (store.addPage()) setTitleTick((t) => t + 1);
-            }}
-          >
-            <Plus size={14} aria-hidden="true" />
-            <span>Page</span>
-          </button>
-          <p className="nb-save" data-state={st.save}>
-            {SAVE_WORDS[st.save]}
-            {st.save === "error" && (
-              <>
-                {" "}
-                <button type="button" className="link-btn" onClick={() => store.retry()}>
-                  Retry
-                </button>
-              </>
-            )}
-          </p>
-          <NbPop
-            kind="menu"
-            label="Page"
-            align="end"
-            trigger={({ open, toggle, ref }) => (
-              <button ref={ref} type="button" className="icon-btn icon-btn-sm nb-pagemenu" aria-haspopup="menu" aria-expanded={open} aria-label="Page actions" title="Rename, move, paper, copy, download, delete" onClick={toggle}>
-                <MoreHorizontal size={16} aria-hidden="true" />
-              </button>
-            )}
-          >
-            {(close) => (
-              <div role="menu" aria-label="Page actions" className="desk-menu">
-                <NbItem onPick={() => (close(false), setTitleTick((t) => t + 1))}>Rename</NbItem>
-                <NbItem disabled={i === 0} onPick={() => (close(), store.movePage(page.id, -1) && announce(`Page moved to place ${i} of ${st.pages.length}`))}>Move up</NbItem>
-                <NbItem disabled={i === st.pages.length - 1} onPick={() => (close(), store.movePage(page.id, 1) && announce(`Page moved to place ${i + 2} of ${st.pages.length}`))}>Move down</NbItem>
-                <div role="group" aria-label="Paper style">
-                  <span className="nb-menu-head" aria-hidden="true">Paper</span>
-                  {NOTEBOOK_STYLES.map((s) => (
-                    <NbItem key={s} checked={page.style === s} onPick={() => (close(), store.setStyle(page.id, s))}>
-                      {STYLE_NAME[s]}
-                    </NbItem>
-                  ))}
-                </div>
-                <div role="group" aria-label="Markdown">
-                  <span className="nb-menu-head" aria-hidden="true">Markdown</span>
-                  <NbItem onPick={() => (close(), copyMd(false))}>Copy this page</NbItem>
-                  <NbItem onPick={() => (close(), copyMd(true))}>Copy all pages</NbItem>
-                  <NbItem onPick={() => (close(), downloadMd(false))}>Download this page</NbItem>
-                  <NbItem onPick={() => (close(), downloadMd(true))}>Download all pages</NbItem>
-                </div>
-                <span className="nb-menu-sep" aria-hidden="true" />
-                <NbItem
-                  danger
-                  onPick={() => {
-                    close(false);
-                    const name = page.title || "Untitled page";
-                    const undo = store.deletePage(page.id);
-                    if (undo) toast(`Deleted "${name}"`, { label: "Undo", run: () => (undo(), announce(`"${name}" is back`)) });
-                  }}
-                >
-                  Delete page
-                </NbItem>
-              </div>
-            )}
-          </NbPop>
-        </div>
+            </>
+          )}
+        </p>
+        <ExportMenu onExport={exportAs} onCopy={copyMd} files={!!exportFile} />
+        <NbPop
+          kind="menu"
+          label="Page"
+          align="end"
+          trigger={({ open, toggle, ref }) => (
+            <button ref={ref} type="button" className="icon-btn icon-btn-sm nb-pagemenu" aria-haspopup="menu" aria-expanded={open} aria-label="Page actions" title="Move or rename this page" onClick={toggle}>
+              <MoreHorizontal size={16} aria-hidden="true" />
+            </button>
+          )}
+        >
+          {(close) => (
+            <div role="menu" aria-label="Page actions" className="desk-menu">
+              <NbItem disabled={i === 0} onPick={() => (close(), store.movePage(page.id, -1) && announce(`Page moved to place ${i} of ${st.pages.length}`))}>Move left</NbItem>
+              <NbItem disabled={i === st.pages.length - 1} onPick={() => (close(), store.movePage(page.id, 1) && announce(`Page moved to place ${i + 2} of ${st.pages.length}`))}>Move right</NbItem>
+              <NbItem onPick={() => (close(false), setTitleTick((t) => t + 1))}>Rename</NbItem>
+            </div>
+          )}
+        </NbPop>
       </div>
 
       <div className="nb-scroll" data-style={page.style}>
@@ -406,7 +378,12 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
               <Tool label="Numbered list" pressed={!!current && isOn(current, "ol")} onPress={() => apply((x) => toggleList(x, "ol"))}>
                 <ListOrdered size={15} aria-hidden="true" />
               </Tool>
-              <i aria-hidden="true" />
+              </div>
+              <div className="nb-tgroup">
+              <Tool label="Text" onPress={() => { const id = store.addText(page.id, page.blocks[insertAt() - 1]?.id ?? null); if (id) edit(id); }}>
+                <Type size={15} aria-hidden="true" />
+                <span>Text</span>
+              </Tool>
               <NbPop
                 kind="dialog"
                 label="Insert a quote of a highlight"
@@ -430,6 +407,14 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                   />
                 )}
               </NbPop>
+              {/* Capture and Draw join this group (phase 2.5, steps 3 and 4) */}
+              </div>
+              <div className="nb-tgroup" role="group" aria-label="Paper">
+              {NOTEBOOK_STYLES.map((s) => (
+                <Tool key={s} label={`${STYLE_NAME[s]} paper`} pressed={page.style === s} onPress={() => store.setStyle(page.id, s)}>
+                  <span className="nb-sw" data-style={s} aria-hidden="true" />
+                </Tool>
+              ))}
               </div>
             </div>
           </div>
@@ -552,12 +537,13 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
           <div className="nb-rest" aria-hidden="true" />
         </div>
       </div>
+      </div>
     </div>
   );
 }
 
-/** A button of the format toolbar: a toggle (aria-pressed) that keeps the focus in the text field it acts on. One stop in the tab order (the first); the arrows move along. */
-function Tool({ label, keys, pressed, onPress, first, children }: { label: string; keys?: string; pressed: boolean; onPress: () => void; first?: boolean; children: ReactNode }) {
+/** A button of the format toolbar: a toggle (aria-pressed; an action such as Text has none) that keeps the focus in the text field it acts on. One stop in the tab order (the first); the arrows move along. */
+function Tool({ label, keys, pressed, onPress, first, children }: { label: string; keys?: string; pressed?: boolean; onPress: () => void; first?: boolean; children: ReactNode }) {
   return (
     <button type="button" className="nb-tool" tabIndex={first ? 0 : -1} aria-label={label} aria-pressed={pressed} aria-keyshortcuts={keys?.replace("Ctrl", "Control")} title={keys ? `${label} (${keys})` : label} onMouseDown={(e) => e.preventDefault()} onClick={onPress}>
       {children}
@@ -565,38 +551,135 @@ function Tool({ label, keys, pressed, onPress, first, children }: { label: strin
   );
 }
 
-/** The page picker's list: a listbox (the arrows move, Enter or a click takes it, Esc closes), each page with its title and its number of blocks. */
-function PageList({ pages, openId, onPick }: { pages: NbPage[]; openId: string; onPick: (id: string) => void }) {
-  const [active, setActive] = useState(Math.max(0, pages.findIndex((p) => p.id === openId)));
+/**
+ * The pages as tabs (docs/design/paper-reader.md, 21.1, 2): each with its paper and its title, the open one raised; a tablist (← and → move, Home and End go to the ends, Enter or a click
+ * opens), in a row that scrolls sideways with a fade on the side that has more. + Page at its end opens "Choose paper for the new page".
+ */
+function PageTabs({ pages, openId, onOpen, onNew }: { pages: NbPage[]; openId: string; onOpen: (id: string) => void; onNew: (style: NotebookStyle) => void }) {
+  const row = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState("");
+  useEffect(() => {
+    const el = row.current;
+    if (!el) return;
+    const seen = () => {
+      const start = el.scrollLeft > 1;
+      const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setMore(start && end ? "both" : start ? "start" : end ? "end" : "");
+    };
+    seen();
+    el.addEventListener("scroll", seen, { passive: true });
+    const ro = new ResizeObserver(seen);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", seen);
+      ro.disconnect();
+    };
+  }, [pages.length]);
+  // the open page's tab is kept in sight
+  useEffect(() => {
+    document.getElementById(`nbt-${openId}`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [openId]);
+  const keys = (e: KeyboardEvent<HTMLButtonElement>, k: number) => {
+    const to = e.key === "ArrowRight" ? Math.min(pages.length - 1, k + 1) : e.key === "ArrowLeft" ? Math.max(0, k - 1) : e.key === "Home" ? 0 : e.key === "End" ? pages.length - 1 : -1;
+    if (to < 0) return;
+    e.preventDefault();
+    const el = document.getElementById(`nbt-${pages[to]!.id}`);
+    el?.focus();
+    el?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  };
   return (
-    <ul
-      className="nb-pages"
-      role="listbox"
-      aria-label="Pages"
-      tabIndex={0}
-      data-autofocus
-      aria-activedescendant={`nbp-${pages[active]?.id}`}
-      onKeyDown={(e) => {
-        const to = e.key === "ArrowDown" ? Math.min(pages.length - 1, active + 1) : e.key === "ArrowUp" ? Math.max(0, active - 1) : e.key === "Home" ? 0 : e.key === "End" ? pages.length - 1 : -1;
-        if (to >= 0) {
-          e.preventDefault();
-          setActive(to);
-          document.getElementById(`nbp-${pages[to]!.id}`)?.scrollIntoView({ block: "nearest" });
-        } else if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onPick(pages[active]!.id);
-        }
-      }}
+    <div className="nb-tabsrow">
+      <div ref={row} className="nb-pagetabs" role="tablist" aria-label="Pages" data-more={more || undefined}>
+        {pages.map((p, k) => (
+          <button
+            key={p.id}
+            id={`nbt-${p.id}`}
+            type="button"
+            role="tab"
+            className="nb-pagetab"
+            aria-selected={p.id === openId}
+            aria-controls="nb-pagepanel"
+            tabIndex={p.id === openId ? 0 : -1}
+            onClick={() => onOpen(p.id)}
+            onKeyDown={(e) => keys(e, k)}
+          >
+            <span className="nb-sw" data-style={p.style} aria-hidden="true" />
+            <span className="nb-pagetab-t">{p.title || "Untitled page"}</span>
+          </button>
+        ))}
+      </div>
+      <NbPop
+        kind="dialog"
+        label="Choose paper for the new page"
+        align="end"
+        trigger={({ open, toggle, id, ref }) => (
+          <button ref={ref} type="button" className="btn btn-ghost btn-sm nb-addpage" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} onClick={toggle}>
+            <Plus size={14} aria-hidden="true" />
+            <span>Page</span>
+          </button>
+        )}
+      >
+        {(close) => (
+          <div className="nb-paperpick">
+            <div className="nb-paperpick-head">
+              <p>Choose paper for the new page</p>
+              <button type="button" className="icon-btn icon-btn-sm" aria-label="Close" onClick={() => close()}>
+                <X size={15} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="nb-papercards">
+              {NOTEBOOK_STYLES.map((s, k) => (
+                <button key={s} type="button" className="nb-papercard" data-autofocus={k === 0 || undefined} onClick={() => (close(false), onNew(s))}>
+                  <span className="nb-paperprev" data-style={s} aria-hidden="true" />
+                  <span>{STYLE_NAME[s]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </NbPop>
+    </div>
+  );
+}
+
+/** Export ▾ (21.1, 4): this page or all pages, as PDF, Word or Markdown (PDF and Word when the reader hands in a way to make them), or the Markdown copied. */
+function ExportMenu({ onExport, onCopy, files }: { onExport: (fmt: ExportFormat, all: boolean) => void; onCopy: (all: boolean) => void; files: boolean }) {
+  const [all, setAll] = useState(false);
+  return (
+    <NbPop
+      kind="menu"
+      label="Export"
+      align="end"
+      trigger={({ open, toggle, ref }) => (
+        <button ref={ref} type="button" className="btn btn-ghost btn-sm nb-export" aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
+          <span>Export</span>
+          <ChevronDown size={14} aria-hidden="true" />
+        </button>
+      )}
     >
-      {pages.map((p, k) => (
-        <li key={p.id} id={`nbp-${p.id}`} role="option" aria-selected={p.id === openId} data-active={k === active || undefined} className="nb-pageopt" onClick={() => onPick(p.id)} onPointerMove={() => setActive(k)}>
-          <span className="nb-pageopt-title">{p.title || "Untitled page"}</span>
-          <span className="nb-pageopt-n">
-            {p.blocks.length} {p.blocks.length === 1 ? "block" : "blocks"}
-          </span>
-        </li>
-      ))}
-    </ul>
+      {(close) => (
+        <div role="menu" aria-label="Export" className="desk-menu">
+          <div role="group" aria-label="What to export">
+            <NbItem checked={!all} onPick={() => setAll(false)}>
+              This page
+            </NbItem>
+            <NbItem checked={all} onPick={() => setAll(true)}>
+              All pages
+            </NbItem>
+          </div>
+          <div role="group" aria-label="Download as">
+            <span className="nb-menu-head" aria-hidden="true">
+              Download as
+            </span>
+            {files && <NbItem onPick={() => (close(), onExport("pdf", all))}>PDF</NbItem>}
+            {files && <NbItem onPick={() => (close(), onExport("docx", all))}>Word (.docx)</NbItem>}
+            <NbItem onPick={() => (close(), onExport("md", all))}>Markdown</NbItem>
+          </div>
+          <span className="nb-menu-sep" aria-hidden="true" />
+          <NbItem onPick={() => (close(), onCopy(all))}>Copy as Markdown</NbItem>
+        </div>
+      )}
+    </NbPop>
   );
 }
 

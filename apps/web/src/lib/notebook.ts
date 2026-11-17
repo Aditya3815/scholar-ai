@@ -434,15 +434,15 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
       deps.store.set(OPEN_KEY(docId), id);
       emit();
     },
-    /** A new page at the end, named "Untitled page", made on the server at once. Returns its id, or null when the paper has as many pages as it can hold. */
-    addPage(title = NEW_PAGE_TITLE): string | null {
+    /** A new page at the end, named "Untitled page" on the paper chosen ("Choose paper for the new page"), made on the server at once. Returns its id, or null when the paper has as many pages as it can hold. */
+    addPage(title = NEW_PAGE_TITLE, style: NotebookStyle = "plain"): string | null {
       if (slots.length >= NOTEBOOK_LIMITS.pages) {
         error = `A paper can have ${NOTEBOOK_LIMITS.pages} pages of notes.`;
         emit();
         return null;
       }
       const last = slots[slots.length - 1];
-      const s = slotFor({ id: deps.newId(), title, style: "plain", position: (last?.page.position ?? 0) + 1, blocks: [{ id: deps.newId(), kind: "text", md: "" }], rev: 0, saved: false }, []);
+      const s = slotFor({ id: deps.newId(), title, style, position: (last?.page.position ?? 0) + 1, blocks: [{ id: deps.newId(), kind: "text", md: "" }], rev: 0, saved: false }, []);
       slots.push(s);
       openId = s.page.id;
       deps.store.set(OPEN_KEY(docId), s.page.id);
