@@ -115,7 +115,7 @@ try {
     ok(fb && vw[0] - (fb.x + fb.width) >= 19 && vw[1] - (fb.y + fb.height) >= 19, `${vp}: at the bottom right, 20 px from the edges`);
     ok(await noSideways(page), `${vp}: no sideways scroll`);
     const tools = page.getByRole("radiogroup", { name: "Tool" }).getByRole("radio");
-    ok(JSON.stringify(await tools.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))) === JSON.stringify(["Select", "Highlight", "Draw"]), `${vp}: the tool segment is Select, Highlight, Draw (no Capture in phase 1)`);
+    ok(JSON.stringify(await tools.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))) === JSON.stringify(["Select", "Highlight", "Draw", "Capture"]), `${vp}: the tool segment is Select, Highlight, Draw, Capture (Capture since phase 2.5)`);
     ok((await page.locator(".pdfv-draw").count()) === 0 && (await page.locator(".pdfv-bar").getByRole("button", { name: "Download", exact: true }).count()) === 1, `${vp}: one Download button, no lone Draw button`);
     for (const theme of ["light", "dark", "read"]) {
       await setTheme(page, theme, 350);
@@ -134,7 +134,8 @@ try {
     ok((await page.locator(".desk").getAttribute("data-view")) === "notes" && !(await page.locator("#dw-panel-paper").isVisible()), "Notes: the panel alone");
     const panel = await boxOf(page.locator("#dw-panel-side"));
     const list = await boxOf(page.locator("#desk-tabpanel-notes > *").first());
-    ok(panel.width > 1100 && list.width < panel.width * 0.75, `Notes on a wide screen: the panel is the window's width (${panel.width.toFixed(0)} px) and its text keeps a reading width (${list.width.toFixed(0)} px)`);
+    // phase 2.5 (21.1, 1): the notes fill the panel in the Notes view (the Highlights and References keep a reading width)
+    ok(panel.width > 1100 && list.width > panel.width - 40, `Notes on a wide screen: the panel is the window's width (${panel.width.toFixed(0)} px) and the notes fill it (${list.width.toFixed(0)} px)`);
     await page.reload({ waitUntil: "networkidle" });
     await page.locator(".desk").waitFor();
     ok((await page.locator(".desk").getAttribute("data-view")) === "notes", "kept on reload");

@@ -61,6 +61,8 @@ try {
   await c0.close();
   const api = (await browser.newContext({ storageState: state })).request;
   // what the server holds: a refusal or a busy Worker is tried again for a few seconds, then named (not read as a list that is not there)
+  /** A page's tab (the panel's own tabs are tabs too: Notes, Highlights, References). */
+  const pageTab = (p, name) => p.getByRole("tablist", { name: "Pages" }).getByRole("tab", { name, exact: true });
   const pagesOnServer = async () => {
     let last = 0;
     for (let i = 0; i < 12; i++) {
@@ -108,8 +110,8 @@ try {
     ok((await page.locator(".nb-field").first().getAttribute("placeholder")) === "Write here, or select text in the paper and choose Add to notes.", "the empty page says what to do, in its one line to write on");
     ok((await page.locator(".nb-field").count()) === 1, "with one empty text block, ready to write in");
     // one header: the title is the page's only title, beside its list of pages; one page menu; no separate "+ Text"
-    ok((await page.locator(".nb-title").count()) === 1 && (await page.getByRole("button", { name: "Page actions" }).count()) === 1 && (await page.getByRole("button", { name: /^Page 1 of 1: Notes/ }).count()) === 1, "one header: the title, its list of pages beside it, and one page menu");
-    ok((await page.getByRole("button", { name: /Text$/ }).count()) === 0 && (await page.locator(".nb-ghost").count()) === 0, "no separate + Text: the page ends on its empty line");
+    ok((await page.locator(".nb-title").count()) === 1 && (await page.getByRole("button", { name: "Page actions" }).count()) === 1 && (await page.getByRole("button", { name: "Delete this page" }).count()) === 1 && (await page.getByRole("tablist", { name: "Pages" }).getByRole("tab").allInnerTexts()).join() === "Notes", "the page's header: its title, Delete this page and one small menu; its tab in the row of pages");
+    ok((await page.locator(".nb-addtext").count()) === 0 && (await page.locator(".nb-ghost").count()) === 0, "no separate + Text under the page: it ends on its empty line (Text is in the toolbar)");
     await sleep(1500);
     ok((await pagesOnServer()).length === 0, "opening the paper made nothing on the server");
 
@@ -248,15 +250,19 @@ try {
   {
     const { ctx, page } = await openReader(desk(1280, 800));
     await page.locator(".nb-bar").waitFor({ timeout: 10000 });
+    // + Page opens "Choose paper for the new page": four cards; a card makes the page on that paper and puts the cursor in its title
     await page.getByRole("button", { name: "Page", exact: true }).click();
+    const picker = page.getByRole("dialog", { name: "Choose paper for the new page" });
+    await picker.waitFor();
+    ok(JSON.stringify((await picker.locator(".nb-papercard").allInnerTexts()).map((t) => t.trim())) === JSON.stringify(["Plain", "Ruled", "Dotted", "Graph"]), "+ Page: Choose paper for the new page, with four papers");
+    await page.keyboard.press("Escape");
+    ok((await picker.count()) === 0, "Esc closes the paper picker");
+    await page.getByRole("button", { name: "Page", exact: true }).click();
+    await picker.getByRole("button", { name: "Ruled" }).click();
     const title = page.getByRole("textbox", { name: "Page title" });
-    ok((await title.inputValue()) === "Untitled page" && (await page.evaluate(() => document.activeElement?.classList.contains("nb-title"))), "+ Page adds Untitled page and focuses its title");
+    ok((await title.inputValue()) === "Untitled page" && (await page.evaluate(() => document.activeElement?.classList.contains("nb-title"))) && (await page.locator(".nb-scroll").getAttribute("data-style")) === "ruled", "a paper card makes the page on that paper and focuses its title");
     await title.fill("Results");
-    await page.getByRole("button", { name: "Page actions" }).click();
-    const menu = page.getByRole("menu", { name: "Page actions" });
-    ok(JSON.stringify(await menu.getByRole("menuitemradio").allInnerTexts()) === JSON.stringify(["Plain", "Ruled", "Dotted", "Grid"]), "the page's menu has the four paper styles");
     // Ruled: the rules are one --nb-line apart, and a line of text is one --nb-line high, so the text sits on them
-    await menu.getByRole("menuitemradio", { name: "Ruled" }).click();
     const rhythm = await page.locator(".nb-field").first().evaluate((el) => {
       const probe = document.createElement("div");
       probe.style.height = "var(--nb-line)";
@@ -267,25 +273,30 @@ try {
       return { line, lh: parseFloat(cs.lineHeight), padTop: parseFloat(cs.paddingTop), bg: cs.backgroundImage };
     });
     ok(rhythm.line > 0 && Math.abs(rhythm.lh - rhythm.line) < 0.5 && rhythm.padTop === 0 && rhythm.bg.startsWith("repeating-linear-gradient") && rhythm.bg.includes(`${Math.round(rhythm.line)}px`), `Ruled: the line height of the text is --nb-line (${rhythm.lh} px = ${rhythm.line} px) and the rules repeat at it`);
+    // the toolbar's papers
+    const papers = page.getByRole("group", { name: "Paper" }).getByRole("button");
+    ok(JSON.stringify(await papers.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))) === JSON.stringify(["Plain paper", "Ruled paper", "Dotted paper", "Graph paper"]), "the toolbar has the four papers");
+    await page.getByRole("button", { name: "Graph paper" }).click();
+    ok((await page.locator(".nb-scroll").getAttribute("data-style")) === "grid" && (await page.getByRole("button", { name: "Graph paper" }).getAttribute("aria-pressed")) === "true", "a paper chosen in the toolbar is drawn");
+    // the page tabs; the page's small menu moves it
+    const tabs = page.getByRole("tablist", { name: "Pages" }).getByRole("tab");
+    ok(JSON.stringify(await tabs.allInnerTexts()) === JSON.stringify(["Notes", "Results"]) && (await tabs.nth(1).getAttribute("aria-selected")) === "true", "the pages are tabs, the open one selected");
     await page.getByRole("button", { name: "Page actions" }).click();
-    await menu.getByRole("menuitemradio", { name: "Grid" }).click();
-    ok((await page.locator(".nb-scroll").getAttribute("data-style")) === "grid", "a paper style is drawn");
-    await page.getByRole("button", { name: "Page actions" }).click();
-    await menu.getByRole("menuitem", { name: "Move up" }).click();
-    await page.getByRole("button", { name: /^Page 1 of 2: Results/ }).waitFor({ timeout: 4000 });
-    ok(true, "Move up: Results is page 1 of 2");
+    const menu = page.getByRole("menu", { name: "Page actions" });
+    ok(JSON.stringify((await menu.getByRole("menuitem").allInnerTexts()).map((t) => t.trim())) === JSON.stringify(["Move left", "Move right", "Rename"]), "the page's small menu: Move left, Move right, Rename");
+    await menu.getByRole("menuitem", { name: "Move left" }).click();
+    await until(async () => JSON.stringify(await tabs.allInnerTexts()) === JSON.stringify(["Results", "Notes"]), { ms: 4000, what: "Results to be the first tab" });
+    ok(true, "Move left: Results is the first tab");
     await sleep(1600);
     let srv = await pagesOnServer();
-    ok(srv.map((p) => p.title).join(",") === "Results,Notes" && srv[0].style === "grid", `the rename, the style and the move are saved (${srv.map((p) => `${p.title}/${p.style}`).join(", ")})`);
-    // the page picker: a listbox
-    await page.locator(".nb-picker").click();
-    const list = page.getByRole("listbox", { name: "Pages" });
-    await list.waitFor();
-    ok(JSON.stringify((await list.getByRole("option").allInnerTexts()).map((t) => t.split("\n")[0])) === JSON.stringify(["Results", "Notes"]), "the page picker lists the pages, each with its number of blocks");
-    await page.keyboard.press("ArrowDown");
+    ok(srv.map((p) => p.title).join(",") === "Results,Notes" && srv[0].style === "grid", `the rename, the paper and the move are saved (${srv.map((p) => `${p.title}/${p.style}`).join(", ")})`);
+    // the tabs by keyboard: the arrows move, Enter opens
+    await tabs.nth(0).focus();
+    await page.keyboard.press("ArrowRight");
+    ok(await page.evaluate(() => document.activeElement?.textContent?.trim() === "Notes"), "→ moves to the next tab");
     await page.keyboard.press("Enter");
-    await page.getByRole("button", { name: /^Page 2 of 2: Notes/ }).waitFor({ timeout: 4000 });
-    ok(true, "the arrows and Enter choose a page");
+    await until(async () => (await page.locator(".nb-title").inputValue()) === "Notes", { ms: 4000, what: "the Notes page to open" });
+    ok((await tabs.nth(1).getAttribute("aria-selected")) === "true", "Enter opens it");
     // a block's handle and its one menu are hidden until it is pointed at or holds the focus (opacity, so nothing moves)
     const firstBlock = page.locator(".nb-block").first();
     const shown = (b) => b.evaluate((el) => [el.querySelector(".nb-handle"), el.querySelector(".nb-blockmenu")].map((x) => getComputedStyle(x).opacity).join(","));
@@ -319,14 +330,12 @@ try {
     await page.locator(".desk-toast", { hasText: "Block deleted" }).getByRole("button", { name: "Undo" }).click();
     ok((await page.locator(".nb-block").count()) === n && (await page.locator(".nb-block").nth(n - 2).getAttribute("data-block")) === lastId, "Undo puts it back where it was");
     // delete a page, and Undo
-    await page.locator(".nb-picker").click();
-    await page.getByRole("option", { name: /^Results/ }).click();
-    await page.getByRole("button", { name: "Page actions" }).click();
-    await page.getByRole("menuitem", { name: "Delete page" }).click();
+    await pageTab(page, "Results").click();
+    await page.getByRole("button", { name: "Delete this page" }).click();
     await page.locator(".desk-toast", { hasText: 'Deleted "Results"' }).waitFor();
     await until(async () => (await pagesOnServer()).length === 1, { ms: 6000 });
-    ok(true, "Delete page: gone from the server too");
-    await page.locator(".desk-toast").getByRole("button", { name: "Undo" }).click();
+    ok(true, "Delete this page (the trash on the page): gone from the server too");
+    await page.locator(".desk-toast", { hasText: 'Deleted "Results"' }).getByRole("button", { name: "Undo" }).click();
     await until(async () => (await pagesOnServer()).some((p) => p.title === "Results" && p.style === "grid"), { ms: 8000 });
     ok((await page.locator(".nb-title").inputValue()) === "Results", "Undo brings the page back, its style and blocks with it");
     // a reload keeps everything
@@ -335,11 +344,11 @@ try {
     ok((await page.locator(".nb-title").inputValue()) === "Results" && (await page.locator(".nb-scroll").getAttribute("data-style")) === "grid", "a reload opens the page last used, as it was");
     srv = await pagesOnServer();
     ok(srv.length === 2, "two pages after all that");
-    // Markdown out
-    // Markdown out: in the page's one menu
-    await page.getByRole("button", { name: "Page actions" }).click();
+    // Markdown out: Export ▾, all pages, Markdown
+    await page.locator(".nb-export").click();
+    await page.getByRole("menu", { name: "Export" }).getByRole("menuitemradio", { name: "All pages" }).click();
     const dl = page.waitForEvent("download");
-    await page.getByRole("menuitem", { name: "Download all pages" }).click();
+    await page.getByRole("menu", { name: "Export" }).getByRole("menuitem", { name: "Markdown", exact: true }).click();
     const file = await dl;
     const md = readFileSync(await file.path(), "utf8");
     ok(/^notes-.+-\d{4}-\d\d-\d\d\.md$/.test(file.suggestedFilename()) && md.startsWith("# ") && md.includes("\n## Results\n") && md.includes("\n## Notes\n") && /> \(Key idea, p\. 1\)/.test(md) && md.includes("### Methods"), `Download all pages: one Markdown file, quotes with their meaning and page (${file.suggestedFilename()})`);
@@ -351,8 +360,7 @@ try {
   {
     const { ctx, page } = await openReader(desk(1280, 800));
     await page.locator(".nb-bar").waitFor({ timeout: 10000 });
-    await page.locator(".nb-picker").click();
-    await page.getByRole("option", { name: /^Notes/ }).click();
+    await pageTab(page, "Notes").click();
     await ctx.setOffline(true);
     // the end of the page: its empty last block, or the line that becomes one at the first key
     await page.locator(".nb-ghost, .nb-blocks > .nb-block:last-child .nb-field").last().click();
@@ -426,7 +434,7 @@ try {
         small: Math.min(...all.map((b) => Math.min(b.width, b.height))),
       };
     });
-    ok(bar.rows === 2 && !bar.split && bar.whole && bar.small >= 44, `the toolbar on a phone: two rows by group, nothing cut off, every button at least 44 px (${JSON.stringify(bar)})`);
+    ok(bar.rows >= 2 && bar.rows <= 4 && !bar.split && bar.whole && bar.small >= 44, `the toolbar on a phone: its groups on rows of their own (marks, lists, Text Quote Capture Draw, papers), never split, nothing cut off, every button at least 44 px (${JSON.stringify(bar)})`);
     // the Highlights chips on a phone: one line, no meaning with none
     await page.getByRole("tab", { name: /^Highlights/ }).click();
     const chipRow = await page.locator(".hl-filter").evaluate((row) => ({ tops: new Set([...row.children].map((c) => Math.round(c.getBoundingClientRect().top))).size, zero: [...row.querySelectorAll(".hl-chip")].some((c) => /\b0\s*$/.test(c.textContent.trim())) }));
@@ -455,8 +463,7 @@ try {
       await sleep(400);
     }
     await page.locator(".nb-bar").waitFor({ timeout: 10000 });
-    await page.locator(".nb-picker").click();
-    await page.getByRole("option", { name: /^Notes/ }).click();
+    await pageTab(page, "Notes").click();
     await page.locator(".nb-quote").first().waitFor();
     for (const theme of ["light", "dark", "read"]) {
       await setTheme(page, theme, 350);
@@ -475,6 +482,133 @@ try {
     await ctx.close();
   }
 
+  /* ================================================================ 7. phase 2.5 (21.4): full width, scrollbars, chips, Capture, Sketch, PDF and Word */
+  console.log("7. phase 2.5: Capture, Sketch, Export");
+  {
+    const { ctx, page } = await openReader(desk(1440, 900));
+    await page.getByRole("radio", { name: "Notes" }).click();
+    await page.locator(".nb-bar").waitFor({ timeout: 10000 });
+    await sleep(400);
+    const fit = await page.evaluate(() => {
+      const panel = document.getElementById("dw-panel-side").getBoundingClientRect();
+      const sheet = document.querySelector("#desk-tabpanel-notes .nb-sheet").getBoundingClientRect();
+      return { left: sheet.left - panel.left, right: panel.right - sheet.right };
+    });
+    ok(fit.left <= 40 && fit.right <= 40, `the Notes view at 1440 px: the page fills the panel (${Math.round(fit.left)} px and ${Math.round(fit.right)} px at its sides)`);
+    ok((await page.locator(".nb-scroll").evaluate((el) => getComputedStyle(el).scrollbarWidth)) === "thin", "thin scrollbars in our tokens (scrollbar-width: thin)");
+    await page.getByRole("tab", { name: /^Highlights/ }).click();
+    const pad = await page.locator(".hl-filter").evaluate((el) => { const cs = getComputedStyle(el); return [cs.paddingTop, cs.paddingBottom, cs.paddingLeft, cs.paddingRight].join(" "); });
+    ok(pad === "10px 10px 12px 12px", `the chip row keeps 10 px above and below and 12 px at its sides (${pad})`);
+    await page.getByRole("tab", { name: "Notes", exact: true }).first().click();
+    await pageTab(page, "Notes").click();
+    await page.locator(".nb-bar").waitFor();
+
+    // Capture from the Notes view: Split first, then a frame dragged on page 1
+    const tools = page.getByRole("toolbar", { name: "Format" });
+    const capturesBefore = await page.locator(".nb-capture").count();
+    await tools.getByRole("button", { name: "Capture" }).click();
+    await until(async () => (await page.locator(".desk").getAttribute("data-view")) === "split", { ms: 6000, what: "Split" });
+    const layer = page.locator('[data-page="1"] .desk-capture');
+    await layer.waitFor({ timeout: 10000 });
+    ok((await page.getByRole("radio", { name: "Capture" }).getAttribute("aria-checked")) === "true", "Capture from the Notes view: the paper comes into sight (Split) with the Capture tool in hand");
+    const lb = await layer.boundingBox();
+    await page.mouse.move(lb.x + lb.width * 0.1, lb.y + lb.height * 0.05);
+    await page.mouse.down();
+    for (let i = 1; i <= 6; i++) await page.mouse.move(lb.x + lb.width * (0.1 + i * 0.12), lb.y + lb.height * (0.05 + i * 0.03));
+    await page.mouse.up();
+    await page.locator(".nb-capture").nth(capturesBefore).waitFor({ timeout: 10000 });
+    await until(async () => (await page.locator(".nb-capture").nth(capturesBefore).getAttribute("data-state")) === "ok", { ms: 10000, what: "the capture to be drawn" });
+    ok((await page.locator(".desk-capture").count()) === 0, "a dragged frame becomes a capture block, drawn from the paper, and the tool is put down");
+    const cap = page.locator(".nb-capture").nth(capturesBefore);
+    await cap.locator(".nb-caption").fill("Figure one");
+    await cap.getByRole("radio", { name: "Full width" }).click();
+    await saved(page);
+    let srv = await pagesOnServer();
+    const stored = srv.flatMap((p) => p.blocks).find((b) => b.kind === "capture");
+    ok(!!stored && stored.caption === "Figure one" && stored.size === "full" && stored.page === 1 && stored.w > 0.3 && stored.h > 0.1 && !("png" in stored), `the capture is kept as a place with its caption and size, no picture (${JSON.stringify(stored)})`);
+    // Capture by keyboard: Enter places a frame, the arrows move it, Shift and the arrows resize it, Enter captures
+    await tools.getByRole("button", { name: "Capture" }).click();
+    await layer.waitFor();
+    await layer.focus();
+    await page.keyboard.press("Enter");
+    await page.locator('[data-page="1"] .desk-capture-frame').waitFor({ timeout: 4000 });
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Shift+ArrowRight");
+    await page.keyboard.press("Enter");
+    await until(async () => (await page.locator(".nb-capture").count()) === capturesBefore + 2, { ms: 8000, what: "the second capture" });
+    ok(true, "Capture by keyboard: Enter, the arrows, Shift and the arrows, Enter");
+
+    // a sketch: Draw in the toolbar, a stroke drawn, kept after a reload
+    await tools.getByRole("button", { name: "Draw" }).click();
+    const area = page.locator(".nb-sketch-area").last();
+    await area.waitFor({ timeout: 8000 });
+    await area.scrollIntoViewIfNeeded();
+    const ab = await area.boundingBox();
+    await page.mouse.move(ab.x + 30, ab.y + 40);
+    await page.mouse.down();
+    for (let i = 1; i <= 12; i++) await page.mouse.move(ab.x + 30 + i * 20, ab.y + 40 + Math.sin(i / 2) * 25);
+    await page.mouse.up();
+    ok((await area.locator("svg path").count()) === 1, "a stroke drawn in the sketch");
+    await saved(page);
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator(".nb-sketch-area svg path").first().waitFor({ timeout: 15000 });
+    srv = await pagesOnServer();
+    const sk = srv.flatMap((p) => p.blocks).find((b) => b.kind === "sketch");
+    ok(!!sk && sk.strokes.length === 1 && sk.strokes[0].tool === "pen" && sk.strokes[0].pts.length >= 30, "the sketch is kept, and drawn again after a reload");
+
+    // Export: PDF and Word of all pages, with the captures and the sketch as pictures
+    const exportAs = async (what) => {
+      await page.locator(".nb-export").click();
+      const m = page.getByRole("menu", { name: "Export" });
+      await m.getByRole("menuitemradio", { name: "All pages" }).click();
+      const dl = page.waitForEvent("download", { timeout: 30000 });
+      await m.getByRole("menuitem", { name: what, exact: true }).click();
+      const file = await dl;
+      return { name: file.suggestedFilename(), bytes: new Uint8Array(readFileSync(await file.path())) };
+    };
+    const { PDFDocument, PDFName, PDFRawStream } = await import("@cantoo/pdf-lib");
+    const pdfOut = await exportAs("PDF");
+    const pdfDoc = await PDFDocument.load(pdfOut.bytes);
+    const images = pdfDoc.context.enumerateIndirectObjects().filter(([, o]) => o instanceof PDFRawStream && o.dict.get(PDFName.of("Subtype")) === PDFName.of("Image")).length;
+    ok(/^notes-.+-\d{4}-\d\d-\d\d\.pdf$/.test(pdfOut.name) && pdfDoc.getPageCount() >= 1 && images >= 3, `Export ▾ PDF: a PDF with the two captures and the sketch as pictures (${pdfOut.name}, ${pdfDoc.getPageCount()} pages, ${images} pictures)`);
+    const { unzipSync, strFromU8 } = await import("fflate");
+    const docxOut = await exportAs("Word (.docx)");
+    const parts = unzipSync(docxOut.bytes);
+    const media = Object.keys(parts).filter((k) => k.startsWith("word/media/"));
+    const xml = strFromU8(parts["word/document.xml"]);
+    ok(/\.docx$/.test(docxOut.name) && media.length >= 3 && xml.includes("Figure one") && xml.includes("Results"), `Export ▾ Word: a .docx with the pictures and the captions (${media.length} pictures)`);
+
+    // axe with a capture and a sketch on the page, in the three themes
+    for (const theme of ["light", "dark", "read"]) {
+      await setTheme(page, theme, 350);
+      await axe(page, `Notes with a capture and a sketch, ${theme}, 1440`);
+    }
+    ok(await noSideways(page), "no sideways scroll (1440, with a capture and a sketch)");
+    await ctx.close();
+  }
+  // Capture on a phone: from the Notes view to Paper, and back to the notes with the capture
+  {
+    const { ctx, page } = await openReader(phone(390, 844));
+    await page.getByRole("radio", { name: "Notes" }).click();
+    await page.locator(".nb-bar").waitFor({ timeout: 10000 });
+    const before = await page.locator(".nb-capture").count();
+    await page.getByRole("toolbar", { name: "Format" }).getByRole("button", { name: "Capture" }).click();
+    await until(async () => (await page.locator(".desk").getAttribute("data-view")) === "paper", { ms: 6000, what: "the Paper view" });
+    const layer = page.locator('[data-page="1"] .desk-capture');
+    await layer.waitFor({ timeout: 10000 });
+    await layer.scrollIntoViewIfNeeded();
+    const lb = await layer.boundingBox();
+    await page.mouse.move(lb.x + 20, lb.y + 30);
+    await page.mouse.down();
+    for (let i = 1; i <= 5; i++) await page.mouse.move(lb.x + 20 + i * 40, lb.y + 30 + i * 15);
+    await page.mouse.up();
+    await until(async () => (await page.locator(".desk").getAttribute("data-view")) === "notes", { ms: 8000, what: "the Notes view again" });
+    await until(async () => (await page.locator(".nb-capture").count()) === before + 1, { ms: 8000, what: "the phone's capture" });
+    ok(true, "Capture on a phone: Paper to take it, then back to the notes with it");
+    ok(await noSideways(page), "no sideways scroll on a phone with captures and a sketch");
+    await ctx.close();
+  }
+
   ok(errors.length === 0, `no errors on the page (${errors.length})`);
   for (const e of errors.slice(0, 8)) console.log(`        ${e}`);
 } catch (e) {
@@ -484,4 +618,4 @@ try {
   await browser.close();
   idp.close?.();
 }
-finish("notebook (phase 2) e2e passed");
+finish("notebook (phases 2 and 2.5) e2e passed");
