@@ -45,7 +45,7 @@ import { readJson } from "../platform/http/body";
 import { answerAboutHighlights } from "./highlights-qa";
 import { readerOnFor, readerSwitchedOn } from "./reader-flag";
 import { deletePage, listPages, patchPage, putPage, type NotebookResult } from "./notebook";
-import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv, type LlmEnv } from "../llm";
+import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv, type LlmEnv } from "../platform/llm";
 import { fromSqliteTime } from "../library/validate";
 import { cacheStore } from "../cache";
 import { chunkPage } from "./chunk";

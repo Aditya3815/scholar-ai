@@ -1,6 +1,6 @@
 import type { Paper } from "@scholar/shared";
 import type { Complete } from "../docs/qa";
-import { AllProvidersFailedError, gatewayFromEnv, type LlmEnv } from "../llm";
+import { AllProvidersFailedError, gatewayFromEnv, type LlmEnv } from "../platform/llm";
 import { sha256Hex } from "../hash";
 import { applyDoiIntegrity, applyRetractions } from "../search";
 import { cacheKey, cached } from "../search/cache";

@@ -1,5 +1,5 @@
 import type { Complete } from "../docs/qa";
-import { AllProvidersFailedError, QuotaError } from "../llm";
+import { AllProvidersFailedError, QuotaError } from "../platform/llm";
 
 /** One failed attempt the way the gateway writes it down (gateway.ts): which provider, and the error's own text. */
 const failedWith = (error: string) => new AllProvidersFailedError([{ provider: "workersai", model: "stub", ok: false, ms: 1, error }]);

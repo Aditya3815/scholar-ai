@@ -10,7 +10,7 @@ import { isRetracted } from "../search/retraction-service";
 import { askOutcome, countOutcome } from "../outcomes";
 import type { EnvPick } from "../platform/env";
 import { devMode, devOptions, standIns } from "../platform/dev";
-import type { LlmEnv } from "../llm";
+import type { LlmEnv } from "../platform/llm";
 
 /**
  * "Ask this paper" as a service (docs/design: "service layer"): the page's /api/v1/papers/oa/ask stream calls `oaService.ask`, and so will the MCP tool `ask_paper` (Phase 2). The events it

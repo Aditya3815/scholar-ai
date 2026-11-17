@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { OCR_MODEL_CHECK, OCR_MODEL_PRIMARY } from "@scholar/shared";
 import { DEFAULT_CONFIG } from "./config";
-import { EMBED_MODEL } from "../docs/embed";
+import { EMBED_MODEL } from "../../docs/embed";
 import { PRICES, costCents } from "./pricing";
 
 describe("costCents", () => {

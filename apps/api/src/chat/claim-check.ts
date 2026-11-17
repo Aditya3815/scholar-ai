@@ -1,6 +1,6 @@
 import type { Paper } from "@scholar/shared";
 import type { StreamComplete } from "../docs/qa";
-import { QuotaError, gatewayFromEnv, type LlmEnv } from "../llm";
+import { QuotaError, gatewayFromEnv, type LlmEnv } from "../platform/llm";
 import type { Picked } from "./answer";
 import { shownSentence } from "./evidence";
 import { STRICT_SCHEMA, STRICT_SYSTEM, buildJudgePrompt, readVerdicts, type Claim } from "./support";

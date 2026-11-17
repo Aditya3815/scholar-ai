@@ -23,7 +23,7 @@ const LEVEL: Record<string, number> = { env: 0, switches: 0, dev: 0, deps: 0, co
 const TODAY: Record<string, string> = {
   "cache": "cache",
   "gate": "gate",
-  "llm": "llm",
+  "llm": "llm", // only llm/index.ts, the re-export legal-match.test.ts names (platform/llm holds the gateway)
   "monitoring": "monitoring",
   "hash.ts": "db",
   "sql-time.ts": "db",

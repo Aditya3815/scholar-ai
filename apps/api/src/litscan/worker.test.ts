@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Paper, SearchResponse } from "@scholar/shared";
-import { AllProvidersFailedError, NoRouteError, QuotaError } from "../llm";
+import { AllProvidersFailedError, NoRouteError, QuotaError } from "../platform/llm";
 import { SearchUnavailableError, answerSubQuestion, cleanTitle, type WorkerDeps } from "./worker";
 
 const paper = (i: number, abstract: string | null = "We studied children near busy roads. Attacks were more frequent close to traffic. The effect was strongest in winter.", extra: Partial<Paper> = {}): Paper => ({

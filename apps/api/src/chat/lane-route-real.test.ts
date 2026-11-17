@@ -10,8 +10,8 @@ vi.mock("../search", async (importOriginal) => {
   const real = await importOriginal<typeof import("../search")>();
   return { ...real, runSearch: async () => (seen.search++, Promise.reject(new Error("a search was made"))) };
 });
-vi.mock("../llm", async (importOriginal) => {
-  const real = await importOriginal<typeof import("../llm")>();
+vi.mock("../platform/llm", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../platform/llm")>();
   return { ...real, gatewayFromEnv: () => (seen.gateway++, { complete: () => Promise.reject(new Error("a model was called")), stream: () => Promise.reject(new Error("a model was called")) }) };
 });
 import { chatRoutes } from "./routes";

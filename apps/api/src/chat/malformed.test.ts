@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatEvent } from "@scholar/shared";
-import { AllProvidersFailedError } from "../llm";
+import { AllProvidersFailedError } from "../platform/llm";
 import { pickEvidencePapers } from "./answer";
 import { answerFromResults } from "./answer";
 import { answerGeneral } from "./general";

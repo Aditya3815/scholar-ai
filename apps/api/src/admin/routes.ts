@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AdminOverview, FeedbackKind } from "@scholar/shared";
-import { NEURON_CENTS } from "../llm/pricing";
+import { NEURON_CENTS } from "../platform/llm/pricing";
 import { requireUser, type Door } from "../auth/service";
 import { readJson } from "../platform/http/body";
 import { readJobs } from "../jobs";

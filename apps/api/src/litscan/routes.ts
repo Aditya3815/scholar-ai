@@ -16,9 +16,9 @@ import {
 } from "@scholar/shared";
 import { requireUser, type Door } from "../auth/service";
 import { readJson } from "../platform/http/body";
-import { d1Ledger } from "../llm/d1";
-import { AllProvidersFailedError, NoRouteError, QuotaError } from "../llm";
-import { DEFAULT_CONFIG } from "../llm/config";
+import { d1Ledger } from "../platform/llm/d1";
+import { AllProvidersFailedError, NoRouteError, QuotaError } from "../platform/llm";
+import { DEFAULT_CONFIG } from "../platform/llm/config";
 import { sseStream } from "../sse";
 import { planModel } from "./model";
 import { ScanPlanError, planScan, sanitizeApproved } from "./plan";

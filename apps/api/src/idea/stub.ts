@@ -1,5 +1,5 @@
 import type { IdeaPaper, IdeaSearchRequest, IdeaSearchResult } from "@scholar/shared";
-import { extractJson } from "../llm/gateway";
+import { extractJson } from "../platform/llm/gateway";
 import type { Complete, StreamComplete } from "../docs/qa";
 import { keywords } from "../docs/vector";
 

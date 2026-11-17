@@ -1,7 +1,7 @@
 import { stubPlanScan, stubScanSearch, stubScanStream } from "./stub";
 import { stubJudgeStream } from "../chat/stub";
 import type { Complete, StreamComplete } from "../docs/qa";
-import { gatewayFromEnv, type LlmEnv } from "../llm";
+import { gatewayFromEnv, type LlmEnv } from "../platform/llm";
 import type { SearchResponse, SearchScope } from "@scholar/shared";
 import { runSearch } from "../search";
 import { withGate } from "../gate";

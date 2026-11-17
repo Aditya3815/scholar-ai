@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import type { ChatEvent, Paper } from "@scholar/shared";
 import type { Complete } from "../src/docs/qa";
-import { UNDERSTAND_CHAIN } from "../src/llm/config";
+import { UNDERSTAND_CHAIN } from "../src/platform/llm/config";
 import type { LedgerPaper } from "../src/understand/ledger-input";
 import type { ModelSession } from "./lib/model-layer";
 import { understandRecording } from "./lib/understand-recording";

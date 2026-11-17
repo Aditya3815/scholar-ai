@@ -1,5 +1,5 @@
 import type { Complete, StreamComplete } from "../docs/qa";
-import { AllProvidersFailedError, QuotaError } from "../llm";
+import { AllProvidersFailedError, QuotaError } from "../platform/llm";
 import type { SearchResponse, SearchScope } from "@scholar/shared";
 import { stubChatStream, stubSearchFor } from "../chat/stub";
 

@@ -25,7 +25,7 @@ import {
   type RouteContext,
 } from "@scholar/shared";
 import type { Complete } from "../docs/qa";
-import { AllProvidersFailedError } from "../llm";
+import { AllProvidersFailedError } from "../platform/llm";
 import { isMalformedReply } from "./malformed";
 import { errorKind, type ChatHistory } from "./history";
 import { bleeds, checkRestatement, type RestatementReason } from "./restate";

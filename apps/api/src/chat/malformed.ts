@@ -1,4 +1,4 @@
-import { AllProvidersFailedError } from "../llm";
+import { AllProvidersFailedError } from "../platform/llm";
 
 /**
  * The model now and then answers with something that is not JSON at all (a stray "[assistant]", a cut-off string). That is a malformed reply, not a wrong choice and not an

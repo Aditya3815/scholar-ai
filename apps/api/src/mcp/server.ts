@@ -12,7 +12,7 @@ import { libraryService } from "../library/service";
 import { parsePaper } from "../library/validate";
 import { judgeClaim, strictJudgeFor, type ClaimPaper } from "../chat/claim-check";
 import { stubSearchFor } from "../chat/stub";
-import type { LlmEnv } from "../llm";
+import type { LlmEnv } from "../platform/llm";
 import { logCall, takeCall, type CallOutcome, type McpTool } from "./calls";
 import { checkClaimAllowedFor, mcpAllowedFor, mcpMode } from "./flag";
 import type { McpOAuthEnv } from "./oauth";

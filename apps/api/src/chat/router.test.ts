@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_AUTO_CHARS, SMALL_TALK_REPLY, cleanAutoMessage, detectLanguage, isSmallTalk, looksLikeReferenceList, offlineRoute, ruleRoute, smallTalkReply } from "@scholar/shared";
-import { AllProvidersFailedError } from "../llm";
+import { AllProvidersFailedError } from "../platform/llm";
 import { ROUTER_SYSTEM, parseRoute, routeMessage, routerPrompt } from "./router";
 import { stubRoute } from "./stub-route";
 

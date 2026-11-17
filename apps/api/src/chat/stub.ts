@@ -1,7 +1,7 @@
 import type { Paper, SearchResponse, SearchScope } from "@scholar/shared";
 import type { StreamComplete } from "../docs/qa";
-import { extractJson } from "../llm/gateway";
-import { QuotaError } from "../llm";
+import { extractJson } from "../platform/llm/gateway";
+import { QuotaError } from "../platform/llm";
 
 /**
  * Offline stand-ins for the search and the model, used ONLY by tests and the local end-to-end run (QA_STUB=1 with ENABLE_DEV_ROUTES=1, never production secrets).

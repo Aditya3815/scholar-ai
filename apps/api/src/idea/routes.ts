@@ -4,7 +4,7 @@ import { requireUser, type Door } from "../auth/service";
 import { readJson } from "../platform/http/body";
 import { hashEmbedder, workersAiEmbedder, type Embedder } from "../docs/embed";
 import type { Complete, StreamComplete } from "../docs/qa";
-import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
+import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../platform/llm";
 import { sseStream } from "../sse";
 import { PlanError, planIdea } from "./plan";
 import { compareIdea, sanitizeCompareRequest } from "./compare";

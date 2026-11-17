@@ -1,4 +1,4 @@
-import { extractJson } from "../llm/gateway";
+import { extractJson } from "../platform/llm/gateway";
 import type { Complete, StreamComplete } from "./qa";
 import { keywords, lexical } from "./vector";
 

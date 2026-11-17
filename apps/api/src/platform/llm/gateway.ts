@@ -1,5 +1,5 @@
 import { PolicyError, QuotaError, assertAllowed, selectChain } from "./policy";
-import { sha256Hex } from "../hash";
+import { sha256Hex } from "../../hash";
 import { costCents } from "./pricing";
 import type {
   Attempt,

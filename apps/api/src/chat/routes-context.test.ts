@@ -15,7 +15,7 @@ vi.mock("./stub", async (importOriginal) => {
   const rec = (who: string, f: StreamComplete): StreamComplete => async (req, hooks) => {
     calls.push({ who, label: req.label, system: req.system, user: req.user });
     if (who === "writer" && fail.writer && req.label === "chat_search") {
-      const { AllProvidersFailedError } = await vi.importActual<typeof import("../llm")>("../llm");
+      const { AllProvidersFailedError } = await vi.importActual<typeof import("../platform/llm")>("../platform/llm");
       throw new AllProvidersFailedError([{ provider: "workersai", model: "m", ok: false, ms: 1, error: `bad request, input was: ${req.user.slice(0, 60)} CANARY-ECHO` }]);
     }
     return f(req, hooks);

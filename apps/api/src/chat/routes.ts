@@ -4,9 +4,9 @@ import { ABSTRACTS_NOTICE, isLaneReason, MARK, stripInvisible, FOLLOWUP_UNREAD_N
 import { currentUser, requireUser } from "../auth/service";
 import { readJson } from "../platform/http/body";
 import type { Complete, StreamComplete } from "../docs/qa";
-import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
-import { DEFAULT_CONFIG } from "../llm/config";
-import { d1Ledger } from "../llm/d1";
+import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../platform/llm";
+import { DEFAULT_CONFIG } from "../platform/llm/config";
+import { d1Ledger } from "../platform/llm/d1";
 import { searchService } from "../search/service";
 import { sseStream } from "../sse";
 import { searchComplete } from "./complete";
