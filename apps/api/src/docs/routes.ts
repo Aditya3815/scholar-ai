@@ -9,10 +9,13 @@ import {
   MAX_DOC_BYTES,
   INK_LIMITS,
   MAX_DOC_PAGES,
+  MAX_NOTEBOOK_BODY,
+  NOTEBOOK_LIMITS,
   MAX_TAGS_PER_DOC,
   READ_STATES,
   cleanLegend,
   checkInk,
+  cleanNoteText,
   cleanTag,
   tagKey,
   type ReadState,
@@ -39,7 +42,8 @@ import {
 } from "@scholar/shared";
 import { currentUser, sameOrigin } from "../auth/http";
 import { answerAboutHighlights } from "./highlights-qa";
-import { readerOnFor } from "./reader-flag";
+import { readerOnFor, readerSwitchedOn } from "./reader-flag";
+import { deletePage, listPages, patchPage, putPage, type NotebookResult } from "./notebook";
 import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv, type LlmEnv } from "../llm";
 import { fromSqliteTime } from "../library/validate";
 import { cacheStore } from "../cache";
@@ -325,12 +329,13 @@ documentRoutes.patch("/:id", async (c) => {
   return c.json({ document: toInfo((await owned(c, user.id, row.id))!) });
 });
 
-/** Deletes the PDF, its cover, its text and its question history. Irreversible. */
+/** Deletes the PDF, its cover, its text, its question history, its highlights, drawing, tags and pages of notes. Irreversible. */
 export async function deleteDocument(env: Pick<Env, "DB" | "FILES">, userId: string, id: string): Promise<void> {
   await Promise.all([env.FILES.delete(pdfKey(userId, id)), env.FILES.delete(coverKey(userId, id))]);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM doc_notes WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_ink WHERE doc_id = ?1").bind(id),
+    env.DB.prepare("DELETE FROM doc_notebook_pages WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_tags WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_qa WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_chunks WHERE doc_id = ?1").bind(id),
@@ -701,6 +706,7 @@ documentRoutes.put("/:id/ink", async (c) => {
 
 type NoteRow = { id: string; page: number; quote: string; note: string | null; color: NoteColor; created_at: string; updated_at: string };
 const toNote = (r: NoteRow): DocNote => ({ id: r.id, page: r.page, quote: r.quote, note: r.note ?? "", color: r.color, createdAt: fromSqliteTime(r.created_at), updatedAt: fromSqliteTime(r.updated_at) });
+/** A quote comes from the paper's text layer: one line. A note keeps its line breaks (cleanNoteText, docs/design/paper-reader.md 19.6). */
 const cleanText = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
 const NOTE_COLS = "id, page, quote, note, color, created_at, updated_at";
 
@@ -725,7 +731,7 @@ documentRoutes.post("/:id/notes", async (c) => {
   if (typeof page !== "number" || !Number.isInteger(page) || page < 1 || page > (row.pages ?? MAX_DOC_PAGES)) return deny(c, 400, "invalid_note", "That page is not in this paper");
   if (quote.length < MIN_NOTE_QUOTE_CHARS) return deny(c, 400, "invalid_note", "Select some text first");
   const color = NOTE_COLORS.includes(b?.color as NoteColor) ? (b!.color as NoteColor) : "yellow";
-  const note = cleanText(b?.note, MAX_NOTE_CHARS);
+  const note = cleanNoteText(b?.note, MAX_NOTE_CHARS);
   const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM doc_notes WHERE doc_id = ?1").bind(row.id).first<{ n: number }>();
   if ((count?.n ?? 0) >= MAX_NOTES_PER_DOC) return deny(c, 409, "notes_full", "This paper has as many notes as it can hold", `The limit is ${MAX_NOTES_PER_DOC}.`);
   const id = randomId();
@@ -744,7 +750,7 @@ documentRoutes.patch("/:id/notes/:nid", async (c) => {
   if (!existing) return deny(c, 404, "not_found", "Note not found");
   const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!b) return deny(c, 400, "invalid_note", "Nothing to change");
-  const note = "note" in b ? cleanText(b.note, MAX_NOTE_CHARS) : (existing.note ?? "");
+  const note = "note" in b ? cleanNoteText(b.note, MAX_NOTE_CHARS) : (existing.note ?? "");
   const color = NOTE_COLORS.includes(b.color as NoteColor) ? (b.color as NoteColor) : existing.color;
   await c.env.DB.prepare("UPDATE doc_notes SET note = ?2, color = ?3, updated_at = datetime('now') WHERE id = ?1").bind(existing.id, note || null, color).run();
   const saved = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE id = ?1`).bind(existing.id).first<NoteRow>();
@@ -760,4 +766,67 @@ documentRoutes.delete("/:id/notes/:nid", async (c) => {
   const r = await c.env.DB.prepare("DELETE FROM doc_notes WHERE id = ?1 AND doc_id = ?2").bind(c.req.param("nid"), row.id).run();
   if ((r.meta.changes ?? 0) === 0) return deny(c, 404, "not_found", "Note not found");
   return c.json({ ok: true });
+});
+
+/* ---------------------------------------------------------------- the Notebook of the new reader (docs/design/paper-reader.md, 19) */
+
+/**
+ * The four routes of a paper's pages of notes (docs/notebook.ts keeps them). With READER off they do not exist: 404 for everyone, as before they did (the way the MCP server answers
+ * when it is off); at dark, an account that is not in READER_BETA_USERS gets the same 404. Otherwise each is guarded as the notes and the drawing are: the same-origin check on a write,
+ * the signed-in person, their own paper (404 for anyone else's), and a body read with a size limit. F10's `requireUser` door replaces these lines when the W3 untangle merges.
+ */
+async function notebookDoor(c: Context<HonoEnv>, write: boolean): Promise<Response | { row: Row }> {
+  if (!(await readerSwitchedOn(c.env))) return deny(c, 404, "not_found", "Not found", c.req.path);
+  if (write && !sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const user = await currentUser(c);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
+  if (!(await readerOnFor(c.env, user.id))) return deny(c, 404, "not_found", "Not found", c.req.path);
+  const row = await owned(c, user.id, c.req.param("id")!);
+  if (!row) return deny(c, 404, "not_found", "Paper not found");
+  return { row };
+}
+
+/** The body of a write, read with the same limit as its check (a page is at most 48 KB): null when it is too big, undefined when it is not JSON. */
+async function notebookBody(c: Context<HonoEnv>): Promise<unknown | null> {
+  if (Number(c.req.header("content-length") ?? 0) > MAX_NOTEBOOK_BODY) return null;
+  const text = await c.req.text().catch(() => "");
+  if (text.length > MAX_NOTEBOOK_BODY) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+const notebookAnswer = (c: Context<HonoEnv>, r: NotebookResult) =>
+  "page" in r ? c.json(r.status === 409 ? { type: "conflict", title: "This page of notes was changed in another window", page: r.page } : { page: r.page }, r.status) : deny(c, r.status, r.type, r.title, r.detail);
+const TOO_BIG = (c: Context<HonoEnv>) => deny(c, 413, "too_big", "That page of notes is too big to save", `A page holds at most ${NOTEBOOK_LIMITS.pageBytes / 1024} KB.`);
+
+documentRoutes.get("/:id/notebook", async (c) => {
+  const door = await notebookDoor(c, false);
+  if (door instanceof Response) return door;
+  return c.json({ pages: await listPages(c.env.DB, door.row.id) });
+});
+
+documentRoutes.put("/:id/notebook/pages/:pageId", async (c) => {
+  const door = await notebookDoor(c, true);
+  if (door instanceof Response) return door;
+  const body = await notebookBody(c);
+  if (body === null) return TOO_BIG(c);
+  return notebookAnswer(c, await putPage(c.env.DB, door.row.id, c.req.param("pageId"), body, door.row.pages ?? MAX_DOC_PAGES));
+});
+
+documentRoutes.patch("/:id/notebook/pages/:pageId", async (c) => {
+  const door = await notebookDoor(c, true);
+  if (door instanceof Response) return door;
+  const body = await notebookBody(c);
+  if (body === null) return TOO_BIG(c);
+  return notebookAnswer(c, await patchPage(c.env.DB, door.row.id, c.req.param("pageId"), body));
+});
+
+documentRoutes.delete("/:id/notebook/pages/:pageId", async (c) => {
+  const door = await notebookDoor(c, true);
+  if (door instanceof Response) return door;
+  if (!(await deletePage(c.env.DB, door.row.id, c.req.param("pageId")))) return deny(c, 404, "page_gone", "That page of notes is not there any more");
+  return c.body(null, 204);
 });

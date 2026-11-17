@@ -133,7 +133,7 @@ try {
     await sleep(300);
     ok((await page.locator(".desk").getAttribute("data-view")) === "notes" && !(await page.locator("#dw-panel-paper").isVisible()), "Notes: the panel alone");
     const panel = await boxOf(page.locator("#dw-panel-side"));
-    const list = await boxOf(page.locator("#desk-tabpanel-highlights > *").first());
+    const list = await boxOf(page.locator("#desk-tabpanel-notes > *").first());
     ok(panel.width > 1100 && list.width < panel.width * 0.75, `Notes on a wide screen: the panel is the window's width (${panel.width.toFixed(0)} px) and its text keeps a reading width (${list.width.toFixed(0)} px)`);
     await page.reload({ waitUntil: "networkidle" });
     await page.locator(".desk").waitFor();
@@ -235,7 +235,7 @@ try {
     const pop = page.getByRole("toolbar", { name: "The selected text" });
     await pop.waitFor();
     const names = await pop.getByRole("button").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") ?? e.textContent.trim()));
-    ok(JSON.stringify(names) === JSON.stringify(["Highlight as Key idea", "Highlight as Method", "Highlight as Question", "Highlight as Result", "Add note", "Explain", "Copy"]), `a selection's pop-up: the four meanings, Add note, Explain, Copy (${names.join(", ")})`);
+    ok(JSON.stringify(names) === JSON.stringify(["Highlight as Key idea", "Highlight as Method", "Highlight as Question", "Highlight as Result", "Add to notes", "Explain", "Copy"]), `a selection's pop-up: the four meanings, Add to notes, Explain, Copy (${names.join(", ")})`);
     await axe(page, "the selection pop-up");
     // the keyboard: Tab from the pages goes in, the arrows move, Esc gives the focus back
     await page.locator(".pdfv-scroll").focus();
@@ -299,7 +299,7 @@ try {
     await hpop.waitFor({ timeout: 4000 });
     ok((await hpop.getByRole("button", { name: "Key idea (its meaning now)" }).getAttribute("aria-pressed")) === "true", "a click on a highlight opens its pop-up; its own meaning is marked (a ring)");
     const hnames = await hpop.getByRole("button").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") ?? e.textContent.trim()));
-    ok(hnames.includes("Change to Result") && hnames.includes("Explain") && hnames.includes("Copy") && hnames.includes("Remove"), `its actions: recolour, Add note, Explain, Copy, Remove (${hnames.join(", ")})`);
+    ok(hnames.includes("Change to Result") && hnames.includes("Explain") && hnames.includes("Copy") && hnames.includes("Remove"), `its actions: recolour, Add to notes, Explain, Copy, Remove (${hnames.join(", ")})`);
     await hpop.getByRole("button", { name: "Change to Result" }).click();
     await page.locator('[data-page="1"] .pdfp-hl[data-color="pink"]').first().waitFor({ timeout: 8000 });
     ok((await notesOf())[0].color === "pink", "recoloured: stored as pink (Result)");
@@ -331,13 +331,24 @@ try {
   console.log("5. the meanings, named");
   {
     const { ctx, page } = await openReader("1280x800");
-    const tabs = page.getByRole("tablist", { name: "Highlights or references" }).getByRole("tab");
-    ok(JSON.stringify((await tabs.allInnerTexts()).map((t) => t.replace(/\d+/g, "").trim())) === JSON.stringify(["Highlights", "References"]), "the panel's tabs: Highlights and References (no empty notebook)");
+    const tabs = page.getByRole("tablist", { name: "Notes, highlights or references" }).getByRole("tab");
+    ok(JSON.stringify((await tabs.allInnerTexts()).map((t) => t.replace(/\d+/g, "").trim())) === JSON.stringify(["Notes", "Highlights", "References"]), "the panel's tabs: Notes (phase 2), Highlights and References");
+    await tabs.nth(1).click();
     const chips = await page.locator(".hl-filter .hl-chip").allInnerTexts();
-    ok(chips.some((c) => c.startsWith("Result")) && chips.some((c) => c.startsWith("Key idea")), `the colour filter names the meanings (${chips.map((c) => c.replace(/\s+/g, " ")).join(" · ")})`);
+    ok(chips.some((c) => c.startsWith("Result")), `the colour filter names the meanings (only those with highlights since phase 2) (${chips.map((c) => c.replace(/\s+/g, " ")).join(" · ")})`);
+    // phase 2's tidier head: no chip for a meaning with none, the chips on one line, the head one row with one Export menu
+    ok(chips.every((c) => !/\b0\s*$/.test(c.trim())), `no chip for a meaning with no highlight (${chips.map((c) => c.replace(/\s+/g, " ")).join(" · ")})`);
+    const tops = await page.locator(".hl-filter > .chip-btn").evaluateAll((els) => [...new Set(els.map((e) => Math.round(e.getBoundingClientRect().top)))]);
+    ok(tops.length === 1, `the chips are on one line (${tops.length})`);
+    const chipH = await page.locator(".hl-filter > .chip-btn").evaluateAll((els) => Math.min(...els.map((e) => e.getBoundingClientRect().height)));
+    ok(chipH >= 32, `each chip is at least 32 px high (${chipH})`);
+    const head = await page.locator(".notes-head > :not(.sr-only)").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => r.top + r.height / 2));
+    ok(Math.max(...head) - Math.min(...head) < 8, "the Highlights head is one row on a wide screen");
+    ok((await page.locator(".notes-actions").getByRole("button", { name: "Download" }).count()) === 0, "Copy and Download sit in one Export menu");
     await page.getByRole("button", { name: "By colour" }).click();
     const dl = page.waitForEvent("download");
-    await page.locator(".notes-actions").getByRole("button", { name: "Download" }).click();
+    await page.locator(".notes-actions").getByRole("button", { name: "Export" }).click();
+    await page.getByRole("menuitem", { name: "Download (Markdown)" }).click();
     const md = readFileSync(await (await dl).path(), "utf8");
     ok(md.includes("## Result (pink, 1)"), `the Markdown names its sections by meaning ("## Result (pink, 1)")`);
     // a question about the highlights sends the meanings

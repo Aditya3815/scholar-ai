@@ -61,6 +61,11 @@ accountRoutes.get("/export", async (c) => {
     .prepare("SELECT i.doc_id, i.data FROM doc_ink i JOIN documents d ON d.id = i.doc_id WHERE d.user_id = ?1")
     .bind(user.id)
     .all<{ doc_id: string; data: string }>();
+  // the pages of notes of the new reader (docs/design/paper-reader.md, 19.3), in each paper's order
+  const notebook = await c.env.DB
+    .prepare("SELECT p.doc_id, p.title, p.style, p.blocks, p.updated_at FROM doc_notebook_pages p JOIN documents d ON d.id = p.doc_id WHERE d.user_id = ?1 ORDER BY p.doc_id, p.position, p.created_at")
+    .bind(user.id)
+    .all<{ doc_id: string; title: string; style: string; blocks: string; updated_at: string }>();
   const reports = await c.env.DB
     .prepare("SELECT kind, problem, note, context, created_at FROM feedback WHERE user_id = ?1 ORDER BY created_at")
     .bind(user.id)
@@ -104,6 +109,7 @@ accountRoutes.get("/export", async (c) => {
       highlightsAndNotes: notes.results.filter((n) => n.doc_id === d.id).map((n) => ({ page: n.page, quote: n.quote, colour: n.color, note: n.note ?? "", madeAt: new Date(fromSqliteTime(n.created_at)).toISOString() })),
       questions: qa.results.filter((q) => q.doc_id === d.id).map((q) => ({ question: q.question, answer: (JSON.parse(q.answer) as { answer: string }).answer, askedAt: new Date(fromSqliteTime(q.created_at)).toISOString() })),
     })),
+    notebook: notebook.results.map((p) => ({ docId: p.doc_id, title: p.title, style: p.style, blocks: JSON.parse(p.blocks) as unknown, updatedAt: new Date(fromSqliteTime(p.updated_at)).toISOString() })),
     reports: reports.results.map((r) => ({ kind: r.kind, problem: r.problem, note: r.note, sent: JSON.parse(r.context), reportedAt: new Date(fromSqliteTime(r.created_at)).toISOString() })),
     library: lib.results.map((r) => ({ ...(JSON.parse(r.data) as Paper), savedAt: new Date(fromSqliteTime(r.saved_at)).toISOString() })),
     literatureScans: scans.results.map((s) => ({ topic: s.topic, language: s.language, state: s.state, startedAt: new Date(fromSqliteTime(s.created_at)).toISOString(), keptUntil: new Date(fromSqliteTime(s.expires_at)).toISOString(), subQuestions: JSON.parse(s.plan) as unknown, results: scanParts.results.filter((p) => p.scan_id === s.id).map((p) => (JSON.parse(p.data) as { part: unknown }).part) })),

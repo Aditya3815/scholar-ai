@@ -132,3 +132,18 @@ export function planNewHighlight(existing: readonly { id: string; page: number; 
   }
   return { action: "add" };
 }
+
+/**
+ * A note a person typed, as it is kept (docs/design/paper-reader.md, 19.6): line breaks stay; within a line, runs of spaces and tabs become one space and the line's end is trimmed;
+ * at most two blank lines stay together; blank lines before the first line and after the last go. Cut to `max` characters. Not a string: "". (A quote, which comes from the paper's
+ * text layer, keeps its one-line cleaning.)
+ */
+export function cleanNoteText(v: unknown, max: number): string {
+  if (typeof v !== "string") return "";
+  const lines = v
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
+    .split("\n")
+    .map((l) => l.replace(/[^\S\n]+/g, " ").trimEnd());
+  return lines.join("\n").replace(/\n{4,}/g, "\n\n\n").replace(/^\n+|\n+$/g, "").slice(0, max).trimEnd();
+}

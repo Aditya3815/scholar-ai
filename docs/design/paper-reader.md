@@ -435,3 +435,279 @@ Phase 1 ("Desk") is built on the branch `reader-v2`, behind `READER`, which is n
 - `e2e/reader.mjs` runs in the named run `reader-on` (READER on), with the documents suite and the two reader suites of today's reader that apply to the new one: `cites.mjs` (Draw is a radio of the tool segment; the old phone tab bar is not drawn, so that part is left out) and `polish-reader.mjs` (Draw as a radio, Ask in the Agents drawer, and the Paper view, so the drawing toolbar is measured at the paper's full width as in today's reader under 1000 px). With READER off both take exactly the old path. `papers.mjs` and `workspace.mjs` run in the default run only: their reader checks are of today's layout, which the new reader replaces.
 - The table test of the integration runner lists what the default run skips; it gained the new suite, on purpose. `ci.yml` and `browser-e2e.yml` add `reader-on`.
 - `e2e/shots-reader.mjs` takes the before and after pictures (not a suite).
+
+## 19. Phase 2 plan: the Notebook (16 Nov 2026)
+
+The owner approved phase 1 from its pictures on 16 Nov and asked for phase 2 to start beside it. This section turns section 7 into a buildable plan, on top of phase 1 as built (section 18). Where it is more precise than section 7, this section wins.
+
+### 19.1 What a person can do when phase 2 ships (READER on)
+
+1. **Open the Notes tab.**
+   - The panel tabs become `Notes · Highlights · References`, with Notes first.
+   - On a phone, `[ Paper | Notes ]` → Notes shows the same three tabs.
+2. **Start writing at once.**
+   - A paper with no notebook shows one page, "Notes", with an empty text block and its cursor in it.
+   - The empty state says *"Write here, or select text in the paper and choose Add to notes."*
+   - The page is created on the server only when something is written, so opening a paper creates no rows.
+3. **Write formatted text.**
+   - The toolbar has H (heading), B, I, U, Mark, bullet list and numbered list. Ctrl+B, Ctrl+I and Ctrl+U work too.
+   - A text block is a `<textarea>` while it has focus and formatted text when it does not.
+   - Line breaks are kept.
+4. **Add a highlight to notes.**
+   - It can come from the pop-up ("Add to notes"), from a Highlights card ("Add to notes"), or by dragging a highlight or a selection from the paper onto the page.
+   - It becomes a **quote block** on the open page.
+   - A toast says *Added to "Notes"*, with **Undo**. On a phone in Paper view the toast also has **Open**, which switches to Notes.
+   - The Highlights card then shows **In notes ✓**. Clicking it opens the page and scrolls to the block.
+5. **Insert a quote from the toolbar.**
+   - The ❝ Quote button opens a list of the paper's highlights: meaning letter, page, first words.
+   - The list is filtered as you type. Highlights already on this page are marked.
+6. **Go back to the paper.**
+   - Every quote block has **p. N ↗**.
+   - On a wide screen it switches to Split if needed, goes to the page and flashes the passage. On a phone it switches to Paper.
+7. **Keep several pages.**
+   - "+ Page" adds "Untitled page" and focuses its title.
+   - A page picker lists the pages, each with its title and number of blocks.
+   - The ⋯ menu has Move up, Move down, Paper style (Plain, Ruled, Dotted, Grid) and Delete page.
+   - Delete shows a toast with Undo, which brings the page back with all its blocks.
+8. **Reorder and delete blocks.**
+   - Drag the handle, or focus it and press Alt+↑ or Alt+↓.
+   - The block's ⋯ menu has Delete, with Undo.
+9. **See whether notes are saved.**
+   - The save line says *Saved*, *Saving…*, *Not saved. Retry*, *Offline: kept on this device* or *Updated from another window*.
+   - The browser warns before closing with unsaved changes, as it does for drawings.
+10. **Export.**
+    - The Notes tab's ⋯ menu has **Copy as Markdown** and **Download Markdown** (`notes-<paper title>-<date>.md`), for the open page or for all pages.
+    - The Export dialog of section 10 stays in phase 4.
+
+With READER off, none of this exists: today's reader and its notes are unchanged, except the line-break fix (19.6), which applies to both readers.
+
+### 19.2 Data model
+
+Migration `0028_doc_notebook.sql`:
+
+```sql
+-- A paper's notebook: pages of blocks the owner writes, in their own words, with quotes of their highlights. Private to the paper's owner;
+-- deleted with the paper (and so with the account).
+CREATE TABLE doc_notebook_pages (
+  id TEXT PRIMARY KEY,                       -- made by the browser (a random id), so a page made offline keeps its id
+  doc_id TEXT NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
+  title TEXT NOT NULL DEFAULT '',
+  style TEXT NOT NULL DEFAULT 'plain',       -- plain | ruled | dotted | grid
+  position REAL NOT NULL,                    -- order among the paper's pages; a move takes the midpoint, no renumbering
+  blocks TEXT NOT NULL DEFAULT '[]',         -- JSON, checked by the server (19.3)
+  rev INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_doc_notebook_doc ON doc_notebook_pages (doc_id, position);
+```
+
+Blocks are a closed union in `packages/shared/src/notebook.ts`. The checks and the limits live there and are used by both sides.
+
+| kind | fields | phase |
+|---|---|---|
+| `text` | `id`, `md` (≤ 8,000 chars) | 2 |
+| `quote` | `id`, `noteId` (the highlight in `doc_notes`, or null after it is removed), `page`, `quote` (≤ 600; a copy, so the block survives the highlight), `color` | 2 |
+| `capture` | `id`, `page`, `x`, `y`, `w`, `h` (fractions 0..1) | 3; the server refuses it until then |
+| `answer` | `id`, `agent`, `text`, `pages[]` | 3 |
+
+Limits:
+- 50 pages per paper and 200 blocks per page.
+- 48 KB of JSON per page and 1 MB per paper.
+- Titles up to 120 characters.
+- Ids up to 40 characters from `[A-Za-z0-9_-]`.
+
+Every number is checked again on the server, because a block is untrusted input. Anything outside the union is refused with 400, not dropped silently.
+
+Why one row per page:
+- A save sends one page, not the whole notebook.
+- Two windows editing two different pages never conflict.
+- The 48 KB cap keeps every write small.
+
+### 19.3 API (`apps/api/src/docs/notebook.ts`, mounted under the documents router)
+
+- Every route is behind F10's `requireUser({ack, owns})` door and the same-origin middleware.
+- Every body is read through `readJson(c, MAX_NOTEBOOK_BODY)`.
+- With READER off the routes answer 404, the way MCP does when it is off.
+
+| Route | Does | Answers |
+|---|---|---|
+| `GET /documents/:id/notebook` | all pages, ordered by position | `{ pages: [{id,title,style,position,blocks,rev,updatedAt}] }` |
+| `PUT /documents/:id/notebook/pages/:pageId` | creates the page (no `rev`, or `rev: 0`) or replaces it (`rev` = the revision it started from) | 200 `{page}`; 409 `{page}` (the server's copy) when `rev` is stale; 413 over a limit; 400 for a bad block |
+| `PATCH /documents/:id/notebook/pages/:pageId` | `{title?, style?, position?}` only, with no `rev` needed: the last write wins, so a rename never conflicts with someone typing | 200 `{page}` |
+| `DELETE /documents/:id/notebook/pages/:pageId` | deletes the page; Undo puts it back with `PUT` and `rev: 0` | 204 |
+
+- `/account/export` gains `notebook: [{docId, title, style, blocks, updatedAt}]`.
+- Deleting the paper or the account removes the rows through the cascade. The account-deletion test checks it.
+
+### 19.4 The web side (`apps/web/src/components/papers/desk/notebook/`, a lazy `notebook` chunk)
+
+**Saving: `useNotebook(docId)`** (`lib/notebook.ts`)
+- It holds the pages and saves each one 1.2 s after its last change, one save at a time per page, with the page's `rev`.
+- Pages that are not saved yet wait in IndexedDB (the store `lib/idb.ts` already has for ink) and are sent when the connection returns.
+- On a 409 it merges by block id:
+  - the server's blocks are taken as the base;
+  - blocks this window changed since its last save are put over them;
+  - blocks this window added go after their neighbours;
+  - blocks this window deleted stay deleted.
+- If both windows changed the same block, this window's text wins and the toast says *Updated from another window*.
+- The ink save has the same shape, so its tests are the template.
+
+**The Markdown subset** (`packages/shared/src/notebook-md.ts`)
+- It is a pure parser that turns the text into tokens. It knows:
+  - headings (`#`, `##`, `###`), `**bold**`, `*italic*`, `<u>underline</u>`, `==mark==`;
+  - `- ` and `1. ` lists, paragraphs and line breaks.
+- React renders the tokens as elements. **No HTML string is ever put into the page** (no `dangerouslySetInnerHTML`), so by construction a block cannot run a script and nothing has to be sanitised.
+- Anything else (links, images, raw HTML) is shown as the text that was typed.
+
+**The editor**
+- The toolbar wraps or toggles the selection in the focused textarea (`lib/md-edit.ts`, pure and tested).
+- The textarea grows with its text (`useGrowingField`).
+- Enter at the end of a list item continues the list; Enter on an empty item ends it.
+- Tab is never trapped.
+
+**Paper styles** are background images made from `--border` at about 35 % opacity, so they suit Light, Dark and Read. They are decorative and never carry meaning.
+
+**In notes**
+- The Highlights list reads which `noteId`s are on any page.
+- When a highlight is removed from the paper, its quote blocks become plain quotes with the line *"highlight removed"*. The stored `noteId` becomes null on the next save.
+
+**Drag from the paper**
+- The drag carries the type `application/x-sodhsetu-quote` with `{noteId?, page, quote}`.
+- A selection that is not a highlight yet is highlighted first, in the current meaning.
+- Dropping works only on a wide screen. On a phone, "Add to notes" is the way.
+
+**The open page** for "Add to notes" is the last page the person used in this paper, kept on this device in `scholar.notebook.<docId>`. The first time, it is a new page called "Notes".
+
+### 19.5 Accessibility
+
+- The page list is a listbox in a popover.
+- The blocks are a list (`role="list"`).
+- Each block has a handle button ("Move block, position 2 of 5"). Alt+↑ and Alt+↓ move the block, and the new position is announced through `announce()`.
+- A formatted text block is a focusable region, "Text block 2, press Enter to edit". Enter or a click opens the textarea; Esc closes it and keeps the focus on the block.
+- The toolbar is a `role="toolbar"`. B, I, U and Mark get `aria-pressed` from the selection.
+- Quote blocks name their meaning in words ("Key idea, page 4").
+- axe runs on the Notes tab in Light, Dark and Read, at 1280 and 390 px, with a page that holds every block kind.
+
+### 19.6 The line-break fix (both readers)
+
+**Today:** `cleanText` (docs/routes.ts:704) collapses every run of whitespace, line breaks included, so a note typed on three lines is saved as one.
+
+**The fix:**
+- `\n` is kept.
+- Runs of spaces and tabs within a line become one space.
+- At most two blank lines in a row are kept.
+- Each line's end is trimmed.
+
+Quotes keep today's single-line cleaning, because they come from the paper's text layer. The Notes list of today's reader shows the line breaks (`white-space: pre-line`).
+
+**Tests:**
+- API: a note with three lines comes back with three lines.
+- Unit tests for the new cleaning.
+- `papers.mjs`: a note typed with Shift+Enter keeps its line break after a reload.
+
+### 19.7 Privacy (the owner reads this first)
+
+The row "Papers you upload" (LegalPages.tsx) becomes:
+
+> …Also what you add to a paper: highlights and notes (including **pages of notes you write in the reader, with the passages you quote into them**), drawings (pen and highlighter strokes), tags, whether it is to read, being read or done, and the page you reached…
+
+**What stays the same:**
+- Where the notes are kept: our database, with the paper.
+- How long: until the paper or the account is deleted.
+- Who sees them: only the owner.
+- The data export and the AI rules.
+- Phase 2 sends nothing new to any model or service.
+
+**How it is tied down:**
+- `legal-match.test.ts` gains READER in `FLAG_SENTENCES`. With READER at `dark` or `on`, the page must contain the new words.
+- `PRIVACY_VERSION` goes to the next draft.
+
+**How it ships:**
+- The words are in a commit of their own on a branch of their own, `reader-privacy`.
+- That branch is merged only after the owner has read it, and before READER leaves `off`.
+- Phase 3 changes the same row once more, for captures and agent answers.
+
+### 19.8 Weight
+
+- The `notebook` chunk holds the parser, the editor, the blocks, the page picker and the merge. Its budget is **16 KB gzip**.
+- It is on the HEAVY list and loads only when the Notes tab opens.
+- The first load does not change, and there is no new dependency.
+
+### 19.9 Tests
+
+| Level | What |
+|---|---|
+| shared unit | `notebook.ts` checks: every limit, every kind, a capture refused in phase 2, ids. `notebook-md.ts`: each mark, nesting, lists, line breaks, and `<script>`, `<img onerror>` and `[x](javascript:…)` come out as text. `md-edit.ts`: wrap and unwrap, a list continued and ended |
+| web unit | `useNotebook`: the merge on 409 (each of its four rules), the offline queue, Undo of a deleted page and of a deleted block |
+| API unit | The routes: create, replace, a stale `rev` gets 409 with the server's page, PATCH with no `rev`, limits give 413, a bad block gives 400, another user gets 404, READER off gives 404 |
+| route-guard table | The four new routes appear with their guards (F10's test fails until they do) |
+| integration (`scripts/notebook-e2e.mjs`, `reader-on` run) | The real Worker: create, edit, conflict, delete and Undo, the export carries the notebook, deleting the paper and deleting the account remove the rows |
+| browser (`e2e/notebook.mjs`, `reader-on` run) | Write and format. Add a highlight from the pop-up, from a card and by dragging. In notes. p. N ↗ back to the paper. Pages: add, rename, style, move, delete and Undo. Offline, then reconnect. Two tabs on one page. A reload keeps everything. Phone Paper ↔ Notes with the toast's Open. axe in the three themes. No sideways scroll |
+| default run | `papers.mjs` gains the line-break check; everything else is unchanged |
+| budget, contrast | The `notebook` budget line. The paper styles are decorative, so there is no new contrast pair |
+
+### 19.10 Order of work (one PR, small commits)
+
+1. Shared: `notebook.ts` and `notebook-md.ts`, with their tests.
+2. The line-break fix for both readers, with its tests, in its own commit, because it is a visible change in today's reader.
+3. Migration 0028, the API routes, the route-guard table rows, the export, and the API tests.
+4. `notebook-e2e.mjs`, registered in the `reader-on` run.
+5. Web, in this order:
+   - `useNotebook` and its tests;
+   - the Notes tab: blocks, editor, toolbar, pages;
+   - Add to notes, In notes, drag, Markdown export.
+6. `e2e/notebook.mjs` and the budget line.
+7. Screenshots `after-p2-*` for the owner:
+   - desktop, tablet and phone, each in Light, Dark and Read;
+   - a phone toast with Open;
+   - a page in each style;
+   - a conflict toast.
+8. The privacy words on `reader-privacy` (19.7), as a PR of their own, held for the owner.
+
+Phase 2 merges the way phase 1 did: behind READER, which stays `off` in production until the owner turns `dark` on for their own account.
+
+## 20. Phase 2 as built (17 Nov 2026)
+
+Phase 2 ("Notebook") is built on the branch `reader-p2`, on top of phase 1 (`reader-v2`), behind `READER`, which is not set in `wrangler.jsonc`: production keeps today's reader. Where the build differs from section 19, this is what was done and why.
+
+**The server.**
+- F10 (`requireUser`, `readJson`, the route-guard table) is not on this base. The four routes are guarded the way the notes and the drawing of a paper are today, in `docs/routes.ts`: the same-origin check on a write, the signed-in person, their own paper (404 for anyone else's), and the body read with a size limit (`MAX_NOTEBOOK_BODY`, a page's 48 KB and 4 KB of envelope; the `Content-Length` and the text are both checked, as for ink). The notes and ink routes ask for no privacy note, so these do not either. **F10's door replaces these lines, and the route-guard table gains the four rows, when the W3 untangle merges.**
+- The routes stay in `docs/routes.ts` (the door) and call `docs/notebook.ts` (the store): a new file importing `auth/http.ts` would have been a new edge against the layer rule.
+- With READER off the routes answer 404 to everyone, signed in or not, before anything else (as the MCP server does when it is off); `shadow` counts as off, as in phase 1. At `dark`, an account not in `READER_BETA_USERS` gets the same 404 once signed in.
+- The table's key is `(doc_id, id)`, not `id` alone: the id is made by the browser, and with a key of its own one person's id could meet (and be refused by) another person's page.
+- `PUT` with a revision replaces the **blocks only**; the title, style and place are sent by `PUT` only when a page is made (no revision), and by `PATCH` after that. Otherwise a window holding an older title would put it back with every save of its blocks.
+- `PUT` with a revision on a page that is gone (deleted in another window) answers 404 `page_gone`; the page that was writing in it makes it again (no revision), so what was typed is not lost.
+- The 51st page is refused with 413 `notebook_full` (the plan's "413 over a limit"), checked in the same statement that inserts, so two windows cannot both make it.
+- The export has `notebook: [{docId, title, style, blocks, updatedAt}]` at its top level, as 19.3 says (always present; empty for everyone today).
+
+**The page.**
+- `lib/notebook.ts` is a store with its network, IndexedDB, clock and storage handed in (like the toast queue), and `useNotebook` reads it, so the merge, the offline queue and both Undos are tested in node. Pages not yet saved wait under `nb:<paper>` in the store drawings use; signing out clears them with the drawings, and asks first when some wait (a second question, said only when there are notes waiting: with READER off there never are).
+- **When the chunk loads.** Not only when the Notes tab opens: "Add to notes" (the pop-up on a phone in Paper view, a Highlights card) and the cards' "In notes" need the store while the Notes tab is closed. The chunk is fetched when the panel is shown, when Add to notes is pressed, or 2.5 s after the paper opens (as the Agents drawer is). It stays out of the first load and is on the HEAVY list.
+- The chunk imports neither `lib/meanings` nor `lib/copy`: the reader hands them in. Imported from the notebook chunk too, the bundler cut them (and one icon) out of the first load's chunks into chunks of their own, which cost the first load 0.5 KB of compression for nothing.
+- The Notes tab's pop-overs (the page picker, the menus, the quote picker) are the notebook's own small `NbPop`, not the app's `Pop` (a new layer edge); the menus wear the reader's own `.desk-menu` styles.
+- An empty text block is always its text field, so writing starts at once; the cursor goes into the empty page's block when the person opens the Notes tab (a click on the tab, Open, In notes), never when the reader loads, so the focus is not taken from the paper.
+- **H** makes the line a heading (`# `) or plain again; a block's headings are drawn as `h3` to `h5`, under the page's own heading (a hidden `h2` with the page's title).
+- A block's ⋯ menu has Delete (with Undo); moving is the handle's (drag, or Alt+↑ and Alt+↓, said through `announce()`).
+- **The pop-up**: "Add note" (phase 1) gives way to **Add to notes**, or **In notes ✓** for a highlight that is quoted, as section 4's table has it. A highlight's own note is still written in its Highlights card, and the note icon on the page still opens it. After Add to notes on a new selection the selection is let go (it is a highlight now).
+- The panel has three tabs now (Notes, Highlights, References). In the new reader they are a little tighter than the two of phase 1, and the row scrolls sideways rather than cut the last one off: at 834 px in Split it was cut off.
+- The formatting toolbar sits in a row of its own that is the sticky box, so the quote picker (a pop-over in it) is never clipped: a pop-over inside a scrolling box is cut off by it, and the first build's picker was (Playwright still counted it as visible; the suite now checks the point at its middle).
+- The toast has a second action (`more`), for **Open** beside Undo on a phone in Paper view.
+- **Drag from the paper**: a selection (of new text or of a highlight's text) carries `{noteId: null, page, quote}`; on the drop the reader finds the highlight it already is (`planNewHighlight`) or makes one in the meaning chosen. Dropping works on a wide screen only.
+- Markdown: the page's one ⋯ menu copies or downloads this page or all pages: `notes-<paper>-<date>.md`, or `notes-<paper>-<page>-<date>.md` for one page.
+- The paper styles are drawn with `--border-strong` at 38 %: `--border` at 35 % could not be seen at all in Light.
+- Two windows that each show the starter page "Notes" (nothing written yet) and both start writing make two pages called Notes; once a page exists on the server, both windows show it and merge as planned.
+- In the Markdown out, a text block's headings sit under the page's: `#` becomes `###` (the paper's title is `#`, each page `##`).
+
+
+**The owner's review of the pictures (17 Nov): a calmer Notes tab.** The first build looked like a form; it should feel like a good notes app. What changed (the block editors' pattern, as in Tiptap, BlockNote and Notion: a block's controls show on hover or focus):
+- **A block's handle and its one ⋯** are hidden until the block is pointed at, holds the focus, or (with no hover, on touch) was tapped. Opacity only, so nothing moves; the keyboard reaches them, and the focus shows them.
+- **One header.** The page's title is written in place (large, serif, as wide as its words), with the list of pages (▾, and "1/2" when there are more) right after it; then **+ Page**, the save line (small and muted: "Saved"), and the page's **one ⋯ menu**: Rename, Move up, Move down, Paper (Plain, Ruled, Dotted, Grid), Markdown (copy or download this page or all pages), Delete page. The second ⋯ and the second title are gone.
+- **One place to write at the end.** The page always ends on a line that says "Write here…": its last block when that is an empty text block, or a line that becomes one at the first key. "+ Text" is gone, and an empty block between two others is a blank line, not a second "Write here". The empty page's one line says what to do ("Write here, or select text in the paper and choose Add to notes."). A new page is Plain (it always was; the Grid in the pictures was the picture script's).
+- **The toolbar** is attached to the top of the page, lighter (no box, muted icons), in two groups that never split: H B I U Mark, then the two lists and Quote. A narrow panel puts the second group on a row of its own, nothing is cut off, and on touch every button is 44 px.
+- **One rhythm for the paper.** `--nb-line` is the height of a line of text. A text block has no vertical padding or border, and its headings, paragraphs and list items are each one line high, so its lines sit on the rules; the rules are drawn in each text block from its own top (and in the empty end of the page), so a quote card of another height never puts the blocks after it out of step. Dotted and Grid keep the same step, and Grid is lighter (`--border-strong` at 20 %). The paper scrolls with the text.
+- **The Highlights head** (the new reader only; today's reader keeps its own): By page | By colour and **one Export menu** (Copy as Markdown, Download), so it is one row at every width. The count is said to a screen reader only, since the Highlights tab already shows it (with it, the head wrapped in Split at 1280 px). The colour chips leave out a meaning with no highlight (they were disabled noise) and stay on **one line**: when it does not fit, it scrolls sideways with a fade on the side that has more, so no chip sits alone on a second line. The Export menu is made in DeskBits.tsx and handed to the list (`exportMenu`), which keeps the layer rule's allowlist as it was.
+
+**Weight.** The `notebook` chunk is 13.6 KB gzip of its 16 KB: the Markdown parser, the editor, the store and its merge. Its stylesheet (`notebook.css`, about 2.7 KB) comes with the reader's own chunk (Desk, 16.6 of 28 KB), because the Notes tab is the panel's first tab: the page is styled before the notebook chunk arrives, and nothing is added to the first load. (Putting the Markdown export behind a dynamic import was tried and made the chunk 0.9 KB larger, the loader and the module's wrapping costing more than the 0.3 KB it moved.) The first load grew by 0.09 KB gzip (233.07 to 233.16 KB), all of it the sign-out question about notes not yet sent (`lib/auth.ts`, `lib/offline.ts`), which has to be in the first load because signing out is. There is no new dependency, and the layer allowlists did not grow.
+
+**Privacy.** The words of 19.7 are on `reader-privacy`, one commit on top of this branch. `legal-match.test.ts` refuses a flag's sentence on the page while the flag is off, but 19.7 puts the words on the page before READER leaves `off`. So the READER row of `FLAG_SENTENCES` is pinned at `off`, `dark` and `on`: the page must say it at every position. That is the safe way round, since the page may say more is kept than is, never less. The row can drop `off` once READER is `on` in production.

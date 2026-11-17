@@ -1,5 +1,5 @@
 import { m } from "motion/react";
-import { Copy, MessageCircleQuestion, StickyNote, Trash2 } from "lucide-react";
+import { CircleCheck, Copy, MessageCircleQuestion, NotebookPen, Trash2 } from "lucide-react";
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { NOTE_COLORS, type DocNote, type NoteColor } from "@scholar/shared";
 import { MEANINGS } from "../../../lib/meanings";
@@ -14,13 +14,18 @@ export type PopupActions = {
   copy: (quote: string) => void;
   recolor: (note: DocNote, color: NoteColor) => void;
   remove: (note: DocNote) => void;
-  openNote: (note: DocNote) => void;
+  /** Add to notes (phase 2): a quote of the highlight on the open notebook page; a new selection is highlighted first, in the meaning chosen. */
+  addToNotes: (p: { page: number; quote: string; note: DocNote | null }) => void;
+  /** Is this highlight quoted on a page of notes already ("In notes")? */
+  inNotes: (note: DocNote) => boolean;
+  showInNotes: (note: DocNote) => void;
 };
 
 /**
  * The pop-up of a selection, or of a highlight that was clicked (docs/design/paper-reader.md, section 4). It follows the selection on a wide screen and is a fixed pill at the bottom on a phone.
  * A toolbar: the arrows move inside it (Home and End to its ends), Esc closes it and gives the focus back to the pages; Tab from the pages comes into it (PdfViewer).
- * New selection: the four meanings, Add note, Explain, Copy. A highlight: the four meanings to recolour it (a ring on its own), Add note, Explain, Copy, Remove.
+ * New selection: the four meanings, Add to notes, Explain, Copy. A highlight: the four meanings to recolour it (a ring on its own), Add to notes (or In notes, which opens the block), Explain,
+ * Copy, Remove (section 4; until phase 2 it was "Add note", which opened the highlight's own note: that note is written in the Highlights list).
  */
 export function SelectionPopup({ p, wide, actions, onRect }: { p: DeskPopup; wide: boolean; actions: PopupActions; onRect: (r: DOMRect | null) => void }) {
   const box = useRef<HTMLDivElement>(null);
@@ -89,10 +94,17 @@ export function SelectionPopup({ p, wide, actions, onRect }: { p: DeskPopup; wid
         })}
       </div>
       <span className="pdfv-sel-sep" aria-hidden="true" />
-      <button type="button" className="desk-pop-btn" onClick={done(() => (note ? actions.openNote(note) : p.create(actions.meaning, true)))} title={note ? "Write a note on this highlight" : `Highlight as ${MEANINGS[actions.meaning].name} and write a note on it`}>
-        <StickyNote size={14} aria-hidden="true" />
-        <span>Add note</span>
-      </button>
+      {note && actions.inNotes(note) ? (
+        <button type="button" className="desk-pop-btn desk-pop-innotes" onClick={done(() => actions.showInNotes(note))} title="This highlight is in your notes: open it there">
+          <CircleCheck size={14} aria-hidden="true" />
+          <span>In notes</span>
+        </button>
+      ) : (
+        <button type="button" className="desk-pop-btn" onClick={done(() => actions.addToNotes({ page: p.page, quote: p.quote, note }))} title={note ? "Put this highlight into your notes, as a quote" : `Highlight as ${MEANINGS[actions.meaning].name} and put it into your notes, as a quote`}>
+          <NotebookPen size={14} aria-hidden="true" />
+          <span>Add to notes</span>
+        </button>
+      )}
       <button type="button" className="desk-pop-btn" onClick={done(() => actions.explain(p.quote))} title="Ask the paper to explain this, in the Agents">
         <MessageCircleQuestion size={14} aria-hidden="true" />
         <span>Explain</span>

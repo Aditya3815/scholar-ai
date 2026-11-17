@@ -1,6 +1,6 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Maximize2, Minimize2, X } from "lucide-react";
-import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Maximize2, Minimize2, NotebookPen, X } from "lucide-react";
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { NOTE_COLORS, planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type NoteColor, type PaperInfo, type ScanInfo } from "@scholar/shared";
 import { fileUrl } from "../../../lib/documents";
 import { registerCommands } from "../../../lib/commands";
@@ -11,6 +11,8 @@ import { toggleFullscreen } from "../../../lib/fullscreen";
 import type { InkApi } from "../../../lib/ink";
 import { MEANINGS } from "../../../lib/meanings";
 import { easeOut, spring } from "../../../lib/motion";
+// types only: the store's code is the notebook chunk's (a value imported here would pull it into this one)
+import type { NbState, NotebookStore } from "../../../lib/notebook";
 import type { NotesApi } from "../../../lib/notes";
 import { showNotice } from "../../../lib/notice";
 import { openOaAsk } from "../../../lib/oa-ask";
@@ -27,14 +29,19 @@ import { OpeningPaper, TitleEditor, authorsLine, contentsOf, type Pdf } from "..
 import { ReferencesPanel } from "../ReferencesPanel";
 import { ScanBanner } from "../ScanBanner";
 import type { AgentsDrawerProps } from "./AgentsDrawer";
-import { AgentsFab, DownloadMenu, MeaningPicker, SIDE_KEY, SplitDivider, Toasts, ToolSegment, ViewSwitch, clampSide } from "./DeskBits";
+import { AgentsFab, DownloadMenu, HighlightsExport, MeaningPicker, SIDE_KEY, SplitDivider, Toasts, ToolSegment, ViewSwitch, clampSide } from "./DeskBits";
 import { SelectionPopup, type PopupActions } from "./SelectionPopup";
 import "./desk.css";
+// the Notes tab's styles: the panel opens on it, so they come with the reader and the notes are never drawn unstyled while the notebook chunk arrives
+import "./notebook/notebook.css";
 
 const PdfViewer = lazy(() => import("../PdfViewer").then((mod) => ({ default: mod.PdfViewer })));
 // the Agents drawer (with the Ask panel) is the "agents" chunk: fetched when the button is first pressed, or a little after the paper is open
 const loadAgents = () => import("./AgentsDrawer");
 const AgentsDrawer = lazy(() => loadAgents().then((mod) => ({ default: mod.AgentsDrawer })));
+// the Notebook (the Notes tab, its store and its Markdown) is the "notebook" chunk: fetched when the panel is shown, when Add to notes is pressed, or a little after the paper is open
+const loadNotebook = () => import("./notebook/Notebook");
+const NotebookView = lazy(() => loadNotebook().then((mod) => ({ default: mod.Notebook })));
 
 /** What the page (DocWorkspace, which keeps the paper, its notes and its drawing) hands the new reader. */
 export type DeskProps = {
@@ -70,7 +77,14 @@ export type DeskProps = {
   onUseReferenceList: (entries: string[]) => Promise<void>;
 };
 
-type PanelTab = "highlights" | "refs";
+type PanelTab = "notes" | "highlights" | "refs";
+const TABS: { id: PanelTab; label: string; Icon: typeof Highlighter }[] = [
+  { id: "notes", label: "Notes", Icon: NotebookPen },
+  { id: "highlights", label: "Highlights", Icon: Highlighter },
+  { id: "refs", label: "References", Icon: BookMarked },
+];
+const NO_NOTEBOOK = () => () => {};
+const notebookState = (s: NotebookStore | null): NbState | null => s?.get() ?? null;
 const MEANING_KEY = "scholar.meaning";
 const readStore = (k: string): string | null => {
   try {
@@ -114,7 +128,8 @@ export function Desk(props: DeskProps) {
     if (!wide && view === "split") setViewState("paper");
   }, [wide, view]);
   const shown = fitView(view, wide);
-  const [tab, setTab] = useState<PanelTab>("highlights");
+  // Notes first (phase 2): the notebook is the panel's first tab
+  const [tab, setTab] = useState<PanelTab>("notes");
 
   /* ---- the panel's width in Split, kept on this device ---- */
   const [sideW, setSideW] = useState<number | null>(() => {
@@ -288,6 +303,107 @@ export function Desk(props: DeskProps) {
     },
     [existing, addNote, updateNote, openNote],
   );
+
+  /* ---- the Notebook (phase 2): its chunk is loaded when the panel is shown, when Add to notes is pressed, or a little after the paper is open; then the store is made ---- */
+  const [nb, setNb] = useState<NotebookStore | null>(null);
+  const nbReady = useRef<Promise<NotebookStore> | null>(null);
+  const nbStop = useRef<(() => void) | null>(null);
+  const ensureNotebook = useCallback((): Promise<NotebookStore> => {
+    if (!nbReady.current) {
+      const ready = loadNotebook().then(async (mod) => {
+        const store = mod.createNotebookStore(doc.id, mod.browserNotebookDeps(() => toast("Updated from another window")));
+        if (nbReady.current !== ready) {
+          store.destroy();
+          throw new Error("left");
+        }
+        nbStop.current = mod.attachNotebook(store);
+        setNb(store);
+        await store.load();
+        return store;
+      });
+      ready.catch(() => {
+        if (nbReady.current === ready) nbReady.current = null;
+      });
+      nbReady.current = ready;
+    }
+    return nbReady.current;
+  }, [doc.id]);
+  useEffect(
+    () => () => {
+      nbStop.current?.();
+      nbStop.current = null;
+      nbReady.current = null;
+      setNb(null);
+    },
+    [doc.id],
+  );
+  useEffect(() => {
+    if (shown !== "paper") return void ensureNotebook().catch(() => {});
+    const t = window.setTimeout(() => void ensureNotebook().catch(() => {}), 2500);
+    return () => window.clearTimeout(t);
+  }, [shown, ensureNotebook]);
+  const nbState = useSyncExternalStore(nb?.subscribe ?? NO_NOTEBOOK, () => notebookState(nb), () => null);
+  // a quote of a highlight that is gone is saved without it (and says "highlight removed")
+  useEffect(() => {
+    nb?.setKnownNotes(notes.status === "ready" ? new Set(existing.map((n) => n.id)) : null);
+  }, [nb, notes.status, existing]);
+  const [nbFocus, setNbFocus] = useState<{ blockId: string | null; tick: number } | null>(null);
+  /** The Notes tab, on the page and block given (In notes, the toast's Open), or as it is. */
+  const openInNotes = useCallback(
+    (store: NotebookStore | null, at: { pageId: string; blockId: string } | null) => {
+      if (store && at) store.open(at.pageId);
+      setTab("notes");
+      if (shown === "paper") setView(wide ? "split" : "notes");
+      setNbFocus((f) => ({ blockId: at?.blockId ?? null, tick: (f?.tick ?? 0) + 1 }));
+    },
+    [shown, wide, setView],
+  );
+  /** A highlight for this text: the one there is (planNewHighlight), or a new one in `color`. null when it could not be made (the notes list says why). */
+  const highlightFor = useCallback(
+    async (page: number, quote: string, color: NoteColor): Promise<DocNote | null> => {
+      const plan = planNewHighlight(existing, { page, quote, color, withNote: false });
+      if (plan.action !== "add") return existing.find((n) => n.id === plan.id) ?? null;
+      return addNote({ page, quote, color });
+    },
+    [existing, addNote],
+  );
+  /** Add to notes: a quote of the highlight on the open page (or where it was dropped), with a toast to undo it; on a phone in Paper view the toast can also open the notes. */
+  const quoteToNotes = useCallback(
+    async (note: DocNote | null, where?: { pageId: string; index: number }) => {
+      if (!note) return void showNotice(notes.error || "That could not be added to your notes.");
+      const store = await ensureNotebook().catch(() => null);
+      if (!store) return void showNotice("Your notes could not be opened. Check the connection, then try again.");
+      const at = store.addQuote({ noteId: note.id, page: note.page, quote: note.quote, color: note.color }, where);
+      if (!at) return;
+      announce(`Added to ${at.title}`);
+      const phonePaper = !wide && shown === "paper";
+      toast(`Added to "${at.title}"`, { label: "Undo", run: () => (at.undo(), announce("Taken out of your notes")) }, phonePaper ? { label: "Open", run: () => openInNotes(store, at) } : undefined);
+      if (shown !== "paper" && tab === "notes") setNbFocus((f) => ({ blockId: at.blockId, tick: (f?.tick ?? 0) + 1 }));
+    },
+    [ensureNotebook, notes.error, wide, shown, tab, openInNotes],
+  );
+  const showInNotes = useCallback(
+    (noteId: string) => {
+      void ensureNotebook().then((store) => openInNotes(store, store.findQuote(noteId)));
+    },
+    [ensureNotebook, openInNotes],
+  );
+  const onDropQuote = useCallback(
+    (d: { noteId: string | null; page: number; quote: string }, pageId: string, index: number) => {
+      const known = d.noteId ? existing.find((n) => n.id === d.noteId) : null;
+      void (known ? Promise.resolve(known) : highlightFor(d.page, d.quote, meaning)).then((note) => quoteToNotes(note, { pageId, index }));
+    },
+    [existing, highlightFor, meaning, quoteToNotes],
+  );
+  const notebookOnCard = useMemo(
+    () => ({
+      inNotes: (id: string) => !!nbState?.quoted.has(id),
+      add: (n: DocNote) => void quoteToNotes(n),
+      open: (n: DocNote) => showInNotes(n.id),
+    }),
+    [nbState, quoteToNotes, showInNotes],
+  );
+
   const actions: PopupActions = useMemo(
     () => ({
       meaning,
@@ -311,9 +427,16 @@ export function Desk(props: DeskProps) {
           toast("Highlight removed", { label: "Undo", run: () => void addNote({ page: note.page, quote: note.quote, color: note.color, note: note.note }).then((back) => back && announce("The highlight is back")) });
         });
       },
-      openNote: (note) => openNote(note.id),
+      addToNotes: (p) => {
+        if (p.note) return void quoteToNotes(p.note);
+        // the selection becomes a highlight: it is let go, so a click on the highlight opens its own pop-up
+        window.getSelection()?.removeAllRanges();
+        void highlightFor(p.page, p.quote, meaning).then((note) => quoteToNotes(note));
+      },
+      inNotes: (note) => !!nbState?.quoted.has(note.id),
+      showInNotes: (note) => showInNotes(note.id),
     }),
-    [meaning, openAgents, updateNote, removeNote, addNote, openNote],
+    [meaning, openAgents, updateNote, removeNote, addNote, quoteToNotes, highlightFor, nbState, showInNotes],
   );
 
   /* ---- on a wide screen the drawer starts below the paper's header while that is in sight (the view switch and the theme stay reachable) ---- */
@@ -375,7 +498,8 @@ export function Desk(props: DeskProps) {
               { id: "r-pdf", label: "Download a copy with my marks", group: "This paper", keywords: "annotated pdf export save", run: () => window.dispatchEvent(new Event("scholar:annotated")) },
             ]
           : []),
-        { id: "r-notes", label: "Show my highlights", group: "This paper", keywords: "notes colours meanings highlights", run: () => showPanel("highlights") },
+        { id: "r-notebook", label: "Show my notes", group: "This paper", keywords: "notes notebook pages write", run: () => openInNotes(nb, null) },
+        { id: "r-notes", label: "Show my highlights", group: "This paper", keywords: "colours meanings highlights", run: () => showPanel("highlights") },
         { id: "r-refs", label: "Show the references of this paper", group: "This paper", keywords: "bibliography", run: () => showPanel("refs") },
         { id: "r-back", label: `Back to ${PAPERS_NAME}`, group: "This paper", keywords: "close list", run: onBack },
       ],
@@ -384,7 +508,7 @@ export function Desk(props: DeskProps) {
         return n && numPages > 0 && Number(n) >= 1 && Number(n) <= numPages ? [{ id: "r-page", label: `Go to page ${Number(n)} of ${numPages}`, group: "This paper", run: () => goTo(Number(n)) }] : [];
       },
     });
-  }, [fs.available, fs.on, wide, pdfReady, numPages, openAgents, setView, pickTool, showPanel, onBack, goTo, viewer]);
+  }, [fs.available, fs.on, wide, pdfReady, numPages, openAgents, setView, pickTool, showPanel, onBack, goTo, viewer, openInNotes, nb]);
 
   /* ---- what the viewer is given ---- */
   const slots: DeskSlots = useMemo(
@@ -402,6 +526,7 @@ export function Desk(props: DeskProps) {
       highlight: mode === "highlight" ? meaning : null,
       popup: (p) => <SelectionPopup key={p.note?.id ?? "sel"} p={p} wide={wide} actions={actions} onRect={setPopRect} />,
       onDraw: setDrawOpen,
+      quoteDrag: true,
     }),
     [mode, meaning, setMeaning, pickTool, pdfReady, pdf, doc.id, doc.title, notes.notes, ink.strokes, wide, actions],
   );
@@ -503,12 +628,13 @@ export function Desk(props: DeskProps) {
 
         <div ref={sideEl} id="dw-panel-side" className="dw-panel dw-ask desk-side" role="region" aria-label="Notes" hidden={shown === "paper"}>
           <div className="dw-sidehead desk-sidehead">
-            <div className="dw-sidetabs" role="tablist" aria-label="Highlights or references">
-              {([["highlights", "Highlights", Highlighter], ["refs", "References", BookMarked]] as const).map(([t, label, Icon]) => (
-                <button key={t} type="button" role="tab" id={`desk-tab-${t}`} aria-selected={tab === t} aria-controls={`desk-tabpanel-${t}`} tabIndex={tab === t ? 0 : -1} className="dw-sidetab" onClick={() => setTab(t)} onKeyDown={(e) => {
-                  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+            <div className="dw-sidetabs" role="tablist" aria-label="Notes, highlights or references">
+              {TABS.map(({ id: t, label, Icon }, k) => (
+                <button key={t} type="button" role="tab" id={`desk-tab-${t}`} aria-selected={tab === t} aria-controls={`desk-tabpanel-${t}`} tabIndex={tab === t ? 0 : -1} className="dw-sidetab" onClick={() => (t === "notes" && tab !== "notes" ? openInNotes(nb, null) : setTab(t))} onKeyDown={(e) => {
+                  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") return;
                   e.preventDefault();
-                  const next = t === "highlights" ? "refs" : "highlights";
+                  const to = e.key === "Home" ? 0 : e.key === "End" ? TABS.length - 1 : (k + (e.key === "ArrowRight" ? 1 : -1) + TABS.length) % TABS.length;
+                  const next = TABS[to]!.id;
                   setTab(next);
                   window.setTimeout(() => document.getElementById(`desk-tab-${next}`)?.focus(), 0);
                 }}>
@@ -521,9 +647,18 @@ export function Desk(props: DeskProps) {
               ))}
             </div>
           </div>
-          {/* Both stay mounted, so references being checked are not lost by switching tabs. */}
+          {/* All three stay mounted, so references being checked are not lost by switching tabs, and a note being written keeps its place. */}
+          <div className="dw-side desk-tabpanel" id="desk-tabpanel-notes" role="tabpanel" aria-labelledby="desk-tab-notes" hidden={tab !== "notes"}>
+            {nb ? (
+              <Suspense fallback={<p className="nb-wait" role="status">Loading your notes…</p>}>
+                <NotebookView store={nb} docTitle={doc.title} notes={existing} notesReady={notes.status === "ready"} wide={wide} onGoTo={goTo} onDropQuote={onDropQuote} announce={announce} focus={nbFocus} meanings={MEANINGS} copy={copyText} />
+              </Suspense>
+            ) : (
+              <p className="nb-wait" role="status">Loading your notes…</p>
+            )}
+          </div>
           <div className="dw-side desk-tabpanel" id="desk-tabpanel-highlights" role="tabpanel" aria-labelledby="desk-tab-highlights" hidden={tab !== "highlights"}>
-            <NotesPanel doc={doc} api={notes} focusId={focusNote?.id ?? null} focusTick={focusNote?.tick ?? 0} onGo={onGoToNote} onFocusDone={(id) => setFocusNote((f) => (f?.id === id ? null : f))} />
+            <NotesPanel compact exportMenu={(a) => <HighlightsExport {...a} />} doc={doc} api={notes} focusId={focusNote?.id ?? null} focusTick={focusNote?.tick ?? 0} onGo={onGoToNote} onFocusDone={(id) => setFocusNote((f) => (f?.id === id ? null : f))} notebook={notebookOnCard} />
           </div>
           <div className="dw-side desk-tabpanel" id="desk-tabpanel-refs" role="tabpanel" aria-labelledby="desk-tab-refs" hidden={tab !== "refs"}>
             <ReferencesPanel

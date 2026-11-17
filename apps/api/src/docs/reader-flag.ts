@@ -21,3 +21,9 @@ export async function readerOnFor(env: ReaderFlagEnv | undefined, userId: string
   const r = await flag(env ?? {}, "READER");
   return r.position === "on" || (r.position === "dark" && readerBetaUsers(env).includes(userId));
 }
+
+/** Is the new reader on for anybody (dark or on)? Off, the routes that only the new reader uses (the Notebook) do not exist, for anyone. */
+export async function readerSwitchedOn(env: ReaderFlagEnv | undefined): Promise<boolean> {
+  const p = (await flag(env ?? {}, "READER")).position;
+  return p === "dark" || p === "on";
+}

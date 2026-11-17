@@ -266,10 +266,13 @@ try {
   await noteBox.waitFor({ timeout: 8000 });
   ok(true, "'Add note' opens the Notes tab with the note box ready to type in");
   await noteBox.fill("Check this against the second paper");
+  // a second line, typed with Shift+Enter, is kept (docs/design/paper-reader.md 19.6: the server used to make every note one line)
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("and its sample size");
   await noteBox.blur();
   // asked of the server from here until it says so: waitForFunction takes the Promise of an async predicate for a true value and is done at once, so it waited for nothing
   const noteDoc = await page.evaluate(() => location.pathname.split("/").pop());
-  ok(await until(() => page.evaluate(async (id) => (await (await fetch(`/api/v1/documents/${id}/notes`)).json()).items.some((n) => n.note === "Check this against the second paper"), noteDoc), 8000), "the note is saved when the box loses focus");
+  ok(await until(() => page.evaluate(async (id) => (await (await fetch(`/api/v1/documents/${id}/notes`)).json()).items.some((n) => n.note === "Check this against the second paper\nand its sample size"), noteDoc), 8000), "the note is saved when the box loses focus, with its line break");
   ok((await page.locator(".note").count()) === 2, "the Notes tab lists both, in page order");
   ok((await page.locator(".dw-tab-n").filter({ hasText: "2" }).count()) >= 1, "the Notes tab shows how many there are");
   await shot("66c-notes-panel");
@@ -281,6 +284,7 @@ try {
   ok(/\S/.test(firstText) && /\S/.test(secondText), "(the two pieces of text were real)");
 
   await page.getByRole("tab", { name: /^Notes/ }).first().click();
+  ok((await page.locator("textarea.note-text").evaluateAll((els) => els.map((e) => e.value))).includes("Check this against the second paper\nand its sample size"), "a note typed on two lines (Shift+Enter) keeps its line break after a reload");
   const dl = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download", exact: true }).click();
   const file = await dl;

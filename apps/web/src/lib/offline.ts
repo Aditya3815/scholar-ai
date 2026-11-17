@@ -127,8 +127,9 @@ export async function clearOfflineData(): Promise<void> {
   notifyChanged();
 }
 
-/** Drawings that have not reached the server (made offline). */
-export const pendingDrawings = async (): Promise<number> => (await idbKeys()).length;
+/** Drawings that have not reached the server (made offline), and papers whose pages of notes have not (the Notebook keeps them in the same store, under "nb:<paper>"). */
+export const pendingDrawings = async (): Promise<number> => (await idbKeys()).filter((k) => !k.startsWith("nb:")).length;
+export const pendingNotebooks = async (): Promise<number> => (await idbKeys()).filter((k) => k.startsWith("nb:")).length;
 
 const idOf = (url: string) => /\/api\/v1\/documents\/([a-f0-9]+)\/file$/.exec(new URL(url).pathname)?.[1] ?? null;
 

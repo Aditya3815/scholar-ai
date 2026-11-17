@@ -27,7 +27,7 @@ test("the default run is production's positions, read from wrangler.jsonc throug
   // and a suite written for other positions is not run there, but in a named run that gives them
   const skipped = SUITES.filter((s) => Object.entries(s.needs ?? {}).some(([sw, ps]) => !ps.includes(position(sw, vars))));
   assert.equal(position("READER", vars), "off");
-  assert.deepEqual(skipped.map((s) => s.label).sort(), ["MCP server integration", "browser: AI apps (MCP consent and Connected apps)", "browser: trending", "browser: the new Paper Reader, phase 1 (READER on)"].sort());
+  assert.deepEqual(skipped.map((s) => s.label).sort(), ["MCP server integration", "browser: AI apps (MCP consent and Connected apps)", "browser: trending", "browser: the new Paper Reader, phase 1 (READER on)", "notebook integration (READER on)", "browser: the Notebook of the new Paper Reader, phase 2 (READER on)"].sort());
 });
 
 test("a suite marked last runs after every other suite of each run that has it", () => {
@@ -41,7 +41,7 @@ test("a suite marked last runs after every other suite of each run that has it",
 test("the tables emptied between suites: every table that references users, children first, and the hand list they replace", () => {
   const tables = resetTables();
   for (const t of ["litscan_shares", "litscan_events", "litscans", "litscan_daily", "library_items", "sessions", "identities", "users", "oauth_states", "audit_log"]) assert.ok(tables.includes(t), t);
-  for (const t of ["documents", "doc_chunks", "feedback", "library_alerts", "usage_ledger", "ocr_usage"]) assert.ok(tables.includes(t), t);
+  for (const t of ["documents", "doc_chunks", "doc_notebook_pages", "feedback", "library_alerts", "usage_ledger", "ocr_usage"]) assert.ok(tables.includes(t), t);
   assert.ok(tables.indexOf("doc_chunks") < tables.indexOf("documents") && tables.indexOf("documents") < tables.indexOf("users"));
   assert.ok(tables.indexOf("litscan_events") < tables.indexOf("litscans") && tables.indexOf("litscans") < tables.indexOf("users"));
   // public data stays: the cache, the shared index of open-access papers, the jobs' heartbeat

@@ -56,6 +56,18 @@ describe("the reader's toasts (docs/design/paper-reader.md, 11)", () => {
     expect(q.current()).toBeNull();
   });
 
+  it("a second action (Open beside Undo) runs alone, once, and closes the toast too", () => {
+    const c = clock();
+    const q = createToastQueue(c);
+    const ran: string[] = [];
+    const id = q.push('Added to "Notes"', { label: "Undo", run: () => ran.push("undo") }, { label: "Open", run: () => ran.push("open") });
+    expect(q.current()?.more?.label).toBe("Open");
+    q.act(id, "more");
+    q.act(id, "more");
+    expect(ran).toEqual(["open"]);
+    expect(q.current()).toBeNull();
+  });
+
   it("stops its clock while pointed at or focused, and then goes on with the time it had left", () => {
     const c = clock();
     const q = createToastQueue(c);
