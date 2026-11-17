@@ -403,13 +403,25 @@ try {
 
   console.log("answer progress and stop");
   await page.locator("#ask-input").fill("What are the limitations?");
+  // The text written while the answer streams shows for well under a second with the stand-in model, so it is caught in the page as it appears instead
+  // of being looked for afterwards: on a slow CI runner the steps above it took long enough that it had come and gone (17 Nov 2026).
+  await page.evaluate(() => {
+    window.__liveText = "";
+    const seen = () => {
+      const t = document.querySelector(".ask-text-live")?.textContent ?? "";
+      if (/[A-Za-z]{3,}/.test(t)) (window.__liveText = t), obs.disconnect();
+    };
+    const obs = new MutationObserver(seen);
+    obs.observe(document.body, { subtree: true, childList: true, characterData: true });
+  });
   await page.locator("#ask-input").press("Enter");
   await page.locator(".ask-live").waitFor({ timeout: 10000 });
   ok((await page.locator(".ask-steps li").count()) === 4, "while an answer is produced, the four real steps are shown");
   await page.locator(".ask-page-chip").first().waitFor({ timeout: 8000 });
   ok(/^p\.\d/.test(await page.locator(".ask-page-chip").first().innerText()),"the pages being read are shown as soon as retrieval is done");
-  await page.locator(".ask-text-live").waitFor({ timeout: 10000 });
-  ok(/[A-Za-z]{3,}/.test(await page.locator(".ask-text-live").innerText()) && !/\[\d+\]/.test(await page.locator(".ask-text-live").innerText()), "the answer text appears while it is written, without unchecked citation markers");
+  await page.waitForFunction(() => window.__liveText, null, { timeout: 10000 });
+  const liveText = await page.evaluate(() => window.__liveText);
+  ok(/[A-Za-z]{3,}/.test(liveText) && !/\[\d+\]/.test(liveText), "the answer text appears while it is written, without unchecked citation markers");
   await shot("66-answer-streaming");
   await page.waitForTimeout(800); // earlier answers fade in over 0.3 s; axe must not measure a colour mid-fade (it did on a slow CI runner)
   await axe("workspace while an answer is streaming");

@@ -399,12 +399,19 @@ try {
       // a swipe down on its top closes it
       await page.locator(".desk-fab").click();
       await sheet.waitFor();
+      // the sheet slides in: the swipe starts where its top has come to rest, not where it was in the first frame (on a slower start it was still moving, 17 Nov 2026)
+      await page.waitForFunction(async () => {
+        const top = () => document.querySelector(".desk-agents-head")?.getBoundingClientRect().top ?? NaN;
+        const a = top();
+        await new Promise((r) => setTimeout(r, 120));
+        return Number.isFinite(a) && Math.abs(top() - a) < 0.5;
+      }, null, { timeout: 5000 });
       const head = await boxOf(page.locator(".desk-agents-head"));
       await page.mouse.move(head.x + 60, head.y + 12);
       await page.mouse.down();
       for (let i = 1; i <= 8; i++) await page.mouse.move(head.x + 60, head.y + 12 + i * 22);
       await page.mouse.up();
-      await sleep(300);
+      await sheet.waitFor({ state: "hidden", timeout: 3000 }).catch(() => {});
       ok(!(await sheet.isVisible()), "a swipe down on its top closes it");
       const ppad = await page.locator(".pdfv-pages").evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom));
       ok(ppad >= 56 + 20 + 16 - 1, `on a phone the paper keeps room under its last page for the button (padding ${ppad} px)`);
