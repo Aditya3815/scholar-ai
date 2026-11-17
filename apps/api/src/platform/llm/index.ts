@@ -32,6 +32,15 @@ export function gatewayFromEnv(env: LlmEnv, overrides: ModelOverrides = modelOve
   });
 }
 
+/**
+ * What is left of `subject`'s daily allowance, by the gateway's own numbers (its quota, DEFAULT_CONFIG, and its ledger): a feature that must know before it starts (a literature scan, a follow-up
+ * read with its earlier turns) asks here instead of computing it again. `left` can be below 0 when a last call went over.
+ */
+export async function allowanceOf(db: D1Database, subject: string): Promise<{ limit: number; used: number; left: number }> {
+  const used = await d1Ledger(db).tokensToday(subject);
+  return { limit: DEFAULT_CONFIG.dailyTokenQuota, used, left: DEFAULT_CONFIG.dailyTokenQuota - used };
+}
+
 export * from "./gateway";
 export * from "./types";
 export { NoRouteError, PolicyError, QuotaError } from "./policy";

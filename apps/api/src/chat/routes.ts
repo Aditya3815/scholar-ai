@@ -6,9 +6,7 @@ import { readJson } from "../platform/http/body";
 import type { Complete, StreamComplete } from "../platform/llm/port";
 import { PROFILES, modelFor, withTimeout } from "../platform/llm/profiles";
 import { depsOf } from "../platform/deps";
-import { AllProvidersFailedError, NoRouteError, QuotaError } from "../platform/llm";
-import { DEFAULT_CONFIG } from "../platform/llm/config";
-import { d1Ledger } from "../platform/llm/d1";
+import { AllProvidersFailedError, NoRouteError, QuotaError, allowanceOf } from "../platform/llm";
 import { sseStream } from "../sse";
 import { searchComplete } from "./complete";
 import { answerFromResults, pickEvidencePapers, type Picked } from "./answer";
@@ -78,7 +76,7 @@ const logJudged = (r: JudgeReport) =>
 /** Is enough of the day's allowance left for a follow-up that a model reads with the earlier turns? Not being able to tell is not a reason to refuse. */
 async function canAfford(db: D1Database, subject: string): Promise<boolean> {
   try {
-    return DEFAULT_CONFIG.dailyTokenQuota - (await d1Ledger(db).tokensToday(subject)) >= FOLLOW_UP_TOKENS_ESTIMATE;
+    return (await allowanceOf(db, subject)).left >= FOLLOW_UP_TOKENS_ESTIMATE;
   } catch {
     return true;
   }

@@ -16,9 +16,8 @@ import {
 } from "@scholar/shared";
 import { requireUser, type Door } from "../auth/service";
 import { readJson } from "../platform/http/body";
-import { d1Ledger } from "../platform/llm/d1";
 import { problemFor } from "../platform/llm/failure";
-import { DEFAULT_CONFIG } from "../platform/llm/config";
+import { allowanceOf } from "../platform/llm";
 import { sseStream } from "../sse";
 import { depsOf } from "../platform/deps";
 import { PROFILES, modelFor } from "../platform/llm/profiles";
@@ -69,10 +68,10 @@ litscanRoutes.post("/plan", async (c) => {
   if (!topic) return deny(c, 400, "invalid_topic", "Describe the topic in a sentence or two", "Between 8 and 400 characters.");
   const language = resolveLanguage(body?.language, topic);
 
-  const used = await d1Ledger(c.env.DB).tokensToday(user.id);
+  const allowance = await allowanceOf(c.env.DB, user.id);
   try {
     const { items } = await planScan({ topic, language, complete: modelFor(depsOf(c), PROFILES.litscanPlan, user.id) });
-    return c.json<{ plan: LitscanPlan }>({ plan: { topic, language, items, allowance: { limit: DEFAULT_CONFIG.dailyTokenQuota, used, estimate: estimateScanTokens(items.length) } } });
+    return c.json<{ plan: LitscanPlan }>({ plan: { topic, language, items, allowance: { limit: allowance.limit, used: allowance.used, estimate: estimateScanTokens(items.length) } } });
   } catch (e) {
     if (e instanceof ScanPlanError) return deny(c, 502, "plan_failed", "We could not split this into sub-questions", "Try describing the topic with a few more words.");
     const p = problemFor(e, {
@@ -108,9 +107,9 @@ litscanRoutes.post("/", async (c) => {
   if (running) return deny(c, 409, "scan_running", "A scan is already running", "Wait for it to finish, or cancel it.", { id: running });
 
   const estimate = estimateScanTokens(items.length);
-  const used = await d1Ledger(c.env.DB).tokensToday(user.id);
-  if (DEFAULT_CONFIG.dailyTokenQuota - used < estimate) {
-    return deny(c, 429, "quota", "Today's AI allowance is not enough for this scan", `This scan is expected to use about ${estimate.toLocaleString("en")} tokens and you have ${Math.max(0, DEFAULT_CONFIG.dailyTokenQuota - used).toLocaleString("en")} left. It comes back tomorrow; fewer sub-questions need less.`);
+  const { left } = await allowanceOf(c.env.DB, user.id);
+  if (left < estimate) {
+    return deny(c, 429, "quota", "Today's AI allowance is not enough for this scan", `This scan is expected to use about ${estimate.toLocaleString("en")} tokens and you have ${Math.max(0, left).toLocaleString("en")} left. It comes back tomorrow; fewer sub-questions need less.`);
   }
   const day = today();
   if (!(await takeScan(c.env.DB, user.id, day, LITSCAN_PER_DAY))) return deny(c, 429, "scan_limit", `You have started ${LITSCAN_PER_DAY} scans today`, "That is the most for one day. It resets at midnight UTC.");
