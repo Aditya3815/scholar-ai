@@ -16,6 +16,7 @@ import { ThinkBlock } from "./ThinkBlock";
 import { openPreview } from "../lib/preview";
 import { easeOut, spring } from "../lib/motion";
 import { PAPERS_NAME } from "../lib/workspace";
+import { quietMs } from "../lib/state/dev-knobs";
 import "../styles/chat-lazy.css";
 // the safety lane's card and lines (R4) and the reading lines (R8): in this lazy chunk, and not in the first-load style sheet
 import "../styles/safety.css";
@@ -90,15 +91,6 @@ function Clarify({ msg, text, onRetry }: { msg: AssistantMsg; text: string; onRe
   );
 }
 
-/** After this long without a single event from the server (the model can think for 9 to 12 s before its first word), the reply says it is still working. A test can shorten it with sessionStorage "scholar.quiet.ms". */
-const quietMs = () => {
-  try {
-    const v = Number(sessionStorage.getItem("scholar.quiet.ms"));
-    return Number.isFinite(v) && v >= 500 ? v : 15_000;
-  } catch {
-    return 15_000;
-  }
-};
 /** True once a working reply has been silent for `quietMs()`. Every event gives the reply a new identity, which starts the wait again. */
 function useQuiet(msg: AssistantMsg): boolean {
   const [quiet, setQuiet] = useState(false);
