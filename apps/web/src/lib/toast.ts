@@ -6,7 +6,8 @@ import { useSyncExternalStore } from "react";
  * The queue is a plain object with its timers handed in, so a test drives it with a fake clock.
  */
 export type ToastAction = { label: string; run: () => void };
-export type Toast = { id: number; text: string; action?: ToastAction };
+/** `more`: a second action, after the first (the Notebook's "Open" beside "Undo" on a phone). */
+export type Toast = { id: number; text: string; action?: ToastAction; more?: ToastAction };
 
 export const TOAST_MS = 4000;
 /** More than this many waiting and the oldest waiting ones are dropped: a burst of actions must not keep the line busy for a minute. */
@@ -53,8 +54,8 @@ export function createToastQueue(timers: Timers, ms = TOAST_MS) {
   }
   return {
     /** Adds a toast; it is shown at once when nothing else is. Returns its id. */
-    push(text: string, action?: ToastAction): number {
-      const t: Toast = { id: next++, text, ...(action ? { action } : {}) };
+    push(text: string, action?: ToastAction, more?: ToastAction): number {
+      const t: Toast = { id: next++, text, ...(action ? { action } : {}), ...(more ? { more } : {}) };
       waiting.push(t);
       if (waiting.length > TOAST_MAX_WAITING) waiting = waiting.slice(-TOAST_MAX_WAITING);
       if (!shown) showNext();
@@ -62,10 +63,10 @@ export function createToastQueue(timers: Timers, ms = TOAST_MS) {
       return t.id;
     },
     dismiss,
-    /** The toast's action, then the toast goes (Undo is done once). */
-    act(id: number) {
+    /** The toast's action (or its second, `more`), then the toast goes (Undo is done once). */
+    act(id: number, which: "action" | "more" = "action") {
       if (shown?.id !== id) return;
-      const run = shown.action?.run;
+      const run = shown[which]?.run;
       dismiss(id);
       run?.();
     },
@@ -102,5 +103,5 @@ export const toasts: ToastQueue = createToastQueue({
   clear: (id) => window.clearTimeout(id),
   now: () => (typeof performance !== "undefined" ? performance.now() : Date.now()),
 });
-export const toast = (text: string, action?: ToastAction): number => toasts.push(text, action);
+export const toast = (text: string, action?: ToastAction, more?: ToastAction): number => toasts.push(text, action, more);
 export const useToast = (): Toast | null => useSyncExternalStore(toasts.subscribe, toasts.current, () => null);

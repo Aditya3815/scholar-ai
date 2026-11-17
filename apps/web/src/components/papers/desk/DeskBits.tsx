@@ -251,6 +251,11 @@ export function Toasts({ onRect }: { onRect: (r: DOMRect | null) => void }) {
                 {t.action.label}
               </button>
             )}
+            {t.more && (
+              <button type="button" className="desk-toast-act" onClick={() => toasts.act(t.id, "more")}>
+                {t.more.label}
+              </button>
+            )}
             <button type="button" className="icon-btn icon-btn-sm desk-toast-x" aria-label="Dismiss" onClick={() => toasts.dismiss(t.id)}>
               <X size={14} aria-hidden="true" />
             </button>
