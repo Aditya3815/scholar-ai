@@ -12,10 +12,10 @@ export const NOTEBOOK_LIMITS = {
   pages: 50,
   /** blocks per page */
   blocks: 200,
-  /** bytes of a page's blocks as JSON (UTF-8) */
-  pageBytes: 48 * 1024,
-  /** bytes of every page of one paper together */
-  paperBytes: 1024 * 1024,
+  /** bytes of a page's blocks as JSON (UTF-8); 128 KB since phase 2.5, as one sketch can be tens of KB */
+  pageBytes: 128 * 1024,
+  /** bytes of every page of one paper together (2 MB since phase 2.5) */
+  paperBytes: 2 * 1024 * 1024,
   /** characters of a page's title */
   title: 120,
   /** characters of an id (a page's or a block's): [A-Za-z0-9_-] */
@@ -29,6 +29,14 @@ export const NOTEBOOK_LIMITS = {
   agent: 40,
   /** pages an agent answer may cite (phase 3) */
   answerPages: 50,
+  /** characters of a capture's caption */
+  caption: 500,
+  /** a sketch's height in CSS pixels */
+  sketchMin: 120,
+  sketchMax: 800,
+  /** strokes of one sketch, and points (x, y, pressure) of all its strokes together */
+  sketchStrokes: 400,
+  sketchPoints: 20_000,
 } as const;
 
 /** A request body can be no bigger than a full page plus its envelope (rev, title, style, position). */
@@ -44,15 +52,24 @@ export type QuoteColor = (typeof QUOTE_COLORS)[number];
 export type TextBlock = { id: string; kind: "text"; md: string };
 /** A highlight, live-linked by `noteId` (null once the highlight is removed); `quote` is a copy, so the block outlives the highlight. */
 export type QuoteBlock = { id: string; kind: "quote"; noteId: string | null; page: number; quote: string; color: QuoteColor };
-/** A part of a page, as a place (fractions of the page), never a picture. Phase 3: the server refuses it until then. */
-export type CaptureBlock = { id: string; kind: "capture"; page: number; x: number; y: number; w: number; h: number };
+export const CAPTURE_SIZES = ["s", "m", "full"] as const;
+export type CaptureSize = (typeof CAPTURE_SIZES)[number];
+/** A part of a page, as a place (fractions of the page as it is shown, rotation included), never a picture: it is drawn from the open paper. A caption under it, and its size in the notes. */
+export type CaptureBlock = { id: string; kind: "capture"; page: number; x: number; y: number; w: number; h: number; caption: string; size: CaptureSize };
+/** The pen and highlighter colours of a sketch (equal to ink.ts's, by test: this module imports nothing). */
+export const SKETCH_PEN_COLORS = ["ink", "blue", "red", "green", "orange", "violet"] as const;
+export const SKETCH_HIGHLIGHTER_COLORS = ["yellow", "green", "pink", "blue", "orange"] as const;
+/** A stroke of a sketch: the ink shape of the reader's pen and highlighter, its points as fractions of the sketch's width on both axes (x, y, pressure, ...). */
+export type SketchStroke = { id: string; tool: "pen" | "highlighter"; color: string; w: number; pts: number[] };
+/** A drawing area in the notes (phase 2.5): its height in CSS pixels and its strokes. */
+export type SketchBlock = { id: string; kind: "sketch"; height: number; strokes: SketchStroke[] };
 /** An agent's answer kept in the notes. Phase 3: the server refuses it until then. */
 export type AnswerBlock = { id: string; kind: "answer"; agent: string; text: string; pages: number[] };
-export type NotebookBlock = TextBlock | QuoteBlock | CaptureBlock | AnswerBlock;
+export type NotebookBlock = TextBlock | QuoteBlock | CaptureBlock | SketchBlock | AnswerBlock;
 export type NotebookBlockKind = NotebookBlock["kind"];
-export const NOTEBOOK_BLOCK_KINDS = ["text", "quote", "capture", "answer"] as const satisfies readonly NotebookBlockKind[];
-/** The kinds the server accepts today (phase 2). Capture and answer come with phase 3. */
-export const NOTEBOOK_KINDS_NOW: readonly NotebookBlockKind[] = ["text", "quote"];
+export const NOTEBOOK_BLOCK_KINDS = ["text", "quote", "capture", "sketch", "answer"] as const satisfies readonly NotebookBlockKind[];
+/** The kinds the server accepts today (phase 2.5): text, quote, capture and sketch. An agent's answer comes with phase 3. */
+export const NOTEBOOK_KINDS_NOW: readonly NotebookBlockKind[] = ["text", "quote", "capture", "sketch"];
 
 /** One page as the server sends it. */
 export type NotebookPage = { id: string; title: string; style: NotebookStyle; position: number; blocks: NotebookBlock[]; rev: number; updatedAt: number };
@@ -111,7 +128,39 @@ function checkBlock(raw: unknown, maxPage: number, kinds: readonly NotebookBlock
     case "capture": {
       if (!isInt(b.page, 1, maxPage)) return "a capture's page is not in this paper";
       if (!isFrac(b.x) || !isFrac(b.y) || !isFrac(b.w) || !isFrac(b.h) || b.w === 0 || b.h === 0 || b.x + b.w > 1.000001 || b.y + b.h > 1.000001) return "a capture's place is not inside its page";
-      return { id: b.id, kind, page: b.page, x: b.x, y: b.y, w: b.w, h: b.h };
+      if (typeof b.caption !== "string") return "a capture has no caption field";
+      const caption = cleanQuote(b.caption);
+      if (caption.length > NOTEBOOK_LIMITS.caption) return `too long: a caption holds at most ${NOTEBOOK_LIMITS.caption} characters`;
+      if (!(CAPTURE_SIZES as readonly unknown[]).includes(b.size)) return "a capture's size is not s, m or full";
+      return { id: b.id, kind, page: b.page, x: b.x, y: b.y, w: b.w, h: b.h, caption, size: b.size as CaptureSize };
+    }
+    case "sketch": {
+      if (!isInt(b.height, NOTEBOOK_LIMITS.sketchMin, NOTEBOOK_LIMITS.sketchMax)) return `a sketch's height is not from ${NOTEBOOK_LIMITS.sketchMin} to ${NOTEBOOK_LIMITS.sketchMax}`;
+      if (!Array.isArray(b.strokes)) return "a sketch has no strokes list";
+      if (b.strokes.length > NOTEBOOK_LIMITS.sketchStrokes) return `too long: a sketch holds at most ${NOTEBOOK_LIMITS.sketchStrokes} strokes`;
+      const strokes: SketchStroke[] = [];
+      let points = 0;
+      // the y of a point is a fraction of the width too, so it may pass 1 on a sketch taller than wide: at most its height over its narrowest width (120 px)
+      const maxY = NOTEBOOK_LIMITS.sketchMax / 120;
+      for (const r of b.strokes as unknown[]) {
+        if (!r || typeof r !== "object" || Array.isArray(r)) return "a stroke is not an object";
+        const t = r as Record<string, unknown>;
+        if (!isNotebookId(t.id)) return "a stroke's id is not valid";
+        if (t.tool !== "pen" && t.tool !== "highlighter") return "a stroke's tool is not pen or highlighter";
+        const palette: readonly string[] = t.tool === "pen" ? SKETCH_PEN_COLORS : SKETCH_HIGHLIGHTER_COLORS;
+        if (typeof t.color !== "string" || !palette.includes(t.color)) return "a stroke's colour is not one of its tool's";
+        if (typeof t.w !== "number" || !Number.isFinite(t.w) || t.w <= 0 || t.w > 0.1) return "a stroke's width is not valid";
+        const pts = t.pts;
+        if (!Array.isArray(pts) || pts.length < 3 || pts.length % 3 !== 0) return "a stroke's points are not x, y, pressure triples";
+        for (let k = 0; k < pts.length; k += 3) {
+          const x = pts[k], y = pts[k + 1], p = pts[k + 2];
+          if (!isFrac(x) || typeof y !== "number" || !Number.isFinite(y) || y < 0 || y > maxY || !isFrac(p)) return "a stroke's point is outside its sketch";
+        }
+        points += pts.length / 3;
+        if (points > NOTEBOOK_LIMITS.sketchPoints) return `too long: a sketch holds at most ${NOTEBOOK_LIMITS.sketchPoints} points`;
+        strokes.push({ id: t.id, tool: t.tool, color: t.color, w: t.w, pts: [...(pts as number[])] });
+      }
+      return { id: b.id, kind, height: b.height, strokes };
     }
     case "answer": {
       if (typeof b.agent !== "string" || b.agent.length < 1 || b.agent.length > NOTEBOOK_LIMITS.agent) return "an answer's agent is not valid";
@@ -126,7 +175,7 @@ function checkBlock(raw: unknown, maxPage: number, kinds: readonly NotebookBlock
 
 /**
  * A page's blocks, checked: a list of at most 200 blocks of the kinds accepted (`kinds`, phase 2: text and quote), each id unique on the page, every number in range (`maxPage` is the
- * paper's page count), at most 48 KB as JSON. Too many or too big is 413; anything else wrong is 400, with what is wrong.
+ * paper's page count), at most 128 KB as JSON. Too many or too big is 413; anything else wrong is 400, with what is wrong.
  */
 export function checkNotebookBlocks(raw: unknown, maxPage: number, kinds: readonly NotebookBlockKind[] = NOTEBOOK_KINDS_NOW): BlocksCheck {
   if (!Array.isArray(raw)) return { ok: false, status: 400, reason: "blocks must be a list" };
@@ -164,8 +213,10 @@ export function notebookMarkdown(paperTitle: string, pages: readonly NotebookExp
         out.push(`> ${b.quote}`, `> (${names[b.color]}, p. ${b.page})`, "");
       } else if (b.kind === "answer") {
         out.push(`**${b.agent}**${b.pages.length ? ` (p. ${b.pages.join(", ")})` : ""}`, "", b.text.trim(), "");
+      } else if (b.kind === "capture") {
+        out.push(`*A part of page ${b.page} (captured)*${b.caption ? `: ${b.caption}` : ""}`, "");
       } else {
-        out.push(`*A part of page ${b.page} (captured)*`, "");
+        out.push(`*A sketch (${b.strokes.length} ${b.strokes.length === 1 ? "stroke" : "strokes"})*`, "");
       }
     }
   }

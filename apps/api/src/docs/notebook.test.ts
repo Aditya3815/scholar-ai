@@ -142,37 +142,41 @@ describe("a page: made, replaced, a stale revision, renamed, deleted and brought
 });
 
 describe("every limit and every bad block", () => {
-  it("a bad block is 400 with what is wrong; a capture or an answer is refused in phase 2", async () => {
+  it("a bad block is 400 with what is wrong; a capture and a sketch are taken (phase 2.5), an answer is refused", async () => {
     const { call } = await setup();
     const bad = async (blocks: unknown) => call("PUT", `${PAGE}/p1`, { body: { blocks } });
     expect((await bad("x")).status).toBe(400);
     expect((await bad([{ id: "a", kind: "image" }])).status).toBe(400);
     expect((await bad([quote("q", { page: 4 })])).json).toMatchObject({ type: "invalid_notebook", detail: "a quote's page is not in this paper" });
-    expect((await bad([{ id: "c", kind: "capture", page: 1, x: 0, y: 0, w: 0.5, h: 0.5 }])).status).toBe(400);
+    expect((await bad([{ id: "c", kind: "capture", page: 1, x: 0, y: 0, w: 0.5, h: 0.5 }])).status).toBe(400); // no caption, no size
+    expect((await bad([{ id: "c", kind: "capture", page: 9, x: 0, y: 0, w: 0.5, h: 0.5, caption: "", size: "m" }])).status).toBe(400); // not a page of this paper
+    expect((await bad([{ id: "s", kind: "sketch", height: 240, strokes: [{ id: "k", tool: "pen", color: "ink", w: 0.004, pts: [2, 0, 0.5] }] }])).status).toBe(400);
+    const good = await call("PUT", `${PAGE}/p2`, { body: { blocks: [{ id: "c", kind: "capture", page: 1, x: 0.1, y: 0.1, w: 0.5, h: 0.3, caption: "Fig. 1", size: "m" }, { id: "s", kind: "sketch", height: 240, strokes: [{ id: "k", tool: "pen", color: "ink", w: 0.004, pts: [0.1, 0.1, 0.5, 0.4, 0.3, 0.5] }] }] } });
+    expect(good.status).toBe(201);
     expect((await bad([{ id: "a", kind: "answer", agent: "Explain", text: "x", pages: [1] }])).status).toBe(400);
     expect((await call("PUT", `${PAGE}/p1`, { body: { rev: -1, blocks: [] } })).status).toBe(400);
     expect((await call("PUT", `${PAGE}/p1`, { body: { rev: "1", blocks: [] } })).status).toBe(400);
     expect((await call("PUT", `${PAGE}/p1`, { body: { style: "lined", blocks: [] } })).status).toBe(400);
     expect((await call("PUT", `${PAGE}/bad%20id`, { body: { blocks: [] } })).status).toBe(400);
     expect((await call("PUT", `${PAGE}/p1`, { raw: "{nope" })).status).toBe(400);
-    expect((await call("GET", "/d1/notebook")).json).toEqual({ pages: [] });
+    expect(((await call("GET", "/d1/notebook")).json as { pages: { id: string }[] }).pages.map((p) => p.id)).toEqual(["p2"]);
   });
 
-  it("413: 201 blocks, a page over 48 KB, a body over the limit, the 51st page, a paper over 1 MB", async () => {
+  it("413: 201 blocks, a page over 128 KB, a body over the limit, the 51st page, a paper over 2 MB", async () => {
     const { call, sql } = await setup();
     const blocks = (n: number, md = "x") => Array.from({ length: n }, (_, i) => text(`b${i}`, md));
     expect((await call("PUT", `${PAGE}/p1`, { body: { blocks: blocks(201) } })).status).toBe(413);
-    expect((await call("PUT", `${PAGE}/p1`, { body: { blocks: blocks(7, "z".repeat(8000)) } })).status).toBe(413);
-    expect((await call("PUT", `${PAGE}/p1`, { raw: JSON.stringify({ blocks: [text("t", "y".repeat(60_000))] }) })).status).toBe(413);
+    expect((await call("PUT", `${PAGE}/p1`, { body: { blocks: blocks(17, "z".repeat(8000)) } })).status).toBe(413);
+    expect((await call("PUT", `${PAGE}/p1`, { raw: JSON.stringify({ blocks: [text("t", "y".repeat(140_000))] }) })).status).toBe(413);
     for (let i = 0; i < NOTEBOOK_LIMITS.pages; i++) expect((await call("PUT", `${PAGE}/n${i}`, { body: { blocks: [] } })).status).toBe(201);
     const full = await call("PUT", `${PAGE}/one-more`, { body: { blocks: [] } });
     expect(full.status).toBe(413);
     expect(full.json!.type).toBe("notebook_full");
-    // a paper's pages together: 1 MB (six text blocks of 8,000 characters is about 48 KB a page; 22 such pages pass a megabyte)
+    // a paper's pages together: 2 MB (sixteen text blocks of 7,900 characters is about 127 KB a page; 17 such pages pass two megabytes)
     sql.prepare("DELETE FROM doc_notebook_pages").run();
-    const fat = blocks(6, "w".repeat(7900));
+    const fat = blocks(16, "w".repeat(7900));
     let refused = 0;
-    for (let i = 0; i < 23; i++) if ((await call("PUT", `${PAGE}/f${i}`, { body: { blocks: fat } })).status === 413) refused++;
+    for (let i = 0; i < 18; i++) if ((await call("PUT", `${PAGE}/f${i}`, { body: { blocks: fat } })).status === 413) refused++;
     expect(refused).toBeGreaterThan(0);
     const bytes = (sql.prepare("SELECT SUM(LENGTH(CAST(blocks AS BLOB))) AS n FROM doc_notebook_pages").get() as { n: number }).n;
     expect(bytes).toBeLessThanOrEqual(NOTEBOOK_LIMITS.paperBytes);

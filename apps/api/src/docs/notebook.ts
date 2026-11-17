@@ -35,7 +35,7 @@ export async function listPages(db: D1Database, docId: string): Promise<Notebook
 
 const onePage = (db: D1Database, docId: string, id: string) => db.prepare(`SELECT ${COLS} FROM doc_notebook_pages WHERE doc_id = ?1 AND id = ?2`).bind(docId, id).first<PageRow>();
 
-/** The bytes of the paper's other pages (for the 1 MB a paper). */
+/** The bytes of the paper's other pages (for the 2 MB a paper). */
 const otherBytes = async (db: D1Database, docId: string, id: string) =>
   (await db.prepare("SELECT COALESCE(SUM(LENGTH(CAST(blocks AS BLOB))), 0) AS n FROM doc_notebook_pages WHERE doc_id = ?1 AND id != ?2").bind(docId, id).first<{ n: number }>())?.n ?? 0;
 
