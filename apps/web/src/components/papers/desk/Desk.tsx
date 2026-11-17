@@ -32,6 +32,8 @@ import type { AgentsDrawerProps } from "./AgentsDrawer";
 import { AgentsFab, DownloadMenu, HighlightsExport, MeaningPicker, SIDE_KEY, SplitDivider, Toasts, ToolSegment, ViewSwitch, clampSide } from "./DeskBits";
 import { SelectionPopup, type PopupActions } from "./SelectionPopup";
 import "./desk.css";
+// the Notes tab's styles: the panel opens on it, so they come with the reader and the notes are never drawn unstyled while the notebook chunk arrives
+import "./notebook/notebook.css";
 
 const PdfViewer = lazy(() => import("../PdfViewer").then((mod) => ({ default: mod.PdfViewer })));
 // the Agents drawer (with the Ask panel) is the "agents" chunk: fetched when the button is first pressed, or a little after the paper is open

@@ -7,6 +7,9 @@
 //   p2-desktop-quote-picker-dark.png    the quote picker
 //   p2-desktop-conflict-light.png    a second window saved first: "Updated from another window"
 //   p2-desktop-highlights-innotes-read.png    the Highlights tab with In notes on the cards that are quoted
+//   p2-desktop-notesview-light.png, p2-desktop-hover-block-light.png    the wide Notes view, and a block pointed at (its handle and its one menu)
+//   p2-phone-toolbar-light.png    the toolbar on a phone while writing (two rows by group)
+//   p2-desktop-highlights-filter-light.png, p2-phone-highlights-filter-read.png    the Highlights head and its one line of chips
 //   npm run build -w apps/web && INTEGRATION_PORT=8792 INTEGRATION_IDP_PORT=9915 SHOTS_DIR=<folder> node apps/web/e2e/shots-notebook.mjs
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -163,6 +166,40 @@ try {
       await page.locator(".note-innotes").first().waitFor({ timeout: 10000 });
       await sleep(600);
       await shoot(page, "p2-desktop-highlights-innotes-read");
+      await ctx.close();
+    }
+    // the owner's review of 17 Nov: the wide Notes view, a block pointed at, the phone's toolbar while writing, and the Highlights chips
+    {
+      const { ctx, page } = await open(paper, DEVICES.desktop, "light", "notes");
+      await page.mouse.move(4, 600);
+      await shoot(page, "p2-desktop-notesview-light");
+      await page.locator(".nb-block").nth(2).hover();
+      await sleep(400);
+      await shoot(page, "p2-desktop-hover-block-light");
+      await ctx.close();
+    }
+    {
+      const { ctx, page } = await open(paper, DEVICES.phone, "light", "notes");
+      await page.locator(".nb-text").nth(1).tap();
+      await sleep(600);
+      await page.locator(".nb-toolrow").scrollIntoViewIfNeeded();
+      await shoot(page, "p2-phone-toolbar-light");
+      await ctx.close();
+    }
+    {
+      const { ctx, page } = await open(paper, DEVICES.desktop, "light", "split");
+      await page.getByRole("tab", { name: /^Highlights/ }).click();
+      await page.locator(".hl-filter").waitFor({ timeout: 10000 });
+      await sleep(600);
+      await shoot(page, "p2-desktop-highlights-filter-light");
+      await ctx.close();
+    }
+    {
+      const { ctx, page } = await open(paper, DEVICES.phone, "read", "notes");
+      await page.getByRole("tab", { name: /^Highlights/ }).click();
+      await page.locator(".hl-filter").waitFor({ timeout: 10000 });
+      await sleep(600);
+      await shoot(page, "p2-phone-highlights-filter-read");
       await ctx.close();
     }
   } finally {

@@ -1,14 +1,24 @@
 /*
- * The Notebook of the new Paper Reader (docs/design/paper-reader.md, 19), in the notebook chunk only; its menus use the reader's own (.desk-menu, desk.css). Tokens only (tokens.css), so it
- * reads in Light, Dark, Read and the system's dark. The paper styles are drawn with --border-strong at about a third of its strength: decorative, never the only sign of anything.
+ * The Notebook of the new Paper Reader (docs/design/paper-reader.md, 19 and 20), in the notebook chunk only; its menus use the reader's own (.desk-menu, desk.css). Tokens only (tokens.css), so it
+ * reads in Light, Dark, Read and the system's dark. Calm by default: a block's handle and menu show only when it is pointed at, holds the focus or was tapped; the paper styles are faint and
+ * decorative, never the only sign of anything.
  */
 .nb { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 
-/* the bar: page picker, + Page, the save line, Copy and Download */
-.nb-bar { position: relative; z-index: 3; display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--border); }
-.nb-picker { display: inline-flex; align-items: center; gap: 0.35rem; max-width: min(18rem, 60vw); min-height: 34px; padding: 0 0.6rem 0 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface); color: var(--text); font: inherit; font-size: 0.875rem; font-weight: 600; cursor: pointer; }
-.nb-picker > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nb-save { flex: 1 1 auto; min-width: 8rem; margin: 0; color: var(--muted); font-size: 0.8125rem; text-align: right; }
+/* one header: the page's title (written in place) and the list of pages beside it; + Page, the save line and the page's one menu */
+.nb-bar { position: relative; z-index: 3; display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 0.15rem 0.5rem; padding: 0.45rem 0.75rem 0.4rem; border-bottom: 1px solid var(--border); }
+.nb-head { position: relative; display: flex; flex: 1 1 12rem; align-items: center; gap: 0.1rem; min-width: 0; }
+.nb-head > .nb-popwrap { position: static; flex: none; }
+.nb-title { flex: 0 1 auto; width: auto; min-width: 4ch; max-width: 100%; field-sizing: content; min-height: 40px; padding: 0 0.35rem; border: 1px solid transparent; border-radius: var(--radius-s); background: transparent; color: var(--text); font-family: var(--font-serif); font-size: 1.25rem; font-weight: 650; text-overflow: ellipsis; }
+.nb-title:hover { border-color: var(--border); }
+.nb-title:focus-visible { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 0; }
+.nb-picker { display: inline-flex; align-items: center; gap: 0.15rem; min-width: 36px; height: 36px; padding: 0 0.4rem; border: 0; border-radius: var(--radius-s); background: none; color: var(--muted); font: inherit; font-size: 0.75rem; font-weight: 650; font-variant-numeric: tabular-nums; cursor: pointer; }
+.nb-picker:hover,
+.nb-picker[aria-expanded="true"] { background: var(--surface-2); color: var(--text); }
+.nb-picker:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.nb-acts { display: flex; flex: none; align-items: center; gap: 0.35rem; margin-left: auto; }
+.nb-save { margin: 0; color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
+.nb-save:empty { display: none; }
 .nb-save[data-state="error"] { color: var(--danger); }
 
 /* pop-overs: menus, the page list, the quote picker */
@@ -22,7 +32,8 @@
 .nb-pop .desk-menu-item:disabled { cursor: default; }
 .nb-pop .desk-menu-item[aria-checked="true"]::after { content: "✓"; margin-left: auto; color: var(--accent); }
 .nb-pop .desk-menu-item[data-danger] { color: var(--danger); }
-.nb-menu-head { margin: 0.25rem 0 0; padding: 0.3rem 0.6rem 0.1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.nb-menu-head { display: block; margin: 0.25rem 0 0; padding: 0.3rem 0.6rem 0.1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.nb-menu-sep { display: block; margin: 0.25rem 0; border-top: 1px solid var(--border); }
 
 .nb-pages,
 .nb-qpick ul { display: grid; gap: 0.1rem; margin: 0; padding: 0; list-style: none; }
@@ -42,68 +53,96 @@
 .nb-qpick button:hover { outline: none; }
 .nb-qpick .nb-dim:last-child:not(:nth-child(2)) { grid-column: 3; }
 
-/* the page, on its paper */
-.nb-scroll { --nb-line: color-mix(in srgb, var(--border-strong) 38%, transparent); --nb-step: 1.75rem; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--surface) local; }
-.nb-scroll[data-style="ruled"] { background-image: repeating-linear-gradient(transparent 0 calc(var(--nb-step) - 1px), var(--nb-line) 0 var(--nb-step)); }
-.nb-scroll[data-style="dotted"] { background-image: radial-gradient(circle at 1px 1px, var(--nb-line) 1.3px, transparent 1.6px); background-size: 1.25rem 1.25rem; }
-.nb-scroll[data-style="grid"] { background-image: linear-gradient(var(--nb-line) 1px, transparent 0), linear-gradient(90deg, var(--nb-line) 1px, transparent 0); background-size: 1.25rem 1.25rem; }
-.nb-sheet { padding: 0.9rem 0.9rem var(--fab-clear, 1.5rem); }
-.nb-pagehead { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; }
-.nb-title { flex: 1; min-width: 0; min-height: 40px; padding: 0 0.4rem; border: 1px solid transparent; border-radius: var(--radius-s); background: transparent; color: var(--text); font-family: var(--font-serif); font-size: 1.25rem; font-weight: 650; }
-.nb-title:hover { border-color: var(--border); }
-.nb-title:focus-visible { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 0; }
-.nb-title::placeholder,
+/*
+ * The page, on its paper. One rhythm: --nb-line is the height of a line of text, and the ruled lines, the dots and the grid all keep it. A text block has no vertical padding or border and its
+ * headings, paragraphs and list items are each one line high, so its lines fall on the rules; the rules are drawn in each text block (and the empty end of the page) from its own top, so a quote
+ * of another height between two blocks never puts them out of step. The paper scrolls with the text.
+ */
+.nb-scroll {
+  --nb-line: 1.75rem;
+  --nb-rule: color-mix(in srgb, var(--border-strong) 38%, transparent);
+  --nb-grid: color-mix(in srgb, var(--border-strong) 20%, transparent);
+  --nb-ruled: repeating-linear-gradient(to bottom, transparent 0 calc(var(--nb-line) - 1px), var(--nb-rule) calc(var(--nb-line) - 1px) var(--nb-line));
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--surface) local;
+}
+.nb-scroll[data-style="ruled"] :is(.nb-text, .nb-field, .nb-rest) { background-image: var(--nb-ruled); }
+.nb-scroll[data-style="dotted"] { background-image: radial-gradient(circle at 1px 1px, var(--nb-rule) 1.2px, transparent 1.5px); background-size: var(--nb-line) var(--nb-line); }
+.nb-scroll[data-style="grid"] { background-image: linear-gradient(var(--nb-grid) 1px, transparent 0), linear-gradient(90deg, var(--nb-grid) 1px, transparent 0); background-size: var(--nb-line) var(--nb-line); }
+.nb-sheet { display: flex; flex-direction: column; min-height: 100%; padding: 0 0.9rem var(--fab-clear, 1.5rem); }
+.nb-rest { flex: 1; min-height: calc(var(--nb-line) * 3); margin-left: calc(28px + 0.15rem); }
 .nb-field::placeholder { color: var(--muted); opacity: 1; }
 
-/* the toolbar: one row that scrolls inside itself on a narrow panel, never the page */
-/* the row is the sticky, positioned box and does not scroll; the toolbar inside it scrolls sideways on a narrow screen. So the quote picker's containing block is the row, and the
-   toolbar's overflow (which clips on both axes) cannot cut it off */
-.nb-toolrow { position: sticky; top: 0; z-index: 2; margin: 0 -0.2rem 0.6rem; }
-.nb-tools { display: flex; align-items: center; gap: 2px; padding: 0.25rem; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); scrollbar-width: thin; }
-.nb-tools > .nb-popwrap { position: static; }
-.nb-toolrow .nb-pop { right: 0.25rem; left: auto; }
-.nb-tool { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 0.35rem; min-width: 34px; height: 34px; padding: 0 0.4rem; border: 0; border-radius: var(--radius-s); background: none; color: var(--text); font: inherit; font-size: 0.8125rem; font-weight: 600; cursor: pointer; }
-.nb-tool:hover { background: var(--surface-2); }
-.nb-tool[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+/* the toolbar: attached to the top of the page and light; its two groups never split, and a narrow panel puts the second on a row of its own. The row is the sticky box and the quote
+   picker's containing block, so nothing in it can be clipped */
+.nb-toolrow { position: sticky; top: 0; z-index: 2; margin: 0 -0.9rem 0.5rem; padding: 0.3rem 0.9rem; border-bottom: 1px solid var(--border); background: var(--surface); }
+.nb-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 0.6rem; }
+.nb-tgroup { display: flex; flex: none; align-items: center; gap: 2px; }
+.nb-tools .nb-popwrap { position: static; }
+.nb-toolrow .nb-pop { right: 0.9rem; left: auto; }
+.nb-tool { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 0.35rem; min-width: 32px; height: 32px; padding: 0 0.4rem; border: 0; border-radius: var(--radius-s); background: none; color: var(--muted); font: inherit; font-size: 0.8125rem; font-weight: 600; cursor: pointer; }
+.nb-tool:hover { background: var(--surface-2); color: var(--text); }
+.nb-tool[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .nb-tool:focus-visible,
 .nb-text:focus-visible,
 .nb-handle:focus-visible,
 .nb-go:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
-.nb-tools > i { flex: none; width: 1px; height: 22px; margin: 0 0.3rem; background: var(--border); }
+.nb-tgroup > i { flex: none; width: 1px; height: 20px; margin: 0 0.3rem; background: var(--border); }
 .nb-mark,
 .nb-tool mark { padding: 0 0.1em; border-radius: 2px; background: color-mix(in srgb, var(--mean-key) 30%, var(--surface)); color: var(--text); }
-.nb-empty { margin: 0 0 0.4rem 2.2rem; color: var(--muted); font-size: 0.875rem; }
 
-/* the blocks */
-.nb-blocks { display: grid; gap: 0.35rem; min-height: 3rem; margin: 0; padding: 0; list-style: none; }
-.nb-block { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: start; gap: 0.15rem; border-radius: var(--radius-s); scroll-margin: 4rem; }
+/* the blocks: text blocks follow one another on the lines; a quote keeps a little room around its card */
+.nb-blocks { display: grid; min-height: var(--nb-line); margin: 0; padding: 0; list-style: none; }
+.nb-block { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr) 28px; align-items: start; gap: 0.15rem; border-radius: var(--radius-s); scroll-margin: 4rem; }
+.nb-block[data-kind="quote"] { padding: 0.4rem 0; }
 .nb-block[data-flash] { animation: nb-flash 1.6s ease-out; }
 @keyframes nb-flash { 0%, 40% { background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent); } }
 .nb-block[data-dragging] { opacity: 0.55; }
 .nb-block[data-drop-before]::before,
-.nb-block[data-drop-after]::after { content: ""; position: absolute; left: 28px; right: 0; top: -3px; height: 3px; border-radius: 2px; background: var(--accent); }
-.nb-block[data-drop-after]::after { top: auto; bottom: -3px; }
-.nb-handle { display: inline-grid; place-items: center; width: 28px; height: 32px; margin-top: 2px; padding: 0; border: 0; border-radius: var(--radius-s); background: none; color: var(--muted); cursor: grab; touch-action: none; }
+.nb-block[data-drop-after]::after { content: ""; position: absolute; left: 28px; right: 0; top: -2px; height: 3px; border-radius: 2px; background: var(--accent); }
+.nb-block[data-drop-after]::after { top: auto; bottom: -2px; }
+.nb-handle { display: inline-grid; place-items: center; width: 28px; height: var(--nb-line); padding: 0; border: 0; border-radius: var(--radius-s); background: none; color: var(--muted); cursor: grab; touch-action: none; }
 .nb-handle:hover { background: var(--surface-2); color: var(--text); }
-.nb-block > .nb-popwrap { margin-top: 2px; }
+.nb-blockmenu .icon-btn { width: 28px; height: var(--nb-line); min-width: 0; min-height: 0; border-color: transparent; background: none; }
+.nb-blockmenu .icon-btn:hover,
+.nb-blockmenu .icon-btn[aria-expanded="true"] { background: var(--surface-2); }
+.nb-block[data-kind="quote"] > .nb-handle,
+.nb-block[data-kind="quote"] > .nb-blockmenu .icon-btn { margin-top: 0.3rem; }
+/* hidden until wanted (opacity only, so nothing moves); the keyboard still reaches them, and the focus shows them */
+.nb-block > .nb-handle,
+.nb-block > .nb-blockmenu { opacity: 0; transition: opacity 0.15s ease; }
+@media (hover: hover) {
+  .nb-block:hover > .nb-handle,
+  .nb-block:hover > .nb-blockmenu { opacity: 1; }
+}
+.nb-block:focus-within > .nb-handle,
+.nb-block:focus-within > .nb-blockmenu,
+.nb-block[data-active] > .nb-handle,
+.nb-block[data-active] > .nb-blockmenu,
+.nb-block[data-dragging] > .nb-handle { opacity: 1; }
 .nb-body { min-width: 0; }
 
-/* a text block, drawn, and its field */
+/* a text block, drawn, and its field: one line of text is one --nb-line, with no vertical padding or border, so the lines fall on the rules */
 .nb-text,
-.nb-field { display: block; width: 100%; min-height: 2.25rem; padding: 0.3rem 0.5rem; border: 1px solid transparent; border-radius: var(--radius-s); color: var(--text); font-family: var(--read-font, var(--font-ui)); font-size: 0.95rem; line-height: var(--nb-step); overflow-wrap: anywhere; }
+.nb-field { display: block; width: 100%; min-height: var(--nb-line); margin: 0; padding: 0 0.5rem; border: 0; border-radius: var(--radius-s); color: var(--text); font-family: var(--read-font, var(--font-ui)); font-size: 0.95rem; line-height: var(--nb-line); overflow-wrap: anywhere; }
 .nb-text { cursor: text; }
-.nb-text:hover { border-color: var(--border); }
-.nb-text > * { margin: 0 0 0.25rem; }
-.nb-text > :last-child { margin-bottom: 0; }
+.nb-text:hover { box-shadow: inset 0 0 0 1px var(--border); }
+.nb-text > *,
+.nb-text li { margin: 0; line-height: var(--nb-line); }
 .nb-text ul,
 .nb-text ol { padding-left: 1.4rem; }
 /* base.css takes the bullets off every list; a bullet list written in the notes has them back */
 .nb-text ul { list-style: disc; }
-.nb-h { font-family: var(--font-serif); line-height: 1.35; }
+.nb-h { font-family: var(--font-serif); }
 .nb-h1 { font-size: 1.2rem; }
 .nb-h2 { font-size: 1.05rem; }
 .nb-h3 { font-size: 0.95rem; }
-.nb-field { resize: none; overflow: hidden; border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
+.nb-field { resize: none; overflow: hidden; background-color: transparent; outline: none; }
+.nb-field:focus { box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft); }
+.nb-ghost { width: calc(100% - 56px - 0.3rem); margin-left: calc(28px + 0.15rem); }
 
 /* a quote: the meaning's bar with its letter, the words, its meaning in words and p. N */
 .nb-quote { --dot: var(--mean-key); display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 0.1rem 0.5rem; margin: 0; padding: 0.45rem 0.6rem 0.45rem 0.35rem; border: 1px solid var(--border); border-left: 4px solid var(--dot); border-radius: var(--radius-s); background: color-mix(in srgb, var(--dot) 7%, var(--surface)); }
@@ -118,17 +157,21 @@
 .nb-removed { padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 999px; }
 .nb-go { display: inline-flex; align-items: center; gap: 0.15rem; min-height: 24px; margin-left: auto; padding: 0 0.45rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; font-size: 0.75rem; font-weight: 600; cursor: pointer; }
 .nb-go:hover { border-color: var(--accent); }
-.nb-later { margin: 0; padding: 0.3rem 0.5rem; color: var(--muted); }
-.nb-addtext { margin: 0.5rem 0 0 1.9rem; }
+.nb-later { margin: 0; padding: 0 0.5rem; color: var(--muted); line-height: var(--nb-line); }
 
 @media (prefers-reduced-motion: reduce) {
   .nb-pop { animation: none; }
+  .nb-block > .nb-handle,
+  .nb-block > .nb-blockmenu { transition: none; }
   .nb-block[data-flash] { animation: none; box-shadow: 0 0 0 2px var(--accent); }
 }
-/* a phone: bigger to touch, the save line on a row of its own */
-@media not all and (min-width: 744px) and (min-height: 520px) {
-  .nb-tool { min-width: 40px; height: 40px; }
-  .nb-handle { width: 32px; height: 40px; }
-  .nb-block { grid-template-columns: 32px minmax(0, 1fr) auto; }
-  .nb-save { flex-basis: 100%; order: 5; text-align: left; }
+/* touch: the toolbar's buttons are 44 px; a block's handle and menu are wider to take a finger */
+@media (pointer: coarse) {
+  .nb-tool,
+  .nb-picker { min-width: 44px; height: 44px; }
+  .nb-block { grid-template-columns: 32px minmax(0, 1fr) 32px; }
+  .nb-handle,
+  .nb-blockmenu .icon-btn { width: 32px; }
+  .nb-rest { margin-left: calc(32px + 0.15rem); }
+  .nb-ghost { width: calc(100% - 64px - 0.3rem); margin-left: calc(32px + 0.15rem); }
 }
