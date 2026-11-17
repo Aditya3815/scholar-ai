@@ -39,7 +39,7 @@ import { modeOfPlan, pickDoc, planTool, relayAsk, runVerify, type ToolDeps, type
 import { toolAnswered as thinkToolAnswered, toolAsking as thinkToolAsking, toolChecked as thinkToolChecked, toolChecking as thinkToolChecking, toolRetractions as thinkToolRetractions, toolRetractionsDone as thinkToolRetractionsDone, understoodToolRun } from "./think";
 import { retractionService } from "../search/retraction-service";
 import { oaService } from "../oa/service";
-import { describeAskError } from "../docs/routes";
+import { describeAskError } from "../docs/qa";
 import { answerQuestionStream, type StoredChunk } from "../docs/qa";
 import { decodeVec } from "../docs/vector";
 import type { Env, HonoEnv } from "../platform/env";

@@ -1,6 +1,6 @@
 import { MAX_OA_ABSTRACT_CHARS, OA_REFRESH_DAYS, OA_UNREADABLE_TEXT, OA_NEW_PAPERS_PER_DAY, OA_NEW_PAPERS_PER_DAY_ALL, OA_WAIT_MS, OA_WORKING, cleanArxivId, cleanDoi, cleanPmcid, type OaAskEvent, type OaReason, type OaRef, type OaSource } from "@scholar/shared";
 import { answerQuestionStream, type StoredChunk } from "../docs/qa";
-import { describeAskError } from "../docs/routes";
+import { describeAskError } from "../docs/qa";
 import type { Deps } from "../platform/deps";
 import type { Embedder } from "../platform/llm/port";
 import { PROFILES, modelFor } from "../platform/llm/profiles";

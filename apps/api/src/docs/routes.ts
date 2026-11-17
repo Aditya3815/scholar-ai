@@ -1,4 +1,4 @@
-import { type ProblemType, searchWords } from "@scholar/shared";
+import { searchWords } from "@scholar/shared";
 import { Hono, type Context } from "hono";
 import { rememberOne } from "./remember";
 import { d1KeyStore, readKey, runIdempotent } from "../idempotency";
@@ -45,14 +45,13 @@ import { readJson } from "../platform/http/body";
 import { answerAboutHighlights } from "./highlights-qa";
 import { readerOnFor, readerSwitchedOn } from "./reader-flag";
 import { deletePage, listPages, patchPage, putPage, type NotebookResult } from "./notebook";
-import { problemFor } from "../platform/llm/failure";
 import { PROFILES, modelFor } from "../platform/llm/profiles";
 import { depsOf } from "../platform/deps";
 import { fromSqliteTime } from "../library/validate";
 import { cacheStore } from "../cache";
 import { chunkPage } from "./chunk";
 import { enrichPaperInfo, sanitizePaperInfo } from "./info";
-import { answerQuestion, answerQuestionStream, type StoredChunk } from "./qa";
+import { answerQuestion, answerQuestionStream, describeAskError, type StoredChunk } from "./qa";
 import { decodeVec, encodeVec } from "./vector";
 import { readJpeg } from "../ocr/jpeg";
 import { DailyLimitError, ReadFailedError, finishIfDone, readScanPage, registerScan, scanInfo, scanTexts } from "../ocr/process";
@@ -115,15 +114,6 @@ export function ocrPerDay(env: Pick<Env, "OCR_PAGES_PER_DAY">): number {
   return Number.isInteger(n) && n >= 1 && n <= 2000 ? n : OCR_PAGES_PER_DAY;
 }
 
-/** One place that turns a failure into what the browser is told (as an HTTP error, or as a stream `error` event). */
-export function describeAskError(e: unknown): { status: 429 | 502 | 503; code: Extract<ProblemType, "quota" | "ai_unavailable" | "ai_failed">; title: string; detail?: string } | null {
-  return problemFor(e, {
-    quota: { status: 429, code: "quota", title: "You have used today's AI allowance", detail: (e) => e.message },
-    noRoute: { status: 503, code: "ai_unavailable", title: "Answering is unavailable right now" },
-    failed: { status: 502, code: "ai_failed", title: "The AI service could not answer just now", detail: "Please try again in a moment." },
-    log: "qa_failed",
-  });
-}
 
 /* ---------------------------------------------------------------- list / read */
 

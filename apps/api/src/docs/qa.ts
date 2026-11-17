@@ -1,7 +1,8 @@
-import { MARK, hasMark, findRun, words, type Answer, type AskStreamEvent, type Citation } from "@scholar/shared";
+import { MARK, hasMark, findRun, words, type Answer, type AskStreamEvent, type Citation, type ProblemType } from "@scholar/shared";
 import { AnswerFieldStreamer } from "./stream-json";
 import type { Embedder } from "../platform/llm/embedder";
 import { rank } from "./vector";
+import { problemFor } from "../platform/llm/failure";
 
 /** `section` is set for a paper read from XML, which has no pages (`page` is then the number of the section): "Methods > Participants". */
 export type StoredChunk = { idx: number; page: number; text: string; embedding: Float32Array | null; section?: string };
@@ -188,4 +189,14 @@ export async function answerQuestionStream(args: {
   await emit({ type: "stage", stage: "checking" });
   args.onRaw?.(json, ex);
   return verifyAnswer(json, ex, question, { ...args.meta, model });
+}
+
+/** One place that turns a model failure of a question about a paper (one's own, or an open-access one, also from the chat) into what the browser is told (as an HTTP error, or as a stream `error` event). */
+export function describeAskError(e: unknown): { status: 429 | 502 | 503; code: Extract<ProblemType, "quota" | "ai_unavailable" | "ai_failed">; title: string; detail?: string } | null {
+  return problemFor(e, {
+    quota: { status: 429, code: "quota", title: "You have used today's AI allowance", detail: (e) => e.message },
+    noRoute: { status: 503, code: "ai_unavailable", title: "Answering is unavailable right now" },
+    failed: { status: 502, code: "ai_failed", title: "The AI service could not answer just now", detail: "Please try again in a moment." },
+    log: "qa_failed",
+  });
 }
