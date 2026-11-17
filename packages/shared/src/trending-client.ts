@@ -1,6 +1,3 @@
-import { ISO_DAY } from "./ids";
-import { isCount, isInt } from "./text";
-
 /**
  * The browser's half of the Trending feed (docs/design/chatview-and-trending.md, T3, T4, T7, T12): what the server publishes, a strict reader for it, the freshness rule and the pick of
  * today's chips. Kept to what the page needs and nothing else, because everything here is in the first-load script: the ranking, the filters and the policy table are in `trending.ts`
@@ -40,13 +37,15 @@ export type TrendingPayload = {
 };
 
 const DAY = 864e5;
-const DATE = ISO_DAY;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 
 /** A date or a UTC time as the server writes it, and a real one (a parser would roll "02-31" over into March). */
 const isoOk = (s: unknown, shape: RegExp): s is string => typeof s === "string" && shape.test(s) && Number.isFinite(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s.slice(0, 10);
 /** Text that is already tidy: one line, single spaces, nothing at either end, no control or invisible character. What is shown is what is checked. */
 const tidy = (v: unknown, min: number, max: number): v is string => typeof v === "string" && v.length >= min && v.length <= max && v === v.replace(/\s+/g, " ").trim() && !/[\p{Cc}\p{Cf}]/u.test(v);
+/** (Imports nothing: apps/api/scripts/trending-e2e.mjs loads this file alone, as the page's own reader, so it keeps its own small checks.) */
+const whole = (v: unknown, lo: number, hi: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= lo && v <= hi;
 
 function readChips(raw: unknown): TrendingChip[] | null {
   if (!Array.isArray(raw) || raw.length > TRENDING_MAX_CHIPS) return null;
@@ -56,7 +55,7 @@ function readChips(raw: unknown): TrendingChip[] | null {
     const c = raw[i] as Record<string, unknown> | null | undefined;
     if (!c || typeof c !== "object") return null;
     const { text, sinceYear, a, b, field } = c;
-    if (!tidy(text, TRENDING_CHIP_MIN, TRENDING_CHIP_MAX) || !isInt(sinceYear, 2000, 2100) || !isCount(a, 1e9) || !isCount(b, 1e9) || !tidy(field, 1, 60)) return null;
+    if (!tidy(text, TRENDING_CHIP_MIN, TRENDING_CHIP_MAX) || !whole(sinceYear, 2000, 2100) || !whole(a, 0, 1e9) || !whole(b, 0, 1e9) || !tidy(field, 1, 60)) return null;
     const key = text.toLowerCase();
     if (seen.has(key)) return null;
     seen.add(key);
