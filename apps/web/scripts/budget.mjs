@@ -90,6 +90,10 @@ for (const file of [...scripts, ...styles, ...fonts]) {
 }
 // The two first-screen fonts are preloaded by vite.config.ts (preloadFonts); with none, the font line above would pass at 0 KB while every phone redraws its text.
 if (fonts.length === 0) fail("index.html preloads no font (vite.config.ts preloadFonts found none of the fonts it wants)");
+// ... and ahead of the module preloads: behind the 51 files of the first load they came after the first paint on the slow profile, and Home's text moved when they swapped in (17 Nov 2026)
+const firstFont = html.search(/<link[^>]+rel="preload"[^>]+as="font"/);
+const firstModule = html.search(/<link[^>]+rel="modulepreload"/);
+if (fonts.length && firstModule >= 0 && firstFont > firstModule) fail("index.html asks for the fonts after the module preloads (vite.config.ts preloadFonts must put them ahead, or Home moves when they arrive)");
 // The heavy pieces are for people who open a paper, download a marked copy or watch a scan; they must never be part of the first load. They are named by the module each is built from;
 // the three that the bundler cuts out as shared pieces of those (the Rive picture frame and the two literature-scan helpers) have no module of their own in the manifest and are found by the
 // name it gives them, which is the name of the module they were cut from.
