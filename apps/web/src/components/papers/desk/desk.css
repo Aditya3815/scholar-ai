@@ -208,6 +208,14 @@
 .desk .dw-panel[hidden] { display: none; }
 .desk .desk-sidehead { display: flex; }
 .desk .desk-tabpanel[hidden] { display: none; }
+/* three tabs since phase 2 (Notes, Highlights, References): a little tighter than today's two, and a row that scrolls sideways rather than cut the last one off in a narrow panel */
+.desk .dw-sidetabs { gap: 0.15rem; overflow-x: auto; scrollbar-width: none; }
+.desk .dw-sidetab { flex: none; gap: 0.35rem; padding: 0 0.65rem; }
+/* the panel at its narrowest (Split on a tablet, about 22 rem): the tabs drop their icons, which only decorate (aria-hidden), so all three words are in sight */
+.desk .desk-sidehead { container: desksidehead / inline-size; }
+@container desksidehead (max-width: 23rem) {
+  .desk .dw-sidetab > svg { display: none; }
+}
 
 @media (min-width: 744px) and (min-height: 520px) {
   .desk .desk-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
@@ -339,3 +347,10 @@
 @media not all and (min-width: 744px) and (min-height: 520px) {
   .desk .pdfv-pages { padding-bottom: var(--fab-clear); }
 }
+
+/* ---------------------------------------------------------------- phase 2: the Notes tab (its own sheet is the notebook chunk's), and a highlight card's way to the notes */
+.desk .nb-wait { margin: 0; padding: 1rem; color: var(--muted); font-size: 0.875rem; }
+.desk .note-nb { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.45rem; }
+.desk .note-nb .btn { min-height: 30px; }
+.desk .note-innotes > svg,
+.desk-pop-innotes > svg { color: var(--ok); }

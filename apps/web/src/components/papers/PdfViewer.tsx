@@ -70,6 +70,8 @@ export type DeskSlots = {
   highlight: NoteColor | null;
   /** The pop-up of a selection, or of an existing highlight that was clicked. */
   popup: (p: DeskPopup) => ReactNode;
+  /** A selection dragged out of the pages carries `application/x-sodhsetu-quote` ({noteId: null, page, quote}), for the Notebook to drop as a quote (phase 2). */
+  quoteDrag?: boolean;
   /** Told whenever the drawing tools open or close. */
   onDraw: (open: boolean) => void;
 };
@@ -806,6 +808,18 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
     const view = scroller.current.getBoundingClientRect();
     setSel({ page: Number(box.dataset.page), quote: quote.slice(0, 600), x: r.left + r.width / 2, y: Math.max(r.top, view.top + 52) });
   }, []);
+  /** The new reader (phase 2): selected text dragged out of the pages carries its page and words, for the Notebook to drop as a quote (the text itself goes along as plain text, as before). */
+  const dragQuote = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    const s = window.getSelection();
+    if (!s || s.isCollapsed || s.rangeCount === 0) return;
+    const node = s.anchorNode;
+    const el = node instanceof Element ? node : node?.parentElement;
+    const box = el?.closest<HTMLElement>("[data-page]");
+    const quote = s.toString().replace(/\s+/g, " ").trim().slice(0, 600);
+    if (!box || !el?.closest(".textLayer") || quote.length < 3) return;
+    e.dataTransfer.setData("application/x-sodhsetu-quote", JSON.stringify({ noteId: null, page: Number(box.dataset.page), quote }));
+    e.dataTransfer.effectAllowed = "copy";
+  }, []);
   /** The new reader: a click on a highlight (with nothing selected) opens its pop-up. The marks take no pointer (the text under them must stay selectable), so the point is looked up. */
   const openMarkAt = useCallback((x: number, y: number, target: EventTarget | null) => {
     const s = window.getSelection();
@@ -1154,6 +1168,7 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
           onKeyUp={onCreateNote ? () => captureSelection(false) : undefined}
           onScroll={sel ? followSelection : undefined}
           onClick={desk && onCreateNote ? (e) => openMarkAt(e.clientX, e.clientY, e.target) : undefined}
+          onDragStart={desk?.quoteDrag ? dragQuote : undefined}
           onKeyDown={
             desk
               ? (e) => {

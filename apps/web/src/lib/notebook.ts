@@ -561,7 +561,7 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
      * A highlight as a quote block on the open page (or `pageId`), at `index` (the end when left out; a page whose only block is an empty text block has it replaced). With no page at all, a
      * page "Notes" is made. Returns where it went, for the toast and its Undo.
      */
-    addQuote(q: { noteId: string | null; page: number; quote: string; color: QuoteColor }, where: { pageId?: string; index?: number } = {}): { pageId: string; blockId: string; title: string } | null {
+    addQuote(q: { noteId: string | null; page: number; quote: string; color: QuoteColor }, where: { pageId?: string; index?: number } = {}): { pageId: string; blockId: string; title: string; undo: () => void } | null {
       const s = page(where.pageId) ?? openSlot();
       if (!s) return null;
       if (s.page.blocks.length >= NOTEBOOK_LIMITS.blocks) {
@@ -571,13 +571,22 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
       }
       const b: QuoteBlock = { id: deps.newId(), kind: "quote", noteId: q.noteId, page: q.page, quote: q.quote.replace(/\s+/g, " ").trim().slice(0, NOTEBOOK_LIMITS.quote), color: q.color };
       const only = s.page.blocks.length === 1 && isEmpty(s.page.blocks);
-      const list = only ? [] : [...s.page.blocks];
+      const before = s.page.blocks;
+      const list = only ? [] : [...before];
       const at = where.index === undefined || only ? list.length : Math.max(0, Math.min(list.length, where.index));
       list.splice(at, 0, b);
       // a quote after the last block leaves a text block to write in after it
-      if (at === list.length - 1) list.push({ id: deps.newId(), kind: "text", md: "" });
+      const tail: TextBlock | null = at === list.length - 1 ? { id: deps.newId(), kind: "text", md: "" } : null;
+      if (tail) list.push(tail);
       setBlocks(s, list);
-      return { pageId: s.page.id, blockId: b.id, title: s.page.title || NEW_PAGE_TITLE };
+      const undo = () => {
+        const now = slotOf(s.page.id);
+        if (!now || !now.page.blocks.some((x) => x.id === b.id)) return;
+        // the quote goes, and the empty text block it brought; a page that was only an empty block gets it back
+        const rest = now.page.blocks.filter((x) => x.id !== b.id && !(tail && x.id === tail.id && x.kind === "text" && !x.md.trim()));
+        setBlocks(now, only && rest.length === 0 ? before : rest);
+      };
+      return { pageId: s.page.id, blockId: b.id, title: s.page.title || NEW_PAGE_TITLE, undo };
     },
     /** Where a highlight is quoted: the first page and block, or null. */
     findQuote(noteId: string): { pageId: string; blockId: string } | null {

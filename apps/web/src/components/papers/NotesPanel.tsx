@@ -1,5 +1,5 @@
 import { AnimatePresence, m } from "motion/react";
-import { Check, Copy, Download, Highlighter, Trash2 } from "lucide-react";
+import { Check, CircleCheck, Copy, Download, Highlighter, NotebookPen, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { MAX_NOTE_CHARS, NOTE_COLORS, notesMarkdown, type DocNote, type DocumentInfo, type NoteColor } from "@scholar/shared";
 import { easeOut, spring } from "../../lib/motion";
@@ -8,7 +8,10 @@ import { type NotesApi } from "../../lib/notes";
 import { PARKED } from "../../lib/workspace";
 import { ColourFilter, LegendEditor } from "./HighlightsTools";
 
-function NoteItem({ n, api, autoFocus, focusTick, onGo, onFocusDone }: { n: DocNote; api: NotesApi; autoFocus: boolean; focusTick: number; onGo: (n: DocNote) => void; onFocusDone?: (id: string) => void }) {
+/** The new reader's Notebook, for a card: is the highlight quoted on a page of notes ("In notes"), and the two ways there (phase 2; today's reader passes nothing and the card is as it was). */
+export type CardNotebook = { inNotes: (id: string) => boolean; add: (n: DocNote) => void; open: (n: DocNote) => void };
+
+function NoteItem({ n, api, autoFocus, focusTick, onGo, onFocusDone, notebook }: { n: DocNote; api: NotesApi; autoFocus: boolean; focusTick: number; onGo: (n: DocNote) => void; onFocusDone?: (id: string) => void; notebook?: CardNotebook }) {
   const [text, setText] = useState(n.note);
   const legend = useLegend();
   const area = useRef<HTMLTextAreaElement>(null);
@@ -52,12 +55,30 @@ function NoteItem({ n, api, autoFocus, focusTick, onGo, onFocusDone }: { n: DocN
         onChange={(e) => setText(e.target.value)}
         onBlur={save}
       />
+      {notebook && (
+        <div className="note-nb">
+          {notebook.inNotes(n.id) ? (
+            <button type="button" className="btn btn-ghost btn-sm note-innotes" onClick={() => notebook.open(n)} aria-label={`In notes: open the quote of the highlight on page ${n.page}`}>
+              <CircleCheck size={14} aria-hidden="true" />
+              <span>In notes</span>
+            </button>
+          ) : (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => notebook.add(n)} aria-label={`Add the highlight on page ${n.page} to your notes`}>
+              <NotebookPen size={14} aria-hidden="true" />
+              <span>Add to notes</span>
+            </button>
+          )}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => onGo(n)} aria-label={`Show the highlight on page ${n.page} in the paper`}>
+            <span>Show in paper</span>
+          </button>
+        </div>
+      )}
     </m.li>
   );
 }
 
 /** Highlights and notes for the open paper, in page order: click one to jump to it, edit the words, change the colour, export them all. */
-export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone }: { doc: DocumentInfo; api: NotesApi; focusId: string | null; focusTick?: number; onGo: (n: DocNote) => void; onFocusDone?: (id: string) => void }) {
+export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone, notebook }: { doc: DocumentInfo; api: NotesApi; focusId: string | null; focusTick?: number; onGo: (n: DocNote) => void; onFocusDone?: (id: string) => void; notebook?: CardNotebook }) {
   const [copied, setCopied] = useState(false);
   const legend = useLegend();
   // the list can show one colour, or group the list by colour; the Markdown follows what is on screen
@@ -122,7 +143,7 @@ export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone
             <ul className="notes-list" aria-label={`Highlights: ${legend[c]}`}>
               <AnimatePresence initial={false}>
                 {shown.filter((n) => n.color === c).map((n) => (
-                  <NoteItem key={n.id} n={n} api={api} autoFocus={focusId === n.id} focusTick={focusTick} onGo={onGo} onFocusDone={onFocusDone} />
+                  <NoteItem key={n.id} n={n} api={api} autoFocus={focusId === n.id} focusTick={focusTick} onGo={onGo} onFocusDone={onFocusDone} notebook={notebook} />
                 ))}
               </AnimatePresence>
             </ul>
@@ -132,7 +153,7 @@ export function NotesPanel({ doc, api, focusId, focusTick = 0, onGo, onFocusDone
         <ul className="notes-list" aria-label="Highlights and notes">
           <AnimatePresence initial={false}>
             {shown.map((n) => (
-              <NoteItem key={n.id} n={n} api={api} autoFocus={focusId === n.id} focusTick={focusTick} onGo={onGo} onFocusDone={onFocusDone} />
+              <NoteItem key={n.id} n={n} api={api} autoFocus={focusId === n.id} focusTick={focusTick} onGo={onGo} onFocusDone={onFocusDone} notebook={notebook} />
             ))}
           </AnimatePresence>
         </ul>

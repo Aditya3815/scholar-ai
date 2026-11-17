@@ -284,6 +284,32 @@ describe("useNotebook's store", () => {
     expect([...w.pages.values()].sort((a, b) => a.position - b.position).map((p) => p.title)).toEqual(["Results", STARTER_TITLE]);
   });
 
+  it("Undo of Add to notes takes the quote and the empty block it brought; the starter page gets its empty block back", async () => {
+    const w = world();
+    w.pages.set("p1", { id: "p1", title: "P", style: "plain", position: 1, blocks: [text("a", "A")], rev: 1, updatedAt: 1 });
+    const s = w.store();
+    await s.load();
+    const at = s.addQuote({ noteId: "n1", page: 2, quote: "q", color: "yellow" })!;
+    expect(open(s).blocks.map((b) => b.kind)).toEqual(["text", "quote", "text"]);
+    at.undo();
+    expect(ids(open(s).blocks)).toEqual(["a"]);
+    expect(s.get().quoted.has("n1")).toBe(false);
+    // a block written after the quote stays: only an empty one goes with it
+    const again = s.addQuote({ noteId: "n2", page: 2, quote: "q", color: "yellow" })!;
+    s.setText("p1", open(s).blocks[2]!.id, "kept");
+    again.undo();
+    expect(open(s).blocks.map((b) => (b.kind === "text" ? b.md : b.kind))).toEqual(["A", "kept"]);
+    await w.tick(SAVE_AFTER_MS + 10);
+    expect(w.pages.get("p1")!.blocks.map((b) => b.kind)).toEqual(["text", "text"]);
+    // the starter page (nothing on the server): its one empty block comes back
+    const w2 = world();
+    const s2 = w2.store();
+    await s2.load();
+    const first = ids(open(s2).blocks);
+    s2.addQuote({ noteId: "n3", page: 1, quote: "q", color: "blue" })!.undo();
+    expect(ids(open(s2).blocks)).toEqual(first);
+  });
+
   it("a quote of a highlight that was removed loses its highlight id on the next save", async () => {
     const w = world();
     w.pages.set("p1", { id: "p1", title: "P", style: "plain", position: 1, blocks: [quote("q1", "gone"), quote("q2", "here"), text("t", "")], rev: 1, updatedAt: 1 });
