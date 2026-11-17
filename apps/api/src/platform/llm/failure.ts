@@ -1,3 +1,5 @@
+import type { ProblemType } from "@scholar/shared";
+
 /**
  * What a failed model call was, said once (docs/design/untangle.md, F8). Read from the error's NAME and its attempts, never by `instanceof`, so that this module imports nothing: understand/ may
  * reach it through port.ts (legal-match.test.ts, rule 3), and the gateway's errors (QuotaError, NoRouteError, AllProvidersFailedError with `attempts`) set their names.
@@ -51,16 +53,16 @@ export function attemptsForLog(e: unknown, o: { raw?: boolean } = {}): string[] 
 }
 
 /** The words of one surface for each failure it tells a person about (each surface keeps its own: nothing a person reads changes). */
-export type FailureWords = { status: number; code: string; title: string; detail?: string | ((e: Error) => string) };
+export type FailureWords<C extends ProblemType = ProblemType> = { status: 429 | 502 | 503; code: C; title: string; detail?: string | ((e: Error) => string) };
 
 /**
  * The problem a surface answers a model failure with: the quota, no model and every-model-failed cases by the surface's own words, or null for an error that is not a model failure (the caller
  * throws it on). A failure every model reported is logged once, with the attempts, under the surface's `log` name.
  */
-export function problemFor(
+export function problemFor<C extends ProblemType>(
   e: unknown,
-  words: { quota?: FailureWords; noRoute?: FailureWords; failed?: FailureWords; log: string },
-): { status: number; code: string; title: string; detail?: string } | null {
+  words: { quota?: FailureWords<C>; noRoute?: FailureWords<C>; failed?: FailureWords<C>; log: string },
+): { status: 429 | 502 | 503; code: C; title: string; detail?: string } | null {
   const name = nameOf(e);
   const pick = name === "QuotaError" ? words.quota : name === "NoRouteError" ? words.noRoute : name === "AllProvidersFailedError" ? words.failed : undefined;
   if (!pick) return null;

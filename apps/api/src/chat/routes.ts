@@ -16,7 +16,8 @@ import { judgeAnswer, type JudgeReport } from "./support";
 import { MAX_TIGHTEN_BODY_BYTES, readTighten } from "./tighten";
 import { answerGeneral } from "./general";
 import { askedOf, contextInfo, ownQuestions, routeContextOf, routeFollowUp, routeMessage, routerCallFailed, type FollowUp, type RouterContext } from "./router";
-import { errorKind, readHistory, type ChatHistory } from "./history";
+import { readHistory, type ChatHistory } from "./history";
+import { attemptsForLog } from "../platform/llm/failure";
 import { FLOOR_OUTCOMES, FOLLOW_UP_OUTCOMES, UNREAD_OUTCOMES, askOutcome, countOutcome, countOutcomes } from "../outcomes";
 import { flag, killSwitch, type FlagPosition, type GateName } from "../platform/switches";
 import { NO_PLAN, planLane, safetyRead, type LanePlan } from "../understand/lane";
@@ -782,7 +783,7 @@ chatRoutes.post("/", async (c) => {
         if (e instanceof QuotaError) return void (await done(false, "quota"));
         if (e instanceof NoRouteError || e instanceof AllProvidersFailedError) {
           // only the kind of failure is logged, for every message: a provider's own error text can echo what it was sent, and the privacy text says no question reaches a log
-          if (e instanceof AllProvidersFailedError) console.error(JSON.stringify({ level: "error", msg: "chat_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : errorKind(a.error)}`) }));
+          if (e instanceof AllProvidersFailedError) console.error(JSON.stringify({ level: "error", msg: "chat_failed", attempts: attemptsForLog(e) }));
           return void (await done(false, "unavailable"));
         }
         throw e;

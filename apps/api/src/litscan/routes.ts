@@ -17,7 +17,7 @@ import {
 import { requireUser, type Door } from "../auth/service";
 import { readJson } from "../platform/http/body";
 import { d1Ledger } from "../platform/llm/d1";
-import { AllProvidersFailedError, NoRouteError, QuotaError } from "../platform/llm";
+import { problemFor } from "../platform/llm/failure";
 import { DEFAULT_CONFIG } from "../platform/llm/config";
 import { sseStream } from "../sse";
 import { depsOf } from "../platform/deps";
@@ -74,13 +74,14 @@ litscanRoutes.post("/plan", async (c) => {
     const { items } = await planScan({ topic, language, complete: modelFor(depsOf(c), PROFILES.litscanPlan, user.id) });
     return c.json<{ plan: LitscanPlan }>({ plan: { topic, language, items, allowance: { limit: DEFAULT_CONFIG.dailyTokenQuota, used, estimate: estimateScanTokens(items.length) } } });
   } catch (e) {
-    if (e instanceof QuotaError) return deny(c, 429, "quota", "You have used today's AI allowance", e.message);
-    if (e instanceof NoRouteError) return deny(c, 503, "ai_unavailable", "Planning is unavailable right now");
     if (e instanceof ScanPlanError) return deny(c, 502, "plan_failed", "We could not split this into sub-questions", "Try describing the topic with a few more words.");
-    if (e instanceof AllProvidersFailedError) {
-      console.error(JSON.stringify({ level: "error", msg: "litscan_plan_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
-      return deny(c, 502, "ai_failed", "The AI service could not read the topic just now", "Please try again in a moment.");
-    }
+    const p = problemFor(e, {
+      quota: { status: 429, code: "quota", title: "You have used today's AI allowance", detail: (e) => e.message },
+      noRoute: { status: 503, code: "ai_unavailable", title: "Planning is unavailable right now" },
+      failed: { status: 502, code: "ai_failed", title: "The AI service could not read the topic just now", detail: "Please try again in a moment." },
+      log: "litscan_plan_failed",
+    });
+    if (p) return deny(c, p.status, p.code, p.title, p.detail);
     throw e;
   }
 });

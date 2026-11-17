@@ -4,7 +4,7 @@ import { requireUser, type Door } from "../auth/service";
 import { readJson } from "../platform/http/body";
 import { PROFILES, modelFor } from "../platform/llm/profiles";
 import { depsOf } from "../platform/deps";
-import { AllProvidersFailedError, NoRouteError, QuotaError } from "../platform/llm";
+import { problemFor } from "../platform/llm/failure";
 import { sseStream } from "../sse";
 import { PlanError, planIdea } from "./plan";
 import { compareIdea, sanitizeCompareRequest } from "./compare";
@@ -50,13 +50,14 @@ ideaRoutes.post("/plan", async (c) => {
     const { plan } = await planIdea({ text: text.slice(0, IDEA_PLAN_INPUT_CHARS), question, complete });
     return c.json<{ plan: IdeaPlan }>({ plan });
   } catch (e) {
-    if (e instanceof QuotaError) return deny(c, 429, "quota", "You have used today's AI allowance", e.message);
-    if (e instanceof NoRouteError) return deny(c, 503, "ai_unavailable", "Planning is unavailable right now");
     if (e instanceof PlanError) return deny(c, 502, "plan_failed", "We could not turn this into a search", "Try adding a sentence about the goal and the method.");
-    if (e instanceof AllProvidersFailedError) {
-      console.error(JSON.stringify({ level: "error", msg: "idea_plan_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
-      return deny(c, 502, "ai_failed", "The AI service could not read the idea just now", "Please try again in a moment.");
-    }
+    const p = problemFor(e, {
+      quota: { status: 429, code: "quota", title: "You have used today's AI allowance", detail: (e) => e.message },
+      noRoute: { status: 503, code: "ai_unavailable", title: "Planning is unavailable right now" },
+      failed: { status: 502, code: "ai_failed", title: "The AI service could not read the idea just now", detail: "Please try again in a moment." },
+      log: "idea_plan_failed",
+    });
+    if (p) return deny(c, p.status, p.code, p.title, p.detail);
     throw e;
   }
 });
@@ -119,12 +120,14 @@ ideaRoutes.post("/compare", async (c) => {
       });
       await send({ type: "done", comparison });
     } catch (e) {
-      if (e instanceof QuotaError) await send({ type: "error", code: "quota", title: "You have used today's AI allowance", detail: e.message });
-      else if (e instanceof NoRouteError) await send({ type: "error", code: "ai_unavailable", title: "Comparing is unavailable right now" });
-      else if (e instanceof AllProvidersFailedError) {
-        console.error(JSON.stringify({ level: "error", msg: "idea_compare_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
-        await send({ type: "error", code: "ai_failed", title: "The AI service could not compare just now", detail: "Please try again in a moment." });
-      } else {
+      const p = problemFor(e, {
+        quota: { status: 429, code: "quota", title: "You have used today's AI allowance", detail: (e) => e.message },
+        noRoute: { status: 503, code: "ai_unavailable", title: "Comparing is unavailable right now" },
+        failed: { status: 502, code: "ai_failed", title: "The AI service could not compare just now", detail: "Please try again in a moment." },
+        log: "idea_compare_failed",
+      });
+      if (p) await send({ type: "error", code: p.code, title: p.title, ...(p.detail === undefined ? {} : { detail: p.detail }) });
+      else {
         console.error(JSON.stringify({ level: "error", msg: "idea_compare_unexpected", error: e instanceof Error ? e.name : "unknown" }));
         await send({ type: "error", code: "internal_error", title: "The comparison failed", detail: "Please try again in a moment." });
       }
@@ -167,12 +170,14 @@ ideaRoutes.post("/insights", async (c) => {
       });
       await send({ type: "done", insights });
     } catch (e) {
-      if (e instanceof QuotaError) await send({ type: "error", code: "quota", title: "You have used today's AI allowance", detail: e.message });
-      else if (e instanceof NoRouteError) await send({ type: "error", code: "ai_unavailable", title: "Reading the papers is unavailable right now" });
-      else if (e instanceof AllProvidersFailedError) {
-        console.error(JSON.stringify({ level: "error", msg: "idea_insights_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
-        await send({ type: "error", code: "ai_failed", title: "The AI service could not read the papers just now", detail: "Please try again in a moment." });
-      } else {
+      const p = problemFor(e, {
+        quota: { status: 429, code: "quota", title: "You have used today's AI allowance", detail: (e) => e.message },
+        noRoute: { status: 503, code: "ai_unavailable", title: "Reading the papers is unavailable right now" },
+        failed: { status: 502, code: "ai_failed", title: "The AI service could not read the papers just now", detail: "Please try again in a moment." },
+        log: "idea_insights_failed",
+      });
+      if (p) await send({ type: "error", code: p.code, title: p.title, ...(p.detail === undefined ? {} : { detail: p.detail }) });
+      else {
         console.error(JSON.stringify({ level: "error", msg: "idea_insights_unexpected", error: e instanceof Error ? e.name : "unknown" }));
         await send({ type: "error", code: "internal_error", title: "Reading the papers failed", detail: "Please try again in a moment." });
       }

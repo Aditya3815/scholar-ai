@@ -45,7 +45,7 @@ import { readJson } from "../platform/http/body";
 import { answerAboutHighlights } from "./highlights-qa";
 import { readerOnFor, readerSwitchedOn } from "./reader-flag";
 import { deletePage, listPages, patchPage, putPage, type NotebookResult } from "./notebook";
-import { AllProvidersFailedError, NoRouteError, QuotaError } from "../platform/llm";
+import { problemFor } from "../platform/llm/failure";
 import { PROFILES, modelFor } from "../platform/llm/profiles";
 import { depsOf } from "../platform/deps";
 import { fromSqliteTime } from "../library/validate";
@@ -117,13 +117,12 @@ export function ocrPerDay(env: Pick<Env, "OCR_PAGES_PER_DAY">): number {
 
 /** One place that turns a failure into what the browser is told (as an HTTP error, or as a stream `error` event). */
 export function describeAskError(e: unknown): { status: 429 | 502 | 503; code: Extract<ProblemType, "quota" | "ai_unavailable" | "ai_failed">; title: string; detail?: string } | null {
-  if (e instanceof QuotaError) return { status: 429, code: "quota", title: "You have used today's AI allowance", detail: e.message };
-  if (e instanceof NoRouteError) return { status: 503, code: "ai_unavailable", title: "Answering is unavailable right now" };
-  if (e instanceof AllProvidersFailedError) {
-    console.error(JSON.stringify({ level: "error", msg: "qa_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
-    return { status: 502, code: "ai_failed", title: "The AI service could not answer just now", detail: "Please try again in a moment." };
-  }
-  return null;
+  return problemFor(e, {
+    quota: { status: 429, code: "quota", title: "You have used today's AI allowance", detail: (e) => e.message },
+    noRoute: { status: 503, code: "ai_unavailable", title: "Answering is unavailable right now" },
+    failed: { status: 502, code: "ai_failed", title: "The AI service could not answer just now", detail: "Please try again in a moment." },
+    log: "qa_failed",
+  });
 }
 
 /* ---------------------------------------------------------------- list / read */

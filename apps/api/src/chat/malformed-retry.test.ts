@@ -4,7 +4,7 @@ import { AllProvidersFailedError } from "../platform/llm";
 import { pickEvidencePapers } from "./answer";
 import { answerFromResults } from "./answer";
 import { answerGeneral } from "./general";
-import { isMalformedReply } from "./malformed";
+import { isMalformed as isMalformedReply } from "../platform/llm/failure";
 import { stubChatStream, stubPapers } from "./testing/stub";
 
 const failed = (...errors: string[]) => new AllProvidersFailedError(errors.map((error) => ({ provider: "workersai", model: "m", ok: false, ms: 1, error })));
