@@ -736,27 +736,21 @@ documentRoutes.delete("/:id/notes/:nid", async (c) => {
  * when it is off); at dark, an account that is not in READER_BETA_USERS gets the same 404. Otherwise each is guarded as the notes and the drawing are: the same-origin check on a write,
  * the signed-in person, their own paper (404 for anyone else's), and a body read with a size limit. F10's `requireUser` door replaces these lines when the W3 untangle merges.
  */
-async function notebookDoor(c: Context<HonoEnv>, write: boolean): Promise<Response | { row: Row }> {
+async function notebookDoor(c: Context<HonoEnv>): Promise<Response | { row: Row }> {
   if (!(await readerSwitchedOn(c.env))) return deny(c, 404, "not_found", "Not found", c.req.path);
-  if (write && !sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
-  if (!(await readerOnFor(c.env, user.id))) return deny(c, 404, "not_found", "Not found", c.req.path);
-  const row = await owned(c, user.id, c.req.param("id")!);
+  // the same-origin check of a write is the mount's (platform/http/guards.ts); the reader's own check sits between signing in and the paper, so it is not part of the door
+  const got = await requireUser(c, SIGNED_IN);
+  if (got instanceof Response) return got;
+  if (!(await readerOnFor(c.env, got.user.id))) return deny(c, 404, "not_found", "Not found", c.req.path);
+  const row = await paperOf(c, got.user.id);
   if (!row) return deny(c, 404, "not_found", "Paper not found");
   return { row };
 }
 
-/** The body of a write, read with the same limit as its check (a page is at most 48 KB): null when it is too big, undefined when it is not JSON. */
+/** The body of a write, read with the same limit as its check: null when it is too big, undefined when it is not JSON. */
 async function notebookBody(c: Context<HonoEnv>): Promise<unknown | null> {
-  if (Number(c.req.header("content-length") ?? 0) > MAX_NOTEBOOK_BODY) return null;
-  const text = await c.req.text().catch(() => "");
-  if (text.length > MAX_NOTEBOOK_BODY) return null;
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return undefined;
-  }
+  const read = await readJson(c, MAX_NOTEBOOK_BODY);
+  return read.tooLarge ? null : (read.value ?? undefined);
 }
 
 const notebookAnswer = (c: Context<HonoEnv>, r: NotebookResult) =>
@@ -764,13 +758,13 @@ const notebookAnswer = (c: Context<HonoEnv>, r: NotebookResult) =>
 const TOO_BIG = (c: Context<HonoEnv>) => deny(c, 413, "too_big", "That page of notes is too big to save", `A page holds at most ${NOTEBOOK_LIMITS.pageBytes / 1024} KB.`);
 
 documentRoutes.get("/:id/notebook", async (c) => {
-  const door = await notebookDoor(c, false);
+  const door = await notebookDoor(c);
   if (door instanceof Response) return door;
   return c.json({ pages: await listPages(c.env.DB, door.row.id) });
 });
 
 documentRoutes.put("/:id/notebook/pages/:pageId", async (c) => {
-  const door = await notebookDoor(c, true);
+  const door = await notebookDoor(c);
   if (door instanceof Response) return door;
   const body = await notebookBody(c);
   if (body === null) return TOO_BIG(c);
@@ -778,7 +772,7 @@ documentRoutes.put("/:id/notebook/pages/:pageId", async (c) => {
 });
 
 documentRoutes.patch("/:id/notebook/pages/:pageId", async (c) => {
-  const door = await notebookDoor(c, true);
+  const door = await notebookDoor(c);
   if (door instanceof Response) return door;
   const body = await notebookBody(c);
   if (body === null) return TOO_BIG(c);
@@ -786,7 +780,7 @@ documentRoutes.patch("/:id/notebook/pages/:pageId", async (c) => {
 });
 
 documentRoutes.delete("/:id/notebook/pages/:pageId", async (c) => {
-  const door = await notebookDoor(c, true);
+  const door = await notebookDoor(c);
   if (door instanceof Response) return door;
   if (!(await deletePage(c.env.DB, door.row.id, c.req.param("pageId")))) return deny(c, 404, "page_gone", "That page of notes is not there any more");
   return c.body(null, 204);

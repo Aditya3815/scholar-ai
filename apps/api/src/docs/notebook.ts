@@ -1,3 +1,4 @@
+import type { ProblemType } from "@scholar/shared";
 import {
   NOTEBOOK_KINDS_NOW,
   NOTEBOOK_LIMITS,
@@ -23,9 +24,9 @@ const COLS = "id, title, style, position, blocks, rev, updated_at";
 const toPage = (r: PageRow): NotebookPage => ({ id: r.id, title: r.title, style: r.style, position: r.position, blocks: JSON.parse(r.blocks) as NotebookBlock[], rev: r.rev, updatedAt: Date.parse(`${r.updated_at.replace(" ", "T")}Z`) });
 
 /** What a call answers: the HTTP status, and the body's `page` (or a refusal's type and words). */
-export type NotebookResult = { status: 200 | 201; page: NotebookPage } | { status: 409; page: NotebookPage } | { status: 400 | 404 | 413; type: string; title: string; detail?: string };
+export type NotebookResult = { status: 200 | 201; page: NotebookPage } | { status: 409; page: NotebookPage } | { status: 400 | 404 | 413; type: ProblemType; title: string; detail?: string };
 
-const refuse = (status: 400 | 404 | 413, type: string, title: string, detail?: string): NotebookResult => ({ status, type, title, ...(detail ? { detail } : {}) });
+const refuse = (status: 400 | 404 | 413, type: ProblemType, title: string, detail?: string): NotebookResult => ({ status, type, title, ...(detail ? { detail } : {}) });
 
 export async function listPages(db: D1Database, docId: string): Promise<NotebookPage[]> {
   const rows = await db.prepare(`SELECT ${COLS} FROM doc_notebook_pages WHERE doc_id = ?1 ORDER BY position, created_at, id`).bind(docId).all<PageRow>();

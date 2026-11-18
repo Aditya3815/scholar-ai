@@ -834,5 +834,43 @@
   "cross": "404 not_found: Not found (/api/v1/search)",
   "crossDev": "404 not_found: Not found (/api/v1/search)",
   "bucket": "SEARCH_LIMITER"
+ },
+ "DELETE /api/v1/documents/:id/notebook/pages/:pageId": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/documents/doc-none/notebook/pages/:pageId) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/documents/:id/notebook": {
+  "cross": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook) [no-store]",
+  "crossDev": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook) [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/documents/doc-none/notebook) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "PATCH /api/v1/documents/:id/notebook/pages/:pageId": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/documents/doc-none/notebook/pages/:pageId) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "PUT /api/v1/documents/:id/notebook/pages/:pageId": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/documents/doc-none/notebook/pages/:pageId) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "bucket": "API_LIMITER"
  }
 }
