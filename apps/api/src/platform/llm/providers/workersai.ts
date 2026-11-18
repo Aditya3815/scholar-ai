@@ -1,20 +1,17 @@
 import type { LlmProvider, ProviderRequest, ProviderResponse, StreamHooks } from "../types";
+import { runWorkersAi, usageOf } from "../workers-ai";
 
 type AiResult = {
   response?: unknown;
   choices?: { message?: { content?: string } }[];
   output?: { type?: string; content?: { text?: string }[] }[];
-  usage?: {
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    input_tokens?: number;
-    output_tokens?: number;
-    prompt_tokens_details?: { cached_tokens?: number };
-  };
 };
 
-/** Input tokens served from the provider's prompt cache, when it says so (it reports 0 for every model we use today). */
-const usageDetail = (u: AiResult["usage"]) => ({ tokensCached: u?.prompt_tokens_details?.cached_tokens ?? null });
+/** The usage of a whole answer (workers-ai.ts reads it once: either name of the token counts, and the input tokens served from the provider's prompt cache, which is 0 for every model we use today). */
+const usage = (r: unknown) => {
+  const u = usageOf(r);
+  return { tokensIn: u.tokensIn, tokensOut: u.tokensOut, tokensCached: u.tokensCached };
+};
 
 function extractText(r: AiResult | string): string {
   if (typeof r === "string") return r;
@@ -126,28 +123,19 @@ export function workersAiProvider(ai: Ai, opts: { reasoning?: "low" | "medium" |
     async complete(model, req: ProviderRequest, signal): Promise<ProviderResponse> {
       const body = buildBody(model, req, opts.reasoning);
 
-      // `signal` is honoured by the caller racing a timeout; Workers AI binding has no abort option.
-      const r = (await Promise.race([
-        (ai as unknown as { run(m: string, b: unknown): Promise<AiResult> }).run(model, body),
-        new Promise<never>((_, rej) => signal.addEventListener("abort", () => rej(new Error("timeout")), { once: true })),
-      ])) as AiResult;
-
-      return {
-        text: extractText(r),
-        tokensIn: r.usage?.prompt_tokens ?? r.usage?.input_tokens ?? null,
-        tokensOut: r.usage?.completion_tokens ?? r.usage?.output_tokens ?? null,
-        ...usageDetail(r.usage),
-      };
+      // `signal` gives up waiting (the binding has no abort option)
+      const r = await runWorkersAi<AiResult>(ai, model, body, { signal, privacy: "private" });
+      return { text: extractText(r), ...usage(r) };
     },
 
     async stream(model, req: ProviderRequest, signal, hooks): Promise<ProviderResponse> {
-      const out = (await (ai as unknown as { run(m: string, b: unknown): Promise<unknown> }).run(model, { ...buildBody(model, req, opts.reasoning), stream: true })) as ReadableStream<Uint8Array> | AiResult | string;
+      const out = await runWorkersAi<ReadableStream<Uint8Array> | AiResult | string>(ai, model, { ...buildBody(model, req, opts.reasoning), stream: true }, { privacy: "private" });
       if (out instanceof ReadableStream) return readChatStream(out, hooks, signal);
       // The binding answered without a stream (some models ignore the flag): deliver it as one piece.
       const r = out as AiResult;
       const text = extractText(r);
       hooks.onContent?.(text);
-      return { text, tokensIn: typeof r === "object" ? r.usage?.prompt_tokens ?? null : null, tokensOut: typeof r === "object" ? r.usage?.completion_tokens ?? null : null, ...(typeof r === "object" ? usageDetail(r.usage) : {}) };
+      return { text, ...usage(r) };
     },
   };
 }

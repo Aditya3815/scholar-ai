@@ -1,6 +1,6 @@
 import { MAX_DOC_PAGES, judgePage, type OcrStatus, type OcrWhy, type ScanInfo, type ScanPage, type ScanPageResult } from "@scholar/shared";
 import { chunkPage } from "../docs/chunk";
-import type { Embedder } from "../docs/embed";
+import type { Embedder } from "../platform/llm/embedder";
 import { encodeVec } from "../docs/vector";
 import type { PageReader } from "./read";
 

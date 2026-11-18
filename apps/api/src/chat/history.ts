@@ -54,12 +54,6 @@ export type ChatHistory = {
 };
 
 
-/**
- * What kind of failure a provider reported, as one of five words, for a log line about a message that came with earlier turns: a provider's own error text can echo what it was sent (a rejected
- * prompt, a schema that did not fit), so nothing of it is logged for such a message, only this.
- */
-export const errorKind = (message?: string): "timeout" | "malformed" | "quota" | "unavailable" | "error" =>
-  !message ? "error" : /time(?:d)? ?out|abort/i.test(message) ? "timeout" : /json|unterminated|parse/i.test(message) ? "malformed" : /quota/i.test(message) ? "quota" : /unavailable|overload|rate|5\d\d/i.test(message) ? "unavailable" : "error";
 
 const MARKS = /\s*(?:\[\s*\d{1,3}(?:\s*[,;–-]\s*\d{1,3})*\s*\]|【[^】]{0,40}】)/g;
 const DOI = new RegExp(String.raw`\b(?:doi:\s*)?${DOI_START}[^\s,;)\]]*[^\s,;)\].:!?]`, "gi");

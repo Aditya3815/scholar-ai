@@ -3,8 +3,8 @@ import { detectLanguage } from "@scholar/shared";
 import { readHistory } from "./history";
 import { buildChatPrompt, pickEvidencePapers } from "./answer";
 import { routeFollowUp, routerContextPrompt, routerPrompt, type RouterContext } from "./router";
-import { stubChatStream, stubPapers } from "./stub";
-import { stubRoute } from "./stub-route";
+import { stubChatStream, stubPapers } from "./testing/stub";
+import { stubRoute } from "./testing/stub-route";
 
 const u = (text: string) => ({ role: "user", text });
 const a = (extra: Record<string, unknown> = {}) => ({ role: "assistant", ...extra });

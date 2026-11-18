@@ -1,10 +1,10 @@
 import { MARK, hasMark, cutWhole, MAX_SAME_PAPERS_ANSWER_CHARS, neutralise, splitSentences, words, type ChatAnswer, type ChatCitation, type ChatEvent, type Lang, type Paper } from "@scholar/shared";
 import { AnswerFieldStreamer } from "../docs/stream-json";
 import { plainAnswer } from "./history";
-import { isMalformedReply } from "./malformed";
+import { withMalformedRetry } from "../platform/llm/retry";
 import { judgeAnswer, type JudgeReport } from "./support";
 import { abstractOf, dedupeMarkRuns, MAX_SENTENCES_PER_PAPER, shownSentence, tidyMarkPunctuation } from "./evidence";
-import type { StreamComplete } from "../docs/qa";
+import type { StreamComplete } from "../platform/llm/port";
 
 /**
  * A short written answer to a search, made only from what the search found. The model sees numbered papers (the number is the paper's place in the list the reader sees)
@@ -227,14 +227,7 @@ export async function answerFromResults(args: { question: string; /** The suppor
     },
   );
   // a malformed reply (not JSON at all) is asked for again once, but only if none of its words reached the screen
-  const ask = async (note?: string) => {
-    try {
-      return (await callModel(note)).json;
-    } catch (e) {
-      if (writing || !isMalformedReply(e)) throw e;
-      return (await callModel(note)).json;
-    }
-  };
+  const ask = async (note?: string) => (await withMalformedRetry(() => callModel(note), { shown: () => writing })).json;
   let json = await ask();
   args.onRaw?.(json);
   let checked = verifyChatAnswer(json, args.picked, marks);

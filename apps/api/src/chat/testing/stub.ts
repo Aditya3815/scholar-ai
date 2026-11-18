@@ -1,13 +1,13 @@
 import type { Paper, SearchResponse, SearchScope } from "@scholar/shared";
-import type { StreamComplete } from "../docs/qa";
-import { extractJson } from "../llm/gateway";
-import { QuotaError } from "../llm";
+import type { StreamComplete } from "../../platform/llm/port";
+import { extractJson } from "../../platform/llm/gateway";
+import { QuotaError } from "../../platform/llm";
 
 /**
  * Offline stand-ins for the search and the model, used ONLY by tests and the local end-to-end run (QA_STUB=1 with ENABLE_DEV_ROUTES=1, never production secrets).
  * Words in the question steer them: "nothing" finds no papers, "partial" makes one source fail, "unanswerable" makes the model say the papers do not answer,
  * "hallucinate" makes it cite a sentence that does not exist, "slowly" makes the answer take a few seconds (to press Stop), "longabstract" gives the first paper a long abstract, "stalled" keeps the stream silent for a few seconds.
- * The stand-in search gives the same five glaucoma records for any words. With QA_STUB_TOPIC=1 (the Worker's own variable, development only: it is read where the route calls the stand-in, and is never set in wrangler.jsonc) it also
+ * The stand-in search gives the same five glaucoma records for any words. With QA_STUB_TOPIC=1 (the Worker's own variable, development only: app/stand-ins.ts reads it, and it is never set in wrangler.jsonc) it also
  * writes the words of the question into each record (the first sentence of the abstract, or the title of a record that has none), so that a list is about whatever was asked and the suites that ask about anything meet a
  * relevant one when the relevance floor (CHAT_FLOOR, R9) is looking: the integration run sets it with that flag. "offtopic" in the question keeps the records as they are, so a test has a list that no words match. Without the variable the records
  * are what they always were, byte for byte, which the differential check of since-year.test.ts pins. When the papers do not answer, the general background (chat_general) is steered by "gibberish", "greeting", "cites" and "marks". A follow-up's earlier answer (answer.ts) is a fenced block of prefixed lines that these words never steer by: the stand-in reads the first `Question:` line only, and the block just makes the plain answer say it was given.
@@ -164,3 +164,9 @@ export const stubStrictStream: StreamComplete = async (req) => {
   });
   return { json: { claims }, model: "stub" };
 };
+
+/** The papers of a ledger looked up again by DOI, offline: the stand-in records (both lists) that have one of these DOIs, in the order given, each a fresh copy. */
+export function stubPapersByDoi(dois: string[]): Paper[] {
+  const known = [...stubPapers(), ...stubIndiaPapers()];
+  return dois.map((d) => known.find((k) => k.doi === d)).filter((k): k is Paper => !!k).map((k) => ({ ...k, sources: [...k.sources], retractionSources: [...k.retractionSources] }));
+}

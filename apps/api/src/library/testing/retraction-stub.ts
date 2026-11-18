@@ -1,5 +1,5 @@
 /**
- * Crossref's retraction data, offline (tests and the local end-to-end run only: QA_STUB=1 together with ENABLE_DEV_ROUTES=1, see src/index.ts). The DOI says what happens:
+ * Crossref's retraction data, offline (tests and the local end-to-end run only: QA_STUB=1 together with ENABLE_DEV_ROUTES=1, handed out by app/stand-ins.ts). The DOI says what happens:
  *   a DOI containing "retracted"   a retraction notice names it
  *   a DOI containing "reject"      the service answers 400 to any request that names it (a DOI it cannot take)
  *   a DOI containing "outage"      the service answers 503 (it is down: the run must stop, not mark anything)

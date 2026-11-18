@@ -7,12 +7,12 @@
 //                                                                      (eval/lib/model-layer.ts; the recording is data/understand-recorded.json.gz)
 // UNDERSTAND_MODELS names the models to run (any mode); without it every recorded model runs, and the shipped one.
 //
-// The gates apply to the model the step ships with (UNDERSTAND_CHAIN[0] in src/llm/config.ts); every other recorded model is measured and printed for comparison only.
+// The gates apply to the model the step ships with (UNDERSTAND_CHAIN[0] in src/platform/llm/config.ts); every other recorded model is measured and printed for comparison only.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import type { Complete } from "../src/docs/qa";
-import { UNDERSTAND_CHAIN } from "../src/llm/config";
+import { UNDERSTAND_CHAIN } from "../src/platform/llm/config";
 import { chatReplyLeaks, writeChatReply } from "../src/understand/chat-reply";
 import { understandTurn, UNDERSTAND_TIMEOUT_MS, type UnderstandDecision } from "../src/understand/understand";
 import {

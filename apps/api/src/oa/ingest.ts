@@ -1,5 +1,5 @@
 import { MAX_OA_PAGES, OA_REASONS, OA_RETRYABLE, type OaReason } from "@scholar/shared";
-import type { Embedder } from "../docs/embed";
+import type { Embedder } from "../platform/llm/embedder";
 import { chunksFromPages, chunksFromSections, type OaChunk } from "./chunks";
 import { looksLikePaper } from "./identity";
 import { parseJats } from "./jats";

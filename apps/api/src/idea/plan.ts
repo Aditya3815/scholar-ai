@@ -7,7 +7,7 @@ import {
   type IdeaFacets,
   type IdeaPlan,
 } from "@scholar/shared";
-import type { Complete } from "../docs/qa";
+import type { Complete } from "../platform/llm/port";
 
 /**
  * Step 1 of an Idea Check: the private language model reads the researcher's idea and proposes a search plan. The plan is the ONLY thing

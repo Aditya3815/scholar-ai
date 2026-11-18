@@ -16,12 +16,13 @@ vi.mock("../understand/reading-check", async (importOriginal) => {
   const real = await importOriginal<typeof import("../understand/reading-check")>();
   return { ...real, checkReading: (...a: Parameters<typeof real.checkReading>) => (calls.mode === "refuse" ? false : real.checkReading(...a)) };
 });
-vi.mock("./stub", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./stub")>();
+vi.mock("./testing/stub", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./testing/stub")>();
   return { ...real, stubSearchFor: (query: string, scope: Parameters<typeof real.stubSearchFor>[1]) => (calls.searches.push(query), real.stubSearchFor(query, scope)) };
 });
 
 import { chatRoutes } from "./routes";
+import { withDeps } from "../app/deps";
 
 const TOKEN = "t".repeat(40);
 const sessionRow = { id: "user-1", name: "Test", email: "t@example.org", orcid: null, avatar_url: null, role: "scholar", privacy_ack: null, stale: 0, providers: "google" };
@@ -42,7 +43,7 @@ function fakeDb() {
 }
 async function stream(message: string, env: Record<string, string>) {
   const d = fakeDb();
-  const res = await chatRoutes.request("http://localhost/", { method: "POST", headers: { "content-type": "application/json", origin: "http://localhost", cookie: `sid=${TOKEN}` }, body: JSON.stringify({ mode: "auto", message }) }, { DB: d.db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...env });
+  const res = await withDeps(chatRoutes).request("http://localhost/", { method: "POST", headers: { "content-type": "application/json", origin: "http://localhost", cookie: `sid=${TOKEN}` }, body: JSON.stringify({ mode: "auto", message }) }, { DB: d.db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...env });
   const text = (await res.text()).replace(/"tookMs":\d+/g, '"tookMs":0');
   const events = text.split("\n\n").flatMap((b) => {
     const data = b.split("\n").find((l) => l.startsWith("data:"));

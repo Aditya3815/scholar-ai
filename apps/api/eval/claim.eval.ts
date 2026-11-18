@@ -11,9 +11,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { judgeClaim, type ClaimJudgement, type ClaimPaper } from "../src/chat/claim-check";
 import { splitClaims } from "../src/chat/support";
-import { DEFAULT_CONFIG } from "../src/llm/config";
-import { createGateway } from "../src/llm/gateway";
-import { workersAiProvider } from "../src/llm/providers/workersai";
+import { DEFAULT_CONFIG } from "../src/platform/llm/config";
+import { createGateway } from "../src/platform/llm/gateway";
+import { workersAiProvider } from "../src/platform/llm/providers/workersai";
 import { ModelLayer } from "./lib/model-layer";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));

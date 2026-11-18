@@ -1,10 +1,11 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
-import type { StreamComplete } from "../docs/qa";
+import type { StreamComplete } from "../platform/llm/port";
 import { installGates } from "../gate";
 import { remoteGate } from "../gate/api-gate";
 import { countOutcome } from "../outcomes";
-import { answerModel, judgeModel, searchFor, stubbed } from "./model";
+import type { Deps } from "../platform/deps";
+import { PROFILES, modelFor } from "../platform/llm/profiles";
 import { appendEvent, endScan, getScanForRun, itemsOf, partsOf } from "./store";
 import { answerSubQuestion } from "./worker";
 import type { Env } from "../platform/env";
@@ -22,7 +23,10 @@ export type LitscanParams = { id: string };
 /** How long the model may take to write one sub-question's answer, once it has started (the longest seen in a real run was 62 s, the usual 17 to 24 s). */
 export const MODEL_LIMIT_MS = 75_000;
 
-export class LitscanRun extends WorkflowEntrypoint<Env, LitscanParams> {
+/** The Workflow, with its deps (the models, the search, a test run's short retries) taken from the composition root: index.ts exports it as LitscanRun with depsFor (app/deps.ts). */
+export abstract class LitscanFlow extends WorkflowEntrypoint<Env, LitscanParams> {
+  protected abstract depsFor(env: Env): Deps;
+
   async run(event: WorkflowEvent<LitscanParams>, step: WorkflowStep): Promise<{ id: string }> {
     const env = this.env;
     const db = env.DB;
@@ -30,8 +34,8 @@ export class LitscanRun extends WorkflowEntrypoint<Env, LitscanParams> {
     const startedAt = Date.now();
     installGates(env.API_GATE ? remoteGate(env.API_GATE) : null);
     // the local end-to-end run waits a second between tries instead of the real delays
-    const fast = stubbed(env);
-    const wait = (real: string) => (fast ? "1 second" : real) as `${number} ${"second" | "seconds"}`;
+    const d = this.depsFor(env);
+    const wait = (real: string) => (d.dev.stepRetryDelay ?? real) as `${number} ${"second" | "seconds"}`;
 
     const scan = await step.do("load", async () => {
       const row = await getScanForRun(db, id);
@@ -45,8 +49,8 @@ export class LitscanRun extends WorkflowEntrypoint<Env, LitscanParams> {
           // the time limit starts when the model does, not before the search
           const clock = new AbortController();
           let timer: ReturnType<typeof setTimeout> | undefined;
-          const model = answerModel(env, scan.userId, clock.signal);
-          const judge = judgeModel(env, scan.userId, clock.signal);
+          const model = modelFor(d, PROFILES.litscanAnswer, scan.userId, clock.signal);
+          const judge = modelFor(d, PROFILES.litscanJudge, scan.userId, clock.signal);
           const stream: StreamComplete = (req, hooks) => {
             timer ??= setTimeout(() => clock.abort(), MODEL_LIMIT_MS);
             return model(req, hooks);
@@ -56,7 +60,7 @@ export class LitscanRun extends WorkflowEntrypoint<Env, LitscanParams> {
               idx,
               item,
               language: scan.language,
-              deps: { search: searchFor(env, scan.scope), stream, judge: killSwitch(env, "CHAT_JUDGE") === "off" ? undefined : judge },
+              deps: { search: d.scanSearch(scan.scope), stream, judge: killSwitch(env, "CHAT_JUDGE") === "off" ? undefined : judge },
               onStage: async (stage) => void (await appendEvent(db, id, `w:${idx}:${stage}`, { type: "worker", idx, stage })),
               signal: clock.signal,
             });

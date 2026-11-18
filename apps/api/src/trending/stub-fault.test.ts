@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { parseTrending } from "@scholar/shared";
 import { fakeKv } from "./fake-kv";
-import { STUB_FAULT_KEY, makeStubTrending, parseStubFault } from "./stub";
+import { STUB_FAULT_KEY, makeStubTrending, parseStubFault } from "./testing/stub";
 import { TRENDING_KEYS } from "./store";
 import { runTrendingFromEnv, type TrendingJobEnv } from "./job";
+import { runTrendingStandIn } from "./testing/job";
 
 /**
  * The stand-ins of stub.ts can be made to fail, so that the local end-to-end run (scripts/trending-e2e.mjs) can show that a source that fails leaves the last file. The switch is a KV key that
- * only the QA_STUB branch of the job reads (QA_STUB=1 together with ENABLE_DEV_ROUTES=1, never in production), and that is written through the dev-only route /api/v1/dev/kv.
+ * only the test run's job (testing/job.ts) reads (QA_STUB=1 together with ENABLE_DEV_ROUTES=1, never in production), and that is written through the dev-only route /api/v1/dev/kv.
  */
 const DAY = "2026-11-03";
 const TUESDAY = Date.parse(`${DAY}T03:17:00Z`);
@@ -59,13 +60,13 @@ describe("the job as the Worker runs it with the stand-ins", () => {
 
   it("reads the fault key at the start of a run: with a fault the run goes by it (arXiv: those phrases are out for the night; the search: the run fails and the last file stays exactly as it was); without it the next run is fine", async () => {
     const w = fakeKv({ writeLimit: false });
-    await runTrendingFromEnv(env(w.kv), TUESDAY);
+    await runTrendingStandIn(env(w.kv), TUESDAY);
     const last = w.read(TRENDING_KEYS.file);
     expect(parseTrending(JSON.parse(last!))?.groups.global.chips.length).toBeGreaterThanOrEqual(8);
 
     w.seed(STUB_FAULT_KEY, "arxiv");
     // arXiv answering its Error entry for both of the stand-ins' computing and physics phrases: each is out for the night (two in a row is a hiccup, three an outage), and the file is made from the others
-    const r = await runTrendingFromEnv(env(w.kv), TUESDAY + 3_600_000);
+    const r = await runTrendingStandIn(env(w.kv), TUESDAY + 3_600_000);
     expect(r.daily).toMatchObject({ published: true });
     expect(r.daily!.rejected!.unconfirmed).toBeGreaterThanOrEqual(2);
     const degraded = w.read(TRENDING_KEYS.file)!;
@@ -75,17 +76,17 @@ describe("the job as the Worker runs it with the stand-ins", () => {
     expect(texts.length).toBeGreaterThanOrEqual(8);
 
     w.seed(STUB_FAULT_KEY, "search");
-    await expect(runTrendingFromEnv(env(w.kv), TUESDAY + 7_200_000)).rejects.toThrow(/no source answered/);
+    await expect(runTrendingStandIn(env(w.kv), TUESDAY + 7_200_000)).rejects.toThrow(/no source answered/);
     expect(w.read(TRENDING_KEYS.file)).toBe(degraded);
 
     await w.kv.delete(STUB_FAULT_KEY);
-    await expect(runTrendingFromEnv(env(w.kv), TUESDAY + 10_800_000)).resolves.toMatchObject({ daily: { published: true } });
+    await expect(runTrendingStandIn(env(w.kv), TUESDAY + 10_800_000)).resolves.toMatchObject({ daily: { published: true } });
   });
 
   it("a fault on OpenAlex fails a first run before any file is made", async () => {
     const w = fakeKv({ writeLimit: false });
     w.seed(STUB_FAULT_KEY, "openalex");
-    await expect(runTrendingFromEnv(env(w.kv), TUESDAY)).rejects.toMatchObject({ source: "openalex", kind: "http", status: 500 });
+    await expect(runTrendingStandIn(env(w.kv), TUESDAY)).rejects.toMatchObject({ source: "openalex", kind: "http", status: 500 });
     expect(w.read(TRENDING_KEYS.file)).toBeNull();
   });
 
@@ -94,7 +95,7 @@ describe("the job as the Worker runs it with the stand-ins", () => {
       const w = fakeKv({ writeLimit: false });
       w.seed(STUB_FAULT_KEY, "arxiv");
       // the variable TRENDING=off ends the run before any call goes out, so no real address is asked in this test: what is left to see is which keys were read
-      await runTrendingFromEnv(env(w.kv, { ...over, TRENDING: "off" }), TUESDAY);
+      await runTrendingFromEnv(env(w.kv, { ...over, TRENDING: "off" } as Partial<TrendingJobEnv>), TUESDAY);
       expect(w.log.gets.flat()).not.toContain(STUB_FAULT_KEY);
     }
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { MAX_RESTATED_QUESTION_CHARS, detectLanguage, offlineRoute } from "@scholar/shared";
-import { AllProvidersFailedError } from "../llm";
+import { AllProvidersFailedError } from "../platform/llm";
 import { readHistory } from "./history";
 import { ROUTER_CONTEXT_SCHEMA, ROUTER_CONTEXT_SYSTEM, ROUTER_SCHEMA, ROUTER_SYSTEM, askedOf, contextInfo, parseFollowUp, routeFollowUp, routeMessage, routerContextPrompt, routerPrompt, type RouterContext } from "./router";
 

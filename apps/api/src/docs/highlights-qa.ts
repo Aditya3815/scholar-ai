@@ -1,5 +1,6 @@
 import { NOTE_COLORS, isPlainLegend, type Answer, type DocNote, type Legend } from "@scholar/shared";
-import { SCHEMA, verifyAnswer, type Complete, type Retrieved, type StoredChunk } from "./qa";
+import { SCHEMA, verifyAnswer, type Retrieved, type StoredChunk } from "./qa";
+import type { Complete } from "../platform/llm/port";
 import { rank } from "./vector";
 
 /** Questions about what a reader marked: the same checked pipeline as questions about the paper, with the reader's highlights as the passages. */

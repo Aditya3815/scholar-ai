@@ -1,4 +1,4 @@
-import type { Complete } from "../docs/qa";
+import type { Complete } from "../platform/llm/port";
 import type { GreetingKind } from "./greeting";
 import { DOI_START, plainLine } from "@scholar/shared";
 import type { UnderstandLanguage } from "./understanding";

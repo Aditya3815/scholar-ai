@@ -24,10 +24,10 @@ import {
   type Route,
   type RouteContext,
 } from "@scholar/shared";
-import type { Complete } from "../docs/qa";
-import { AllProvidersFailedError } from "../llm";
-import { isMalformedReply } from "./malformed";
-import { errorKind, type ChatHistory } from "./history";
+import type { Complete } from "../platform/llm/port";
+import { attemptsForLog } from "../platform/llm/failure";
+import { withMalformedRetry } from "../platform/llm/retry";
+import { type ChatHistory } from "./history";
 import { bleeds, checkRestatement, type RestatementReason } from "./restate";
 
 /**
@@ -95,19 +95,24 @@ export async function routeMessage(text: string, complete: Complete | null): Pro
   if (!complete) return offlineRoute(text);
   const language = detectLanguage(text);
   // The model now and then answers with something that is not JSON (a malformed reply, not a wrong choice): asking again once is cheap (about a hundred tokens). A timeout or a refusal is not asked again.
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const { json } = await complete({ system: ROUTER_SYSTEM, user: routerPrompt(text), schema: ROUTER_SCHEMA as unknown as Record<string, unknown>, maxTokens: 3500, label: "chat_route" });
-      return parseRoute(json, language);
-    } catch (e) {
-      const malformed = isMalformedReply(e);
-      // what failed, never what was written: not even a provider's own error text, which can echo what it was sent
-      console.error(JSON.stringify({ level: "warn", msg: "route_failed", attempt, error: e instanceof Error ? e.name : "unknown", ...(e instanceof AllProvidersFailedError ? { attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : errorKind(a.error)}`) } : {}) }));
-      if (!malformed) break;
-    }
+  try {
+    return await withMalformedRetry(
+      async () => {
+        const { json } = await complete({ system: ROUTER_SYSTEM, user: routerPrompt(text), schema: ROUTER_SCHEMA as unknown as Record<string, unknown>, maxTokens: 3500, label: "chat_route" });
+        return parseRoute(json, language);
+      },
+      { onFailure: logFailure("route_failed") },
+    );
+  } catch {
+    return { mode: "search", how: "fallback", confidence: 0, language };
   }
-  return { mode: "search", how: "fallback", confidence: 0, language };
 }
+
+/** One log line for a failed router call: what failed, never what was written (not even a provider's own error text, which can echo what it was sent). */
+const logFailure = (msg: string) => (e: unknown, attempt: 1 | 2) => {
+  const attempts = attemptsForLog(e);
+  console.error(JSON.stringify({ level: "warn", msg, attempt, error: e instanceof Error ? e.name : "unknown", ...(attempts ? { attempts } : {}) }));
+};
 
 /* ---------------------------------------------------------------- a message in a conversation */
 
@@ -413,15 +418,16 @@ export async function routeFollowUp(text: string, complete: Complete | null, ctx
   if (!needsContext(text)) return { route: await routeMessage(text, complete), followUp: null };
   // the language of this conversation: its own questions (the questions of other chats say nothing of it)
   const language = languageWithContext(text, ownQuestions(ctx));
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const { json } = await complete({ system: ROUTER_CONTEXT_SYSTEM, user: routerContextPrompt(text, ctx), schema: ROUTER_CONTEXT_SCHEMA as unknown as Record<string, unknown>, maxTokens: 3500, label: "chat_route_ctx" });
-      return parseFollowUp(json, text, language, ctx);
-    } catch (e) {
-      // what failed, never what was written: not even a provider's own error text, which can echo what it was sent
-      console.error(JSON.stringify({ level: "warn", msg: "route_ctx_failed", attempt, error: e instanceof Error ? e.name : "unknown", ...(e instanceof AllProvidersFailedError ? { attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : errorKind(a.error)}`) } : {}) }));
-      if (!isMalformedReply(e)) break;
-    }
+  try {
+    return await withMalformedRetry(
+      async () => {
+        const { json } = await complete({ system: ROUTER_CONTEXT_SYSTEM, user: routerContextPrompt(text, ctx), schema: ROUTER_CONTEXT_SCHEMA as unknown as Record<string, unknown>, maxTokens: 3500, label: "chat_route_ctx" });
+        return parseFollowUp(json, text, language, ctx);
+      },
+      { onFailure: logFailure("route_ctx_failed") },
+    );
+  } catch {
+    /* the rules' reading below */
   }
   return {
     route: { mode: "search", how: "fallback", confidence: 0, language },

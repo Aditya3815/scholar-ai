@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { cleanAutoMessage, needsContext } from "@scholar/shared";
 import { readHistory } from "./history";
 import { chatRoutes } from "./routes";
+import { withDeps } from "../app/deps";
 // the labelled follow-ups, and their scoring: scripts that the real-model eval runs (scripts/router-eval.mjs --followup); pinned here without a model
 // @ts-expect-error a script, not a typed module
 import { CLASSES, HOLDOUT, HOLDOUT2, LANGS, TUNED } from "@scholar/test-support/router-followup-cases.mjs";
@@ -263,7 +264,7 @@ describe("every case goes through the real route, with the stand-in for the mode
   const db = { prepare: () => ({ bind: () => ({ first: async () => sessionRow, run: async () => ({}), all: async () => ({ results: [] }) }) }) };
   const ask = async (c: Case) => {
     const body = { message: c.message, history: c.history };
-    const res = await chatRoutes.request("http://localhost/route", { method: "POST", headers: { "content-type": "application/json", origin: "http://localhost", cookie: `sid=${"t".repeat(40)}` }, body: JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org" });
+    const res = await withDeps(chatRoutes).request("http://localhost/route", { method: "POST", headers: { "content-type": "application/json", origin: "http://localhost", cookie: `sid=${"t".repeat(40)}` }, body: JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org" });
     return { status: res.status, json: (await res.json()) as Record<string, unknown> };
   };
 

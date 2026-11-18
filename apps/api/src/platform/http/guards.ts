@@ -3,6 +3,7 @@ import { matchedRoutes } from "hono/route";
 import { deny } from "../../problem";
 import type { ProblemType } from "@scholar/shared";
 import type { Env } from "../env";
+import { devMode } from "../dev";
 
 /** A refusal in words: what `deny` sends. */
 export type Refusal = { status: 401 | 403 | 404; type: ProblemType; title: string; detail?: string };
@@ -44,7 +45,7 @@ export function sameOriginWrites(rules: SameOriginRules): MiddlewareHandler<{ Bi
     if (!route) return next();
     const key = `${route.method} ${route.path}` as RouteKey;
     if (key in rules.skip) return next();
-    if (rules.devFirst.includes(key) && c.env.ENABLE_DEV_ROUTES !== "1") return next();
+    if (rules.devFirst.includes(key) && !devMode(c.env)) return next();
     if (sameOrigin(c)) return next();
     return rules.refusals?.[route.basePath]?.(c) ?? refuse(c, CROSS_ORIGIN);
   };

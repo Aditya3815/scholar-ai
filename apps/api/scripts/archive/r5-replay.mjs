@@ -37,7 +37,7 @@ const MODELS = {
 // the app's own code, bundled: the prompts, the schemas and the quote check are the ones in production
 const tmp = mkdtempSync(join(tmpdir(), "r5-"));
 const entry = join(tmp, "entry.ts");
-writeFileSync(entry, `export * as compare from ${JSON.stringify(join(API, "src/idea/compare.ts"))};\nexport * as insights from ${JSON.stringify(join(API, "src/idea/insights.ts"))};\nexport * as pricing from ${JSON.stringify(join(API, "src/llm/pricing.ts"))};\nexport * as shared from ${JSON.stringify(join(API, "../../packages/shared/src/index.ts"))};\n`);
+writeFileSync(entry, `export * as compare from ${JSON.stringify(join(API, "src/idea/compare.ts"))};\nexport * as insights from ${JSON.stringify(join(API, "src/idea/insights.ts"))};\nexport * as pricing from ${JSON.stringify(join(API, "src/platform/llm/pricing.ts"))};\nexport * as shared from ${JSON.stringify(join(API, "../../packages/shared/src/index.ts"))};\n`);
 await build({ entryPoints: [entry], bundle: true, format: "esm", platform: "node", outfile: join(tmp, "app.mjs"), logLevel: "silent" });
 const app = await import(pathToFileURL(join(tmp, "app.mjs")).href);
 

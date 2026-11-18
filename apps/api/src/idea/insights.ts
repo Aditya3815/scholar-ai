@@ -11,7 +11,7 @@ import {
   type PaperReading,
 } from "@scholar/shared";
 import { scrubText, findRun, numberSentences, words } from "@scholar/shared";
-import type { StreamComplete } from "../docs/qa";
+import type { StreamComplete } from "../platform/llm/port";
 import { quoteIsInAbstract, type ComparePaper } from "./compare";
 import { resolveInsightsSentences } from "./sentence-refs";
 

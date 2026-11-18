@@ -12,8 +12,8 @@ import { noticeText, replyText } from "../understand/lane-text";
  */
 const calls = vi.hoisted(() => [] as { who: string; label?: string; query?: string }[]);
 
-vi.mock("./stub", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./stub")>();
+vi.mock("./testing/stub", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./testing/stub")>();
   const rec = (who: string, f: StreamComplete): StreamComplete => async (req, hooks) => {
     calls.push({ who, label: req.label });
     return f(req, hooks);
@@ -26,12 +26,13 @@ vi.mock("./stub", async (importOriginal) => {
     stubSearchFor: (query: string, scope: Parameters<typeof real.stubSearchFor>[1]) => (calls.push({ who: "search", query }), real.stubSearchFor(query, scope)),
   };
 });
-vi.mock("./stub-route", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./stub-route")>();
+vi.mock("./testing/stub-route", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./testing/stub-route")>();
   return { ...real, stubRoute: async (req: Parameters<typeof real.stubRoute>[0]) => (calls.push({ who: "router", label: req.label }), real.stubRoute(req)) };
 });
 
 import { chatRoutes } from "./routes";
+import { withDeps } from "../app/deps";
 
 const TOKEN = "t".repeat(40);
 const sessionRow = { id: "user-1", name: "Test", email: "t@example.org", orcid: null, avatar_url: null, role: "scholar", privacy_ack: null, stale: 0, providers: "google" };
@@ -72,7 +73,7 @@ async function post(body: unknown, opts: Opts = {}) {
   const spies = (["log", "info", "warn", "error", "debug"] as const).map((m) => vi.spyOn(console, m).mockImplementation((...a: unknown[]) => void lines.push(a.map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join(" "))));
   try {
     const headers: Record<string, string> = { "content-type": "application/json", origin: "http://localhost", ...(opts.signedIn === false ? {} : { cookie: `sid=${TOKEN}` }) };
-    const res = await chatRoutes.request("http://localhost/", { method: "POST", headers, body: JSON.stringify(body) }, { DB: d.db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
+    const res = await withDeps(chatRoutes).request("http://localhost/", { method: "POST", headers, body: JSON.stringify(body) }, { DB: d.db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
     const text = await res.text();
     const events = text.split("\n\n").flatMap((block) => {
       const data = block.split("\n").find((l) => l.startsWith("data:"));

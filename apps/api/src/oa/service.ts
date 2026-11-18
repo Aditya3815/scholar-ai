@@ -1,6 +1,8 @@
 import { MAX_OA_ABSTRACT_CHARS, OA_REFRESH_DAYS, OA_UNREADABLE_TEXT, OA_NEW_PAPERS_PER_DAY, OA_NEW_PAPERS_PER_DAY_ALL, OA_WAIT_MS, OA_WORKING, cleanArxivId, cleanDoi, cleanPmcid, type OaAskEvent, type OaReason, type OaRef, type OaSource } from "@scholar/shared";
-import { answerQuestionStream, type StoredChunk } from "../docs/qa";
-import { describeAskError, embedderFor, streamFor } from "../docs/routes";
+import { answerQuestionStream, describeAskError, type StoredChunk } from "../docs/qa";
+import type { Deps } from "../platform/deps";
+import type { Embedder } from "../platform/llm/port";
+import { PROFILES, modelFor } from "../platform/llm/profiles";
 import type { SseSession } from "../sse";
 import { isPermissiveLicense } from "./jats";
 import { sourceDepsFor } from "./deps";
@@ -9,7 +11,7 @@ import { claimAttempt, claimRefresh, createPaper, failIfStale, getPaper, instanc
 import { isRetracted } from "../search/retraction-service";
 import { askOutcome, countOutcome } from "../outcomes";
 import type { EnvPick } from "../platform/env";
-import type { LlmEnv } from "../llm";
+import type { LlmEnv } from "../platform/llm";
 
 /**
  * "Ask this paper" as a service (docs/design: "service layer"): the page's /api/v1/papers/oa/ask stream calls `oaService.ask`, and so will the MCP tool `ask_paper` (Phase 2). The events it
@@ -17,7 +19,7 @@ import type { LlmEnv } from "../llm";
  */
 
 /** What "Ask this paper" reads: the model (through the gateway), the shared index and its Workflow, the literature services, and the development switches. */
-export type OaEnv = LlmEnv & EnvPick<"FILES" | "OA_INGEST" | "QA_STUB" | "QA_TOP_K" | "CROSSREF_MAILTO" | "OPENALEX_API_KEY", "API_GATE">;
+export type OaEnv = LlmEnv & EnvPick<"FILES" | "OA_INGEST" | "CROSSREF_MAILTO" | "OPENALEX_API_KEY", "API_GATE">;
 export type AskSession = SseSession<OaAskEvent>;
 
 /** What a request says about a paper: any of a DOI, an arXiv number, a PubMed Central number. */
@@ -33,9 +35,9 @@ export function readRef(body: unknown): OaRef | null {
  * Is the paper retracted? Looked up when it is asked (Crossref's retraction data through the public cache, which keeps an answer for a day), not only when a card was made: a paper can be
  * retracted after it was found, and a bare DOI pasted into the box has no card. A lookup that fails says nothing and never stops an answer.
  */
-async function retractedNow(env: OaEnv, ref: OaRef): Promise<boolean> {
+async function retractedNow(env: OaEnv, ref: OaRef, crossref?: typeof fetch): Promise<boolean> {
   if (!ref.doi) return false;
-  return isRetracted(env, ref.doi, 4000);
+  return isRetracted(env, ref.doi, 4000, crossref);
 }
 
 /**
@@ -79,10 +81,10 @@ const EVERYONE = "*";
  *   stage, sources, delta, answer -> as for a question about a paper of your own, every claim tied to a quote that was checked against the text.
  * A paper new to the shared index counts against the person's day (`userId`). Nothing about the person is added to the index, and nothing is stored here.
  */
-export async function askOpenAccess(env: OaEnv, a: { userId: string; ref: OaRef; key: string; question: string; clientAbstract: string; embed: NonNullable<ReturnType<typeof embedderFor>>; abort: AbortController; /** How long to wait for a reading that is going (default OA_WAIT_MS; the MCP tool waits less, since an app gives up sooner than the page). */ waitMs?: number }, s: AskSession): Promise<void> {
+export async function askOpenAccess(env: OaEnv, a: { userId: string; ref: OaRef; key: string; question: string; clientAbstract: string; embed: Embedder; abort: AbortController; /** The model, the network and the development options (the request's deps). */ deps: AskDeps; /** How long to wait for a reading that is going (default OA_WAIT_MS; the MCP tool waits less, since an app gives up sooner than the page). */ waitMs?: number }, s: AskSession): Promise<void> {
   const { send } = s;
   const db = env.DB;
-  const { ref, key, question, clientAbstract, embed, abort } = a;
+  const { ref, key, question, clientAbstract, embed, abort, deps } = a;
   const err = (code: string, title: string, detail?: string) => send({ type: "error", code, title, ...(detail ? { detail } : {}) });
   try {
     let row = await getPaper(db, key);
@@ -99,7 +101,7 @@ export async function askOpenAccess(env: OaEnv, a: { userId: string; ref: OaRef;
         if (!(await createPaper(db, key, ref))) await Promise.all([refundDaily(db, a.userId, today()), refundDaily(db, EVERYONE, today())]);
         row = await getPaper(db, key);
       } else {
-        return void (await answerFromAbstract(env, s, { key, ref, reason: "daily_cap", clientAbstract, question, embed, subject: a.userId, abort }));
+        return void (await answerFromAbstract(env, s, { key, ref, reason: "daily_cap", clientAbstract, question, embed, subject: a.userId, abort, deps }));
       }
     }
     if (!row) return void (await err("internal_error", "Something went wrong"));
@@ -135,7 +137,7 @@ export async function askOpenAccess(env: OaEnv, a: { userId: string; ref: OaRef;
         await send({ type: "ingest", status: row!.status, progress: peak, ...(row!.source ? { source: row!.source } : {}), started: startedByMe });
       }
       if (Date.now() > deadline) return void (await err("still_reading", "This paper is still being read", "It keeps going without you. Ask again in a minute."));
-      await sleep(env.ENABLE_DEV_ROUTES === "1" ? 150 : 800);
+      await sleep(deps.dev.readingPollMs ?? 800);
       row = (await getPaper(db, key)) ?? row;
       if (isWorking(row) && (await failIfStale(db, key, Date.now()))) row = await getPaper(db, key);
     }
@@ -143,15 +145,15 @@ export async function askOpenAccess(env: OaEnv, a: { userId: string; ref: OaRef;
 
     if (row.status !== "ready") {
       await send({ type: "ingest", status: row.status, progress: peak });
-      return void (await answerFromAbstract(env, s, { key, ref, reason: (row.reason ?? "internal") as OaReason, title: row.title, clientAbstract, question, embed, subject: a.userId, abort }));
+      return void (await answerFromAbstract(env, s, { key, ref, reason: (row.reason ?? "internal") as OaReason, title: row.title, clientAbstract, question, embed, subject: a.userId, abort, deps }));
     }
     await send({ type: "ingest", status: "ready", progress: 1, ...(row.source ? { source: row.source } : {}) });
-    const retracted = await retractedNow(env, ref);
+    const retracted = await retractedNow(env, ref, deps.fetch.crossref);
     await send({ type: "paper", key, title: row.title, source: (row.source ?? "pdf") as OaSource, license: row.license, permissive: isPermissiveLicense(row.license), ...(retracted ? { retracted: true } : {}) });
     // the chunks are read first, then (if the copy is old) the refresh is started: the answer is made from the copy as it is now
     const chunks = await readyChunks(db, key);
     await refreshIfOld(env, key);
-    await ask(env, s, { chunks, question, embed, subject: a.userId, abort });
+    await ask(env, s, { chunks, question, embed, subject: a.userId, abort, deps });
   } catch (e) {
     if (s.gone) return;
     const d = describeAskError(e);
@@ -160,15 +162,18 @@ export async function askOpenAccess(env: OaEnv, a: { userId: string; ref: OaRef;
   }
 }
 
-type AskArgs = { /** what the answer is made from: the paper's text, or only its abstract (counted apart) */ basis?: "abstract"; chunks: StoredChunk[]; question: string; embed: NonNullable<ReturnType<typeof embedderFor>>; subject: string; abort: AbortController };
+type AskArgs = { /** what the answer is made from: the paper's text, or only its abstract (counted apart) */ basis?: "abstract"; chunks: StoredChunk[]; question: string; embed: Embedder; subject: string; abort: AbortController; deps: AskDeps };
+
+/** What "Ask this paper" takes from the request's deps. */
+export type AskDeps = Pick<Deps, "models" | "dev" | "fetch">;
 
 /** The question over the passages: the same code as for a paper of your own, so the same checks. */
 async function ask(env: OaEnv, s: AskSession, a: AskArgs): Promise<void> {
-  const stream = streamFor(env, a.subject, a.abort.signal);
+  const stream = modelFor(a.deps, PROFILES.docsAskStream, a.subject, a.abort.signal);
   if (!stream) return void (await s.send({ type: "error", code: "ai_unavailable", title: "Answering is unavailable right now" }));
-  const topK = env.ENABLE_DEV_ROUTES === "1" && Number.isInteger(Number(env.QA_TOP_K)) && Number(env.QA_TOP_K) >= 1 ? Number(env.QA_TOP_K) : undefined;
+  const topK = a.deps.dev.topK;
   // Only with the local dev switch (and not the stand-ins): print what the model said and was shown, to tune prompts. Never in production.
-  const onRaw = env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB !== "1" ? (raw: unknown, ex: { idx: number; section?: string; text: string }[]) => console.log(JSON.stringify({ msg: "oa_debug", raw, excerpts: ex.map((e) => ({ idx: e.idx, section: e.section, text: e.text })) })) : undefined;
+  const onRaw = a.deps.dev.on && !a.deps.dev.standIns ? (raw: unknown, ex: { idx: number; section?: string; text: string }[]) => console.log(JSON.stringify({ msg: "oa_debug", raw, excerpts: ex.map((e) => ({ idx: e.idx, section: e.section, text: e.text })) })) : undefined;
   const answer = await answerQuestionStream({ question: a.question, chunks: a.chunks, embed: a.embed, stream, meta: { id: crypto.randomUUID().replace(/-/g, "").slice(0, 20), createdAt: Date.now() }, emit: s.send, topK, onRaw });
   if (s.gone) return;
   await countOutcome(env.DB, a.basis === "abstract" ? "oa_ask_abstract" : "oa_ask", askOutcome(answer));
@@ -183,8 +188,8 @@ async function ask(env: OaEnv, s: AskSession, a: AskArgs): Promise<void> {
  * The title and abstract the services give for a DOI or an arXiv number: Europe PMC first (biomedical papers), then OpenAlex (most fields), then arXiv. `found` says whether any of them
  * knew the paper at all. Lookups that fail say nothing; never throws. Used by the answer from an abstract below and by the MCP tool check_claim.
  */
-export async function abstractFor(env: Pick<OaEnv, "ENABLE_DEV_ROUTES" | "QA_STUB" | "CROSSREF_MAILTO" | "OPENALEX_API_KEY">, ref: OaRef): Promise<{ title: string | null; abstract: string; found: boolean }> {
-  const deps = sourceDepsFor(env);
+export async function abstractFor(env: Pick<OaEnv, "CROSSREF_MAILTO" | "OPENALEX_API_KEY">, ref: OaRef, fetchImpl?: typeof fetch): Promise<{ title: string | null; abstract: string; found: boolean }> {
+  const deps = sourceDepsFor(env, fetchImpl);
   let title: string | null = null;
   let abstract = "";
   let found = false;
@@ -210,17 +215,17 @@ export async function abstractFor(env: Pick<OaEnv, "ENABLE_DEV_ROUTES" | "QA_STU
   return { title, abstract, found };
 }
 
-async function answerFromAbstract(env: OaEnv, s: AskSession, a: { key: string; ref: OaRef; reason: OaReason; title?: string | null; clientAbstract: string; question: string; embed: AskArgs["embed"]; subject: string; abort: AbortController }): Promise<void> {
-  const looked = await abstractFor(env, a.ref);
+async function answerFromAbstract(env: OaEnv, s: AskSession, a: { key: string; ref: OaRef; reason: OaReason; title?: string | null; clientAbstract: string; question: string; embed: AskArgs["embed"]; subject: string; abort: AbortController; deps: AskDeps }): Promise<void> {
+  const looked = await abstractFor(env, a.ref, a.deps.fetch.papers);
   const title = a.title ?? looked.title;
   const abstract = looked.abstract || a.clientAbstract;
   if (abstract.length < 40) {
     return void (await s.send({ type: "error", code: "no_text", title: "There is nothing to read for this paper", detail: `${OA_UNREADABLE_TEXT[a.reason]} No abstract could be found either, so there is nothing to answer from. If you have the PDF, add it to My Workspace and ask there.` }));
   }
-  const retracted = await retractedNow(env, a.ref);
+  const retracted = await retractedNow(env, a.ref, a.deps.fetch.crossref);
   await s.send({ type: "paper", key: a.key, title, source: "abstract", license: null, permissive: false, reason: a.reason, ...(retracted ? { retracted: true } : {}) });
   const chunks: StoredChunk[] = [{ idx: 1000, page: 1, section: "Abstract", text: abstract.slice(0, MAX_OA_ABSTRACT_CHARS), embedding: null }];
-  await ask(env, s, { basis: "abstract", chunks, question: a.question, embed: a.embed, subject: a.subject, abort: a.abort });
+  await ask(env, s, { basis: "abstract", chunks, question: a.question, embed: a.embed, subject: a.subject, abort: a.abort, deps: a.deps });
 }
 
 export const oaService = { ask: askOpenAccess, readRef, progressOf, abstractFor };

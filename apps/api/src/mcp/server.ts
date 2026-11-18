@@ -6,13 +6,13 @@ import { referenceService, type ReferenceEnv } from "../references/service";
 import { retractionService, type RetractionServiceEnv } from "../search/retraction-service";
 import { allows, type LimitEnv } from "../ratelimit";
 import { MAX_REFERENCE_CHARS, arxivIdFromDoi, type OaAskEvent, type Paper } from "@scholar/shared";
-import { embedderFor } from "../docs/routes";
 import { oaService, type OaEnv } from "../oa/service";
 import { libraryService } from "../library/service";
 import { parsePaper } from "../library/validate";
-import { judgeClaim, strictJudgeFor, type ClaimPaper } from "../chat/claim-check";
-import { stubSearchFor } from "../chat/stub";
-import type { LlmEnv } from "../llm";
+import { judgeClaim, type ClaimPaper } from "../chat/claim-check";
+import type { Deps } from "../platform/deps";
+import { PROFILES, modelFor } from "../platform/llm/profiles";
+import type { LlmEnv } from "../platform/llm";
 import { logCall, takeCall, type CallOutcome, type McpTool } from "./calls";
 import { checkClaimAllowedFor, mcpAllowedFor, mcpMode } from "./flag";
 import type { McpOAuthEnv } from "./oauth";
@@ -92,7 +92,7 @@ export const ASK_WAIT_MS = 45_000;
 const VERIFY_PARALLEL = 6;
 
 /** `checkClaim`: whether this account may see check_claim (its own switch, src/mcp/flag.ts); without it the server lists exactly the tools it listed before. */
-type Ctx = { env: McpEnv; userId: string; client: string; base: string; defer: (p: Promise<unknown>) => void; checkClaim?: boolean };
+type Ctx = { env: McpEnv; /** the request's deps (app/deps.ts): the models, the search, the network */ deps: Deps; userId: string; client: string; base: string; defer: (p: Promise<unknown>) => void; checkClaim?: boolean };
 
 const failure = (text: string): CallToolResult => ({ isError: true, content: [{ type: "text", text }] });
 const answer = (text: string, structured: object): CallToolResult => ({ content: [{ type: "text", text }], structuredContent: structured as Record<string, unknown> });
@@ -155,9 +155,9 @@ function canElicit(sctx: ServerContext): boolean {
  * The record of a DOI, as Sodhsetu's own search finds it (the DOI searched as written: every source, the DOI checked at the registry, the retraction marked), checked the way the library
  * checks a paper the page sends. Null when no source has a record with exactly this DOI. Nothing about the paper is taken from the app.
  */
-async function paperByDoi(env: McpEnv, doi: string): Promise<Paper | null> {
+async function paperByDoi(deps: Deps, doi: string): Promise<Paper | null> {
   // the offline stand-in of the chat's search under QA_STUB (tests and the local end-to-end run only), as the chat route does
-  const found = env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? stubSearchFor(doi) : await searchService.run(env, { q: doi, limit: 5, scope: "all" });
+  const found = await deps.search(doi, { limit: 5, scope: "all" });
   const p = found.results.find((r) => r.doi?.toLowerCase() === doi);
   if (!p) return null;
   return parsePaper({ ...p, authors: p.authors.slice(0, 50).map((a) => a.slice(0, 200)), sources: p.sources.slice(0, 8), retractionSources: p.retractionSources.slice(0, 5), abstract: p.abstract ? p.abstract.slice(0, 10_000) : null, venue: p.venue ? p.venue.slice(0, 500) : null, title: p.title.slice(0, 1000) });
@@ -168,7 +168,7 @@ async function paperByDoi(env: McpEnv, doi: string): Promise<Paper | null> {
  * reading of the claim against the abstracts that can be used (a retracted paper never is). The day's allowance is the person's.
  */
 async function checkClaim(ctx: Ctx, claim: string, dois: string[], signal: AbortSignal): Promise<ClaimOutT> {
-  const [abstracts, retraction] = await Promise.all([Promise.all(dois.map((doi) => { const arxivId = arxivIdFromDoi(doi); return oaService.abstractFor(ctx.env, { doi, ...(arxivId ? { arxivId } : {}) }); })), retractionService.check(ctx.env, dois)]);
+  const [abstracts, retraction] = await Promise.all([Promise.all(dois.map((doi) => { const arxivId = arxivIdFromDoi(doi); return oaService.abstractFor(ctx.env, { doi, ...(arxivId ? { arxivId } : {}) }, ctx.deps.fetch.papers); })), retractionService.check(ctx.env, dois, undefined, ctx.deps.fetch.crossref)]);
   const statusOf = (doi: string) => retraction.checked.find((c) => c.doi.toLowerCase() === doi)?.status ?? "unknown";
   const papers: ClaimOutT["papers"] = dois.map((doi, i) => {
     const retracted = statusOf(doi) === "retracted" ? true : statusOf(doi) === "not_retracted" ? false : null;
@@ -180,7 +180,7 @@ async function checkClaim(ctx: Ctx, claim: string, dois: string[], signal: Abort
   const stop = () => abort.abort();
   signal.addEventListener("abort", stop);
   try {
-    const judged = await judgeClaim({ claim, papers: used.map((u): ClaimPaper => ({ n: u.n, title: u.title, year: null, abstract: u.abstract })), judge: strictJudgeFor(ctx.env, ctx.userId, abort.signal), label: "mcp_check_claim" });
+    const judged = await judgeClaim({ claim, papers: used.map((u): ClaimPaper => ({ n: u.n, title: u.title, year: null, abstract: u.abstract })), judge: modelFor(ctx.deps, PROFILES.strict, ctx.userId, abort.signal), label: "mcp_check_claim" });
     return claimOut(papers, used, judged);
   } finally {
     signal.removeEventListener("abort", stop);
@@ -256,7 +256,7 @@ export function buildServer(ctx: Ctx): McpServer {
       metered(ctx, "check_retractions", "VERIFY_LIMITER", 1, async () => {
         const read = readRetractionIn(args);
         if (!read.ok) return { result: failure(read.error), outcome: "invalid" };
-        const out = retractionOut(ctx.base, await retractionService.check(ctx.env, read.dois));
+        const out = retractionOut(ctx.base, await retractionService.check(ctx.env, read.dois, undefined, ctx.deps.fetch.crossref));
         return { result: answer(retractionText(out), out), outcome: "ok" };
       }),
   );
@@ -275,7 +275,7 @@ export function buildServer(ctx: Ctx): McpServer {
       metered(ctx, "ask_paper", "ASK_LIMITER", 1, async () => {
         const read = readAskPaperIn(args);
         if (!read.ok) return { result: failure(read.error), outcome: "invalid" };
-        const embed = embedderFor(ctx.env);
+        const embed = ctx.deps.embedder;
         if (!embed) return { result: failure("Answering is unavailable right now. Try again later."), outcome: "error" };
         const abort = new AbortController();
         const stop = () => abort.abort();
@@ -285,7 +285,7 @@ export function buildServer(ctx: Ctx): McpServer {
           // the same service the page's stream calls; its events are collected instead of sent (the counts of the day, the allowance and the shared index are the page's own)
           await oaService.ask(
             ctx.env,
-            { userId: ctx.userId, ref: read.ref, key: read.key, question: read.question, clientAbstract: "", embed, abort, waitMs: ASK_WAIT_MS },
+            { userId: ctx.userId, ref: read.ref, key: read.key, question: read.question, clientAbstract: "", embed, abort, deps: ctx.deps, waitMs: ASK_WAIT_MS },
             {
               get gone() {
                 return abort.signal.aborted;
@@ -355,7 +355,7 @@ export function buildServer(ctx: Ctx): McpServer {
       }
       return metered(ctx, "save_paper", "API_LIMITER", 1, async () => {
         if (!read.ok) return { result: failure(read.error), outcome: "invalid" };
-        const paper = await paperByDoi(ctx.env, read.doi);
+        const paper = await paperByDoi(ctx.deps, read.doi);
         if (!paper) {
           const out: SaveOutT = { saved: false, already_saved: false, paper: null, note: `No record with the DOI ${read.doi} was found in the public indexes, so nothing was saved.` };
           return { result: answer(saveText(out), out), outcome: "ok" };
@@ -393,10 +393,10 @@ export function buildServer(ctx: Ctx): McpServer {
 }
 
 /**
- * The provider's API handler: a request with a valid token for /mcp. The token's props say who allowed the app (src/mcp/oauth.ts); the account must still be allowed by the switch (a beta can
+ * The provider's API handler (given the composition root's depsFor: index.ts): a request with a valid token for /mcp. The token's props say who allowed the app (src/mcp/oauth.ts); the account must still be allowed by the switch (a beta can
  * shrink), and the request is then served by a fresh server.
  */
-export const mcpApiHandler = {
+export const mcpApiHandlerWith = (depsFor: (env: McpEnv) => Deps) => ({
   async fetch(request: Request, env: McpEnv, ctx: ExecutionContext & { props?: unknown; auth?: OAuthResourceAuth }): Promise<Response> {
     const props = ctx.props as McpProps | undefined;
     const auth = ctx.auth;
@@ -411,10 +411,10 @@ export const mcpApiHandler = {
       }
     };
     const checkClaim = await checkClaimAllowedFor(env, props.userId);
-    const handler = createMcpHandler(() => buildServer({ env, userId: props.userId, client: props.client ?? "unknown", base, defer, checkClaim }), { responseMode: "json" });
+    const handler = createMcpHandler(() => buildServer({ env, deps: depsFor(env), userId: props.userId, client: props.client ?? "unknown", base, defer, checkClaim }), { responseMode: "json" });
     const res = await handler.fetch(request, { authInfo: { token: auth.token, clientId: auth.clientId ?? "", scopes: auth.scope, ...(auth.expiresAt ? { expiresAt: auth.expiresAt } : {}) } });
     const out = new Response(res.body, res);
     out.headers.set("Cache-Control", "no-store");
     return out;
   },
-};
+});

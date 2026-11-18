@@ -13,7 +13,8 @@ import {
   type PaperLevel,
 } from "@scholar/shared";
 import { scrubText, findRun, numberSentences, words } from "@scholar/shared";
-import { quoteInText, type StreamComplete } from "../docs/qa";
+import { quoteInText } from "../docs/qa";
+import type { StreamComplete } from "../platform/llm/port";
 import { resolveCompareSentences } from "./sentence-refs";
 
 /**

@@ -1,9 +1,9 @@
 // The recording of the Understand step's model calls (data/understand-recorded.json.gz), read by understand.eval.ts (every set, every recorded model) and understand-route.eval.ts (the multi-turn
 // set through the wired chat route, the shipped model). One place, so that both replay a call the same way.
 import { fileURLToPath } from "node:url";
-import { DEFAULT_CONFIG } from "../../src/llm/config";
-import { createGateway } from "../../src/llm/gateway";
-import { workersAiProvider } from "../../src/llm/providers/workersai";
+import { DEFAULT_CONFIG } from "../../src/platform/llm/config";
+import { createGateway } from "../../src/platform/llm/gateway";
+import { workersAiProvider } from "../../src/platform/llm/providers/workersai";
 import { UNDERSTAND_TIMEOUT_MS } from "../../src/understand/understand";
 import { ModelLayer } from "./model-layer";
 

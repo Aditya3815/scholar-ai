@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GENERAL_LABEL, answerAsText, answerCopy, copyThrough, startAssistant, type AssistantMsg, type Paper } from "@scholar/shared";
-import { stubPapers } from "./stub";
+import { stubPapers } from "./testing/stub";
 
 /* "Copy the answer" (docs/design/chat-actions-context.md, A2): the checked answer with its [n] marks, then the papers it cites, built from the search's own records and never by a model.
    A mark that cannot be backed is not copied as a source, background from general knowledge never travels without its label, and a title cannot write a source line of its own. */

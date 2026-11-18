@@ -1,19 +1,15 @@
-import { MARK, hasMark, findRun, words, type Answer, type AskStreamEvent, type Citation } from "@scholar/shared";
+import { MARK, hasMark, findRun, words, type Answer, type AskStreamEvent, type Citation, type ProblemType } from "@scholar/shared";
 import { AnswerFieldStreamer } from "./stream-json";
-import type { Embedder } from "./embed";
+import type { Embedder } from "../platform/llm/embedder";
 import { rank } from "./vector";
+import { problemFor } from "../platform/llm/failure";
 
 /** `section` is set for a paper read from XML, which has no pages (`page` is then the number of the section): "Methods > Participants". */
 export type StoredChunk = { idx: number; page: number; text: string; embedding: Float32Array | null; section?: string };
 
-/** The language model, injected: production passes the LLM Gateway (private route), tests pass a fake. */
-export type Complete = (req: { system: string; user: string; schema: Record<string, unknown>; maxTokens: number; label?: string }) => Promise<{ json: unknown; model: string }>;
-
-/** The language model, streaming: hooks fire as it thinks and as the JSON text arrives. Resolves with the full parsed JSON. */
-export type StreamComplete = (
-  req: { system: string; user: string; schema: Record<string, unknown>; maxTokens: number; label?: string },
-  hooks: { onThinking?: () => void; onContent?: (delta: string) => void },
-) => Promise<{ json: unknown; model: string }>;
+/** The language model, injected (the model port, platform/llm/port.ts; re-exported here for the tests that name it here, until the tests pass of the untangle). */
+export type { Complete, StreamComplete } from "../platform/llm/port";
+import type { Complete, StreamComplete } from "../platform/llm/port";
 
 const TOP_K = 6;
 const BROAD = /\b(summar\w*|overview|about|main (idea|point|contribution)s?|abstract|contribution\w*|tl;?dr|gist)\b/i;
@@ -193,4 +189,14 @@ export async function answerQuestionStream(args: {
   await emit({ type: "stage", stage: "checking" });
   args.onRaw?.(json, ex);
   return verifyAnswer(json, ex, question, { ...args.meta, model });
+}
+
+/** One place that turns a model failure of a question about a paper (one's own, or an open-access one, also from the chat) into what the browser is told (as an HTTP error, or as a stream `error` event). */
+export function describeAskError(e: unknown): { status: 429 | 502 | 503; code: Extract<ProblemType, "quota" | "ai_unavailable" | "ai_failed">; title: string; detail?: string } | null {
+  return problemFor(e, {
+    quota: { status: 429, code: "quota", title: "You have used today's AI allowance", detail: (e) => e.message },
+    noRoute: { status: 503, code: "ai_unavailable", title: "Answering is unavailable right now" },
+    failed: { status: 502, code: "ai_failed", title: "The AI service could not answer just now", detail: "Please try again in a moment." },
+    log: "qa_failed",
+  });
 }

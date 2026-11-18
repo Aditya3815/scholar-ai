@@ -1,7 +1,7 @@
-import type { IdeaPaper, IdeaSearchRequest, IdeaSearchResult } from "@scholar/shared";
-import { extractJson } from "../llm/gateway";
-import type { Complete, StreamComplete } from "../docs/qa";
-import { keywords } from "../docs/vector";
+import type { IdeaPaper, IdeaSearchEvent, IdeaSearchRequest, IdeaSearchResult } from "@scholar/shared";
+import { extractJson } from "../../platform/llm/gateway";
+import type { Complete, StreamComplete } from "../../platform/llm/port";
+import { keywords } from "../../docs/vector";
 
 /**
  * Offline stand-ins for the language model and the literature services, used ONLY by tests and the local end-to-end run (QA_STUB=1 together
@@ -146,3 +146,11 @@ export const stubCompareStream: StreamComplete = async (req, hooks) => {
   }
   return { json: extractJson(text), model: "stub" };
 };
+
+/** Idea Check's search of a plan, offline: the stages a real search sends (with a short pause between them, so the page shows the first), then the sample records. */
+export async function stubIdeaSearch(req: IdeaSearchRequest, emit: (e: IdeaSearchEvent) => void | Promise<void>): Promise<IdeaSearchResult> {
+  await emit({ type: "stage", stage: "searching" });
+  await new Promise((r) => setTimeout(r, 150));
+  await emit({ type: "stage", stage: "checking" });
+  return stubSearch(req);
+}

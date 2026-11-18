@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { BATCH, MAX_DOIS_PER_RUN, dueDois, recheckRetractions } from "./retraction";
 import { doiColumn } from "./validate";
-import { stubCrossrefCalls, stubCrossrefFetch } from "./retraction-stub";
+import { stubCrossrefCalls, stubCrossrefFetch } from "./testing/retraction-stub";
 
 let db: D1Database;
 let sql: DatabaseSync;

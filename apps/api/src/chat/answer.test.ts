@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MAX_CHAT_CHARS, cleanChatMessage, type ChatEvent, type Paper } from "@scholar/shared";
 import { CHAT_SYSTEM, MAX_EVIDENCE_PAPERS, answerFromResults, buildChatPrompt, normaliseMarks, papersOnTheSubject, pickEvidencePapers, tidyMarkPunctuation, verifyChatAnswer } from "./answer";
-import { stubChatStream, stubJudgeStream, stubPapers, stubSearchFor } from "./stub";
+import { stubChatStream, stubJudgeStream, stubPapers, stubSearchFor } from "./testing/stub";
 
 const paper = (i: number, over: Partial<Paper> = {}): Paper => ({
   id: `doi:10.1/${i}`, doi: `10.1/${i}`, pmid: null, title: `Paper ${i}`, authors: ["A. B"], year: 2020, venue: "J", abstract: `First sentence of paper ${i} is here and it is long enough to count as an abstract. Second sentence says the model reached ninety percent. Third sentence lists a limitation.`,

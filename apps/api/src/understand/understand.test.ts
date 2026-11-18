@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AllProvidersFailedError, QuotaError } from "../llm";
+import { AllProvidersFailedError, QuotaError } from "../platform/llm";
 import type { Complete } from "../docs/qa";
 import { readLedger, type LedgerTurn } from "./ledger-input";
 import { checkReading, fallbackUnderstanding, understandPrompt, understandTurn, UNDERSTAND_SYSTEM } from "./understand";

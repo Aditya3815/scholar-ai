@@ -1394,3 +1394,100 @@ Checked after the replay:
 - In every file both changed, the difference from `w3-text` is F10's own diff, give or take the order of an import and main's own changes.
 
 Then, as F10's entry asked, `platform/http/guards.ts` types a refusal with F4's `ProblemType`, and its own `GuardProblemType` is gone.
+
+### W4, step 1: F7, dev mode and stand-ins decided in one place (17 Nov 2026, branch `w4-dev-llm`, on main 8d50a9d)
+
+Commits (in order; F8's are interleaved where F7 needed the model port): the production pin (`app/production.test.ts`); `platform/dev.ts` and every read through it; `app/dev-routes.ts`; bug B28; the stand-ins and the deps (`platform/deps.ts`, `app/deps.ts`, `app/stand-ins.ts`, every `<feature>/testing/`); the page's knob (`web/lib/state/dev-knobs.ts`).
+
+Done as planned:
+- `platform/dev.ts`: `devMode(env)` (ENABLE_DEV_ROUTES is "1"), `standIns(env)` (and QA_STUB is "1"), `devOptions(env)` (`on`, `standIns`, `keepAliveMs` for sse.ts, `topK` from 1 to 12, `scanPollsMs`, `readingPollMs`, `stepRetryDelay` ("1 second" in a test run), `idpUrl`, `models`) and `modelOverrides(env)` (F8's one map). `platform/dev.test.ts` pins the bounds, and that production changes nothing whatever the variables say.
+- `platform/deps.ts` types what a feature takes from outside: `dev`, `models` (by profile, F8), `embedder`, `pageReader`, `search` (the chat's and MCP's), `scanSearch`, `ideaSearch`, `verifyReference`, `papersByDoi`, `fetch.crossref`, `fetch.papers`. `depsOf(c)` reads it from the request (Hono's `ContextVariableMap`) and fails loudly when a router was reached without it. `app/deps.ts` `depsFor(env)` builds it once per entry (the real services, the gateway's models, the Workers AI embedder and page reader; or `standInDeps`); `withRequestDeps` puts it on every /api request (index.ts, before the routers); `withDeps(router)` does the same for a test that calls one router; `trendingJobFor(env)` picks the scheduled Trending job. The MCP server takes it through `mcpApiHandlerWith(depsFor)`, the nightly re-check and Trending through the scheduled handler, the two Workflows through `OaIngestFlow` and `LitscanFlow` (index.ts exports `OaIngest` and `LitscanRun` with `depsFor`).
+- Every stand-in moved to `<feature>/testing/`: chat (stub, stub-route, tools-stub, and understand.ts with the Understand pair that sat in understand-wire.ts), docs (stub, and embed.ts with the hashing embedder), ocr, idea, litscan (now `scanStandIns({ stream, search })`, made from the chat's by app/stand-ins.ts, since a testing/ folder imports no other feature's), oa, library's retraction stand-in, trending's (with `testing/job.ts`, the stand-in run that was a branch of job.ts). `app/stand-ins.ts` is their only importer: `app/production.test.ts` checks it by reading every module, and `layers.test.ts` by its rule.
+- The stand-in branches, sleeps and magic words left the routes: the chat's search (the "stalled" 3.5 s and QA_STUB_TOPIC are in app/stand-ins.ts's `chatSearch`), Idea Check's staged search with its 150 ms pause (`stubIdeaSearch`), the scan's search, MCP's DOI search (`deps.search`), the ledger's lookup (`resolveLedgerPapers(refs, deps.papersByDoi)`; the real lookup is `ledgerPapersByDoi`), the chat tool's reference check, the Trending fault key (read only by `testing/job.ts`). `retractionService.check`, `isRetracted` and `oaService.abstractFor` take their network as an argument; `sourceDepsFor(env, fetchImpl)`.
+- `app/dev-routes.ts`: the nine /api/v1/dev/* routes, unchanged, behind one middleware that answers the same plain 404 unless `devMode(env)`; the kv route takes the Trending prefix from `trending/store.ts`.
+- Web: `web/lib/state/dev-knobs.ts` holds `scholar.quiet.ms` (the key, 15 s, the 500 ms floor); ChatView imports `quietMs`; `dev-knobs.test.ts`.
+- Bug B28: "Ask this paper" took QA_TOP_K with no upper bound; it reads `devOptions(env).topK` (1 to 12) as the paper questions do. `oa/top-k.test.ts` failed before (50 reached the model). Development only.
+
+Counts, before (8d50a9d) -> after:
+- the two-flag expression (`ENABLE_DEV_ROUTES === "1" && ... QA_STUB === "1"`) 15 -> 1 (platform/dev.ts); ENABLE_DEV_ROUTES compared (`=== "1"` or `!== "1"`) in production code 39 -> 1 (platform/dev.ts; what is left are types and comments).
+- dev-route guards 9 -> 0 (one middleware); production modules importing a stand-in 13 -> 0 (app/stand-ins.ts only); stub branches in routes (chat search, Idea Check search) 2 -> 0; stand-ins defined inside production modules (understand-wire's pair, docs/embed's hashing embedder, job.ts's stand-in run) 3 -> 0; places choosing the embedder 3 -> 1 (app/deps.ts).
+- layers.test.ts ALLOW (F7 and F8 together) 149 -> 133.
+
+Special cases removed: the nine dev-route guards; every `stubbed()` helper (chat, docs, idea, litscan); the per-service "1 second under the stand-in" (now `devOptions.stepRetryDelay`; the reading poll `readingPollMs`); the stub search branch of the chat route and Idea Check's stub branch with its sleep; the fault-key branch of the Trending job; `QA_STUB_TOPIC` read in the chat route.
+
+Kept against the plan, and why:
+- The chat's /route and /judge stay in chat/routes.ts, not app/dev-routes.ts: their paths are /api/v1/chat/..., since-year.test.ts (a golden) reads their handlers from chat/routes.ts, and w3-guards names them in DEV_FIRST. They check `devMode`.
+- A path under /api/v1/dev/ that names no route now gets, in production, the same plain 404 as the routes there (before: app.notFound's, with the path as `detail`).
+- `platform/deps.ts` sits above llm in the platform order (layers.test.ts LEVEL: deps 3.5): its type names the model port, which the plan's 1.5 order (deps at the bottom) cannot hold. Nothing lower imports it.
+- The goldens' test could not stay byte-untouched: since-year.test.ts mocked the stand-ins by their old path (`./stub`) and called `chatRoutes` with no composition root in front, which is exactly what F7 removes. Its edit is the two `vi.mock` paths and `withDeps(chatRoutes)`; no expectation and no golden file changed, and every golden passes. The other chat route tests, MCP's, the Trending tests and eval/understand-route.eval.ts reach the stand-ins the same way; routes-context.test.ts pins the judge by its profile instead of its old signature; scheduled.test.ts loads the Worker once in a `beforeAll` (the import alone took its 5-second limit on a loaded machine).
+- MCP's stand-in DOI search is the chat's, so it also follows QA_STUB_TOPIC (the integration run sets it only for the chat-floor run, where no MCP suite runs).
+- The OaIngest Workflow takes `deps.embedder!`: without an AI binding it fails at the embedding step as before (a TypeError there instead of inside the Workers AI call).
+
+Verification: under W4, step 2 (one run of everything, at the end of the branch).
+
+Merging with W3 (w3-text, w3-guards), which land first:
+- w3-guards makes the app in `app/mount.ts`. `app.use("/api/*", withRequestDeps)` (index.ts, just before `apiSecurityHeaders`) must move into mount.ts, before the routers are mounted (a middleware registered after the routes does not run for them). `app.route("/api/v1/dev", devRoutes)` stays where the dev routes were (index.ts after the mount), after the deps. The route-guard table's dev rows keep their cells: the same 404 (`404 not_found: Not found`) in production, the same answers in development; SAME_ORIGIN_SKIPS keeps the eight dev keys, DEV_FIRST the chat's two.
+- w3-guards moves `currentUser` (auth/service.ts) and the body readers of chat/routes.ts, idea/routes.ts, docs/routes.ts, litscan/routes.ts, oa/routes.ts: take W3's guard and body lines and this branch's deps lines (`depsOf(c)`, `modelFor(...)`, `deps.search`, `deps.ideaSearch`); app/dev-routes.ts imports `currentUser` from `../auth/http` (w3-guards: `../auth/service`).
+- w3-guards' route-guards.table.test.ts calls `worker.fetch`, so it gets the deps from the app's middleware; its development env (ENABLE_DEV_ROUTES and QA_STUB) now builds the stand-ins of app/stand-ins.ts.
+- w3-text changes import lines of chat/router.ts, chat/history.ts (errorKind leaves it here), understand/understand.ts and chat/routes.ts: keep both sides' imports.
+
+### W4, step 2: F8, one model port in platform/llm (17 Nov 2026, branch `w4-dev-llm`, on main 8d50a9d)
+
+Commits: the profile table, pinned first (`platform/llm/profiles.table.test.ts` and `profiles.table.json`, 80 rows written from the fourteen adapters as they were); the gateway moved to platform/llm; the port and the profiles; the one retry, classifier, attempt log and failure words; `runWorkersAi` and bug B25; the remaining allowance from the gateway; describeAskError out of a route file.
+
+Done as planned:
+- `llm/` moves to `platform/llm/` as it was (gateway, routing table, ledger, policy, prices, the two providers, their tests).
+- `platform/llm/port.ts`, binding-free (legal-match rule 3 follows it from understand/): `ModelRequest`, `ModelReply` (with the call's `usage`), `Complete`, `StreamComplete`, `ModelHooks`, `Embedder`, `PageRead`/`PageReader`, `ModelProfile`, `Models` (`complete`, `stream`, `withOverrides`), and re-exports of `classifyFailure`, `isMalformed`, `withMalformedRetry`. docs/qa.ts re-exports `Complete` and `StreamComplete` for the tests that name them there; no production module takes the contract from docs any more.
+- `platform/llm/profiles.ts` names the fourteen uses with the numbers their adapters had: route (classify, 30 s), understand (understand, 8 s), chatReply (understand, 15 s), write (qa, 60 s), judge (verify, 20 s), strict (qa, 75 s, 4,500 tokens; the chat's "Check strictly" and MCP's check_claim, which had an adapter each), docsAsk and docsAskStream (qa, the gateway's 25 s), ideaPlan (qa), ideaCompare (qa, 90 s), ideaInsights (qa, 150 s), litscanPlan (qa, 45 s), litscanAnswer (qa, 80 s), litscanJudge (verify, 25 s); all private. `withTimeout(profile, ms)` is the development judge's profile; `modelFor(deps, profile, subject, abort)` asks for one. `platform/llm/models.ts` `gatewayModels(env, overrides)` answers through the gateway (one per Models, made on the first call); app/stand-ins.ts answers each profile with its stand-in (F7).
+- The development choices are one map (`modelOverrides`, platform/dev.ts) that the gateway applies in one loop; the development judge's `model` and `reasoning` are `deps.models.withOverrides(...)`; the development router's usage is read from the reply (`usage`), not from an `onUsage` parameter.
+- `platform/llm/retry.ts` `withMalformedRetry(call, { shown, retryIf, onFailure })`: the router's two readings, the answer from papers, the background and the Understand step (its reading that fails its checks is `retryIf`, its hint the second prompt; decisions, logs and the `invalid` list as before). `platform/llm/failure.ts`: `classifyFailure` (malformed, timeout, quota, no_route, down; by the error's name), `isMalformed`, `errorKind`, `attemptsForLog(e, { raw })`, `problemFor(e, words)` with each surface's own words (the paper questions' describeAskError, now in docs/qa.ts; Idea Check's plan, comparison and second reading; the scan's plan). chat/malformed.ts is gone; `failure.test.ts` pins all of it.
+- `platform/llm/workers-ai.ts` `runWorkersAi(ai, model, body, { signal, privacy })` (one cast; refuses a body that asks for AI Gateway) and `usageOf` (one usage read): the provider, OCR (its 75 s limit an AbortSignal; its one retry and cut-off reading kept) and the one embedder (`platform/llm/embedder.ts`, from docs/embed.ts).
+- `allowanceOf(db, subject)` in platform/llm: the scan's plan and start, and the chat's check before a follow-up, ask the gateway instead of DEFAULT_CONFIG and d1Ledger.
+- Bug B25: a stream that Workers AI answered in one piece counted only prompt/completion tokens (none for a model that reports input/output). `workers-ai.test.ts` failed before (null, null), passes after (9, 4).
+
+Counts, before (8d50a9d) -> after:
+- adapters around the gateway 14 -> 0 (profiles + `modelFor`, 24 call sites); production modules taking the model contract from docs/qa.ts 24 -> 0 (docs/qa.ts is still imported for answering itself: answerQuestionStream, quoteInText, StoredChunk, describeAskError).
+- retry loops 5 -> 1; failure classifiers 3 (isMalformedReply, errorKind in history.ts, reasonOf in understand.ts) -> 1 (understand's reasonOf is a two-word mapping of it); attempt logs 3 -> 1; model-error mappings 5 -> 1 (`problemFor`).
+- override blocks 3 -> 1 loop; places choosing the embedder 3 -> 1; Workers AI call sites with their own cast 4 (provider twice, OCR, embedder) -> 1; usage reads 2 -> 1.
+- model wiring imported from a route file (docs/routes.ts: embedderFor, streamFor, describeAskError) 4 importers -> 0.
+- layers.test.ts ALLOW (with F7) 149 -> 133.
+
+Special cases removed: the `stub`, `timeoutMs` and `onUsage` parameters of the adapters; the three override blocks; the stand-in branch of every adapter.
+
+Kept against the plan, and why:
+- `llm/index.ts` stays as a one-line re-export of platform/llm that nothing of the Worker imports: legal-match.test.ts (unchanged in this wave) proves rule 3 on a fixture that names "../llm" from understand/ and must find the AI binding behind it. The tests pass points the fixture at platform/llm and deletes the file.
+- The two promise-against-timer races (understand.ts and platform/switches.ts) are not one `withTimeout` yet: understand/ may import only port.ts, and switches.ts sits at the bottom of the platform order and may not import llm; a home for it at level 0 that understand/ may import is a rule change for the tests pass to decide.
+- The development /dev/llm keeps its own status map (403/422/429/502/400 by the error's class): it is the raw gateway tool of the local runs, not a surface a person reads.
+- OCR's one retry (500 ms) and the embedder's (400 ms) stay where they are (the plan keeps OCR's as its profile's policy; the embedder's is the same kind).
+- B30, named under W4 in section 3, is not in the table of section 5 (B1 to B29); nothing was done for it.
+
+Verification (before = main 8d50a9d, after = this branch; the machine was shared and loaded, the integration and browser runs wait for the coordinator):
+
+| check | before (8d50a9d) | after (this branch) |
+| --- | --- | --- |
+| `npm run typecheck` | clean | clean |
+| `npm test` api | 3,703 passed / 2 skipped (149 files) | 3,738 passed / 2 skipped (156 files) and 1 timeout under load (clean-route.test.ts's 5 s limit; passes alone, 27/27, and timed out the same way on this machine before any F8 change) |
+| `npm test` web | 77 | 78 (dev-knobs.test.ts) |
+| `npm test` shared | 721 / 1 skipped | 721 / 1 skipped |
+| `npm run test:scripts` | 191 | 191 |
+| `npm run eval` | 361 passed / 1 skipped (11 files) | 361 / 1, the printed tables identical line for line (no recording missing: every prompt the same) |
+| profiles.table.test.ts | written before (80 rows) | holds, untouched |
+| goldens, legal-match.test.ts, switches.table.test.ts | pass | pass (golden JSON, legal-match and the switch table untouched; since-year.test.ts's harness lines, see step 1) |
+| integration before the rebase (on 8d50a9d's main, API only, 8793/9916) | | `--run=default,trending-on,mcp-on` 1,137 checks, 1 FAIL (cache-e2e's "counts written after their responses", a 2.2 s race; passed alone); `--run=` the six chat runs, mcp-off, trending-dark: 1,061, all passed |
+
+Merging with W3: see step 1.
+
+### W4, rebase onto W3 (18 Nov 2026, onto main 3e1ef74: W3, Paper Reader phases 1 and 2, privacy draft-18, READER dark)
+
+Done as the merge notes of step 1 said: `withRequestDeps` is mounted in `app/mount.ts` before the routers (index.ts no longer has the app); `app/dev-routes.ts` imports `currentUser` from `../auth/service`; `platform/http/guards.ts`'s DEV_FIRST check reads `devMode`; W3's imports kept with this branch's in every conflicting file (`errorKind` from `platform/llm/failure.ts`, `isoDay` from shared, which W3 moved there); `problemFor` takes the surface's codes as `ProblemType` (W3 typed `deny` by it), and describeAskError keeps W3's typed code. The Notebook routes of docs/routes.ts ask no model (they need no deps). Four allowlist entries this branch had removed came back with W3's side of a conflict and went again: layers ALLOW main's 130 -> 114. The route-guard table holds with no cell changed.
+
+After the rebase (this branch on 3e1ef74, 8793/9916):
+
+| check | result |
+| --- | --- |
+| typecheck | clean |
+| `npm test` | api 3,765 passed / 2 skipped (162 files), web 124, shared 760 / 1 skipped |
+| test:scripts, eval | 191; 361 / 1 skipped, the printed tables identical to before |
+| build, budget | built; every budget line met (first-load scripts 235.2 of 250 KB) |
+| `--browser --run=default,trending-on,mcp-on,reader-on` | 4,520 checks, 5 FAIL, all paint times of perf.mjs (intro FCP/LCP on desktop and phone, check references LCP); alone again 3 of them; main's own web build on the same Worker and machine failed the same checks (intro 4.4 to 4.6 s against 4.5 s): the machine, not this branch |
+| the six chat switch runs (API) | 1,047, all passed |

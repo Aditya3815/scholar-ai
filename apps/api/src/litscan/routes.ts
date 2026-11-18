@@ -16,17 +16,18 @@ import {
 } from "@scholar/shared";
 import { requireUser, type Door } from "../auth/service";
 import { readJson } from "../platform/http/body";
-import { d1Ledger } from "../llm/d1";
-import { AllProvidersFailedError, NoRouteError, QuotaError } from "../llm";
-import { DEFAULT_CONFIG } from "../llm/config";
+import { problemFor } from "../platform/llm/failure";
+import { allowanceOf } from "../platform/llm";
 import { sseStream } from "../sse";
-import { planModel } from "./model";
+import { depsOf } from "../platform/deps";
+import { PROFILES, modelFor } from "../platform/llm/profiles";
 import { ScanPlanError, planScan, sanitizeApproved } from "./plan";
 import { createShare, publicScan, revokeShare, shareOf } from "./share";
 import { fromSqliteTime } from "../library/validate";
 import { type ScanRow, createScan, deleteScan, endScan, failIfStale, getScan, listScans, partsOf, refundScan, runningScan, snapshotOf, takeScan, tickOf } from "./store";
 import { deny } from "../problem";
 import type { HonoEnv } from "../platform/env";
+import { devOptions } from "../platform/dev";
 
 export const litscanRoutes = new Hono<HonoEnv>();
 
@@ -67,18 +68,19 @@ litscanRoutes.post("/plan", async (c) => {
   if (!topic) return deny(c, 400, "invalid_topic", "Describe the topic in a sentence or two", "Between 8 and 400 characters.");
   const language = resolveLanguage(body?.language, topic);
 
-  const used = await d1Ledger(c.env.DB).tokensToday(user.id);
+  const allowance = await allowanceOf(c.env.DB, user.id);
   try {
-    const { items } = await planScan({ topic, language, complete: planModel(c.env, user.id) });
-    return c.json<{ plan: LitscanPlan }>({ plan: { topic, language, items, allowance: { limit: DEFAULT_CONFIG.dailyTokenQuota, used, estimate: estimateScanTokens(items.length) } } });
+    const { items } = await planScan({ topic, language, complete: modelFor(depsOf(c), PROFILES.litscanPlan, user.id) });
+    return c.json<{ plan: LitscanPlan }>({ plan: { topic, language, items, allowance: { limit: allowance.limit, used: allowance.used, estimate: estimateScanTokens(items.length) } } });
   } catch (e) {
-    if (e instanceof QuotaError) return deny(c, 429, "quota", "You have used today's AI allowance", e.message);
-    if (e instanceof NoRouteError) return deny(c, 503, "ai_unavailable", "Planning is unavailable right now");
     if (e instanceof ScanPlanError) return deny(c, 502, "plan_failed", "We could not split this into sub-questions", "Try describing the topic with a few more words.");
-    if (e instanceof AllProvidersFailedError) {
-      console.error(JSON.stringify({ level: "error", msg: "litscan_plan_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
-      return deny(c, 502, "ai_failed", "The AI service could not read the topic just now", "Please try again in a moment.");
-    }
+    const p = problemFor(e, {
+      quota: { status: 429, code: "quota", title: "You have used today's AI allowance", detail: (e) => e.message },
+      noRoute: { status: 503, code: "ai_unavailable", title: "Planning is unavailable right now" },
+      failed: { status: 502, code: "ai_failed", title: "The AI service could not read the topic just now", detail: "Please try again in a moment." },
+      log: "litscan_plan_failed",
+    });
+    if (p) return deny(c, p.status, p.code, p.title, p.detail);
     throw e;
   }
 });
@@ -105,9 +107,9 @@ litscanRoutes.post("/", async (c) => {
   if (running) return deny(c, 409, "scan_running", "A scan is already running", "Wait for it to finish, or cancel it.", { id: running });
 
   const estimate = estimateScanTokens(items.length);
-  const used = await d1Ledger(c.env.DB).tokensToday(user.id);
-  if (DEFAULT_CONFIG.dailyTokenQuota - used < estimate) {
-    return deny(c, 429, "quota", "Today's AI allowance is not enough for this scan", `This scan is expected to use about ${estimate.toLocaleString("en")} tokens and you have ${Math.max(0, DEFAULT_CONFIG.dailyTokenQuota - used).toLocaleString("en")} left. It comes back tomorrow; fewer sub-questions need less.`);
+  const { left } = await allowanceOf(c.env.DB, user.id);
+  if (left < estimate) {
+    return deny(c, 429, "quota", "Today's AI allowance is not enough for this scan", `This scan is expected to use about ${estimate.toLocaleString("en")} tokens and you have ${Math.max(0, left).toLocaleString("en")} left. It comes back tomorrow; fewer sub-questions need less.`);
   }
   const day = today();
   if (!(await takeScan(c.env.DB, user.id, day, LITSCAN_PER_DAY))) return deny(c, 429, "scan_limit", `You have started ${LITSCAN_PER_DAY} scans today`, "That is the most for one day. It resets at midnight UTC.");
@@ -173,7 +175,7 @@ litscanRoutes.get("/:id/events", async (c) => {
   const total = (JSON.parse(row.plan) as unknown[]).length;
   const db = c.env.DB;
   // a quiet scan is asked less and less often (a scan is a minute or two of work; the first answers come fast, the long waits do not need a read a second)
-  const polls = c.env.ENABLE_DEV_ROUTES === "1" ? [400] : STREAM_POLLS_MS;
+  const polls = devOptions(c.env).scanPollsMs ?? STREAM_POLLS_MS;
 
   return sseStream<LitscanEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" } }, async (s) => {
     const send = s.send;

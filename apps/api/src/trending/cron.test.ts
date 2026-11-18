@@ -10,6 +10,8 @@ const searchSpy = vi.hoisted(() =>
 vi.mock("../search", () => ({ runSearch: (...args: Parameters<typeof searchSpy>) => searchSpy(...args) }));
 
 import { runTrendingFromEnv, type TrendingJobEnv } from "./job";
+import { standIns } from "../platform/dev";
+import { runTrendingStandIn } from "./testing/job";
 
 /**
  * How the job is wired into the scheduled run and the heartbeat: the job is listed in /api/v1/health/jobs with a row seeded by its own migration (without that row the address answers 503 until the
@@ -60,7 +62,8 @@ describe("runTrendingFromEnv", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     searchSpy.mockClear();
     const k = fakeKv({ now: () => NOW, writeLimit: false });
-    const r = await runTrendingFromEnv(env({ CACHE: k.kv, ENABLE_DEV_ROUTES: "1", QA_STUB: "1" }), NOW);
+    expect(standIns({ ENABLE_DEV_ROUTES: "1", QA_STUB: "1" })).toBe(true); // app/deps.ts then runs the stand-in job
+    const r = await runTrendingStandIn(env({ CACHE: k.kv }), NOW);
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(searchSpy).not.toHaveBeenCalled();
     expect(r.daily).toMatchObject({ published: true });
@@ -73,7 +76,8 @@ describe("runTrendingFromEnv", () => {
       const k = fakeKv({ now: () => NOW });
       seeded(k);
       searchSpy.mockClear();
-      await expect(runTrendingFromEnv(env({ CACHE: k.kv, ...flags }), NOW)).rejects.toThrow(/only 0 phrases/); // the real search's (mocked) answer has no papers
+      expect(standIns(flags)).toBe(false); // app/deps.ts then runs the real job
+      await expect(runTrendingFromEnv(env({ CACHE: k.kv, ...flags } as never), NOW)).rejects.toThrow(/only 0 phrases/); // the real search's (mocked) answer has no papers
       expect(searchSpy).toHaveBeenCalled();
     }
   });

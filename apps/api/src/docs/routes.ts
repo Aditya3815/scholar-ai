@@ -1,4 +1,4 @@
-import { type ProblemType, searchWords } from "@scholar/shared";
+import { searchWords } from "@scholar/shared";
 import { Hono, type Context } from "hono";
 import { rememberOne } from "./remember";
 import { d1KeyStore, readKey, runIdempotent } from "../idempotency";
@@ -45,22 +45,19 @@ import { readJson } from "../platform/http/body";
 import { answerAboutHighlights } from "./highlights-qa";
 import { readerOnFor, readerSwitchedOn } from "./reader-flag";
 import { deletePage, listPages, patchPage, putPage, type NotebookResult } from "./notebook";
-import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv, type LlmEnv } from "../llm";
+import { PROFILES, modelFor } from "../platform/llm/profiles";
+import { depsOf } from "../platform/deps";
 import { fromSqliteTime } from "../library/validate";
 import { cacheStore } from "../cache";
 import { chunkPage } from "./chunk";
 import { enrichPaperInfo, sanitizePaperInfo } from "./info";
-import { hashEmbedder, workersAiEmbedder, type Embedder } from "./embed";
-import { answerQuestion, answerQuestionStream, type Complete, type StoredChunk, type StreamComplete } from "./qa";
-import { stubComplete, stubStream } from "./stub";
+import { answerQuestion, answerQuestionStream, describeAskError, type StoredChunk } from "./qa";
 import { decodeVec, encodeVec } from "./vector";
 import { readJpeg } from "../ocr/jpeg";
 import { DailyLimitError, ReadFailedError, finishIfDone, readScanPage, registerScan, scanInfo, scanTexts } from "../ocr/process";
-import { workersAiReader, type PageReader } from "../ocr/read";
-import { stubReader } from "../ocr/stub";
 import { askOutcome, countOutcome } from "../outcomes";
 import { deny } from "../problem";
-import type { Env, EnvPick, HonoEnv } from "../platform/env";
+import type { Env, HonoEnv } from "../platform/env";
 
 export const documentRoutes = new Hono<HonoEnv>();
 
@@ -107,53 +104,16 @@ const VIEW_PAPER: Door<Row> = { ...VIEW, owns: { find: paperOf, missing: "Paper 
 const VIEW_COVER: Door<Row> = { ...VIEW, owns: { find: paperOf, missing: "No cover" } };
 const UPLOAD: Door = { signIn: "Sign in to upload papers", ack: { title: "Please read how your papers are handled first", detail: "A short note appears before your first upload." } };
 
-const stubbed = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_STUB">) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
-const readerFor = (env: EnvPick<"ENABLE_DEV_ROUTES" | "QA_STUB", "AI">): PageReader | null => (stubbed(env) ? stubReader : env.AI ? workersAiReader(env.AI) : null);
+/**
+ * A question about a paper of one's own (and about one's highlights) asks the model of the profile `docsAsk` (`docsAskStream` streamed), PRIVATE; the embeddings, the page reader and the
+ * development options are the request's deps (app/deps.ts: the real ones, or a test run's stand-ins).
+ */
 /** Pages per person per day. A value that is not a whole number from 1 to 2000 is ignored (the default is used), so a typo cannot switch the limit off. */
 export function ocrPerDay(env: Pick<Env, "OCR_PAGES_PER_DAY">): number {
   const n = Number(env.OCR_PAGES_PER_DAY);
   return Number.isInteger(n) && n >= 1 && n <= 2000 ? n : OCR_PAGES_PER_DAY;
 }
 
-/** Dev-only: passages per question for the cost experiments. Undefined (the default of 6) everywhere else. */
-const devTopK = (env: Pick<Env, "ENABLE_DEV_ROUTES" | "QA_TOP_K">): number | undefined => {
-  const n = Number(env.QA_TOP_K);
-  return env.ENABLE_DEV_ROUTES === "1" && Number.isInteger(n) && n >= 1 && n <= 12 ? n : undefined;
-};
-
-export const embedderFor = (env: EnvPick<"ENABLE_DEV_ROUTES" | "QA_STUB", "AI">): Embedder | null =>
-  env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? hashEmbedder : env.AI ? workersAiEmbedder(env.AI) : null;
-
-function completeFor(env: LlmEnv & Pick<Env, "QA_STUB">, subject: string): Complete | null {
-  if (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1") return stubComplete;
-  const gateway = gatewayFromEnv(env);
-  return async (req) => {
-    // An uploaded paper and the questions about it are PRIVATE: the gateway will only use privacy-safe providers.
-    const r = await gateway.complete({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, label: req.label });
-    return { json: r.json, model: r.model };
-  };
-}
-
-export function streamFor(env: LlmEnv & Pick<Env, "QA_STUB">, subject: string, abort: AbortSignal): StreamComplete | null {
-  if (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1") return stubStream;
-  const gateway = gatewayFromEnv(env);
-  return async (req, hooks) => {
-    // Same PRIVATE route, same quota and ledger as the non-streaming call; `abort` stops the model when the reader leaves.
-    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, label: req.label }, hooks, abort);
-    return { json: r.json, model: r.model };
-  };
-}
-
-/** One place that turns a failure into what the browser is told (as an HTTP error, or as a stream `error` event). */
-export function describeAskError(e: unknown): { status: 429 | 502 | 503; code: Extract<ProblemType, "quota" | "ai_unavailable" | "ai_failed">; title: string; detail?: string } | null {
-  if (e instanceof QuotaError) return { status: 429, code: "quota", title: "You have used today's AI allowance", detail: e.message };
-  if (e instanceof NoRouteError) return { status: 503, code: "ai_unavailable", title: "Answering is unavailable right now" };
-  if (e instanceof AllProvidersFailedError) {
-    console.error(JSON.stringify({ level: "error", msg: "qa_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : a.error}`) }));
-    return { status: 502, code: "ai_failed", title: "The AI service could not answer just now", detail: "Please try again in a moment." };
-  }
-  return null;
-}
 
 /* ---------------------------------------------------------------- list / read */
 
@@ -370,7 +330,7 @@ documentRoutes.post("/:id/pages", async (c) => {
   }
   if (chars > MAX_CHARS_PER_BATCH) return deny(c, 413, "too_large", "That batch of pages is too large");
 
-  const embed = embedderFor(c.env);
+  const embed = depsOf(c).embedder;
   if (!embed) return deny(c, 503, "ai_unavailable", "Indexing is unavailable right now");
 
   const chunks = clean.flatMap((p) => chunkPage(p.page, p.text));
@@ -486,8 +446,7 @@ documentRoutes.post("/:id/ocr", async (c) => {
     image = { bytes, comment: jpeg.comment };
   }
 
-  const reader = readerFor(c.env);
-  const embed = embedderFor(c.env);
+  const { pageReader: reader, embedder: embed } = depsOf(c);
   if (!reader || !embed) return deny(c, 503, "ai_unavailable", "Reading scanned pages is unavailable right now");
   try {
     const result = await readScanPage({ db: c.env.DB, userId: user.id, docId: row.id, page, perDay: ocrPerDay(c.env), reader, embed, image });
@@ -518,8 +477,9 @@ documentRoutes.post("/:id/ask", async (c) => {
   if (question.length < 3) return deny(c, 400, "invalid_question", "Ask a question about the paper");
   if (question.length > MAX_QUESTION_CHARS) return deny(c, 400, "invalid_question", "That question is too long", `Keep it under ${MAX_QUESTION_CHARS} characters.`);
 
-  const embed = embedderFor(c.env);
-  const complete = completeFor(c.env, user.id);
+  const deps = depsOf(c);
+  const embed = deps.embedder;
+  const complete = modelFor(deps, PROFILES.docsAsk, user.id);
   if (!embed || !complete) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
 
   const rows = await c.env.DB.prepare("SELECT idx, page, text, embedding FROM doc_chunks WHERE doc_id = ?1 ORDER BY idx").bind(row.id).all<{ idx: number; page: number; text: string; embedding: string | null }>();
@@ -527,12 +487,12 @@ documentRoutes.post("/:id/ask", async (c) => {
 
   if (c.req.query("stream") === "1") {
     const abort = new AbortController();
-    const stream = streamFor(c.env, user.id, abort.signal);
+    const stream = modelFor(deps, PROFILES.docsAskStream, user.id, abort.signal);
     if (!stream) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
     return sseStream<AskStreamEvent>(c, { terminal: ["answer", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (sse) => {
       const send = sse.send;
       try {
-        const answer = await answerQuestionStream({ question, chunks, embed, stream, meta: { id: randomId(), createdAt: Date.now() }, emit: send, topK: devTopK(c.env) });
+        const answer = await answerQuestionStream({ question, chunks, embed, stream, meta: { id: randomId(), createdAt: Date.now() }, emit: send, topK: deps.dev.topK });
         if (sse.gone) return; // the reader left: nothing to save or send
         await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
         await countOutcome(c.env.DB, "doc_ask", askOutcome(answer));
@@ -548,9 +508,9 @@ documentRoutes.post("/:id/ask", async (c) => {
   let answer: Answer;
   try {
     answer = await answerQuestion({
-      question, chunks, embed, complete, meta: { id: randomId(), createdAt: Date.now() }, topK: devTopK(c.env),
+      question, chunks, embed, complete, meta: { id: randomId(), createdAt: Date.now() }, topK: deps.dev.topK,
       // Only with the local dev switch: print what the model said and saw, to tune prompts. Never in production.
-      onRaw: c.env.ENABLE_DEV_ROUTES === "1" ? (raw, ex) => console.log(JSON.stringify({ msg: "qa_debug", raw, excerpts: ex.map((e) => ({ page: e.page, text: e.text.slice(0, 160) })) })) : undefined,
+      onRaw: deps.dev.on ? (raw, ex) => console.log(JSON.stringify({ msg: "qa_debug", raw, excerpts: ex.map((e) => ({ page: e.page, text: e.text.slice(0, 160) })) })) : undefined,
     });
   } catch (e) {
     const d = describeAskError(e);
@@ -574,7 +534,7 @@ documentRoutes.post("/:id/ask-highlights", async (c) => {
   if (question.length > MAX_QUESTION_CHARS) return deny(c, 400, "invalid_question", "That question is too long", `Keep it under ${MAX_QUESTION_CHARS} characters.`);
   const rows = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE doc_id = ?1 ORDER BY page, created_at, rowid LIMIT ?2`).bind(row.id, MAX_NOTES_PER_DOC).all<NoteRow>();
   if (rows.results.length === 0) return deny(c, 409, "no_highlights", "You have not highlighted anything in this paper yet", "Select text in the paper to highlight it, then ask about your highlights.");
-  const complete = completeFor(c.env, user.id);
+  const complete = modelFor(depsOf(c), PROFILES.docsAsk, user.id);
   if (!complete) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
   try {
     const r = await answerAboutHighlights({ question, notes: rows.results.map(toNote), legend: cleanLegend(body?.legend), complete, meta: { id: randomId(), createdAt: Date.now() } });

@@ -5,7 +5,7 @@ import type { RefVerdict } from "@scholar/shared";
  *   contains "Invented" or "Fabricated"   not found (no record)
  *   contains "Mismatch"                   a record exists, but its year differs
  *   contains "Unreachable"                the databases could not be reached (the call throws)
- * and every other reference is verified against a record made from its own words. Never used in production: the chat route picks it only with both switches.
+ * and every other reference is verified against a record made from its own words. Never used in production: app/stand-ins.ts hands it to a test run only.
  */
 export async function stubVerify(input: string): Promise<RefVerdict> {
   await new Promise((r) => setTimeout(r, 30));

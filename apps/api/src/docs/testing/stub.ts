@@ -1,6 +1,6 @@
-import { extractJson } from "../llm/gateway";
-import type { Complete, StreamComplete } from "./qa";
-import { keywords, lexical } from "./vector";
+import { extractJson } from "../../platform/llm/gateway";
+import type { Complete, StreamComplete } from "../../platform/llm/port";
+import { keywords, lexical } from "../vector";
 
 /**
  * Offline stand-in for the language model, used ONLY by tests and the local end-to-end run (QA_STUB=1 together with

@@ -10,16 +10,16 @@ import type { StreamComplete } from "../docs/qa";
 
 const calls = vi.hoisted(() => [] as { who: string; label?: string; system: string; user: string }[]);
 
-vi.mock("./stub", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./stub")>();
+vi.mock("./testing/stub", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./testing/stub")>();
   const rec = (who: string, f: StreamComplete): StreamComplete => async (req, hooks) => {
     calls.push({ who, label: req.label, system: req.system, user: req.user });
     return f(req, hooks);
   };
   return { ...real, stubChatStream: rec("writer", real.stubChatStream), stubJudgeStream: (env?: unknown) => rec("judge", real.stubJudgeStream(env)) };
 });
-vi.mock("./understand-wire", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./understand-wire")>();
+vi.mock("./testing/understand", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./testing/understand")>();
   return {
     ...real,
     stubUnderstand: async (req: Parameters<typeof real.stubUnderstand>[0]) => (calls.push({ who: "understand", label: req.label, system: req.system, user: req.user }), real.stubUnderstand(req)),
@@ -28,6 +28,7 @@ vi.mock("./understand-wire", async (importOriginal) => {
 });
 
 import { chatRoutes } from "./routes";
+import { withDeps } from "../app/deps";
 
 const TOKEN = "t".repeat(40);
 const sessionRow = { id: "user-1", name: "Test", email: "t@example.org", orcid: null, avatar_url: null, role: "scholar", privacy_ack: null, stale: 0, providers: "google" };
@@ -69,7 +70,7 @@ type Opts = { signedIn?: boolean; env?: Record<string, string>; visitorN?: numbe
 async function post(body: unknown, opts: Opts = {}) {
   const { db, outcomes } = fakeDb({ visitorN: opts.visitorN });
   const headers: Record<string, string> = { "content-type": "application/json", origin: "http://localhost", "cf-connecting-ip": "203.0.113.7", ...(opts.signedIn === false ? {} : { cookie: `sid=${TOKEN}` }) };
-  const res = await chatRoutes.request("http://localhost/", { method: "POST", headers, body: JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
+  const res = await withDeps(chatRoutes).request("http://localhost/", { method: "POST", headers, body: JSON.stringify(body) }, { DB: db, ENABLE_DEV_ROUTES: "1", QA_STUB: "1", CROSSREF_MAILTO: "t@example.org", ...opts.env });
   const text = await res.text();
   // the shadow's counts are written after the reply, on their own: give them a turn of the event loop
   await new Promise((r) => setTimeout(r, 20));
@@ -135,7 +136,7 @@ afterEach(() => {
 describe("GET /chat/config: the page sends the ledger only while the step reads it", () => {
   const config = async (env: Record<string, string>, signedIn = true) => {
     const { db } = fakeDb();
-    const res = await chatRoutes.request("http://localhost/config", { headers: signedIn ? { cookie: `sid=${TOKEN}` } : {} }, { DB: db, CROSSREF_MAILTO: "t@example.org", ...env });
+    const res = await withDeps(chatRoutes).request("http://localhost/config", { headers: signedIn ? { cookie: `sid=${TOKEN}` } : {} }, { DB: db, CROSSREF_MAILTO: "t@example.org", ...env });
     expect(res.headers.get("cache-control")).toBe("no-store");
     return (await res.json()) as { ledger: boolean };
   };

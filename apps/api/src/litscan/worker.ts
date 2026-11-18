@@ -1,7 +1,7 @@
 import { plainText, squash, type LitscanGap, type LitscanItem, type LitscanLanguage, type LitscanPart, type LitscanSource, type LitscanWorkerStage, type SearchResponse } from "@scholar/shared";
 import { answerFromResults, pickEvidencePapers } from "../chat/answer";
-import type { StreamComplete } from "../docs/qa";
-import { NoRouteError, QuotaError } from "../llm";
+import type { StreamComplete } from "../platform/llm/port";
+import { NoRouteError, QuotaError } from "../platform/llm";
 import { isRelevant } from "./relevance";
 
 /**

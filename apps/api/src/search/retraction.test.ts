@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { findRetractionNotices } from "./retraction";
-import { stubCrossrefFetch } from "../library/retraction-stub";
+import { stubCrossrefFetch } from "../library/testing/retraction-stub";
 
 afterEach(() => vi.unstubAllGlobals());
 

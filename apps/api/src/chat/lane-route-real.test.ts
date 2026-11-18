@@ -10,11 +10,12 @@ vi.mock("../search", async (importOriginal) => {
   const real = await importOriginal<typeof import("../search")>();
   return { ...real, runSearch: async () => (seen.search++, Promise.reject(new Error("a search was made"))) };
 });
-vi.mock("../llm", async (importOriginal) => {
-  const real = await importOriginal<typeof import("../llm")>();
+vi.mock("../platform/llm", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../platform/llm")>();
   return { ...real, gatewayFromEnv: () => (seen.gateway++, { complete: () => Promise.reject(new Error("a model was called")), stream: () => Promise.reject(new Error("a model was called")) }) };
 });
 import { chatRoutes } from "./routes";
+import { withDeps } from "../app/deps";
 
 const TOKEN = "t".repeat(40);
 const sessionRow = { id: "user-1", name: "Test", email: "t@example.org", orcid: null, avatar_url: null, role: "scholar", privacy_ack: null, stale: 0, providers: "google" };
@@ -23,7 +24,7 @@ const db = {
   batch: async () => [],
 };
 async function post(message: string, signedIn: boolean, env: Record<string, string>) {
-  const res = await chatRoutes.request(
+  const res = await withDeps(chatRoutes).request(
     "http://localhost/",
     { method: "POST", headers: { "content-type": "application/json", origin: "http://localhost", ...(signedIn ? { cookie: `sid=${TOKEN}` } : {}) }, body: JSON.stringify({ mode: "auto", message }) },
     { DB: db, CROSSREF_MAILTO: "t@example.org", ...env },

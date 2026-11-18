@@ -1,0 +1,4104 @@
+{
+ "route": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   30000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "classify",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "understand": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   8000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "understand",
+    "sensitivity": "private",
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "chatReply": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   15000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "understand",
+    "sensitivity": "private",
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "write": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   60000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "judge": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   20000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "strict": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 4500,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   75000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "strict (check_claim)": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 4500,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   75000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "docsAsk": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "docsAskStream": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaPlan": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaCompare": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   90000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaInsights": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   150000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanPlan": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   45000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanAnswer": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   80000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanJudge": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "devJudge (model, reasoning, 7000 ms)": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   7000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "route + development overrides": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/test/classify-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   30000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "classify",
+    "sensitivity": "private",
+    "model": "@cf/test/classify-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "route + overrides that are not models": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   30000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "classify",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "route + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   30000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "classify",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "route + reasoning only": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "high"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   30000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "classify",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "understand + development overrides": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   8000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "understand",
+    "sensitivity": "private",
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "understand + overrides that are not models": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   8000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "understand",
+    "sensitivity": "private",
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "understand + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   8000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "understand",
+    "sensitivity": "private",
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "understand + reasoning only": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   8000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "understand",
+    "sensitivity": "private",
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "chatReply + development overrides": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   15000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "understand",
+    "sensitivity": "private",
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "chatReply + overrides that are not models": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   15000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "understand",
+    "sensitivity": "private",
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "chatReply + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   15000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "understand",
+    "sensitivity": "private",
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "chatReply + reasoning only": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   15000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "understand",
+    "sensitivity": "private",
+    "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "write + development overrides": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/test/qa-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   60000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/test/qa-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "write + overrides that are not models": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   60000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "write + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   60000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "write + reasoning only": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "high"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   60000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "judge + development overrides": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/test/verify-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   20000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/test/verify-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "judge + overrides that are not models": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   20000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "judge + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   20000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "judge + reasoning only": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   20000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "strict + development overrides": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/test/qa-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 4500,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   75000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/test/qa-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "strict + overrides that are not models": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 4500,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   75000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "strict + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 4500,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   75000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "strict + reasoning only": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 4500,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "high"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   75000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "strict (check_claim) + development overrides": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/test/qa-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 4500,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   75000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/test/qa-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "strict (check_claim) + overrides that are not models": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 4500,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   75000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "strict (check_claim) + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 4500,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   75000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "strict (check_claim) + reasoning only": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 4500,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "high"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   75000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "docsAsk + development overrides": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/test/qa-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/test/qa-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "docsAsk + overrides that are not models": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "docsAsk + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "docsAsk + reasoning only": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "high"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "docsAskStream + development overrides": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/test/qa-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/test/qa-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "docsAskStream + overrides that are not models": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "docsAskStream + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "docsAskStream + reasoning only": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "high"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaPlan + development overrides": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/test/qa-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/test/qa-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaPlan + overrides that are not models": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaPlan + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaPlan + reasoning only": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "high"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaCompare + development overrides": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/test/qa-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   90000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/test/qa-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaCompare + overrides that are not models": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   90000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaCompare + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   90000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaCompare + reasoning only": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "high"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   90000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaInsights + development overrides": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/test/qa-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   150000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/test/qa-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaInsights + overrides that are not models": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   150000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaInsights + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   150000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "ideaInsights + reasoning only": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "high"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   150000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanPlan + development overrides": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/test/qa-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   45000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/test/qa-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanPlan + overrides that are not models": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   45000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanPlan + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   45000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanPlan + reasoning only": {
+  "kind": "complete",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "high"
+     }
+    }
+   }
+  ],
+  "timeoutsMs": [
+   45000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanAnswer + development overrides": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/test/qa-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   80000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/test/qa-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanAnswer + overrides that are not models": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   80000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanAnswer + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "low"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   80000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanAnswer + reasoning only": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/openai/gpt-oss-120b",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "reasoning": {
+      "effort": "high"
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   80000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "qa",
+    "sensitivity": "private",
+    "model": "@cf/openai/gpt-oss-120b",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanJudge + development overrides": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/test/verify-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/test/verify-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanJudge + overrides that are not models": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanJudge + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "litscanJudge + reasoning only": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   25000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "devJudge (model, reasoning, 7000 ms) + development overrides": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/test/judge-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   7000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/test/judge-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "devJudge (model, reasoning, 7000 ms) + overrides that are not models": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/test/judge-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   7000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/test/judge-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "devJudge (model, reasoning, 7000 ms) + overrides without ENABLE_DEV_ROUTES": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   7000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ },
+ "devJudge (model, reasoning, 7000 ms) + reasoning only": {
+  "kind": "stream",
+  "ai": [
+   {
+    "model": "@cf/test/judge-model",
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "SYSTEM TEXT"
+      },
+      {
+       "role": "user",
+       "content": "USER TEXT"
+      }
+     ],
+     "max_tokens": 123,
+     "temperature": 0,
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "output",
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ok": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     },
+     "stream": true
+    }
+   }
+  ],
+  "timeoutsMs": [
+   7000
+  ],
+  "ledger": [
+   {
+    "subject": "user-1",
+    "task": "verify",
+    "sensitivity": "private",
+    "model": "@cf/test/judge-model",
+    "ok": 1,
+    "label": "the_caller_label"
+   }
+  ]
+ }
+}

@@ -1,5 +1,5 @@
 import { threeWay, detectLanguage, offlineRoute, type Route } from "@scholar/shared";
-import type { Complete } from "../docs/qa";
+import { classifyFailure, withMalformedRetry, type Complete } from "../platform/llm/port";
 import { chatReplyLeaks } from "./chat-reply";
 import { isGreeting, romanHindiSigns } from "./greeting";
 import { guards, scrubQueries, NO_SCRUB, type GuardDecision, type GuardInput, type Scrub } from "./guards";
@@ -286,20 +286,16 @@ export function fallbackUnderstanding(message: string): { understanding: Underst
 }
 
 /**
- * Why a model call failed, from the error's NAME and its attempts (understand/ may not import the gateway module, which holds the AI binding: legal-match.test.ts, rule 3). The gateway throws
- * `QuotaError` when the day's allowance is used and `AllProvidersFailedError` (with `attempts`) when every model failed; a reply that is not JSON at all fails every attempt with a JSON parse error.
+ * Why a model call failed, in the step's own words (understand/ may not import the gateway module, which holds the AI binding: legal-match.test.ts, rule 3): the port's classifyFailure, which
+ * reads the error's name and attempts, with "malformed" said as "invalid" and "no model may take it" as "down".
  */
 function reasonOf(e: unknown): FallbackReason {
-  const name = e instanceof Error ? e.name : "";
-  const message = e instanceof Error ? e.message : "";
-  if (name === "QuotaError") return "quota";
-  const attempts = (e as { attempts?: unknown }).attempts;
-  const errors = Array.isArray(attempts) ? attempts.map((a) => String((a as { error?: unknown })?.error ?? "")) : [];
-  const json = /JSON|Unexpected token|Unterminated|Unexpected end/i;
-  if (name === "AllProvidersFailedError" && errors.length > 0 && errors.every((x) => json.test(x))) return "invalid";
-  if (/timeout|timed out|abort/i.test(message) || errors.some((x) => /timeout|timed out|abort/i.test(x))) return "timeout";
-  return "down";
+  const kind = classifyFailure(e);
+  return kind === "malformed" ? "invalid" : kind === "no_route" ? "down" : kind;
 }
+
+/** A reply that is JSON but not a reading the step can use (its failure name is in `invalid`): asked for again once, with a hint. */
+class InvalidReading extends Error {}
 
 /* ---------------------------------------------------------------- one turn */
 
@@ -344,43 +340,48 @@ export async function understandTurn(guardInput: GuardInput, input: Omit<Underst
 
   const invalid: ParseFailure[] = [];
   let model: string | null = null;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    let json: unknown;
-    // the second time, the model is told which field was wrong: fixed text per failure name, never anything it wrote
-    const last = invalid[invalid.length - 1];
-    const user = understandPrompt(full) + (attempt === 2 && last ? `\nYour previous answer was not valid: ${RETRY_HINTS[last]} Answer again with the whole JSON.` : "");
-    try {
-      const call = deps.complete({ system: `${UNDERSTAND_SYSTEM}\n${EXAMPLES}`, user, schema: UNDERSTAND_SCHEMA as unknown as Record<string, unknown>, maxTokens: UNDERSTAND_MAX_TOKENS, label: "chat_understand" });
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("understand timeout")), deps.timeoutMs ?? UNDERSTAND_TIMEOUT_MS);
-      });
-      call.catch(() => {}); // a call that loses the race must not be an unhandled rejection
-      try {
-        const r = await Promise.race([call, timeout]);
-        json = r.json;
-        model = r.model;
-      } finally {
-        if (timer !== undefined) clearTimeout(timer);
-      }
-    } catch (e) {
-      const reason = reasonOf(e);
-      // what failed, never what was written
-      console.error(JSON.stringify({ level: "warn", msg: "understand_failed", attempt, reason }));
-      if (reason === "invalid" && attempt === 1) {
-        invalid.push("not_object");
-        continue;
-      }
-      return fall(reason, invalid, model);
-    }
-    const parsed = parseUnderstanding(json);
-    if (parsed.ok) {
-      const checked = checkReading(parsed.value, full, deps.scrub ?? guardInput.scrub);
-      return { source: "model", guard: g, understanding: checked.value, confirm: checked.confirm, fallback: null, corrections: checked.corrections, invalid, model, ms: now() - t0 };
-    }
-    invalid.push(parsed.failure);
+  try {
+    // one retry (the port's withMalformedRetry): for a reply that is not JSON at all, and for a reading that does not pass its checks
+    const value = await withMalformedRetry(
+      async (attempt) => {
+        let json: unknown;
+        // the second time, the model is told which field was wrong: fixed text per failure name, never anything it wrote
+        const last = invalid[invalid.length - 1];
+        const user = understandPrompt(full) + (attempt === 2 && last ? `\nYour previous answer was not valid: ${RETRY_HINTS[last]} Answer again with the whole JSON.` : "");
+        const call = deps.complete!({ system: `${UNDERSTAND_SYSTEM}\n${EXAMPLES}`, user, schema: UNDERSTAND_SCHEMA as unknown as Record<string, unknown>, maxTokens: UNDERSTAND_MAX_TOKENS, label: "chat_understand" });
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("understand timeout")), deps.timeoutMs ?? UNDERSTAND_TIMEOUT_MS);
+        });
+        call.catch(() => {}); // a call that loses the race must not be an unhandled rejection
+        try {
+          const r = await Promise.race([call, timeout]);
+          json = r.json;
+          model = r.model;
+        } finally {
+          if (timer !== undefined) clearTimeout(timer);
+        }
+        const parsed = parseUnderstanding(json);
+        if (parsed.ok) return parsed.value;
+        invalid.push(parsed.failure);
+        throw new InvalidReading();
+      },
+      {
+        retryIf: (e) => e instanceof InvalidReading,
+        onFailure: (e, attempt) => {
+          if (e instanceof InvalidReading) return;
+          const reason = reasonOf(e);
+          // what failed, never what was written
+          console.error(JSON.stringify({ level: "warn", msg: "understand_failed", attempt, reason }));
+          if (reason === "invalid" && attempt === 1) invalid.push("not_object");
+        },
+      },
+    );
+    const checked = checkReading(value, full, deps.scrub ?? guardInput.scrub);
+    return { source: "model", guard: g, understanding: checked.value, confirm: checked.confirm, fallback: null, corrections: checked.corrections, invalid, model, ms: now() - t0 };
+  } catch (e) {
+    return fall(e instanceof InvalidReading ? "invalid" : reasonOf(e), invalid, model);
   }
-  return fall("invalid", invalid, model);
 }
 
 /** What the second attempt is told about the first one's mistake, by failure name. */

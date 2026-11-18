@@ -1,7 +1,7 @@
 import { DOI_START, GENERAL_KINDS, type ChatEvent, type GeneralKind, type Lang } from "@scholar/shared";
-import type { StreamComplete } from "../docs/qa";
+import type { StreamComplete } from "../platform/llm/port";
 import { AnswerFieldStreamer } from "../docs/stream-json";
-import { isMalformedReply } from "./malformed";
+import { withMalformedRetry } from "../platform/llm/retry";
 
 /**
  * General background (W5): only when the papers did not answer, and only under a label that is on screen every time ("General background, not from a paper in your results").
@@ -93,15 +93,8 @@ export async function answerGeneral(args: { question: string; language?: Lang; s
       },
     );
   };
-  let result;
-  try {
-    result = await attempt();
-  } catch (e) {
-    // a malformed reply is asked for again once, but only if none of its words reached the screen (a second try would repeat them)
-    if (wrote || !isMalformedReply(e)) throw e;
-    result = await attempt();
-  }
-  const { json } = result;
+  // a malformed reply is asked for again once, but only if none of its words reached the screen (a second try would repeat them)
+  const { json } = await withMalformedRetry(attempt, { shown: () => wrote });
   await chain;
   args.onRaw?.(json);
   return checkGeneral(json);

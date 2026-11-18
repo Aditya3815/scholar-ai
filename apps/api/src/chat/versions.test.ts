@@ -4,7 +4,7 @@ import {
   turnToShow, versionInfo,
   type AssistantMsg, type ChatMsg, type IdeaMsg, type UserMsg,
 } from "@scholar/shared";
-import { stubPapers } from "./stub";
+import { stubPapers } from "./testing/stub";
 
 /* Editing a message and keeping what it replaced (docs/design/chat-actions-context.md, section 4): the replaced text and everything after it is kept on the message as a version, the
    list of messages stays the flat list of the version being read, and nothing of a kept version can reach anything that walks the active list. All of it is pure. */

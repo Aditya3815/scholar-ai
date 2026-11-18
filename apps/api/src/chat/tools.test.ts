@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyChatEvent, applyToolEvent, refTally, startAssistant, trimForStorage, type ChatEvent, type Paper, type RefVerdict } from "@scholar/shared";
 import { MAX_CHAT_RETRACTION_DOIS, doisIn, modeOfPlan, pickDoc, planTool, relayAsk, runVerify, type PlanInput, type ToolDeps } from "./tools";
-import { stubVerify } from "./tools-stub";
+import { stubVerify } from "./testing/tools-stub";
 
 /** CHAT_TOOLS (docs/design/chat-tools.md): which tool runs, and how a tool's run turns into the chat's events. Pure parts; the route is tools-route.test.ts. */
 

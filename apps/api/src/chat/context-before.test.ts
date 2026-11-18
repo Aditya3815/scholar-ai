@@ -5,7 +5,7 @@ import {
   type AssistantMsg, type ChatMsg, type HistoryEntry, type IdeaMsg, type Paper, type UserMsg,
 } from "@scholar/shared";
 import { readHistory } from "./history";
-import { stubPapers } from "./stub";
+import { stubPapers } from "./testing/stub";
 
 /* What the browser sends with a message in Auto so that "only after 2020" can be understood (docs/design/chat-actions-context.md, section 5): the last few finished searches of the conversation that
    is on the screen, before the message, and nothing else. These tests say what may be in it and, as much, what never may: every exclusion has a canary text that must not appear anywhere in what

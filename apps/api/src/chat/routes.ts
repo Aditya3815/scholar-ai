@@ -3,11 +3,10 @@ import type { Context } from "hono";
 import { ABSTRACTS_NOTICE, isLaneReason, MARK, stripInvisible, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MAX_OA_ABSTRACT_CHARS, MIN_SINCE_YEAR, type AskStreamEvent, type ChatRetraction, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, refTally, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
 import { currentUser, requireUser } from "../auth/service";
 import { readJson } from "../platform/http/body";
-import type { Complete, StreamComplete } from "../docs/qa";
-import { AllProvidersFailedError, NoRouteError, QuotaError, gatewayFromEnv } from "../llm";
-import { DEFAULT_CONFIG } from "../llm/config";
-import { d1Ledger } from "../llm/d1";
-import { searchService } from "../search/service";
+import type { Complete, StreamComplete } from "../platform/llm/port";
+import { PROFILES, modelFor, withTimeout } from "../platform/llm/profiles";
+import { depsOf } from "../platform/deps";
+import { AllProvidersFailedError, NoRouteError, QuotaError, allowanceOf } from "../platform/llm";
 import { sseStream } from "../sse";
 import { searchComplete } from "./complete";
 import { answerFromResults, pickEvidencePapers, type Picked } from "./answer";
@@ -15,9 +14,8 @@ import { judgeAnswer, type JudgeReport } from "./support";
 import { MAX_TIGHTEN_BODY_BYTES, readTighten } from "./tighten";
 import { answerGeneral } from "./general";
 import { askedOf, contextInfo, ownQuestions, routeContextOf, routeFollowUp, routeMessage, routerCallFailed, type FollowUp, type RouterContext } from "./router";
-import { errorKind, readHistory, type ChatHistory } from "./history";
-import { stubChatStream, stubJudgeStream, stubSearchFor, stubStrictStream } from "./stub";
-import { stubRoute } from "./stub-route";
+import { readHistory, type ChatHistory } from "./history";
+import { attemptsForLog } from "../platform/llm/failure";
 import { FLOOR_OUTCOMES, FOLLOW_UP_OUTCOMES, UNREAD_OUTCOMES, askOutcome, countOutcome, countOutcomes } from "../outcomes";
 import { flag, killSwitch, type FlagPosition, type GateName } from "../platform/switches";
 import { NO_PLAN, planLane, safetyRead, type LanePlan } from "../understand/lane";
@@ -35,19 +33,16 @@ import { templateChatReply, writeChatReply } from "../understand/chat-reply";
 import { readLedger, paperRefsToResolve, type LedgerPaper, type LedgerTurn } from "../understand/ledger-input";
 import { understandCounters, type OldDecision } from "../understand/understand-counters";
 import type { Understanding } from "../understand/understanding";
-import { chatReplyCompleteFor, resolveLedgerPapers, stubChatReply, stubUnderstand, takeVisitorCall, understandCompleteFor } from "./understand-wire";
-import { searchEnvFrom } from "../search/env";
+import { resolveLedgerPapers, takeVisitorCall } from "./understand-wire";
 import { deny } from "../problem";
 import { modeOfPlan, pickDoc, planTool, relayAsk, runVerify, type ToolDeps, type ToolPlan } from "./tools";
-import { stubVerify } from "./tools-stub";
 import { toolAnswered as thinkToolAnswered, toolAsking as thinkToolAsking, toolChecked as thinkToolChecked, toolChecking as thinkToolChecking, toolRetractions as thinkToolRetractions, toolRetractionsDone as thinkToolRetractionsDone, understoodToolRun } from "./think";
-import { referenceService } from "../references/service";
 import { retractionService } from "../search/retraction-service";
 import { oaService } from "../oa/service";
-import { describeAskError, embedderFor, streamFor as docStreamFor } from "../docs/routes";
-import { answerQuestionStream, type StoredChunk } from "../docs/qa";
+import { answerQuestionStream, describeAskError, type StoredChunk } from "../docs/qa";
 import { decodeVec } from "../docs/vector";
 import type { Env, HonoEnv } from "../platform/env";
+import { devMode, modelOverrides } from "../platform/dev";
 
 export const chatRoutes = new Hono<HonoEnv>();
 
@@ -56,7 +51,6 @@ chatRoutes.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
 });
 
-const stubbed = (env: Env) => env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
 
 /**
  * Where a gate flag of the chat stands for this request (platform/switches.ts: unset is off, an off flag reads nothing from KV, and the positions of each name are its row of SWITCHES). A value that is
@@ -72,47 +66,16 @@ async function gate(env: Env, name: Extract<GateName, `CHAT_${string}`>): Promis
 const logJudged = (r: JudgeReport) =>
   console.log(JSON.stringify({ level: r.error ? "warn" : "info", msg: "chat_judge", ms: r.ms, model: r.model, ...r.counts, leftOut: r.leftOut, rewritten: r.rewritten ?? 0, offered: r.rewrites?.length ?? 0, ...(r.checkMs === undefined ? {} : { checkMs: r.checkMs }), ...(r.error ? { error: r.error } : {}) }));
 
-/** The model, for the person's own message: PRIVATE, so the gateway only uses providers that do not keep or train on it. `abort` stops it when the reader presses Stop or leaves. */
-function streamFor(env: Env, subject: string, abort: AbortSignal): StreamComplete {
-  if (stubbed(env)) return stubChatStream;
-  const gateway = gatewayFromEnv(env);
-  return async (req, hooks) => {
-    const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 60_000, label: req.label }, hooks, abort);
-    return { json: r.json, model: r.model };
-  };
-}
-
 /**
- * The support judge's model (chat/support.ts): the answer to the person's own question, so PRIVATE. Shorter timeout than the answer's: a judge that takes longer is not waited for
- * (the answer is then shown as written and says it was not checked).
+ * The models of the chat are profiles (platform/llm/profiles.ts), all PRIVATE: `write` for the person's own message (and the background), `judge` for the support judge (chat/support.ts; shorter
+ * than the answer's: a judge that takes longer is not waited for, and the answer then says it was not checked), `route` for the router, `strict` for "Check strictly". Which model answers a
+ * profile (the gateway's, or a test run's stand-in) is the request's deps (app/deps.ts). `abort` stops a stream when the reader presses Stop or leaves.
  */
-function judgeStreamFor(env: Env, subject: string, abort: AbortSignal, timeoutMs = 20_000): StreamComplete {
-  if (stubbed(env)) return stubJudgeStream(env);
-  const gateway = gatewayFromEnv(env);
-  return async (req, hooks) => {
-    const r = await gateway.stream({ task: "verify", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs, label: req.label }, hooks, abort);
-    return { json: r.json, model: r.model };
-  };
-}
-
-/**
- * The router's model: the person's own free text, so PRIVATE (the gateway only uses providers that do not keep or train on it). `onUsage` hears what a call cost, for the development route that
- * measures a follow-up (scripts/router-eval.mjs); the stream never uses it.
- */
-function routeCompleteFor(env: Env, subject: string, onUsage?: (u: { tokensIn?: number | null; tokensOut?: number | null }) => void): Complete {
-  if (stubbed(env)) return stubRoute;
-  const gateway = gatewayFromEnv(env);
-  return async (req) => {
-    const r = await gateway.complete({ task: "classify", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: req.maxTokens, timeoutMs: 30_000, label: req.label });
-    onUsage?.({ tokensIn: r.tokensIn, tokensOut: r.tokensOut });
-    return { json: r.json, model: r.model };
-  };
-}
 
 /** Is enough of the day's allowance left for a follow-up that a model reads with the earlier turns? Not being able to tell is not a reason to refuse. */
 async function canAfford(db: D1Database, subject: string): Promise<boolean> {
   try {
-    return DEFAULT_CONFIG.dailyTokenQuota - (await d1Ledger(db).tokensToday(subject)) >= FOLLOW_UP_TOKENS_ESTIMATE;
+    return (await allowanceOf(db, subject)).left >= FOLLOW_UP_TOKENS_ESTIMATE;
   } catch {
     return true;
   }
@@ -197,6 +160,7 @@ function askedPapers(ledger: readonly LedgerTurn[], u: Understanding): LedgerPap
  */
 chatRoutes.post("/", async (c) => {
   // the JSON body, with a limit on its size (MAX_CHAT_BODY_BYTES): by its length, and by counting where it has none (src/platform/http/body.ts)
+  const deps = depsOf(c);
   const read = await readJson(c, MAX_CHAT_BODY_BYTES);
   if (read.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
   const body = read.value as { mode?: unknown; message?: unknown; scope?: unknown; anyway?: unknown; history?: unknown; sinceYear?: unknown; ledger?: unknown } | null;
@@ -322,9 +286,9 @@ chatRoutes.post("/", async (c) => {
         const g = await answerGeneral({
           question,
           language,
-          stream: streamFor(c.env, subject, abort.signal),
+          stream: modelFor(deps, PROFILES.write, subject, abort.signal),
           emit: send,
-          onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !stubbed(c.env) && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_general_debug", raw })) : undefined,
+          onRaw: deps.dev.on && !deps.dev.standIns && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_general_debug", raw })) : undefined,
         });
         if (!s.gone) await send({ type: "general", kind: g.kind, text: g.text });
       } catch (e) {
@@ -341,21 +305,21 @@ chatRoutes.post("/", async (c) => {
       const ip = c.req.header("cf-connecting-ip") ?? "unknown";
       const allowed = (b?: Pick<RateLimit, "limit">) => async () => !b || (await b.limit({ key: ip }).then((r) => r.success, () => true));
       const env = c.env;
-      const deps: ToolDeps = {
-        verify: stubbed(c.env) ? stubVerify : async (t) => (await referenceService.verify(env, t)).result,
+      const tools: ToolDeps = {
+        verify: deps.verifyReference,
         verifyAllowed: allowed(c.env.VERIFY_LIMITER),
         retractions: async (dois) => {
-          const r = await retractionService.check(env, dois);
+          const r = await retractionService.check(env, dois, undefined, deps.fetch.crossref);
           return { checked: r.checked, invalid: r.invalid };
         },
         askPaper: async (a, sendAsk) => {
-          const embed = embedderFor(env);
+          const embed = deps.embedder;
           if (!embed) return void (await sendAsk({ type: "error", code: "ai_unavailable", title: "Answering is unavailable right now" }));
-          await oaService.ask(env, { userId: user!.id, ref: a.ref, key: a.key, question: a.question, clientAbstract: a.clientAbstract, embed, abort }, { get gone() { return s.gone; }, send: sendAsk });
+          await oaService.ask(env, { userId: user!.id, ref: a.ref, key: a.key, question: a.question, clientAbstract: a.clientAbstract, embed, abort, deps }, { get gone() { return s.gone; }, send: sendAsk });
         },
         askDoc: async (docId, question, sendAsk) => {
-          const embed = embedderFor(env);
-          const stream = docStreamFor(env, user!.id, abort.signal);
+          const embed = deps.embedder;
+          const stream = modelFor(deps, PROFILES.docsAskStream, user!.id, abort.signal);
           if (!embed || !stream) return void (await sendAsk({ type: "error", code: "ai_unavailable", title: "Answering is unavailable right now" }));
           try {
             const rows = await c.env.DB.prepare("SELECT idx, page, text, embedding FROM doc_chunks WHERE doc_id = ?1 ORDER BY idx").bind(docId).all<{ idx: number; page: number; text: string; embedding: string | null }>();
@@ -383,7 +347,7 @@ chatRoutes.post("/", async (c) => {
       if (plan.kind === "verify") {
         await send({ type: "tool", tool: "verify", total: plan.refs.length, skipped: plan.skipped });
         await think(thinkToolChecking(language, plan.refs.length, plan.skipped));
-        const items = await runVerify(plan.refs, deps, send);
+        const items = await runVerify(plan.refs, tools, send);
         if (s.gone) return;
         await think(thinkToolChecked(language, refTally(items)));
       } else if (plan.kind === "retractions") {
@@ -391,7 +355,7 @@ chatRoutes.post("/", async (c) => {
         await think(thinkToolRetractions(language, plan.dois.length));
         let r: { checked: ChatRetraction[]; invalid: string[] };
         try {
-          r = await deps.retractions(plan.dois);
+          r = await tools.retractions(plan.dois);
         } catch {
           // a check that could not run says "unknown" for every DOI, never "not retracted"
           r = { checked: plan.dois.map((doi) => ({ doi, status: "unknown" as const, notices: [] })), invalid: [] };
@@ -407,14 +371,14 @@ chatRoutes.post("/", async (c) => {
         await send({ type: "tool", tool: plan.kind, paper, question: plan.question });
         await think(thinkToolAsking(language, paper.title, own));
         let end: Awaited<ReturnType<typeof relayAsk>>;
-        if (!(await deps.askAllowed())) {
+        if (!(await tools.askAllowed())) {
           end = await relayAsk(async (e) => e({ type: "error", code: "rate_limited", title: "Too many questions just now", detail: "Please wait a minute and try again." }), send);
         } else if (plan.kind === "ask_paper") {
           const p = plan;
-          end = await relayAsk((e) => deps.askPaper({ ref: p.ref, key: p.key, question: p.question, clientAbstract: (p.paper.abstract ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_OA_ABSTRACT_CHARS) }, e), send);
+          end = await relayAsk((e) => tools.askPaper({ ref: p.ref, key: p.key, question: p.question, clientAbstract: (p.paper.abstract ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_OA_ABSTRACT_CHARS) }, e), send);
         } else {
           const q = plan.question;
-          end = await relayAsk((e) => deps.askDoc(doc!.id, q, e as (x: AskStreamEvent) => Promise<void>), send);
+          end = await relayAsk((e) => tools.askDoc(doc!.id, q, e as (x: AskStreamEvent) => Promise<void>), send);
         }
         if (s.gone) return;
         await think(thinkToolAnswered(language, end.answer ? { quotes: end.answer.citations.length, found: end.answer.found, verified: end.answer.verified } : null));
@@ -468,8 +432,8 @@ chatRoutes.post("/", async (c) => {
             else visitorCapped = true;
           }
           if (subject) {
-            complete = stubbed(c.env) ? stubUnderstand : understandCompleteFor(c.env, subject);
-            replyComplete = stubbed(c.env) ? stubChatReply : chatReplyCompleteFor(c.env, subject);
+            complete = modelFor(deps, PROFILES.understand, subject);
+            replyComplete = modelFor(deps, PROFILES.chatReply, subject);
           }
         }
         und = await understandTurn({ text, mode: "auto" }, { ledger, visitor: !user, year: thisYear }, { complete });
@@ -493,7 +457,7 @@ chatRoutes.post("/", async (c) => {
         // a question about papers already in this chat: they are looked up again by DOI (the page's copy of a paper is never used); with none found, what was asked is searched instead
         if (u?.intent === "ask_results") {
           const refs = askedPapers(ledger, u);
-          const again = refs.length > 0 ? await resolveLedgerPapers(searchEnvFrom(c.env), refs, stubbed(c.env)) : [];
+          const again = refs.length > 0 ? await resolveLedgerPapers(refs, deps.papersByDoi) : [];
           if (s.gone) return;
           if (again.length > 0) preset = again;
           else u = { ...u, intent: "search", refers_to: null, search: { queries: [(u.standalone || text).replace(/\s+/g, " ").slice(0, 120)], year_from: null, year_to: null, indian_sources: null } };
@@ -524,11 +488,11 @@ chatRoutes.post("/", async (c) => {
           // the rules settle most messages without a model; only when they cannot, a step says so while the model looks
           if (user && !ruleRoute(text, rctx)) await send({ type: "step", step: "route" });
           if (ctx) {
-            const routed = await routeFollowUp(text, user ? routeCompleteFor(c.env, user.id) : null, ctx);
+            const routed = await routeFollowUp(text, user ? modelFor(deps, PROFILES.route, user.id) : null, ctx);
             route = routed.route;
             follow = routed.followUp;
           } else {
-            route = await routeMessage(text, user ? routeCompleteFor(c.env, user.id) : null);
+            route = await routeMessage(text, user ? modelFor(deps, PROFILES.route, user.id) : null);
           }
         }
         if (s.gone) return;
@@ -547,7 +511,7 @@ chatRoutes.post("/", async (c) => {
             if (needsModel) {
               const v = user ? null : await takeVisitorCall(c.env.DB, c.req.header("cf-connecting-ip") ?? "unknown");
               const subject = user ? user.id : v?.ok ? `visitor:${v.code}` : null;
-              if (subject) complete = stubbed(c.env) ? stubUnderstand : understandCompleteFor(c.env, subject);
+              if (subject) complete = modelFor(deps, PROFILES.understand, subject);
             }
             const d = await understandTurn({ text, mode: "auto" }, { ledger, visitor: !user, year: thisYear }, { complete });
             await countOutcomes(c.env.DB, "chat_understand", understandCounters(d, old));
@@ -730,13 +694,7 @@ chatRoutes.post("/", async (c) => {
       } else {
         await send({ type: "step", step: "search" });
         await think(thinkSearched(route.language, query));
-        if (stubbed(c.env)) {
-          if (/\bstalled\b/i.test(query)) await new Promise((r) => setTimeout(r, 3500)); // a silent wait, to see the keep-alive line and the "still working" hint
-          found = stubSearchFor(query, where, { topical: c.env.QA_STUB_TOPIC === "1" });
-          if (found.results.length > 0) await interim(found);
-        } else {
-          found = await searchService.run(c.env, { q: query, limit: years ? YEAR_FILTER_SEARCH_LIMIT : 20, scope: where }, { onSnapshot: interim });
-        }
+        found = await deps.search(query, { limit: years ? YEAR_FILTER_SEARCH_LIMIT : 20, scope: where, onSnapshot: interim });
       }
       if (s.gone) return;
       if (auto && !carries) oneSource = new Set(found.results.flatMap((p) => p.sources)).size === 1;
@@ -816,13 +774,13 @@ chatRoutes.post("/", async (c) => {
         // the question the answer is for is what the person wrote (so it is answered in their language), not the English words the indexes were asked; for a follow-up it is the standalone question,
         // and for the same papers only, the earlier answer goes with it as context the writer is told is not evidence. The judge is given neither (it reads claims and the abstracts they cite).
         // The debug log of what a model said is for the first message in development; a follow-up never uses it.
-        answer = await answerFromResults({ question: asked, language: spoken, languageAsked: u ? u.language !== "en" : !!(follow?.answerLanguage ?? reading?.answerLanguage), earlierAnswer: follow?.intent === "same_papers" ? (ctx?.history.lastAnswer ?? undefined) : undefined, picked, stream: streamFor(c.env, user.id, abort.signal), judge: killSwitch(c.env, "CHAT_JUDGE") === "off" ? undefined : judgeStreamFor(c.env, user.id, abort.signal), onJudged: (r) => { judged = r; logJudged(r); }, emit: async (e) => { await send(e); if (e.type === "step" && e.step === "write") await think(thinkWriting(spoken)); }, onRaw: c.env.ENABLE_DEV_ROUTES === "1" && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
+        answer = await answerFromResults({ question: asked, language: spoken, languageAsked: u ? u.language !== "en" : !!(follow?.answerLanguage ?? reading?.answerLanguage), earlierAnswer: follow?.intent === "same_papers" ? (ctx?.history.lastAnswer ?? undefined) : undefined, picked, stream: modelFor(deps, PROFILES.write, user.id, abort.signal), judge: killSwitch(c.env, "CHAT_JUDGE") === "off" ? undefined : modelFor(deps, PROFILES.judge, user.id, abort.signal), onJudged: (r) => { judged = r; logJudged(r); }, emit: async (e) => { await send(e); if (e.type === "step" && e.step === "write") await think(thinkWriting(spoken)); }, onRaw: deps.dev.on && !ctx ? (raw) => console.log(JSON.stringify({ msg: "chat_debug", raw, shown: picked.map((p) => p.n) })) : undefined });
       } catch (e) {
         if (s.gone) return;
         if (e instanceof QuotaError) return void (await done(false, "quota"));
         if (e instanceof NoRouteError || e instanceof AllProvidersFailedError) {
           // only the kind of failure is logged, for every message: a provider's own error text can echo what it was sent, and the privacy text says no question reaches a log
-          if (e instanceof AllProvidersFailedError) console.error(JSON.stringify({ level: "error", msg: "chat_failed", attempts: e.attempts.map((a) => `${a.provider}:${a.ok ? "ok" : errorKind(a.error)}`) }));
+          if (e instanceof AllProvidersFailedError) console.error(JSON.stringify({ level: "error", msg: "chat_failed", attempts: attemptsForLog(e) }));
           return void (await done(false, "unavailable"));
         }
         throw e;
@@ -863,7 +821,7 @@ chatRoutes.get("/config", async (c) => {
  * reason if they did not pass) and `usage` (what the calls cost), so that `--followup` can score them. Without them the answer is the route and nothing more, as it always was.
  */
 chatRoutes.post("/route", async (c) => {
-  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.notFound();
+  if (!devMode(c.env)) return c.notFound();
   const read = await readJson(c, MAX_CHAT_BODY_BYTES);
   if (read.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
   const body = read.value as { message?: unknown; history?: unknown } | null;
@@ -871,16 +829,22 @@ chatRoutes.post("/route", async (c) => {
   if (!text) return deny(c, 400, "invalid_message", "Write something, at most 20,000 characters");
   const user = await currentUser(c);
   const carries = body?.history !== undefined && body.history !== null;
-  if (!carries) return c.json(await routeMessage(text, user ? routeCompleteFor(c.env, user.id) : null));
+  const route = user ? modelFor(depsOf(c), PROFILES.route, user.id) : null;
+  if (!carries) return c.json(await routeMessage(text, route));
   const h = readHistory(body?.history);
   if (!h.ok) return deny(c, 400, "invalid_history", "The earlier messages could not be used", h.detail);
   const usage = { calls: 0, tokensIn: 0, tokensOut: 0 };
-  const complete = user
-    ? routeCompleteFor(c.env, user.id, (u) => {
-        usage.calls++;
-        usage.tokensIn += u.tokensIn ?? 0;
-        usage.tokensOut += u.tokensOut ?? 0;
-      })
+  // what each call cost, as the gateway reports it (a stand-in reports nothing, and counts nothing)
+  const complete: Complete | null = route
+    ? async (req) => {
+        const r = await route(req);
+        if (r.usage) {
+          usage.calls++;
+          usage.tokensIn += r.usage.tokensIn ?? 0;
+          usage.tokensOut += r.usage.tokensOut ?? 0;
+        }
+        return { json: r.json, model: r.model };
+      }
     : null;
   const routed = await routeFollowUp(cleanAutoMessage(stripInvisible(text)) ?? text, complete, { history: h.history });
   return c.json({ ...routed.route, followUp: routed.followUp, usage });
@@ -891,7 +855,7 @@ chatRoutes.post("/route", async (c) => {
  * over a labelled list of claims (docs/design/claim-support.md). The body is the answer text and the papers it cites; `model` and `reasoning` try another Workers AI model for the call.
  */
 chatRoutes.post("/judge", async (c) => {
-  if (c.env.ENABLE_DEV_ROUTES !== "1") return c.notFound();
+  if (!devMode(c.env)) return c.notFound();
   const got = await requireUser(c, { signIn: { status: 403, type: "forbidden", title: "Sign in first" } });
   if (got instanceof Response) return got;
   const { user } = got;
@@ -908,23 +872,22 @@ chatRoutes.post("/judge", async (c) => {
   const marked = new Set([...text.matchAll(MARK)].map((m) => Number(m[1])));
   const cited = picked.filter((p) => (marked.size ? marked.has(p.n) : true));
   const citations: ChatCitation[] = cited.map((p) => ({ n: p.n, paperId: p.paper.id, sentenceNo: 1, sentence: "" }));
-  const env = { ...c.env, LLM_VERIFY_MODEL: typeof body?.model === "string" ? body.model : undefined, LLM_REASONING: typeof body?.reasoning === "string" ? body.reasoning : undefined };
+  // `model` and `reasoning` replace the development model choices of the judge for this call (platform/dev.ts)
+  const d = { models: depsOf(c).models.withOverrides(modelOverrides({ ...c.env, LLM_VERIFY_MODEL: typeof body?.model === "string" ? body.model : undefined, LLM_REASONING: typeof body?.reasoning === "string" ? body.reasoning : undefined })) };
+  const signal = c.req.raw.signal;
   let detail: unknown = null;
   // `strict`: what "Check strictly" does (the stronger model judges, the quick one reads the shorter claims again), so that it can be measured
   const strict = body?.strict === true;
-  const quick = judgeStreamFor(env, user.id, c.req.raw.signal, typeof body?.timeoutMs === "number" ? Math.min(120_000, Math.max(5_000, body.timeoutMs)) : 20_000);
-  const result = await judgeAnswer({ answer: { text, citations }, picked, judge: strict ? strictStreamFor(env, user.id, c.req.raw.signal, () => {}) : quick, recheck: strict ? (body?.recheck === "strong" ? strictStreamFor(env, user.id, c.req.raw.signal, () => {}) : judgeStreamFor(env, user.id, c.req.raw.signal)) : undefined, strict, onResult: (r) => (detail = r) });
+  const quick = modelFor(d, withTimeout(PROFILES.judge, typeof body?.timeoutMs === "number" ? Math.min(120_000, Math.max(5_000, body.timeoutMs)) : 20_000), user.id, signal);
+  const result = await judgeAnswer({ answer: { text, citations }, picked, judge: strict ? modelFor(d, PROFILES.strict, user.id, signal) : quick, recheck: strict ? (body?.recheck === "strong" ? modelFor(d, PROFILES.strict, user.id, signal) : modelFor(d, PROFILES.judge, user.id, signal)) : undefined, strict, onResult: (r) => (detail = r) });
   return c.json({ result, detail });
 });
 
-/** The strict check's model: the stronger one that wrote the answer (it thinks before it answers: 20 to 45 s), always PRIVATE. */
-function strictStreamFor(env: Env, subject: string, abort: AbortSignal, onQuota: () => void): StreamComplete {
-  const gateway = stubbed(env) ? null : gatewayFromEnv(env);
+/** The strict check's model (the stronger one that wrote the answer: it thinks before it answers, 20 to 45 s), telling `onQuota` when the day's allowance is used. */
+function withQuotaNote(strict: StreamComplete, onQuota: () => void): StreamComplete {
   return async (req, hooks) => {
     try {
-      if (!gateway) return await stubStrictStream(req, hooks);
-      const r = await gateway.stream({ task: "qa", sensitivity: "private", subject, system: req.system, user: req.user, schema: req.schema, maxTokens: 4500, timeoutMs: 75_000, label: req.label }, hooks, abort);
-      return { json: r.json, model: r.model };
+      return await strict(req, hooks);
     } catch (e) {
       if (e instanceof QuotaError) onQuota();
       throw e;
@@ -954,8 +917,8 @@ chatRoutes.post("/tighten", async (c) => {
   const judged = await judgeAnswer({
     answer: { text, citations },
     picked,
-    judge: strictStreamFor(c.env, user.id, c.req.raw.signal, () => (quota = true)),
-    recheck: judgeStreamFor(c.env, user.id, c.req.raw.signal),
+    judge: withQuotaNote(modelFor(depsOf(c), PROFILES.strict, user.id, c.req.raw.signal), () => (quota = true)),
+    recheck: modelFor(depsOf(c), PROFILES.judge, user.id, c.req.raw.signal),
     strict: true,
     label: "chat_strict",
     onResult: (r) => (report = r),

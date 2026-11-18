@@ -1,13 +1,13 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
-import { workersAiEmbedder, hashEmbedder, type Embedder } from "../docs/embed";
 import { remoteGate } from "../gate/api-gate";
 import { installGates } from "../gate";
 import { EMBED_BATCH, IngestError, recordFailure, stepEmbed, stepFetch, stepFinish, stepRead, type IngestDeps } from "./ingest";
 import { keepOld } from "./store";
 import { OA_REFRESH_DAYS } from "@scholar/shared";
 import { sourceDepsFor } from "./deps";
-import type { Env, EnvPick } from "../platform/env";
+import type { Env } from "../platform/env";
+import type { Deps } from "../platform/deps";
 
 /**
  * The reading of one open-access paper as a Cloudflare Workflow (spike R9): named steps, each retried by the engine on its own and checkpointed, so a failure in the middle
@@ -18,7 +18,6 @@ import type { Env, EnvPick } from "../platform/env";
 /** `refresh`: the paper is ready already and is being fetched again because it was read long ago (it keeps answering meanwhile; a failure to fetch leaves it as it is). */
 export type OaParams = { key: string; attempt: number; refresh?: boolean };
 
-const embedderFor = (env: EnvPick<"ENABLE_DEV_ROUTES" | "QA_STUB", "AI">): Embedder => (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1" ? hashEmbedder : workersAiEmbedder(env.AI!));
 
 /** The error as the engine should see it: a reason that waiting cannot cure stops the retries at once. */
 async function guard<T>(run: () => Promise<T>): Promise<T> {
@@ -30,15 +29,18 @@ async function guard<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
-export class OaIngest extends WorkflowEntrypoint<Env, OaParams> {
+/** The Workflow, with its deps (the embeddings, the network, a test run's short retries) taken from the composition root: index.ts exports it as OaIngest with depsFor (app/deps.ts). */
+export abstract class OaIngestFlow extends WorkflowEntrypoint<Env, OaParams> {
+  protected abstract depsFor(env: Env): Deps;
+
   async run(event: WorkflowEvent<OaParams>, step: WorkflowStep): Promise<{ key: string; chunks: number }> {
     const env = this.env;
     installGates(env.API_GATE ? remoteGate(env.API_GATE) : null);
-    const deps: IngestDeps = { db: env.DB, files: env.FILES, embed: embedderFor(env), source: sourceDepsFor(env) };
+    const d = this.depsFor(env);
+    const deps: IngestDeps = { db: env.DB, files: env.FILES, embed: d.embedder!, source: sourceDepsFor(env, d.fetch.papers) };
     const { key, refresh = false } = event.payload;
     // the local end-to-end run waits a second between tries instead of the real delays (a test cannot wait twenty seconds)
-    const fast = env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1";
-    const wait = (real: string) => (fast ? "1 second" : real) as `${number} ${"second" | "seconds"}`;
+    const wait = (real: string) => (d.dev.stepRetryDelay ?? real) as `${number} ${"second" | "seconds"}`;
     // a refresh that cannot fetch the new file leaves the copy that works (it is looked at again in thirty days); once the new file is being read, a failure is a failure like any other
     let fetching = true;
     try {

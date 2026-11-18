@@ -1,11 +1,10 @@
-import type { Complete, StreamComplete } from "../docs/qa";
-import { AllProvidersFailedError, QuotaError } from "../llm";
+import type { Complete, StreamComplete } from "../../platform/llm/port";
+import { AllProvidersFailedError, QuotaError } from "../../platform/llm";
 import type { SearchResponse, SearchScope } from "@scholar/shared";
-import { stubChatStream, stubSearchFor } from "../chat/stub";
 
 /**
  * Offline stand-ins for the model and the search of a literature scan, used ONLY by tests and the local end-to-end run (QA_STUB=1 with ENABLE_DEV_ROUTES=1, never production secrets).
- * They reuse the prompt box's stand-ins, so a sub-question is steered by the same words ("nothing" finds no papers, "unanswerable" makes the model say the papers do not answer,
+ * They reuse the prompt box's stand-ins (handed in by app/stand-ins.ts: a testing/ folder imports no other feature's), so a sub-question is steered by the same words ("nothing" finds no papers, "unanswerable" makes the model say the papers do not answer,
  * "hallucinate" makes it cite a sentence that does not exist), plus three of their own: "boom" makes the model service fail, "snail" makes the answer take a few seconds (to press
  * Cancel, or to see the progress), "overquota" makes the allowance run out.
  */
@@ -33,16 +32,21 @@ export const stubPlanScan: Complete = async ({ user }) => {
  * The prompt box's stand-in search, with the sub-question's own words added to every paper (so that the relevance check of relevance.ts finds them about the subject), unless the words say
  * "irrelevant": then the papers are the plain stand-in ones, which are about glaucoma and nothing else.
  */
-export const stubScanSearch = (q: string, scope: SearchScope = "all"): SearchResponse => {
-  const r = stubSearchFor(q, scope);
+const scanSearch = (chatSearch: (q: string, scope: SearchScope) => SearchResponse) => (q: string, scope: SearchScope = "all"): SearchResponse => {
+  const r = chatSearch(q, scope);
   if (/\birrelevant\b/i.test(q)) return r;
   return { ...r, results: r.results.map((p) => (p.retracted ? p : { ...p, title: `${p.title} (${q})`, abstract: p.abstract ? `${p.abstract} This study concerns ${q}.` : p.abstract })) };
 };
 
-export const stubScanStream: StreamComplete = async (req, hooks) => {
+const scanStream = (chatStream: StreamComplete): StreamComplete => async (req, hooks) => {
   const q = /^Question: (.*)$/m.exec(req.user)?.[1] ?? "";
   if (/\bboom\b/i.test(q)) throw new AllProvidersFailedError([{ provider: "stub", model: "stub", ok: false, ms: 1, error: "stub outage" }]);
   if (/\boverquota\b/i.test(q)) throw new QuotaError("daily AI quota reached (stub)");
   if (/\bsnail\b/i.test(q)) await sleep(5000);
-  return stubChatStream(req, hooks);
+  return chatStream(req, hooks);
 };
+
+/** The scan's stand-ins, made from the prompt box's search and writer. */
+export function scanStandIns(chat: { stream: StreamComplete; search: (q: string, scope: SearchScope) => SearchResponse }): { plan: Complete; search: (q: string, scope: SearchScope) => SearchResponse; stream: StreamComplete } {
+  return { plan: stubPlanScan, search: scanSearch(chat.search), stream: scanStream(chat.stream) };
+}

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MAX_SAME_PAPERS_ANSWER_CHARS, type Paper } from "@scholar/shared";
 import { CHAT_SYSTEM, EARLIER_ANSWER_SENTENCE, answerFromResults, buildChatPrompt, chatSystem, pickEvidencePapers } from "./answer";
 import { JUDGE_SYSTEM, buildJudgePrompt, judgeAnswer, splitClaims } from "./support";
-import { stubChatStream, stubJudgeStream } from "./stub";
+import { stubChatStream, stubJudgeStream } from "./testing/stub";
 
 const paper = (i: number, over: Partial<Paper> = {}): Paper => ({
   id: `doi:10.1/${i}`, doi: `10.1/${i}`, pmid: null, title: `Paper ${i}`, authors: ["A. B"], year: 2020, venue: "J", abstract: `First sentence of paper ${i} is here and it is long enough to count as an abstract. Second sentence says the model reached ninety percent. Third sentence lists a limitation.`,
