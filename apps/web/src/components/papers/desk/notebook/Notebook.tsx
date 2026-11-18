@@ -1,13 +1,13 @@
-import { Bold, ChevronDown, Crop, GripVertical, Heading, Italic, List, ListOrdered, MoreHorizontal, PenLine, Plus, TextQuote, Trash2, Type, Underline, X } from "lucide-react";
+import { Bold, ChevronDown, Crop, GripVertical, Heading, Italic, List, ListOrdered, ImagePlus, MoreHorizontal, PenLine, Plus, TextQuote, Trash2, Type, Underline, X } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { NOTEBOOK_STYLES, mdPlainText, type CaptureBlock, type DocNote, type NotebookBlock, type NotebookStyle, type QuoteColor } from "@scholar/shared";
+import { NOTEBOOK_STYLES, mdPlainText, type CaptureBlock, type DocNote, type ImageBlock, type NotebookBlock, type NotebookStyle, type QuoteColor } from "@scholar/shared";
 import { activeMarks, continueList, isOn, toggleHeading, toggleList, toggleMark, type Edit, type Mark } from "../../../../lib/md-edit";
 // the meanings and the copy come from the reader (props): imported here too, they would be cut out of the first load's chunks into chunks of their own
 import type { Meaning } from "../../../../lib/meanings";
 import { useNotebook, type NbPage, type NotebookStore } from "../../../../lib/notebook";
 import { showNotice } from "../../../../lib/notice";
 import { toast } from "../../../../lib/toast";
-import { CaptureBlockView, MdView, QuoteBlockView, TextBlockView } from "./NbBlocks";
+import { CaptureBlockView, ImageBlockView, MdView, QuoteBlockView, TextBlockView } from "./NbBlocks";
 import { downloadMarkdown, markdownOf } from "./nb-export";
 import { NbItem, NbPop } from "./NbMenu";
 // its stylesheet (notebook.css) comes with the reader's own chunk (Desk.tsx): the Notes tab is the panel's first tab, so the page is styled before this chunk arrives
@@ -42,6 +42,9 @@ export type NotebookProps = {
   onCapture?: () => void;
   /** Draws a capture from the open paper into a canvas, `cssWidth` wide; resolves to its height. */
   paintCapture?: (canvas: HTMLCanvasElement, b: CaptureBlock, cssWidth: number) => Promise<number>;
+  /** Pictures (the owner's yes of 18 Nov): where a picture block's file is, and how one is sent (the reader knows the paper). Without them, no Image button. */
+  imageUrl?: (blockId: string) => string;
+  uploadImage?: (blockId: string, blob: Blob) => Promise<{ w: number; h: number; type: string }>;
   /** PDF and Word (21.1, 4): made by the reader, which holds the open paper (the captures are drawn from it); without it, Export offers Markdown only. */
   exportFile?: (fmt: "pdf" | "docx", pages: NbPage[], docTitle: string, names: Record<QuoteColor, string>, all: boolean) => Promise<void>;
 };
@@ -62,7 +65,7 @@ const isEmptyPage = (p: NbPage) => p.blocks.length === 1 && p.blocks[0]!.kind ==
  * paper's highlights), with a page picker, a page's own menu (move, paper style, delete), a formatting toolbar, reordering by drag or Alt+arrow, a drop target for quotes dragged from the paper,
  * the save line, and Copy or Download as Markdown. The `notebook` chunk: loaded when the reader needs it, never in the first load.
  */
-export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onDropQuote, announce, focus, meanings: MEANINGS, copy: copyText, exportFile, onCapture, paintCapture }: NotebookProps) {
+export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onDropQuote, announce, focus, meanings: MEANINGS, copy: copyText, exportFile, onCapture, paintCapture, imageUrl, uploadImage }: NotebookProps) {
   const NAMES = useMemo(() => ({ yellow: MEANINGS.yellow.name, green: MEANINGS.green.name, blue: MEANINGS.blue.name, pink: MEANINGS.pink.name }), [MEANINGS]);
   const st = useNotebook(store);
   const page = st.pages.find((p) => p.id === st.openId) ?? st.pages[0] ?? null;
@@ -242,6 +245,50 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
     void exportFile?.(fmt, pages, docTitle, NAMES, all).catch(() => showNotice(`The ${fmt === "pdf" ? "PDF" : "Word file"} could not be made. Check the connection, then try again.`));
   };
 
+  /* ---- the toolbar's second row (More), and the basic row's fade when it scrolls (a phone) ---- */
+  const [moreOpen, setMoreOpen] = useState(false);
+  const mainRow = useRef<HTMLDivElement>(null);
+  const [toolsMore, setToolsMore] = useState("");
+  useEffect(() => {
+    const el = mainRow.current;
+    if (!el) return;
+    const seen = () => {
+      const start = el.scrollLeft > 1;
+      const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setToolsMore(start && end ? "both" : start ? "start" : end ? "end" : "");
+    };
+    seen();
+    el.addEventListener("scroll", seen, { passive: true });
+    const ro = new ResizeObserver(seen);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", seen);
+      ro.disconnect();
+    };
+  }, [st.status]);
+
+  /* ---- a picture (Image): made smaller in the browser (at most 2000 px a side, no camera data), sent, then put in as a block with the same id ---- */
+  const imageInput = useRef<HTMLInputElement>(null);
+  const addPicture = async (file: File) => {
+    if (!page || !imageUrl || !uploadImage) return;
+    const at = insertAt();
+    const pageId = page.id;
+    announce("Adding the picture…");
+    try {
+      const { prepareNoteImage } = await import("./nb-image");
+      const made = await prepareNoteImage(file);
+      const id = `img${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+      const kept = await uploadImage(id, made.blob);
+      const placed = store.insertBlock({ kind: "image", w: kept.w, h: kept.h, type: kept.type as ImageBlock["type"], alt: "" }, { pageId, index: at }, id);
+      if (placed) {
+        announce(`The picture is on ${placed.title}`);
+        toast("Picture added", { label: "Undo", run: () => (placed.undo(), announce("The picture is taken out")) });
+      }
+    } catch (e) {
+      showNotice(e instanceof Error && e.message ? e.message : "The picture could not be added. Check the connection, then try again.");
+    }
+  };
+
   /* ---- the title field of a new page takes the focus ---- */
   const title = useRef<HTMLInputElement>(null);
   const [titleTick, setTitleTick] = useState(0);
@@ -338,6 +385,14 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
               <NbItem disabled={i === 0} onPick={() => (close(), store.movePage(page.id, -1) && announce(`Page moved to place ${i} of ${st.pages.length}`))}>Move left</NbItem>
               <NbItem disabled={i === st.pages.length - 1} onPick={() => (close(), store.movePage(page.id, 1) && announce(`Page moved to place ${i + 2} of ${st.pages.length}`))}>Move right</NbItem>
               <NbItem onPick={() => (close(false), setTitleTick((t) => t + 1))}>Rename</NbItem>
+              <div role="group" aria-label="Paper">
+                <span className="nb-menu-head" aria-hidden="true">Paper</span>
+                {NOTEBOOK_STYLES.map((s) => (
+                  <NbItem key={s} checked={page.style === s} onPick={() => (close(), store.setStyle(page.id, s))}>
+                    {STYLE_NAME[s]}
+                  </NbItem>
+                ))}
+              </div>
             </div>
           )}
         </NbPop>
@@ -360,85 +415,100 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                 items[to]?.focus();
               }}
             >
-              {/* two groups that never split: the marks, then the lists and Quote; a narrow panel puts the second group on a row of its own */}
-              <div className="nb-tgroup">
-              <Tool label="Heading" pressed={!!current && isOn(current, "h")} onPress={() => apply(toggleHeading)} first>
-                <Heading size={15} aria-hidden="true" />
-              </Tool>
-              <Tool label="Bold" keys="Ctrl+B" pressed={on.has("b")} onPress={() => apply((x) => toggleMark(x, "b"))}>
-                <Bold size={15} aria-hidden="true" />
-              </Tool>
-              <Tool label="Italic" keys="Ctrl+I" pressed={on.has("i")} onPress={() => apply((x) => toggleMark(x, "i"))}>
-                <Italic size={15} aria-hidden="true" />
-              </Tool>
-              <Tool label="Underline" keys="Ctrl+U" pressed={on.has("u")} onPress={() => apply((x) => toggleMark(x, "u"))}>
-                <Underline size={15} aria-hidden="true" />
-              </Tool>
-              <Tool label="Mark" pressed={on.has("mark")} onPress={() => apply((x) => toggleMark(x, "mark"))}>
-                <mark aria-hidden="true">ab</mark>
-              </Tool>
-              </div>
-              <div className="nb-tgroup">
-              <Tool label="Bullet list" pressed={!!current && isOn(current, "ul")} onPress={() => apply((x) => toggleList(x, "ul"))}>
-                <List size={15} aria-hidden="true" />
-              </Tool>
-              <Tool label="Numbered list" pressed={!!current && isOn(current, "ol")} onPress={() => apply((x) => toggleList(x, "ol"))}>
-                <ListOrdered size={15} aria-hidden="true" />
-              </Tool>
-              </div>
-              <div className="nb-tgroup">
-              <Tool label="Text" onPress={() => { const id = store.addText(page.id, page.blocks[insertAt() - 1]?.id ?? null); if (id) edit(id); }}>
-                <Type size={15} aria-hidden="true" />
-                <span>Text</span>
-              </Tool>
-              <NbPop
-                kind="dialog"
-                label="Insert a quote of a highlight"
-                trigger={({ open, toggle, id, ref }) => (
-                  <button ref={ref} type="button" tabIndex={-1} className="nb-tool" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} title="Insert a quote of one of your highlights" onMouseDown={(e) => e.preventDefault()} onClick={toggle}>
-                    <TextQuote size={15} aria-hidden="true" />
-                    <span>Quote</span>
-                  </button>
-                )}
-              >
-                {(close) => (
-                  <QuotePicker
-                    meanings={MEANINGS}
-                    notes={notes}
-                    quotedHere={quotedHere}
-                    onPick={(n) => {
-                      close();
-                      const at = store.addQuote({ noteId: n.id, page: n.page, quote: n.quote, color: n.color }, { pageId: page.id, index: insertAt() });
-                      if (at) announce(`Quote added: ${MEANINGS[n.color].name}, page ${n.page}`);
-                    }}
-                  />
-                )}
-              </NbPop>
-              {onCapture && (
-                <Tool label="Capture" onPress={onCapture}>
-                  <Crop size={15} aria-hidden="true" />
-                  <span>Capture</span>
+              {/* the basic actions, always in one row (on a phone it scrolls sideways with a fade, never wraps); the rest behind More (the owner's choice of 18 Nov) */}
+              <div ref={mainRow} className="nb-tools-main" data-more={toolsMore || undefined}>
+                <Tool label="Bold" keys="Ctrl+B" pressed={on.has("b")} onPress={() => apply((x) => toggleMark(x, "b"))} first>
+                  <Bold size={15} aria-hidden="true" />
                 </Tool>
+                <Tool label="Italic" keys="Ctrl+I" pressed={on.has("i")} onPress={() => apply((x) => toggleMark(x, "i"))}>
+                  <Italic size={15} aria-hidden="true" />
+                </Tool>
+                <Tool label="Mark" pressed={on.has("mark")} onPress={() => apply((x) => toggleMark(x, "mark"))}>
+                  <mark aria-hidden="true">ab</mark>
+                </Tool>
+                <Tool label="Bullet list" pressed={!!current && isOn(current, "ul")} onPress={() => apply((x) => toggleList(x, "ul"))}>
+                  <List size={15} aria-hidden="true" />
+                </Tool>
+                <i aria-hidden="true" />
+                <NbPop
+                  kind="dialog"
+                  label="Insert a quote of a highlight"
+                  trigger={({ open, toggle, id, ref }) => (
+                    <button ref={ref} type="button" tabIndex={-1} className="nb-tool" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} aria-label="Quote" title="Insert a quote of one of your highlights" onMouseDown={(e) => e.preventDefault()} onClick={toggle}>
+                      <TextQuote size={15} aria-hidden="true" />
+                      <span className="nb-tl">Quote</span>
+                    </button>
+                  )}
+                >
+                  {(close) => (
+                    <QuotePicker
+                      meanings={MEANINGS}
+                      notes={notes}
+                      quotedHere={quotedHere}
+                      onPick={(n) => {
+                        close();
+                        const at = store.addQuote({ noteId: n.id, page: n.page, quote: n.quote, color: n.color }, { pageId: page.id, index: insertAt() });
+                        if (at) announce(`Quote added: ${MEANINGS[n.color].name}, page ${n.page}`);
+                      }}
+                    />
+                  )}
+                </NbPop>
+                {onCapture && (
+                  <Tool label="Capture" onPress={onCapture}>
+                    <Crop size={15} aria-hidden="true" />
+                    <span className="nb-tl">Capture</span>
+                  </Tool>
+                )}
+                <Tool
+                  label="Draw"
+                  onPress={() => {
+                    const at = store.addSketch({ pageId: page.id, index: insertAt() });
+                    if (at) announce(`A sketch is on ${at.title}: draw in it with the pen`);
+                  }}
+                >
+                  <PenLine size={15} aria-hidden="true" />
+                  <span className="nb-tl">Draw</span>
+                </Tool>
+                {imageUrl && (
+                  <Tool label="Image" onPress={() => imageInput.current?.click()}>
+                    <ImagePlus size={15} aria-hidden="true" />
+                    <span className="nb-tl">Image</span>
+                  </Tool>
+                )}
+                <i aria-hidden="true" />
+                <button type="button" tabIndex={-1} className="nb-tool nb-more" aria-label="More formatting and paper" title="More: heading, underline, numbered list, text, paper" aria-expanded={moreOpen} aria-controls="nb-tools-more" onMouseDown={(e) => e.preventDefault()} onClick={() => setMoreOpen((o) => !o)}>
+                  <span aria-hidden="true">Aa</span>
+                  <ChevronDown size={13} aria-hidden="true" />
+                </button>
+              </div>
+              {moreOpen && (
+                <div id="nb-tools-more" className="nb-tools-more">
+                  <div className="nb-tgroup">
+                    <Tool label="Heading" pressed={!!current && isOn(current, "h")} onPress={() => apply(toggleHeading)}>
+                      <Heading size={15} aria-hidden="true" />
+                    </Tool>
+                    <Tool label="Underline" keys="Ctrl+U" pressed={on.has("u")} onPress={() => apply((x) => toggleMark(x, "u"))}>
+                      <Underline size={15} aria-hidden="true" />
+                    </Tool>
+                    <Tool label="Numbered list" pressed={!!current && isOn(current, "ol")} onPress={() => apply((x) => toggleList(x, "ol"))}>
+                      <ListOrdered size={15} aria-hidden="true" />
+                    </Tool>
+                    <Tool label="Text" onPress={() => { const id = store.addText(page.id, page.blocks[insertAt() - 1]?.id ?? null); if (id) edit(id); }}>
+                      <Type size={15} aria-hidden="true" />
+                      <span className="nb-tl">Text</span>
+                    </Tool>
+                  </div>
+                  <div className="nb-tgroup" role="group" aria-label="Paper">
+                    {NOTEBOOK_STYLES.map((s) => (
+                      <Tool key={s} label={`${STYLE_NAME[s]} paper`} pressed={page.style === s} onPress={() => store.setStyle(page.id, s)}>
+                        <span className="nb-sw" data-style={s} aria-hidden="true" />
+                      </Tool>
+                    ))}
+                  </div>
+                </div>
               )}
-              <Tool
-                label="Draw"
-                onPress={() => {
-                  const at = store.addSketch({ pageId: page.id, index: insertAt() });
-                  if (at) announce(`A sketch is on ${at.title}: draw in it with the pen`);
-                }}
-              >
-                <PenLine size={15} aria-hidden="true" />
-                <span>Draw</span>
-              </Tool>
-              </div>
-              <div className="nb-tgroup" role="group" aria-label="Paper">
-              {NOTEBOOK_STYLES.map((s) => (
-                <Tool key={s} label={`${STYLE_NAME[s]} paper`} pressed={page.style === s} onPress={() => store.setStyle(page.id, s)}>
-                  <span className="nb-sw" data-style={s} aria-hidden="true" />
-                </Tool>
-              ))}
-              </div>
             </div>
+            {imageUrl && <input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void addPicture(f); }} />}
           </div>
 
           <ol ref={list} className="nb-blocks" role="list" aria-label={`Blocks of ${page.title || "Untitled page"}`} data-dropping={dropAt !== null || undefined} {...dropProps}>
@@ -508,6 +578,8 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                   ) : (
                     b.kind === "capture" ? (
                       <CaptureBlockView b={b} paint={paintCapture} onGo={() => onGoTo(b.page, "")} onCaption={(caption) => store.updateBlock(page.id, b.id, "capture", { caption })} onSize={(size) => store.updateBlock(page.id, b.id, "capture", { size })} />
+                    ) : b.kind === "image" ? (
+                      <ImageBlockView b={b} src={imageUrl?.(b.id) ?? ""} onAlt={(alt) => store.updateBlock(page.id, b.id, "image", { alt })} />
                     ) : b.kind === "sketch" ? (
                       <Suspense fallback={<div className="nb-sketch-wait" style={{ height: b.height }} />}><SketchBlockView b={b} onStrokes={(strokes) => store.updateBlock(page.id, b.id, "sketch", { strokes })} onHeight={(height) => store.updateBlock(page.id, b.id, "sketch", { height })} onRefused={showNotice} /></Suspense>
                     ) : (
@@ -581,7 +653,7 @@ function Tool({ label, keys, pressed, onPress, first, children }: { label: strin
 
 /**
  * The pages as tabs (docs/design/paper-reader.md, 21.1, 2): each with its paper and its title, the open one raised; a tablist (← and → move, Home and End go to the ends, Enter or a click
- * opens), in a row that scrolls sideways with a fade on the side that has more. + Page at its end opens "Choose paper for the new page".
+ * opens), in a row that scrolls sideways with a fade on the side that has more. "+" (Add a page) right after the last tab, kept in sight when the row scrolls, opens "Choose paper for the new page".
  */
 function PageTabs({ pages, openId, onOpen, onNew }: { pages: NbPage[]; openId: string; onOpen: (id: string) => void; onNew: (style: NotebookStyle) => void }) {
   const row = useRef<HTMLDivElement>(null);
@@ -641,9 +713,8 @@ function PageTabs({ pages, openId, onOpen, onNew }: { pages: NbPage[]; openId: s
         label="Choose paper for the new page"
         align="end"
         trigger={({ open, toggle, id, ref }) => (
-          <button ref={ref} type="button" className="btn btn-ghost btn-sm nb-addpage" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} onClick={toggle}>
-            <Plus size={14} aria-hidden="true" />
-            <span>Page</span>
+          <button ref={ref} type="button" className="nb-addpage" aria-label="Add a page" title="Add a page" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} onClick={toggle}>
+            <Plus size={16} aria-hidden="true" />
           </button>
         )}
       >

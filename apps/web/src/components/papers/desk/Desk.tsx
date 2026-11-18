@@ -422,13 +422,24 @@ export function Desk(props: DeskProps) {
     async (fmt: "pdf" | "docx", pages: { title: string; blocks: NotebookBlock[] }[], docTitle: string, names: Record<NoteColor, string>, all: boolean) => {
       announce(fmt === "pdf" ? "Making the PDF…" : "Making the Word file…");
       const out = await import("../../../lib/notes-export");
-      const args = { docTitle, pages, names, pdf: pdf.status === "ready" ? pdf.pdf : null };
+      const args = { docTitle, pages, names, pdf: pdf.status === "ready" ? pdf.pdf : null, imageUrl: (id: string) => `/api/v1/documents/${doc.id}/notebook/images/${id}` };
       const name = out.notesFileName(docTitle, all ? null : (pages[0]?.title ?? ""), fmt);
       if (fmt === "pdf") downloadBlob(name, new Blob([(await out.notesPdf(args)) as BlobPart], { type: "application/pdf" }));
       else downloadBlob(name, await out.notesDocx(args));
       toast(fmt === "pdf" ? "The PDF is downloaded" : "The Word file is downloaded");
     },
-    [pdf],
+    [pdf, doc.id],
+  );
+  /** Pictures in the notes (the owner's yes of 18 Nov): kept under the paper, served only to its owner; the server reads the kind from the bytes and refuses what is not one. */
+  const noteImageUrl = useCallback((blockId: string) => `/api/v1/documents/${doc.id}/notebook/images/${blockId}`, [doc.id]);
+  const uploadNoteImage = useCallback(
+    async (blockId: string, blob: Blob) => {
+      const res = await fetch(noteImageUrl(blockId), { method: "PUT", body: blob, credentials: "same-origin", headers: { "Content-Type": blob.type } });
+      const body = (await res.json().catch(() => null)) as { w?: number; h?: number; type?: string; title?: string; detail?: string } | null;
+      if (!res.ok || !body?.w || !body.h || !body.type) throw new Error(body?.detail ? `${body.title ?? "The picture was not kept"}: ${body.detail}.` : (body?.title ?? "The picture could not be sent. Check the connection, then try again."));
+      return { w: body.w, h: body.h, type: body.type };
+    },
+    [noteImageUrl],
   );
   const showInNotes = useCallback(
     (noteId: string) => {
@@ -700,7 +711,7 @@ export function Desk(props: DeskProps) {
           <div className="dw-side desk-tabpanel" id="desk-tabpanel-notes" role="tabpanel" aria-labelledby="desk-tab-notes" hidden={tab !== "notes"}>
             {nb ? (
               <Suspense fallback={<p className="nb-wait" role="status">Loading your notes…</p>}>
-                <NotebookView store={nb} docTitle={doc.title} notes={existing} notesReady={notes.status === "ready"} wide={wide} onGoTo={goTo} onDropQuote={onDropQuote} announce={announce} focus={nbFocus} meanings={MEANINGS} copy={copyText} onCapture={startCapture} paintCapture={paintCapture} exportFile={exportNotes} />
+                <NotebookView store={nb} docTitle={doc.title} notes={existing} notesReady={notes.status === "ready"} wide={wide} onGoTo={goTo} onDropQuote={onDropQuote} announce={announce} focus={nbFocus} meanings={MEANINGS} copy={copyText} onCapture={startCapture} paintCapture={paintCapture} exportFile={exportNotes} imageUrl={noteImageUrl} uploadImage={uploadNoteImage} />
               </Suspense>
             ) : (
               <p className="nb-wait" role="status">Loading your notes…</p>

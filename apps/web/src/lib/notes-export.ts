@@ -1,4 +1,4 @@
-import { DOCX_MIME, buildDocx, inkHex, parseNotebookMd, type CaptureBlock, type DocRun, type Block as DocBlock, type MdInline, type NotebookBlock, type QuoteColor, type SketchBlock } from "@scholar/shared";
+import { DOCX_MIME, buildDocx, inkHex, parseNotebookMd, type CaptureBlock, type DocRun, type ImageBlock, type Block as DocBlock, type MdInline, type NotebookBlock, type QuoteColor, type SketchBlock } from "@scholar/shared";
 import devanagariFace from "@fontsource/noto-sans-devanagari/files/noto-sans-devanagari-devanagari-400-normal.woff?url";
 import { drawCapture } from "./capture";
 import { markerPath, penPath } from "./ink-path";
@@ -10,7 +10,7 @@ import type { PDFDocumentProxy } from "./pdf";
  * The PDF writes Latin text in Helvetica and Devanagari in Noto Sans Devanagari, which (with fontkit) is fetched and embedded, as a subset, only when the text has Devanagari.
  */
 export type ExportPage = { title: string; blocks: readonly NotebookBlock[] };
-export type ExportArgs = { docTitle: string; pages: readonly ExportPage[]; names: Record<QuoteColor, string>; pdf: PDFDocumentProxy | null };
+export type ExportArgs = { docTitle: string; pages: readonly ExportPage[]; names: Record<QuoteColor, string>; pdf: PDFDocumentProxy | null; imageUrl?: (blockId: string) => string };
 type Png = { bytes: Uint8Array; w: number; h: number };
 
 const DEVANAGARI = /[ऀ-ॿ꣠-ꣿ]/;
@@ -57,8 +57,27 @@ export async function sketchPng(b: SketchBlock, width = PICTURE_WIDTH): Promise<
   return { bytes: await pngOf(c), w: width, h };
 }
 
-const pictureOf = async (b: NotebookBlock, pdf: PDFDocumentProxy | null): Promise<Png | null> => {
+/** A picture of the notes, fetched (the owner's own, with their cookie) and drawn again as a PNG at most 900 px wide. */
+async function imagePng(url: string, b: ImageBlock): Promise<Png> {
+  const res = await fetch(url, { credentials: "same-origin" });
+  if (!res.ok) throw new Error("no picture");
+  const bitmap = await createImageBitmap(await res.blob());
+  const w = Math.min(PICTURE_WIDTH, bitmap.width);
+  const h = Math.max(1, Math.round((bitmap.height * w) / bitmap.width));
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  bitmap.close();
+  return { bytes: await pngOf(c), w: Math.min(w, b.w), h: Math.round((h * Math.min(w, b.w)) / w) };
+}
+
+const pictureOf = async (b: NotebookBlock, pdf: PDFDocumentProxy | null, imageUrl?: (id: string) => string): Promise<Png | null> => {
   try {
+    if (b.kind === "image" && imageUrl) return await imagePng(imageUrl(b.id), b);
     if (b.kind === "sketch") return await sketchPng(b);
     if (b.kind === "capture" && pdf) return await capturePng(pdf, b);
   } catch {
@@ -97,16 +116,17 @@ export async function notesDocx(args: ExportArgs): Promise<Blob> {
         }
       } else if (b.kind === "quote") {
         blocks.push({ k: "note", runs: [{ t: `“${b.quote}”`, i: true }, { t: `\n${args.names[b.color]}, p. ${b.page}`, b: true }] });
-      } else if (b.kind === "capture" || b.kind === "sketch") {
-        const png = await pictureOf(b, args.pdf);
+      } else if (b.kind === "capture" || b.kind === "sketch" || b.kind === "image") {
+        const png = await pictureOf(b, args.pdf, args.imageUrl);
         const name = `image${Object.keys(media).length + 1}.png`;
-        const alt = b.kind === "capture" ? `A part of page ${b.page}${b.caption ? `: ${b.caption}` : ""}` : "A sketch";
+        const alt = b.kind === "capture" ? `A part of page ${b.page}${b.caption ? `: ${b.caption}` : ""}` : b.kind === "image" ? b.alt || "A picture" : "A sketch";
         if (png) {
           media[name] = png.bytes;
           blocks.push({ k: "image", media: name, w: png.w, h: png.h, alt });
         }
         if (b.kind === "capture") blocks.push({ k: "p", runs: [{ t: png ? captureLine(b) : `A part of page ${b.page} ${captureLine(b)}`, i: true }] });
-        else if (!png) blocks.push({ k: "p", runs: [{ t: "A sketch", i: true }] });
+        else if (b.kind === "image" && b.alt) blocks.push({ k: "p", runs: [{ t: b.alt, i: true }] });
+        else if (!png) blocks.push({ k: "p", runs: [{ t: b.kind === "image" ? "A picture" : "A sketch", i: true }] });
       } else {
         blocks.push({ k: "p", runs: [{ t: b.agent, b: true }, { t: `\n${b.text}` }] });
       }
@@ -257,11 +277,12 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
         write([{ t: `${args.names[b.color]}, p. ${b.page}`, b: true }], 9, { indent: 12, color: muted, gap: 4 });
         if (top > y) page.drawRectangle({ x: M, y: y + 4, width: 2.5, height: Math.min(top - y - 4, H), color: rgb(0.62, 0.5, 0.1) });
         y -= 4;
-      } else if (b.kind === "capture" || b.kind === "sketch") {
-        const png = await pictureOf(b, args.pdf);
+      } else if (b.kind === "capture" || b.kind === "sketch" || b.kind === "image") {
+        const png = await pictureOf(b, args.pdf, args.imageUrl);
         if (png) await picture(png);
         if (b.kind === "capture") write([{ t: png ? captureLine(b) : `A part of page ${b.page} ${captureLine(b)}`, i: true }], 9, { color: muted });
-        else if (!png) write([{ t: "A sketch", i: true }], 9, { color: muted });
+        else if (b.kind === "image" && b.alt) write([{ t: b.alt, i: true }], 9, { color: muted });
+        else if (!png) write([{ t: b.kind === "image" ? "A picture" : "A sketch", i: true }], 9, { color: muted });
       } else {
         write([{ t: b.agent, b: true }], 11, { gap: 2 });
         write([{ t: b.text }], 11);

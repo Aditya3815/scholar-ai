@@ -149,6 +149,7 @@ export * from "./sentences";
 export * from "./ink";
 export * from "./notes-md";
 export * from "./notebook";
+export * from "./note-image";
 export * from "./notebook-md";
 export * from "./quote-quads";
 export * from "./palette";

@@ -1,6 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { CAPTURE_SIZES, NOTEBOOK_LIMITS, parseNotebookMd, type CaptureBlock, type CaptureSize, type MdInline, type QuoteBlock, type TextBlock } from "@scholar/shared";
+import { CAPTURE_SIZES, NOTEBOOK_LIMITS, parseNotebookMd, type CaptureBlock, type CaptureSize, type ImageBlock, type MdInline, type QuoteBlock, type TextBlock } from "@scholar/shared";
 import { useGrowingField } from "../../../../lib/autogrow";
 import type { Meaning } from "../../../../lib/meanings";
 
@@ -225,6 +225,23 @@ export function CaptureBlockView({ b, paint, onGo, onCaption, onSize }: { b: Cap
         <button type="button" className="nb-go" onClick={onGo} aria-label={`Show page ${b.page} in the paper`} title="Show this page in the paper">
           p. {b.page} <ArrowUpRight size={13} aria-hidden="true" />
         </button>
+      </figcaption>
+    </figure>
+  );
+}
+
+/** A picture added to the notes (paper-reader.md 22): the picture, served to its owner only, and the words that say what it shows (for a screen reader, and for the exports). */
+export function ImageBlockView({ b, src, onAlt }: { b: ImageBlock; src: string; onAlt: (alt: string) => void }) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <figure className="nb-image" aria-label={b.alt ? `A picture: ${b.alt}` : "A picture"}>
+      {broken || !src ? (
+        <p className="nb-capture-wait">This picture could not be shown. Check the connection, then open the page again.</p>
+      ) : (
+        <img src={src} alt={b.alt || "A picture in your notes, not described yet"} width={b.w} height={b.h} loading="lazy" decoding="async" onError={() => setBroken(true)} />
+      )}
+      <figcaption>
+        <input className="nb-caption" aria-label="What the picture shows" placeholder="Describe the picture…" maxLength={300} value={b.alt} onChange={(e) => onAlt(e.target.value)} />
       </figcaption>
     </figure>
   );

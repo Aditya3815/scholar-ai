@@ -585,7 +585,7 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
      * A block on the open page (or `pageId`), at `index` (the end when left out; a page whose only block is an empty text block has it replaced), with a text block to write in after it when
      * it is the last. Returns where it went, for the toast and its Undo, which takes the block and the empty text block it brought.
      */
-    insertBlock(made: DistributiveOmit<NotebookBlock, "id">, where: { pageId?: string; index?: number } = {}): Placed | null {
+    insertBlock(made: DistributiveOmit<NotebookBlock, "id">, where: { pageId?: string; index?: number } = {}, id?: string): Placed | null {
       const s = page(where.pageId) ?? openSlot();
       if (!s) return null;
       if (s.page.blocks.length >= NOTEBOOK_LIMITS.blocks) {
@@ -593,7 +593,8 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
         emit();
         return null;
       }
-      const b = { ...made, id: deps.newId() } as NotebookBlock;
+      // a picture's block takes the id its file was sent under
+      const b = { ...made, id: id ?? deps.newId() } as NotebookBlock;
       const only = s.page.blocks.length === 1 && isEmpty(s.page.blocks);
       const before = s.page.blocks;
       const list = only ? [] : [...before];

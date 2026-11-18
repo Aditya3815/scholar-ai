@@ -13,6 +13,25 @@ import { sameOriginWrites } from "../platform/http/guards";
  */
 
 const BASE = "http://localhost";
+
+/** R2 in memory: put, get, delete (one key or many), list by prefix (one page). */
+function memoryR2() {
+  const objects = new Map<string, { bytes: Uint8Array; type?: string }>();
+  const bucket = {
+    objects,
+    put: async (key: string, body: Uint8Array, o?: { httpMetadata?: { contentType?: string } }) => void objects.set(key, { bytes: new Uint8Array(body), type: o?.httpMetadata?.contentType }),
+    get: async (key: string) => {
+      const o = objects.get(key);
+      return o ? { body: new Blob([o.bytes]).stream(), size: o.bytes.length, httpMetadata: { contentType: o.type } } : null;
+    },
+    delete: async (k: string | string[]) => void (Array.isArray(k) ? k : [k]).forEach((x) => objects.delete(x)),
+    list: async (o: { prefix?: string; limit?: number }) => ({
+      objects: [...objects.entries()].filter(([k]) => k.startsWith(o.prefix ?? "")).slice(0, o.limit ?? 1000).map(([key, v]) => ({ key, size: v.bytes.length, httpMetadata: { contentType: v.type } })),
+      truncated: false,
+    }),
+  };
+  return bucket as unknown as R2Bucket & { objects: typeof objects };
+}
 async function setup(vars: Record<string, string> = { READER: "on" }) {
   const { db, sql } = testD1();
   sql.prepare("INSERT INTO users (id, email) VALUES ('u-1', 'a@example.org'), ('u-2', 'b@example.org')").run();
@@ -21,21 +40,25 @@ async function setup(vars: Record<string, string> = { READER: "on" }) {
   // the origin check is the app's, for every write (app/mount.ts), not the router's
   app.use("/api/*", sameOriginWrites({ skip: {}, devFirst: [] }));
   app.route("/api/v1/documents", documentRoutes);
-  const env = { DB: db, ...vars } as unknown as HonoEnv["Bindings"];
+  const files = memoryR2();
+  const env = { DB: db, FILES: files, ...vars } as unknown as HonoEnv["Bindings"];
   const tokens = { "u-1": await createSession(db, "u-1", undefined), "u-2": await createSession(db, "u-2", undefined) };
-  const call = async (method: string, path: string, opts: { body?: unknown; raw?: string; as?: "u-1" | "u-2" | null; origin?: string | null } = {}) => {
+  const call = async (method: string, path: string, opts: { body?: unknown; raw?: string; bytes?: Uint8Array; as?: "u-1" | "u-2" | null; origin?: string | null } = {}) => {
     const who = opts.as === undefined ? "u-1" : opts.as;
     const headers: Record<string, string> = {};
     if (who) headers.cookie = `sid=${tokens[who]}`;
     const origin = opts.origin === undefined ? BASE : opts.origin;
     if (origin) headers.origin = origin;
-    const body = opts.raw ?? (opts.body === undefined ? undefined : JSON.stringify(opts.body));
-    if (body !== undefined) headers["content-type"] = "application/json";
+    const body: BodyInit | undefined = opts.bytes ?? opts.raw ?? (opts.body === undefined ? undefined : JSON.stringify(opts.body));
+    if (opts.bytes) headers["content-type"] = "application/octet-stream";
+    else if (body !== undefined) headers["content-type"] = "application/json";
     const res = await app.request(`${BASE}/api/v1/documents${path}`, { method, headers, body }, env);
+    const type = res.headers.get("content-type") ?? "";
+    if (!type.includes("json") && res.status === 200) return { status: res.status, json: null, bytes: new Uint8Array(await res.arrayBuffer()), headers: res.headers };
     const text = await res.text();
-    return { status: res.status, json: text ? (JSON.parse(text) as Record<string, any>) : null };
+    return { status: res.status, json: text ? (JSON.parse(text) as Record<string, any>) : null, headers: res.headers };
   };
-  return { call, sql, db };
+  return { call, sql, db, files };
 }
 
 const text = (id: string, md = "words") => ({ id, kind: "text", md });
@@ -188,9 +211,77 @@ describe("the rows go with the paper", () => {
     const { call, sql, db } = await setup();
     await call("PUT", `${PAGE}/p1`, { body: { blocks: [text("t1")] } });
     await call("PUT", "/d2/notebook/pages/p1", { body: { blocks: [text("t1")] }, as: "u-2" });
-    const files = { delete: async () => {} } as unknown as R2Bucket;
-    await deleteDocument({ DB: db, FILES: files }, "u-1", "d1");
+    await deleteDocument({ DB: db, FILES: memoryR2() }, "u-1", "d1");
     const left = sql.prepare("SELECT doc_id FROM doc_notebook_pages").all() as { doc_id: string }[];
     expect(left.map((r) => r.doc_id)).toEqual(["d2"]);
+  });
+});
+
+describe("pictures in the notes (paper-reader.md 22)", () => {
+  const be32 = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const png = (w: number, h: number) => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...be32(13), 0x49, 0x48, 0x44, 0x52, ...be32(w), ...be32(h), 8, 6, 0, 0, 0, ...new Array(40).fill(7)]);
+  const img = (id: string) => ({ id, kind: "image", w: 64, h: 48, type: "image/png", alt: "A diagram" });
+  const IMG = "/d1/notebook/images";
+
+  it("a picture is kept for its owner only: its kind read from its bytes, served with its type, 404 for anyone else and with READER off", async () => {
+    const { call, files } = await setup();
+    const put = await call("PUT", `${IMG}/i1`, { bytes: png(64, 48) });
+    expect(put.status).toBe(201);
+    expect(put.json).toEqual({ w: 64, h: 48, type: "image/png" });
+    expect([...files.objects.keys()]).toEqual(["docs/u-1/d1/notebook/i1"]);
+    const got = await call("GET", `${IMG}/i1`);
+    expect(got.status).toBe(200);
+    expect(got.headers.get("content-type")).toBe("image/png");
+    expect(got.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(got.bytes!.length).toBe(png(64, 48).length);
+    expect((await call("GET", `${IMG}/i1`, { as: "u-2" })).status).toBe(404);
+    expect((await call("GET", `${IMG}/i1`, { as: null })).status).toBe(401);
+    expect((await call("PUT", `${IMG}/i2`, { bytes: png(10, 10), origin: "https://evil.example" })).status).toBe(403);
+    const off = await setup({});
+    expect((await off.call("PUT", `${IMG}/i1`, { bytes: png(10, 10) })).status).toBe(404);
+  });
+
+  it("refuses what is not a picture, too big, too large a side, or still holds camera data", async () => {
+    const { call, files } = await setup();
+    const svg = new TextEncoder().encode("<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>");
+    expect((await call("PUT", `${IMG}/i1`, { bytes: svg })).status).toBe(400);
+    expect((await call("PUT", `${IMG}/i1`, { bytes: png(2001, 10) })).status).toBe(400);
+    const big = new Uint8Array(2 * 1024 * 1024 + 10);
+    big.set(png(10, 10));
+    expect((await call("PUT", `${IMG}/i1`, { bytes: big })).status).toBe(413);
+    const exif = new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0, 8, 0x45, 0x78, 0x69, 0x66, 0, 0, 0xff, 0xc0, 0, 17, 8, 0, 10, 0, 10, 3, ...new Array(20).fill(0)]);
+    expect((await call("PUT", `${IMG}/i1`, { bytes: exif })).json!.detail).toMatch(/EXIF/);
+    expect((await call("PUT", `${IMG}/bad%20id`, { bytes: png(10, 10) })).status).toBe(400);
+    expect(files.objects.size).toBe(0);
+  });
+
+  it("a file no block holds is deleted ten minutes later, on the next write; Undo within them keeps it; the paper takes them all", async () => {
+    const { call, files, sql, db } = await setup();
+    await call("PUT", `${IMG}/i1`, { bytes: png(64, 48) });
+    await call("PUT", `${IMG}/i2`, { bytes: png(64, 48) });
+    const gone = () => (sql.prepare("SELECT block_id FROM doc_notebook_image_gone ORDER BY block_id").all() as { block_id: string }[]).map((r) => r.block_id);
+    expect(gone()).toEqual(["i1", "i2"]); // uploaded, not yet in a page
+    const p = await call("PUT", `${PAGE}/p1`, { body: { blocks: [img("i1"), img("i2")] } });
+    expect(p.status).toBe(201);
+    expect(gone()).toEqual([]);
+    // i2 taken out of the page: noted, kept for ten minutes
+    await call("PUT", `${PAGE}/p1`, { body: { rev: 1, blocks: [img("i1")] } });
+    expect(gone()).toEqual(["i2"]);
+    expect(files.objects.has("docs/u-1/d1/notebook/i2")).toBe(true);
+    // Undo: back in the page, kept
+    await call("PUT", `${PAGE}/p1`, { body: { rev: 2, blocks: [img("i1"), img("i2")] } });
+    expect(gone()).toEqual([]);
+    // taken out again, and ten minutes pass: the next write deletes the file
+    await call("PUT", `${PAGE}/p1`, { body: { rev: 3, blocks: [img("i1")] } });
+    sql.prepare("UPDATE doc_notebook_image_gone SET since = since - 11 * 60 * 1000").run();
+    await call("PUT", `${PAGE}/p1`, { body: { rev: 4, blocks: [img("i1"), text("t")] } });
+    expect(files.objects.has("docs/u-1/d1/notebook/i2")).toBe(false);
+    expect(files.objects.has("docs/u-1/d1/notebook/i1")).toBe(true);
+    // a page deleted: its pictures wait too; the paper's deletion takes every file at once
+    expect((await call("DELETE", `${PAGE}/p1`)).status).toBe(204);
+    expect(gone()).toEqual(["i1"]);
+    await deleteDocument({ DB: db, FILES: files }, "u-1", "d1");
+    expect(files.objects.size).toBe(0);
+    expect(gone()).toEqual([]);
   });
 });

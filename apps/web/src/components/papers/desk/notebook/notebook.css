@@ -8,7 +8,7 @@
 /* the pages as tabs (21.1, 2): a row under the panel's tabs that scrolls sideways with a fade on the side that has more; the open page's tab is raised. + Page at the end */
 .nb { --nb-rule-c: color-mix(in srgb, var(--border-strong) 55%, transparent); --nb-grid-c: color-mix(in srgb, var(--border-strong) 35%, transparent); }
 .nb-tabsrow { position: relative; z-index: 4; display: flex; flex: none; align-items: flex-end; gap: 0.4rem; padding: 0.4rem 0.75rem 0; border-bottom: 1px solid var(--border); background: var(--surface-2); }
-.nb-pagetabs { display: flex; flex: 1; min-width: 0; gap: 2px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.nb-pagetabs { display: flex; flex: 0 1 auto; min-width: 0; gap: 2px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
 .nb-pagetabs::-webkit-scrollbar { display: none; }
 .nb-pagetabs[data-more="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent); }
 .nb-pagetabs[data-more="start"] { mask-image: linear-gradient(to right, transparent, #000 2rem); }
@@ -20,7 +20,11 @@
 .nb-pagetab-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nb-tabsrow > .nb-popwrap { position: static; flex: none; }
 .nb-tabsrow .nb-pop { right: 0.75rem; left: auto; }
-.nb-addpage { margin-bottom: 0.3rem; }
+/* "+" (Add a page) right after the last tab, as a browser's new tab button: the tabs shrink and scroll only when they do not fit, so it stays in sight at the row's end */
+.nb-addpage { display: inline-grid; flex: none; place-items: center; width: 36px; height: 36px; margin-bottom: 1px; padding: 0; border: 0; border-radius: var(--radius-s); background: none; color: var(--muted); cursor: pointer; }
+.nb-addpage:hover,
+.nb-addpage[aria-expanded="true"] { background: var(--surface); color: var(--text); }
+.nb-addpage:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* a paper, drawn small (a tab, the toolbar) and as a card ("Choose paper for the new page"): our tokens, the same textures as the page */
 .nb-sw { display: inline-block; flex: none; width: 16px; height: 13px; border: 1px solid var(--border-strong); border-radius: 2px; background-color: var(--surface); }
@@ -104,8 +108,23 @@
 
 /* the toolbar: attached to the top of the page and light; its two groups never split, and a narrow panel puts the second on a row of its own. The row is the sticky box and the quote
    picker's containing block, so nothing in it can be clipped */
-.nb-toolrow { position: sticky; top: 0; z-index: 2; margin: 0 calc(-1 * var(--nb-pad)) 0.5rem; padding: 0.3rem var(--nb-pad); border-bottom: 1px solid var(--border); background: var(--surface); }
-.nb-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 0.6rem; }
+.nb-toolrow { container-type: inline-size; position: sticky; top: 0; z-index: 2; margin: 0 calc(-1 * var(--nb-pad)) 0.5rem; padding: 0.3rem var(--nb-pad); border-bottom: 1px solid var(--border); background: var(--surface); }
+.nb-tools { display: grid; gap: 0.25rem; }
+/* the basic actions: one row, never wrapped; on a narrow panel it scrolls sideways with a fade on the side that has more, and the words beside the icons go */
+.nb-tools-main { display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.nb-tools-main::-webkit-scrollbar { display: none; }
+.nb-tools-main[data-more="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent); }
+.nb-tools-main[data-more="start"] { mask-image: linear-gradient(to right, transparent, #000 2rem); }
+.nb-tools-main[data-more="both"] { mask-image: linear-gradient(to right, transparent, #000 2rem, #000 calc(100% - 2rem), transparent); }
+.nb-tools-main > i { flex: none; width: 1px; height: 20px; margin: 0 0.3rem; background: var(--border); }
+.nb-tools-main > .nb-popwrap { flex: none; }
+.nb-more { font-weight: 700; letter-spacing: 0.01em; }
+.nb-more[aria-expanded="true"] { background: var(--surface-2); color: var(--text); }
+/* More: heading, underline, numbered list, Text, and the papers, on a row under the basic one */
+.nb-tools-more { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 0.6rem; padding-top: 0.25rem; border-top: 1px solid var(--border); }
+@container (max-width: 560px) {
+  .nb-tl { display: none; }
+}
 .nb-tgroup { display: flex; flex: none; align-items: center; gap: 2px; }
 .nb-tools .nb-popwrap { position: static; }
 .nb-toolrow .nb-pop { right: var(--nb-pad); left: auto; }
@@ -195,6 +214,7 @@
 @media (pointer: coarse) {
   .nb-tool,
   .nb-pagetab { min-width: 44px; min-height: 44px; }
+  .nb-addpage { width: 44px; height: 44px; }
   .nb-tool { height: 44px; }
   .nb-block { grid-template-columns: 32px minmax(0, 1fr) 32px; }
   .nb-handle,
@@ -255,3 +275,9 @@
   .nb-sketch-grip { height: 24px; }
 }
 .nb-sketch-wait { border: 1px solid var(--border); border-radius: var(--radius-s); background: #fff; filter: var(--page-filter); }
+
+/* a picture added to the notes (22): at its own size, never wider than the page, with the words that say what it shows */
+.nb-block[data-kind="image"] { padding: 0.4rem 0; }
+.nb-image { display: grid; gap: 0.35rem; margin: 0; }
+.nb-image img { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface-2); }
+.nb-image figcaption { display: flex; }

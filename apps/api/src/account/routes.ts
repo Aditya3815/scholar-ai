@@ -7,6 +7,7 @@ import { readJson } from "../platform/http/body";
 import { SESSION_COOKIE } from "../auth/session";
 import { fromSqliteTime } from "../library/validate";
 import { PRIVACY_VERSION } from "@scholar/shared";
+import { listNotebookImages } from "../docs/notebook-images";
 import { eraseAccount } from "./erase";
 import type { HonoEnv } from "../platform/env";
 
@@ -67,6 +68,8 @@ accountRoutes.get("/export", async (c) => {
     .prepare("SELECT p.doc_id, p.title, p.style, p.blocks, p.updated_at FROM doc_notebook_pages p JOIN documents d ON d.id = p.doc_id WHERE d.user_id = ?1 ORDER BY p.doc_id, p.position, p.created_at")
     .bind(user.id)
     .all<{ doc_id: string; title: string; style: string; blocks: string; updated_at: string }>();
+  // the pictures in those notes (phase 2.5): where each is, its kind and size; the files themselves are fetched from those addresses while signed in
+  const notebookImages = await listNotebookImages(c.env, user.id, [...new Set(notebook.results.map((p) => p.doc_id))]);
   const reports = await c.env.DB
     .prepare("SELECT kind, problem, note, context, created_at FROM feedback WHERE user_id = ?1 ORDER BY created_at")
     .bind(user.id)
@@ -111,6 +114,7 @@ accountRoutes.get("/export", async (c) => {
       questions: qa.results.filter((q) => q.doc_id === d.id).map((q) => ({ question: q.question, answer: (JSON.parse(q.answer) as { answer: string }).answer, askedAt: new Date(fromSqliteTime(q.created_at)).toISOString() })),
     })),
     notebook: notebook.results.map((p) => ({ docId: p.doc_id, title: p.title, style: p.style, blocks: JSON.parse(p.blocks) as unknown, updatedAt: new Date(fromSqliteTime(p.updated_at)).toISOString() })),
+    notebookImages,
     reports: reports.results.map((r) => ({ kind: r.kind, problem: r.problem, note: r.note, sent: JSON.parse(r.context), reportedAt: new Date(fromSqliteTime(r.created_at)).toISOString() })),
     library: lib.results.map((r) => ({ ...(JSON.parse(r.data) as Paper), savedAt: new Date(fromSqliteTime(r.saved_at)).toISOString() })),
     literatureScans: scans.results.map((s) => ({ topic: s.topic, language: s.language, state: s.state, startedAt: new Date(fromSqliteTime(s.created_at)).toISOString(), keptUntil: new Date(fromSqliteTime(s.expires_at)).toISOString(), subQuestions: JSON.parse(s.plan) as unknown, results: scanParts.results.filter((p) => p.scan_id === s.id).map((p) => (JSON.parse(p.data) as { part: unknown }).part) })),

@@ -63,13 +63,20 @@ export const SKETCH_HIGHLIGHTER_COLORS = ["yellow", "green", "pink", "blue", "or
 export type SketchStroke = { id: string; tool: "pen" | "highlighter"; color: string; w: number; pts: number[] };
 /** A drawing area in the notes (phase 2.5): its height in CSS pixels and its strokes. */
 export type SketchBlock = { id: string; kind: "sketch"; height: number; strokes: SketchStroke[] };
+/** The kinds of picture a note may hold (equal to note-image.ts's, by test: this module imports nothing). */
+export const NOTEBOOK_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+/**
+ * A picture added to the notes (phase 2.5, the owner's yes of 18 Nov): its file is kept apart (R2, under the paper and this block's id) and served only to its owner; the block holds
+ * its size in pixels, its kind and the words that say what it shows.
+ */
+export type ImageBlock = { id: string; kind: "image"; w: number; h: number; type: (typeof NOTEBOOK_IMAGE_TYPES)[number]; alt: string };
 /** An agent's answer kept in the notes. Phase 3: the server refuses it until then. */
 export type AnswerBlock = { id: string; kind: "answer"; agent: string; text: string; pages: number[] };
-export type NotebookBlock = TextBlock | QuoteBlock | CaptureBlock | SketchBlock | AnswerBlock;
+export type NotebookBlock = TextBlock | QuoteBlock | CaptureBlock | SketchBlock | ImageBlock | AnswerBlock;
 export type NotebookBlockKind = NotebookBlock["kind"];
-export const NOTEBOOK_BLOCK_KINDS = ["text", "quote", "capture", "sketch", "answer"] as const satisfies readonly NotebookBlockKind[];
-/** The kinds the server accepts today (phase 2.5): text, quote, capture and sketch. An agent's answer comes with phase 3. */
-export const NOTEBOOK_KINDS_NOW: readonly NotebookBlockKind[] = ["text", "quote", "capture", "sketch"];
+export const NOTEBOOK_BLOCK_KINDS = ["text", "quote", "capture", "sketch", "image", "answer"] as const satisfies readonly NotebookBlockKind[];
+/** The kinds the server accepts today (phase 2.5): text, quote, capture, sketch and picture. An agent's answer comes with phase 3. */
+export const NOTEBOOK_KINDS_NOW: readonly NotebookBlockKind[] = ["text", "quote", "capture", "sketch", "image"];
 
 /** One page as the server sends it. */
 export type NotebookPage = { id: string; title: string; style: NotebookStyle; position: number; blocks: NotebookBlock[]; rev: number; updatedAt: number };
@@ -162,6 +169,14 @@ function checkBlock(raw: unknown, maxPage: number, kinds: readonly NotebookBlock
       }
       return { id: b.id, kind, height: b.height, strokes };
     }
+    case "image": {
+      if (!isInt(b.w, 1, 2000) || !isInt(b.h, 1, 2000)) return "a picture's size is not from 1 to 2000 pixels a side";
+      if (!(NOTEBOOK_IMAGE_TYPES as readonly unknown[]).includes(b.type)) return "a picture is not a JPEG, PNG or WebP";
+      if (typeof b.alt !== "string") return "a picture has no words for what it shows";
+      const alt = cleanQuote(b.alt);
+      if (alt.length > 300) return "too long: the words for a picture are at most 300 characters";
+      return { id: b.id, kind, w: b.w, h: b.h, type: b.type as ImageBlock["type"], alt };
+    }
     case "answer": {
       if (typeof b.agent !== "string" || b.agent.length < 1 || b.agent.length > NOTEBOOK_LIMITS.agent) return "an answer's agent is not valid";
       if (typeof b.text !== "string") return "an answer has no text";
@@ -215,8 +230,10 @@ export function notebookMarkdown(paperTitle: string, pages: readonly NotebookExp
         out.push(`**${b.agent}**${b.pages.length ? ` (p. ${b.pages.join(", ")})` : ""}`, "", b.text.trim(), "");
       } else if (b.kind === "capture") {
         out.push(`*A part of page ${b.page} (captured)*${b.caption ? `: ${b.caption}` : ""}`, "");
-      } else {
+      } else if (b.kind === "sketch") {
         out.push(`*A sketch (${b.strokes.length} ${b.strokes.length === 1 ? "stroke" : "strokes"})*`, "");
+      } else {
+        out.push(`*A picture*${b.alt ? `: ${b.alt}` : ""}`, "");
       }
     }
   }
