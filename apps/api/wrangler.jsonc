@@ -41,6 +41,9 @@
     { "binding": "OAUTH_KV", "id": "183f82ac6f9245a58e8d05f0d98f5865" }
   ],
   "ai": { "binding": "AI" },
+  // Invitations to a shared paper (docs/design/paper-share.md, S4; src/docs/invite-mail.ts): Cloudflare Email Service, from the subdomain notify.sodhsetu.in (DKIM selector cf-bounce, SPF and MX
+  // published, 18 Nov 2026). Only the SHARE switch makes anything send; a local run (wrangler dev) simulates the binding, and the tests use a stand-in. Staging has none: its dialog copies the invite.
+  "send_email": [{ "name": "EMAIL" }],
   "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }, { "name": "API_GATE", "class_name": "ApiGate" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }, { "tag": "v2", "new_sqlite_classes": ["ApiGate"] }],
   // Per-IP limits (the binding's period can only be 10 or 60 seconds). Search is the expensive route: it fans out to 4 APIs.

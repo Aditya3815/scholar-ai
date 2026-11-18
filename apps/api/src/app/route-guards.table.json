@@ -890,5 +890,149 @@
   "big": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/images/:blockId) [no-store]",
   "chunked": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/images/:blockId) [no-store]",
   "bucket": "API_LIMITER"
+ },
+ "DELETE /api/v1/share/papers/:id": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "DELETE /api/v1/share/papers/:id/comments/:cid": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/papers/x1/comments/:cid) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/papers/x1/comments/:cid) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/papers/x1/comments/:cid) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/share/papers/x1/comments/:cid) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/share/papers/x1/comments/:cid) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "DELETE /api/v1/share/papers/:id/members/:mid": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "DELETE /api/v1/share/with-me/:id": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/with-me/x1) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/with-me/x1) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/with-me/x1) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/share/with-me/x1) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/share/with-me/x1) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/share/papers/:id": {
+  "cross": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "crossDev": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/share/papers/:id/comments": {
+  "cross": "404 not_found: Not found (/api/v1/share/papers/x1/comments) [no-store]",
+  "crossDev": "404 not_found: Not found (/api/v1/share/papers/x1/comments) [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/papers/x1/comments) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/papers/x1/comments) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/papers/x1/comments) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/share/with-me": {
+  "cross": "404 not_found: Not found (/api/v1/share/with-me) [no-store]",
+  "crossDev": "404 not_found: Not found (/api/v1/share/with-me) [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/with-me) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/with-me) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/with-me) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "PATCH /api/v1/share/papers/:id/comments/:cid": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/papers/x1/comments/:cid) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/papers/x1/comments/:cid) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/papers/x1/comments/:cid) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/share/papers/x1/comments/:cid) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/share/papers/x1/comments/:cid) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "PATCH /api/v1/share/papers/:id/members/:mid": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/share/open": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/open) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/open) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/open) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/share/open) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/share/open) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/share/papers/:id/comments": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/papers/x1/comments) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/papers/x1/comments) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/papers/x1/comments) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/share/papers/x1/comments) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/share/papers/x1/comments) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/share/papers/:id/link": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/papers/x1/link) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/papers/x1/link) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/papers/x1/link) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/share/papers/x1/link) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/share/papers/x1/link) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/share/papers/:id/members": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/papers/x1/members) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/papers/x1/members) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/papers/x1/members) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/share/papers/x1/members) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/share/papers/x1/members) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/share/papers/:id/members/:mid/resend": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid/resend) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid/resend) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid/resend) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid/resend) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/share/papers/x1/members/:mid/resend) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "PUT /api/v1/share/papers/:id": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
+  "bucket": "API_LIMITER"
  }
 }

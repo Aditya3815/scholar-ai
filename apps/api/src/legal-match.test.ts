@@ -483,6 +483,14 @@ const FLAG_SENTENCES: readonly (FlagSentence & { flag: SwitchName })[] = [
     at: ["off", "dark", "on"],
     sentence: "including pages of notes you write in the reader, with the passages you quote into them and pictures you add to your note pages",
   },
+  // Sharing a paper's workspace (docs/design/paper-share.md 7, the owner approved the words on 18 Nov 2026, with the e-mail service of S4). The plan puts them on the page before SHARE leaves
+  // off, as READER's: pinned at every position, the safe way round. Drop "off" once SHARE is on in production.
+  {
+    flag: "SHARE",
+    at: ["off", "dark", "on"],
+    sentence:
+      "You can share one of your papers, with its highlights and notes, with people you name by e-mail, or with anyone who has its link. We keep the e-mail addresses you add, so that the right person can open it, until you remove them or stop sharing. People you share with see the paper and its notes, not your other papers or your questions to the AI. Comments are kept with the paper and deleted with it. A link can be reset or switched off at any time, and stops working at once. When you add someone, an invitation is sent to that address through Cloudflare's e-mail service; the address is used only to send that invitation.",
+  },
 ];
 /** Flags that are on in the committed config and need no sentence on the page, each with the reason (nothing new is sent, kept or shown that the page does not already say). Empty until a release has one. */
 const FLAGS_WITHOUT_SENTENCE = {} as const satisfies { readonly [N in SwitchName]?: string };

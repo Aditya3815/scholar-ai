@@ -48,6 +48,8 @@ type SecretsAndVariables = {
   MCP_BETA_USERS?: string;
   /** The account ids that see the new Paper Reader while READER is "dark" (src/docs/reader-flag.ts), separated by commas or spaces: a secret, not a var, like MCP_BETA_USERS. */
   READER_BETA_USERS?: string;
+  /** The account ids that may share their papers while SHARE is "dark" (src/docs/share-flag.ts), separated by commas or spaces: a secret, like READER_BETA_USERS. */
+  SHARE_BETA_USERS?: string;
 
   /* ------------------------------------------------------------ switches and settings (Worker variables: `vars` in wrangler.jsonc while one is set) */
 
@@ -67,6 +69,11 @@ type SecretsAndVariables = {
    * A gate: any other value is off, and the KV key flag:READER can only lower it. Sent to the page as `features.reader` on GET /api/v1/documents/:id.
    */
   READER?: string;
+  /**
+   * Sharing a paper's workspace (docs/design/paper-share.md; src/docs/share-flag.ts): "off" (unset) is as before it existed (its routes answer 404, no Share button), "dark" lets the accounts of
+   * SHARE_BETA_USERS share their papers (the people they share with need not be listed), "on" everyone. A gate: any other value is off, and the KV key flag:SHARE can only lower it.
+   */
+  SHARE?: string;
   /** The MCP tool check_claim alone (src/mcp/flag.ts): "off" (unset), "beta" (the accounts in MCP_BETA_USERS) or "on". */
   MCP_CHECK_CLAIM?: string;
   /**

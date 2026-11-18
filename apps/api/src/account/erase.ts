@@ -1,4 +1,5 @@
 import { deleteDocument } from "../docs/routes";
+import { forgetPersonStatements } from "../docs/service";
 import { captureException, type SentryEnv } from "../monitoring/sentry";
 import { revokeAllApps } from "../mcp/apps";
 import type { EnvPick } from "../platform/env";
@@ -35,7 +36,10 @@ export async function eraseAccount(env: EraseEnv, userId: string, opts: { tombst
   const db = env.DB;
   const owned = await db.prepare("SELECT id FROM documents WHERE user_id = ?1").bind(userId).all<{ id: string }>();
   for (const d of owned.results) await deleteDocument(env, userId, d.id);
+  const email = (await db.prepare("SELECT email FROM users WHERE id = ?1").bind(userId).first<{ email: string | null }>())?.email ?? null;
   await db.batch([
+    // papers others shared with this account: the membership goes, the comments stay by "a former member" (docs/design/paper-share.md, 6)
+    ...forgetPersonStatements(db, userId, email),
     db.prepare("DELETE FROM ocr_usage WHERE user_id = ?1").bind(userId),
     // a literature scan's events before the scan, and both before the account (litscan/store.ts)
     db.prepare("DELETE FROM litscan_shares WHERE user_id = ?1").bind(userId),

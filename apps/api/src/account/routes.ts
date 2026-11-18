@@ -7,7 +7,7 @@ import { readJson } from "../platform/http/body";
 import { SESSION_COOKIE } from "../auth/session";
 import { fromSqliteTime } from "../library/validate";
 import { PRIVACY_VERSION } from "@scholar/shared";
-import { listNotebookImages } from "../docs/service";
+import { listNotebookImages, shareExport } from "../docs/service";
 import { eraseAccount } from "./erase";
 import type { HonoEnv } from "../platform/env";
 
@@ -70,6 +70,8 @@ accountRoutes.get("/export", async (c) => {
     .all<{ doc_id: string; title: string; style: string; blocks: string; updated_at: string }>();
   // the pictures in those notes (phase 2.5): where each is, its kind and size; the files themselves are fetched from those addresses while signed in
   const notebookImages = await listNotebookImages(c.env, user.id, [...new Set(notebook.results.map((p) => p.doc_id))]);
+  // sharing (docs/design/paper-share.md, 6): the people this account shared its papers with and the comments on them, and its own comments on papers shared with it
+  const sharing = await shareExport(c.env.DB, user.id);
   const reports = await c.env.DB
     .prepare("SELECT kind, problem, note, context, created_at FROM feedback WHERE user_id = ?1 ORDER BY created_at")
     .bind(user.id)
@@ -113,6 +115,8 @@ accountRoutes.get("/export", async (c) => {
       highlightsAndNotes: notes.results.filter((n) => n.doc_id === d.id).map((n) => ({ page: n.page, quote: n.quote, colour: n.color, note: n.note ?? "", madeAt: new Date(fromSqliteTime(n.created_at)).toISOString() })),
       questions: qa.results.filter((q) => q.doc_id === d.id).map((q) => ({ question: q.question, answer: (JSON.parse(q.answer) as { answer: string }).answer, askedAt: new Date(fromSqliteTime(q.created_at)).toISOString() })),
     })),
+    // only when there is something: with SHARE off (nothing can be shared) the export is what it was
+    ...(sharing.sharedPapers.length > 0 || sharing.myCommentsOnSharedPapers.length > 0 ? sharing : {}),
     notebook: notebook.results.map((p) => ({ docId: p.doc_id, title: p.title, style: p.style, blocks: JSON.parse(p.blocks) as unknown, updatedAt: new Date(fromSqliteTime(p.updated_at)).toISOString() })),
     notebookImages,
     reports: reports.results.map((r) => ({ kind: r.kind, problem: r.problem, note: r.note, sent: JSON.parse(r.context), reportedAt: new Date(fromSqliteTime(r.created_at)).toISOString() })),

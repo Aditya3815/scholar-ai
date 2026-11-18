@@ -4,6 +4,7 @@ import { libraryRoutes } from "../library/routes";
 import { accountRoutes } from "../account/routes";
 import { referenceRoutes } from "../references/routes";
 import { documentRoutes } from "../docs/routes";
+import { shareRoutes } from "../docs/share-routes";
 import { ideaRoutes } from "../idea/routes";
 import { chatRoutes } from "../chat/routes";
 import { oaRoutes } from "../oa/routes";
@@ -41,6 +42,8 @@ export const MOUNTS: readonly Mount[] = [
   { at: "/api/v1/account", routes: accountRoutes, noStore: true },
   { at: "/api/v1/references", routes: referenceRoutes },
   { at: "/api/v1/documents", routes: documentRoutes, noStore: true },
+  // sharing a paper's workspace (docs/design/paper-share.md): 404 everywhere while SHARE is off
+  { at: "/api/v1/share", routes: shareRoutes, noStore: true },
   { at: "/api/v1/idea", routes: ideaRoutes, noStore: true },
   { at: "/api/v1/chat", routes: chatRoutes, noStore: true },
   { at: "/api/v1/papers/oa", routes: oaRoutes, noStore: true },
