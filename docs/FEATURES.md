@@ -1,4 +1,6 @@
-# Sodhsetu: every feature and how it behaves (branch `understand-mcp`, 7 Nov 2026: what is live on main `dbae530`, plus M1 to M8 of the plan "Sodhsetu understanding, follow-ups and MCP", which are NOT live yet)
+# Sodhsetu: every feature and how it behaves
+
+> Written on 7 Nov 2026. Since then the MCP server (beta), the chat's tools and the new Paper Reader (owner only, `READER` dark) went live behind their switches, and the code is being restructured wave by wave: see [design/untangle.md](design/untangle.md) for the current layout and [design/paper-reader.md](design/paper-reader.md) for the reader. Where this page and those differ, they are newer.
 
 How the system is built: [ARCHITECTURE.md](ARCHITECTURE.md). Each section below says what a person does, what they see, and the
 rules the feature keeps. "Signed in" means signed in with Google or ORCID; a visitor can use most features without the AI parts.

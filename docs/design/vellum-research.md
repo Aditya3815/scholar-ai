@@ -1,6 +1,6 @@
 # What vellum.ai does with scrolling, and what we take from it (27 Oct 2026)
 
-Asked: look into https://www.vellum.ai/, learn how its scrolling animation is made, and ideate how to use it in our site in our own theme. Result: this note, the design system [scroll-design-system.md](scroll-design-system.md), and a mock to play with, [poc/scroll-v2.html](poc/scroll-v2.html) (open it from the repository folder; sample data only).
+Asked: look into https://www.vellum.ai/, learn how its scrolling animation is made, and ideate how to use it in our site in our own theme. Result: this note, the design system [scroll-design-system.md](scroll-design-system.md), and a mock to play with, poc/scroll-v2.html (scroll-v2.html, removed 18 Nov 2026; replaced by scroll-v3.html) (open it from the repository folder; sample data only).
 
 **How this was looked at.** The page's HTML, its inline styles (which carry the developers' own comments) and its JavaScript chunks were read as text, nothing was run, nothing is copied. A text-only fetch of the page cannot show motion, so the markup, the CSS and the scroll code were read instead. What is below is what the code does, not how it looked on a screen I cannot see: the mock is my reading of it, to be judged by you.
 

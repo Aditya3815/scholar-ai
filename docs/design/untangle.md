@@ -1061,7 +1061,7 @@ Kept on purpose (F0 says so): the PARKED split view and colour names, the `ABSTR
 Pending:
 - Decision 8, the unused `JOBS` queue binding and the empty `usage_ledger` and `jobs` tables: needs a migration and a `wrangler.jsonc` change, so it is its own small PR.
 - Newly local after chat-fold went: `shared/chat-state.ts` `answerWords`, `scanTurns` and `type FinishedTurn` are exported but used only inside the file (depgraph lists them as test-only through a namespace import); their `export` goes with F2.
-- A personal address is still hard-coded in `docs/spikes/R8/` (fetchability.mjs, run.mjs, src/index.ts), a finished spike kept as documentation; outside decision 11's list.
+- The finished spike code in `docs/spikes/R8/` (which hard-coded a personal address) and `docs/spikes/R9/` was removed on 18 Nov 2026; their write-ups `R8-server-extraction.md` and `R9-workflows.md` stay.
 
 Tests removed (unit totals 185 files / 4,485 tests -> 181 / 4,415, 3 skipped before and after): `api/understand/understand-flag.test.ts`, `api/chat/chat-fold.test.ts`, `api/chat/chat-fold-walk.test.ts`, `api/chat/chat-fold-canary.test.ts` (65 cases together); in `api/chat/new-topic.test.ts` the block "the fold starts at the marker too" (4) and two `foldState` lines; in `api/understand/frame.test.ts` "cleanRequest is the topic of a Reading..." (1) and two `cleanRequest` lines. Cases kept with a line less: `support.test.ts` (the `dropUnmarkedNo: false` half), `kv.test.ts` (two `cacheTtl` calls), `abstract-read.test.ts` (the `MAX_TIGHTEN_ABSTRACT` line), `services.test.ts` and `trending/routes.test.ts` (call the function the alias pointed at), `context-before.test.ts` (notices built by a helper, as the function reads only the kind).
 

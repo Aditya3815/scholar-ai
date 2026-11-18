@@ -1,6 +1,6 @@
 # R8: can the server read an open-access paper? (spike, 26 Oct 2026)
 
-The question W4 depends on ([unified-workspace.md](../design/unified-workspace.md) section 5): can a Worker fetch an open-access paper and read its text, within the 128 MB isolate limit, often enough to be worth building on? Code and raw results: [R8/](R8/) (own `package.json`, not part of the app; the downloaded PDFs are not committed).
+The question W4 depends on ([unified-workspace.md](../design/unified-workspace.md) section 5): can a Worker fetch an open-access paper and read its text, within the 128 MB isolate limit, often enough to be worth building on? The spike's code and raw results were removed on 18 Nov 2026 (they are in git history before that date).
 
 ## Answers
 

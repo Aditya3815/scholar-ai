@@ -1,4 +1,6 @@
-# Sodhsetu: architecture (branch `understand-mcp`, 7 Nov 2026: live main `dbae530` plus M1 to M8 of the plan "Sodhsetu understanding, follow-ups and MCP", which are NOT live yet)
+# Sodhsetu: architecture
+
+> Written on 7 Nov 2026. Since then the MCP server (beta), the chat's tools and the new Paper Reader (owner only, `READER` dark) went live behind their switches, and the code is being restructured wave by wave: see [design/untangle.md](design/untangle.md) for the current layout and [design/paper-reader.md](design/paper-reader.md) for the reader. Where this page and those differ, they are newer.
 
 Sodhsetu (formerly Scholar AI), https://sodhsetu.in, is a research assistant for scholars: it finds real papers, checks
 references, tests an idea against the literature, reads a person's own papers, and writes short answers in which every claim is
