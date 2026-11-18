@@ -274,16 +274,25 @@ export type ReadNotebookProps = {
   focus: { pageId: string; blockId: string; tick: number } | null;
 };
 
+/** The pages last read for each paper in this visit: going to the comments and back draws the notes at once (and reads them again behind). */
+const readPages = new Map<string, NotebookPage[]>();
+
 /** A Viewer's or a Commenter's Notes: the owner's pages, as they are, with a page picker and, on each block, its comments. Nothing here can be changed. */
 export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus }: ReadNotebookProps) {
-  const [pages, setPages] = useState<NotebookPage[] | null>(null);
+  const [pages, setPages] = useState<NotebookPage[] | null>(() => readPages.get(docId) ?? null);
   const [error, setError] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   useEffect(() => {
     let gone = false;
     fetch(`/api/v1/documents/${docId}/notebook`, { credentials: "same-origin" })
       .then((r) => (r.ok ? (r.json() as Promise<{ pages: NotebookPage[] }>) : Promise.reject(new Error(String(r.status)))))
-      .then((j) => !gone && setPages(j.pages), () => !gone && setError(true));
+      .then(
+        (j) => {
+          readPages.set(docId, j.pages);
+          if (!gone) setPages(j.pages);
+        },
+        () => !gone && !readPages.has(docId) && setError(true),
+      );
     return () => {
       gone = true;
     };

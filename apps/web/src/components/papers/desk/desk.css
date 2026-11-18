@@ -390,7 +390,7 @@
 .desk .desk-capture-frame { position: absolute; border: 2px dashed var(--accent); border-radius: 2px; background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.16); pointer-events: none; }
 
 /* sharing (docs/design/paper-share.md): a block's or a card's open comments, the Share button and the banner of a shared paper */
-.cm-dot { flex: none; display: inline-flex; align-items: center; gap: 0.2rem; min-height: 28px; padding: 0.1rem 0.45rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; font-size: 0.75rem; cursor: pointer; }
+.cm-dot { flex: none; min-width: max-content; white-space: nowrap; align-self: start; display: inline-flex; align-items: center; gap: 0.2rem; min-height: 28px; padding: 0.1rem 0.45rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; font-size: 0.75rem; cursor: pointer; }
 .cm-dot[data-open="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .cm-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 @media (pointer: coarse) { .cm-dot { min-height: 44px; min-width: 44px; justify-content: center; } }

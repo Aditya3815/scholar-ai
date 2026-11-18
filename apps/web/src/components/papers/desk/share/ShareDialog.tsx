@@ -56,17 +56,34 @@ const expiryOf = (expiresAt: string | null): LinkExpiry => {
 /** A small menu button: a button with aria-haspopup="menu" and a list of menuitemradio, arrows to move, Esc to close (the focus goes back to the button). */
 function Menu<T extends string | number | null>({ label, value, options, onPick, disabled, extra }: { label: string; value: T; options: { value: T; label: string }[]; onPick: (v: T) => void; disabled?: boolean; extra?: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [at, setAt] = useState<React.CSSProperties>({});
   const btn = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const id = useId();
+  /** Where the menu goes: under its button, or over it when there is no room below, in the window (so the dialog's scrolling body never cuts it off). */
+  const place = useCallback(() => {
+    const r = btn.current?.getBoundingClientRect();
+    if (!r) return;
+    const width = 224;
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+    setAt(window.innerHeight - r.bottom >= 220 ? { left, top: r.bottom + 4 } : { left, bottom: window.innerHeight - r.top + 4 });
+  }, []);
   useEffect(() => {
     if (!open) return;
     const items = [...(list.current?.querySelectorAll<HTMLElement>("[role^=menuitem]") ?? [])];
-    (items.find((x) => x.getAttribute("aria-checked") === "true") ?? items[0])?.focus();
+    (items.find((x) => x.getAttribute("aria-checked") === "true") ?? items[0])?.focus({ preventScroll: true });
     const away = (e: PointerEvent) => !list.current?.contains(e.target as Node) && !btn.current?.contains(e.target as Node) && setOpen(false);
     document.addEventListener("pointerdown", away);
-    return () => document.removeEventListener("pointerdown", away);
-  }, [open]);
+    // placed in the window, it follows its button when the dialog's body scrolls or the window changes
+    const body = btn.current?.closest(".sh-body");
+    body?.addEventListener("scroll", place, { passive: true });
+    window.addEventListener("resize", place);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      body?.removeEventListener("scroll", place);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, place]);
   const keys = (e: React.KeyboardEvent) => {
     const items = [...(list.current?.querySelectorAll<HTMLElement>("[role^=menuitem]") ?? [])];
     const i = items.indexOf(document.activeElement as HTMLElement);
@@ -77,18 +94,21 @@ function Menu<T extends string | number | null>({ label, value, options, onPick,
       btn.current?.focus();
     } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+      items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus({ preventScroll: true });
     } else if (e.key === "Tab") setOpen(false);
   };
   const shown = options.find((o) => o.value === value)?.label ?? "";
   return (
     <span className="sh-menu-wrap">
-      <button ref={btn} type="button" className="sh-menu-btn" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined} aria-label={`${label}: ${shown}`} disabled={disabled} onClick={() => setOpen((o) => !o)}>
+      <button ref={btn} type="button" className="sh-menu-btn" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined} aria-label={`${label}: ${shown}`} disabled={disabled} onClick={() => {
+          place();
+          setOpen((o) => !o);
+        }}>
         <span>{shown}</span>
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && (
-        <div ref={list} id={id} role="menu" aria-label={label} className="sh-menu" onKeyDown={keys}>
+        <div ref={list} id={id} role="menu" aria-label={label} className="sh-menu" style={at} onKeyDown={keys}>
           {options.map((o) => (
             <button
               key={String(o.value)}
@@ -225,17 +245,17 @@ export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast
   const setMode = async (anyone: boolean) => {
     const r = await run(() => changeShare(docId, { linkMode: anyone ? "anyone" : "restricted" }));
     took(r);
-    if (r) say(anyone ? "Anyone with the link can open it" : "Only the people with access can open it");
+
   };
   const setLinkRole = async (r: LinkRole) => {
     const done = await run(() => changeShare(docId, { linkRole: r }));
     took(done);
-    if (done) say(`People with the link: ${LINK_ROLE_LABEL[r]}`);
+
   };
   const setExpiry = async (d: LinkExpiry) => {
     const done = await run(() => changeShare(docId, { expiry: d }));
     took(done);
-    if (done) say(d === null ? "The link does not expire" : `The link expires in ${d} days`);
+
   };
   const setDownload = async (on: boolean) => {
     const done = await run(() => changeShare(docId, { viewersDownload: on }));
@@ -268,33 +288,10 @@ export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast
         </Dialog.Close>
       </div>
       <Dialog.Description className="sr-only">Add people by e-mail, choose who can open it with the link, and copy the link.</Dialog.Description>
+      <div className="sh-body">
       {error && (
         <p className="sh-error" role="alert">
           {error}
-        </p>
-      )}
-      {said && !removed && (
-        <p className="sh-undo" role="status">
-          {said}
-        </p>
-      )}
-      {removed && (
-        <p className="sh-undo" role="status">
-          <span>Removed {removed.name ?? removed.email}</span>
-          <button
-            type="button"
-            className="link-btn"
-            onClick={() => {
-              const m = removed;
-              setRemoved(null);
-              void inviteMember(docId, m.email, m.role, { restore: true }).then(
-                () => (void load(), say(`${m.name ?? m.email} is back`)),
-                () => setError("They could not be put back. Invite them again."),
-              );
-            }}
-          >
-            Undo
-          </button>
         </p>
       )}
       <form
@@ -380,8 +377,34 @@ export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast
           <span>Viewers can download the PDF</span>
         </label>
       )}
+      </div>
 
       <div className="sh-foot">
+      {said && !removed && (
+        <p className="sh-undo" role="status">
+          {said}
+        </p>
+      )}
+      {removed && (
+        <p className="sh-undo" role="status">
+          <span>Removed {removed.name ?? removed.email}</span>
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => {
+              const m = removed;
+              setRemoved(null);
+              void inviteMember(docId, m.email, m.role, { restore: true }).then(
+                () => (void load(), say(`${m.name ?? m.email} is back`)),
+                () => setError("They could not be put back. Invite them again."),
+              );
+            }}
+          >
+            Undo
+          </button>
+        </p>
+      )}
+        <div className="sh-foot-row">
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => void copyLink()}>
           <Link2 size={14} aria-hidden="true" />
           <span>Copy link</span>
@@ -392,6 +415,7 @@ export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast
           </button>
         )}
         <Dialog.Close className="btn btn-primary btn-sm sh-done">Done</Dialog.Close>
+        </div>
       </div>
     </>
   );

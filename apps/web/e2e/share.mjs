@@ -65,6 +65,8 @@ try {
   console.log("the Share dialog");
   const shareBtn = op.getByRole("button", { name: "Share", exact: true });
   ok(await shareBtn.isVisible(), "the owner sees Share in the reader's header");
+  // a short window: the head and the footer of the dialog stay in sight, its body scrolls
+  await op.setViewportSize({ width: 1280, height: 720 });
   await shareBtn.click();
   const dlg = op.getByRole("dialog", { name: /^Share “/ });
   await dlg.waitFor({ timeout: 10000 });
@@ -103,6 +105,12 @@ try {
   const token = await op.evaluate((id) => localStorage.getItem(`scholar.share.${id}`), docId);
   ok(typeof token === "string" && token.length === 43, "the link's token is kept on the owner's device (only its hash on the server)");
   ok((await dlg.getByRole("menuitemradio").count()) === 0, "menus close when a choice is made");
+  const inSight = async (p, d, h) => {
+    const done = await d.getByRole("button", { name: "Done" }).boundingBox();
+    const title = await d.locator(".sh-title").boundingBox();
+    return !!done && !!title && done.y + done.height <= h && title.y >= 0;
+  };
+  ok(await inSight(op, dlg, 720), "at 1280 by 720 the title and Done are both in sight (the body scrolls)");
   for (const theme of ["light", "dark", "read"]) {
     await setTheme(op, theme, 250);
     await axe(op, `the Share dialog, ${theme}`, ".sh-dialog");
@@ -114,7 +122,7 @@ try {
   ok(await op.evaluate(() => document.activeElement?.textContent?.trim() === "Share"), "Esc closes it and the focus goes back to Share");
 
   /* ================================================================ 2. the dialog on a phone: a bottom sheet */
-  const pc = await browser.newContext({ ...phone(390, 844), storageState: await oc.storageState() });
+  const pc = await browser.newContext({ ...phone(390, 700), storageState: await oc.storageState() });
   const pp = await pc.newPage();
   watch(pp);
   await openPaper(pp, docId);
@@ -122,7 +130,8 @@ try {
   const sheet = pp.getByRole("dialog", { name: /^Share “/ });
   await sheet.waitFor({ timeout: 10000 });
   const box = await sheet.boundingBox();
-  ok(!!box && Math.round(box.y + box.height) >= 843 && box.width >= 389, "on a phone the dialog is a sheet from the bottom, as wide as the screen");
+  ok(!!box && Math.round(box.y + box.height) >= 699 && box.width >= 389, "on a phone the dialog is a sheet from the bottom, as wide as the screen");
+  ok(await inSight(pp, sheet, 700), "at 390 by 700 the title and Done are both in sight");
   ok(await noSideways(pp), "no sideways scroll on a phone");
   await axe(pp, "the Share sheet, phone", ".sh-dialog");
   await shot(pp, "dialog-phone");
@@ -171,6 +180,8 @@ try {
   }
   await setTheme(cp, "light");
   await cp.getByRole("button", { name: "Back to notes" }).click();
+  await cp.locator(".nbr-title", { hasText: "Methods" }).waitFor({ timeout: 10000 });
+  ok((await cp.locator(".nbr").getByText("Who was").count()) > 0, "a Commenter's Notes tab shows the owner's page of notes (read only)");
   await shot(cp, "reader-commenter");
 
   /* ================================================================ 4. the owner sees the comments and resolves one */
@@ -187,6 +198,8 @@ try {
   ok((await vp.locator(".desk-shared-banner").textContent())?.includes("You can view"), "the banner says You can view");
   ok((await vp.locator(".desk-tools").count()) === 0 && (await vp.getByRole("button", { name: /Agents/ }).count()) === 0, "a Viewer has no tools and no Agents (Ask runs on the owner's index)");
   ok((await vp.getByRole("button", { name: /Download/ }).count()) > 0, "and can download (the owner allows it)");
+  await vp.locator(".nbr-title", { hasText: "Methods" }).waitFor({ timeout: 10000 });
+  ok((await vp.locator(".nbr").getByText("Who was").count()) > 0 && (await vp.locator(".nbr textarea, .nbr [contenteditable=true]").count()) === 0, "a Viewer's Notes tab shows the page of notes, with nothing to edit");
   await shot(vp, "reader-viewer");
   await axe(vp, "the shared reader as Viewer");
 
@@ -194,6 +207,9 @@ try {
   const { c: ec, p: ep } = await signedIn(EDITOR);
   await openPaper(ep, docId);
   ok((await ep.locator(".desk-tools").count()) === 1 && (await ep.getByRole("radio", { name: /Draw/ }).count()) === 0, "an Editor gets the tools, without Draw");
+  await ep.locator(".nb").getByText("Who was").first().waitFor({ timeout: 15000 });
+  ok(true, "an Editor's Notes tab is the notebook itself");
+  await shot(ep, "reader-editor");
 
   /* ================================================================ 7. a visitor with the link, signed out */
   console.log("the link");
