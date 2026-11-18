@@ -1,4 +1,4 @@
-import { NOTE_IMAGE_LIMITS, isNotebookId, noteImageInfo, noteImageProblem, type NotebookBlock } from "@scholar/shared";
+import { NOTE_IMAGE_LIMITS, isNotebookId, noteImageInfo, noteImageProblem, type NotebookBlock, type ProblemType } from "@scholar/shared";
 
 /**
  * Pictures in the notes (docs/design/paper-reader.md, 22; the owner's yes of 18 Nov 2026). A picture's file is kept in R2 under its paper and its block, and served only to the
@@ -11,7 +11,7 @@ export const notebookImageKey = (userId: string, docId: string, blockId: string)
 export const IMAGE_GRACE_MS = 10 * 60 * 1000;
 
 type Env = { DB: D1Database; FILES: R2Bucket };
-export type ImagePut = { ok: true; w: number; h: number; type: string } | { ok: false; status: 400 | 413; type: string; title: string; detail?: string };
+export type ImagePut = { ok: true; w: number; h: number; type: string } | { ok: false; status: 400 | 413; type: ProblemType; title: string; detail?: string };
 
 /** The ids of the picture blocks among `blocks`. */
 export const imageIds = (blocks: readonly NotebookBlock[] | unknown): string[] =>

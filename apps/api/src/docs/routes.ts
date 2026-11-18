@@ -747,7 +747,7 @@ async function pageImageIds(db: D1Database, docId: string, pageId: string): Prom
 
 /** A picture for a block of the notes (phase 2.5): the body is the file (JPEG, PNG or WebP, at most 2 MB); its kind is read from its bytes. */
 documentRoutes.put("/:id/notebook/images/:blockId", async (c) => {
-  const door = await notebookDoor(c, true);
+  const door = await notebookDoor(c);
   if (door instanceof Response) return door;
   if (Number(c.req.header("content-length") ?? 0) > NOTE_IMAGE_LIMITS.bytes) return deny(c, 413, "too_big", "That picture is too big", "A picture in the notes is at most 2 MB.");
   const bytes = new Uint8Array(await c.req.arrayBuffer().catch(() => new ArrayBuffer(0)));
@@ -759,7 +759,7 @@ documentRoutes.put("/:id/notebook/images/:blockId", async (c) => {
 
 /** A picture of the notes, to its owner only (the same guards as the paper's own file). */
 documentRoutes.get("/:id/notebook/images/:blockId", async (c) => {
-  const door = await notebookDoor(c, false);
+  const door = await notebookDoor(c);
   if (door instanceof Response) return door;
   const blockId = c.req.param("blockId");
   if (!isNotebookId(blockId)) return deny(c, 404, "not_found", "No such picture");
