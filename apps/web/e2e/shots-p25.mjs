@@ -10,6 +10,7 @@
 //   p25-phone-notes-{light|dark|read}.png    a phone, the Notes view
 //   npm run build -w apps/web && INTEGRATION_PORT=8792 INTEGRATION_IDP_PORT=9915 SHOTS_DIR=<folder> node apps/web/e2e/shots-p25.mjs
 import { mkdirSync } from "node:fs";
+import { deflateSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
@@ -37,6 +38,16 @@ function strokes() {
     { id: "r1", tool: "pen", color: "red", w: 0.004, pts: ring },
     { id: "h1", tool: "highlighter", color: "yellow", w: 0.03, pts: mark },
   ];
+}
+
+/** A small PNG made here (a soft gradient), for a picture block. */
+function pngOf(w, h) {
+  const table = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = (buf) => { let c = 0xffffffff; for (const b of buf) c = table[(c ^ b) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([len, td, c]); };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
+  const rows = []; for (let y = 0; y < h; y++) { rows.push(0); for (let x = 0; x < w; x++) rows.push(60 + Math.round((x / w) * 150), 110 + Math.round((y / h) * 90), 190); }
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(Buffer.from(rows))), chunk("IEND", Buffer.alloc(0))]);
 }
 
 async function setUp() {
@@ -67,8 +78,11 @@ async function setUp() {
     { id: "q1", kind: "quote", noteId: a.id, page: a.page, quote: a.quote, color: a.color },
     { id: "c1", kind: "capture", page: 1, x: 0.08, y: 0.06, w: 0.84, h: 0.14, caption: "The abstract, as the paper puts it", size: "m" },
     { id: "s1", kind: "sketch", height: 220, strokes: strokes() },
+    { id: "img1", kind: "image", w: 480, h: 200, type: "image/png", alt: "A sketch of the pipeline, from a whiteboard" },
     { id: "t2", kind: "text", md: "" },
   ];
+  const up = await p.request.put(`${BASE}/api/v1/documents/${docId}/notebook/images/img1`, { headers: { ...H, "Content-Type": "image/png" }, data: pngOf(480, 200) });
+  if (!up.ok()) throw new Error(`the picture was refused: ${up.status()}`);
   const put = await p.request.put(`${BASE}/api/v1/documents/${docId}/notebook/pages/methods`, { headers: H, data: { title: "Methods", style: "ruled", position: 1, blocks } });
   if (!put.ok()) throw new Error(`the page was refused: ${put.status()} ${await put.text()}`);
   await p.request.put(`${BASE}/api/v1/documents/${docId}/notebook/pages/results`, { headers: H, data: { title: "Results", style: "grid", position: 2, blocks: [{ id: "r1", kind: "text", md: "Sensitivity 0.91, specificity 0.87." }] } });
@@ -118,7 +132,7 @@ try {
         await page.locator(".nb-sketch").first().scrollIntoViewIfNeeded();
         await sleep(300);
         await shoot(page.locator(".nb-block[data-kind=sketch]").first(), "p25-desktop-sketch-block-light");
-        await page.getByRole("button", { name: "Page", exact: true }).click();
+        await page.getByRole("button", { name: "Add a page" }).click();
         await page.getByRole("dialog", { name: "Choose paper for the new page" }).waitFor();
         await sleep(400);
         await shoot(page, "p25-desktop-picker-light");

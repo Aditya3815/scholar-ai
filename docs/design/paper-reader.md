@@ -853,3 +853,20 @@ Built on the branch `reader-p25`, from main 531121b, in the order of 21.5, behin
 | PDF reader | 59.9 of 66 KB | |
 
 **Not built (21.1, 9).** Image upload, which waits for the owner's yes and its privacy words.
+
+### 22.1 The owner's answers (18 Nov) and what was built for them
+
+- **fontkit**: yes, as built (lazy, only for Devanagari).
+- **Capture on a phone**: a **long press** starts a frame (450 ms, the finger held within 10 px); until then the page scrolls as ever. Once a frame has started, the page's touch moves are stopped so the finger draws it. The keyboard way is unchanged.
+- **Pictures in the notes** (`image` blocks):
+  - **In the browser:** Image in the toolbar takes a JPEG, PNG or WebP. The picture is turned upright, made at most 2000 px a side and re-encoded, which removes its camera data (EXIF). A PNG stays a PNG within 2 MB; anything else becomes a JPEG, made smaller until it fits.
+  - **On the server:** the file goes to `PUT /documents/:id/notebook/images/:blockId`, guarded like the paper's own file. The server reads the kind from the first bytes, and checks 2 MB, 2000 px a side, no EXIF and 200 pictures a paper. It keeps the file in R2 at `docs/<user>/<paper>/notebook/<block>` and serves it only to the owner (`nosniff`, a sandboxing CSP).
+  - **Deleting:** a file no block holds (taken out of a page, a page deleted, an upload never saved) is noted in `doc_notebook_image_gone` (migration 0029). It is deleted ten minutes later, on the next write in that paper, so Undo can bring it back. The paper's deletion, and so the account's, deletes them all at once.
+  - **Data export:** lists each picture (paper, block, kind, size, address).
+  - **PDF and Word exports:** put the picture in.
+  - **Privacy:** the words are on the "Papers you upload" row ("…and pictures you add to your note pages"), at draft-19, with a "Latest change" line.
+- **"+" (Add a page)**: an icon right after the last tab, as a browser's new tab button. It is the tab's height (44 px on touch), and stays in sight at the end of a row that scrolls.
+- **Toolbar**:
+  - **One basic row:** B, I, Mark, bullet list | Quote, Capture, Draw, Image | **More** (Aa, `aria-expanded`). On a narrow panel the words beside the icons go and the row scrolls sideways with a fade; it never wraps.
+  - **Behind More**, on a second row: H, U, numbered list, Text and the four papers.
+  - The paper is also in the page's ⋯ menu again.

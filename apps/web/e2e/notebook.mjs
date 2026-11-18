@@ -251,13 +251,13 @@ try {
     const { ctx, page } = await openReader(desk(1280, 800));
     await page.locator(".nb-bar").waitFor({ timeout: 10000 });
     // + Page opens "Choose paper for the new page": four cards; a card makes the page on that paper and puts the cursor in its title
-    await page.getByRole("button", { name: "Page", exact: true }).click();
+    await page.getByRole("button", { name: "Add a page" }).click();
     const picker = page.getByRole("dialog", { name: "Choose paper for the new page" });
     await picker.waitFor();
     ok(JSON.stringify((await picker.locator(".nb-papercard").allInnerTexts()).map((t) => t.trim())) === JSON.stringify(["Plain", "Ruled", "Dotted", "Graph"]), "+ Page: Choose paper for the new page, with four papers");
     await page.keyboard.press("Escape");
     ok((await picker.count()) === 0, "Esc closes the paper picker");
-    await page.getByRole("button", { name: "Page", exact: true }).click();
+    await page.getByRole("button", { name: "Add a page" }).click();
     await picker.getByRole("button", { name: "Ruled" }).click();
     const title = page.getByRole("textbox", { name: "Page title" });
     ok((await title.inputValue()) === "Untitled page" && (await page.evaluate(() => document.activeElement?.classList.contains("nb-title"))) && (await page.locator(".nb-scroll").getAttribute("data-style")) === "ruled", "a paper card makes the page on that paper and focuses its title");
@@ -273,7 +273,17 @@ try {
       return { line, lh: parseFloat(cs.lineHeight), padTop: parseFloat(cs.paddingTop), bg: cs.backgroundImage };
     });
     ok(rhythm.line > 0 && Math.abs(rhythm.lh - rhythm.line) < 0.5 && rhythm.padTop === 0 && rhythm.bg.startsWith("repeating-linear-gradient") && rhythm.bg.includes(`${Math.round(rhythm.line)}px`), `Ruled: the line height of the text is --nb-line (${rhythm.lh} px = ${rhythm.line} px) and the rules repeat at it`);
-    // the toolbar's papers
+    // "+" sits right after the last tab, as a browser's new tab button
+    const plus = await page.getByRole("button", { name: "Add a page" }).boundingBox();
+    const lastTab = await page.getByRole("tablist", { name: "Pages" }).getByRole("tab").last().boundingBox();
+    ok(plus && lastTab && plus.x - (lastTab.x + lastTab.width) < 12 && plus.x > lastTab.x, `"+" (Add a page) is right after the last tab (${Math.round(plus.x - (lastTab.x + lastTab.width))} px)`);
+    // the toolbar: the basic actions in one row; More opens the rest, the papers among them
+    const basic = await page.locator(".nb-tools-main").getByRole("button").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+    ok(JSON.stringify(basic) === JSON.stringify(["Bold", "Italic", "Mark", "Bullet list", "Quote", "Capture", "Draw", "Image", "More formatting and paper"]), `the basic row: B, I, Mark, bullet list, Quote, Capture, Draw, Image, and More (${basic.join(", ")})`);
+    const more = page.getByRole("button", { name: "More formatting and paper" });
+    ok((await more.getAttribute("aria-expanded")) === "false" && (await page.getByRole("button", { name: "Heading" }).count()) === 0, "Heading, Underline, the numbered list, Text and the papers wait behind More");
+    await more.click();
+    ok((await more.getAttribute("aria-expanded")) === "true" && (await page.getByRole("button", { name: "Numbered list" }).count()) === 1, "More opens them (aria-expanded)");
     const papers = page.getByRole("group", { name: "Paper" }).getByRole("button");
     ok(JSON.stringify(await papers.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))) === JSON.stringify(["Plain paper", "Ruled paper", "Dotted paper", "Graph paper"]), "the toolbar has the four papers");
     await page.getByRole("button", { name: "Graph paper" }).click();
@@ -422,19 +432,12 @@ try {
     await toast.getByRole("button", { name: "Open" }).click();
     await sleep(500);
     ok((await page.locator(".desk").getAttribute("data-view")) === "notes" && (await page.locator("#desk-tabpanel-notes").isVisible()), "Open switches to Notes, on the Notes tab");
-    // the toolbar on a phone: two rows, a group never split (H B I U Mark, then the lists and Quote), every button whole and 44 px or more
-    const bar = await page.locator(".nb-tools").evaluate((tb) => {
-      const r = tb.getBoundingClientRect();
-      const groups = [...tb.querySelectorAll(".nb-tgroup")].map((g) => [...g.querySelectorAll(".nb-tool")].map((b) => b.getBoundingClientRect()));
-      const all = groups.flat();
-      return {
-        rows: [...new Set(groups.map((g) => Math.round(g[0].top)))].length,
-        split: groups.some((g) => new Set(g.map((b) => Math.round(b.top))).size > 1),
-        whole: all.every((b) => b.left >= r.left - 1 && b.right <= r.right + 1 && b.right <= innerWidth),
-        small: Math.min(...all.map((b) => Math.min(b.width, b.height))),
-      };
+    // the toolbar on a phone: the basic actions in ONE row (it scrolls sideways with a fade, never wraps), every button 44 px or more
+    const bar = await page.locator(".nb-tools-main").evaluate((row) => {
+      const bs = [...row.querySelectorAll(".nb-tool")].map((b) => b.getBoundingClientRect());
+      return { rows: new Set(bs.map((b) => Math.round(b.top))).size, small: Math.min(...bs.map((b) => Math.min(b.width, b.height))), scrolls: row.scrollWidth > row.clientWidth, fade: row.dataset.more ?? "" };
     });
-    ok(bar.rows >= 2 && bar.rows <= 4 && !bar.split && bar.whole && bar.small >= 44, `the toolbar on a phone: its groups on rows of their own (marks, lists, Text Quote Capture Draw, papers), never split, nothing cut off, every button at least 44 px (${JSON.stringify(bar)})`);
+    ok(bar.rows === 1 && bar.small >= 44 && (!bar.scrolls || bar.fade === "end"), `the toolbar on a phone: one row of basic actions, 44 px each, scrolling with a fade when it does not fit (${JSON.stringify(bar)})`);
     // the Highlights chips on a phone: one line, no meaning with none
     await page.getByRole("tab", { name: /^Highlights/ }).click();
     const chipRow = await page.locator(".hl-filter").evaluate((row) => ({ tops: new Set([...row.children].map((c) => Math.round(c.getBoundingClientRect().top))).size, zero: [...row.querySelectorAll(".hl-chip")].some((c) => /\b0\s*$/.test(c.textContent.trim())) }));
@@ -556,7 +559,29 @@ try {
     const sk = srv.flatMap((p) => p.blocks).find((b) => b.kind === "sketch");
     ok(!!sk && sk.strokes.length === 1 && sk.strokes[0].tool === "pen" && sk.strokes[0].pts.length >= 30, "the sketch is kept, and drawn again after a reload");
 
-    // Export: PDF and Word of all pages, with the captures and the sketch as pictures
+    // a picture: Image, a file chosen, made smaller in the browser and kept under the paper; served to its owner
+    const { deflateSync } = await import("node:zlib");
+    const pngOf = (w, h) => {
+      const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+      const crc = (buf) => { let c = 0xffffffff; for (const b of buf) c = crcTable[(c ^ b) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+      const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([len, td, c]); };
+      const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
+      const rows = []; for (let y = 0; y < h; y++) { rows.push(0); for (let x = 0; x < w; x++) rows.push((x * 4) & 255, (y * 4) & 255, 160); }
+      return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(Buffer.from(rows))), chunk("IEND", Buffer.alloc(0))]);
+    };
+    await page.locator('input[type="file"][accept^="image/"]').setInputFiles({ name: "diagram.png", mimeType: "image/png", buffer: pngOf(64, 48) });
+    const pic = page.locator(".nb-image img").last();
+    await pic.waitFor({ timeout: 15000 });
+    await until(() => pic.evaluate((el) => el.complete && el.naturalWidth > 0), { ms: 10000, what: "the picture to show" });
+    await page.locator(".nb-image .nb-caption").last().fill("A test diagram");
+    await saved(page);
+    srv = await pagesOnServer();
+    const imgBlock = srv.flatMap((p) => p.blocks).find((b) => b.kind === "image");
+    ok(!!imgBlock && imgBlock.w === 64 && imgBlock.h === 48 && imgBlock.type === "image/png" && imgBlock.alt === "A test diagram", `Image: the picture is kept under the paper and shown, with its words (${JSON.stringify(imgBlock)})`);
+    const other = await browser.newContext();
+    ok((await other.request.get(`${BASE}/api/v1/documents/${docId}/notebook/images/${imgBlock.id}`)).status() === 401, "a picture of the notes is not served to anyone not signed in as its owner");
+    await other.close();
+    // Export: PDF and Word of all pages, with the captures, the sketch and the picture
     const exportAs = async (what) => {
       await page.locator(".nb-export").click();
       const m = page.getByRole("menu", { name: "Export" });
@@ -570,13 +595,13 @@ try {
     const pdfOut = await exportAs("PDF");
     const pdfDoc = await PDFDocument.load(pdfOut.bytes);
     const images = pdfDoc.context.enumerateIndirectObjects().filter(([, o]) => o instanceof PDFRawStream && o.dict.get(PDFName.of("Subtype")) === PDFName.of("Image")).length;
-    ok(/^notes-.+-\d{4}-\d\d-\d\d\.pdf$/.test(pdfOut.name) && pdfDoc.getPageCount() >= 1 && images >= 3, `Export ▾ PDF: a PDF with the two captures and the sketch as pictures (${pdfOut.name}, ${pdfDoc.getPageCount()} pages, ${images} pictures)`);
+    ok(/^notes-.+-\d{4}-\d\d-\d\d\.pdf$/.test(pdfOut.name) && pdfDoc.getPageCount() >= 1 && images >= 4, `Export ▾ PDF: a PDF with the two captures, the sketch and the picture (${pdfOut.name}, ${pdfDoc.getPageCount()} pages, ${images} pictures)`);
     const { unzipSync, strFromU8 } = await import("fflate");
     const docxOut = await exportAs("Word (.docx)");
     const parts = unzipSync(docxOut.bytes);
     const media = Object.keys(parts).filter((k) => k.startsWith("word/media/"));
     const xml = strFromU8(parts["word/document.xml"]);
-    ok(/\.docx$/.test(docxOut.name) && media.length >= 3 && xml.includes("Figure one") && xml.includes("Results"), `Export ▾ Word: a .docx with the pictures and the captions (${media.length} pictures)`);
+    ok(/\.docx$/.test(docxOut.name) && media.length >= 4 && xml.includes("Figure one") && xml.includes("A test diagram") && xml.includes("Results"), `Export ▾ Word: a .docx with the pictures and the captions (${media.length} pictures)`);
 
     // axe with a capture and a sketch on the page, in the three themes
     for (const theme of ["light", "dark", "read"]) {
