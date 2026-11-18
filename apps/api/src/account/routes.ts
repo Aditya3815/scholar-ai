@@ -7,7 +7,7 @@ import { readJson } from "../platform/http/body";
 import { SESSION_COOKIE } from "../auth/session";
 import { fromSqliteTime } from "../library/validate";
 import { PRIVACY_VERSION } from "@scholar/shared";
-import { listNotebookImages } from "../docs/notebook-images";
+import { listNotebookImages } from "../docs/service";
 import { eraseAccount } from "./erase";
 import type { HonoEnv } from "../platform/env";
 
