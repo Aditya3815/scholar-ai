@@ -206,7 +206,7 @@ export async function sharedWith(db: D1Database, userId: string): Promise<(Share
 
 /** "Leave": the person takes the paper off their list (their membership, and the address the owner typed, go). */
 export async function leave(db: D1Database, docId: string, userId: string): Promise<boolean> {
-  const r = await db.prepare("DELETE FROM doc_members WHERE doc_id = ?1 AND user_id = ?2").bind(docId, userId).run();
+  const r = await db.prepare("DELETE FROM doc_members WHERE doc_id = ?1 AND (user_id = ?2 OR (user_id IS NULL AND email = (SELECT lower(email) FROM users WHERE id = ?2 AND email_verified = 1)))").bind(docId, userId).run();
   return (r.meta?.changes ?? 0) > 0;
 }
 

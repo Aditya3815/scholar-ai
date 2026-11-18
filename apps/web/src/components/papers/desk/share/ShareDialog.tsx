@@ -32,6 +32,8 @@ export type ShareDialogProps = {
   ownerName: string | null;
   toast: (text: string, action?: { label: string; run: () => void }) => void;
   copy: (text: string) => Promise<boolean>;
+  /** Where the focus goes when it closes (the Share button). */
+  returnFocus: () => void;
 };
 
 const EXPIRY_LABEL = (d: LinkExpiry) => (d === null ? "Never expires" : `Expires in ${d} days`);
@@ -112,13 +114,33 @@ function Menu<T extends string | number | null>({ label, value, options, onPick,
   );
 }
 
-export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast, copy }: ShareDialogProps) {
+export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast, copy, returnFocus }: ShareDialogProps) {
   const [share, setShare] = useState<ShareSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<MemberRole>("commenter");
   const [busy, setBusy] = useState(false);
   const [token, setToken] = useState<string | null>(() => keptToken(docId));
+  // Undo of Remove, in the dialog itself: the reader's toasts sit behind the modal, where nothing can be pressed
+  const [removed, setRemoved] = useState<ShareMember | null>(null);
+  useEffect(() => {
+    if (!removed) return;
+    const t = window.setTimeout(() => setRemoved(null), 10_000);
+    return () => window.clearTimeout(t);
+  }, [removed]);
+  // what a change did, said in the dialog (role="status"); the reader's toast says it again once the dialog is closed
+  const [said, setSaid] = useState<string | null>(null);
+  const last = useRef<string | null>(null);
+  const say = useCallback((text: string) => {
+    setRemoved(null);
+    setSaid(text);
+    last.current = text;
+  }, []);
+  useEffect(() => {
+    if (!said) return;
+    const t = window.setTimeout(() => setSaid(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [said]);
   const [wide, setWide] = useState(() => typeof matchMedia !== "function" || matchMedia("(min-width: 601px)").matches);
   useEffect(() => {
     if (typeof matchMedia !== "function") return;
@@ -173,49 +195,47 @@ export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast
     if (!r) return;
     setEmail("");
     await load();
-    if (r.emailed) toast(`Invited ${valid}. We e-mailed them.`);
+    if (r.emailed) say(`Invited ${valid}. We e-mailed them.`);
     else {
       const ok = await copy(inviteText(title, r.link));
-      toast(ok ? `Added ${valid}. The invitation is copied: send it by your own mail.` : `Added ${valid}.`);
+      say(ok ? `Added ${valid}. The invitation is copied: send it by your own mail.` : `Added ${valid}.`);
     }
   };
   const setMemberRole = async (m: ShareMember, r: MemberRole) => {
     const done = await run(() => changeMember(docId, m.id, r));
     if (done) {
       setShare((s) => (s ? { ...s, members: s.members.map((x) => (x.id === m.id ? done.member : x)) } : s));
-      toast(`${m.name ?? m.email}: ${ROLE_LABEL[r]}`);
+      say(`${m.name ?? m.email}: ${ROLE_LABEL[r]}`);
     }
   };
   const remove = async (m: ShareMember) => {
     const done = await run(() => removeMember(docId, m.id));
     if (!done) return;
     setShare((s) => (s ? { ...s, members: s.members.filter((x) => x.id !== m.id) } : s));
-    toast(`Removed ${m.name ?? m.email}`, {
-      label: "Undo",
-      run: () => void inviteMember(docId, m.email, m.role, { restore: true }).then(load, () => toast("They could not be put back. Invite them again.")),
-    });
+    setSaid(null);
+    setRemoved(m);
   };
   const resend = async (m: ShareMember) => {
     const done = await run(() => resendInvite(docId, m.id));
     if (done) {
       setShare((s) => (s ? { ...s, members: s.members.map((x) => (x.id === m.id ? done.member : x)) } : s));
-      toast(`The invitation was e-mailed to ${m.email} again`);
+      say(`The invitation was e-mailed to ${m.email} again`);
     }
   };
   const setMode = async (anyone: boolean) => {
     const r = await run(() => changeShare(docId, { linkMode: anyone ? "anyone" : "restricted" }));
     took(r);
-    if (r) toast(anyone ? "Anyone with the link can open it" : "Only the people with access can open it");
+    if (r) say(anyone ? "Anyone with the link can open it" : "Only the people with access can open it");
   };
   const setLinkRole = async (r: LinkRole) => {
     const done = await run(() => changeShare(docId, { linkRole: r }));
     took(done);
-    if (done) toast(`People with the link: ${LINK_ROLE_LABEL[r]}`);
+    if (done) say(`People with the link: ${LINK_ROLE_LABEL[r]}`);
   };
   const setExpiry = async (d: LinkExpiry) => {
     const done = await run(() => changeShare(docId, { expiry: d }));
     took(done);
-    if (done) toast(d === null ? "The link does not expire" : `The link expires in ${d} days`);
+    if (done) say(d === null ? "The link does not expire" : `The link expires in ${d} days`);
   };
   const setDownload = async (on: boolean) => {
     const done = await run(() => changeShare(docId, { viewersDownload: on }));
@@ -224,12 +244,12 @@ export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast
   const reset = async () => {
     const done = await run(() => resetLink(docId, expiryOf(share?.expiresAt ?? null)));
     took(done);
-    if (done) toast("A new link is made. The old one no longer works.");
+    if (done) say("A new link is made. The old one no longer works.");
   };
   const stop = async () => {
     const done = await run(() => stopSharing(docId));
     took(done);
-    if (done) toast("Stopped sharing. Nobody else can open it now.");
+    if (done) say("Stopped sharing. Nobody else can open it now.");
   };
   const copyLink = async () => {
     const anyone = share?.linkMode === "anyone";
@@ -251,6 +271,30 @@ export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast
       {error && (
         <p className="sh-error" role="alert">
           {error}
+        </p>
+      )}
+      {said && !removed && (
+        <p className="sh-undo" role="status">
+          {said}
+        </p>
+      )}
+      {removed && (
+        <p className="sh-undo" role="status">
+          <span>Removed {removed.name ?? removed.email}</span>
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => {
+              const m = removed;
+              setRemoved(null);
+              void inviteMember(docId, m.email, m.role, { restore: true }).then(
+                () => (void load(), say(`${m.name ?? m.email} is back`)),
+                () => setError("They could not be put back. Invite them again."),
+              );
+            }}
+          >
+            Undo
+          </button>
         </p>
       )}
       <form
@@ -353,11 +397,18 @@ export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast
   );
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(o) => {
+        if (!o && said) toast(said);
+        setSaid(null);
+        onOpenChange(o);
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Overlay className="overlay" />
         <div className="sh-wrap" data-wide={wide}>
-          <Dialog.Content className="sh-dialog" data-wide={wide} onEscapeKeyDown={(e) => document.querySelector(".sh-menu") && e.preventDefault()}>
+          <Dialog.Content className="sh-dialog" data-wide={wide} onEscapeKeyDown={(e) => document.querySelector(".sh-menu") && e.preventDefault()} onCloseAutoFocus={(e) => (e.preventDefault(), returnFocus())}>
             {!wide && <span className="sh-grab" aria-hidden="true" />}
             {body}
           </Dialog.Content>

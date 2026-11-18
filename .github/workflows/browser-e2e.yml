@@ -34,7 +34,7 @@ jobs:
           - part: production positions
             runs: default
           - part: positions production does not have
-            runs: trending-on,mcp-on,reader-on
+            runs: trending-on,mcp-on,reader-on,share-on
     env:
       E2E_BROWSER: chrome # preinstalled on GitHub's Ubuntu runners; playwright-core does not download browsers
       OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}

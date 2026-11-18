@@ -139,6 +139,7 @@ export function Desk(props: DeskProps) {
   const comments = useComments(doc.id, sharing);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareEver, setShareEver] = useState(false);
+  const shareBtn = useRef<HTMLButtonElement>(null);
   /** The comments in the Notes tab: one thing's threads, or every thread (the Comments filter); null: the notes. */
   const [commentsAt, setCommentsAt] = useState<{ anchor: CommentAnchor | null } | null>(null);
   const [readFocus, setReadFocus] = useState<{ pageId: string; blockId: string; tick: number } | null>(null);
@@ -715,7 +716,7 @@ export function Desk(props: DeskProps) {
         <div className="dw-head-end desk-head-end">
           {isOwner && <DocMeta doc={doc} onChange={(d) => props.onDoc({ ...doc, readState: d.readState, tags: d.tags })} />}
           {isOwner && props.canShare && (
-            <button type="button" className="btn btn-ghost btn-sm desk-share-btn" aria-haspopup="dialog" onClick={() => (setShareEver(true), setShareOpen(true))} onPointerEnter={() => void import("./share/ShareDialog").catch(() => {})}>
+            <button ref={shareBtn} type="button" className="btn btn-ghost btn-sm desk-share-btn" aria-haspopup="dialog" onClick={() => (setShareEver(true), setShareOpen(true))} onPointerEnter={() => void import("./share/ShareDialog").catch(() => {})}>
               <Share2 size={15} aria-hidden="true" />
               <span>Share</span>
             </button>
@@ -872,7 +873,7 @@ export function Desk(props: DeskProps) {
       )}
       {shareEver && (
         <Suspense fallback={null}>
-          <ShareDialog open={shareOpen} onOpenChange={setShareOpen} docId={doc.id} title={doc.title} ownerName={props.myName} toast={(t, a) => void toast(t, a)} copy={copyText} />
+          <ShareDialog open={shareOpen} onOpenChange={setShareOpen} docId={doc.id} title={doc.title} ownerName={props.myName} toast={(t, a) => void toast(t, a)} copy={copyText} returnFocus={() => shareBtn.current?.focus({ preventScroll: true })} />
         </Suspense>
       )}
       <Toasts onRect={setToastRect} />
