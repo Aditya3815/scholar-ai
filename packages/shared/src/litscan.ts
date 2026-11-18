@@ -1,6 +1,8 @@
+import { MARK } from "./ids";
 import type { ChatCitation } from "./chat";
 import type { SearchScope } from "./index";
-import type { Lang } from "./route";
+import type { Lang } from "./vocab/languages";
+import { flatLine } from "./text";
 
 /**
  * Literature scan (docs/design/litscan.md): one topic is split into sub-questions; each is searched and answered from the abstracts it finds, with every claim tied to a sentence of an
@@ -101,7 +103,7 @@ export type LitscanEvent =
 /** A topic as it is sent: whitespace tidied, 8 to 400 characters with a letter or number in it. Null if it cannot be used. */
 export function cleanLitscanTopic(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  const t = raw.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  const t = flatLine(raw);
   return t.length >= LITSCAN_MIN_TOPIC && t.length <= LITSCAN_MAX_TOPIC && /[\p{L}\p{N}]/u.test(t) ? t : null;
 }
 
@@ -183,7 +185,7 @@ export function assembleReport(items: readonly LitscanItem[], parts: Readonly<Re
       map.set(s.n, g);
     }
     const text = part.text
-      .replace(/\[(\d{1,2})\]/g, (m, d: string) => (map.has(Number(d)) ? `[${map.get(Number(d))}]` : m))
+      .replace(MARK, (m, d: string) => (map.has(Number(d)) ? `[${map.get(Number(d))}]` : m))
       .replace(/(\[\d{1,3}\])(?:\s*\1)+/g, "$1");
     const evidence = part.citations.flatMap((c) => (map.has(c.n) ? [{ g: map.get(c.n)!, sentence: c.sentence }] : [])).sort((a, b) => a.g - b.g);
     return { idx, title, question: item.question, searchQuery: item.searchQuery, status: "answered", text, evidence };

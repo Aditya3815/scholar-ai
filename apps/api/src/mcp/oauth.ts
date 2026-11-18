@@ -1,6 +1,8 @@
 import { Hono, type Context } from "hono";
 import { AuthorizationError, OAuthProvider, authorizationErrorRedirect, getOAuthApi, type AuthRequest, type OAuthHelpers, type OAuthProviderOptions } from "@cloudflare/workers-oauth-provider";
-import { currentUser, sameOrigin } from "../auth/http";
+import { currentUser } from "../auth/service";
+import { sameOrigin } from "../platform/http/guards";
+import { noStore, pageSecurityHeaders } from "../middleware";
 import { randomToken } from "../auth/oauth";
 import { configuredProviders, type AuthEnv } from "../auth/providers";
 import type { SessionUser } from "../auth/users";
@@ -64,16 +66,8 @@ const PENDING_TTL_S = 600;
 type Pending = { userId: string; request: AuthRequest; client: string };
 export const oauthPages = new Hono<HonoEnv>();
 
-oauthPages.use("*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "no-store");
-  // the page can never be framed (a consent button under someone else's page), loads nothing from elsewhere and posts only to itself
-  c.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'");
-  c.header("X-Frame-Options", "DENY");
-  // same-origin, not no-referrer: with no-referrer a browser sends "Origin: null" on the form post, and the post is then refused as cross-site; the app still gets no referrer
-  c.header("Referrer-Policy", "same-origin");
-  c.header("X-Content-Type-Options", "nosniff");
-});
+// never kept, never framed, nothing loaded from elsewhere (src/middleware.ts)
+oauthPages.use("*", noStore, pageSecurityHeaders);
 
 const html = (c: Context<HonoEnv>, body: string, status = 200) => c.html(body, status as 200);
 

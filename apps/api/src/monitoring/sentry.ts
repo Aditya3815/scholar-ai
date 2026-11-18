@@ -1,3 +1,4 @@
+import { replaceEmails } from "@scholar/shared";
 /**
  * A thin Sentry client: we build the event ourselves and post it to Sentry's envelope endpoint. No SDK, so we decide exactly what leaves:
  * an error's type, a shortened message, the stack frames (file, function, line) and where in the app it happened (a route pattern, never
@@ -24,14 +25,13 @@ export function parseDsn(dsn: string | undefined): Dsn | null {
   }
 }
 
-const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const LINK = /\bhttps?:\/\/\S+/gi;
 const LONG_ID = /\b[0-9a-f]{16,}\b/gi;
 
 /** A message that is safe to send: no e-mail addresses, links or long ids, and short. */
 export function scrubMessage(message: unknown, max = 300): string {
   const s = typeof message === "string" ? message : message instanceof Error ? message.message : String(message ?? "");
-  return s.replace(EMAIL, "[email]").replace(LINK, "[link]").replace(LONG_ID, ":id").replace(/\s+/g, " ").trim().slice(0, max);
+  return replaceEmails(s, "[email]").replace(LINK, "[link]").replace(LONG_ID, ":id").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
 /** `/papers/3f9a...` becomes `/papers/:id`; the query and the fragment are dropped. */

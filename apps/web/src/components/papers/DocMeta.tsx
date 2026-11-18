@@ -1,13 +1,13 @@
 import { BookCheck, BookOpen, Bookmark, Tag, X } from "lucide-react";
 import { useId, useState, type KeyboardEvent } from "react";
-import { MAX_TAGS_PER_DOC, MAX_TAG_CHARS, cleanTag, tagKey, type DocumentInfo, type ReadState } from "@scholar/shared";
+import { MAX_TAGS_PER_DOC, MAX_TAG_CHARS, READ_STATES, READ_STATE_LABEL, cleanTag, tagKey, type DocumentInfo, type ReadState } from "@scholar/shared";
 import { setMeta, useDocs } from "../../lib/documents";
 import { showNotice } from "../../lib/notice";
 import { Pop } from "../Pop";
 
-export const STATE_LABEL: Record<ReadState, string> = { to_read: "To read", reading: "Reading", done: "Done" };
+export const STATE_LABEL = READ_STATE_LABEL;
 const STATE_ICON = { to_read: Bookmark, reading: BookOpen, done: BookCheck } as const;
-export const STATES: ReadState[] = ["to_read", "reading", "done"];
+export const STATES: readonly ReadState[] = READ_STATES;
 
 /** One small control for what a reader wants to say about a paper: where it stands, and a few words of their own (tags). */
 export function DocMeta({ doc, compact = false, onChange }: { doc: DocumentInfo; compact?: boolean; onChange?: (d: DocumentInfo) => void }) {

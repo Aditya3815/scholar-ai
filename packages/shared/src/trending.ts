@@ -1,3 +1,4 @@
+import { isoDay } from "./ids";
 /**
  * The pure half of the Trending feed, server side (docs/design/chatview-and-trending.md, T3 to T8, T10). No network, no clock, no storage: the job in apps/api feeds it what OpenAlex,
  * arXiv and the product's own search answered, and it says what is a trend, what may be shown, and what the file for the page holds. Not imported by the page (the page has
@@ -15,6 +16,7 @@
  * (https://help.openalex.org/data/keywords/, read 4 Nov 2026), so the words are model-assigned before they reach us and are unchanged here. The privacy page and the Why panel say so.
  */
 import { cleanChatMessage } from "./chat";
+import { isCount } from "./text";
 import { isSmallTalk, offlineRoute } from "./route";
 import { subfieldInfo, type SubfieldInfo } from "./subfield-policy";
 import { TRENDING_CHIP_MAX, TRENDING_CHIP_MIN, TRENDING_MAX_CHIPS, parseTrending, type TrendingChip, type TrendingPayload } from "./trending-client";
@@ -71,7 +73,6 @@ const dayMs = (s: unknown): number => {
   const t = Date.parse(s);
   return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === s ? t : NaN;
 };
-const isoDay = (t: number): string => new Date(t).toISOString().slice(0, 10);
 
 /** The two windows of dates (inclusive, as OpenAlex's from_publication_date and to_publication_date read them) for a day "YYYY-MM-DD". Throws on a day that is not a day. */
 export function trendWindows(asOf: string): { a: { from: string; to: string }; b: { from: string; to: string } } {
@@ -587,7 +588,7 @@ export function verifySummary(s: SearchSummary): { ok: boolean; failures: Verify
 /* ---------------------------------------------------------------- the file */
 
 const tidyField = (f: unknown): f is string => typeof f === "string" && f.length >= 1 && f.length <= 60 && !/[\p{Cc}\p{Cf}]/u.test(f);
-const count = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 1e9;
+const count = (n: unknown): n is number => isCount(n, 1e9);
 
 /**
  * A candidate as the page shows it: the keyword's own text, the year its search starts from (the year before the day's: "From 2025 on"), and the two counts. Null when it cannot be shown: a

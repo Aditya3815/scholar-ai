@@ -1,4 +1,5 @@
-import { invertedIndexToText, normalizeDoi, sanitizeQuery } from "./normalize";
+import { normalizeDoi } from "@scholar/shared";
+import { invertedIndexToText, sanitizeQuery } from "./normalize";
 import type { Provider, ProviderPaper } from "./types";
 import type { Env } from "../platform/env";
 

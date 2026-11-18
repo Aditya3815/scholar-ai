@@ -1,9 +1,14 @@
+import { type NoticeKind } from "./vocab/notices";
+import { type Lang } from "./vocab/languages";
+import { type ChatStep } from "./vocab/steps";
+import { type Intent } from "./vocab/intents";
 import type { Paper, SearchScope } from "./index";
 import type { ChatContextInfo } from "./chat-context";
 import type { ThinkLine } from "./think";
-import type { Lang, RouteHow, RouteMode as ChatMode } from "./route";
+import type { RouteHow, RouteMode as ChatMode } from "./route";
 import type { Reading } from "./reading";
 import type { ChatToolEvent } from "./chat-tools";
+import { flatLine } from "./text";
 
 /**
  * The prompt box of the new home (W2): what the browser sends to `POST /api/v1/chat` and what comes back as server-sent events.
@@ -18,8 +23,6 @@ export type ChatRequestMode = (typeof CHAT_REQUEST_MODES)[number];
 export const MIN_CHAT_CHARS = 2;
 export const MAX_CHAT_CHARS = 300;
 
-/** `route` is only there when the router's model had to look at the message. */
-export type ChatStep = "route" | "search" | "read" | "write" | "check" | "general";
 
 /**
  * Answers that are not from a paper (W5). Papers first: the answer is written from the papers found, every claim tied to a sentence. Only when the papers do not answer (or none
@@ -71,7 +74,7 @@ export type ChatNoAnswer = "sign_in" | "no_abstracts" | "not_answered" | "not_gr
  *  - `offer`: another tool that has no route mode of its own, offered as a card and never started: `litscan` (the literature scan).
  */
 export type UnderstoodByModel = {
-  intent?: "chat" | "search" | "refine_search" | "ask_results" | "ask_paper" | "offer_tool" | "clarify";
+  intent?: Intent;
   statusLine?: string;
   confirm?: true;
   fallback?: true;
@@ -92,11 +95,6 @@ export const ABSTRACTS_NOTICE = "Answered from the abstracts of papers already i
  * The four lines of the safety lane (one kind for each, because the reducer keeps one notice of a kind): the crisis line, the urgent line (also for a plain call for help), the line for a personal
  * medicine decision, and the care line (a health or distress story with a research question). They are drawn under the Understood line, above the offer, the answer and the papers.
  */
-export const SAFETY_NOTICE_KINDS = ["safety_crisis", "safety_urgent", "safety_decision", "safety_care"] as const;
-export type SafetyNoticeKind = (typeof SAFETY_NOTICE_KINDS)[number];
-
-export const NOTICE_KINDS = ["partial", "nothing", "retracted", "years", "weak", "unfinished", "abstracts", ...SAFETY_NOTICE_KINDS] as const;
-export type NoticeKind = (typeof NOTICE_KINDS)[number];
 
 export type ChatEvent =
   /**
@@ -153,7 +151,7 @@ export const didNotFinishText = (language: Lang): string => (language === "hingl
 /** A message that can be sent, as the browser checks it before sending and the server checks again: whitespace tidied, then 2 to 300 characters. Null if it cannot be sent. */
 export function cleanChatMessage(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  const t = raw.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  const t = flatLine(raw);
   return t.length >= MIN_CHAT_CHARS && t.length <= MAX_CHAT_CHARS && /[\p{L}\p{N}]/u.test(t) ? t : null;
 }
 

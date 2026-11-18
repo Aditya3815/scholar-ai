@@ -1,4 +1,6 @@
+import { scrubText } from "@scholar/shared";
 import {
+  foldTitle,
   IDEA_RESULTS,
   MAX_KEYWORD_QUERIES,
   MAX_KEYWORD_QUERY_CHARS,
@@ -10,11 +12,11 @@ import {
   type IdeaSearched,
   type IdeaSource,
   type Paper,
+  titleKey,
 } from "@scholar/shared";
 import type { Embedder } from "../docs/embed";
 import { cosine } from "../docs/vector";
 import { applyDoiIntegrity, applyRetractions, runProvider } from "../search";
-import { normalizeTitle } from "../search/normalize";
 import { mergeAndRank } from "../search/merge";
 import { arxiv } from "../search/arxiv";
 import { core } from "../search/core";
@@ -23,7 +25,6 @@ import { pubmed } from "../search/pubmed";
 import { s2 } from "../search/s2";
 import type { ProviderPaper, SearchEnv } from "../search/types";
 import { classifyWork } from "./kind";
-import { scrubText } from "./plan";
 
 const SEMANTIC_LIMIT = 40;
 const MAX_MERGED = 80;
@@ -74,13 +75,13 @@ function foundBy(papers: Paper[], lists: Record<string, ProviderPaper[]>): Map<s
   for (const p of papers) {
     if (p.doi) byDoi.set(p.doi, p);
     if (p.pmid) byPmid.set(p.pmid, p);
-    byTitle.set(`${normalizeTitle(p.title)}|${p.year ?? ""}`, p);
+    byTitle.set(titleKey(p.title, p.year), p);
   }
   const out = new Map<string, Set<string>>();
   for (const [key, list] of Object.entries(lists)) {
     const label = LABEL[key.replace(/:\d+$/, "")] ?? key;
     for (const item of list) {
-      const hit = (item.doi && byDoi.get(item.doi)) || (item.pmid && byPmid.get(item.pmid)) || byTitle.get(`${normalizeTitle(item.title)}|${item.year ?? ""}`);
+      const hit = (item.doi && byDoi.get(item.doi)) || (item.pmid && byPmid.get(item.pmid)) || byTitle.get(titleKey(item.title, item.year));
       if (!hit) continue;
       if (!out.has(hit.id)) out.set(hit.id, new Set());
       out.get(hit.id)!.add(label);
@@ -99,7 +100,7 @@ function prepare(lists: Record<string, ProviderPaper[]>): Record<string, Provide
   const out: Record<string, ProviderPaper[]> = {};
   for (const key of Object.keys(lists).sort()) {
     out[key] = lists[key]!.map((p) => {
-      const t = normalizeTitle(p.title);
+      const t = foldTitle(p.title);
       if (t.split(" ").length < 4) return p;
       if (!yearOf.has(t)) yearOf.set(t, p.year);
       return yearOf.get(t) === p.year ? p : { ...p, year: yearOf.get(t) ?? null };

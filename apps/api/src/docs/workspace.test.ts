@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_TAG_CHARS, cleanTag, tagKey } from "@scholar/shared";
-import { searchWords } from "./routes";
+import { searchWords } from "@scholar/shared";
 
 describe("cleanTag", () => {
   it("tidies spaces and control characters, cuts to length, and drops what is empty", () => {

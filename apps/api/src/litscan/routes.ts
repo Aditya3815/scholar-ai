@@ -1,9 +1,8 @@
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import {
   LITSCAN_LANGUAGES,
   LITSCAN_MAX_SHARES,
   LITSCAN_PER_DAY,
-  PRIVACY_VERSION,
   cleanLitscanTopic,
   detectLanguage,
   estimateScanTokens,
@@ -15,7 +14,8 @@ import {
   type LitscanPlan,
   type LitscanSnapshot,
 } from "@scholar/shared";
-import { currentUser, sameOrigin } from "../auth/http";
+import { requireUser, type Door } from "../auth/service";
+import { readJson } from "../platform/http/body";
 import { d1Ledger } from "../llm/d1";
 import { AllProvidersFailedError, NoRouteError, QuotaError } from "../llm";
 import { DEFAULT_CONFIG } from "../llm/config";
@@ -24,16 +24,11 @@ import { planModel } from "./model";
 import { ScanPlanError, planScan, sanitizeApproved } from "./plan";
 import { createShare, publicScan, revokeShare, shareOf } from "./share";
 import { fromSqliteTime } from "../library/validate";
-import { createScan, deleteScan, endScan, failIfStale, getScan, listScans, partsOf, refundScan, runningScan, snapshotOf, takeScan, tickOf } from "./store";
+import { type ScanRow, createScan, deleteScan, endScan, failIfStale, getScan, listScans, partsOf, refundScan, runningScan, snapshotOf, takeScan, tickOf } from "./store";
 import { deny } from "../problem";
 import type { HonoEnv } from "../platform/env";
 
 export const litscanRoutes = new Hono<HonoEnv>();
-
-litscanRoutes.use("*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "no-store");
-});
 
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -46,16 +41,14 @@ function resolveLanguage(choice: unknown, topic: string): LitscanLanguage {
   return detected === "hi" || detected === "hinglish" ? detected : "en";
 }
 
-/** The checks every call that spends the person's allowance starts with: signed in, and the privacy note read (the topic is the person's own text). */
-async function requireUser(c: Context<HonoEnv>) {
-  // reading changes nothing (and a page cannot read the answer of another origin); every call that changes something must come from our own pages
-  if (c.req.method !== "GET" && !sameOrigin(c)) return { error: deny(c, 403, "forbidden", "Cross-origin request blocked") };
-  const user = await currentUser(c);
-  if (!user) return { error: deny(c, 401, "unauthorized", "Sign in to scan the literature") };
-  return { user };
-}
-const needsAck = (c: Context<HonoEnv>, user: { privacyAck: string | null }) =>
-  user.privacyAck === PRIVACY_VERSION ? null : deny(c, 403, "privacy_ack_required", "Please read how your topics are handled first", "A short note appears before your first scan.");
+/** Every call is a signed-in person's; the ones that spend the allowance on the topic also need the privacy note read (the topic is the person's own text). */
+const SCANNER: Door = { signIn: "Sign in to scan the literature" };
+const SCANNER_TOPIC: Door = { ...SCANNER, ack: { title: "Please read how your topics are handled first", detail: "A short note appears before your first scan." } };
+/** A scan of this person's, named by the path (an id of the wrong shape names none). */
+const OWN_SCAN: Door<ScanRow> = {
+  ...SCANNER,
+  owns: { find: (c, userId) => (ID.test(c.req.param("id") ?? "") ? getScan(c.env.DB, c.req.param("id")!, userId) : Promise.resolve(null)), missing: "That scan does not exist" },
+};
 
 /* ---------------------------------------------------------------- plan */
 
@@ -64,13 +57,12 @@ const needsAck = (c: Context<HonoEnv>, user: { privacyAck: string | null }) =>
  * paper indexes) before anything is searched, and sees what the scan will use of today's allowance.
  */
 litscanRoutes.post("/plan", async (c) => {
-  const got = await requireUser(c);
-  if (got.error) return got.error;
+  const got = await requireUser(c, SCANNER_TOPIC);
+  if (got instanceof Response) return got;
   const { user } = got;
-  const ack = needsAck(c, user);
-  if (ack) return ack;
-  if (Number(c.req.header("content-length") ?? 0) > 20_000) return deny(c, 413, "too_large", "That is too much text");
-  const body = (await c.req.json().catch(() => null)) as { topic?: unknown; language?: unknown } | null;
+  const sent = await readJson(c, 20_000);
+  if (sent.tooLarge) return deny(c, 413, "too_large", "That is too much text");
+  const body = sent.value as { topic?: unknown; language?: unknown } | null;
   const topic = cleanLitscanTopic(body?.topic);
   if (!topic) return deny(c, 400, "invalid_topic", "Describe the topic in a sentence or two", "Between 8 and 400 characters.");
   const language = resolveLanguage(body?.language, topic);
@@ -95,13 +87,12 @@ litscanRoutes.post("/plan", async (c) => {
 
 /** Starts the scan the person approved. One at a time, a few a day, and only if today's allowance covers what it is expected to use. */
 litscanRoutes.post("/", async (c) => {
-  const got = await requireUser(c);
-  if (got.error) return got.error;
+  const got = await requireUser(c, SCANNER_TOPIC);
+  if (got instanceof Response) return got;
   const { user } = got;
-  const ack = needsAck(c, user);
-  if (ack) return ack;
-  if (Number(c.req.header("content-length") ?? 0) > 20_000) return deny(c, 413, "too_large", "That is too much text");
-  const body = (await c.req.json().catch(() => null)) as { topic?: unknown; language?: unknown; items?: unknown; scope?: unknown } | null;
+  const sent = await readJson(c, 20_000);
+  if (sent.tooLarge) return deny(c, 413, "too_large", "That is too much text");
+  const body = sent.value as { topic?: unknown; language?: unknown; items?: unknown; scope?: unknown } | null;
   const topic = cleanLitscanTopic(body?.topic);
   const items = sanitizeApproved(body?.items);
   if (!topic || !items) return deny(c, 400, "invalid_plan", "The plan needs a topic and two to six themes", "Each theme needs its question and some search words.");
@@ -137,8 +128,8 @@ litscanRoutes.post("/", async (c) => {
 /* ---------------------------------------------------------------- read */
 
 litscanRoutes.get("/", async (c) => {
-  const got = await requireUser(c);
-  if (got.error) return got.error;
+  const got = await requireUser(c, SCANNER);
+  if (got instanceof Response) return got;
   return c.json<{ scans: LitscanListItem[] }>({ scans: await listScans(c.env.DB, got.user.id) });
 });
 
@@ -154,8 +145,8 @@ litscanRoutes.get("/shared/:token", async (c) => {
 });
 
 litscanRoutes.get("/:id", async (c) => {
-  const got = await requireUser(c);
-  if (got.error) return got.error;
+  const got = await requireUser(c, SCANNER);
+  if (got instanceof Response) return got;
   const id = c.req.param("id");
   if (!ID.test(id)) return deny(c, 404, "not_found", "That scan does not exist");
   let row = await getScan(c.env.DB, id, got.user.id);
@@ -172,8 +163,8 @@ litscanRoutes.get("/:id", async (c) => {
 const STREAM_POLLS_MS = [1_200, 1_200, 2_500, 4_000];
 
 litscanRoutes.get("/:id/events", async (c) => {
-  const got = await requireUser(c);
-  if (got.error) return got.error;
+  const got = await requireUser(c, SCANNER);
+  if (got instanceof Response) return got;
   const id = c.req.param("id");
   if (!ID.test(id)) return deny(c, 404, "not_found", "That scan does not exist");
   const row = await getScan(c.env.DB, id, got.user.id);
@@ -221,12 +212,10 @@ litscanRoutes.get("/:id/events", async (c) => {
 /* ---------------------------------------------------------------- stop, remove */
 
 litscanRoutes.post("/:id/cancel", async (c) => {
-  const got = await requireUser(c);
-  if (got.error) return got.error;
-  const id = c.req.param("id");
-  if (!ID.test(id)) return deny(c, 404, "not_found", "That scan does not exist");
-  const row = await getScan(c.env.DB, id, got.user.id);
-  if (!row) return deny(c, 404, "not_found", "That scan does not exist");
+  const got = await requireUser(c, OWN_SCAN);
+  if (got instanceof Response) return got;
+  const { row } = got;
+  const id = row.id;
   if (await endScan(c.env.DB, id, "canceled")) {
     // the answers that are still being written stop (what was finished stays); the instance may already be over, which is fine
     try {
@@ -241,12 +230,9 @@ litscanRoutes.post("/:id/cancel", async (c) => {
 
 /** Turns on a read-only link for a scan that has ended (asking again gives the same link). The person sees what it shows before they press: topic, sub-questions, report. */
 litscanRoutes.post("/:id/share", async (c) => {
-  const got = await requireUser(c);
-  if (got.error) return got.error;
-  const id = c.req.param("id");
-  if (!ID.test(id)) return deny(c, 404, "not_found", "That scan does not exist");
-  const row = await getScan(c.env.DB, id, got.user.id);
-  if (!row) return deny(c, 404, "not_found", "That scan does not exist");
+  const got = await requireUser(c, OWN_SCAN);
+  if (got instanceof Response) return got;
+  const { row } = got;
   const r = await createShare(c.env.DB, row, got.user.id);
   if (!r.ok) {
     return r.reason === "running"
@@ -257,22 +243,18 @@ litscanRoutes.post("/:id/share", async (c) => {
 });
 
 litscanRoutes.delete("/:id/share", async (c) => {
-  const got = await requireUser(c);
-  if (got.error) return got.error;
-  const id = c.req.param("id");
-  if (!ID.test(id)) return deny(c, 404, "not_found", "That scan does not exist");
-  if (!(await getScan(c.env.DB, id, got.user.id))) return deny(c, 404, "not_found", "That scan does not exist");
+  const got = await requireUser(c, OWN_SCAN);
+  if (got instanceof Response) return got;
+  const id = got.row.id;
   await revokeShare(c.env.DB, id, got.user.id);
   return c.json({ ok: true });
 });
 
 litscanRoutes.delete("/:id", async (c) => {
-  const got = await requireUser(c);
-  if (got.error) return got.error;
-  const id = c.req.param("id");
-  if (!ID.test(id)) return deny(c, 404, "not_found", "That scan does not exist");
-  const row = await getScan(c.env.DB, id, got.user.id);
-  if (!row) return deny(c, 404, "not_found", "That scan does not exist");
+  const got = await requireUser(c, OWN_SCAN);
+  if (got instanceof Response) return got;
+  const { row } = got;
+  const id = row.id;
   if (row.state === "running") await endScan(c.env.DB, id, "canceled");
   await deleteScan(c.env.DB, id, got.user.id);
   try {

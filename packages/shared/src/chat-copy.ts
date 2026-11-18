@@ -1,7 +1,9 @@
+import { MARK, replaceMarks, stripMarks } from "./ids";
 import { GENERAL_LABEL } from "./chat";
 import type { AssistantMsg } from "./chat-state";
 import type { Paper } from "./index";
 import { apaReference } from "./litscan-review";
+import { oneLine } from "./text";
 
 /*
  * "Copy the answer" (docs/design/chat-actions-context.md, decision A2): what a finished reply becomes as plain text on the clipboard. Pure, so it is tested without a browser.
@@ -12,21 +14,12 @@ import { apaReference } from "./litscan-review";
  */
 
 /** A source mark in a text: the same shape the screen turns into a button (`AnswerText`). The space before it goes with it. */
-const MARK = /\s*\[(\d{1,2})\]/g;
-/** Controls and line separators: a record's field is one line, whatever it holds. */
-const CONTROLS = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/g;
-/**
- * Characters that change how text reads without showing: zero-width space, left-to-right and right-to-left marks and overrides and isolates, word joiner and the invisible operators, the byte-order
- * mark, and tag characters. U+200C and U+200D are NOT here: Hindi and other scripts need them to spell some words and conjuncts.
- */
-const INVISIBLE = /[\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\u{E0000}-\u{E007F}]/gu;
-
 /**
  * A field of a record made safe for one line of a list: controls and line breaks become a space, invisible characters go, white space is collapsed, and a number in square brackets
  * becomes the same number in round ones. A title or a name is data from an index, and one that carried a line break and "[2] ..." could otherwise write a source of its own into what was
  * copied. A "](" gets a space, so that a title that is written as a Markdown link does not become one where the text is pasted. Anything but a string is nothing.
  */
-const plain = (s: unknown): string => (typeof s === "string" ? s.replace(CONTROLS, " ").replace(INVISIBLE, "").replace(/\s+/g, " ").trim().replace(/\[(\d{1,2})\]/g, "($1)").replace(/\]\(/g, "] (") : "");
+const plain = (s: unknown): string => (typeof s === "string" ? oneLine(s, { c1: true }).replace(MARK, "($1)").replace(/\]\(/g, "] (") : "");
 /** A link as one http(s) address with no break in it, or nothing: a record's field is not trusted to be a link. */
 const link = (s: unknown): string | null => {
   const v = plain(s).replace(/\s/g, "");
@@ -57,7 +50,7 @@ function checkedPart(m: AssistantMsg): { text: string; cited: number[] } | null 
     const p = Number.isInteger(c.n) ? m.papers[c.n - 1] : undefined;
     if (p && p.id === c.paperId) backed.add(c.n);
   }
-  const text = a.text.replace(MARK, (all, d: string) => (backed.has(Number(d)) ? all : "")).trim();
+  const text = replaceMarks(a.text, (all, d) => (backed.has(Number(d)) ? all : "")).trim();
   const cited = [...new Set([...text.matchAll(MARK)].map((x) => Number(x[1])))].sort((x, y) => x - y);
   return cited.length > 0 ? { text, cited } : null;
 }
@@ -74,7 +67,7 @@ export function answerCopy(m: AssistantMsg): { text: string; what: "answer" | "p
   if (checked) parts.push(`${checked.text}\n\nSources\n${checked.cited.map((n) => sourceLine(n, m.papers[n - 1]!)).join("\n")}`);
   // general background is written only when the papers did not answer, but whenever it is copied it has its label, and no source mark (it cites nothing)
   const g = m.general;
-  if (g?.kind === "background" && typeof g.text === "string" && g.text.replace(MARK, "").trim() !== "") parts.push(`${GENERAL_LABEL}\n${g.text.replace(MARK, "").trim()}`);
+  if (g?.kind === "background" && typeof g.text === "string" && stripMarks(g.text).trim() !== "") parts.push(`${GENERAL_LABEL}\n${stripMarks(g.text).trim()}`);
   if (parts.length > 0) return { text: parts.join("\n\n"), what: "answer" };
   return m.papers.length > 0 ? { text: m.papers.map((p, i) => sourceLine(i + 1, p)).join("\n"), what: "papers" } : null;
 }

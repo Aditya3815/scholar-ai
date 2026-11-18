@@ -1,4 +1,4 @@
-import { detectLanguage, offlineRoute, type Route } from "@scholar/shared";
+import { threeWay, detectLanguage, offlineRoute, type Route } from "@scholar/shared";
 import type { Complete } from "../docs/qa";
 import { chatReplyLeaks } from "./chat-reply";
 import { isGreeting, romanHindiSigns } from "./greeting";
@@ -171,7 +171,7 @@ export function checkReading(u: Understanding, input: UnderstandInput, scrub: Sc
   // for a short follow-up in a chat that was Hindi or Hinglish.
   const rules = detectLanguage(message);
   const asked = HINDI_ASK.test(message) ? "hi" : HINGLISH_ASK.test(message) ? "hinglish" : ENGLISH_ASK.test(message) ? "en" : null;
-  const ruleLang: UnderstandLanguage = rules === "hi" || rules === "hinglish" ? rules : "en";
+  const ruleLang: UnderstandLanguage = threeWay(rules);
   if (asked === null && v.language !== ruleLang) {
     const chatIsIndic = ledger.slice(-2).some((t) => ["hi", "hinglish"].includes(detectLanguage(t.user)));
     const latin = !/[ऀ-ॿ]/.test(message);
@@ -273,7 +273,7 @@ export function checkReading(u: Understanding, input: UnderstandInput, scrub: Sc
 export function fallbackUnderstanding(message: string): { understanding: Understanding; route: Route } {
   const route = offlineRoute(message);
   const l = detectLanguage(message);
-  const language: UnderstandLanguage = l === "hi" || l === "hinglish" ? l : "en";
+  const language: UnderstandLanguage = threeWay(l);
   const base = { language, standalone: message.slice(0, 300), refers_to: null, clarify: null, confidence: route.confidence };
   if (isGreeting(message)) return { route, understanding: { ...base, intent: "chat", status: STATUS_TEXT[language].chat, search: null, tool: null } };
   if (route.mode === "verify" || route.mode === "idea")

@@ -1,12 +1,11 @@
-import { ROUTE_NAMES, thinkIsHonest, type Lang, type ProviderStatus, type RouteMode, type ThinkAction, type ThinkLine } from "@scholar/shared";
+import { threeWay, ROUTE_NAMES, thinkIsHonest, type Lang, type ProviderStatus, type RouteMode, type ThinkAction, type ThinkLine } from "@scholar/shared";
 
 /**
  * The words of the Thinking block's lines (design PDF, "Thinking dikhana"; packages/shared/src/think.ts says the rules). Templates only, filled with the counts of the stage that ran: English, and Hindi or
  * Hinglish when the message was written in one. The person's words and the search words go inside “ ” quotes, so that a year in them is never taken for a number the line states.
  * `line` drops a line whose text states a number that is not in its counts (it never happens with these templates; the guard makes a slip impossible to ship as a false line).
  */
-type L = "en" | "hi" | "hinglish";
-const lang = (l: Lang): L => (l === "hi" || l === "hinglish" ? l : "en");
+const lang = threeWay;
 const q = (s: string) => `“${s.replace(/[“”]/g, '"').replace(/\s+/g, " ").trim().slice(0, 200)}”`;
 
 function line(id: string, kind: ThinkLine["kind"], text: string, counts?: Record<string, number>, actions?: ThinkAction[]): ThinkLine | null {

@@ -17,7 +17,7 @@ import { easeOut, spring } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
 import { PdfError, openPdf, type PDFDocumentProxy } from "../../lib/pdf";
 import { useVerify } from "../../lib/verify";
-import { toggleSaved, useLibrary } from "../../lib/library";
+import { savedIdOf, toggleSaved, useLibrary } from "../../lib/library";
 import { openOaAsk } from "../../lib/oa-ask";
 import { ThemeSwitch } from "../ThemeSwitch";
 import { AskPanel } from "./AskPanel";
@@ -151,7 +151,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const citeRefs = load.status === "ready" && !load.doc.scanned ? load.info?.references ?? null : null;
   const itemOf = useCallback((i: number) => verify.state.items[i], [verify.state.items]);
   const library = useLibrary();
-  const savedIds = useMemo(() => new Set(library.map((p) => p.id)), [library]);
+  const savedIds = useMemo(() => new Set(library.flatMap((p) => [p.id, savedIdOf(p)])), [library]);
 
   // While a scanned paper is being read, its counts are kept up to date (the reading itself is a job that lives outside this page).
   const scanRunning = !!myJob && myJob.step === "scanning";

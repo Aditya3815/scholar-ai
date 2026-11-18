@@ -1,5 +1,5 @@
+import { normalizeDoi, titleKey } from "@scholar/shared";
 import { GateBusy, withGate } from "../gate";
-import { normalizeDoi, normalizeTitle } from "./normalize";
 import type { Provider, ProviderPaper } from "./types";
 
 /**
@@ -99,7 +99,7 @@ export function parseCore(body: unknown): ProviderPaper[] {
       retracted: false,
       workType: coreWorkType(w.documentType),
     };
-    const key = `${normalizeTitle(title)}|${paper.year ?? ""}`;
+    const key = titleKey(title, paper.year);
     const kept = byKey.get(key);
     if (!kept) byKey.set(key, paper);
     else {

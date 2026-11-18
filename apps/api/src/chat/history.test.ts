@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MAX_HISTORY_USER_CHARS } from "@scholar/shared";
-import { cutChars, errorKind, neutralise, plainAnswer, readHistory, stripInvisible } from "./history";
+import { cutWhole as cutChars, neutralise, stripInvisible } from "@scholar/shared";
+import { errorKind, plainAnswer, readHistory } from "./history";
 
 /** The tag characters (U+E0000 to U+E007F) mirror ASCII and show nothing on a screen: a known way to hide an instruction in text. */
 const tagged = (s: string) => [...s].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join("");

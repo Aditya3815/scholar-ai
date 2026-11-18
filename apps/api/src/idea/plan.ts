@@ -1,3 +1,4 @@
+import { scrubText } from "@scholar/shared";
 import {
   IDEA_PLAN_INPUT_CHARS,
   MAX_KEYWORD_QUERIES,
@@ -44,14 +45,6 @@ export class PlanError extends Error {}
 export const buildPlanPrompt = (text: string, question: string) =>
   `${question ? `The researcher's question: ${question}\n\n` : ""}The idea (may be cut short):\n"""\n${text.slice(0, IDEA_PLAN_INPUT_CHARS)}\n"""`;
 
-const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-const URL_RE = /\bhttps?:\/\/\S+|\bwww\.\S+/gi;
-
-/** One line of plain text, bounded, with e-mail addresses and links taken out. */
-export function scrubText(v: unknown, max: number): string {
-  if (typeof v !== "string") return "";
-  return v.replace(EMAIL, " ").replace(URL_RE, " ").replace(/[\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max).trim();
-}
 
 const NOT_STATED = "not stated";
 

@@ -1,3 +1,4 @@
+import { MARK_WIDE } from "./ids";
 import type { Block, DocxDoc, DocRun } from "./docx";
 import { LITSCAN_GAP_TEXT, LITSCAN_LANGUAGE_NAMES, type LitscanLanguage, type Report } from "./litscan";
 import { apaName, apaReference, buildEvidenceTable, reviewGlance } from "./litscan-review";
@@ -16,7 +17,7 @@ const URL = /https?:\/\/[^\s<>"')\]]+[^\s<>"')\].,;:]/g;
 export function marked(text: string): DocRun[] {
   const out: DocRun[] = [];
   let at = 0;
-  for (const m of text.matchAll(/\[(\d{1,3})\]/g)) {
+  for (const m of text.matchAll(MARK_WIDE)) {
     if (m.index! > at) out.push({ t: text.slice(at, m.index) });
     out.push({ t: m[0], anchor: `ref${m[1]}` });
     at = m.index! + m[0].length;

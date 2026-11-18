@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { textAttrs, thinkSummary, type AssistantMsg, type ChatStep, type ThinkLine } from "@scholar/shared";
+import { STEP_ORDER, textAttrs, thinkSummary, type AssistantMsg, type ChatStep, type ThinkLine } from "@scholar/shared";
 import { announce, forget } from "./announcer";
 import "../styles/think.css";
 
@@ -15,7 +15,7 @@ import "../styles/think.css";
 const STAGES: Partial<Record<ChatStep, string>> = { route: "Understanding", search: "Searching", read: "Reading the papers", write: "Writing", check: "Checking each claim", general: "Writing background" };
 /** The key of the stage words in the conversation's status line: a newer stage replaces one that still waits. */
 const STAGE_KEY = "think-stage";
-const ORDER: ChatStep[] = ["route", "search", "read", "write", "check", "general"];
+const ORDER: readonly ChatStep[] = STEP_ORDER;
 
 function ThinkBar({ msg }: { msg: AssistantMsg }) {
   const steps = ORDER.filter((s) => (s === "route" ? msg.auto : s === "general" ? msg.step === "general" : true));

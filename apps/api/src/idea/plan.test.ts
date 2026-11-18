@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { SYSTEM, buildPlanPrompt, planIdea, sanitizePlan, scrubText, PlanError } from "./plan";
+import { scrubText } from "@scholar/shared";
+import { SYSTEM, buildPlanPrompt, planIdea, sanitizePlan, PlanError } from "./plan";
 import { stubPlan } from "./stub";
 
 describe("scrubText", () => {

@@ -1,4 +1,4 @@
-import { subjectWords } from "@scholar/shared";
+import { type InputShapeName, INPUT_SHAPE_NAMES, DOI_START, subjectWords } from "@scholar/shared";
 
 /**
  * R3: what a message in the prompt box LOOKS like, as names from a closed list, so that how often messages are messy can be counted without keeping any of their text
@@ -13,23 +13,7 @@ import { subjectWords } from "@scholar/shared";
  * person), and total: it never throws. Linear in the length of the text: no pattern scans a long run of spaces, letters or digits again from each position in it, and the test reads 20,000 and
  * 200,000 characters of every kind of run that could hurt.
  */
-export const INPUT_SHAPE_NAMES = [
-  "frame", "frame_polite", "frame_all", "qty", "year", "neg", "order", "long", "first_person",
-  "subj0", "subj1", "subj2_6", "subj7p", "id",
-  "lane_urgent", "lane_crisis", "lane_decision", "lane_care", "lane_notsearch",
-  "cue_paper", "cue_list", "cue_paste", "ask_acronym", "ask_broad", "spell_candidate", "scrub",
-  "one_source", "tier_none", "tier_few", "anyway",
-  // R4 (4.5): the help tier of the safety lane, and what the lane would have done while it is only being read (`would_*`: shadow, and the phrases that are not yet acted on at `core`). Counted by the route, not given by `inputShape`.
-  "lane_help", "would_urgent", "would_crisis", "would_help", "would_decision", "would_care",
-  // R8 (4.8): what the request-frame cleaner did to an Auto message (`clean_applied`: CHAT_CLEAN on) or would have done (`would_clean`: shadow). Counted by the route, not given by `inputShape`.
-  "would_clean", "clean_applied",
-  // R9 (4.9): what the relevance floor would have done to a list while it only reads it (`would_tier_*`: shadow, and the state that the `writer` position does not act on); `tier_none` and `tier_few` are what it did.
-  // Counted by the route, not given by `inputShape`.
-  "would_tier_none", "would_tier_few",
-] as const;
-export type InputShapeName = (typeof INPUT_SHAPE_NAMES)[number];
-/** The four counts of subject words: exactly one of them is given to every text, so together they are the number of messages counted (and countOutcomes always keeps it, past the cap of names). */
-export const SUBJECT_NAMES = ["subj0", "subj1", "subj2_6", "subj7p"] as const satisfies readonly InputShapeName[];
+export { INPUT_SHAPE_NAMES, SUBJECT_NAMES, type InputShapeName } from "@scholar/shared";
 
 /* ---------------------------------------------------------------- pieces of the patterns */
 
@@ -203,7 +187,7 @@ function hasFirstPerson(t: string): boolean {
 
 /* ---------------------------------------------------------------- id (R13, 4.13) */
 
-const DOI = /(?<![\p{L}\p{M}\p{N}_.])10\.\d{4,9}\/\S/u;
+const DOI = new RegExp(String.raw`(?<![\p{L}\p{M}\p{N}_.])${DOI_START}\S`, "u");
 const PMID = re(String.raw`${START}(?:pmid|pubmed)\s*[:#]?\s*\d{6,9}(?!\d)`);
 const ARXIV_WORD = /arxiv/i;
 const ARXIV_ADDRESS = /arxiv\.org\/(?:abs|pdf)\//i;

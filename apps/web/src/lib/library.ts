@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { LibraryAlert, Paper } from "@scholar/shared";
+import { titleKey, type LibraryAlert, type Paper } from "@scholar/shared";
 import { getAuthState, subscribeAuth } from "./auth";
 import { showNotice } from "./notice";
 import { createPersistedStore } from "./store";
@@ -154,20 +154,32 @@ async function pushServer(op: () => Promise<Response | null>, rollback: () => vo
 
 const idPath = (id: string) => `/api/v1/library/${encodeURIComponent(id)}`;
 
+/**
+ * The id a saved paper has in a search today. A paper with no DOI or PMID whose title has no Latin letter or digit was saved under `t:|<year>` before the search gave such a title a key of its own
+ * (bug B5, docs/design/untangle.md decision 16: every such paper of a year shared that id). Such an entry is kept as it was saved, here and on the server, and stands for the paper its own title
+ * names now (`titleKey`); every other entry's id is the id it was saved under.
+ */
+export const savedIdOf = (p: Paper): string => (p.id.startsWith("t:|") ? `t:${titleKey(p.title, p.year)}` : p.id);
+/** The entry of a list of saved papers that is this paper: saved under its id, or saved before B5 under the id every such paper of its year shared (`savedIdOf`). */
+export const savedEntry = <T extends Paper>(list: readonly T[], paper: Paper): T | undefined => list.find((p) => p.id === paper.id || savedIdOf(p) === paper.id);
+
 export function toggleSaved(paper: Paper) {
   const user = getAuthState().user;
-  const has = view.some((p) => p.id === paper.id);
+  // removing goes by the id the entry was saved under: that is the row the server keeps
+  const entry = savedEntry(view, paper);
+  const has = !!entry;
+  const id = entry?.id ?? paper.id;
   if (!user) {
-    local.set(has ? local.get().filter((p) => p.id !== paper.id) : [{ ...paper, savedAt: Date.now() }, ...local.get()]);
+    local.set(has ? local.get().filter((p) => p.id !== id) : [{ ...paper, savedAt: Date.now() }, ...local.get()]);
     return;
   }
   const before = serverItems;
   const alertsBefore = serverAlerts;
-  serverItems = has ? before.filter((p) => p.id !== paper.id) : [{ ...paper, savedAt: Date.now() }, ...before];
-  if (has) serverAlerts = serverAlerts.filter((a) => a.paperId !== paper.id); // removing the paper settles its notice (the server does the same)
+  serverItems = has ? before.filter((p) => p.id !== id) : [{ ...paper, savedAt: Date.now() }, ...before];
+  if (has) serverAlerts = serverAlerts.filter((a) => a.paperId !== id); // removing the paper settles its notice (the server does the same)
   recompute();
   void pushServer(
-    () => fetch(idPath(paper.id), has ? jsonInit("DELETE") : jsonInit("PUT", paper)).catch(() => null),
+    () => fetch(idPath(id), has ? jsonInit("DELETE") : jsonInit("PUT", paper)).catch(() => null),
     () => {
       serverItems = before;
       serverAlerts = alertsBefore;

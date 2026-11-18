@@ -1,35 +1,28 @@
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import type { AdminOverview, FeedbackKind } from "@scholar/shared";
 import { NEURON_CENTS } from "../llm/pricing";
-import { currentUser, sameOrigin } from "../auth/http";
+import { requireUser, type Door } from "../auth/service";
+import { readJson } from "../platform/http/body";
 import { readJobs } from "../jobs";
 import { readOutcomes } from "../outcomes";
 import { compareInventory, listDocuments, listFiles } from "./integrity";
 import { eraseAccount, reapplyDeletions } from "../account/erase";
 import { findAccount, parseAccountRef } from "./accounts";
 import { captureException, parseDsn, sendEvent } from "../monitoring/sentry";
-import { deny } from "../problem";
 import { readMcpAdmin } from "../mcp/calls";
 import { mcpMode } from "../mcp/flag";
 import type { HonoEnv } from "../platform/env";
 
 export const adminRoutes = new Hono<HonoEnv>();
 
-adminRoutes.use("*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "no-store");
-});
-
 
 /** Admin only. Anyone else, signed in or not, is told the page does not exist. */
-async function admin(c: Context<HonoEnv>) {
-  const user = await currentUser(c);
-  return user?.role === "admin" ? user : null;
-}
+const ADMIN: Door = { signIn: { status: 404, type: "not_found", title: "Not found" }, role: "admin" };
 
 /** One page of numbers: who uses it, what the AI costs, what is failing, what people reported. Nothing here shows paper or idea text. */
 adminRoutes.get("/overview", async (c) => {
-  if (!(await admin(c))) return deny(c, 404, "not_found", "Not found");
+  const got = await requireUser(c, ADMIN);
+  if (got instanceof Response) return got;
   const db = c.env.DB;
   const one = async <T>(sql: string) => (await db.prepare(sql).first<T>()) as T;
 
@@ -71,7 +64,8 @@ adminRoutes.get("/overview", async (c) => {
 
 /** The MCP server (src/mcp): the switch, and the last seven days of tool calls by tool, outcome and app. Counts only: never a query, a reference or a DOI. */
 adminRoutes.get("/mcp", async (c) => {
-  if (!(await admin(c))) return deny(c, 404, "not_found", "Not found");
+  const got = await requireUser(c, ADMIN);
+  if (got instanceof Response) return got;
   return c.json({ mode: await mcpMode(c.env), ...(await readMcpAdmin(c.env.DB)) });
 });
 
@@ -80,7 +74,8 @@ adminRoutes.get("/mcp", async (c) => {
  * `graceMinutes` (0 to 1440, default 15) is how young a file or record may be before it is judged.
  */
 adminRoutes.get("/integrity", async (c) => {
-  if (!(await admin(c))) return deny(c, 404, "not_found", "Not found");
+  const got = await requireUser(c, ADMIN);
+  if (got instanceof Response) return got;
   const asked = Number(c.req.query("graceMinutes") ?? 15);
   const graceMinutes = Number.isFinite(asked) ? Math.min(Math.max(Math.round(asked), 0), 1440) : 15;
   try {
@@ -97,8 +92,8 @@ adminRoutes.get("/integrity", async (c) => {
  * (account/erase.ts) and a row again is erased once more. Safe to run twice.
  */
 adminRoutes.post("/reapply-deletions", async (c) => {
-  if (!sameOrigin(c)) return c.json({ type: "forbidden", title: "Cross-origin request blocked" }, 403);
-  if (!(await admin(c))) return deny(c, 404, "not_found", "Not found");
+  const got = await requireUser(c, ADMIN);
+  if (got instanceof Response) return got;
   try {
     return c.json(await reapplyDeletions(c.env));
   } catch (err) {
@@ -113,10 +108,10 @@ adminRoutes.post("/reapply-deletions", async (c) => {
  * Nothing about the person is returned or stored; the address typed is used for one lookup.
  */
 adminRoutes.post("/erase-account", async (c) => {
-  if (!sameOrigin(c)) return c.json({ type: "forbidden", title: "Cross-origin request blocked" }, 403);
-  const me = await admin(c);
-  if (!me) return deny(c, 404, "not_found", "Not found");
-  const body = (await c.req.json().catch(() => null)) as { account?: unknown; confirm?: unknown } | null;
+  const got = await requireUser(c, ADMIN);
+  if (got instanceof Response) return got;
+  const me = got.user;
+  const body = (await readJson(c)) as { account?: unknown; confirm?: unknown } | null;
   if (body?.confirm !== "ERASE") return c.json({ type: "confirmation_required", title: 'Send {"account": ..., "confirm": "ERASE"}' }, 400);
   const ref = parseAccountRef(body.account);
   if (!ref) return c.json({ type: "invalid_account", title: "Give an e-mail address or an ORCID iD", detail: "For example name@university.edu or 0000-0002-1825-0097." }, 400);
@@ -136,8 +131,8 @@ adminRoutes.post("/erase-account", async (c) => {
 
 /** A report that has been dealt with (or is not useful) is removed. */
 adminRoutes.delete("/feedback/:id", async (c) => {
-  if (!sameOrigin(c)) return c.json({ type: "forbidden", title: "Cross-origin request blocked" }, 403);
-  if (!(await admin(c))) return deny(c, 404, "not_found", "Not found");
+  const got = await requireUser(c, ADMIN);
+  if (got instanceof Response) return got;
   await c.env.DB.prepare("DELETE FROM feedback WHERE id = ?1").bind(c.req.param("id")).run();
   return c.json({ ok: true });
 });
@@ -148,8 +143,8 @@ adminRoutes.delete("/feedback/:id", async (c) => {
  * never fire again. It is sent at error level, like the real thing, so the alert rules are tested the way they will be used.
  */
 adminRoutes.post("/monitoring-test", async (c) => {
-  if (!sameOrigin(c)) return c.json({ type: "forbidden", title: "Cross-origin request blocked" }, 403);
-  if (!(await admin(c))) return deny(c, 404, "not_found", "Not found");
+  const got = await requireUser(c, ADMIN);
+  if (got instanceof Response) return got;
   if (!parseDsn(c.env.SENTRY_DSN)) return c.json({ configured: false, status: null });
   const status = await sendEvent(c.env, { type: "TestEvent", message: `Test event from the admin page at ${new Date().toISOString().slice(11, 19)} UTC. Nothing is wrong.`, route: "/admin", source: "test", level: "error" });
   return c.json({ configured: true, status });

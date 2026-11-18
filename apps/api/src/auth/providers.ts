@@ -1,3 +1,4 @@
+import { ORCID } from "@scholar/shared";
 import type { TokenResponse } from "./oauth";
 import type { Env } from "../platform/env";
 
@@ -75,7 +76,7 @@ export function configuredProviders(env: AuthEnv): ProviderDef[] {
       // The ORCID token response already carries the iD and public name; email is not returned.
       async profile(token) {
         const orcid = typeof token.orcid === "string" ? token.orcid : "";
-        if (!/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(orcid)) throw new Error("token response has no valid ORCID iD");
+        if (!ORCID.test(orcid)) throw new Error("token response has no valid ORCID iD");
         const name = typeof token.name === "string" && token.name.trim() ? token.name.trim() : null;
         return { subject: orcid, email: null, emailVerified: false, name, avatarUrl: null, orcid };
       },

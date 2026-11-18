@@ -1,7 +1,7 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowUp, BadgeCheck, Check, Copy, CornerDownRight, Highlighter, Loader2, RefreshCw, SearchX, ShieldCheck, Sparkles, Square, TriangleAlert } from "lucide-react";
 import { Fragment, memo, useCallback, useEffect, useRef, useState } from "react";
-import { MAX_QUESTION_CHARS, classifyAskSource, type Answer, type AskSource, type AskStage, type Citation, type DocNote, type DocumentInfo, type ScanInfo } from "@scholar/shared";
+import { stripMarks, splitAtMarks, markOf, MAX_QUESTION_CHARS, classifyAskSource, type Answer, type AskSource, type AskStage, type Citation, type DocNote, type DocumentInfo, type ScanInfo } from "@scholar/shared";
 import { ApiError, askDocumentStream, askHighlights } from "../../lib/documents";
 import { useGrowingField } from "../../lib/autogrow";
 import { useLegend } from "../../lib/legend";
@@ -37,8 +37,8 @@ const stepIndex = (s: AskStage) => STEPS.findIndex((x) => x.id === s);
 export function AnswerText({ text, citations, onCite }: { text: string; citations: Citation[]; onCite: (c: Citation) => void }) {
   return (
     <p className="reading ask-text">
-      {text.split(/(\[\d{1,2}\])/g).map((part, i) => {
-        const n = /^\[(\d{1,2})\]$/.exec(part)?.[1];
+      {splitAtMarks(text).map((part, i) => {
+        const n = markOf(part);
         const c = n ? citations.find((x) => x.n === Number(n)) : undefined;
         return c ? (
           <button key={i} type="button" className="cite-chip" aria-label={`Source ${c.n}, page ${c.page}. Show it in the paper`} onClick={() => onCite(c)}>
@@ -66,7 +66,7 @@ const Word = memo(function Word({ w }: { w: string }) {
  * citation markers are hidden until the checked answer replaces it.
  */
 export function StreamingText({ text, writing }: { text: string; writing: boolean }) {
-  const shown = text.replace(/\s*\[\d{1,2}\]/g, "").replace(/\s*\[\d{0,2}$/, "");
+  const shown = stripMarks(text, { unfinished: true });
   const parts = shown.split(/(\s+)/);
   return (
     <p className="reading ask-text ask-text-live" aria-hidden="true">
@@ -176,7 +176,7 @@ function CopyAnswer({ answer }: { answer: Answer }) {
     return () => window.clearTimeout(t);
   }, [done]);
   const pages = [...new Set(answer.citations.map((c) => c.page))].sort((a, b) => a - b);
-  const text = `${answer.answer.replace(/\s*\[\d{1,2}\]/g, "")}${pages.length ? ` (pages ${pages.join(", ")})` : ""}`;
+  const text = `${stripMarks(answer.answer)}${pages.length ? ` (pages ${pages.join(", ")})` : ""}`;
   return (
     <button type="button" className="ask-copy" aria-label={done ? "Copied" : "Copy this answer"} title="Copy answer" onClick={() => navigator.clipboard?.writeText(text).then(() => setDone(true), () => {})}>
       <AnimatePresence mode="wait" initial={false}>

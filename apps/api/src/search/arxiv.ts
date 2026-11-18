@@ -1,4 +1,4 @@
-import { normalizeDoi, normalizeTitle } from "./normalize";
+import { arxivDoi, normalizeDoi, plainText, queryTerms } from "@scholar/shared";
 import type { Provider, ProviderPaper } from "./types";
 
 /**
@@ -9,22 +9,14 @@ import type { Provider, ProviderPaper } from "./types";
 const API = "https://export.arxiv.org/api/query";
 const STOP = new Set(["the", "a", "an", "of", "for", "and", "or", "in", "on", "to", "with", "by", "from", "using", "based", "is", "are"]);
 
-const decode = (s: string) =>
-  s
-    .replace(/<!\[CDATA\[|\]\]>/g, "")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;|&#39;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/\s+/g, " ")
-    .trim();
+/** A field of the feed as plain text: the CDATA brackets out, then the one decoder of both apps (plainText: every entity it knows, white space collapsed). */
+const decode = (s: string) => plainText(s.replace(/<!\[CDATA\[|\]\]>/g, ""));
 
 const tag = (xml: string, name: string) => decode(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`).exec(xml)?.[1] ?? "");
 
 /** Every word that carries meaning, all of which must appear ("smartphone fundus photography glaucoma" -> all:smartphone AND all:fundus ...). */
 export function arxivQuery(q: string): string {
-  const terms = [...new Set(normalizeTitle(q).split(" ").filter((w) => w.length > 2 && !STOP.has(w)))].slice(0, 6);
+  const terms = queryTerms(q, STOP, 6);
   return terms.map((w) => `all:${w}`).join(" AND ");
 }
 
@@ -39,7 +31,7 @@ export function parseArxivFeed(xml: string): ProviderPaper[] {
     const ownDoi = normalizeDoi(tag(e, "arxiv:doi"));
     out.push({
       // every preprint has the DOI arXiv registers for it, which is what other indexes list for the same paper, so the copies merge
-      doi: ownDoi ?? (/^\d{4}\.\d{4,5}$/.test(id) ? `10.48550/arxiv.${id}` : null),
+      doi: ownDoi ?? (/^\d{4}\.\d{4,5}$/.test(id) ? arxivDoi(id) : null),
       pmid: null,
       title,
       authors: [...e.matchAll(/<author>[\s\S]*?<name>([\s\S]*?)<\/name>[\s\S]*?<\/author>/g)].map((a) => decode(a[1]!)).filter(Boolean).slice(0, 10),

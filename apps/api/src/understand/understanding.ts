@@ -1,3 +1,5 @@
+import { type Intent, type AnswerLanguage, INTENTS, ANSWER_LANGUAGES, FILTER_YEARS, isInt, isYear, plainLine } from "@scholar/shared";
+
 /**
  * The Understand step's output (docs/design/understand-and-mcp.md, from the design of 6 Nov 2026 "Sodhsetu: understanding, follow-ups and MCP", page 4): ONE shape for every message, asked of a
  * private model as JSON and read here before anything acts on it. Only the enums, the numbers and the checked strings below leave `parseUnderstanding`; a field that does not fit is not repaired into
@@ -6,10 +8,11 @@
  * Pure and total: nothing here calls a model, reads the network or throws.
  */
 
-export const UNDERSTAND_INTENTS = ["chat", "search", "refine_search", "ask_results", "ask_paper", "offer_tool", "clarify"] as const;
-export type UnderstandIntent = (typeof UNDERSTAND_INTENTS)[number];
-export const UNDERSTAND_LANGUAGES = ["en", "hi", "hinglish"] as const;
-export type UnderstandLanguage = (typeof UNDERSTAND_LANGUAGES)[number];
+/** The intents of a message and the three languages of an answer (shared vocab). */
+export const UNDERSTAND_INTENTS = INTENTS;
+export type UnderstandIntent = Intent;
+export const UNDERSTAND_LANGUAGES = ANSWER_LANGUAGES;
+export type UnderstandLanguage = AnswerLanguage;
 /** The tools a card can offer (never start): Check references, Idea Check, a literature scan. */
 export const UNDERSTAND_TOOLS = ["verify", "idea", "litscan"] as const;
 export type UnderstandTool = (typeof UNDERSTAND_TOOLS)[number];
@@ -20,8 +23,6 @@ export const MAX_QUERY_CHARS = 120;
 export const MAX_QUERIES = 3;
 export const MAX_CLARIFY_QUESTION_CHARS = 160;
 export const MAX_CHOICE_CHARS = 80;
-export const MIN_YEAR = 1900;
-export const MAX_YEAR = 2100;
 
 export type UnderstandSearch = {
   /** 1 to 3 English queries. */
@@ -85,13 +86,6 @@ export const UNDERSTAND_SCHEMA = {
   required: ["intent", "language", "status", "standalone", "search", "refers_to", "tool", "clarify", "confidence"],
 } as const;
 
-/** Control characters, zero-width and bidirectional marks out; runs of space as one. What a line on the page may hold. */
-export function plainLine(s: string): string {
-  return s
-    .replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 const DEVANAGARI = /[ऀ-ॿ]/;
 /** Something a search query must never carry: an address, a link, an instruction-looking colon field. Queries are search words, nothing else. */
@@ -113,8 +107,7 @@ export type ParseFailure =
 
 export type ParsedUnderstanding = { ok: true; value: Understanding } | { ok: false; failure: ParseFailure };
 
-const isInt = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v);
-const yearOrNull = (v: unknown): number | null | undefined => (v === null ? null : isInt(v) && v >= MIN_YEAR && v <= MAX_YEAR ? v : undefined);
+const yearOrNull = (v: unknown): number | null | undefined => (v === null ? null : isYear(v, FILTER_YEARS) ? v : undefined);
 
 /**
  * The model's JSON as an Understanding, or the first field that is wrong. Lenient only where leniency cannot invent meaning: strings are trimmed and cut to their length, the confidence is clamped,

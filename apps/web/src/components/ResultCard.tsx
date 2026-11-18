@@ -3,7 +3,7 @@ import { PROVIDER_LABELS, textAttrs, type Paper } from "@scholar/shared";
 import { BadgeCheck, Bookmark, BookmarkCheck, Eye, ExternalLink, FileText, GraduationCap, LockOpen, MessageSquareText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { easeOut, springPop, stagger } from "../lib/motion";
-import { toggleSaved, useLibrary } from "../lib/library";
+import { savedEntry, toggleSaved, useLibrary } from "../lib/library";
 import { canAsk, openOaAsk } from "../lib/oa-ask";
 import { CiteMenu } from "./CiteMenu";
 
@@ -38,7 +38,7 @@ export function CountUp({ value, still = false }: { value: number; still?: boole
 }
 
 export function SaveButton({ paper }: { paper: Paper }) {
-  const saved = useLibrary().some((p) => p.id === paper.id);
+  const saved = !!savedEntry(useLibrary(), paper);
   return (
     <button
       type="button"

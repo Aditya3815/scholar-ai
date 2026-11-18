@@ -5,6 +5,7 @@ import { testD1 } from "../test-d1";
 import { createSession } from "../auth/session";
 import type { HonoEnv } from "../platform/env";
 import { deleteDocument, documentRoutes } from "./routes";
+import { sameOriginWrites } from "../platform/http/guards";
 
 /**
  * The Notebook's four routes (docs/design/paper-reader.md, 19.3) on a real SQLite with every migration, through the documents router as the Worker mounts it: who may ask (READER off,
@@ -17,6 +18,8 @@ async function setup(vars: Record<string, string> = { READER: "on" }) {
   sql.prepare("INSERT INTO users (id, email) VALUES ('u-1', 'a@example.org'), ('u-2', 'b@example.org')").run();
   sql.prepare("INSERT INTO documents (id, user_id, title, filename, size_bytes, pages, status) VALUES ('d1', 'u-1', 'Paper', 'p.pdf', 10, 3, 'ready'), ('d2', 'u-2', 'Theirs', 't.pdf', 10, 3, 'ready')").run();
   const app = new Hono<HonoEnv>();
+  // the origin check is the app's, for every write (app/mount.ts), not the router's
+  app.use("/api/*", sameOriginWrites({ skip: {}, devFirst: [] }));
   app.route("/api/v1/documents", documentRoutes);
   const env = { DB: db, ...vars } as unknown as HonoEnv["Bindings"];
   const tokens = { "u-1": await createSession(db, "u-1", undefined), "u-2": await createSession(db, "u-2", undefined) };
@@ -47,7 +50,8 @@ describe("who may use the Notebook's routes", () => {
       expect((await call("GET", "/d1/notebook", { as: null })).status).toBe(404);
       expect((await call("PUT", `${PAGE}/p1`, { body: { blocks: [] } })).status).toBe(404);
       expect((await call("PATCH", `${PAGE}/p1`, { body: { title: "x" } })).status).toBe(404);
-      expect((await call("DELETE", `${PAGE}/p1`, { origin: null })).status).toBe(404);
+      // a write from no page of ours is refused by the app's origin check (app/mount.ts) before any route is asked, as every other write is
+      expect((await call("DELETE", `${PAGE}/p1`, { origin: null })).status).toBe(403);
     }
   });
 

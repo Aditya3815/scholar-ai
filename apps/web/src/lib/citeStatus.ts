@@ -1,4 +1,4 @@
-import type { Paper, RefRecord, RefVerdict } from "@scholar/shared";
+import { REF_STATUS_WORDS, type Paper, type RefRecord, type RefVerdict } from "@scholar/shared";
 
 /**
  * What a citation card says about its entry's check (docs/design/reader-citations.md, 3). Pure, so the tests can hold the one rule that matters:
@@ -6,19 +6,15 @@ import type { Paper, RefRecord, RefVerdict } from "@scholar/shared";
  */
 export type CiteStatus = "verified" | "mismatch" | "not_found" | "unverifiable" | "unparsed" | "error" | "checking" | "offline";
 
-/**
- * The card's words for each state: the Reference Verifier's own words (lib/refStatus.ts STATUS; a test holds them equal). Kept here as plain words so that the reader's chunk
- * does not import refStatus and its icons from the first load (that split them into chunks of their own and made the first load bigger).
- */
+/** The card's words for each state: the Reference Verifier's own words (shared vocab/references.ts, which lib/refStatus.ts reads too). */
 export const CITE_LABEL: Record<Exclude<CiteStatus, "verified" | "checking" | "offline">, string> = {
-  mismatch: "Details don’t match",
-  not_found: "Not found",
-  unverifiable: "Could not verify",
-  unparsed: "Not a full reference",
-  error: "Check failed",
+  mismatch: REF_STATUS_WORDS.mismatch.label,
+  not_found: REF_STATUS_WORDS.not_found.label,
+  unverifiable: REF_STATUS_WORDS.unverifiable.label,
+  unparsed: REF_STATUS_WORDS.unparsed.label,
+  error: REF_STATUS_WORDS.error.label,
 };
-export const NOT_FOUND_HELP =
-  "This can mean the reference is wrong or made up. It can also mean the source is not in Crossref: books, theses, reports and many regional journals are not. Check it at the source before deciding.";
+export { NOT_FOUND_HELP } from "@scholar/shared";
 
 export function citeStatus(item: { state: "queued" | "checking" | "done" | "error"; verdict?: RefVerdict } | undefined, online: boolean): CiteStatus {
   if (item?.state === "done" && item.verdict) return item.verdict.status;

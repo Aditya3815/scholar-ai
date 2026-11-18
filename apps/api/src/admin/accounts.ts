@@ -1,12 +1,10 @@
+import { EMAIL_WHOLE, ORCID, ORCID_URL } from "@scholar/shared";
 /**
  * Finding the account an admin means to erase (for someone who cannot sign in to delete it themselves). By e-mail address or ORCID iD only: those are
  * what a person can tell us. What was typed is used for one lookup and is never stored or logged.
  */
 export type AccountRef = { kind: "email"; value: string } | { kind: "orcid"; value: string };
 
-const EMAIL = /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+\.[^\s@<>()[\]\\,;:"]{2,}$/;
-const ORCID = /^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/;
-const ORCID_URL = /^https?:\/\/(?:www\.)?orcid\.org\/(\d{4}-\d{4}-\d{4}-\d{3}[\dXx])\/?$/i;
 
 export function parseAccountRef(input: unknown): AccountRef | null {
   if (typeof input !== "string") return null;
@@ -15,7 +13,7 @@ export function parseAccountRef(input: unknown): AccountRef | null {
   const url = ORCID_URL.exec(s);
   if (url) return { kind: "orcid", value: url[1]!.toUpperCase() };
   if (ORCID.test(s.toUpperCase())) return { kind: "orcid", value: s.toUpperCase() };
-  if (EMAIL.test(s)) return { kind: "email", value: s.toLowerCase() };
+  if (EMAIL_WHOLE.test(s)) return { kind: "email", value: s.toLowerCase() };
   return null;
 }
 

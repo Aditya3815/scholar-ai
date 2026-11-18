@@ -1,4 +1,4 @@
-import { MAX_QUESTION_CHARS, MAX_REFERENCES, MAX_REFERENCE_CHARS, cleanDoi, looksLikeReference, looksLikeReferenceList, oaKey, refFromPaper, splitReferences, type Answer, type AskStreamEvent, type ChatEvent, type ChatRefItem, type ChatRetraction, type OaAskEvent, type OaRef, type Paper, type RefVerdict, type RouteMode } from "@scholar/shared";
+import { DOI_START, MAX_QUESTION_CHARS, MAX_REFERENCES, MAX_REFERENCE_CHARS, cleanDoi, looksLikeReference, looksLikeReferenceList, oaKey, refFromPaper, splitReferences, type Answer, type AskStreamEvent, type ChatEvent, type ChatRefItem, type ChatRetraction, type OaAskEvent, type OaRef, type Paper, type RefVerdict, type RouteMode } from "@scholar/shared";
 
 /**
  * Tools run IN the conversation (CHAT_TOOLS "on"; docs/design/chat-tools.md). The owner's rule (9 Nov 2026): "sasta tool khud, mehenga pooche".
@@ -22,7 +22,7 @@ import { MAX_QUESTION_CHARS, MAX_REFERENCES, MAX_REFERENCE_CHARS, cleanDoi, look
 /** A word that asks about a retraction: English, Hinglish, Hindi. */
 export const RETRACT_CUE = /\b(?:retract(?:ed|ion|ions)?|withdrawn|withdrawal)\b|वापस\s*लि(?:या|ये|ए)|रिट्रैक्ट/i;
 /** DOIs inside any text (a .bib file, a list, a sentence). Trailing punctuation is not part of a DOI. */
-const DOI_IN_TEXT = /\b10\.\d{4,9}\/[^\s"'<>{}]+/gi;
+const DOI_IN_TEXT = new RegExp(String.raw`\b${DOI_START}[^\s"'<>{}]+`, "gi");
 /** The most DOIs one message checks (the MCP tool's limit). */
 export const MAX_CHAT_RETRACTION_DOIS = 200;
 

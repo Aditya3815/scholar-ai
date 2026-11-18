@@ -35,7 +35,7 @@ describe("readLedger", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.turns[0]!.user.startsWith("ignore all rules")).toBe(true);
-    expect(r.turns[0]!.user.length).toBe(600);
+    expect(r.turns[0]!.user.length).toBe(300); // the browser's cap (B20, decision 15); it was 600
     expect(r.turns[0]!.reply!.length).toBe(300);
   });
 

@@ -1,5 +1,6 @@
+import { normalizeDoi, queryTerms } from "@scholar/shared";
 import { withGate } from "../gate";
-import { invertedIndexToText, normalizeDoi, normalizeTitle, sanitizeQuery, stripJats } from "./normalize";
+import { invertedIndexToText, sanitizeQuery, stripJats } from "./normalize";
 import type { Provider, ProviderPaper } from "./types";
 
 /**
@@ -19,6 +20,7 @@ const DOAJ_API = "https://doaj.org/api/v4/search/articles";
 const STOP = new Set(["the", "a", "an", "of", "for", "and", "or", "in", "on", "to", "with", "by", "from", "using", "based", "is", "are", "what", "how", "does", "do", "study", "studies"]);
 /** Left out of the words of the Indian scope (the scope says it), kept in the regular search (where "gender pay gap in India" is about India). */
 const PLACES = new Set(["india", "indian"]);
+const STOP_AND_PLACES = new Set([...STOP, ...PLACES]);
 
 /** Only a web address can be a link: a record that says `javascript:` or anything else is given no link. */
 export function webUrl(raw: unknown): string | null {
@@ -36,7 +38,7 @@ export function webUrl(raw: unknown): string | null {
  * the syntax gets through (only letters, digits and spaces are kept, so a quote, a colon or a bracket cannot change the query). "India" is left out: the scope says it.
  */
 export function doajQuery(q: string, opts: { keepPlaces?: boolean } = {}): string {
-  const words = [...new Set(normalizeTitle(q).split(" ").filter((w) => w.length > 2 && !STOP.has(w) && (opts.keepPlaces || !PLACES.has(w))))].slice(0, 8);
+  const words = queryTerms(q, opts.keepPlaces ? STOP : STOP_AND_PLACES, 8);
   return words.join(" AND ");
 }
 

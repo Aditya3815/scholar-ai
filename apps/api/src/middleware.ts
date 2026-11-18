@@ -12,6 +12,33 @@ export const apiSecurityHeaders = secureHeaders({
   permissionsPolicy: { camera: [], microphone: [], geolocation: [], payment: [] },
 });
 
+/** Nothing in the answer may be kept by a browser or a cache: set after the route has answered, whatever it answered. */
+export const noStore: MiddlewareHandler = async (c, next) => {
+  await next();
+  c.header("Cache-Control", "no-store");
+};
+
+/**
+ * The MCP server's own HTML pages (src/mcp/oauth.ts: sign-in, consent): they can never be framed (a consent button under someone else's page), load nothing from elsewhere and post only to
+ * themselves. Only the headers named here are sent (the API's set above is for JSON, not pages).
+ */
+export const pageSecurityHeaders = secureHeaders({
+  contentSecurityPolicy: { defaultSrc: ["'none'"], styleSrc: ["'unsafe-inline'"], imgSrc: ["'self'", "data:"], frameAncestors: ["'none'"], baseUri: ["'none'"] },
+  xFrameOptions: "DENY",
+  // same-origin, not no-referrer: with no-referrer a browser sends "Origin: null" on the form post, and the post is then refused as cross-site; the app still gets no referrer
+  referrerPolicy: "same-origin",
+  xContentTypeOptions: true,
+  crossOriginResourcePolicy: false,
+  crossOriginOpenerPolicy: false,
+  originAgentCluster: false,
+  strictTransportSecurity: false,
+  xDnsPrefetchControl: false,
+  xDownloadOptions: false,
+  xPermittedCrossDomainPolicies: false,
+  xXssProtection: false,
+  removePoweredBy: false,
+});
+
 const REQUEST_ID = /^[A-Za-z0-9._-]{8,64}$/;
 
 export type LogLine = {

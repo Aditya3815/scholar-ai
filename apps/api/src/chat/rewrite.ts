@@ -1,3 +1,4 @@
+import { NEGATIONS_REWRITE, sentenceWords, statedNumbers } from "@scholar/shared";
 /**
  * The deterministic part of making a claim say only what its sentences say (docs/design/claim-support.md, "Shortening a claim"). The judge may offer, for a claim it calls `partial`, a
  * shorter version of the claim. Words written by a model reach the reader only if they pass this check and then a second reading says the shorter claim is fully supported. This
@@ -8,12 +9,12 @@
 export type RewriteReason = "empty" | "same" | "brackets" | "length" | "words" | "numbers" | "negation" | "hedge" | "script";
 export type RewriteCheck = { ok: true } | { ok: false; reason: RewriteReason; detail?: string };
 
-const tokens = (s: string): string[] => s.normalize("NFKC").toLowerCase().replace(/(\w)n['’]t/g, "$1 not").match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
+const tokens = (s: string): string[] => sentenceWords(s, { splitNot: true });
 
 /** Function words that may appear in a shorter claim without being in the claim (English; other scripts are checked by length). */
 const FREE = new Set("the and for with that this from was were are has had have its but can who how per via due than also into their which such these those been being not nor then there here they them his her she him you your our whose whom may".split(" "));
 // "not", "nor" and "may" are here only so that the word rule does not report them: negations and hedges have rules of their own below. Quantity words (all, any, each, some, one, over ...) are not free: a shorter claim must not bring them.
-const NEGATIONS = new Set(["no", "not", "nor", "never", "none", "neither", "without", "cannot", "nothing", "nahi", "nahin", "नहीं", "नही", "न", "बिना", "नहि"]);
+const NEGATIONS = NEGATIONS_REWRITE;
 const HEDGES = ["may", "might", "could", "possibly", "possible", "probably", "likely", "suggest", "appear", "seem", "associated", "association", "correlat", "potential", "preliminary", "tentative", "unclear", "uncertain", "mixed", "modest", "shayad", "संभावित", "सकता", "सकती", "सकते", "शायद"];
 
 /** The negations of a text ("doesn't" is read as "does not"). */
@@ -45,7 +46,8 @@ const scriptOf = (s: string): "devanagari" | "latin" | "other" => {
   const lat = (s.match(/[A-Za-z]/g) ?? []).length;
   return dev > lat ? "devanagari" : lat > 0 ? "latin" : "other";
 };
-const numbersIn = (s: string): string[] => (s.normalize("NFKC").replace(/[−–—]/g, "-").replace(/(\d),(?=\d{3}\b)/g, "$1").match(/\d+(?:\.\d+)?/g) ?? []);
+/** The numbers a claim states (the old copy read a dash as a minus first, which changed none of them). */
+const numbersIn = (s: string): string[] => statedNumbers(s);
 
 const known = (word: string, allowed: ReadonlySet<string>, prefixes: ReadonlySet<string>): boolean => allowed.has(word) || (word.length >= 5 && prefixes.has(word.slice(0, 5)));
 

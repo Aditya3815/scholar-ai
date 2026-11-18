@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { oaKey, refFromPaper, type Answer, type AskStage, type OaAskEvent, type OaIngestEvent, type OaPaperEvent, type Paper } from "@scholar/shared";
+import { MAX_OA_ABSTRACT_CHARS, oaKey, refFromPaper, type Answer, type AskStage, type OaAskEvent, type OaIngestEvent, type OaPaperEvent, type Paper } from "@scholar/shared";
 import { readSse } from "./sse";
 
 /**
@@ -109,7 +109,7 @@ export async function askPaper(paper: Paper, question: string, again?: string): 
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-      body: JSON.stringify({ ...ref, question: q, ...(paper.abstract ? { abstract: paper.abstract.slice(0, 4000) } : {}) }),
+      body: JSON.stringify({ ...ref, question: q, ...(paper.abstract ? { abstract: paper.abstract.slice(0, MAX_OA_ABSTRACT_CHARS) } : {}) }),
       signal: ctl.signal,
     });
     if (!res.ok) {

@@ -9,7 +9,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { memoryStore } from "../src/cache/store";
 import { crossrefByDoi, doiResolves } from "../src/references/lookup";
-import { tokenize } from "../src/references/match";
+import { tokenize } from "@scholar/shared";
 import { verifyReference, type RefResult } from "../src/references/verify";
 import { runSearch } from "../src/search";
 import { findRetractionNotices } from "../src/search/retraction";

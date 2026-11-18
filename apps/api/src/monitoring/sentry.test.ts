@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Hono } from "hono";
 import { allowEvent, buildEvent, captureException, envelopeFor, parseDsn, parseStack, resetEventLimit, routeOf, scrubMessage, sendEvent } from "./sentry";
-import { monitoringRoutes } from "./routes";
+import { monitoringRoutes, refuseCrossOrigin } from "./routes";
+import { sameOriginWrites } from "../platform/http/guards";
 
 const DSN = "https://abc123publickey@o42.ingest.de.sentry.io/4507";
 beforeEach(() => resetEventLimit());
@@ -96,7 +97,10 @@ describe("sending", () => {
 });
 
 describe("POST /api/v1/monitoring (errors from the browser)", () => {
-  const app = new Hono<{ Bindings: { SENTRY_DSN?: string } }>().route("/api/v1/monitoring", monitoringRoutes);
+  // the origin check is the app's, for every write (app/mount.ts), with this router's own refusal
+  const app = new Hono<{ Bindings: { SENTRY_DSN?: string } }>()
+    .use("/api/*", sameOriginWrites({ skip: {}, devFirst: [], refusals: { "/api/v1/monitoring": refuseCrossOrigin } }))
+    .route("/api/v1/monitoring", monitoringRoutes);
   const waits: Promise<unknown>[] = [];
   const ctx = { waitUntil: (p: Promise<unknown>) => void waits.push(p), passThroughOnException() {} } as unknown as ExecutionContext;
   const post = (body: unknown, env: object, headers: Record<string, string> = {}) =>

@@ -1,4 +1,5 @@
-import type { Lang } from "./route";
+import type { Lang } from "./vocab/languages";
+import { FILTER_YEARS } from "./text";
 
 /**
  * Context between messages (docs/design/chat-actions-context.md, sections 5 and 6): what the browser may send with a message in Auto so that "only after 2020", "explain that simpler" and
@@ -29,8 +30,8 @@ export const MAX_CHAT_BODY_BYTES = 80 * 1024;
 export const MAX_RESTATED_QUESTION_CHARS = 200;
 export const MAX_RESTATED_QUERY_WORDS = 12;
 /** The year range a person can ask for. */
-export const MIN_FILTER_YEAR = 1900;
-export const MAX_FILTER_YEAR = 2100;
+export const MIN_FILTER_YEAR = FILTER_YEARS.min;
+export const MAX_FILTER_YEAR = FILTER_YEARS.max;
 /**
  * `sinceYear`, the optional body field of `POST /api/v1/chat` that a Trending chip sets ("from this year on", docs/design/chatview-and-trending.md, T9): a whole year from this one to the year the server is in,
  * allowed in Auto and in a search chosen by hand, and applied like the router's year range. It is not context: nothing is read from earlier turns for it.
@@ -57,9 +58,6 @@ export const YEAR_FILTER_SEARCH_LIMIT = 40;
 export const FOLLOW_UP_INTENTS = ["new", "refine", "same_papers"] as const;
 export type FollowUpIntent = (typeof FOLLOW_UP_INTENTS)[number];
 
-/** The languages an answer can be asked for in (the router's enum; anything else is no request). */
-export const ANSWER_LANGUAGES = ["en", "hi", "hinglish"] as const;
-export type AnswerLanguage = (typeof ANSWER_LANGUAGES)[number];
 
 /** A paper the last reply cited, as the person saw it: its place in that reply's list, its title and its year. */
 export type HistoryPaper = { n: number; title: string; year: number | null };
@@ -73,6 +71,9 @@ export type HistoryPaper = { n: number; title: string; year: number | null };
 export type HistoryEntry =
   | { role: "user"; text: string }
   | { role: "assistant"; searchQuery?: string; language?: Lang; papers?: HistoryPaper[]; text?: string; yearFrom?: number; yearTo?: number };
+
+/** The characters of an entry that count towards the total (`MAX_HISTORY_CHARS`): every text of it that can reach a model. The browser keeps to it and the server reads it the same way. */
+export const historySizeOf = (e: HistoryEntry): number => (e.role === "user" ? e.text.length : (e.searchQuery?.length ?? 0) + (e.text?.length ?? 0) + (e.papers ?? []).reduce((n, p) => n + p.title.length, 0));
 
 /**
  * What the server tells the browser about the context it read, on the `understood` event (an old open tab ignores a field it does not know; a new event type would crash its reducer). It is

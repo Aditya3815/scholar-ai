@@ -1,8 +1,7 @@
 import * as z from "zod";
-import { MAX_QUESTION_CHARS, MAX_REFERENCES, MAX_REFERENCE_CHARS, OA_UNREADABLE_TEXT, arxivIdFromDoi, cleanArxivId, cleanDoi, oaKey, splitReferences, type Answer, type OaPaperEvent, type OaRef, type Paper, type SearchResponse } from "@scholar/shared";
+import { DOI_START, normalizeDoi, MAX_QUESTION_CHARS, MAX_REFERENCES, MAX_REFERENCE_CHARS, OA_UNREADABLE_TEXT, arxivIdFromDoi, cleanArxivId, cleanDoi, oaKey, splitReferences, type Answer, type OaPaperEvent, type OaRef, type Paper, type SearchResponse } from "@scholar/shared";
 import { CLAIM_VERDICTS, type ClaimJudgement } from "../chat/claim-check";
 import { MAX_QUERY_LENGTH } from "../search";
-import { normalizeDoi } from "../search/normalize";
 import type { RefResult } from "../references/verify";
 import { firstAuthorFamily, guessTitle, nearestYear } from "../references/match";
 import type { RetractionCheck } from "../search/retraction-service";
@@ -284,7 +283,7 @@ export const RetractionOut = z.object({
 });
 export type RetractionOut = z.infer<typeof RetractionOut>;
 
-const DOI_IN_TEXT = /\b10\.\d{4,9}\/[^\s"'<>{}\\]+/g;
+const DOI_IN_TEXT = new RegExp(String.raw`\b${DOI_START}[^\s"'<>{}\\]+`, "g");
 
 export function readRetractionIn(a: RetractionIn): { ok: true; dois: string[] } | { ok: false; error: string } {
   if (a.dois === undefined && a.text === undefined) return { ok: false, error: "Send dois (a list) or text (holding DOIs)." };

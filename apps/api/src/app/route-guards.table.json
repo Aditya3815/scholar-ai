@@ -1,0 +1,876 @@
+{
+ "DELETE /api/v1/account": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 confirmation_required: Send {\"confirm\":\"DELETE\"} [no-store]",
+  "notOwned": "400 confirmation_required: Send {\"confirm\":\"DELETE\"} [no-store]",
+  "big": "400 confirmation_required: Send {\"confirm\":\"DELETE\"} [no-store]",
+  "chunked": "400 confirmation_required: Send {\"confirm\":\"DELETE\"} [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "DELETE /api/v1/admin/feedback/:id": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found [no-store]",
+  "noAck": "404 not_found: Not found [no-store]",
+  "notOwned": "404 not_found: Not found [no-store]",
+  "big": "404 not_found: Not found [no-store]",
+  "chunked": "404 not_found: Not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "DELETE /api/v1/connected-apps/:id": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found [no-store]",
+  "noAck": "404 not_found: Not found [no-store]",
+  "notOwned": "404 not_found: Not found [no-store]",
+  "big": "404 not_found: Not found [no-store]",
+  "chunked": "404 not_found: Not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "DELETE /api/v1/dev/r2-object": {
+  "cross": "404 not_found: Not found",
+  "crossDev": "200",
+  "anon": "200",
+  "noAck": "200",
+  "notOwned": "200",
+  "big": "200",
+  "chunked": "200",
+  "bucket": "API_LIMITER"
+ },
+ "DELETE /api/v1/documents/:id": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "200 [no-store]",
+  "chunked": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "DELETE /api/v1/documents/:id/notes/:nid": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "200 [no-store]",
+  "chunked": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "DELETE /api/v1/library/:id": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to use your library [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "big": "200 [no-store]",
+  "chunked": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "DELETE /api/v1/litscan/:id": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "404 not_found: That scan does not exist [no-store]",
+  "big": "200 [no-store]",
+  "chunked": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "DELETE /api/v1/litscan/:id/share": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "404 not_found: That scan does not exist [no-store]",
+  "big": "200 [no-store]",
+  "chunked": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/account/export": {
+  "cross": "401 unauthorized: Sign in first [no-store]",
+  "crossDev": "401 unauthorized: Sign in first [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/admin/integrity": {
+  "cross": "404 not_found: Not found [no-store]",
+  "crossDev": "404 not_found: Not found [no-store]",
+  "anon": "404 not_found: Not found [no-store]",
+  "noAck": "404 not_found: Not found [no-store]",
+  "notOwned": "404 not_found: Not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/admin/mcp": {
+  "cross": "404 not_found: Not found [no-store]",
+  "crossDev": "404 not_found: Not found [no-store]",
+  "anon": "404 not_found: Not found [no-store]",
+  "noAck": "404 not_found: Not found [no-store]",
+  "notOwned": "404 not_found: Not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/admin/overview": {
+  "cross": "404 not_found: Not found [no-store]",
+  "crossDev": "404 not_found: Not found [no-store]",
+  "anon": "404 not_found: Not found [no-store]",
+  "noAck": "404 not_found: Not found [no-store]",
+  "notOwned": "404 not_found: Not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/auth/:provider/callback": {
+  "cross": "302 (empty) [no-store]",
+  "crossDev": "302 (empty) [no-store]",
+  "anon": "302 (empty) [no-store]",
+  "noAck": "302 (empty) [no-store]",
+  "notOwned": "302 (empty) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/auth/:provider/start": {
+  "cross": "404 not_found: Unknown or unconfigured provider [no-store]",
+  "crossDev": "404 not_found: Unknown or unconfigured provider [no-store]",
+  "anon": "404 not_found: Unknown or unconfigured provider [no-store]",
+  "noAck": "404 not_found: Unknown or unconfigured provider [no-store]",
+  "notOwned": "404 not_found: Unknown or unconfigured provider [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/auth/me": {
+  "cross": "200 [no-store]",
+  "crossDev": "200 [no-store]",
+  "anon": "200 [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/auth/providers": {
+  "cross": "200 [no-store]",
+  "crossDev": "200 [no-store]",
+  "anon": "200 [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/chat/config": {
+  "cross": "200 [no-store]",
+  "crossDev": "200 [no-store]",
+  "anon": "200 [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/connected-apps": {
+  "cross": "404 not_found: Not found [no-store]",
+  "crossDev": "404 not_found: Not found [no-store]",
+  "anon": "404 not_found: Not found [no-store]",
+  "noAck": "404 not_found: Not found [no-store]",
+  "notOwned": "404 not_found: Not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/dev/r2-exists": {
+  "cross": "404 not_found: Not found",
+  "crossDev": "200",
+  "anon": "200",
+  "noAck": "200",
+  "notOwned": "200",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/documents": {
+  "cross": "401 unauthorized: Sign in to use your papers [no-store]",
+  "crossDev": "401 unauthorized: Sign in to use your papers [no-store]",
+  "anon": "401 unauthorized: Sign in to use your papers [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/documents/:id": {
+  "cross": "401 unauthorized: Sign in to use your papers [no-store]",
+  "crossDev": "401 unauthorized: Sign in to use your papers [no-store]",
+  "anon": "401 unauthorized: Sign in to use your papers [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/documents/:id/cover": {
+  "cross": "401 unauthorized: Sign in to use your papers [no-store]",
+  "crossDev": "401 unauthorized: Sign in to use your papers [no-store]",
+  "anon": "401 unauthorized: Sign in to use your papers [no-store]",
+  "noAck": "404 not_found: No cover [no-store]",
+  "notOwned": "404 not_found: No cover [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/documents/:id/file": {
+  "cross": "401 unauthorized: Sign in to use your papers [no-store]",
+  "crossDev": "401 unauthorized: Sign in to use your papers [no-store]",
+  "anon": "401 unauthorized: Sign in to use your papers [no-store]",
+  "noAck": "404 not_found: The file is missing [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/documents/:id/ink": {
+  "cross": "401 unauthorized: Sign in first [no-store]",
+  "crossDev": "401 unauthorized: Sign in first [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/documents/:id/notes": {
+  "cross": "401 unauthorized: Sign in first [no-store]",
+  "crossDev": "401 unauthorized: Sign in first [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/documents/:id/scan": {
+  "cross": "401 unauthorized: Sign in first [no-store]",
+  "crossDev": "401 unauthorized: Sign in first [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/documents/:id/scan/text": {
+  "cross": "401 unauthorized: Sign in first [no-store]",
+  "crossDev": "401 unauthorized: Sign in first [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/documents/remember": {
+  "cross": "401 unauthorized: Sign in first [no-store]",
+  "crossDev": "401 unauthorized: Sign in first [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/documents/search": {
+  "cross": "401 unauthorized: Sign in first [no-store]",
+  "crossDev": "401 unauthorized: Sign in first [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/health": {
+  "cross": "503 [no-store]",
+  "crossDev": "503 [no-store]",
+  "anon": "503 [no-store]",
+  "noAck": "503 [no-store]",
+  "notOwned": "503 [no-store]",
+  "bucket": "(none)"
+ },
+ "GET /api/v1/health/jobs": {
+  "cross": "200 [no-store]",
+  "crossDev": "200 [no-store]",
+  "anon": "200 [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/home/trending": {
+  "cross": "200",
+  "crossDev": "200",
+  "anon": "200",
+  "noAck": "200",
+  "notOwned": "200",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/library": {
+  "cross": "401 unauthorized: Sign in to use your library [no-store]",
+  "crossDev": "401 unauthorized: Sign in to use your library [no-store]",
+  "anon": "401 unauthorized: Sign in to use your library [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/litscan": {
+  "cross": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "crossDev": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "anon": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/litscan/:id": {
+  "cross": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "crossDev": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "anon": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "404 not_found: That scan does not exist (Scans are kept for a day.) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/litscan/:id/events": {
+  "cross": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "crossDev": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "anon": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "noAck": "200 (stream) [no-store]",
+  "notOwned": "404 not_found: That scan does not exist (Scans are kept for a day.) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/litscan/shared/:token": {
+  "cross": "404 not_found: This link does not work (It was turned off, or the scan was removed after a day.) [no-store]",
+  "crossDev": "404 not_found: This link does not work (It was turned off, or the scan was removed after a day.) [no-store]",
+  "anon": "404 not_found: This link does not work (It was turned off, or the scan was removed after a day.) [no-store]",
+  "noAck": "404 not_found: This link does not work (It was turned off, or the scan was removed after a day.) [no-store]",
+  "notOwned": "404 not_found: This link does not work (It was turned off, or the scan was removed after a day.) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/papers/oa/status": {
+  "cross": "401 unauthorized: Sign in first [no-store]",
+  "crossDev": "401 unauthorized: Sign in first [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 invalid_paper: Give a DOI or an arXiv number [no-store]",
+  "notOwned": "400 invalid_paper: Give a DOI or an arXiv number [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/search": {
+  "cross": "400 invalid_query: Invalid query (q must be 2-300 characters; scope, when given, is \"all\" or \"india\")",
+  "crossDev": "400 invalid_query: Invalid query (q must be 2-300 characters; scope, when given, is \"all\" or \"india\")",
+  "anon": "400 invalid_query: Invalid query (q must be 2-300 characters; scope, when given, is \"all\" or \"india\")",
+  "noAck": "400 invalid_query: Invalid query (q must be 2-300 characters; scope, when given, is \"all\" or \"india\")",
+  "notOwned": "400 invalid_query: Invalid query (q must be 2-300 characters; scope, when given, is \"all\" or \"india\")",
+  "bucket": "SEARCH_LIMITER"
+ },
+ "GET /api/v1/search/stream": {
+  "cross": "400 invalid_query: Invalid query (q must be 2-300 characters; scope, when given, is \"all\" or \"india\")",
+  "crossDev": "400 invalid_query: Invalid query (q must be 2-300 characters; scope, when given, is \"all\" or \"india\")",
+  "anon": "400 invalid_query: Invalid query (q must be 2-300 characters; scope, when given, is \"all\" or \"india\")",
+  "noAck": "400 invalid_query: Invalid query (q must be 2-300 characters; scope, when given, is \"all\" or \"india\")",
+  "notOwned": "400 invalid_query: Invalid query (q must be 2-300 characters; scope, when given, is \"all\" or \"india\")",
+  "bucket": "SEARCH_LIMITER"
+ },
+ "PATCH /api/v1/documents/:id": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 invalid_title: Give the paper a title [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "400 invalid_title: Give the paper a title [no-store]",
+  "chunked": "400 invalid_title: Give the paper a title [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "PATCH /api/v1/documents/:id/notes/:nid": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "400 invalid_note: Nothing to change [no-store]",
+  "chunked": "400 invalid_note: Nothing to change [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/account/privacy-ack": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 outdated: That text has changed (Reload the page and read the current text.) [no-store]",
+  "notOwned": "400 outdated: That text has changed (Reload the page and read the current text.) [no-store]",
+  "big": "400 outdated: That text has changed (Reload the page and read the current text.) [no-store]",
+  "chunked": "400 outdated: That text has changed (Reload the page and read the current text.) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/admin/erase-account": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found [no-store]",
+  "noAck": "404 not_found: Not found [no-store]",
+  "notOwned": "404 not_found: Not found [no-store]",
+  "big": "404 not_found: Not found [no-store]",
+  "chunked": "404 not_found: Not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/admin/monitoring-test": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found [no-store]",
+  "noAck": "404 not_found: Not found [no-store]",
+  "notOwned": "404 not_found: Not found [no-store]",
+  "big": "404 not_found: Not found [no-store]",
+  "chunked": "404 not_found: Not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/admin/reapply-deletions": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found [no-store]",
+  "noAck": "404 not_found: Not found [no-store]",
+  "notOwned": "404 not_found: Not found [no-store]",
+  "big": "404 not_found: Not found [no-store]",
+  "chunked": "404 not_found: Not found [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/auth/logout": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "200 [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "big": "200 [no-store]",
+  "chunked": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/chat": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "400 invalid_mode: That mode is not available [no-store]",
+  "noAck": "400 invalid_mode: That mode is not available [no-store]",
+  "notOwned": "400 invalid_mode: That mode is not available [no-store]",
+  "big": "413 too_large: That is too much text (Send a shorter message.) [no-store]",
+  "chunked": "413 too_large: That is too much text (Send a shorter message.) [no-store]",
+  "bucket": "SEARCH_LIMITER"
+ },
+ "POST /api/v1/chat/judge": {
+  "cross": "404 not_found: Not found (/api/v1/chat/judge) [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "403 forbidden: Sign in first [no-store]",
+  "noAck": "400 invalid_message: text and 1 to 12 papers are needed [no-store]",
+  "notOwned": "400 invalid_message: text and 1 to 12 papers are needed [no-store]",
+  "big": "413 too_large: That is too much text (Send a shorter message.) [no-store]",
+  "chunked": "413 too_large: That is too much text (Send a shorter message.) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/chat/route": {
+  "cross": "404 not_found: Not found (/api/v1/chat/route) [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "400 invalid_message: Write something, at most 20,000 characters [no-store]",
+  "noAck": "400 invalid_message: Write something, at most 20,000 characters [no-store]",
+  "notOwned": "400 invalid_message: Write something, at most 20,000 characters [no-store]",
+  "big": "413 too_large: That is too much text (Send a shorter message.) [no-store]",
+  "chunked": "413 too_large: That is too much text (Send a shorter message.) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/chat/tighten": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "403 sign_in: Sign in to check an answer strictly [no-store]",
+  "noAck": "400 invalid_request: That answer cannot be checked (There is no answer to read.) [no-store]",
+  "notOwned": "400 invalid_request: That answer cannot be checked (There is no answer to read.) [no-store]",
+  "big": "413 too_large: That is too much text (Send a shorter message.) [no-store]",
+  "chunked": "413 too_large: That is too much text (Send a shorter message.) [no-store]",
+  "bucket": "ASK_LIMITER"
+ },
+ "POST /api/v1/dev/cache": {
+  "cross": "404 not_found: Not found",
+  "crossDev": "400 invalid: Send {op: set|get|getMany, key, value, ttl, keys}",
+  "anon": "400 invalid: Send {op: set|get|getMany, key, value, ttl, keys}",
+  "noAck": "400 invalid: Send {op: set|get|getMany, key, value, ttl, keys}",
+  "notOwned": "400 invalid: Send {op: set|get|getMany, key, value, ttl, keys}",
+  "big": "400 invalid: Send {op: set|get|getMany, key, value, ttl, keys}",
+  "chunked": "400 invalid: Send {op: set|get|getMany, key, value, ttl, keys}",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/dev/gate": {
+  "cross": "404 not_found: Not found",
+  "crossDev": "400 invalid: name must be a lane",
+  "anon": "400 invalid: name must be a lane",
+  "noAck": "400 invalid: name must be a lane",
+  "notOwned": "400 invalid: name must be a lane",
+  "big": "400 invalid: name must be a lane",
+  "chunked": "400 invalid: name must be a lane",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/dev/kv": {
+  "cross": "404 not_found: Not found",
+  "crossDev": "400 invalid: No KV namespace is bound here",
+  "anon": "400 invalid: No KV namespace is bound here",
+  "noAck": "400 invalid: No KV namespace is bound here",
+  "notOwned": "400 invalid: No KV namespace is bound here",
+  "big": "400 invalid: No KV namespace is bound here",
+  "chunked": "400 invalid: No KV namespace is bound here",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/dev/llm": {
+  "cross": "404 not_found: Not found",
+  "crossDev": "400 Error: LLM request failed (system and user prompts are required)",
+  "anon": "400 Error: LLM request failed (system and user prompts are required)",
+  "noAck": "400 Error: LLM request failed (system and user prompts are required)",
+  "notOwned": "400 Error: LLM request failed (system and user prompts are required)",
+  "big": "400 Error: LLM request failed (system and user prompts are required)",
+  "chunked": "400 Error: LLM request failed (system and user prompts are required)",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/dev/make-admin": {
+  "cross": "404 not_found: Not found",
+  "crossDev": "401 unauthorized: Sign in first",
+  "anon": "401 unauthorized: Sign in first",
+  "noAck": "200",
+  "notOwned": "200",
+  "big": "200",
+  "chunked": "200",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/dev/sql": {
+  "cross": "404 not_found: Not found",
+  "crossDev": "400 invalid: Send {sql: [statement, ...]}",
+  "anon": "400 invalid: Send {sql: [statement, ...]}",
+  "noAck": "400 invalid: Send {sql: [statement, ...]}",
+  "notOwned": "400 invalid: Send {sql: [statement, ...]}",
+  "big": "400 invalid: Send {sql: [statement, ...]}",
+  "chunked": "400 invalid: Send {sql: [statement, ...]}",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/documents": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to upload papers [no-store]",
+  "noAck": "403 privacy_ack_required: Please read how your papers are handled first (A short note appears before your first upload.) [no-store]",
+  "notOwned": "415 not_a_pdf: That file is not a PDF [no-store]",
+  "big": "415 not_a_pdf: That file is not a PDF [no-store]",
+  "chunked": "415 not_a_pdf: That file is not a PDF [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/documents/:id/ask": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 invalid_question: Ask a question about the paper [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "400 invalid_question: Ask a question about the paper [no-store]",
+  "chunked": "400 invalid_question: Ask a question about the paper [no-store]",
+  "bucket": "ASK_LIMITER"
+ },
+ "POST /api/v1/documents/:id/ask-highlights": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 invalid_question: Ask a question about your highlights [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "400 invalid_question: Ask a question about your highlights [no-store]",
+  "chunked": "400 invalid_question: Ask a question about your highlights [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/documents/:id/finish": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "200 [no-store]",
+  "chunked": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/documents/:id/notes": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 invalid_note: That page is not in this paper [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "400 invalid_note: That page is not in this paper [no-store]",
+  "chunked": "400 invalid_note: That page is not in this paper [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/documents/:id/ocr": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "409 not_scanned: This paper has a text layer, so nothing has to be read from pictures [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "409 not_scanned: This paper has a text layer, so nothing has to be read from pictures [no-store]",
+  "chunked": "409 not_scanned: This paper has a text layer, so nothing has to be read from pictures [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/documents/:id/pages": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 invalid_pages: Send 1 to 10 pages at a time [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "400 invalid_pages: Send 1 to 10 pages at a time [no-store]",
+  "chunked": "400 invalid_pages: Send 1 to 10 pages at a time [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/documents/:id/progress": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 invalid_progress: That page is not in this paper [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "400 invalid_progress: That page is not in this paper [no-store]",
+  "chunked": "400 invalid_progress: That page is not in this paper [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/documents/:id/scan": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 invalid_scan: The number of pages is not valid [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "400 invalid_scan: The number of pages is not valid [no-store]",
+  "chunked": "400 invalid_scan: The number of pages is not valid [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/feedback": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to send a report [no-store]",
+  "noAck": "400 invalid_report: Choose what you are reporting [no-store]",
+  "notOwned": "400 invalid_report: Choose what you are reporting [no-store]",
+  "big": "400 invalid_report: Choose what you are reporting [no-store]",
+  "chunked": "400 invalid_report: Choose what you are reporting [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/idea/compare": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to check an idea [no-store]",
+  "noAck": "403 privacy_ack_required: Please read how your ideas are handled first (A short note appears before your first check.) [no-store]",
+  "notOwned": "400 invalid_compare: There is nothing to compare (Send the idea's plan and the papers to compare.) [no-store]",
+  "big": "413 too_large: That is too much text [no-store]",
+  "chunked": "413 too_large: That is too much text [no-store]",
+  "bucket": "ASK_LIMITER"
+ },
+ "POST /api/v1/idea/insights": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to check an idea [no-store]",
+  "noAck": "403 privacy_ack_required: Please read how your ideas are handled first (A short note appears before your first check.) [no-store]",
+  "notOwned": "400 invalid_insights: There is nothing to read (Send the idea's plan and the papers to read.) [no-store]",
+  "big": "413 too_large: That is too much text [no-store]",
+  "chunked": "413 too_large: That is too much text [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/idea/plan": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to check an idea [no-store]",
+  "noAck": "403 privacy_ack_required: Please read how your ideas are handled first (A short note appears before your first check.) [no-store]",
+  "notOwned": "400 invalid_idea: Describe your idea in a few sentences (At least 40 characters, or add a file.) [no-store]",
+  "big": "413 too_large: That is too much text (Use a shorter file or paste the key parts.) [no-store]",
+  "chunked": "413 too_large: That is too much text (Use a shorter file or paste the key parts.) [no-store]",
+  "bucket": "ASK_LIMITER"
+ },
+ "POST /api/v1/idea/search": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to check an idea [no-store]",
+  "noAck": "400 invalid_plan: The search plan is empty (Keep at least one keyword search, or a description of a few sentences.) [no-store]",
+  "notOwned": "400 invalid_plan: The search plan is empty (Keep at least one keyword search, or a description of a few sentences.) [no-store]",
+  "big": "400 invalid_plan: The search plan is empty (Keep at least one keyword search, or a description of a few sentences.) [no-store]",
+  "chunked": "400 invalid_plan: The search plan is empty (Keep at least one keyword search, or a description of a few sentences.) [no-store]",
+  "bucket": "SEARCH_LIMITER"
+ },
+ "POST /api/v1/library/alerts/seen": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to use your library [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "big": "200 [no-store]",
+  "chunked": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/library/import": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to use your library [no-store]",
+  "noAck": "400 invalid_import: Send up to 500 items [no-store]",
+  "notOwned": "400 invalid_import: Send up to 500 items [no-store]",
+  "big": "400 invalid_import: Send up to 500 items [no-store]",
+  "chunked": "400 invalid_import: Send up to 500 items [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/litscan": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "noAck": "403 privacy_ack_required: Please read how your topics are handled first (A short note appears before your first scan.) [no-store]",
+  "notOwned": "400 invalid_plan: The plan needs a topic and two to six themes (Each theme needs its question and some search words.) [no-store]",
+  "big": "413 too_large: That is too much text [no-store]",
+  "chunked": "413 too_large: That is too much text [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/litscan/:id/cancel": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "404 not_found: That scan does not exist [no-store]",
+  "big": "200 [no-store]",
+  "chunked": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/litscan/:id/share": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "noAck": "201 [no-store]",
+  "notOwned": "404 not_found: That scan does not exist [no-store]",
+  "big": "201 [no-store]",
+  "chunked": "201 [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/litscan/plan": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to scan the literature [no-store]",
+  "noAck": "403 privacy_ack_required: Please read how your topics are handled first (A short note appears before your first scan.) [no-store]",
+  "notOwned": "400 invalid_topic: Describe the topic in a sentence or two (Between 8 and 400 characters.) [no-store]",
+  "big": "413 too_large: That is too much text [no-store]",
+  "chunked": "413 too_large: That is too much text [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/monitoring": {
+  "cross": "403 (empty)",
+  "crossDev": "403 (empty)",
+  "anon": "204 (empty)",
+  "noAck": "204 (empty)",
+  "notOwned": "204 (empty)",
+  "big": "413 (empty)",
+  "chunked": "413 (empty)",
+  "bucket": "API_LIMITER"
+ },
+ "POST /api/v1/papers/oa/ask": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to ask a paper [no-store]",
+  "noAck": "400 invalid_paper: That paper cannot be found by its DOI or arXiv number [no-store]",
+  "notOwned": "400 invalid_paper: That paper cannot be found by its DOI or arXiv number [no-store]",
+  "big": "400 invalid_paper: That paper cannot be found by its DOI or arXiv number [no-store]",
+  "chunked": "400 invalid_paper: That paper cannot be found by its DOI or arXiv number [no-store]",
+  "bucket": "ASK_LIMITER"
+ },
+ "POST /api/v1/references/verify": {
+  "cross": "403 forbidden: Cross-origin request blocked",
+  "crossDev": "403 forbidden: Cross-origin request blocked",
+  "anon": "400 invalid_reference: Invalid reference (Send { reference: string }.)",
+  "noAck": "400 invalid_reference: Invalid reference (Send { reference: string }.)",
+  "notOwned": "400 invalid_reference: Invalid reference (Send { reference: string }.)",
+  "big": "400 invalid_reference: Invalid reference (Send { reference: string }.)",
+  "chunked": "400 invalid_reference: Invalid reference (Send { reference: string }.)",
+  "bucket": "VERIFY_LIMITER"
+ },
+ "PUT /api/v1/dev/r2-object": {
+  "cross": "404 not_found: Not found",
+  "crossDev": "200",
+  "anon": "200",
+  "noAck": "200",
+  "notOwned": "200",
+  "big": "200",
+  "chunked": "200",
+  "bucket": "API_LIMITER"
+ },
+ "PUT /api/v1/documents/:id/cover": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 invalid_cover: The cover must be a JPEG under 300 KB [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "400 invalid_cover: The cover must be a JPEG under 300 KB [no-store]",
+  "chunked": "400 invalid_cover: The cover must be a JPEG under 300 KB [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "PUT /api/v1/documents/:id/info": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 invalid_info: Could not read that information about the paper [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "413 too_large: That is too much to store [no-store]",
+  "chunked": "413 too_large: That is too much to store [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "PUT /api/v1/documents/:id/ink": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 invalid_ink: Nothing to save [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "413 too_big: There is too much drawing on this paper to save (Erase some of it, or draw on a copy.) [no-store]",
+  "chunked": "413 too_big: There is too much drawing on this paper to save (Erase some of it, or draw on a copy.) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "PUT /api/v1/documents/:id/meta": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "400 invalid_meta: Nothing to change [no-store]",
+  "notOwned": "404 not_found: Paper not found [no-store]",
+  "big": "400 invalid_meta: Nothing to change [no-store]",
+  "chunked": "400 invalid_meta: Nothing to change [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "PUT /api/v1/library/:id": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "401 unauthorized: Sign in to use your library [no-store]",
+  "noAck": "400 invalid_paper: Invalid paper [no-store]",
+  "notOwned": "400 invalid_paper: Invalid paper [no-store]",
+  "big": "400 invalid_paper: Invalid paper [no-store]",
+  "chunked": "400 invalid_paper: Invalid paper [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "no route: POST /api/v1/nothing-here": {
+  "cross": "404 not_found: Not found (/api/v1/nothing-here)",
+  "crossDev": "404 not_found: Not found (/api/v1/nothing-here)",
+  "bucket": "API_LIMITER"
+ },
+ "no route: POST /api/v1/documents/doc0000000000000000000001/no/such/thing": {
+  "cross": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/no/such/thing) [no-store]",
+  "crossDev": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/no/such/thing) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "no route: DELETE /api/v1/chat": {
+  "cross": "404 not_found: Not found (/api/v1/chat) [no-store]",
+  "crossDev": "404 not_found: Not found (/api/v1/chat) [no-store]",
+  "bucket": "SEARCH_LIMITER"
+ },
+ "no route: POST /api/v1/chat/": {
+  "cross": "404 not_found: Not found (/api/v1/chat/) [no-store]",
+  "crossDev": "404 not_found: Not found (/api/v1/chat/) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "no route: OPTIONS /api/v1/chat": {
+  "cross": "404 not_found: Not found (/api/v1/chat) [no-store]",
+  "crossDev": "404 not_found: Not found (/api/v1/chat) [no-store]",
+  "bucket": "SEARCH_LIMITER"
+ },
+ "no route: PUT /api/v1/search": {
+  "cross": "404 not_found: Not found (/api/v1/search)",
+  "crossDev": "404 not_found: Not found (/api/v1/search)",
+  "bucket": "SEARCH_LIMITER"
+ },
+ "DELETE /api/v1/documents/:id/notebook/pages/:pageId": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/documents/doc-none/notebook/pages/:pageId) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "GET /api/v1/documents/:id/notebook": {
+  "cross": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook) [no-store]",
+  "crossDev": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook) [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/documents/doc-none/notebook) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "PATCH /api/v1/documents/:id/notebook/pages/:pageId": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/documents/doc-none/notebook/pages/:pageId) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "bucket": "API_LIMITER"
+ },
+ "PUT /api/v1/documents/:id/notebook/pages/:pageId": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/documents/doc-none/notebook/pages/:pageId) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId) [no-store]",
+  "bucket": "API_LIMITER"
+ }
+}

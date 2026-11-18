@@ -2,14 +2,12 @@
  * The words on a citation card in the reader (apps/web/src/lib/citeStatus.ts; docs/design/reader-citations.md, 3): "Verified" only when the Reference Verifier said verified,
  * the verifier's own words for every other verdict, and the buttons (Ask, Save, Open) only for a verified entry with a DOI.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { RefVerdict } from "@scholar/shared";
+import { REF_STATUS_WORDS, type RefVerdict } from "@scholar/shared";
 import { CITE_LABEL, NOT_FOUND_HELP, cardRecord, citeStatus, metaLine } from "./citeStatus";
 
-// The verifier's own words are read from its source, lib/refStatus.ts (written when this test ran in apps/api, whose compiler did not know the browser-only modules it imports).
-const REF_STATUS = readFileSync(decodeURIComponent(new URL("./refStatus.ts", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1"), "utf8");
-const labelOf = (key: string): string | undefined => new RegExp(`\\b${key}:\\s*\\{[^}]*?label:\\s*"([^"]+)"`, "s").exec(REF_STATUS)?.[1];
+// The verifier's own words are one table (shared vocab/references.ts) that lib/refStatus.ts reads too, so the card is held to it by import.
+const labelOf = (key: string): string | undefined => (REF_STATUS_WORDS as Record<string, { label: string }>)[key]?.label;
 
 const verdict = (status: RefVerdict["status"], o: Partial<RefVerdict> = {}): RefVerdict => ({
   input: "x",
@@ -39,7 +37,7 @@ describe("the status on a citation card", () => {
 
   it("uses the Reference Verifier's own words for every other verdict", () => {
     for (const [k, label] of Object.entries(CITE_LABEL)) expect(label).toBe(labelOf(k));
-    expect(REF_STATUS.replace(/\s+/g, " ")).toContain(`help: "${NOT_FOUND_HELP}"`);
+    expect(REF_STATUS_WORDS.not_found.help).toBe(NOT_FOUND_HELP);
   });
 
   it("offers Ask, Save and Open only for a verified entry with a DOI, as the matched record", () => {

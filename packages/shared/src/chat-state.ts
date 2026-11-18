@@ -1,7 +1,14 @@
+import { type NoticeKind } from "./vocab/notices";
+import { type Lang, isLang } from "./vocab/languages";
+import { isLaneReason, isNoTraceNotice, isNoTraceReason } from "./vocab/lane";
+import { isIntent } from "./vocab/intents";
+import { STEP_ORDER, type ChatStep } from "./vocab/steps";
+import { stripMarks } from "./ids";
 import type { Paper, SearchScope } from "./index";
-import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatRequestMode, type ChatStep, type GeneralKind, type NoticeKind, type TightenRequest, type TightenResponse, type UnderstoodByModel } from "./chat";
-import { MAX_FILTER_YEAR, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MIN_FILTER_YEAR, MIN_SINCE_YEAR, type ChatContextInfo, type HistoryEntry, type HistoryPaper } from "./chat-context";
-import { MAX_AUTO_CHARS, type Lang, type RouteHow } from "./route";
+import { cutWhole, FILTER_YEARS, isYear, oneLine, PUBLICATION_YEARS, stripInvisible } from "./text";
+import { MAX_CHAT_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, cleanChatMessage, type ChatAnswer, type ChatEvent, type ChatMode, type ChatNoAnswer, type ChatRequestMode, type GeneralKind, type TightenRequest, type TightenResponse, type UnderstoodByModel } from "./chat";
+import { MAX_FILTER_YEAR, MAX_HISTORY_ANSWER_CHARS, MAX_HISTORY_CHARS, MAX_HISTORY_ENTRIES, MAX_HISTORY_PAPERS, MAX_HISTORY_TITLE_CHARS, MIN_SINCE_YEAR, historySizeOf as sizeOf, type ChatContextInfo, type HistoryEntry, type HistoryPaper } from "./chat-context";
+import { MAX_AUTO_CHARS, type RouteHow } from "./route";
 import { abstractRead } from "./sentences";
 import type { Reading } from "./reading";
 import { withThinkLine, type ThinkLine } from "./think";
@@ -86,7 +93,6 @@ export type AssistantMsg = {
 export type IdeaMsg = { id: string; role: "idea"; text: string; at: number };
 export type ChatMsg = UserMsg | AssistantMsg | IdeaMsg;
 
-const STEP_ORDER: ChatStep[] = ["route", "search", "read", "write", "check", "general"];
 /** "route" and "general" are steps only when they really happened. */
 const happened = (m: AssistantMsg, s: ChatStep, now: ChatStep | null) => s !== "route" && s !== "general" ? true : m.step === s || m.stepsDone.includes(s) || now === s;
 
@@ -100,14 +106,13 @@ export const startAssistant = (id: string, query: string, at: number, auto = fal
 /** A year a request may carry as `sinceYear`: a whole number from 1990 (what the server reads) to 2100 (the server also holds it to this year, by its own clock: the page's chips are held to the device's). Anything else is not sent. */
 export const isSinceYear = (y: unknown): y is number => typeof y === "number" && Number.isInteger(y) && y >= MIN_SINCE_YEAR && y <= MAX_FILTER_YEAR;
 
-const UND_INTENTS = new Set(["chat", "search", "refine_search", "ask_results", "ask_paper", "offer_tool", "clarify"]);
 /**
  * The Understand step's fields of an `understood` event, as a reply keeps them: defensive about what came off the wire (a field of the wrong shape is dropped, never repaired), and nothing at all for an event
  * that has none.
  */
 export function understoodByModel(e: Partial<UnderstoodByModel>): UnderstoodByModel {
   const out: UnderstoodByModel = {};
-  if (typeof e.intent === "string" && UND_INTENTS.has(e.intent)) out.intent = e.intent;
+  if (isIntent(e.intent)) out.intent = e.intent;
   if (typeof e.statusLine === "string" && e.statusLine.trim()) out.statusLine = oneLine(e.statusLine).slice(0, 200);
   if (e.confirm === true) out.confirm = true;
   if (e.fallback === true) out.fallback = true;
@@ -382,37 +387,15 @@ export const interruptMessages = (msgs: readonly ChatMsg[]): ChatMsg[] => mapRep
 
 /* ---------------------------------------------------------------- context between messages */
 
-const cp = (c: number) => String.fromCodePoint(c);
-/**
- * Text that shows nothing: the bidi controls, the zero-width space, the word joiner and the invisible operators, the byte-order mark, the tag characters. The list is the server's (apps/api/src/chat/history.ts)
- * and a few more, built from code points so that no invisible character is typed into this file: what the browser sends is then already what the server would make of it, and it never sends a
- * question that the server reads as shorter than it is and refuses (a refusal is of the whole message). U+200C and U+200D are NOT in it: Hindi is written with them.
- */
-const INVISIBLE = new RegExp(`[${[0x061c, 0x200b, 0x200e, 0x200f, 0x2060, 0x2061, 0x2062, 0x2063, 0x2064, 0xfeff].map(cp).join("")}${cp(0x202a)}-${cp(0x202e)}${cp(0x2066)}-${cp(0x2069)}${cp(0xe0000)}-${cp(0xe007f)}]`, "gu");
-const CONTROLS = new RegExp(`[${cp(0)}-${cp(0x1f)}${cp(0x7f)}]`, "g");
-/** A text as one line: nothing invisible, no control character, no line break. A title or an answer is data from outside, and one that held a line break and "[2] ..." could otherwise start a line of its own. */
-export const oneLine = (s: string): string => s.replace(INVISIBLE, "").replace(CONTROLS, " ").replace(/\s+/g, " ").trim();
 /** Words that can be sent as a search or as a question (2 to 300 characters with a letter or a number in it) once the invisible characters are out, or nothing. */
-const askable = (s: unknown): string | undefined => (typeof s === "string" ? (cleanChatMessage(s.replace(INVISIBLE, "")) ?? undefined) : undefined);
+const askable = (s: unknown): string | undefined => (typeof s === "string" ? (cleanChatMessage(stripInvisible(s)) ?? undefined) : undefined);
 
-/** At most `max` characters, cut where a whole character ends: never between the halves of a character outside the basic plane, and, where the browser can tell, never inside a Hindi conjunct. */
-export function cutWhole(s: string, max: number): string {
-  if (s.length <= max) return s;
-  const head = s.slice(0, max + 16);
-  const parts = typeof Intl !== "undefined" && typeof Intl.Segmenter === "function" ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(head), (x) => x.segment) : Array.from(head);
-  let out = "";
-  for (const part of parts) {
-    if (out.length + part.length > max) break;
-    out += part;
-  }
-  return out;
-}
 
 /** The year range a person can ask for (the same as the server's reader), or nothing: both ends whole numbers in range, at least one of them, in order. `null` is no end, as it is on the wire. */
 function yearRange(from: unknown, to: unknown): { from?: number; to?: number } | null {
   const f = from ?? undefined;
   const t = to ?? undefined;
-  const fine = (y: unknown): y is number | undefined => y === undefined || (typeof y === "number" && Number.isInteger(y) && y >= MIN_FILTER_YEAR && y <= MAX_FILTER_YEAR);
+  const fine = (y: unknown): y is number | undefined => y === undefined || isYear(y, FILTER_YEARS);
   if (!fine(f) || !fine(t) || (f === undefined && t === undefined) || (f !== undefined && t !== undefined && f > t)) return null;
   return { ...(f === undefined ? {} : { from: f }), ...(t === undefined ? {} : { to: t }) };
 }
@@ -424,7 +407,6 @@ export function yearRangeWords(from?: number, to?: number): string | null {
   return r.from !== undefined && r.to !== undefined ? (r.from === r.to ? `${r.from}` : `${r.from} to ${r.to}`) : r.from !== undefined ? `${r.from} or later` : `${r.to} or earlier`;
 }
 
-const LANGS: readonly Lang[] = ["en", "hi", "hinglish", "other"];
 type AskedEntry = Extract<HistoryEntry, { role: "user" }>;
 type ReplyEntry = Extract<HistoryEntry, { role: "assistant" }>;
 
@@ -442,7 +424,7 @@ function citedPapers(a: AssistantMsg): HistoryPaper[] {
     const p = a.papers[n - 1]!;
     const title = typeof p.title === "string" ? cutWhole(oneLine(p.title), MAX_HISTORY_TITLE_CHARS).trim() : "";
     if (!/[\p{L}\p{N}]/u.test(title)) continue;
-    out.push({ n, title, year: typeof p.year === "number" && Number.isInteger(p.year) && p.year >= 1000 && p.year <= 2999 ? p.year : null });
+    out.push({ n, title, year: isYear(p.year, PUBLICATION_YEARS) ? p.year : null });
     if (out.length === MAX_HISTORY_PAPERS) break;
   }
   return out;
@@ -452,7 +434,7 @@ function citedPapers(a: AssistantMsg): HistoryPaper[] {
 export function answerWords(a: AssistantMsg): string | undefined {
   const ans = a.answer;
   if (!ans || !ans.grounded || typeof ans.text !== "string") return undefined;
-  const t = cutWhole(oneLine(ans.text).replace(/\s*\[\d{1,2}\]/g, "").trim(), MAX_HISTORY_ANSWER_CHARS).trim();
+  const t = cutWhole(stripMarks(oneLine(ans.text)).trim(), MAX_HISTORY_ANSWER_CHARS).trim();
   return t || undefined;
 }
 
@@ -463,7 +445,7 @@ export function answerWords(a: AssistantMsg): string | undefined {
  */
 export function leavesNoTrace(m: AssistantMsg): boolean {
   if (m.status === "working") return false;
-  return m.reason === "urgent" || m.reason === "safety" || m.notices.some((n) => n.kind === "safety_crisis" || n.kind === "safety_urgent");
+  return isNoTraceReason(m.reason) || m.notices.some((n) => isNoTraceNotice(n.kind));
 }
 
 /**
@@ -475,7 +457,7 @@ function historyTurn(u: UserMsg, a: AssistantMsg): { asked: AskedEntry; reply: R
   if (a.status !== "done" || a.mode !== "search" || a.reason === "routed" || a.reason === "small_talk" || a.reason === "too_long" || a.reason === "stopped" || a.general?.kind === "not_research") return null;
   // the safety lane (docs/design/intent-and-state.md, 4.5): a message that described an emergency, said the person may hurt themselves, or asked what to take never rides along as context (and is not in the turn
   // ledger). Its reply is not an answer about anything the next message could lean on.
-  if (a.reason === "urgent" || a.reason === "safety" || a.reason === "decision" || a.notices.some((n) => n.kind === "safety_crisis" || n.kind === "safety_urgent")) return null;
+  if (isLaneReason(a.reason) || a.notices.some((n) => isNoTraceNotice(n.kind))) return null;
   const text = askable(u.text);
   if (!text) return null;
   // what the indexes were asked: the words the reply says it searched; else, for a reply made from other words than the person wrote (searched again as written, with the year filter taken off), the words it was made from
@@ -483,7 +465,7 @@ function historyTurn(u: UserMsg, a: AssistantMsg): { asked: AskedEntry; reply: R
   const searched = askable(a.searchQuery) ?? (own && own !== text ? own : undefined);
   const reply: ReplyEntry = { role: "assistant" };
   if (searched) reply.searchQuery = searched;
-  if (LANGS.includes(a.language)) reply.language = a.language;
+  if (isLang(a.language)) reply.language = a.language;
   const papers = citedPapers(a);
   if (papers.length > 0) reply.papers = papers;
   const years = yearRange(a.context?.yearFrom, a.context?.yearTo);
@@ -492,8 +474,6 @@ function historyTurn(u: UserMsg, a: AssistantMsg): { asked: AskedEntry; reply: R
   return { asked: { role: "user", text }, reply, from: a };
 }
 
-/** The characters of an entry that count towards the total the server reads (every text of it that can reach a model). */
-const sizeOf = (e: HistoryEntry): number => (e.role === "user" ? e.text.length : (e.searchQuery?.length ?? 0) + (e.text?.length ?? 0) + (e.papers ?? []).reduce((n, p) => n + p.title.length, 0));
 
 /**
  * The finished searches of a list of messages, oldest first, each as `historyTurn` reads it. The one place that decides which turns of a conversation may be carried on: to the next message of the same
@@ -774,27 +754,3 @@ export function applyTighten(m: AssistantMsg, res: TightenResponse, asked?: Read
 
 /* ---------------------------------------------------------------- the owner's counts */
 
-/**
- * How the prompt box's answers went, for the line at the top of /admin: of the questions that the papers could have answered (the model was asked), how many it answered and how many answers our own
- * check refused. A message that came with the turns before it is booked by the server under `followup_answered` and `followup_not_grounded` (src/outcomes.ts), and they count here exactly as
- * `answered` and `not_grounded` do: left out, the line would cover only the first message of every chat. `followup_rewrite_failed` and `followup_context_ignored` take both endings under one name, so how
- * many of those were refused cannot be said: they are counted apart (`unsplit`) and are not guessed into either number. Counts only; no text, no person.
- *
- * `followup_unread` (a follow-up whose router call failed: the papers were shown and NO answer was written, CHAT_FAILPOLICY=on) is in none of the three numbers on purpose: no model was asked to write an
- * answer, so it is not a question that the papers could have answered, and its ending is known, so it is not unsplit. `followup_unread_shadow` is a second count of messages already in another row (the
- * answer was written as before), so it is left out too. They are in the table below the line, by name.
- */
-export function chatRefusalShare(rows: readonly { feature: string; outcome: string; n: number }[]): { attempted: number; refused: number; unsplit: number } {
-  let attempted = 0;
-  let refused = 0;
-  let unsplit = 0;
-  for (const r of rows) {
-    if (r.feature !== "chat") continue;
-    if (r.outcome === "not_grounded" || r.outcome === "followup_not_grounded") {
-      attempted += r.n;
-      refused += r.n;
-    } else if (r.outcome === "answered" || r.outcome === "not_answered" || r.outcome === "followup_answered") attempted += r.n;
-    else if (r.outcome === "followup_rewrite_failed" || r.outcome === "followup_context_ignored") unsplit += r.n;
-  }
-  return { attempted, refused, unsplit };
-}

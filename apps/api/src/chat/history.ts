@@ -1,4 +1,11 @@
 import {
+  cutWhole,
+  isLang,
+  DOI_START,
+  FILTER_YEARS,
+  historySizeOf as sizeOf,
+  isInt,
+  isYear,
   MAX_FILTER_YEAR,
   MAX_HISTORY_ANSWER_CHARS,
   MAX_HISTORY_CHARS,
@@ -7,9 +14,11 @@ import {
   MAX_HISTORY_TITLE_CHARS,
   MIN_FILTER_YEAR,
   cleanChatMessage,
+  oneLine,
+  PUBLICATION_YEARS,
+  stripInvisible,
   type HistoryEntry,
   type HistoryPaper,
-  type Lang,
 } from "@scholar/shared";
 
 /**
@@ -44,42 +53,6 @@ export type ChatHistory = {
   dropped: number;
 };
 
-const LANGS: readonly Lang[] = ["en", "hi", "hinglish", "other"];
-
-/**
- * Text that shows nothing. Bidi controls (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069) can make text read other than it is; the zero-width space, the byte-order mark and the word joiner
- * hide words from a person; the tag characters (U+E0000 to U+E007F) mirror ASCII and are a known way to smuggle an instruction past a reader. U+200C and U+200D are NOT here: they are part of
- * Hindi and other Indian scripts (a conjunct with and without a joiner is not the same word), so a blanket "strip every format character" would corrupt Devanagari.
- */
-const INVISIBLE = /[\u061C\u200B\u200E\u200F\u2060\u202A-\u202E\u2066-\u2069\uFEFF\u{E0000}-\u{E007F}]/gu;
-export const stripInvisible = (s: string): string => s.replace(INVISIBLE, "");
-
-/** A text as one line: invisible characters out, control characters and line breaks as single spaces. */
-const flat = (s: string): string => stripInvisible(s).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
-
-const graphemes: Intl.Segmenter | null = typeof Intl !== "undefined" && typeof Intl.Segmenter === "function" ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
-
-/**
- * At most `max` characters (UTF-16 units, as every limit here is counted), cut where a whole character ends: never between the two halves of a character outside the basic plane, and, where
- * the platform can tell, never in the middle of a Hindi conjunct or a letter with its marks.
- */
-export function cutChars(s: string, max: number): string {
-  if (max <= 0) return "";
-  if (s.length <= max) return s;
-  let out = "";
-  // lazily: a text of 60 KB that is cut to 500 characters is not segmented to its end first
-  for (const part of graphemes ? (function* () { for (const x of graphemes.segment(s)) yield x.segment; })() : s) {
-    if (out.length + part.length > max) break;
-    out += part;
-  }
-  return out;
-}
-
-/**
- * The delimiters of a prompt, made harmless in a text that is put inside one: a run of three quotes (which closes a message block) and of three angle brackets (which would close or open a
- * fence). The same text always gives the same result, so prompts stay stable and tests can pin them.
- */
-export const neutralise = (s: string): string => s.replace(/"{3,}/g, "'''").replace(/<{3,}/g, "<<").replace(/>{3,}/g, ">>");
 
 /**
  * What kind of failure a provider reported, as one of five words, for a log line about a message that came with earlier turns: a provider's own error text can echo what it was sent (a rejected
@@ -89,7 +62,7 @@ export const errorKind = (message?: string): "timeout" | "malformed" | "quota" |
   !message ? "error" : /time(?:d)? ?out|abort/i.test(message) ? "timeout" : /json|unterminated|parse/i.test(message) ? "malformed" : /quota/i.test(message) ? "quota" : /unavailable|overload|rate|5\d\d/i.test(message) ? "unavailable" : "error";
 
 const MARKS = /\s*(?:\[\s*\d{1,3}(?:\s*[,;–-]\s*\d{1,3})*\s*\]|【[^】]{0,40}】)/g;
-const DOI = /\b(?:doi:\s*)?10\.\d{4,9}\/[^\s,;)\]]*[^\s,;)\].:!?]/gi;
+const DOI = new RegExp(String.raw`\b(?:doi:\s*)?${DOI_START}[^\s,;)\]]*[^\s,;)\].:!?]`, "gi");
 const LINK = /\b(?:https?:\/\/|www\.)[^\s)\]]*[^\s)\].,;:!?]/gi;
 // a name is at most 40 letters long: without the bound `[\p{L}'’-]+` scans to the end of the text from every start of a word, and a text of "A-" repeated to 60 KB took 1.9 seconds
 const AUTHOR_YEAR = /\(\s*\p{Lu}[\p{L}'’-]{1,40}(?:\s+(?:and|&)\s+\p{Lu}[\p{L}'’-]{1,40})?(?:\s+et al\.?)?,?\s+(?:19|20)\d{2}[a-z]?\s*\)/gu;
@@ -101,7 +74,7 @@ const BARE_ET_AL = /\bet al\.?/gi;
  * no evidence of anything: it is the wording of a reply, kept only so that "explain that simpler" has something to refer to.
  */
 export function plainAnswer(raw: string): string {
-  return flat(raw)
+  return oneLine(raw)
     .replace(MARKS, "")
     .replace(AUTHOR_YEAR, "")
     .replace(ET_AL, "")
@@ -126,15 +99,12 @@ function startOf(text: string): string {
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-const isInt = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v);
 const absent = (v: unknown): boolean => v === undefined || v === null;
 const hasWord = (s: string): boolean => /[\p{L}\p{N}]/u.test(s);
 const bad = (detail: string): Refusal => ({ ok: false, detail });
 
 const emptyHistory = (): ChatHistory => ({ entries: [], turns: 0, anchor: null, lastAnswer: null, dropped: 0 });
 
-/** The characters of an entry that count towards the total: every text that can reach a model. */
-const sizeOf = (e: HistoryEntry): number => (e.role === "user" ? e.text.length : (e.searchQuery?.length ?? 0) + (e.text?.length ?? 0) + (e.papers ?? []).reduce((n, p) => n + p.title.length, 0));
 
 function readPapers(raw: unknown, at: number): HistoryPaper[] | Refusal {
   if (!Array.isArray(raw)) return bad(`The papers of entry ${at} must be a list.`);
@@ -142,9 +112,9 @@ function readPapers(raw: unknown, at: number): HistoryPaper[] | Refusal {
   for (const p of raw) {
     if (!isObject(p)) return bad(`A paper of entry ${at} is not an object.`);
     if (!isInt(p.n) || p.n < 1 || p.n > 99) return bad(`Each paper of entry ${at} needs a number from 1 to 99.`);
-    const title = typeof p.title === "string" ? cutChars(flat(p.title), MAX_HISTORY_TITLE_CHARS) : "";
+    const title = typeof p.title === "string" ? cutWhole(oneLine(p.title), MAX_HISTORY_TITLE_CHARS) : "";
     if (!title || !hasWord(title)) return bad(`Each paper of entry ${at} needs a title.`);
-    if (!absent(p.year) && (!isInt(p.year) || p.year < 1000 || p.year > 2999)) return bad(`A paper of entry ${at} has a year that is not a year.`);
+    if (!absent(p.year) && !isYear(p.year, PUBLICATION_YEARS)) return bad(`A paper of entry ${at} has a year that is not a year.`);
     if (out.length < MAX_HISTORY_PAPERS) out.push({ n: p.n, title, year: isInt(p.year) ? p.year : null });
   }
   return out;
@@ -152,7 +122,7 @@ function readPapers(raw: unknown, at: number): HistoryPaper[] | Refusal {
 
 function readYear(raw: unknown, name: string, at: number): number | undefined | Refusal {
   if (absent(raw)) return undefined;
-  if (!isInt(raw) || raw < MIN_FILTER_YEAR || raw > MAX_FILTER_YEAR) return bad(`The ${name} of entry ${at} must be a year from ${MIN_FILTER_YEAR} to ${MAX_FILTER_YEAR}.`);
+  if (!isYear(raw, FILTER_YEARS)) return bad(`The ${name} of entry ${at} must be a year from ${MIN_FILTER_YEAR} to ${MAX_FILTER_YEAR}.`);
   return raw;
 }
 
@@ -180,7 +150,7 @@ function read(raw: unknown): { ok: true; history: ChatHistory } | Refusal {
     const out: Extract<HistoryEntry, { role: "assistant" }> = { role: "assistant" };
     if (!absent(e.searchQuery)) {
       if (typeof e.searchQuery !== "string") return bad(`The search words of entry ${at} must be text.`);
-      const line = flat(e.searchQuery);
+      const line = oneLine(e.searchQuery);
       if (line) {
         const q = cleanChatMessage(line);
         if (!q) return bad(`The search words of entry ${at} are not valid search words (2 to 300 characters).`);
@@ -188,7 +158,7 @@ function read(raw: unknown): { ok: true; history: ChatHistory } | Refusal {
       }
     }
     if (!absent(e.language)) {
-      const language = LANGS.find((l) => l === e.language);
+      const language = isLang(e.language) ? e.language : undefined;
       if (!language) return bad(`The language of entry ${at} is not one that is known.`);
       out.language = language;
     }
@@ -200,7 +170,7 @@ function read(raw: unknown): { ok: true; history: ChatHistory } | Refusal {
     if (!absent(e.text)) {
       if (typeof e.text !== "string") return bad(`The text of entry ${at} must be text.`);
       if (i !== lastReply) return bad("Only the last reply may carry its text.");
-      const text = cutChars(plainAnswer(startOf(e.text)), MAX_HISTORY_ANSWER_CHARS).trim();
+      const text = cutWhole(plainAnswer(startOf(e.text)), MAX_HISTORY_ANSWER_CHARS).trim();
       if (text) out.text = text;
     }
     const from = readYear(e.yearFrom, "first year", at);

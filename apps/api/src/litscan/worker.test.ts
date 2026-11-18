@@ -28,6 +28,12 @@ describe("a title in the report", () => {
     expect(cleanTitle("&lt;b&gt;Association of Problematic Smartphone Use&lt;/b&gt; With Eye Strain")).toBe("Association of Problematic Smartphone Use With Eye Strain");
     expect(cleanTitle("Use of Atropine: Guidelines for\nClinical   Use")).toBe("Use of Atropine: Guidelines for Clinical Use");
     expect(cleanTitle("Tom &amp; Jerry <i>in</i> trials")).toBe("Tom & Jerry in trials");
+    // nested markup leaves no tag behind (the loop runs until nothing changes: CodeQL js/incomplete-multi-character-sanitization), and a long run of "<" stays fast
+    expect(cleanTitle("&lt;&lt;b&gt;script&gt;alert(1)&lt;/script&gt; Real title")).toBe("script>alert(1) Real title");
+    expect(cleanTitle("<scr<b>ipt>x</scr</b>ipt> y")).not.toMatch(/<[^>]*>/);
+    const t = performance.now();
+    cleanTitle("&lt;".repeat(50_000) + "x");
+    expect(performance.now() - t).toBeLessThan(500);
   });
 });
 

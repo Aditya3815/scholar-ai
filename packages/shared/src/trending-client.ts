@@ -44,6 +44,7 @@ const TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const isoOk = (s: unknown, shape: RegExp): s is string => typeof s === "string" && shape.test(s) && Number.isFinite(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s.slice(0, 10);
 /** Text that is already tidy: one line, single spaces, nothing at either end, no control or invisible character. What is shown is what is checked. */
 const tidy = (v: unknown, min: number, max: number): v is string => typeof v === "string" && v.length >= min && v.length <= max && v === v.replace(/\s+/g, " ").trim() && !/[\p{Cc}\p{Cf}]/u.test(v);
+/** (Imports nothing: apps/api/scripts/trending-e2e.mjs loads this file alone, as the page's own reader, so it keeps its own small checks.) */
 const whole = (v: unknown, lo: number, hi: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= lo && v <= hi;
 
 function readChips(raw: unknown): TrendingChip[] | null {

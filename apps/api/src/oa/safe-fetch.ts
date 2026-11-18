@@ -1,4 +1,4 @@
-import { MAX_OA_BYTES, MAX_OA_REDIRECTS, OA_FETCH_TIMEOUT_MS, type OaReason } from "@scholar/shared";
+import { decodeEntities, MAX_OA_BYTES, MAX_OA_REDIRECTS, OA_FETCH_TIMEOUT_MS, type OaReason } from "@scholar/shared";
 
 /**
  * Fetching a file from an address that came from a search record, which means from a stranger. Every rule here is about not being used against someone else:
@@ -142,7 +142,7 @@ export function citationPdfUrl(html: string, base: string): string | null {
     const content = /\bcontent\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1];
     if (!content) continue;
     try {
-      return new URL(content.replace(/&amp;/g, "&"), base).href;
+      return new URL(decodeEntities(content), base).href;
     } catch {
       return null;
     }

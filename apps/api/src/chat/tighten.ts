@@ -1,4 +1,4 @@
-import { ABSTRACT_READ_CHARS, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, type ChatCitation, type Paper, type TightenRequest } from "@scholar/shared";
+import { ABSTRACT_READ_CHARS, isInt, MAX_TIGHTEN_PAPERS, MAX_TIGHTEN_TEXT, type ChatCitation, type Paper, type TightenRequest } from "@scholar/shared";
 import type { Picked } from "./answer";
 import { shownSentence } from "./evidence";
 
@@ -8,7 +8,15 @@ import { shownSentence } from "./evidence";
  */
 export type TightenInput = { text: string; picked: Picked[]; citations: ChatCitation[] };
 
-const isInt = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v);
+/** A title is not capped by the page (the request reads 400 characters of it); this much of one is allowed for in the body limit below. */
+const TITLE_ALLOWANCE_CHARS = 1_000;
+
+/**
+ * The size limit of a strict check's body (bug B7; the chat's own MAX_CHAT_BODY_BYTES is for a message, not for twelve abstracts), from the most the page can send (tightenRequestFor):
+ * 4 bytes a character x (answer 2,000 + 12 papers x (abstract 3,000 + title 1,000)) + a citation per 3 characters of answer at 32 bytes + 2 KB of JSON = 200,000 + 21,344 + 2,048 = 223,392 bytes.
+ */
+export const MAX_TIGHTEN_BODY_BYTES = 4 * (MAX_TIGHTEN_TEXT + MAX_TIGHTEN_PAPERS * (ABSTRACT_READ_CHARS + TITLE_ALLOWANCE_CHARS)) + Math.ceil(MAX_TIGHTEN_TEXT / 3) * 32 + 2_048;
+
 
 /** The request as an input, or the plain reason it is not one. Never throws. */
 export function readTighten(raw: unknown): { ok: true; input: TightenInput } | { ok: false; detail: string } {

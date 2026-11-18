@@ -12,9 +12,8 @@ import {
   type PaperComparison,
   type PaperLevel,
 } from "@scholar/shared";
-import { findRun, numberSentences, words } from "@scholar/shared";
+import { scrubText, findRun, numberSentences, words } from "@scholar/shared";
 import { quoteInText, type StreamComplete } from "../docs/qa";
-import { scrubText } from "./plan";
 import { resolveCompareSentences } from "./sentence-refs";
 
 /**

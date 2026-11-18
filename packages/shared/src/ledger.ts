@@ -1,4 +1,9 @@
-import { activePath, cutWhole, oneLine, topicStart, type AssistantMsg, type ChatMsg, type UserMsg } from "./chat-state";
+import { isLaneReason, isNoTraceNotice } from "./vocab/lane";
+import { INTENTS, isIntent, type Intent } from "./vocab/intents";
+import { LEDGER_AUTHOR_CHARS, LEDGER_FULL_TURNS, LEDGER_PAPERS, LEDGER_REPLY_CHARS, LEDGER_STANDALONE_CHARS, LEDGER_TITLE_CHARS, LEDGER_USER_CHARS, LEDGER_VISITOR_TURNS } from "./vocab/ledger";
+import { stripMarks } from "./ids";
+import { activePath, topicStart, type AssistantMsg, type ChatMsg, type UserMsg } from "./chat-state";
+import { cutWhole, oneLine } from "./text";
 
 /**
  * The turn ledger (design PDF "Sodhsetu understanding, follow-ups and MCP", section "Follow-ups: sirf usi chat se", milestone M2): a compact record of each turn of ONE chat, built in the browser from the
@@ -15,8 +20,9 @@ import { activePath, cutWhole, oneLine, topicStart, type AssistantMsg, type Chat
  * It is DATA for working out what a message refers to. The server must treat it as untrusted (its papers are resolved again there, M4), and the writer and the judge are never given it.
  */
 
-export const LEDGER_INTENTS = ["chat", "search", "refine_search", "ask_results", "ask_paper", "offer_tool", "clarify"] as const;
-export type LedgerIntent = (typeof LEDGER_INTENTS)[number];
+/** A turn's intent is one of the intents of a message (vocab/intents.ts). */
+export const LEDGER_INTENTS = INTENTS;
+export type LedgerIntent = Intent;
 
 /** A paper of a turn, numbered as its card was: "the second one" is `n: 2`. `first_author` is the family name of the first author as the record has it. */
 export type LedgerPaper = { n: number; id: string; doi: string | null; title: string; year: number | null; first_author: string | null };
@@ -24,26 +30,19 @@ export type LedgerTurn = { turn: number; user: string; intent: LedgerIntent; sta
 /** An older turn, as it is sent once the six latest are sent whole: only what it was about. */
 export type LedgerTurnShort = { turn: number; standalone: string };
 
-/** The most characters of the person's words and of a reply that a turn keeps, and the papers of a turn. */
-export const LEDGER_USER_CHARS = 300;
-export const LEDGER_REPLY_CHARS = 300;
-export const LEDGER_PAPERS = 10;
-const LEDGER_TITLE_CHARS = 200;
-/** What is sent (M4): the six latest turns whole, older ones only as their standalone question; about 3,000 tokens at most, the oldest going first; a visitor's ledger is only the three latest. */
-export const LEDGER_FULL_TURNS = 6;
-export const LEDGER_VISITOR_TURNS = 3;
+/** What is sent (M4) keeps to the caps both sides read (vocab/ledger.ts) and to about 3,000 tokens, the oldest turns going first. */
 export const LEDGER_TOKEN_CAP = 3000;
 
 /** A rough count of tokens (characters over four, the same estimate the follow-up allowance uses). */
 export const ledgerTokens = (x: unknown): number => Math.ceil(JSON.stringify(x).length / 4);
 
 /** The safety lane's replies, and a turn that carries its crisis or urgent line, are never in a ledger. */
-const isLane = (a: AssistantMsg): boolean => a.reason === "urgent" || a.reason === "safety" || a.reason === "decision" || a.notices.some((n) => n.kind === "safety_crisis" || n.kind === "safety_urgent");
+const isLane = (a: AssistantMsg): boolean => isLaneReason(a.reason) || a.notices.some((n) => isNoTraceNotice(n.kind));
 
 /** What the server said a reply was, read as an intent of the ledger (no model: these are the fields the reply already has). */
 export function intentOf(a: AssistantMsg): LedgerIntent {
   // M5: when the Understand step decided, the server said which intent acted (`understood.intent`): that is the turn's intent
-  if (typeof a.intent === "string" && (LEDGER_INTENTS as readonly string[]).includes(a.intent)) return a.intent;
+  if (isIntent(a.intent)) return a.intent;
   if (a.reason === "small_talk") return "chat";
   if (a.mode === "paper") return "ask_paper";
   if (a.mode !== "search") return "offer_tool";
@@ -60,14 +59,14 @@ export function firstAuthor(authors: readonly unknown[] | undefined): string | n
   const a = Array.isArray(authors) && typeof authors[0] === "string" ? oneLine(authors[0]) : "";
   if (!a) return null;
   const name = a.includes(",") ? a.split(",")[0]!.trim() : (a.split(" ").at(-1) ?? "").trim();
-  return name ? cutWhole(name, 60) : null;
+  return name ? cutWhole(name, LEDGER_AUTHOR_CHARS) : null;
 }
 
 /** The first characters of what a reply said: its checked answer (without its marks), or else its background or small-talk text. Null for a reply that did not finish. */
 export function replyStart(a: AssistantMsg): string | null {
   if (a.status !== "done") return null;
   const text = a.answer && typeof a.answer.text === "string" ? a.answer.text : typeof a.general?.text === "string" ? a.general.text : "";
-  return cutWhole(oneLine(text).replace(/\s*\[\d{1,2}\]/g, "").trim(), LEDGER_REPLY_CHARS).trim();
+  return cutWhole(stripMarks(oneLine(text)).trim(), LEDGER_REPLY_CHARS).trim();
 }
 
 const ledgerPapers = (a: AssistantMsg): LedgerPaper[] =>
@@ -103,7 +102,7 @@ export function buildLedger(msgs: readonly ChatMsg[]): LedgerTurn[] {
       const words = userWords(u);
       if (!words) continue;
       const c = next.context;
-      const standalone = c && c.turns > 0 && c.rewrote && typeof c.question === "string" && c.question.trim() ? cutWhole(oneLine(c.question), LEDGER_USER_CHARS).trim() : words;
+      const standalone = c && c.turns > 0 && c.rewrote && typeof c.question === "string" && c.question.trim() ? cutWhole(oneLine(c.question), LEDGER_STANDALONE_CHARS).trim() : words;
       out.push({ turn: out.length + 1, user: words, intent: intentOf(next), standalone, reply: replyStart(next), papers: next.mode === "search" ? ledgerPapers(next) : [] });
     } catch {
       /* a record this build cannot read is not a turn */

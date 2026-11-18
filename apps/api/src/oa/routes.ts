@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { MAX_OA_ABSTRACT_CHARS, MAX_QUESTION_CHARS, oaKey, type OaAskEvent } from "@scholar/shared";
-import { currentUser, sameOrigin } from "../auth/http";
+import { requireUser } from "../auth/service";
+import { readJson } from "../platform/http/body";
 import { embedderFor } from "../docs/routes";
 import { sseStream } from "../sse";
 import { isPermissiveLicense } from "./jats";
@@ -12,16 +13,13 @@ import type { HonoEnv } from "../platform/env";
 
 export const oaRoutes = new Hono<HonoEnv>();
 
-oaRoutes.use("*", async (c, next) => {
-  await next();
-  c.header("Cache-Control", "no-store");
-});
 
 /**
  * The state of a paper in the shared index, for the screen (a signed-in person; the index is public data: titles, states, counts).
  */
 oaRoutes.get("/status", async (c) => {
-  if (!(await currentUser(c))) return deny(c, 401, "unauthorized", "Sign in first");
+  const got = await requireUser(c, { signIn: "Sign in first" });
+  if (got instanceof Response) return got;
   const ref = readRef({ doi: c.req.query("doi"), arxivId: c.req.query("arxivId") });
   const key = ref && oaKey(ref);
   if (!key) return deny(c, 400, "invalid_paper", "Give a DOI or an arXiv number");
@@ -38,10 +36,10 @@ oaRoutes.get("/status", async (c) => {
  * Nothing about the person is added to the shared index, and nothing is stored here: the answer goes to the browser, which keeps it.
  */
 oaRoutes.post("/ask", async (c) => {
-  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
-  const user = await currentUser(c);
-  if (!user) return deny(c, 401, "unauthorized", "Sign in to ask a paper");
-  const body = (await c.req.json().catch(() => null)) as { question?: unknown; abstract?: unknown } | null;
+  const got = await requireUser(c, { signIn: "Sign in to ask a paper" });
+  if (got instanceof Response) return got;
+  const { user } = got;
+  const body = (await readJson(c)) as { question?: unknown; abstract?: unknown } | null;
   const ref = readRef(body);
   const key = ref && oaKey(ref);
   if (!ref || !key) return deny(c, 400, "invalid_paper", "That paper cannot be found by its DOI or arXiv number");

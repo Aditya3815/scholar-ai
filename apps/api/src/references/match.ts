@@ -1,3 +1,4 @@
+import { tokenize, findRun, DOI_START } from "@scholar/shared";
 /**
  * Pure matching logic for the Reference Verifier: given the text of a reference exactly as a scholar pasted it, and a
  * candidate record from Crossref/OpenAlex, decide whether they are the same paper. No network, no LLM.
@@ -46,10 +47,6 @@ export type MatchVerdict = "verified" | "title_only" | "different" | "no_authors
 
 const GROUP_NAME = /\b(collaborat\w*|consortium|committee|investigators|working group|study group|task force|writing group|network|initiative|commission)\b/i;
 
-const fold = (s: string) => s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase();
-
-export const tokenize = (s: string): string[] => fold(s).match(/[\p{L}\p{N}]+/gu) ?? [];
-
 const tidyDoi = (raw: string): string => raw.replace(/%0[ad][^]*$/i, "").replace(/\s+/g, "").replace(/[\u2010-\u2013]/g, "-").replace(/[.,;:)\]}>'"]+$/, "").toLowerCase();
 
 /**
@@ -57,8 +54,9 @@ const tidyDoi = (raw: string): string => raw.replace(/%0[ad][^]*$/i, "").replace
  * ("…2016- 12210", "S0022- 0302(06)72335-9") that is certain; after a dot or a slash ("doi:10.1145/3498361. 3538933", "…I3DA48870. 2021.9610916") it is the likelier reading when what
  * follows is a number, but "…abc.5. 2019 IEEE Conference" is a sentence that ends, so the DOI as printed is the second reading. A "%0A" (an encoded line break in a pasted link) ends it.
  */
+const DOI_PRINTED = new RegExp(String.raw`${DOI_START}(?:\s(?=[^\s"<>]*\d))?[^\s"<>]+`, "i");
 export function doiCandidates(text: string): string[] {
-  const m = /10\.\d{4,9}\/(?:\s(?=[^\s"<>]*\d))?[^\s"<>]+/i.exec(text);
+  const m = DOI_PRINTED.exec(text);
   if (!m) return [];
   let raw = m[0];
   let rest = text.slice(m.index + raw.length);
@@ -95,9 +93,6 @@ export function extractArxivId(text: string): string | null {
   return m && /^(\d{2})(0[1-9]|1[0-2])\./.test(m[1]!) ? m[1]! : null;
 }
 
-/** The DOI arXiv (through DataCite) gives every preprint. */
-export const arxivDoi = (id: string): string => `10.48550/arxiv.${id}`;
-
 /** Year a preprint first appeared, read from its arXiv DOI ("…arxiv.1706.03762" -> 2017); null for any other DOI. */
 export function arxivYear(doi: string | null): number | null {
   const m = doi ? /^10\.48550\/arxiv\.(\d{2})(0[1-9]|1[0-2])\./i.exec(doi) : null;
@@ -107,28 +102,11 @@ export function arxivYear(doi: string | null): number | null {
 /** Plausible publication years mentioned in the text (1900-2099), in order of appearance. */
 export function extractYears(text: string): number[] {
   // Strip DOIs first: "10.1016/j.cell.2015.03.017" contains year-like fragments.
-  const clean = text.replace(/10\.\d{4,9}\/[^\s"<>]+/gi, " ");
+  const clean = text.replace(new RegExp(String.raw`${DOI_START}[^\s"<>]+`, "gi"), " ");
   return [...clean.matchAll(/(?<![\d])(19\d{2}|20\d{2})(?![\d])/g)].map((m) => Number(m[1]));
 }
 
-/** The longest run of consecutive words of `needle` that appears, in order and unbroken, in `haystack`: its length and where it starts. */
-function locateRun(needle: string[], haystack: string[]): { len: number; start: number } {
-  let best = { len: 0, start: -1 };
-  let prev = new Array<number>(haystack.length + 1).fill(0);
-  for (const n of needle) {
-    const cur = new Array<number>(haystack.length + 1).fill(0);
-    for (let j = 1; j <= haystack.length; j++) {
-      if (haystack[j - 1] === n) {
-        cur[j] = prev[j - 1]! + 1;
-        if (cur[j]! > best.len) best = { len: cur[j]!, start: j - cur[j]! };
-      }
-    }
-    prev = cur;
-  }
-  return best;
-}
-
-const longestRun = (needle: string[], haystack: string[]): number => locateRun(needle, haystack).len;
+const longestRun = (needle: string[], haystack: string[]): number => findRun(needle, haystack).len;
 
 /**
  * The words of a reference, read the way the record writes its title. A PDF breaks words ("im- age"), loses a space ("filtersimultaneous") or adds one ("Under water"), and a hyphen at
@@ -182,7 +160,7 @@ export function checkMatch(refText: string, c: Candidate): MatchChecks {
   // The title words must also appear TOGETHER, in order, the way a title is written: a short generic record title
   // ("Consensus in Blockchain") is otherwise "covered" by any long reference that happens to contain those words scattered
   // through a different title. Allow some drift (typos, a dropped subtitle): the longest run must cover most of the title.
-  const run = locateRun(allTitle, refWords);
+  const run = findRun(allTitle, refWords);
   if (allTitle.length > 0 && run.len / allTitle.length < 0.75) title = Math.min(title, 0.4);
   // A record whose title is the name of the VENUE the reference was published in ("Advances in Neural Information Processing
   // Systems 19", "Neural Networks", a conference's proceedings) sits right after "In" in the reference. That is where a venue is
@@ -278,6 +256,9 @@ export function checkIdentified(refText: string, c: Candidate): boolean {
   return rest.length <= 1;
 }
 
+/** Addresses, "doi:" and DOIs, taken out of a reference before its names are read. */
+const ADDRESSES = new RegExp(String.raw`https?:\/\/\S+|doi:\s*\S+|${DOI_START}\S+`, "gi");
+
 const FILLER = new Set(["and", "the", "von", "van", "der", "den", "del", "dos", "bin", "ibn", "et", "al"]);
 
 /** The family name at the head of a reference, for asking Crossref about its first author: "A. Einstein, ..." and "Abdo, A. A., ..." both give the surname. null when there is none. */
@@ -321,7 +302,7 @@ export function guessTitle(text: string): string | null {
   const quoted = text.match(QUOTED_TITLE);
   if (quoted) return quoted[1]!.replace(/[,.\s]+$/, "").trim();
 
-  const plain = text.replace(/https?:\/\/\S+|doi:\s*\S+|10\.\d{4,9}\/\S+/gi, " ").replace(/\s+/g, " ").trim();
+  const plain = text.replace(ADDRESSES, " ").replace(/\s+/g, " ").trim();
   const parts = plain.split(/(?<=[.?!])\s+(?=[\p{Lu}\p{N}“"(\[])/u).map((s) => s.trim()).filter(Boolean);
   let best: string | null = null;
   let bestWords = 0;
@@ -359,7 +340,7 @@ export function looksLikeAuthors(s: string): boolean {
  * short ("Layer normalization."), which guessTitle skips. null when the text does not look like that.
  */
 export function titleAfterAuthors(text: string): string | null {
-  const plain = text.replace(/https?:\/\/\S+|doi:\s*\S+|10\.\d{4,9}\/\S+/gi, " ").replace(/\s+/g, " ").trim();
+  const plain = text.replace(ADDRESSES, " ").replace(/\s+/g, " ").trim();
   const parts = plain.split(/(?<=[.?!])\s+(?=[\p{Lu}\p{N}“"(\[])/u).map((x) => x.trim()).filter(Boolean);
   const bare = (x: string) => x.replace(/[.\s]+$/, "");
   // a single full name ("Alex Graves") is an author list only as the very first part of the reference
@@ -395,7 +376,7 @@ const tidyTitle = (t: string): string => t.replace(/\s*\(\s*(?:19|20)\d{2}[a-z]?
  * the title, and a search for the title needs every one of those names to be in it. null when the reference is not written like that.
  */
 function titleAfterAuthorBlock(text: string): string | null {
-  const plain = text.replace(/https?:\/\/\S+|doi:\s*\S+|10\.\d{4,9}\/\S+/gi, " ").replace(/\s+/g, " ").trim();
+  const plain = text.replace(ADDRESSES, " ").replace(/\s+/g, " ").trim();
   const names = (head: string) => /\p{Lu}[\p{L}'’-]+,\s*\p{Lu}\./u.test(head) || /\b\p{Lu}\.\s*\p{Lu}[\p{L}'’-]+/u.test(head) || looksLikeAuthors(head.replace(/[.]/g, ""));
   const colon = /^(.{3,1200}?\b\p{Lu}\.)\s*:\s+(?=\p{L})/u.exec(plain);
   const bracket = /^(.{6,600}?)\s\(\s*(?:19|20)\d{2}[a-z]?\s*\)\s*[.,:]?\s+(?=\p{L})/u.exec(plain);

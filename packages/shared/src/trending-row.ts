@@ -1,3 +1,4 @@
+import { isoDay } from "./ids";
 /**
  * What the Home page does with the Trending file once it has it (docs/design/chatview-and-trending.md, T1, T4, T9, T10, T12): which chips the row shows and in what order, the facts behind each chip, when a
  * copy kept on the device may be used, what to do with an answer from the server, and what filling the box does to a draft the person has typed. All of it is pure (the page draws it, and keeps nothing
@@ -27,7 +28,6 @@ function dayMs(s: unknown): number {
   const t = Date.parse(s);
   return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === s ? t : NaN;
 }
-const isoDay = (t: number): string => new Date(t).toISOString().slice(0, 10);
 
 /** "4 November 2026" for a day "2026-11-04"; null for anything that is not a day. */
 export function dateWords(day: unknown): string | null {

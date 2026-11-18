@@ -1,16 +1,20 @@
 import {
   ANSWER_LANGUAGES,
   FOLLOW_UP_INTENTS,
-  MAX_FILTER_YEAR,
   MAX_RESTATED_QUERY_WORDS,
   MAX_RESTATED_QUESTION_CHARS,
-  MIN_FILTER_YEAR,
   MIN_ROUTE_CONFIDENCE,
   ROUTE_MODES,
   cleanChatMessage,
   detectLanguage,
+  FILTER_YEARS,
+  flatLine,
+  isInt,
+  isYear,
   languageWithContext,
   needsContext,
+  neutralise,
+  statedNumbers,
   offlineRoute,
   ruleRoute,
   type AnswerLanguage,
@@ -23,8 +27,8 @@ import {
 import type { Complete } from "../docs/qa";
 import { AllProvidersFailedError } from "../llm";
 import { isMalformedReply } from "./malformed";
-import { errorKind, neutralise, type ChatHistory } from "./history";
-import { bleeds, checkRestatement, numbersIn, type RestatementReason } from "./restate";
+import { errorKind, type ChatHistory } from "./history";
+import { bleeds, checkRestatement, type RestatementReason } from "./restate";
 
 /**
  * The router of Home's prompt box in Auto mode: rules first (`ruleRoute`, free and always the same), then a small model that can only answer with one of four tool names and,
@@ -247,9 +251,7 @@ export const routerCallFailed = (f: FollowUp | null): boolean => f?.check === "m
 /** What the writer (and the background) is asked for a follow-up: see `FollowUp`. `message` is the person's own text, as the route has it. */
 export const askedOf = (f: FollowUp | null, message: string): string => (f ? (f.ask ?? (f.rewrote ? f.question : message)) : message);
 
-const oneLine = (s: string): string => s.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
-const sameWords = (a: string, b: string): boolean => oneLine(a).toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, " ").trim() === oneLine(b).toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, " ").trim();
-const isInt = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v);
+const sameWords = (a: string, b: string): boolean => flatLine(a).toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, " ").trim() === flatLine(b).toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, " ").trim();
 
 /** A word that makes a year a bound ("after 2020" is 2021 or later, "before 2015" is 2014 or earlier), so that the year of the filter may be one off the year of the message. */
 const YEAR_BOUND_WORD = /(?<![\p{L}\p{M}])(?:after|before|since|until|till|older|newer|earlier|later|prior|onwards?|beyond|past|baad|pehle|बाद|पहले|तक)(?![\p{L}\p{M}])/iu;
@@ -280,7 +282,7 @@ export function withoutYears(text: string, years: readonly number[]): string {
  */
 export function parseFollowUp(raw: unknown, text: string, language: Lang, ctx: RouterContext): { route: Route; followUp: FollowUp } {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-  const message = oneLine(text).slice(0, 600);
+  const message = flatLine(text).slice(0, 600);
   const mode = ROUTE_MODES.find((m) => m === o.mode);
   const confidence = typeof o.confidence === "number" && Number.isFinite(o.confidence) ? Math.min(1, Math.max(0, o.confidence)) : 0;
   const unusable = (check: FollowUpCheck, sure = confidence): { route: Route; followUp: FollowUp } => ({
@@ -304,7 +306,7 @@ export function parseFollowUp(raw: unknown, text: string, language: Lang, ctx: R
   // the standalone question: for a new topic it is the message itself (nothing of the old topic may come along), otherwise the model's, if it adds nothing
   let question = message;
   if (said !== "new") {
-    const restated = typeof o.question === "string" ? oneLine(o.question) : "";
+    const restated = typeof o.question === "string" ? flatLine(o.question) : "";
     const verdict = checkRestatement(restated, message, pool, "question", { foreign });
     if (!verdict.ok) {
       // a question in the other script than the message (Devanagari for Roman letters, English for Hindi), and a question that is empty or missing (the model left it), are not used, and the message stands for
@@ -319,7 +321,7 @@ export function parseFollowUp(raw: unknown, text: string, language: Lang, ctx: R
   // papers they are not used at all (the earlier search is), so they are not looked at.
   let words: string | undefined;
   const anchor = ctx.history.anchor;
-  const given = typeof o.search_query === "string" ? oneLine(o.search_query) : "";
+  const given = typeof o.search_query === "string" ? flatLine(o.search_query) : "";
   if (given && !(same && anchor)) {
     const clean = cleanChatMessage(given);
     const verdict = clean ? checkRestatement(clean, message, pool, "search", { foreign }) : null;
@@ -337,9 +339,9 @@ export function parseFollowUp(raw: unknown, text: string, language: Lang, ctx: R
   const to = o.year_to;
   const asked = [from, to].filter((y) => y !== undefined && y !== null && y !== 0);
   if (asked.length > 0) {
-    const stated = numbersIn(message).map(Number).filter((n) => n >= 1000 && n <= 2999);
+    const stated = statedNumbers(message, { devanagari: true }).map(Number).filter((n) => n >= 1000 && n <= 2999);
     const slack = YEAR_BOUND_WORD.test(message) ? 1 : 0;
-    const good = asked.every((y) => isInt(y) && y >= MIN_FILTER_YEAR && y <= MAX_FILTER_YEAR && stated.some((n) => Math.abs(n - (y as number)) <= slack));
+    const good = asked.every((y) => isYear(y, FILTER_YEARS) && stated.some((n) => Math.abs(n - (y as number)) <= slack));
     const ordered = !(isInt(from) && isInt(to) && from > to && from !== 0 && to !== 0);
     if (good && ordered) {
       if (isInt(from) && from !== 0) yearFrom = from;
@@ -423,7 +425,7 @@ export async function routeFollowUp(text: string, complete: Complete | null, ctx
   }
   return {
     route: { mode: "search", how: "fallback", confidence: 0, language },
-    followUp: { intent: "new", question: oneLine(text).slice(0, 600), rewrote: false, fellBack: true, check: "model_failed" },
+    followUp: { intent: "new", question: flatLine(text).slice(0, 600), rewrote: false, fellBack: true, check: "model_failed" },
   };
 }
 

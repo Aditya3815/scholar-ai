@@ -1,3 +1,4 @@
+import { MARK } from "./ids";
 /**
  * Script and marks in what the chat shows (docs/design/chatview-and-trending.md, C5 and C6). Pure, in no way specific to the page: the page puts the results on its elements.
  *
@@ -50,7 +51,6 @@ export function textAttrs(text: string, typed = false): { lang?: "hi"; dir?: "au
  */
 export type CitePart = { text: string; n?: undefined } | { n: number; before: string; gap: string; after: string; text?: undefined };
 
-const MARK = /\[(\d{1,2})\]/g;
 const STOPS = /^[.,;:!?)।॥”’"']+/;
 const WORD_BEFORE = /(\S+)(\s*)$/;
 
