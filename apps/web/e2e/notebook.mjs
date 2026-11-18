@@ -604,6 +604,8 @@ try {
     ok(/\.docx$/.test(docxOut.name) && media.length >= 4 && xml.includes("Figure one") && xml.includes("A test diagram") && xml.includes("Results"), `Export ▾ Word: a .docx with the pictures and the captions (${media.length} pictures)`);
 
     // axe with a capture and a sketch on the page, in the three themes
+    // the export's toasts go first (one still fading in while the theme changes would be read half way)
+    await page.locator(".desk-toast").first().waitFor({ state: "detached", timeout: 12000 }).catch(() => {});
     for (const theme of ["light", "dark", "read"]) {
       await setTheme(page, theme, 350);
       await axe(page, `Notes with a capture and a sketch, ${theme}, 1440`);
