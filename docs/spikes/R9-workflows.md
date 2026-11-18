@@ -1,6 +1,6 @@
 # R9: can a Cloudflare Workflow run the open-access ingest? (spike, 26 Oct 2026)
 
-Question: for W4, is a Workflow a better engine for "fetch, read, embed, finish" than a queue consumer, and can we test it here? Code: [R9/](R9/) (own `package.json`, not part of the app; run with `npx wrangler dev --port 8801`).
+Question: for W4, is a Workflow a better engine for "fetch, read, embed, finish" than a queue consumer, and can we test it here? Code: the spike's own Worker (removed on 18 Nov 2026; it is in git history before that date) (own `package.json`, not part of the app; run with `npx wrangler dev --port 8801`).
 
 ## What was tried
 
