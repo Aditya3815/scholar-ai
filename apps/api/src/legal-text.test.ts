@@ -29,7 +29,7 @@ const LEGAL_TS = read("../../../packages/shared/src/legal.ts");
 const PAGE = plain(read("../../web/src/components/legal/LegalPages.tsx"));
 
 /** Every version this text has replaced: when it changes in a way that matters again, add the version it replaces here, so a forgotten bump fails. */
-const RETIRED_VERSIONS = ["2026-10-draft-13", "2026-11-draft-14", "2026-11-draft-17"];
+const RETIRED_VERSIONS = ["2026-10-draft-13", "2026-11-draft-14", "2026-11-draft-17", "2026-11-draft-18"];
 
 describe("PRIVACY_VERSION", () => {
   it("keeps the exact line that the staging script reads", () => {
@@ -145,8 +145,9 @@ describe("the privacy page after earlier messages are sent to the AI service", (
   it("says in 'Changes' that the chat does not ask first, and what changed", () => {
     expect(PAGE).toMatch(/before you upload a paper, check an idea or run a literature scan, and we will say here what changed/);
     expect(PAGE).toMatch(/The prompt box on Home does not ask first/);
-    // draft-18 (17 Nov, the Paper Reader's Notebook, docs/design/paper-reader.md 19.7) is the latest change; CHAT_TOOLS, the MCP beta and the earlier-chats changes stay on the page under it.
-    expect(PAGE).toContain("Latest change (17 November 2026): what you add to a paper now includes pages of notes you write in the new paper reader, with the passages you quote into them. They are kept with the paper, seen only by you, in your data export, and deleted with the paper or your account; nothing new is sent to any AI model or other service. See “What we keep”.");
+    // draft-19 (18 Nov, pictures in the notes, docs/design/paper-reader.md 22) is the latest change; draft-18 (17 Nov, the Notebook) is the change before it; CHAT_TOOLS, the MCP beta and the earlier-chats changes stay on the page under it.
+    expect(PAGE).toContain("Latest change (18 November 2026): what you add to a paper now also includes pictures you add to your note pages. They are kept with the paper, seen only by you, in your data export, and deleted with the paper or your account (a picture you take out of your notes is deleted ten minutes later, so that Undo can bring it back). Before a picture is sent it is made smaller in your browser and its camera data (such as the place and the time it was taken) is removed; nothing is sent to any AI model or other service. See “What we keep”.");
+    expect(PAGE).toContain("Change before it (17 November 2026): what you add to a paper now includes pages of notes you write in the new paper reader, with the passages you quote into them. They are kept with the paper, seen only by you, in your data export, and deleted with the paper or your account; nothing new is sent to any AI model or other service. See “What we keep”.");
     expect(PAGE).toContain("Change before it (10 November 2026): in Auto, a list of references, DOIs with a question about retraction, or a question about one paper is now answered by running that tool in the reply itself");
     expect(PAGE).toContain("Change before it (9 November 2026): you can connect an AI app (such as Claude or ChatGPT) to your Sodhsetu account");
     expect(PAGE).toContain("Change before it (6 November 2026): the prompt box on Home no longer uses your earlier chats.");
