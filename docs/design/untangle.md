@@ -1473,6 +1473,21 @@ Verification (before = main 8d50a9d, after = this branch; the machine was shared
 | `npm run eval` | 361 passed / 1 skipped (11 files) | 361 / 1, the printed tables identical line for line (no recording missing: every prompt the same) |
 | profiles.table.test.ts | written before (80 rows) | holds, untouched |
 | goldens, legal-match.test.ts, switches.table.test.ts | pass | pass (golden JSON, legal-match and the switch table untouched; since-year.test.ts's harness lines, see step 1) |
-| `npm run build`, integration (`--run=default,trending-on,mcp-on` and the chat switch runs on 8793/9916), the browser run | | not run yet: the machine was shared and short of memory; they wait for the coordinator |
+| integration before the rebase (on 8d50a9d's main, API only, 8793/9916) | | `--run=default,trending-on,mcp-on` 1,137 checks, 1 FAIL (cache-e2e's "counts written after their responses", a 2.2 s race; passed alone); `--run=` the six chat runs, mcp-off, trending-dark: 1,061, all passed |
 
 Merging with W3: see step 1.
+
+### W4, rebase onto W3 (18 Nov 2026, onto main 3e1ef74: W3, Paper Reader phases 1 and 2, privacy draft-18, READER dark)
+
+Done as the merge notes of step 1 said: `withRequestDeps` is mounted in `app/mount.ts` before the routers (index.ts no longer has the app); `app/dev-routes.ts` imports `currentUser` from `../auth/service`; `platform/http/guards.ts`'s DEV_FIRST check reads `devMode`; W3's imports kept with this branch's in every conflicting file (`errorKind` from `platform/llm/failure.ts`, `isoDay` from shared, which W3 moved there); `problemFor` takes the surface's codes as `ProblemType` (W3 typed `deny` by it), and describeAskError keeps W3's typed code. The Notebook routes of docs/routes.ts ask no model (they need no deps). Four allowlist entries this branch had removed came back with W3's side of a conflict and went again: layers ALLOW main's 130 -> 114. The route-guard table holds with no cell changed.
+
+After the rebase (this branch on 3e1ef74, 8793/9916):
+
+| check | result |
+| --- | --- |
+| typecheck | clean |
+| `npm test` | api 3,765 passed / 2 skipped (162 files), web 124, shared 760 / 1 skipped |
+| test:scripts, eval | 191; 361 / 1 skipped, the printed tables identical to before |
+| build, budget | built; every budget line met (first-load scripts 235.2 of 250 KB) |
+| `--browser --run=default,trending-on,mcp-on,reader-on` | 4,520 checks, 5 FAIL, all paint times of perf.mjs (intro FCP/LCP on desktop and phone, check references LCP); alone again 3 of them; main's own web build on the same Worker and machine failed the same checks (intro 4.4 to 4.6 s against 4.5 s): the machine, not this branch |
+| the six chat switch runs (API) | 1,047, all passed |
