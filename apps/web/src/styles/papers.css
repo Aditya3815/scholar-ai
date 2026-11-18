@@ -202,3 +202,10 @@
 .oa-form { position: sticky; bottom: 0; display: flex; gap: 0.6rem; align-items: flex-end; margin-top: auto; padding: 0.7rem 1.1rem 0.9rem; border-top: 1px solid var(--border); background: var(--surface); }
 .oa-input { flex: 1; min-height: 3rem; max-height: 9rem; resize: none; padding: 0.55rem 0.7rem; border: 1px solid var(--border-strong); border-radius: var(--radius-s); background: var(--bg); color: var(--text); font: inherit; }
 .oa-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* "Shared with me" (docs/design/paper-share.md, 4) */
+.shared-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.shared-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.8rem; }
+.shared-open { flex: 1; min-width: 0; display: grid; gap: 0.1rem; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.shared-title { font-weight: 600; overflow-wrap: anywhere; }
+.shared-meta { font-size: 0.85rem; color: var(--muted); }

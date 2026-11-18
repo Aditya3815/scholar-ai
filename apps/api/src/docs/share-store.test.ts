@@ -116,7 +116,7 @@ describe("deleting", () => {
     await sharedWith(db, "bo"); // matched: user_id set on both
     sql.prepare("UPDATE doc_members SET user_id = NULL WHERE doc_id = 'd2'").run(); // one still waiting for the address
     await addComment(db, { docId: "d1", userId: "bo", anchor: "note:n1", parentId: null, body: "kept" });
-    await db.batch(forgetPersonStatements(db, "bo", "bo@example.org"));
+    await db.batch(forgetPersonStatements(db, "bo"));
     sql.prepare("DELETE FROM users WHERE id = 'bo'").run();
     expect(sql.prepare("SELECT COUNT(*) AS n FROM doc_members").get()).toEqual({ n: 0 });
     expect((await listComments(db, "d1", null))[0]).toMatchObject({ body: "kept", author: null });

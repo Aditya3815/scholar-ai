@@ -30,7 +30,7 @@ async function member(email: string, role: "viewer" | "commenter" | "editor") {
   if (!r.ok) throw new Error(r.reason);
   return r.member;
 }
-const roleOf = async (userId: string | null, linkToken: string | null = null, env: Record<string, string> = ON) => (await resolveAccess({ DB: db, ...env } as never, { doc: DOC, user: userId ? { id: userId } : null, linkToken }))?.role ?? null;
+const roleOf = async (userId: string | null, linkToken: string | null = null, env: Record<string, string | undefined> = ON) => (await resolveAccess({ DB: db, ...env } as never, { doc: DOC, user: userId ? { id: userId } : null, linkToken }))?.role ?? null;
 
 beforeEach(() => {
   ({ db, sql } = testD1());

@@ -1,8 +1,10 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Maximize2, Minimize2, NotebookPen, X } from "lucide-react";
+import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Maximize2, MessageSquare, Minimize2, NotebookPen, Share2, X } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
-import { NOTE_COLORS, planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type NoteColor, type NotebookBlock, type PaperInfo, type ScanInfo } from "@scholar/shared";
+import { NOTE_COLORS, ROLE_LABEL, noteAnchor, planNewHighlight, roleAtLeast, type Answer, type Citation, type CommentAnchor, type DocNote, type DocumentInfo, type NoteColor, type NotebookBlock, type PaperAccess, type PaperInfo, type ScanInfo } from "@scholar/shared";
 import { downloadBlob } from "../../../lib/download";
+import { useComments } from "../../../lib/comments";
+import { leaveShared } from "../../../lib/share";
 import { fileUrl } from "../../../lib/documents";
 import { registerCommands } from "../../../lib/commands";
 import { copyText } from "../../../lib/copy";
@@ -45,6 +47,12 @@ const AgentsDrawer = lazy(() => loadAgents().then((mod) => ({ default: mod.Agent
 // the Notebook (the Notes tab, its store and its Markdown) is the "notebook" chunk: fetched when the panel is shown, when Add to notes is pressed, or a little after the paper is open
 const loadNotebook = () => import("./notebook/Notebook");
 const NotebookView = lazy(() => loadNotebook().then((mod) => ({ default: mod.Notebook })));
+// sharing (docs/design/paper-share.md): the owner's Share dialog ("share" chunk, on the first press of Share), and the comments and a Viewer's or Commenter's notes ("shared" chunk, when the
+// paper is shared); neither is fetched while sharing is off
+const ShareDialog = lazy(() => import("./share/ShareDialog").then((mod) => ({ default: mod.ShareDialog })));
+const loadShared = () => import("./share/SharedParts");
+const CommentsPanel = lazy(() => loadShared().then((mod) => ({ default: mod.CommentsPanel })));
+const ReadNotebook = lazy(() => loadShared().then((mod) => ({ default: mod.ReadNotebook })));
 
 /** What the page (DocWorkspace, which keeps the paper, its notes and its drawing) hands the new reader. */
 export type DeskProps = {
@@ -78,6 +86,12 @@ export type DeskProps = {
   onPauseScan: () => void;
   onReindex: () => void;
   onUseReferenceList: (entries: string[]) => Promise<void>;
+  /** How this person reaches a paper that is not theirs (docs/design/paper-share.md, 4); null: it is their own. */
+  access: PaperAccess | null;
+  /** The owner may share it (the server's SHARE switch for this account). */
+  canShare: boolean;
+  /** The owner's name, for the Share dialog's "You (owner)". */
+  myName: string | null;
 };
 
 type PanelTab = "notes" | "highlights" | "refs";
@@ -114,6 +128,20 @@ const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, n - 1)
 export function Desk(props: DeskProps) {
   const { doc, history, info, scan, pdf, notes, ink, viewer, fs, onBack, online, verify, citeRefs, itemOf, savedIds, focusNote, setFocusNote, resumedFrom, setResumedFrom } = props;
   const wide = useWide();
+
+  /* ---- a shared paper (docs/design/paper-share.md): what this person's role allows ---- */
+  const access = props.access;
+  const role = access?.role ?? "owner";
+  const isOwner = access === null;
+  const canEdit = roleAtLeast(role, "editor");
+  const canComment = roleAtLeast(role, "commenter");
+  const sharing = props.canShare || !isOwner;
+  const comments = useComments(doc.id, sharing);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareEver, setShareEver] = useState(false);
+  /** The comments in the Notes tab: one thing's threads, or every thread (the Comments filter); null: the notes. */
+  const [commentsAt, setCommentsAt] = useState<{ anchor: CommentAnchor | null } | null>(null);
+  const [readFocus, setReadFocus] = useState<{ pageId: string; blockId: string; tick: number } | null>(null);
 
   /* ---- the view ---- */
   const [view, setViewState] = useState<DeskView>(() => startView(readStore, typeof matchMedia === "function" ? matchMedia(WIDE_QUERY).matches : true));
@@ -194,6 +222,8 @@ export function Desk(props: DeskProps) {
   const drawApi = useRef<{ toggle: () => void; close: () => void } | null>(null);
   const pickTool = useCallback(
     (t: DeskTool) => {
+      // a shared paper: the drawing is the owner's own, and only an Editor highlights
+      if (!canEdit || (t === "draw" && !isOwner)) return;
       if (t === "draw") {
         if (!drawOpen) (drawApi.current?.toggle ?? viewer.current?.toggleDraw)?.();
         return;
@@ -204,7 +234,7 @@ export function Desk(props: DeskProps) {
       else if (t === "capture") announce("Capture: drag a frame over a part of a page, or press Enter on a page to place one");
       else announce("Select: a selection shows what can be done with it");
     },
-    [drawOpen, meaning, viewer],
+    [drawOpen, meaning, viewer, canEdit, isOwner],
   );
   // V, H and D, when the focus is not in a text field (inside the open Draw toolbar the letters stay the drawing tools)
   useEffect(() => {
@@ -313,6 +343,8 @@ export function Desk(props: DeskProps) {
   const nbReady = useRef<Promise<NotebookStore> | null>(null);
   const nbStop = useRef<(() => void) | null>(null);
   const ensureNotebook = useCallback((): Promise<NotebookStore> => {
+    // a Viewer or a Commenter reads the notes and never writes them: no store, no queue of changes
+    if (!canEdit) return Promise.reject(new Error("read only"));
     if (!nbReady.current) {
       const ready = loadNotebook().then(async (mod) => {
         const store = mod.createNotebookStore(doc.id, mod.browserNotebookDeps(() => toast("Updated from another window")));
@@ -331,7 +363,7 @@ export function Desk(props: DeskProps) {
       nbReady.current = ready;
     }
     return nbReady.current;
-  }, [doc.id]);
+  }, [doc.id, canEdit]);
   useEffect(
     () => () => {
       nbStop.current?.();
@@ -463,6 +495,52 @@ export function Desk(props: DeskProps) {
     [nbState, quoteToNotes, showInNotes],
   );
 
+  /* ---- comments (docs/design/paper-share.md, 5): they open in the Notes tab, one thing's threads or all of them ---- */
+  const openComments = useCallback(
+    (anchor: CommentAnchor | null) => {
+      void loadShared().catch(() => {});
+      setCommentsAt({ anchor });
+      setTab("notes");
+      if (shown === "paper") setView(wide ? "split" : "notes");
+    },
+    [shown, wide, setView],
+  );
+  const describeAnchor = useCallback(
+    (a: CommentAnchor) => {
+      if (a.startsWith("note:")) {
+        const n = existing.find((x) => x.id === a.slice(5));
+        return n ? `Highlight on p. ${n.page}: “${clip(n.quote.replace(/\s+/g, " "), 80)}”` : "A highlight that was removed";
+      }
+      const [, pageId] = a.split(":");
+      const page = nbState?.pages.find((p) => p.id === pageId);
+      return page ? `A block of the notes “${clip(page.title || "Untitled page", 40)}”` : "A block of the notes";
+    },
+    [existing, nbState],
+  );
+  const showAnchor = useCallback(
+    (a: CommentAnchor) => {
+      if (a.startsWith("note:")) {
+        const n = existing.find((x) => x.id === a.slice(5));
+        if (n) goTo(n.page, n.quote);
+        return;
+      }
+      const [, pageId, blockId] = a.split(":") as [string, string, string];
+      setCommentsAt(null);
+      if (canEdit) openInNotes(nb, { pageId, blockId });
+      else setReadFocus((f) => ({ pageId, blockId, tick: (f?.tick ?? 0) + 1 }));
+    },
+    [existing, goTo, canEdit, openInNotes, nb],
+  );
+  const cardComments = useMemo(
+    () => (sharing ? { open: (id: string) => comments.openOn(noteAnchor(id)), show: (n: DocNote) => openComments(noteAnchor(n.id)), canWrite: canComment } : undefined),
+    [sharing, comments, openComments, canComment],
+  );
+  const readOnlyCard = useMemo(() => ({ inNotes: () => false, add: () => {}, open: () => {} }), []);
+  const blockComments = useMemo(
+    () => (sharing ? { openOn: (pageId: string, blockId: string) => comments.openOn(`block:${pageId}:${blockId}`), show: (pageId: string, blockId: string) => openComments(`block:${pageId}:${blockId}`) } : undefined),
+    [sharing, comments, openComments],
+  );
+
   const actions: PopupActions = useMemo(
     () => ({
       meaning,
@@ -494,8 +572,11 @@ export function Desk(props: DeskProps) {
       },
       inNotes: (note) => !!nbState?.quoted.has(note.id),
       showInNotes: (note) => showInNotes(note.id),
+      readOnly: !canEdit,
+      noExplain: !canComment,
+      comment: sharing ? (note) => openComments(noteAnchor(note.id)) : undefined,
     }),
-    [meaning, openAgents, updateNote, removeNote, addNote, quoteToNotes, highlightFor, nbState, showInNotes],
+    [meaning, openAgents, updateNote, removeNote, addNote, quoteToNotes, highlightFor, nbState, showInNotes, canEdit, canComment, sharing, openComments],
   );
 
   /* ---- on a wide screen the drawer starts below the paper's header while that is in sight (the view switch and the theme stay reachable) ---- */
@@ -543,18 +624,28 @@ export function Desk(props: DeskProps) {
       id: "reader",
       commands: () => [
         ...(fs.available && wide ? [{ id: "r-full", label: fs.on ? "Leave full screen" : "Full screen", group: "This paper", keywords: "fullscreen full screen whole screen reading focus maximize", hint: "F", run: toggleFullscreen }] : []),
-        { id: "r-agents", label: "Agents", group: "This paper", keywords: "ask question ai explain chat agents assistant", run: openAgents },
-        { id: "r-ask", label: "Ask this paper a question", group: "This paper", keywords: "chat questions agents", run: openAgents },
+        ...(canComment
+          ? [
+              { id: "r-agents", label: "Agents", group: "This paper", keywords: "ask question ai explain chat agents assistant", run: openAgents },
+              { id: "r-ask", label: "Ask this paper a question", group: "This paper", keywords: "chat questions agents", run: openAgents },
+            ]
+          : []),
+        ...(isOwner && props.canShare ? [{ id: "r-share", label: "Share this paper", group: "This paper", keywords: "share invite link people collaborate", run: () => (setShareEver(true), setShareOpen(true)) }] : []),
+        ...(sharing ? [{ id: "r-comments", label: "Show the comments", group: "This paper", keywords: "comments threads discussion", run: () => openComments(null) }] : []),
         { id: "r-view-paper", label: "Paper view", group: "This paper", keywords: "view paper only wide", run: () => setView("paper") },
         ...(wide ? [{ id: "r-view-split", label: "Split view: the paper and the notes side by side", group: "This paper", keywords: "view split side by side panel", run: () => setView("split") }] : []),
         { id: "r-view-notes", label: "Notes view", group: "This paper", keywords: "view notes highlights references panel", run: () => setView("notes") },
         ...(pdfReady
           ? [
-              { id: "r-select", label: "Select and read", group: "This paper", keywords: "tool select pointer", hint: "V", run: () => pickTool("select") },
-              { id: "r-highlight", label: "Highlight mode: every selection becomes a highlight", group: "This paper", keywords: "tool highlight marker meaning", hint: "H", run: () => pickTool("highlight") },
-              { id: "r-draw", label: "Draw, highlight and write on the paper", group: "This paper", keywords: "pen highlighter tools annotate shapes text note lasso", hint: "D", run: () => pickTool("draw") },
+              ...(canEdit
+                ? [
+                    { id: "r-select", label: "Select and read", group: "This paper", keywords: "tool select pointer", hint: "V", run: () => pickTool("select") },
+                    { id: "r-highlight", label: "Highlight mode: every selection becomes a highlight", group: "This paper", keywords: "tool highlight marker meaning", hint: "H", run: () => pickTool("highlight") },
+                  ]
+                : []),
+              ...(isOwner ? [{ id: "r-draw", label: "Draw, highlight and write on the paper", group: "This paper", keywords: "pen highlighter tools annotate shapes text note lasso", hint: "D", run: () => pickTool("draw") }] : []),
               { id: "r-find", label: "Find in this paper", group: "This paper", keywords: "search", hint: "Ctrl+F", run: () => viewer.current?.find() },
-              { id: "r-pdf", label: "Download a copy with my marks", group: "This paper", keywords: "annotated pdf export save", run: () => window.dispatchEvent(new Event("scholar:annotated")) },
+              ...(isOwner ? [{ id: "r-pdf", label: "Download a copy with my marks", group: "This paper", keywords: "annotated pdf export save", run: () => window.dispatchEvent(new Event("scholar:annotated")) }] : []),
             ]
           : []),
         { id: "r-notebook", label: "Show my notes", group: "This paper", keywords: "notes notebook pages write", run: () => openInNotes(nb, null) },
@@ -567,28 +658,30 @@ export function Desk(props: DeskProps) {
         return n && numPages > 0 && Number(n) >= 1 && Number(n) <= numPages ? [{ id: "r-page", label: `Go to page ${Number(n)} of ${numPages}`, group: "This paper", run: () => goTo(Number(n)) }] : [];
       },
     });
-  }, [fs.available, fs.on, wide, pdfReady, numPages, openAgents, setView, pickTool, showPanel, onBack, goTo, viewer, openInNotes, nb]);
+  }, [fs.available, fs.on, wide, pdfReady, numPages, openAgents, setView, pickTool, showPanel, onBack, goTo, viewer, openInNotes, nb, canComment, canEdit, isOwner, props.canShare, sharing, openComments]);
 
   /* ---- what the viewer is given ---- */
   const slots: DeskSlots = useMemo(
     () => ({
       tools: (draw) => {
         drawApi.current = draw;
+        // a Viewer and a Commenter get no tools; an Editor highlights but does not draw (the drawing is the owner's own)
+        if (!canEdit) return null;
         return (
           <>
-            <ToolSegment tool={draw.open ? "draw" : mode} onTool={pickTool} />
+            <ToolSegment tool={draw.open ? "draw" : mode} onTool={pickTool} noDraw={!isOwner} />
             {mode === "highlight" && !draw.open && <MeaningPicker value={meaning} onChange={setMeaning} />}
           </>
         );
       },
-      download: pdfReady ? <DownloadMenu href={fileUrl(doc.id)} title={doc.title} docId={doc.id} pdf={pdf.pdf} notes={notes.notes} strokes={ink.strokes} /> : null,
-      highlight: mode === "highlight" ? meaning : null,
+      download: pdfReady && (role !== "viewer" || access?.viewersDownload) ? <DownloadMenu href={fileUrl(doc.id)} title={doc.title} docId={doc.id} pdf={pdf.pdf} notes={notes.notes} strokes={ink.strokes} /> : null,
+      highlight: canEdit && mode === "highlight" ? meaning : null,
       popup: (p) => <SelectionPopup key={p.note?.id ?? "sel"} p={p} wide={wide} actions={actions} onRect={setPopRect} />,
       onDraw: setDrawOpen,
-      quoteDrag: true,
-      capture: mode === "capture" ? (n) => <CaptureLayer page={n} onCapture={(r) => void onCaptured(r)} onCancel={() => pickTool("select")} /> : undefined,
+      quoteDrag: canEdit,
+      capture: canEdit && mode === "capture" ? (n) => <CaptureLayer page={n} onCapture={(r) => void onCaptured(r)} onCancel={() => pickTool("select")} /> : undefined,
     }),
-    [mode, meaning, setMeaning, pickTool, pdfReady, pdf, doc.id, doc.title, notes.notes, ink.strokes, wide, actions, onCaptured],
+    [mode, meaning, setMeaning, pickTool, pdfReady, pdf, doc.id, doc.title, notes.notes, ink.strokes, wide, actions, onCaptured, canEdit, isOwner, role, access],
   );
 
   const meta = info?.metadata;
@@ -603,7 +696,7 @@ export function Desk(props: DeskProps) {
           <ArrowLeft size={18} aria-hidden="true" />
         </button>
         <div className="dw-titles">
-          <TitleEditor doc={doc} onChange={props.onDoc} />
+          {isOwner ? <TitleEditor doc={doc} onChange={props.onDoc} /> : <h1 className="dw-title desk-title-read">{doc.title}</h1>}
           <p className="dw-meta">
             {doc.pages ? `${doc.pages} pages · ` : ""}
             {doc.status === "ready" ? `${doc.chunkCount} passages ${doc.scanned ? "read from a scan" : "indexed"}` : doc.status === "failed" ? "Not indexed" : doc.scanned ? "Reading the scanned pages" : "Indexing"}
@@ -620,7 +713,13 @@ export function Desk(props: DeskProps) {
           )}
         </div>
         <div className="dw-head-end desk-head-end">
-          <DocMeta doc={doc} onChange={(d) => props.onDoc({ ...doc, readState: d.readState, tags: d.tags })} />
+          {isOwner && <DocMeta doc={doc} onChange={(d) => props.onDoc({ ...doc, readState: d.readState, tags: d.tags })} />}
+          {isOwner && props.canShare && (
+            <button type="button" className="btn btn-ghost btn-sm desk-share-btn" aria-haspopup="dialog" onClick={() => (setShareEver(true), setShareOpen(true))} onPointerEnter={() => void import("./share/ShareDialog").catch(() => {})}>
+              <Share2 size={15} aria-hidden="true" />
+              <span>Share</span>
+            </button>
+          )}
           <ViewSwitch view={shown} views={views} onChange={setView} />
           {fs.available && wide && (
             <button type="button" className="icon-btn icon-btn-sm dw-full-btn" aria-pressed={fs.on} aria-keyshortcuts="F" aria-label="Full screen" title={fs.on ? "Leave full screen (F or Esc)" : "Full screen (F)"} onClick={toggleFullscreen}>
@@ -631,6 +730,20 @@ export function Desk(props: DeskProps) {
         </div>
       </div>
 
+      {access && (
+        <p className="desk-shared-banner" role="status">
+          <span>
+            Shared by <strong>{access.ownerName ?? "someone"}</strong> · You can {access.role === "editor" ? "edit" : access.role === "commenter" ? "comment" : "view"}
+            <span className="sr-only"> ({ROLE_LABEL[access.role]})</span>
+          </span>
+          {access.via === "member" && (
+            <button type="button" className="link-btn" onClick={() => void leaveShared(doc.id).then(() => (toast("You left this paper. It is off your list."), onBack()), () => showNotice("That did not work. Please try again."))}>
+              Leave
+            </button>
+          )}
+          {!access.signedIn && <span className="desk-shared-sign">Sign in to comment, if the link lets you.</span>}
+        </p>
+      )}
       {!online && <p className="offline-banner" role="status">You are offline. You can keep reading and drawing; what you draw is kept on this device and sent when you are back online.</p>}
       {doc.scanned && scan && <ScanBanner doc={doc} scan={scan} running={props.scanRunning} onContinue={props.onContinueScan} onPause={props.onPauseScan} onGo={onGoToPage} />}
 
@@ -661,10 +774,10 @@ export function Desk(props: DeskProps) {
                     onPage={props.onPage}
                     contents={contentsOf(info)}
                     notes={notes.notes}
-                    onCreateNote={(n) => void onCreateNote(n)}
+                    onCreateNote={canEdit ? (n) => void onCreateNote(n) : () => {}}
                     focusNoteId={focusNote?.id ?? null}
                     onOpenNote={openNote}
-                    ink={ink}
+                    ink={canEdit ? ink : undefined}
                     citations={citeRefs && citeRefs.length > 0 ? { references: citeRefs, itemOf, bump: verify.bump, onShowInList, online, onAsk: openOaAsk, savedIds, onToggleSave: toggleSaved } : undefined}
                     desk={slots}
                   />
@@ -709,16 +822,32 @@ export function Desk(props: DeskProps) {
           </div>
           {/* All three stay mounted, so references being checked are not lost by switching tabs, and a note being written keeps its place. */}
           <div className="dw-side desk-tabpanel" id="desk-tabpanel-notes" role="tabpanel" aria-labelledby="desk-tab-notes" hidden={tab !== "notes"}>
-            {nb ? (
+            {sharing && !commentsAt && (
+              <div className="desk-comments-filter">
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => openComments(null)}>
+                  <MessageSquare size={14} aria-hidden="true" />
+                  <span>Comments{comments.open > 0 ? ` (${comments.open})` : ""}</span>
+                </button>
+              </div>
+            )}
+            {commentsAt ? (
+              <Suspense fallback={<p className="nb-wait" role="status">Loading the comments…</p>}>
+                <CommentsPanel api={comments} role={role} anchor={commentsAt.anchor} describe={describeAnchor} onShow={showAnchor} onClose={() => setCommentsAt(commentsAt.anchor ? { anchor: null } : null)} announce={announce} signedIn={access?.signedIn ?? true} />
+              </Suspense>
+            ) : !canEdit ? (
+              <Suspense fallback={<p className="nb-wait" role="status">Loading the notes…</p>}>
+                <ReadNotebook docId={doc.id} notes={existing} meanings={MEANINGS} onGoTo={goTo} comments={sharing ? { openOn: comments.openOn, show: openComments, canWrite: canComment } : null} focus={readFocus} />
+              </Suspense>
+            ) : nb ? (
               <Suspense fallback={<p className="nb-wait" role="status">Loading your notes…</p>}>
-                <NotebookView store={nb} docTitle={doc.title} notes={existing} notesReady={notes.status === "ready"} wide={wide} onGoTo={goTo} onDropQuote={onDropQuote} announce={announce} focus={nbFocus} meanings={MEANINGS} copy={copyText} onCapture={startCapture} paintCapture={paintCapture} exportFile={exportNotes} imageUrl={noteImageUrl} uploadImage={uploadNoteImage} />
+                <NotebookView store={nb} docTitle={doc.title} notes={existing} notesReady={notes.status === "ready"} wide={wide} onGoTo={goTo} onDropQuote={onDropQuote} announce={announce} focus={nbFocus} meanings={MEANINGS} copy={copyText} onCapture={startCapture} paintCapture={paintCapture} exportFile={exportNotes} imageUrl={noteImageUrl} uploadImage={uploadNoteImage} comments={blockComments} />
               </Suspense>
             ) : (
               <p className="nb-wait" role="status">Loading your notes…</p>
             )}
           </div>
           <div className="dw-side desk-tabpanel" id="desk-tabpanel-highlights" role="tabpanel" aria-labelledby="desk-tab-highlights" hidden={tab !== "highlights"}>
-            <NotesPanel compact exportMenu={(a) => <HighlightsExport {...a} />} doc={doc} api={notes} focusId={focusNote?.id ?? null} focusTick={focusNote?.tick ?? 0} onGo={onGoToNote} onFocusDone={(id) => setFocusNote((f) => (f?.id === id ? null : f))} notebook={notebookOnCard} />
+            <NotesPanel compact exportMenu={(a) => <HighlightsExport {...a} />} doc={doc} api={notes} focusId={focusNote?.id ?? null} focusTick={focusNote?.tick ?? 0} onGo={onGoToNote} onFocusDone={(id) => setFocusNote((f) => (f?.id === id ? null : f))} notebook={canEdit ? notebookOnCard : readOnlyCard} readOnly={!canEdit} comments={cardComments} />
           </div>
           <div className="dw-side desk-tabpanel" id="desk-tabpanel-refs" role="tabpanel" aria-labelledby="desk-tab-refs" hidden={tab !== "refs"}>
             <ReferencesPanel
@@ -735,10 +864,15 @@ export function Desk(props: DeskProps) {
         </div>
       </div>
 
-      <AgentsFab open={agentsOpen} wide={wide} lift={agentsOpen ? 0 : lift} hidden={drawOpen || (agentsOpen && wide)} fabRef={fab} onToggle={() => (agentsOpen ? closeAgents() : openAgents())} />
-      {agentsEver && (
+      {canComment && <AgentsFab open={agentsOpen} wide={wide} lift={agentsOpen ? 0 : lift} hidden={drawOpen || (agentsOpen && wide)} fabRef={fab} onToggle={() => (agentsOpen ? closeAgents() : openAgents())} />}
+      {agentsEver && canComment && (
         <Suspense fallback={null}>
           <AgentsDrawer {...drawerProps} />
+        </Suspense>
+      )}
+      {shareEver && (
+        <Suspense fallback={null}>
+          <ShareDialog open={shareOpen} onOpenChange={setShareOpen} docId={doc.id} title={doc.title} ownerName={props.myName} toast={(t, a) => void toast(t, a)} copy={copyText} />
         </Suspense>
       )}
       <Toasts onRect={setToastRect} />

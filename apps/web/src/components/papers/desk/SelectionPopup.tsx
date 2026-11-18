@@ -1,5 +1,5 @@
 import { m } from "motion/react";
-import { CircleCheck, Copy, MessageCircleQuestion, NotebookPen, Trash2 } from "lucide-react";
+import { CircleCheck, Copy, MessageCircleQuestion, MessageSquarePlus, NotebookPen, Trash2 } from "lucide-react";
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { NOTE_COLORS, type DocNote, type NoteColor } from "@scholar/shared";
 import { MEANINGS } from "../../../lib/meanings";
@@ -19,6 +19,12 @@ export type PopupActions = {
   /** Is this highlight quoted on a page of notes already ("In notes")? */
   inNotes: (note: DocNote) => boolean;
   showInNotes: (note: DocNote) => void;
+  /** A paper shared with this person (docs/design/paper-share.md, 4): only what their role allows. `readOnly`: no meanings, no Add to notes, no Remove (a Viewer or a Commenter). */
+  readOnly?: boolean;
+  /** No Explain (a Viewer: Ask runs on the owner's index). */
+  noExplain?: boolean;
+  /** Comment on a highlight (a Commenter up, with sharing on). */
+  comment?: (note: DocNote) => void;
 };
 
 /**
@@ -71,7 +77,7 @@ export function SelectionPopup({ p, wide, actions, onRect }: { p: DeskPopup; wid
       onMouseDown={(e) => e.preventDefault()}
       onKeyDown={keys}
     >
-      <div className="desk-pop-dots" role="group" aria-label={note ? "Change the meaning" : "Highlight as"}>
+      {!actions.readOnly && (<><div className="desk-pop-dots" role="group" aria-label={note ? "Change the meaning" : "Highlight as"}>
         {NOTE_COLORS.map((c) => {
           const mean = MEANINGS[c];
           const current = note?.color === c;
@@ -93,8 +99,8 @@ export function SelectionPopup({ p, wide, actions, onRect }: { p: DeskPopup; wid
           );
         })}
       </div>
-      <span className="pdfv-sel-sep" aria-hidden="true" />
-      {note && actions.inNotes(note) ? (
+      <span className="pdfv-sel-sep" aria-hidden="true" /></>)}
+      {actions.readOnly ? null : note && actions.inNotes(note) ? (
         <button type="button" className="desk-pop-btn desk-pop-innotes" onClick={done(() => actions.showInNotes(note))} title="This highlight is in your notes: open it there">
           <CircleCheck size={14} aria-hidden="true" />
           <span>In notes</span>
@@ -105,15 +111,23 @@ export function SelectionPopup({ p, wide, actions, onRect }: { p: DeskPopup; wid
           <span>Add to notes</span>
         </button>
       )}
-      <button type="button" className="desk-pop-btn" onClick={done(() => actions.explain(p.quote))} title="Ask the paper to explain this, in the Agents">
-        <MessageCircleQuestion size={14} aria-hidden="true" />
-        <span>Explain</span>
-      </button>
+      {!actions.noExplain && (
+        <button type="button" className="desk-pop-btn" onClick={done(() => actions.explain(p.quote))} title="Ask the paper to explain this, in the Agents">
+          <MessageCircleQuestion size={14} aria-hidden="true" />
+          <span>Explain</span>
+        </button>
+      )}
+      {note && actions.comment && (
+        <button type="button" className="desk-pop-btn" onClick={done(() => actions.comment!(note))} title="Comment on this highlight">
+          <MessageSquarePlus size={14} aria-hidden="true" />
+          <span>Comment</span>
+        </button>
+      )}
       <button type="button" className="desk-pop-btn" onClick={done(() => actions.copy(p.quote))} title="Copy the text">
         <Copy size={14} aria-hidden="true" />
         <span>Copy</span>
       </button>
-      {note && (
+      {note && !actions.readOnly && (
         <button type="button" className="desk-pop-btn desk-pop-remove" onClick={done(() => actions.remove(note))} title="Remove this highlight (you can undo it)">
           <Trash2 size={14} aria-hidden="true" />
           <span>Remove</span>

@@ -1,4 +1,4 @@
-import { Bold, ChevronDown, Crop, GripVertical, Heading, Italic, List, ListOrdered, ImagePlus, MoreHorizontal, PenLine, Plus, TextQuote, Trash2, Type, Underline, X } from "lucide-react";
+import { Bold, ChevronDown, Crop, GripVertical, Heading, Italic, List, ListOrdered, ImagePlus, MessageSquare, MoreHorizontal, PenLine, Plus, TextQuote, Trash2, Type, Underline, X } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { NOTEBOOK_STYLES, mdPlainText, type CaptureBlock, type DocNote, type ImageBlock, type NotebookBlock, type NotebookStyle, type QuoteColor } from "@scholar/shared";
 import { activeMarks, continueList, isOn, toggleHeading, toggleList, toggleMark, type Edit, type Mark } from "../../../../lib/md-edit";
@@ -47,6 +47,8 @@ export type NotebookProps = {
   uploadImage?: (blockId: string, blob: Blob) => Promise<{ w: number; h: number; type: string }>;
   /** PDF and Word (21.1, 4): made by the reader, which holds the open paper (the captures are drawn from it); without it, Export offers Markdown only. */
   exportFile?: (fmt: "pdf" | "docx", pages: NbPage[], docTitle: string, names: Record<QuoteColor, string>, all: boolean) => Promise<void>;
+  /** A shared paper's comments on a block (docs/design/paper-share.md, 5): its open threads (a dot) and the way to them (the dot, and Comment in the block's menu). Absent: sharing is off. */
+  comments?: { openOn: (pageId: string, blockId: string) => number; show: (pageId: string, blockId: string) => void };
 };
 
 // a sketch is drawn and edited by a small chunk of its own (the pen, its outlines): most pages have none
@@ -65,7 +67,7 @@ const isEmptyPage = (p: NbPage) => p.blocks.length === 1 && p.blocks[0]!.kind ==
  * paper's highlights), with a page picker, a page's own menu (move, paper style, delete), a formatting toolbar, reordering by drag or Alt+arrow, a drop target for quotes dragged from the paper,
  * the save line, and Copy or Download as Markdown. The `notebook` chunk: loaded when the reader needs it, never in the first load.
  */
-export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onDropQuote, announce, focus, meanings: MEANINGS, copy: copyText, exportFile, onCapture, paintCapture, imageUrl, uploadImage }: NotebookProps) {
+export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onDropQuote, announce, focus, meanings: MEANINGS, copy: copyText, exportFile, onCapture, paintCapture, imageUrl, uploadImage, comments }: NotebookProps) {
   const NAMES = useMemo(() => ({ yellow: MEANINGS.yellow.name, green: MEANINGS.green.name, blue: MEANINGS.blue.name, pink: MEANINGS.pink.name }), [MEANINGS]);
   const st = useNotebook(store);
   const page = st.pages.find((p) => p.id === st.openId) ?? st.pages[0] ?? null;
@@ -587,6 +589,12 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                     )
                   )}
                 </div>
+                {comments && comments.openOn(page.id, b.id) > 0 && (
+                  <button type="button" className="cm-dot" data-open="true" onClick={() => comments.show(page.id, b.id)} aria-label={`${comments.openOn(page.id, b.id)} open comments on block ${k + 1}`} title="Open comments">
+                    <MessageSquare size={13} aria-hidden="true" />
+                    <span>{comments.openOn(page.id, b.id)}</span>
+                  </button>
+                )}
                 <NbPop
                   kind="menu"
                   label="Block"
@@ -600,6 +608,16 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                 >
                   {(close) => (
                     <div role="menu" aria-label={`Actions of block ${k + 1}`} className="desk-menu">
+                      {comments && (
+                        <NbItem
+                          onPick={() => {
+                            close(false);
+                            comments.show(page.id, b.id);
+                          }}
+                        >
+                          Comment
+                        </NbItem>
+                      )}
                       <NbItem
                         danger
                         onPick={() => {

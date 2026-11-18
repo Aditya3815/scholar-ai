@@ -50,9 +50,10 @@ export async function shareExport(db: D1Database, userId: string): Promise<Share
  * Deleting an account, for the papers of OTHER people (docs/design/paper-share.md, 6): the account's memberships go (and an invitation still waiting for its address), and its comments stay with
  * the paper, by "a former member". The account's own papers, with their shares and comments, are deleted with them (deleteDocument).
  */
-export function forgetPersonStatements(db: D1Database, userId: string, email: string | null): D1PreparedStatement[] {
+export function forgetPersonStatements(db: D1Database, userId: string): D1PreparedStatement[] {
   return [
-    db.prepare("DELETE FROM doc_members WHERE user_id = ?1 OR (?2 IS NOT NULL AND user_id IS NULL AND email = lower(?2))").bind(userId, email),
+    // before the account's row goes: a waiting invitation is found by the account's (verified) address
+    db.prepare("DELETE FROM doc_members WHERE user_id = ?1 OR (user_id IS NULL AND email = (SELECT lower(email) FROM users WHERE id = ?1 AND email_verified = 1))").bind(userId),
     db.prepare("UPDATE doc_comments SET user_id = NULL WHERE user_id = ?1").bind(userId),
     db.prepare("DELETE FROM share_daily WHERE user_id = ?1").bind(userId),
   ];

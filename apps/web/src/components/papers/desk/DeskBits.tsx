@@ -62,10 +62,11 @@ const TOOLS: { id: DeskTool; label: string; key: string; Icon: typeof ScrollText
 ];
 
 /** The tool segment of the paper's toolbar: Select V, Highlight H, Draw D, Capture C (phase 2.5). Icons only on a phone; the name is always the button's. */
-export function ToolSegment({ tool, onTool }: { tool: DeskTool; onTool: (t: DeskTool) => void }) {
+export function ToolSegment({ tool, onTool, noDraw = false }: { tool: DeskTool; onTool: (t: DeskTool) => void; /** an Editor of a shared paper: the drawing is the owner's own */ noDraw?: boolean }) {
+  const tools = noDraw ? TOOLS.filter((t) => t.id !== "draw") : TOOLS;
   return (
-    <div className="seg desk-tools" role="radiogroup" aria-label="Tool" onKeyDown={(e) => radioKeys(e, TOOLS.map((t) => t.id), tool, (t) => onTool(t as DeskTool))}>
-      {TOOLS.map(({ id, label, key, Icon, hint }) => {
+    <div className="seg desk-tools" role="radiogroup" aria-label="Tool" onKeyDown={(e) => radioKeys(e, tools.map((t) => t.id), tool, (t) => onTool(t as DeskTool))}>
+      {tools.map(({ id, label, key, Icon, hint }) => {
         const on = id === tool;
         return (
           <button key={id} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1} aria-keyshortcuts={key} aria-label={label} className="seg-btn desk-tool" data-tool={id} title={`${hint} (${key})`} onClick={() => onTool(id)}>

@@ -15,6 +15,16 @@
   Referrer-Policy: no-referrer
   Cache-Control: no-store
 
+# A shared paper's link (docs/design/paper-share.md, 2.3): the token is the key, so the page is not indexed, not cached, and never sends its address on as a referrer.
+/s/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+
+# A paper's own page (also where a shared paper opens): never indexed.
+/papers/*
+  X-Robots-Tag: noindex, nofollow
+
 # Vite fingerprints everything under /assets, so it can be cached forever.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

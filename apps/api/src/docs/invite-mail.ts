@@ -1,5 +1,6 @@
 import { ROLE_LABEL, type MemberRole } from "@scholar/shared";
 import type { EnvPick } from "../platform/env";
+import { standIns } from "../platform/dev";
 
 /**
  * The invitation e-mail (docs/design/paper-share.md, phase S4), through a small port so that tests and local runs use a stand-in. It says who shared which paper, the role and the link, and
@@ -67,6 +68,6 @@ export const standInMailer: InviteMailer = async (m) => {
 
 /** The mailer of this Worker: the stand-in for local runs and tests, the EMAIL binding otherwise, and none when there is no binding (the dialog then offers "Copy invite"). */
 export function mailerFor(env: EnvPick<never, "ENABLE_DEV_ROUTES" | "QA_STUB" | "EMAIL">): InviteMailer | null {
-  if (env.ENABLE_DEV_ROUTES === "1" && env.QA_STUB === "1") return standInMailer;
+  if (standIns(env)) return standInMailer;
   return env.EMAIL ? bindingMailer(env.EMAIL as unknown as EmailBinding) : null;
 }

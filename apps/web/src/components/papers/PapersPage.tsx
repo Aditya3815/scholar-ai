@@ -1,6 +1,6 @@
 import { AnimatePresence, m } from "motion/react";
 import { FileSearch, LockKeyhole, ShieldCheck, Sparkles, WifiOff } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { tagKey, type DocumentInfo, type ReadState } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
 import { PAPERS_NAME } from "../../lib/workspace";
@@ -16,6 +16,9 @@ import { DocCard } from "./DocCard";
 import { STATES, STATE_LABEL } from "./DocMeta";
 import { SearchResults, WorkspaceSearch } from "./WorkspaceSearch";
 import { UploadZone } from "./UploadZone";
+
+// "Shared with me" (docs/design/paper-share.md, 4): a chunk of its own, fetched only when the list says papers were shared with this account
+const SharedWithMe = lazy(() => import("./SharedWithMe").then((mod) => ({ default: mod.SharedWithMe })));
 
 const rise = (i: number) => ({
   initial: { opacity: 0, y: 18 },
@@ -207,6 +210,11 @@ export function PapersPage({ onOpen }: { onOpen: (id: string) => void }) {
                 </>
               )}
             </section>
+          )}
+          {(docs.shared ?? 0) > 0 && (
+            <Suspense fallback={null}>
+              <SharedWithMe onOpen={onOpen} />
+            </Suspense>
           )}
         </>
       )}

@@ -49,3 +49,4 @@ CREATE TABLE share_daily (
   invites INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (user_id, day)
 );
+CREATE INDEX idx_share_daily_day ON share_daily (day);

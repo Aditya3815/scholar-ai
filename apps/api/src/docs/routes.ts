@@ -136,7 +136,13 @@ documentRoutes.get("/", async (c) => {
   const { user } = got;
   const rows = await c.env.DB.prepare(`SELECT ${COLS} FROM documents WHERE user_id = ?1 ORDER BY created_at DESC, rowid DESC`).bind(user.id).all<Row>();
   const used = rows.results.reduce((n, r) => n + r.size_bytes, 0);
-  return c.json({ items: rows.results.map(toInfo), usage: { count: rows.results.length, maxCount: MAX_DOCS_PER_USER, bytes: used, maxBytes: MAX_TOTAL_DOC_BYTES } });
+  const list = { items: rows.results.map(toInfo), usage: { count: rows.results.length, maxCount: MAX_DOCS_PER_USER, bytes: used, maxBytes: MAX_TOTAL_DOC_BYTES } };
+  // sharing on (docs/design/paper-share.md, 4): how many papers others shared with this account, so My Workspace knows to show "Shared with me" (said only when there are some)
+  if (await shareSwitchedOn(c.env)) {
+    const shared = (await c.env.DB.prepare("SELECT COUNT(*) AS n FROM doc_members m WHERE m.user_id = ?1 OR (m.user_id IS NULL AND m.email = (SELECT lower(email) FROM users WHERE id = ?1 AND email_verified = 1))").bind(user.id).first<{ n: number }>())?.n ?? 0;
+    if (shared > 0) return c.json({ ...list, sharedWithMe: shared });
+  }
+  return c.json(list);
 });
 
 /* these two are before "/:id" on purpose: a path segment "search" or "remember" must not be taken for a paper id */
@@ -798,7 +804,7 @@ async function pageImageIds(db: D1Database, docId: string, pageId: string): Prom
 
 /** A picture for a block of the notes (phase 2.5): the body is the file (JPEG, PNG or WebP, at most 2 MB); its kind is read from its bytes. */
 documentRoutes.put("/:id/notebook/images/:blockId", async (c) => {
-  const door = await notebookDoor(c);
+  const door = await notebookDoor(c, "editor");
   if (door instanceof Response) return door;
   if (Number(c.req.header("content-length") ?? 0) > NOTE_IMAGE_LIMITS.bytes) return deny(c, 413, "too_big", "That picture is too big", "A picture in the notes is at most 2 MB.");
   const bytes = new Uint8Array(await c.req.arrayBuffer().catch(() => new ArrayBuffer(0)));
@@ -808,9 +814,9 @@ documentRoutes.put("/:id/notebook/images/:blockId", async (c) => {
   return c.json({ w: r.w, h: r.h, type: r.type }, 201);
 });
 
-/** A picture of the notes, to its owner only (the same guards as the paper's own file). */
+/** A picture of the notes, to its owner and to the people the paper is shared with (the same guards as the paper's own file). */
 documentRoutes.get("/:id/notebook/images/:blockId", async (c) => {
-  const door = await notebookDoor(c);
+  const door = await notebookDoor(c, "viewer");
   if (door instanceof Response) return door;
   const blockId = c.req.param("blockId");
   if (!isNotebookId(blockId)) return deny(c, 404, "not_found", "No such picture");

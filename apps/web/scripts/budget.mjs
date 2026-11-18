@@ -35,6 +35,11 @@ export const LIMITS = {
   "the notes export chunk, script (gzip)": 5 * KB,
   // fontkit, which lets the notes PDF embed Noto Sans Devanagari as a subset: fetched only when the exported text has Devanagari. 151 KB measured on 18 Nov 2026.
   "the fontkit chunk, script (gzip)": 160 * KB,
+  // Sharing a paper (docs/design/paper-share.md, 18 Nov 2026), behind the SHARE switch: the owner's Share dialog (5.5 KB measured), the comments and a Viewer's notes (4.6 KB), and the two
+  // small pieces of My Workspace and the link (/s/<token>) (0.7 and 0.5 KB), each fetched only when wanted; plus about 10 to 25 %. The first load grew by 0.33 KB of script and 0.06 KB of style.
+  "the Share dialog chunk, script and style (gzip)": 6.5 * KB,
+  "the shared paper chunk (comments, read-only notes), script and style (gzip)": 5.5 * KB,
+  "Shared with me and the link opener, script (gzip)": 1.6 * KB,
   // The Rive pieces (docs/design/setu-rive.md, rive-ideas.md), fetched only when a picture is wanted: 57.6, 331 and 8.4 KB measured on 1 Nov 2026, plus about 10%. None of them may be in the first load.
   "the Rive runtime chunk, script (gzip)": 64 * KB,
   "the Rive runtime, wasm (gzip)": 365 * KB,
@@ -72,6 +77,10 @@ const NOTEBOOK = "src/components/papers/desk/notebook/Notebook.tsx";
 const NB_SKETCH = "src/components/papers/desk/notebook/NbSketch.tsx";
 const NOTES_EXPORT = "src/lib/notes-export.ts";
 const FONTKIT = "../../node_modules/@cantoo/fontkit/dist/browser-module.mjs";
+const SHARE_DIALOG = "src/components/papers/desk/share/ShareDialog.tsx";
+const SHARED_PARTS = "src/components/papers/desk/share/SharedParts.tsx";
+const SHARED_WITH_ME = "src/components/papers/SharedWithMe.tsx";
+const SHARE_OPEN = "src/components/papers/ShareOpen.tsx";
 const RIVE_RUNTIME = "../../node_modules/@rive-app/canvas-lite/rive.js";
 const RIVE_WASM = "../../node_modules/@rive-app/canvas-lite/rive.wasm";
 const rivFiles = Object.entries(manifest).filter(([id]) => id.endsWith(".riv")).map(([, e]) => asset(e.file));
@@ -91,6 +100,9 @@ const measured = {
   "the Notebook sketch chunk, script (gzip)": sum(filesOf(NB_SKETCH), gz),
   "the notes export chunk, script (gzip)": sum(filesOf(NOTES_EXPORT), gz),
   "the fontkit chunk, script (gzip)": sum(filesOf(FONTKIT), gz),
+  "the Share dialog chunk, script and style (gzip)": sum(filesOf(SHARE_DIALOG), gz),
+  "the shared paper chunk (comments, read-only notes), script and style (gzip)": sum(filesOf(SHARED_PARTS), gz),
+  "Shared with me and the link opener, script (gzip)": sum([...filesOf(SHARED_WITH_ME, { css: false }), ...filesOf(SHARE_OPEN, { css: false })], gz),
   "the Rive runtime chunk, script (gzip)": sum(filesOf(RIVE_RUNTIME), gz),
   "the Rive runtime, wasm (gzip)": sum(filesOf(RIVE_WASM), gz),
   "the Rive files of the pictures (gzip)": sum(rivFiles, gz),
@@ -125,6 +137,10 @@ const HEAVY = [
   NB_SKETCH,
   NOTES_EXPORT,
   FONTKIT,
+  SHARE_DIALOG,
+  SHARED_PARTS,
+  SHARED_WITH_ME,
+  SHARE_OPEN,
   INTRO,
   RIVE_RUNTIME,
   "src/components/litscan/Setu.tsx",

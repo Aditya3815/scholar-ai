@@ -1,4 +1,5 @@
 import { m } from "motion/react";
+import type { PaperAccess } from "@scholar/shared";
 import { Pencil } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Answer, DocumentInfo, OutlineItem, PaperInfo, ScanInfo } from "@scholar/shared";
@@ -9,7 +10,7 @@ import type { PDFDocumentProxy } from "../../lib/pdf";
 
 /* The pieces both readers draw the same (today's, DocWorkspace, and the new one, desk/Desk.tsx): moved here unchanged from DocWorkspace.tsx so that the new reader's chunk can use them. */
 
-export type Load = { status: "loading" } | { status: "error"; message: string; notFound?: boolean } | { status: "ready"; doc: DocumentInfo; history: Answer[]; info: PaperInfo | null; scan: ScanInfo | null; /** the new Paper Reader (READER, told by the server with the paper) */ reader?: boolean };
+export type Load = { status: "loading" } | { status: "error"; message: string; notFound?: boolean } | { status: "ready"; doc: DocumentInfo; history: Answer[]; info: PaperInfo | null; scan: ScanInfo | null; /** the new Paper Reader (READER, told by the server with the paper) */ reader?: boolean; /** a paper shared with this person (docs/design/paper-share.md); null: their own */ access?: PaperAccess | null; /** the owner may share it (SHARE) */ canShare?: boolean };
 export type Pdf = { status: "loading"; progress: number } | { status: "error"; message: string } | { status: "ready"; pdf: PDFDocumentProxy };
 
 export function TitleEditor({ doc, onChange }: { doc: DocumentInfo; onChange: (d: DocumentInfo) => void }) {
