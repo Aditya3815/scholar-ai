@@ -110,7 +110,7 @@ try {
     ok((await page.locator(".nb-field").first().getAttribute("placeholder")) === "Write here, or select text in the paper and choose Add to notes.", "the empty page says what to do, in its one line to write on");
     ok((await page.locator(".nb-field").count()) === 1, "with one empty text block, ready to write in");
     // one header: the title is the page's only title, beside its list of pages; one page menu; no separate "+ Text"
-    ok((await page.locator(".nb-title").count()) === 1 && (await page.getByRole("button", { name: "Page actions" }).count()) === 1 && (await page.getByRole("button", { name: "Delete this page" }).count()) === 1 && (await page.getByRole("tablist", { name: "Pages" }).getByRole("tab").allInnerTexts()).join() === "Notes", "the page's header: its title, Delete this page and one small menu; its tab in the row of pages");
+    ok((await page.locator(".nb-title").count()) === 1 && (await page.getByRole("button", { name: "Page actions" }).count()) === 1 && (await page.getByRole("button", { name: "Delete this page" }).count()) === 0 && (await page.locator(".nb-tabx").count()) === 1 && (await page.getByRole("tablist", { name: "Pages" }).getByRole("tab").allInnerTexts()).join() === "Notes", "the page's header: its title and one small menu (no trash: a page is deleted by the × on its tab); its tab in the row of pages");
     ok((await page.locator(".nb-addtext").count()) === 0 && (await page.locator(".nb-ghost").count()) === 0, "no separate + Text under the page: it ends on its empty line (Text is in the toolbar)");
     await sleep(1500);
     ok((await pagesOnServer()).length === 0, "opening the paper made nothing on the server");
@@ -293,7 +293,7 @@ try {
     ok(JSON.stringify(await tabs.allInnerTexts()) === JSON.stringify(["Notes", "Results"]) && (await tabs.nth(1).getAttribute("aria-selected")) === "true", "the pages are tabs, the open one selected");
     await page.getByRole("button", { name: "Page actions" }).click();
     const menu = page.getByRole("menu", { name: "Page actions" });
-    ok(JSON.stringify((await menu.getByRole("menuitem").allInnerTexts()).map((t) => t.trim())) === JSON.stringify(["Move left", "Move right", "Rename"]), "the page's small menu: Move left, Move right, Rename");
+    ok(JSON.stringify((await menu.getByRole("menuitem").allInnerTexts()).map((t) => t.trim())) === JSON.stringify(["Move left", "Move right", "Rename", "Delete page"]), "the page's small menu: Move left, Move right, Rename, Delete page");
     await menu.getByRole("menuitem", { name: "Move left" }).click();
     await until(async () => JSON.stringify(await tabs.allInnerTexts()) === JSON.stringify(["Results", "Notes"]), { ms: 4000, what: "Results to be the first tab" });
     ok(true, "Move left: Results is the first tab");
@@ -341,10 +341,12 @@ try {
     ok((await page.locator(".nb-block").count()) === n && (await page.locator(".nb-block").nth(n - 2).getAttribute("data-block")) === lastId, "Undo puts it back where it was");
     // delete a page, and Undo
     await pageTab(page, "Results").click();
-    await page.getByRole("button", { name: "Delete this page" }).click();
+    const tabX = page.locator(".nb-tabwrap").filter({ has: page.getByRole("tab", { name: "Results", exact: true }) }).locator(".nb-tabx");
+    ok(await tabX.isVisible(), "the open tab shows its × (Delete this page)");
+    await tabX.click();
     await page.locator(".desk-toast", { hasText: 'Deleted "Results"' }).waitFor();
     await until(async () => (await pagesOnServer()).length === 1, { ms: 6000 });
-    ok(true, "Delete this page (the trash on the page): gone from the server too");
+    ok(true, "the × on the tab deletes the page: gone from the server too");
     await page.locator(".desk-toast", { hasText: 'Deleted "Results"' }).getByRole("button", { name: "Undo" }).click();
     await until(async () => (await pagesOnServer()).some((p) => p.title === "Results" && p.style === "grid"), { ms: 8000 });
     ok((await page.locator(".nb-title").inputValue()) === "Results", "Undo brings the page back, its style and blocks with it");

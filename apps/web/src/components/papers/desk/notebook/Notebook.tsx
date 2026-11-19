@@ -1,4 +1,4 @@
-import { Bold, ChevronDown, Crop, GripVertical, Heading, Italic, List, ListOrdered, ImagePlus, MessageSquare, MoreHorizontal, PenLine, Plus, TextQuote, Trash2, Type, Underline, X } from "lucide-react";
+import { Bold, ChevronDown, Crop, GripVertical, Heading, Italic, List, ListOrdered, ImagePlus, MessageSquare, MoreHorizontal, PenLine, Plus, TextQuote, Type, Underline, X } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { NOTEBOOK_STYLES, mdPlainText, type CaptureBlock, type DocNote, type ImageBlock, type NotebookBlock, type NotebookStyle, type QuoteColor } from "@scholar/shared";
 import { activeMarks, continueList, isOn, toggleHeading, toggleList, toggleMark, type Edit, type Mark } from "../../../../lib/md-edit";
@@ -323,12 +323,24 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
     return k >= 0 ? k + 1 : page.blocks.length;
   };
 
+  // Delete a page, with Undo: the × on its tab, the tab's Delete key and "Delete page" in the page's menu all come here
+  const deleteNbPage = (p: NbPage) => {
+    const name = p.title || "Untitled page";
+    const undo = store.deletePage(p.id);
+    if (undo) toast(`Deleted "${name}"`, { label: "Undo", run: () => (undo(), announce(`"${name}" is back`)) });
+  };
   return (
     <div className="nb" data-wide={wide}>
       {/* the pages as tabs (the mock's), each with its paper; + Page opens "Choose paper for the new page" */}
-      <PageTabs pages={st.pages} openId={page.id} onOpen={(id) => store.open(id)} onNew={(style) => store.addPage(undefined, style) && setTitleTick((t) => t + 1)} />
+      <PageTabs
+        pages={st.pages}
+        openId={page.id}
+        onOpen={(id) => store.open(id)}
+        onNew={(style) => store.addPage(undefined, style) && setTitleTick((t) => t + 1)}
+        onDelete={deleteNbPage}
+      />
       <div className="nb-pagepanel" role="tabpanel" id="nb-pagepanel" aria-labelledby={`nbt-${page.id}`}>
-      {/* the page's header: its title, Delete this page, the save line, Export, and a small menu for moving and renaming */}
+      {/* the page's header: its title, the save line, Export, and a small menu for moving and renaming (a page is deleted by the × on its tab) */}
       <div className="nb-bar">
         <h2 className="sr-only">Notes: {page.title || "Untitled page"}</h2>
         <input
@@ -347,19 +359,6 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
             }
           }}
         />
-        <button
-          type="button"
-          className="icon-btn icon-btn-sm nb-trash"
-          aria-label="Delete this page"
-          title="Delete this page"
-          onClick={() => {
-            const name = page.title || "Untitled page";
-            const undo = store.deletePage(page.id);
-            if (undo) toast(`Deleted "${name}"`, { label: "Undo", run: () => (undo(), announce(`"${name}" is back`)) });
-          }}
-        >
-          <Trash2 size={16} aria-hidden="true" />
-        </button>
         <p className="nb-save" data-state={st.save}>
           {SAVE_WORDS[st.save]}
           {st.save === "error" && (
@@ -387,6 +386,7 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
               <NbItem disabled={i === 0} onPick={() => (close(), store.movePage(page.id, -1) && announce(`Page moved to place ${i} of ${st.pages.length}`))}>Move left</NbItem>
               <NbItem disabled={i === st.pages.length - 1} onPick={() => (close(), store.movePage(page.id, 1) && announce(`Page moved to place ${i + 2} of ${st.pages.length}`))}>Move right</NbItem>
               <NbItem onPick={() => (close(false), setTitleTick((t) => t + 1))}>Rename</NbItem>
+              <NbItem onPick={() => (close(), deleteNbPage(page))}>Delete page</NbItem>
               <div role="group" aria-label="Paper">
                 <span className="nb-menu-head" aria-hidden="true">Paper</span>
                 {NOTEBOOK_STYLES.map((s) => (
@@ -671,9 +671,11 @@ function Tool({ label, keys, pressed, onPress, first, children }: { label: strin
 
 /**
  * The pages as tabs (docs/design/paper-reader.md, 21.1, 2): each with its paper and its title, the open one raised; a tablist (← and → move, Home and End go to the ends, Enter or a click
- * opens), in a row that scrolls sideways with a fade on the side that has more. "+" (Add a page) right after the last tab, kept in sight when the row scrolls, opens "Choose paper for the new page".
+ * opens, Delete deletes it), in a row that scrolls sideways with a fade on the side that has more. Each tab has a × (Delete this page, with Undo), as a browser's tab does: shown on
+ * the open tab and on the one under the pointer, and always on a touch screen; it is a button beside the tab, for the pointer only (a tablist may hold only tabs, so it is hidden from assistive technology); the tab's Delete key and "Delete page" in the page's menu do the same.
+ * "+" (Add a page) right after the last tab, kept in sight when the row scrolls, opens "Choose paper for the new page".
  */
-function PageTabs({ pages, openId, onOpen, onNew }: { pages: NbPage[]; openId: string; onOpen: (id: string) => void; onNew: (style: NotebookStyle) => void }) {
+function PageTabs({ pages, openId, onOpen, onNew, onDelete }: { pages: NbPage[]; openId: string; onOpen: (id: string) => void; onNew: (style: NotebookStyle) => void; onDelete: (page: NbPage) => void }) {
   const row = useRef<HTMLDivElement>(null);
   const [more, setMore] = useState("");
   useEffect(() => {
@@ -698,6 +700,11 @@ function PageTabs({ pages, openId, onOpen, onNew }: { pages: NbPage[]; openId: s
     document.getElementById(`nbt-${openId}`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [openId]);
   const keys = (e: KeyboardEvent<HTMLButtonElement>, k: number) => {
+    if (e.key === "Delete") {
+      e.preventDefault();
+      onDelete(pages[k]!);
+      return;
+    }
     const to = e.key === "ArrowRight" ? Math.min(pages.length - 1, k + 1) : e.key === "ArrowLeft" ? Math.max(0, k - 1) : e.key === "Home" ? 0 : e.key === "End" ? pages.length - 1 : -1;
     if (to < 0) return;
     e.preventDefault();
@@ -709,8 +716,8 @@ function PageTabs({ pages, openId, onOpen, onNew }: { pages: NbPage[]; openId: s
     <div className="nb-tabsrow">
       <div ref={row} className="nb-pagetabs" role="tablist" aria-label="Pages" data-more={more || undefined}>
         {pages.map((p, k) => (
+          <span key={p.id} className="nb-tabwrap" role="presentation">
           <button
-            key={p.id}
             id={`nbt-${p.id}`}
             type="button"
             role="tab"
@@ -718,12 +725,27 @@ function PageTabs({ pages, openId, onOpen, onNew }: { pages: NbPage[]; openId: s
             aria-selected={p.id === openId}
             aria-controls="nb-pagepanel"
             tabIndex={p.id === openId ? 0 : -1}
+            aria-keyshortcuts="Delete"
             onClick={() => onOpen(p.id)}
             onKeyDown={(e) => keys(e, k)}
           >
             <span className="nb-sw" data-style={p.style} aria-hidden="true" />
             <span className="nb-pagetab-t">{p.title || "Untitled page"}</span>
           </button>
+          <button
+            type="button"
+            className="nb-tabx"
+            tabIndex={-1}
+            aria-hidden="true"
+            title="Delete this page"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(p);
+            }}
+          >
+            <X size={13} aria-hidden="true" />
+          </button>
+          </span>
         ))}
       </div>
       <NbPop
