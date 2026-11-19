@@ -1,0 +1,123 @@
+/* The comments (docs/design/paper-share.md, 5; the notes polish of 19 Nov): in the comments chunk only, in the app's tokens, so Light, Dark and Read follow. */
+/* the comments (the notes polish of 19 Nov): a head row, a body that scrolls, and the box to write in kept at the bottom. An 8 px rhythm, controls 32 px high (44 px on touch), one
+   primary action (the box's button), every other action quiet */
+.cm { --cm-line: color-mix(in srgb, var(--border-strong) 70%, transparent); display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.cm-head { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 48px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.cm-title { margin: 0; font-size: 0.9375rem; font-weight: 650; }
+.cm-title:focus { outline: none; }
+.cm-back, .cm-btn, .cm-more { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--radius-s); background: none; color: var(--muted); font: inherit; font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+.cm-back { margin-left: -6px; padding: 0 8px 0 6px; }
+.cm-back:hover, .cm-btn:hover:not(:disabled), .cm-more:hover, .cm-more[aria-expanded="true"] { background: var(--surface-2); color: var(--text); }
+.cm-back:focus-visible, .cm-btn:focus-visible, .cm-more:focus-visible, .cm-seg button:focus-visible, .cm-card:focus-visible, .cm-chip:focus-visible, .cm-menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* the filter: one compact segmented control with counts, at the row's end (under the title when the panel is narrow) */
+.cm-seg { display: inline-flex; flex: none; margin-left: auto; padding: 2px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface-2); }
+.cm-seg button { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border: 0; border-radius: 6px; background: none; color: var(--muted); font: inherit; font-size: 0.75rem; font-weight: 600; cursor: pointer; }
+.cm-seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+.cm-n { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+/* the thread's head: its state, quiet, and Resolve at the end */
+.cm-status { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.cm-status[data-resolved] { border-color: transparent; background: var(--ok-soft); color: var(--ok); }
+.cm-resolve { margin-left: auto; border-color: var(--border); color: var(--text); }
+/* the body ends with room for the Agents button, so it never covers the last thread's Reply */
+.cm-body-scroll { display: flex; flex: 1; flex-direction: column; gap: 16px; min-height: 0; padding: 16px 12px var(--fab-clear, 24px); overflow: auto; overscroll-behavior: contain; }
+.cm-empty { margin: 0; color: var(--muted); font-size: 0.875rem; }
+
+/* the list: one card a thread, the whole card a button */
+.cm-cards { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.cm-card { display: grid; gap: 8px; width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+.cm-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-1); }
+.cm-card[data-resolved] .cm-card-body { color: var(--muted); }
+.cm-card-on { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 0.8125rem; }
+.cm-card-q { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; }
+.cm-card-body { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 0.875rem; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+.cm-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--muted); font-size: 0.75rem; }
+.cm-card-who { color: var(--text); font-weight: 600; }
+.cm-stack { display: inline-flex; }
+.cm-stack .cm-av { width: 20px; height: 20px; font-size: 0.625rem; box-shadow: 0 0 0 2px var(--surface); }
+.cm-stack .cm-av + .cm-av { margin-left: -6px; }
+.cm-badge { padding: 1px 8px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); font-weight: 600; }
+.cm-dotc { --dot: var(--border-strong); flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--dot); }
+.cm-chip { display: inline-flex; flex: none; align-items: center; gap: 2px; height: 22px; padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; font-size: 0.75rem; font-weight: 600; font-style: normal; white-space: nowrap; }
+button.cm-chip { cursor: pointer; }
+button.cm-chip:hover { border-color: var(--accent); }
+.cm-none { display: grid; justify-items: center; gap: 8px; margin: 24px auto 0; max-width: 22rem; color: var(--muted); font-size: 0.8125rem; text-align: center; }
+.cm-none p { margin: 0; }
+.cm-none .cm-none-h { color: var(--text); font-size: 0.9375rem; font-weight: 600; }
+
+/* the quote a thread hangs on: a bar in the meaning's colour, the words muted and two lines at most, p. N ↗ */
+.cm-quote { --dot: var(--border-strong); display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 8px 8px 8px 12px; border-left: 3px solid var(--dot); border-radius: 0 var(--radius-s) var(--radius-s) 0; background: color-mix(in srgb, var(--dot) 8%, var(--surface)); }
+.cm-quote blockquote { flex: 1; display: -webkit-box; min-width: 0; margin: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--muted); font-family: var(--read-font, var(--font-serif)); font-size: 0.875rem; font-style: italic; line-height: 1.5; overflow-wrap: anywhere; }
+.cm-quote[data-gone] blockquote { font-style: normal; }
+:is(.cm-quote, .cm-dotc)[data-color="yellow"] { --dot: var(--mean-key); }
+:is(.cm-quote, .cm-dotc)[data-color="green"] { --dot: var(--mean-method); }
+:is(.cm-quote, .cm-dotc)[data-color="blue"] { --dot: var(--mean-question); }
+:is(.cm-quote, .cm-dotc)[data-color="pink"] { --dot: var(--mean-result); }
+
+/* a thread, as in a document's comments: one card; the first comment is its head, the replies hang under it on a thin line with smaller avatars, and the reply box ends it */
+.cm-thread { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface); }
+.cm-thread[data-resolved] { background: color-mix(in srgb, var(--surface-2) 45%, var(--surface)); }
+.cm-c { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 8px; align-items: start; }
+.cm-av { display: inline-grid; flex: none; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--text); font-size: 0.75rem; font-weight: 700; }
+.cm-main { display: grid; gap: 2px; min-width: 0; }
+.cm-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; margin: 0; color: var(--muted); font-size: 0.75rem; line-height: 28px; }
+.cm-meta b { color: var(--text); font-size: 0.8125rem; font-weight: 600; }
+.cm-you { margin-left: -4px; }
+.cm-edited { font-style: italic; }
+.cm-text { margin: 0; color: var(--text); font-size: 0.875rem; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; }
+.cm-replies { display: grid; gap: 8px; margin: 0 0 0 13px; padding: 2px 0 2px 19px; border-left: 2px solid var(--cm-line); }
+.cm-replies ol { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.cm-replies .cm-c { grid-template-columns: 22px minmax(0, 1fr) auto; }
+.cm-replies .cm-av { width: 22px; height: 22px; font-size: 0.6875rem; }
+.cm-replies .cm-meta { line-height: 22px; }
+.cm-fold { justify-self: start; height: 28px; padding: 0 8px; margin-left: -8px; border: 0; border-radius: var(--radius-s); background: none; color: var(--accent); font: inherit; font-size: 0.75rem; font-weight: 600; cursor: pointer; }
+.cm-fold:hover { background: var(--surface-2); }
+.cm-fold:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cm-thread-reply { display: grid; gap: 8px; margin-left: 36px; scroll-margin-bottom: var(--fab-clear, 24px); }
+.cm-thread-reply .notes-error { margin: 0; }
+.cm-thread-acts { display: flex; gap: 8px; margin-left: 26px; }
+/* a comment's ⋯: shown when it is pointed at or holds the focus, always on touch */
+.cm-menuwrap { position: relative; }
+.cm-more { width: 28px; height: 28px; padding: 0; opacity: 0; }
+.cm-c:hover .cm-more, .cm-c:focus-within .cm-more, .cm-more[aria-expanded="true"] { opacity: 1; }
+@media (hover: none) { .cm-more { opacity: 1; } }
+.cm-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 5; display: grid; min-width: 9rem; padding: 4px; border: 1px solid var(--border-strong); border-radius: var(--radius-s); background: var(--surface); box-shadow: var(--shadow-2); }
+.cm-menu[data-up] { top: auto; bottom: calc(100% + 4px); }
+.cm-menu-item { display: flex; align-items: center; height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--text); font: inherit; font-size: 0.8125rem; text-align: left; cursor: pointer; }
+.cm-menu-item:hover, .cm-menu-item:focus { background: var(--surface-2); }
+.cm-menu-item[data-danger] { color: var(--danger); }
+.cm-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; padding: 8px; border-radius: var(--radius-s); background: var(--danger-soft); color: var(--text); font-size: 0.8125rem; }
+.cm-confirm > span { flex: 1 1 10rem; font-weight: 600; }
+.cm-confirm .cm-btn { border-color: var(--border-strong); background: var(--surface); color: var(--text); }
+.cm-confirm .cm-btn.cm-danger, .cm-confirm .cm-btn.cm-danger:hover { border-color: transparent; background: var(--danger); color: var(--danger-fg); }
+
+/* the box to write in, kept at the bottom of the panel: a light border (not a filled slab), one line that grows to about six */
+.cm-foot { flex: none; padding: 12px 12px var(--fab-clear, 12px); border-top: 1px solid var(--border); background: var(--surface); }
+/* a thread's body has the room already; the box at the bottom (a new thread) keeps clear of the Agents button by its own */
+.cm:has(.cm-foot) .cm-body-scroll { padding-bottom: 24px; }
+p.cm-foot { margin: 0; color: var(--muted); font-size: 0.8125rem; }
+.cm-foot .notes-error { margin: 0 0 8px; }
+.cm-compose { display: grid; gap: 8px; }
+.cm-compose textarea { display: block; width: 100%; min-height: 40px; max-height: calc(6 * 1.5em + 18px); padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-s); background: var(--surface); color: var(--text); font: inherit; font-size: 0.875rem; line-height: 1.5; resize: none; overflow-y: auto; transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+.cm-compose textarea::placeholder { color: var(--muted); opacity: 1; }
+.cm-compose textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.cm-compose-row { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.cm-hint { margin-right: auto; color: var(--muted); font-size: 0.75rem; }
+/* the hint is for a keyboard: a phone or a tablet has none */
+@media (hover: none), (pointer: coarse) { .cm-hint { visibility: hidden; } }
+/* the one primary action: the accent when there is something to send; plainly off (neutral, not a faded accent) while the box is empty */
+.cm-primary { border-color: transparent; background: var(--accent); color: var(--accent-fg); }
+.cm-primary:hover:not(:disabled) { background: var(--accent); color: var(--accent-fg); filter: brightness(1.06); }
+.cm-primary:disabled { border-color: var(--border); background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
+.cm-c .cm-compose { margin-top: 4px; }
+
+@media (pointer: coarse) {
+  .cm-back, .cm-btn, .cm-seg button, .cm-fold { height: 44px; }
+  .cm-thread-reply { margin-left: 0; }
+  .cm-more { width: 44px; height: 44px; }
+  .cm-chip { height: 32px; }
+  .cm-menu-item { height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-back, .cm-btn, .cm-more, .cm-card, .cm-compose textarea { transition: none; }
+}
+

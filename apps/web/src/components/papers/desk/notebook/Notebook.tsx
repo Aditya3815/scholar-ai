@@ -1,6 +1,6 @@
-import { Bold, ChevronDown, Crop, GripVertical, Heading, Italic, List, ListOrdered, ImagePlus, MessageSquare, MoreHorizontal, PenLine, Plus, TextQuote, Type, Underline, X } from "lucide-react";
+import { Bold, ChevronDown, Crop, GripVertical, Heading, Italic, List, ListOrdered, ImagePlus, MessageSquare, MoreHorizontal, PenLine, TextQuote, Type, Underline } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { NOTEBOOK_STYLES, mdPlainText, type CaptureBlock, type DocNote, type ImageBlock, type NotebookBlock, type NotebookStyle, type QuoteColor } from "@scholar/shared";
+import { LEGACY_PAGE_TITLE, NOTEBOOK_STYLES, NOTEBOOK_STYLE_NAMES as STYLE_NAME, mdPlainText, nextPageName, pageLabel, type CaptureBlock, type DocNote, type ImageBlock, type NotebookBlock, type QuoteColor } from "@scholar/shared";
 import { activeMarks, continueList, isOn, toggleHeading, toggleList, toggleMark, type Edit, type Mark } from "../../../../lib/md-edit";
 // the meanings and the copy come from the reader (props): imported here too, they would be cut out of the first load's chunks into chunks of their own
 import type { Meaning } from "../../../../lib/meanings";
@@ -48,13 +48,15 @@ export type NotebookProps = {
   /** PDF and Word (21.1, 4): made by the reader, which holds the open paper (the captures are drawn from it); without it, Export offers Markdown only. */
   exportFile?: (fmt: "pdf" | "docx", pages: NbPage[], docTitle: string, names: Record<QuoteColor, string>, all: boolean) => Promise<void>;
   /** A shared paper's comments on a block (docs/design/paper-share.md, 5): its open threads (a dot) and the way to them (the dot, and Comment in the block's menu). Absent: sharing is off. */
-  comments?: { openOn: (pageId: string, blockId: string) => number; show: (pageId: string, blockId: string) => void };
+  comments?: { openOn: (pageId: string, blockId: string) => number; show: (pageId: string, blockId: string) => void; open: number; showAll: () => void };
 };
 
 // a sketch is drawn and edited by a small chunk of its own (the pen, its outlines): most pages have none
 const SketchBlockView = lazy(() => import("./NbSketch").then((m) => ({ default: m.SketchBlockView })));
-
-const STYLE_NAME: Record<NotebookStyle, string> = { plain: "Plain", ruled: "Ruled", dotted: "Dotted", grid: "Graph" };
+// the page tabs (drag to reorder, All pages) are a small chunk of their own, asked for as soon as this one arrives, so this chunk does not grow
+const tabsChunk = import("./NbTabs");
+const PageTabs = lazy(() => tabsChunk.then((m) => ({ default: m.PageTabs })));
+const PAPERS = NOTEBOOK_STYLES.map((s) => [s, STYLE_NAME[s]] as const);
 
 export type ExportFormat = "pdf" | "docx" | "md";
 
@@ -235,16 +237,16 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
     : {};
 
   /* ---- Markdown out ---- */
-  const markdown = (all: boolean) => markdownOf(docTitle, (all ? st.pages : page ? [page] : []).map((p) => ({ title: p.title, blocks: p.blocks })), NAMES);
+  const named = (all: boolean) => (all ? st.pages : page ? [page] : []).map((p) => ({ ...p, title: pageLabel(p.title, st.pages.indexOf(p)) }));
+  const markdown = (all: boolean) => markdownOf(docTitle, named(all), NAMES);
   const copyMd = (all: boolean) => {
     void copyText(markdown(all)).then((ok) => (ok ? toast(all ? "All pages copied as Markdown" : "This page copied as Markdown") : showNotice("Could not copy. Select the text and press Ctrl+C.")));
   };
-  const downloadMd = (all: boolean) => downloadMarkdown(docTitle, all ? null : page?.title ?? "", markdown(all));
+  const downloadMd = (all: boolean) => downloadMarkdown(docTitle, all ? null : named(false)[0]?.title ?? "", markdown(all));
   /** Export ▾: Markdown here; PDF and Word through the reader (exportFile), which can draw the captures from the open paper. */
   const exportAs = (fmt: ExportFormat, all: boolean) => {
     if (fmt === "md") return downloadMd(all);
-    const pages = all ? st.pages : page ? [page] : [];
-    void exportFile?.(fmt, pages, docTitle, NAMES, all).catch(() => showNotice(`The ${fmt === "pdf" ? "PDF" : "Word file"} could not be made. Check the connection, then try again.`));
+    void exportFile?.(fmt, named(all), docTitle, NAMES, all).catch(() => showNotice(`The ${fmt === "pdf" ? "PDF" : "Word file"} could not be made. Check the connection, then try again.`));
   };
 
   /* ---- the toolbar's second row (More), and the basic row's fade when it scrolls (a phone) ---- */
@@ -312,6 +314,7 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
     );
 
   const i = st.pages.indexOf(page);
+  const name = pageLabel(page.title, i);
   const quotedHere = new Set(page.blocks.flatMap((b) => (b.kind === "quote" && b.noteId ? [b.noteId] : [])));
   const noteIds = new Set(notes.map((n) => n.id));
   const removed = (b: NotebookBlock) => b.kind === "quote" && (b.noteId === null || (notesReady && !noteIds.has(b.noteId)));
@@ -325,31 +328,38 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
 
   // Delete a page, with Undo: the × on its tab, the tab's Delete key and "Delete page" in the page's menu all come here
   const deleteNbPage = (p: NbPage) => {
-    const name = p.title || "Untitled page";
+    const name = pageLabel(p.title, st.pages.indexOf(p));
     const undo = store.deletePage(p.id);
     if (undo) toast(`Deleted "${name}"`, { label: "Undo", run: () => (undo(), announce(`"${name}" is back`)) });
   };
   return (
     <div className="nb" data-wide={wide}>
       {/* the pages as tabs (the mock's), each with its paper; + Page opens "Choose paper for the new page" */}
-      <PageTabs
-        pages={st.pages}
-        openId={page.id}
-        onOpen={(id) => store.open(id)}
-        onNew={(style) => store.addPage(undefined, style) && setTitleTick((t) => t + 1)}
-        onDelete={deleteNbPage}
-      />
+      <Suspense fallback={<div className="nb-tabsrow nb-tabsrow-wait" aria-hidden="true" />}>
+        <PageTabs
+          pages={st.pages}
+          openId={page.id}
+          onOpen={(id) => store.open(id)}
+          onNew={(style) => store.addPage(nextPageName(st.pages.map((p, k) => pageLabel(p.title, k))), style) && setTitleTick((t) => t + 1)}
+          onDelete={deleteNbPage}
+          onMove={(id, to) => store.movePageTo(id, to)}
+          announce={announce}
+          Pop={NbPop}
+          label={pageLabel}
+          papers={PAPERS}
+        />
+      </Suspense>
       <div className="nb-pagepanel" role="tabpanel" id="nb-pagepanel" aria-labelledby={`nbt-${page.id}`}>
-      {/* the page's header: its title, the save line, Export, and a small menu for moving and renaming (a page is deleted by the × on its tab) */}
+      {/* the page's header: its title, the save line, then quiet icon buttons of one style: Comments (a shared paper), Export and the page's menu (a page is deleted by the × on its tab) */}
       <div className="nb-bar">
-        <h2 className="sr-only">Notes: {page.title || "Untitled page"}</h2>
+        <h2 className="sr-only">Notes: {name}</h2>
         <input
           ref={title}
           className="nb-title"
           aria-label="Page title"
           maxLength={120}
-          placeholder="Untitled page"
-          value={page.title}
+          placeholder={name}
+          value={page.title.trim() === LEGACY_PAGE_TITLE ? "" : page.title}
           onChange={(e) => store.rename(page.id, e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -370,13 +380,19 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
             </>
           )}
         </p>
+        {comments && (
+          <button type="button" className="nb-hbtn nb-cmbtn" aria-label={comments.open ? `Comments, ${comments.open} open` : "Comments"} title="Comments" onClick={comments.showAll}>
+            <MessageSquare size={16} aria-hidden="true" />
+            {comments.open > 0 && <span className="nb-badge" aria-hidden="true">{comments.open > 99 ? "99+" : comments.open}</span>}
+          </button>
+        )}
         <ExportMenu onExport={exportAs} onCopy={copyMd} files={!!exportFile} />
         <NbPop
           kind="menu"
           label="Page"
           align="end"
           trigger={({ open, toggle, ref }) => (
-            <button ref={ref} type="button" className="icon-btn icon-btn-sm nb-pagemenu" aria-haspopup="menu" aria-expanded={open} aria-label="Page actions" title="Move or rename this page" onClick={toggle}>
+            <button ref={ref} type="button" className="nb-hbtn nb-pagemenu" aria-haspopup="menu" aria-expanded={open} aria-label="Page actions" title="Move or rename this page" onClick={toggle}>
               <MoreHorizontal size={16} aria-hidden="true" />
             </button>
           )}
@@ -513,7 +529,7 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
             {imageUrl && <input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void addPicture(f); }} />}
           </div>
 
-          <ol ref={list} className="nb-blocks" role="list" aria-label={`Blocks of ${page.title || "Untitled page"}`} data-dropping={dropAt !== null || undefined} {...dropProps}>
+          <ol ref={list} className="nb-blocks" role="list" aria-label={`Blocks of ${name}`} data-dropping={dropAt !== null || undefined} {...dropProps}>
             {page.blocks.map((b, k) => (
               // a block's handle and menu show when it is pointed at or holds the focus; with no hover (touch), for the block that was tapped (data-active)
               <li key={b.id} className="nb-block" role="listitem" data-block={b.id} data-kind={b.kind} data-active={active === b.id || undefined} onPointerDown={() => setActive(b.id)} data-flash={flash === b.id || undefined} data-dragging={dragging === b.id || undefined} data-drop-before={dropAt === k || undefined} data-drop-after={dropAt === page.blocks.length && k === page.blocks.length - 1 ? true : undefined}>
@@ -669,118 +685,6 @@ function Tool({ label, keys, pressed, onPress, first, children }: { label: strin
   );
 }
 
-/**
- * The pages as tabs (docs/design/paper-reader.md, 21.1, 2): each with its paper and its title, the open one raised; a tablist (← and → move, Home and End go to the ends, Enter or a click
- * opens, Delete deletes it), in a row that scrolls sideways with a fade on the side that has more. Each tab has a × (Delete this page, with Undo), as a browser's tab does: shown on
- * the open tab and on the one under the pointer, and always on a touch screen; it is a button beside the tab, for the pointer only (a tablist may hold only tabs, so it is hidden from assistive technology); the tab's Delete key and "Delete page" in the page's menu do the same.
- * "+" (Add a page) right after the last tab, kept in sight when the row scrolls, opens "Choose paper for the new page".
- */
-function PageTabs({ pages, openId, onOpen, onNew, onDelete }: { pages: NbPage[]; openId: string; onOpen: (id: string) => void; onNew: (style: NotebookStyle) => void; onDelete: (page: NbPage) => void }) {
-  const row = useRef<HTMLDivElement>(null);
-  const [more, setMore] = useState("");
-  useEffect(() => {
-    const el = row.current;
-    if (!el) return;
-    const seen = () => {
-      const start = el.scrollLeft > 1;
-      const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
-      setMore(start && end ? "both" : start ? "start" : end ? "end" : "");
-    };
-    seen();
-    el.addEventListener("scroll", seen, { passive: true });
-    const ro = new ResizeObserver(seen);
-    ro.observe(el);
-    return () => {
-      el.removeEventListener("scroll", seen);
-      ro.disconnect();
-    };
-  }, [pages.length]);
-  // the open page's tab is kept in sight
-  useEffect(() => {
-    document.getElementById(`nbt-${openId}`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [openId]);
-  const keys = (e: KeyboardEvent<HTMLButtonElement>, k: number) => {
-    if (e.key === "Delete") {
-      e.preventDefault();
-      onDelete(pages[k]!);
-      return;
-    }
-    const to = e.key === "ArrowRight" ? Math.min(pages.length - 1, k + 1) : e.key === "ArrowLeft" ? Math.max(0, k - 1) : e.key === "Home" ? 0 : e.key === "End" ? pages.length - 1 : -1;
-    if (to < 0) return;
-    e.preventDefault();
-    const el = document.getElementById(`nbt-${pages[to]!.id}`);
-    el?.focus();
-    el?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  };
-  return (
-    <div className="nb-tabsrow">
-      <div ref={row} className="nb-pagetabs" role="tablist" aria-label="Pages" data-more={more || undefined}>
-        {pages.map((p, k) => (
-          <span key={p.id} className="nb-tabwrap" role="presentation">
-          <button
-            id={`nbt-${p.id}`}
-            type="button"
-            role="tab"
-            className="nb-pagetab"
-            aria-selected={p.id === openId}
-            aria-controls="nb-pagepanel"
-            tabIndex={p.id === openId ? 0 : -1}
-            aria-keyshortcuts="Delete"
-            onClick={() => onOpen(p.id)}
-            onKeyDown={(e) => keys(e, k)}
-          >
-            <span className="nb-sw" data-style={p.style} aria-hidden="true" />
-            <span className="nb-pagetab-t">{p.title || "Untitled page"}</span>
-          </button>
-          <button
-            type="button"
-            className="nb-tabx"
-            tabIndex={-1}
-            aria-hidden="true"
-            title="Delete this page"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(p);
-            }}
-          >
-            <X size={13} aria-hidden="true" />
-          </button>
-          </span>
-        ))}
-      </div>
-      <NbPop
-        kind="dialog"
-        label="Choose paper for the new page"
-        align="end"
-        trigger={({ open, toggle, id, ref }) => (
-          <button ref={ref} type="button" className="nb-addpage" aria-label="Add a page" title="Add a page" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} onClick={toggle}>
-            <Plus size={16} aria-hidden="true" />
-          </button>
-        )}
-      >
-        {(close) => (
-          <div className="nb-paperpick">
-            <div className="nb-paperpick-head">
-              <p>Choose paper for the new page</p>
-              <button type="button" className="icon-btn icon-btn-sm" aria-label="Close" onClick={() => close()}>
-                <X size={15} aria-hidden="true" />
-              </button>
-            </div>
-            <div className="nb-papercards">
-              {NOTEBOOK_STYLES.map((s, k) => (
-                <button key={s} type="button" className="nb-papercard" data-autofocus={k === 0 || undefined} onClick={() => (close(false), onNew(s))}>
-                  <span className="nb-paperprev" data-style={s} aria-hidden="true" />
-                  <span>{STYLE_NAME[s]}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </NbPop>
-    </div>
-  );
-}
-
 /** Export ▾ (21.1, 4): this page or all pages, as PDF, Word or Markdown (PDF and Word when the reader hands in a way to make them), or the Markdown copied. */
 function ExportMenu({ onExport, onCopy, files }: { onExport: (fmt: ExportFormat, all: boolean) => void; onCopy: (all: boolean) => void; files: boolean }) {
   const [all, setAll] = useState(false);
@@ -790,7 +694,7 @@ function ExportMenu({ onExport, onCopy, files }: { onExport: (fmt: ExportFormat,
       label="Export"
       align="end"
       trigger={({ open, toggle, ref }) => (
-        <button ref={ref} type="button" className="btn btn-ghost btn-sm nb-export" aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
+        <button ref={ref} type="button" className="nb-hbtn nb-export" aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
           <span>Export</span>
           <ChevronDown size={14} aria-hidden="true" />
         </button>

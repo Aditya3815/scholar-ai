@@ -1,6 +1,7 @@
 // Browser e2e for sharing a paper's workspace (docs/design/paper-share.md, section 9): written for SHARE "on" and READER "on" (the named run share-on starts the Worker so;
 // scripts/lib/suites.mjs). The Share dialog on a wide screen and a phone (labelled, menus, focus back to Share, Remove with Undo, the link opened to anyone), "Shared with me", the shared
-// reader per role (Viewer: no tools, no Agents; Commenter: comments on a highlight and a block; Editor: highlights), a visitor through the link signed out, and axe in Light, Dark and Read.
+// reader per role (Viewer: no tools, no Agents; Commenter: comments on a highlight and a block, with the thread's head, the box (off while empty), Ctrl+Enter, a reply, Edit and Delete in the
+// ⋯ menu, the list's cards and counts; Editor: highlights), the owner's Comments button in the page header and Resolve, a phone, a visitor through the link signed out, and axe in Light, Dark and Read.
 // With SHARE_SHOTS=<folder> it also takes the owner's pictures.
 //   node e2e/share.mjs [baseUrl]    (default http://localhost:8788; SHARE and READER must be on there)
 import { mkdirSync } from "node:fs";
@@ -154,15 +155,82 @@ try {
   ok((await cp.locator(".desk-tools").count()) === 0, "no tool segment for a Commenter");
   ok((await cp.getByRole("button", { name: "Share", exact: true }).count()) === 0, "no Share button");
   ok((await cp.getByRole("button", { name: "Rename this paper" }).count()) === 0, "no renaming");
-  // a comment on the highlight, from its card
+  // a comment on the highlight, from its card: the thread's head (back to Comments), the quote it hangs on, the box at the bottom
   await cp.getByRole("tab", { name: /Highlights/ }).click();
   await cp.getByRole("button", { name: /Comment on the highlight on page 1/ }).click();
   const write = cp.getByRole("textbox", { name: "Add a comment" });
   await write.waitFor({ timeout: 10000 });
+  const send = cp.locator(".cm-foot").getByRole("button", { name: "Comment", exact: true });
+  ok(await send.isDisabled(), "the box's Comment button is off while the box is empty");
+  ok(await cp.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Add a comment"), "a thread with nothing in it puts the cursor in the box");
+  const quote = cp.locator(".cm-quote");
+  ok((await quote.getAttribute("data-color")) === "pink" && (await quote.locator("blockquote").innerText()).includes("glaucoma screening program") && (await quote.getByRole("button", { name: "Show it on page 1 of the paper" }).innerText()).includes("p. 1"), "the thread hangs on a quote card: the meaning's colour, the words, and p. 1 ↗");
+  ok((await cp.locator(".cm-head").getByRole("button", { name: "All comments" }).innerText()).trim() === "Comments", "the head: ← Comments (back to the list)");
   await write.fill("Is this the main result of the screening?");
-  await cp.getByRole("button", { name: "Comment", exact: true }).click();
+  ok(await send.isEnabled(), "and on once something is written");
+  ok((await cp.locator(".cm-hint").innerText()).trim() === "Enter to send · Shift+Enter for a new line" && (await write.getAttribute("enterkeyhint")) === "send", "with a keyboard the hint says Enter sends, Shift+Enter makes a new line");
+  await write.press("Shift+Enter");
+  await write.pressSequentially("(page 1)");
+  ok((await write.inputValue()) === "Is this the main result of the screening?\n(page 1)", "Shift+Enter makes a new line, and does not send");
+  await write.press("Enter");
   await cp.locator(".cm-thread").filter({ hasText: "Is this the main result" }).waitFor({ timeout: 8000 });
-  ok(true, "a comment on a highlight shows in its thread");
+  ok(true, "Enter sends: the comment shows as the head of its thread");
+  const reply = cp.getByRole("textbox", { name: "Reply" });
+  const replyBox = cp.locator(".cm-thread-reply");
+  ok((await reply.count()) === 1 && (await replyBox.count()) === 1 && (await replyBox.getByRole("button", { name: "Reply", exact: true }).isDisabled()) && (await cp.locator(".cm-foot").count()) === 0, "the box moves to the end of the thread, as Reply (off while empty)");
+  ok(await cp.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Reply"), "and keeps the cursor");
+  ok((await cp.locator(".cm-status").innerText()).trim() === "Open" && (await cp.locator(".cm-head").getByRole("button", { name: /Resolve/ }).count()) === 0, "the thread's state is Open; a Commenter cannot resolve");
+  ok((await cp.locator(".cm-c time").first().innerText()).trim() === "Just now" && !!(await cp.locator(".cm-c time").first().getAttribute("title")), "the time is relative (Just now), the full date its tooltip");
+  // a reply, sent by Ctrl+Enter too
+  await reply.fill("A typo here, to be deleted");
+  await reply.press("Control+Enter");
+  await cp.locator(".cm-replies").getByText("A typo here").waitFor({ timeout: 8000 });
+  ok(await cp.locator(".cm-replies").evaluate((el) => parseFloat(getComputedStyle(el).borderLeftWidth) >= 2 && el.getBoundingClientRect().left > el.closest(".cm-thread").querySelector(".cm-c").getBoundingClientRect().left + 8), "a reply hangs under the first comment, indented on a thread line");
+  ok((await cp.locator(".cm-replies .cm-av").first().evaluate((e) => e.getBoundingClientRect().width)) < (await cp.locator(".cm-thread > .cm-c .cm-av").first().evaluate((e) => e.getBoundingClientRect().width)), "with a smaller avatar than the thread's head");
+  // Edit and Delete live in the comment's ⋯ menu; Delete asks first, in place
+  const mine = cp.locator(".cm-replies .cm-c").first();
+  await mine.hover();
+  await mine.getByRole("button", { name: "Actions of your comment" }).click();
+  const m = cp.getByRole("menu", { name: "Actions of your comment" });
+  ok(JSON.stringify((await m.getByRole("menuitem").allInnerTexts()).map((t) => t.trim())) === JSON.stringify(["Edit", "Delete"]), "a comment's ⋯ menu: Edit, Delete");
+  await m.getByRole("menuitem", { name: "Edit" }).click();
+  const edit = cp.getByRole("textbox", { name: "Edit your comment" });
+  await edit.fill("Edited: still to be deleted");
+  await cp.locator(".cm-replies").getByRole("button", { name: "Save" }).click();
+  await cp.locator(".cm-replies").getByText("Edited: still to be deleted").waitFor({ timeout: 8000 });
+  ok((await cp.locator(".cm-replies .cm-text").first().innerText()).trim() === "Edited: still to be deleted", "Edit saves it in place");
+  await mine.hover();
+  await mine.getByRole("button", { name: "Actions of your comment" }).click();
+  await cp.getByRole("menu", { name: "Actions of your comment" }).getByRole("menuitem", { name: "Delete" }).click();
+  const ask = cp.getByRole("group", { name: "Delete this comment?" });
+  ok(await ask.isVisible() && (await cp.evaluate(() => document.activeElement?.textContent?.trim() === "Cancel")), "Delete asks first, in place (the focus on Cancel)");
+  await ask.getByRole("button", { name: "Delete" }).click();
+  await cp.locator(".cm-replies").waitFor({ state: "detached", timeout: 8000 });
+  ok(true, "and deletes it");
+  // a long thread: five replies (newest last); the earlier ones fold behind "Show 3 earlier replies"
+  const head = (await (await api(cp, `/api/v1/share/papers/${docId}/comments`)).json()).comments.find((c) => !c.parentId);
+  const added = [];
+  for (let k = 1; k <= 5; k++) added.push((await api(cp, `/api/v1/share/papers/${docId}/comments`, "POST", { parentId: head.id, body: `Reply number ${k}` })).status());
+  ok(added.every((st) => st === 200 || st === 201), `five replies added through the API (${added.join(",")})`);
+  await openPaper(cp, docId);
+  await cp.getByRole("button", { name: "Comments, 1 open" }).click();
+  await cp.locator(".cm-card").first().click();
+  const fold = cp.getByRole("button", { name: "Show 3 earlier replies" });
+  await fold.waitFor({ timeout: 8000 });
+  ok((await fold.getAttribute("aria-expanded")) === "false" && JSON.stringify((await cp.locator(".cm-replies .cm-text").allInnerTexts()).map((t) => t.trim())) === JSON.stringify(["Reply number 4", "Reply number 5"]), "a thread of more than 3 replies shows the last two, newest last, the rest folded");
+  await shot(cp, "thread-folded");
+  await fold.click();
+  ok((await cp.locator(".cm-replies .cm-text").count()) === 5 && (await cp.getByRole("button", { name: "Show fewer replies" }).getAttribute("aria-expanded")) === "true", "Show 3 earlier replies opens them all");
+  await reply.fill("Which page has the numbers?");
+  // the end of the thread in sight, as after typing (the body keeps room for the Agents button)
+  await cp.locator(".cm-body-scroll").evaluate((el) => (el.scrollTop = el.scrollHeight));
+  await shot(cp, "thread-light");
+  for (const theme of ["dark", "read"]) {
+    await setTheme(cp, theme, 250);
+    await shot(cp, `thread-${theme}`);
+  }
+  await setTheme(cp, "light");
+  await reply.fill("");
   // a comment on a block of the notes, from the read-only notes
   await cp.getByRole("button", { name: "All comments" }).click();
   await cp.getByRole("button", { name: "Back to notes" }).click();
@@ -170,26 +238,72 @@ try {
   await cp.getByRole("textbox", { name: "Add a comment" }).fill("Who exactly was recruited?");
   await cp.getByRole("button", { name: "Comment", exact: true }).click();
   await cp.locator(".cm-thread").filter({ hasText: "Who exactly" }).waitFor({ timeout: 8000 });
-  ok(true, "a comment on a notebook block");
+  ok((await cp.locator(".cm-quote .cm-go").innerText()).includes("Methods"), "a comment on a notebook block: its quote card names the page of notes");
   await cp.getByRole("button", { name: "All comments" }).click();
-  ok((await cp.locator(".cm-thread").count()) === 2, "the Comments filter lists both threads");
-  await shot(cp, "comment-thread");
+  const cards = cp.locator(".cm-card");
+  ok((await cards.count()) === 2, "the list has a card for each thread");
+  const seg = await cp.getByRole("group", { name: "Show" }).getByRole("button").allInnerTexts();
+  ok(JSON.stringify(seg.map((t) => t.replace(/\s+/g, " ").trim())) === JSON.stringify(["Open 2", "Resolved 0", "All 2"]), `the filter is one segmented control with counts (${seg.join(" | ")})`);
+  ok((await cards.filter({ hasText: "Is this the main result" }).locator(".cm-chip").innerText()).trim() === "p. 1" && (await cp.locator(".cm-card u, .cm-card a").count()) === 0, "a card: p. 1, the quote (not a link), the first comment");
+  await shot(cp, "comments-list-light");
   for (const theme of ["light", "dark", "read"]) {
     await setTheme(cp, theme, 250);
-    await axe(cp, `the shared reader as Commenter, ${theme}`);
+    await axe(cp, `the shared reader as Commenter, the list, ${theme}`);
   }
   await setTheme(cp, "light");
+  await cards.filter({ hasText: "Is this the main result" }).click();
+  await cp.locator(".cm-quote").waitFor({ timeout: 5000 });
+  ok(true, "a card opens its thread");
+  for (const theme of ["light", "dark", "read"]) {
+    await setTheme(cp, theme, 250);
+    await axe(cp, `the shared reader as Commenter, a thread, ${theme}`);
+  }
+  await setTheme(cp, "light");
+  await cp.getByRole("button", { name: "All comments" }).click();
   await cp.getByRole("button", { name: "Back to notes" }).click();
   await cp.locator(".nbr-title", { hasText: "Methods" }).waitFor({ timeout: 10000 });
   ok((await cp.locator(".nbr").getByText("Who was").count()) > 0, "a Commenter's Notes tab shows the owner's page of notes (read only)");
+  ok((await cp.locator(".nbr-head").getByRole("button", { name: "Comments, 2 open" }).count()) === 1, "the Comments button sits in the page's head row, with the count");
   await shot(cp, "reader-commenter");
+  // a phone: the notes and the comments
+  {
+    const ph = await browser.newContext({ ...phone(390, 844), storageState: await cc.storageState() });
+    const pp2 = await ph.newPage();
+    watch(pp2);
+    await openPaper(pp2, docId);
+    await pp2.getByRole("radio", { name: "Notes" }).click();
+    await pp2.locator(".nbr-title", { hasText: "Methods" }).waitFor({ timeout: 10000 });
+    await shot(pp2, "phone-notes");
+    await pp2.getByRole("button", { name: "Comments, 2 open" }).click();
+    await pp2.locator(".cm-card").first().waitFor({ timeout: 8000 });
+    ok(await noSideways(pp2), "no sideways scroll in the comments on a phone");
+    await shot(pp2, "phone-comments");
+    await pp2.locator(".cm-card").first().click();
+    await pp2.locator(".cm-quote").waitFor({ timeout: 5000 });
+    const sizes = await pp2.locator(".cm-head button, .cm-thread-reply button, .cm-fold").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    ok(sizes.every((h) => h >= 44), `on a phone the thread's buttons are 44 px (${sizes.join(",")})`);
+    ok(await noSideways(pp2), "no sideways scroll in a thread on a phone");
+    await axe(pp2, "a thread, phone", ".cm");
+    await shot(pp2, "phone-thread");
+    await ph.close();
+  }
 
   /* ================================================================ 4. the owner sees the comments and resolves one */
   await openPaper(op, docId);
-  await op.getByRole("button", { name: /^Comments \(2\)/ }).click();
-  await op.locator(".cm-thread").first().getByRole("button", { name: "Resolve" }).click();
-  await sleep(400);
-  ok((await op.locator(".cm-thread").count()) === 1, "the owner resolves a thread; Open shows the other");
+  const cmBtn = op.getByRole("button", { name: "Comments, 2 open" });
+  await cmBtn.waitFor({ timeout: 10000 });
+  ok((await cmBtn.evaluate((b) => b.closest(".nb-bar") !== null)) && (await op.locator(".desk-comments-filter").count()) === 0, "the owner's Comments button is in the page's header row (no row of its own)");
+  if (SHOTS) await op.locator(".nb-tabsrow").evaluate((el) => el.scrollIntoView());
+  if (SHOTS) await op.locator("#dw-panel-side").screenshot({ path: join(SHOTS, "panel-header.png") });
+  await cmBtn.click();
+  await op.locator(".cm-card").filter({ hasText: "Is this the main result" }).click();
+  await op.locator(".cm-head").getByRole("button", { name: "Resolve" }).click();
+  await op.locator(".cm-status", { hasText: "Resolved" }).waitFor({ timeout: 8000 });
+  ok((await op.locator(".cm-head").getByRole("button", { name: "Reopen" }).count()) === 1, "the owner resolves a thread from its head; Reopen takes its place");
+  await op.getByRole("button", { name: "All comments" }).click();
+  ok((await op.locator(".cm-card").count()) === 1 && JSON.stringify((await op.getByRole("group", { name: "Show" }).getByRole("button").allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim())) === JSON.stringify(["Open 1", "Resolved 1", "All 2"]), "Open shows the other; the counts follow");
+  await op.getByRole("group", { name: "Show" }).getByRole("button", { name: /^Resolved/ }).click();
+  ok((await op.locator(".cm-card .cm-badge").count()) === 1, "Resolved lists it, with its badge");
 
   /* ================================================================ 5. the Viewer */
   console.log("the Viewer");

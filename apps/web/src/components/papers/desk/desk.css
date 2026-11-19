@@ -401,5 +401,4 @@
 .desk-shared-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0 0 0.5rem; padding: 0.45rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface-2); color: var(--text); font-size: 0.88rem; }
 .desk-shared-banner strong { font-weight: 600; }
 .desk-shared-banner .link-btn { margin-left: auto; }
-.desk-comments-filter { display: flex; justify-content: flex-end; padding: 0.35rem 0 0; }
 .desk-title-read { margin: 0; font-size: inherit; font-weight: 600; overflow-wrap: anywhere; }

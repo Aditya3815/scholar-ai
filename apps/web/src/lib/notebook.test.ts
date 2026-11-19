@@ -284,6 +284,28 @@ describe("useNotebook's store", () => {
     expect([...w.pages.values()].sort((a, b) => a.position - b.position).map((p) => p.title)).toEqual(["Results", STARTER_TITLE]);
   });
 
+  it("movePageTo puts a page at any place (a tab dragged), saved by a PATCH of its place, and keeps the others' order", async () => {
+    const w = world();
+    for (const [k, id] of ["a", "b", "c", "d"].entries()) w.pages.set(id, { id, title: id.toUpperCase(), style: "plain", position: k + 1, blocks: [text(`t${id}`, id)], rev: 1, updatedAt: 1 });
+    const s = w.store();
+    await s.load();
+    const order = () => s.get().pages.map((p) => p.title).join("");
+    expect(s.movePageTo("d", 0)).toBe(0);
+    expect(order()).toBe("DABC");
+    expect(s.movePageTo("d", 2)).toBe(2);
+    expect(order()).toBe("ABDC");
+    expect(s.movePageTo("a", 3)).toBe(3);
+    expect(order()).toBe("BDCA");
+    expect(s.movePageTo("a", 3)).toBe(-1);
+    expect(s.movePageTo("a", 9)).toBe(-1);
+    expect(s.movePageTo("zz", 0)).toBe(-1);
+    expect(s.movePage("b", 1)).toBe(true);
+    expect(order()).toBe("DBCA");
+    await w.tick(SAVE_AFTER_MS + 10);
+    expect(w.calls.filter((c) => !c.startsWith("GET")).every((c) => c.startsWith("PATCH"))).toBe(true);
+    expect([...w.pages.values()].sort((x, y) => x.position - y.position).map((p) => p.title).join("")).toBe("DBCA");
+  });
+
   it("Undo of Add to notes takes the quote and the empty block it brought; the starter page gets its empty block back", async () => {
     const w = world();
     w.pages.set("p1", { id: "p1", title: "P", style: "plain", position: 1, blocks: [text("a", "A")], rev: 1, updatedAt: 1 });

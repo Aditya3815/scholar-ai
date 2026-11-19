@@ -7,15 +7,25 @@
 
 /* the pages as tabs (21.1, 2): a row under the panel's tabs that scrolls sideways with a fade on the side that has more; the open page's tab is raised. + Page at the end */
 .nb { --nb-rule-c: color-mix(in srgb, var(--border-strong) 55%, transparent); --nb-grid-c: color-mix(in srgb, var(--border-strong) 35%, transparent); }
-.nb-tabsrow { position: relative; z-index: 4; display: flex; flex: none; align-items: flex-end; gap: 0.4rem; padding: 0.4rem 0.75rem 0; border-bottom: 1px solid var(--border); background: var(--surface-2); }
-.nb-pagetabs { display: flex; flex: 0 1 auto; min-width: 0; gap: 2px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.nb-tabsrow { position: relative; z-index: 4; display: flex; flex: none; align-items: flex-end; gap: 0.25rem; min-height: calc(36px + 0.5rem + 1px); padding: 0.5rem 0.75rem 0; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.nb-pagetabs { display: flex; flex: 0 1 auto; min-width: 0; gap: 2px; padding-inline: 2px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
 .nb-pagetabs::-webkit-scrollbar { display: none; }
 .nb-pagetabs[data-more="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent); }
 .nb-pagetabs[data-more="start"] { mask-image: linear-gradient(to right, transparent, #000 2rem); }
 .nb-pagetabs[data-more="both"] { mask-image: linear-gradient(to right, transparent, #000 2rem, #000 calc(100% - 2rem), transparent); }
-.nb-pagetab { position: relative; top: 1px; display: inline-flex; flex: none; align-items: center; gap: 0.45rem; max-width: 14rem; min-height: 36px; padding: 0 0.75rem; border: 1px solid transparent; border-bottom: 0; border-radius: var(--radius-s) var(--radius-s) 0 0; background: transparent; color: var(--muted); font: inherit; font-size: 0.8125rem; font-weight: 600; cursor: pointer; }
-.nb-pagetab:hover { color: var(--text); }
-.nb-pagetab[aria-selected="true"] { border-color: var(--border); background: var(--surface); color: var(--text); box-shadow: 0 -1px 2px color-mix(in srgb, var(--text) 6%, transparent); }
+/* the notes polish (19 Nov): narrower tabs (11 rem, then an ellipsis; the full name is the tooltip), quieter when not open, 36 px high */
+.nb-pagetab { position: relative; top: 1px; display: inline-flex; flex: none; align-items: center; gap: 0.5rem; max-width: 11rem; height: 36px; padding: 0 0.75rem; border: 1px solid transparent; border-bottom: 0; border-radius: var(--radius-s) var(--radius-s) 0 0; background: transparent; color: var(--muted); font: inherit; font-size: 0.8125rem; font-weight: 500; cursor: pointer; -webkit-touch-callout: none; user-select: none; transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease); }
+.nb-pagetab:hover { color: var(--text); background: color-mix(in srgb, var(--surface) 55%, transparent); }
+.nb-pagetab .nb-sw { opacity: 0.7; }
+.nb-pagetab[aria-selected="true"] { border-color: var(--border); background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 -1px 2px color-mix(in srgb, var(--text) 6%, transparent); }
+.nb-pagetab[aria-selected="true"] .nb-sw { opacity: 1; }
+/* a tab being dragged: lifted (a card's shadow, the pointer's grab), and a line in the accent where it will go */
+.nb-tabsrow[data-dragging] .nb-pagetab { cursor: grabbing; }
+.nb-tabwrap[data-lifted] { z-index: 3; }
+.nb-tabwrap[data-lifted] .nb-pagetab:focus-visible { outline: none; }
+.nb-tabwrap[data-lifted] .nb-pagetab { border-color: var(--border-strong); border-radius: var(--radius-s); background: var(--surface); color: var(--text); box-shadow: var(--shadow-2); }
+.nb-tabwrap[data-line]::before { content: ""; position: absolute; top: 6px; bottom: 6px; left: -2px; z-index: 2; width: 3px; border-radius: 2px; background: var(--accent); }
+.nb-tabwrap[data-line="after"]::before { left: auto; right: -2px; }
 .nb-pagetab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .nb-pagetab-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* a tab's × (Delete this page), beside the tab button inside one wrapper: on the open tab, on the tab under the pointer, and always on a touch screen */
@@ -31,14 +41,34 @@
   .nb-tabx { opacity: 1; width: 32px; height: 32px; margin-top: -15px; right: 0.2rem; }
   .nb-tabwrap .nb-pagetab { padding-right: 2.4rem; }
 }
-@media (prefers-reduced-motion: reduce) { .nb-tabx { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .nb-tabx, .nb-pagetab, .nb-hbtn { transition: none; } }
 .nb-tabsrow > .nb-popwrap { position: static; flex: none; }
 .nb-tabsrow .nb-pop { right: 0.75rem; left: auto; }
+/* its dialogs (All pages, the paper picker) stay inside the panel, however narrow */
+.nb-tabsrow .nb-pop[data-kind="dialog"] { left: 8px; right: 8px; width: auto; max-width: 24rem; margin-left: auto; }
 /* "+" (Add a page) right after the last tab, as a browser's new tab button: the tabs shrink and scroll only when they do not fit, so it stays in sight at the row's end */
 .nb-addpage { display: inline-grid; flex: none; place-items: center; width: 36px; height: 36px; margin-bottom: 1px; padding: 0; border: 0; border-radius: var(--radius-s); background: none; color: var(--muted); cursor: pointer; }
 .nb-addpage:hover,
 .nb-addpage[aria-expanded="true"] { background: var(--surface); color: var(--text); }
 .nb-addpage:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.nb-allpages { margin-left: auto; }
+/* All pages: every page, the open one ticked; its ↑ ↓ move it */
+.nb-allpages-box { display: grid; gap: 0.5rem; }
+.nb-allpages-h { display: flex; align-items: center; gap: 0.5rem; margin: 0; padding: 0.25rem 0.5rem 0; font-size: 0.875rem; font-weight: 650; }
+.nb-allpages-h > span { color: var(--muted); font-weight: 500; }
+.nb-allpages-find { min-height: 36px; padding: 0 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-s); background: var(--bg); color: var(--text); font: inherit; font-size: 0.875rem; }
+.nb-allpages-find:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.nb-allpages-none { margin: 0.25rem 0.5rem; color: var(--muted); font-size: 0.8125rem; }
+.nb-allpages-list { display: grid; gap: 2px; max-height: min(20rem, 50vh); margin: 0; padding: 0; overflow: auto; list-style: none; }
+.nb-allpages-list > li { display: flex; align-items: center; gap: 2px; }
+.nb-ap-open { display: flex; flex: 1; min-width: 0; align-items: center; gap: 0.5rem; height: 32px; padding: 0 0.5rem; border: 0; border-radius: var(--radius-s); background: none; color: var(--text); font: inherit; font-size: 0.875rem; text-align: left; cursor: pointer; }
+.nb-ap-open[aria-current="page"] { font-weight: 600; }
+.nb-ap-open > svg { margin-left: auto; color: var(--accent); }
+.nb-ap-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-ap-mv { display: inline-grid; flex: none; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--radius-s); background: none; color: var(--muted); cursor: pointer; }
+.nb-ap-open:hover, .nb-ap-mv:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+.nb-ap-mv:disabled { opacity: 0.35; cursor: default; }
+.nb-ap-open:focus-visible, .nb-ap-mv:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* a paper, drawn small (a tab, the toolbar) and as a card ("Choose paper for the new page"): our tokens, the same textures as the page */
 .nb-sw { display: inline-block; flex: none; width: 16px; height: 13px; border: 1px solid var(--border-strong); border-radius: 2px; background-color: var(--surface); }
@@ -59,13 +89,20 @@
 
 /* the page's header (21.1, 3): its title, Delete this page, the save line, Export and a small menu (move, rename) */
 .nb-pagepanel { display: flex; flex: 1; flex-direction: column; min-height: 0; }
-.nb-bar { position: relative; z-index: 3; display: flex; flex: none; align-items: center; gap: 0.35rem; padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--border); }
+.nb-bar { position: relative; z-index: 3; display: flex; flex: none; align-items: center; gap: 0.25rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
 .nb-title { flex: 1 1 auto; min-width: 0; min-height: 40px; padding: 0 0.35rem; border: 1px solid transparent; border-radius: var(--radius-s); background: transparent; color: var(--text); font-family: var(--font-serif); font-size: 1.25rem; font-weight: 650; text-overflow: ellipsis; }
 .nb-title:hover { border-color: var(--border); }
 .nb-title:focus-visible { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 0; }
 .nb-title::placeholder { color: var(--muted); opacity: 1; }
-.nb-export { flex: none; gap: 0.25rem; }
-.nb-save { flex: none; margin: 0; color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
+/* the header's buttons: one quiet style (no border, muted until pointed at), 32 px high, 44 px on touch */
+.nb-hbtn { position: relative; display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 0.25rem; min-width: 32px; height: 32px; padding: 0 0.4rem; border: 0; border-radius: var(--radius-s); background: none; color: var(--muted); font: inherit; font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+.nb-hbtn:hover, .nb-hbtn[aria-expanded="true"] { background: var(--surface-2); color: var(--text); }
+.nb-hbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.nb-export { padding: 0 0.5rem; }
+/* the count of open comments, a small badge on the speech bubble */
+.nb-badge { position: absolute; top: 1px; right: 0; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--accent-fg); font-size: 0.6875rem; font-weight: 700; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+@media (pointer: coarse) { .nb-hbtn { min-width: 44px; height: 44px; } .nb-badge { top: 4px; right: 4px; } }
+.nb-save { flex: none; margin: 0 0.5rem 0 0; color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
 .nb-save:empty { display: none; }
 .nb-save[data-state="error"] { color: var(--danger); }
 .nb-bar > .nb-popwrap { flex: none; }

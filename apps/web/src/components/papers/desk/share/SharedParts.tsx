@@ -1,265 +1,15 @@
 import { MessageSquare } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { MAX_COMMENT_CHARS, blockAnchor, mdPlainText, type CommentAnchor, type DocComment, type DocNote, type NoteColor, type NotebookPage } from "@scholar/shared";
-import type { CommentsApi } from "../../../../lib/comments";
+import { useEffect, useMemo, useState } from "react";
+import { blockAnchor, mdPlainText, pageLabel, type CommentAnchor, type DocNote, type NoteColor, type NotebookPage } from "@scholar/shared";
 import type { Meaning } from "../../../../lib/meanings";
 import { MdView, QuoteBlockView } from "../notebook/NbBlocks";
+import { readPages } from "./read-pages";
 import "./share.css";
 
 /**
- * The parts of a shared paper that only the people it is shared with, or its comments, need (docs/design/paper-share.md, sections 4 and 5): a chunk of its own ("shared"), fetched when
- * sharing is on for the paper. The comments (a thread on a highlight or a notebook block, its replies, edit and delete of one's own, resolve by the owner and Editors, and the Comments filter
- * that lists them), and the read-only Notes of a Viewer or a Commenter.
+ * The read-only Notes of a Viewer or a Commenter (docs/design/paper-share.md, section 4): a chunk of its own ("shared"), fetched when sharing is on for the paper. The comments are a chunk of
+ * their own (Comments.tsx), fetched when they are first opened.
  */
-
-const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-
-export type CommentsPanelProps = {
-  api: CommentsApi;
-  /** The role of the person reading: a Commenter up writes, the owner and Editors resolve, the owner deletes any. */
-  role: "owner" | "editor" | "commenter" | "viewer";
-  /** One thing's threads (a highlight, a block), with a box to start one; null: the Comments filter, every thread. */
-  anchor: CommentAnchor | null;
-  /** What a thread hangs on, in words ("Highlight on p. 3: “…”"). */
-  describe: (anchor: CommentAnchor) => string;
-  /** Show it: the highlight in the paper, the block in the notes. */
-  onShow: (anchor: CommentAnchor) => void;
-  onClose: () => void;
-  announce: (s: string) => void;
-  signedIn: boolean;
-};
-
-function Writer({ label, onSend, autoFocus, initial = "", onCancel }: { label: string; onSend: (body: string) => Promise<boolean>; autoFocus?: boolean; initial?: string; onCancel?: () => void }) {
-  const [text, setText] = useState(initial);
-  const [busy, setBusy] = useState(false);
-  const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    if (autoFocus) ref.current?.focus({ preventScroll: true });
-  }, [autoFocus]);
-  const send = async () => {
-    if (!text.trim() || busy) return;
-    setBusy(true);
-    if (await onSend(text)) setText("");
-    setBusy(false);
-  };
-  return (
-    <form
-      className="cm-write"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void send();
-      }}
-    >
-      <textarea
-        aria-label={label}
-        ref={ref}
-        value={text}
-        maxLength={MAX_COMMENT_CHARS}
-        placeholder={label}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-            e.preventDefault();
-            void send();
-          } else if (e.key === "Escape" && onCancel) {
-            e.preventDefault();
-            e.stopPropagation();
-            onCancel();
-          }
-        }}
-      />
-      <div className="cm-write-row">
-        <span className="cm-count" aria-hidden="true">{text.length > MAX_COMMENT_CHARS - 200 ? `${text.length} / ${MAX_COMMENT_CHARS}` : ""}</span>
-        {onCancel && (
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>
-            Cancel
-          </button>
-        )}
-        <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !text.trim()}>
-          {initial ? "Save" : "Comment"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function Item({ c, api, role, announce }: { c: DocComment; api: CommentsApi; role: CommentsPanelProps["role"]; announce: (s: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const canDelete = c.mine || role === "owner";
-  return (
-    <div className="cm-item" data-comment={c.id}>
-      <span className="cm-by">
-        <strong>{c.author ?? "A former member"}</strong>
-        {c.mine ? " (you)" : ""} · <time dateTime={c.createdAt}>{when(c.createdAt)}</time>
-        {c.updatedAt !== c.createdAt ? " · edited" : ""}
-      </span>
-      {editing ? (
-        <Writer
-          label="Edit your comment"
-          initial={c.body}
-          autoFocus
-          onCancel={() => setEditing(false)}
-          onSend={async (body) => {
-            try {
-              await api.edit(c.id, body);
-              setEditing(false);
-              announce("Comment saved");
-              return true;
-            } catch (e) {
-              setError(e instanceof Error ? e.message : "It could not be saved");
-              return false;
-            }
-          }}
-        />
-      ) : (
-        <p className="cm-body">{c.body}</p>
-      )}
-      {error && <p className="notes-error" role="alert">{error}</p>}
-      {!editing && (c.mine || canDelete) && (
-        <div className="cm-acts">
-          {c.mine && (
-            <button type="button" className="link-btn" onClick={() => setEditing(true)}>
-              Edit
-            </button>
-          )}
-          {canDelete && (
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() =>
-                void api.remove(c.id).then(
-                  () => announce(c.parentId ? "Reply deleted" : "Comment deleted"),
-                  (e) => setError(e instanceof Error ? e.message : "It could not be deleted"),
-                )
-              }
-            >
-              Delete
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Thread({ root, replies, api, role, describe, onShow, announce, showAnchor, canWrite }: { root: DocComment; replies: DocComment[]; api: CommentsApi; role: CommentsPanelProps["role"]; describe: CommentsPanelProps["describe"]; onShow: CommentsPanelProps["onShow"]; announce: (s: string) => void; showAnchor: boolean; canWrite: boolean }) {
-  const [replying, setReplying] = useState(false);
-  const canResolve = role === "owner" || role === "editor";
-  return (
-    <article className="cm-thread" data-resolved={root.resolved} aria-label={`Comment by ${root.author ?? "a former member"}${root.resolved ? ", resolved" : ""}`}>
-      {showAnchor && (
-        <p className="cm-on">
-          <button type="button" onClick={() => onShow(root.anchor)}>{describe(root.anchor)}</button>
-        </p>
-      )}
-      <Item c={root} api={api} role={role} announce={announce} />
-      {replies.map((r) => (
-        <Item key={r.id} c={r} api={api} role={role} announce={announce} />
-      ))}
-      {replying ? (
-        <Writer
-          label="Reply"
-          autoFocus
-          onCancel={() => setReplying(false)}
-          onSend={async (body) => {
-            try {
-              await api.add({ parentId: root.id, body });
-              setReplying(false);
-              announce("Reply added");
-              return true;
-            } catch {
-              announce("The reply could not be added");
-              return false;
-            }
-          }}
-        />
-      ) : (
-        <div className="cm-acts">
-          {canWrite && (
-            <button type="button" className="link-btn" onClick={() => setReplying(true)}>
-              Reply
-            </button>
-          )}
-          {canResolve && (
-            <button type="button" className="link-btn" onClick={() => void api.resolve(root.id, !root.resolved).then(() => announce(root.resolved ? "Thread opened again" : "Thread resolved"))}>
-              {root.resolved ? "Open again" : "Resolve"}
-            </button>
-          )}
-        </div>
-      )}
-    </article>
-  );
-}
-
-export function CommentsPanel({ api, role, anchor, describe, onShow, onClose, announce, signedIn }: CommentsPanelProps) {
-  const [filter, setFilter] = useState<"open" | "resolved" | "all">("open");
-  const [error, setError] = useState<string | null>(null);
-  const canWrite = role !== "viewer";
-  const threads = useMemo(() => {
-    const roots = api.comments.filter((c) => !c.parentId && (anchor ? c.anchor === anchor : true));
-    const shown = anchor ? roots : roots.filter((c) => (filter === "all" ? true : filter === "open" ? !c.resolved : c.resolved));
-    return shown.map((root) => ({ root, replies: api.comments.filter((c) => c.parentId === root.id) }));
-  }, [api.comments, anchor, filter]);
-  const head = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
-    head.current?.focus({ preventScroll: true });
-  }, [anchor]);
-
-  return (
-    <section className="cm" aria-labelledby="cm-h">
-      <div className="cm-head">
-        <h3 id="cm-h" ref={head} tabIndex={-1} className="cm-h">
-          {anchor ? describe(anchor) : "Comments"}
-        </h3>
-        {!anchor && (
-          <div className="seg cm-filter" role="group" aria-label="Show">
-            {(["open", "resolved", "all"] as const).map((f) => (
-              <button key={f} type="button" className="chip-btn" aria-pressed={filter === f} onClick={() => setFilter(f)}>
-                {f === "open" ? "Open" : f === "resolved" ? "Resolved" : "All"}
-              </button>
-            ))}
-          </div>
-        )}
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>
-          {anchor ? "All comments" : "Back to notes"}
-        </button>
-      </div>
-      {api.status === "loading" && <p className="cm-empty" role="status">Loading the comments…</p>}
-      {api.status === "error" && (
-        <p className="notes-error" role="alert">
-          The comments could not be loaded.{" "}
-          <button type="button" className="link-btn" onClick={() => void api.reload()}>Try again</button>
-        </p>
-      )}
-      {api.status === "ready" && threads.length === 0 && <p className="cm-empty">{anchor ? "No comments here yet." : filter === "open" ? "No open comments." : "No comments."}</p>}
-      {threads.map((t) => (
-        <Thread key={t.root.id} root={t.root} replies={t.replies} api={api} role={role} describe={describe} onShow={onShow} announce={announce} showAnchor={!anchor} canWrite={canWrite} />
-      ))}
-      {anchor && canWrite && (
-        <>
-          {error && <p className="notes-error" role="alert">{error}</p>}
-          <Writer
-            label="Add a comment"
-            autoFocus={threads.length === 0}
-            onSend={async (body) => {
-              try {
-                await api.add({ anchor, body });
-                setError(null);
-                announce("Comment added");
-                return true;
-              } catch (e) {
-                setError(e instanceof Error ? e.message : "The comment could not be added");
-                return false;
-              }
-            }}
-          />
-        </>
-      )}
-      {anchor && !canWrite && <p className="cm-empty">{signedIn ? "You can view this paper; commenting is for the people it is shared with as Commenter or Editor." : "Sign in to comment, if the link lets you."}</p>}
-    </section>
-  );
-}
 
 /* ---------------------------------------------------------------- the read-only Notes */
 
@@ -269,13 +19,11 @@ export type ReadNotebookProps = {
   meanings: Record<NoteColor, Meaning>;
   onGoTo: (page: number, quote: string) => void;
   /** Open threads on a block, and the way to them (a Commenter up writes; a Viewer reads). */
-  comments: { openOn: (a: CommentAnchor) => number; show: (a: CommentAnchor) => void; canWrite: boolean } | null;
+  comments: { openOn: (a: CommentAnchor) => number; show: (a: CommentAnchor) => void; canWrite: boolean; open: number; showAll: () => void } | null;
   /** The block to bring into view and flash (a comment's "Show"). */
   focus: { pageId: string; blockId: string; tick: number } | null;
 };
 
-/** The pages last read for each paper in this visit: going to the comments and back draws the notes at once (and reads them again behind). */
-const readPages = new Map<string, NotebookPage[]>();
 
 /** A Viewer's or a Commenter's Notes: the owner's pages, as they are, with a page picker and, on each block, its comments. Nothing here can be changed. */
 export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus }: ReadNotebookProps) {
@@ -313,19 +61,28 @@ export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus }
   if (!pages) return <p className="nb-wait" role="status">Loading the notes…</p>;
   if (pages.length === 0) return <p className="cm-empty nbr">No notes on this paper yet.</p>;
   const page = pages.find((p) => p.id === openId) ?? pages[0]!;
+  const name = pageLabel(page.title, pages.indexOf(page));
   return (
     <div className="nbr nb">
       {pages.length > 1 && (
         <div className="nbr-pages" role="group" aria-label="Pages of notes">
-          {pages.map((p) => (
-            <button key={p.id} type="button" className="chip-btn" aria-pressed={p.id === page.id} onClick={() => setOpenId(p.id)}>
-              {p.title || "Untitled page"}
+          {pages.map((p, k) => (
+            <button key={p.id} type="button" className="nbr-page" aria-pressed={p.id === page.id} onClick={() => setOpenId(p.id)}>
+              {pageLabel(p.title, k)}
             </button>
           ))}
         </div>
       )}
-      <h3 className="nbr-title">{page.title || "Untitled page"}</h3>
-      <ol className="nbr-blocks" aria-label={`Blocks of ${page.title || "Untitled page"}`}>
+      <div className="nbr-head">
+        <h3 className="nbr-title">{name}</h3>
+        {comments && (
+          <button type="button" className="nb-hbtn nb-cmbtn" aria-label={comments.open ? `Comments, ${comments.open} open` : "Comments"} title="Comments" onClick={comments.showAll}>
+            <MessageSquare size={16} aria-hidden="true" />
+            {comments.open > 0 && <span className="nb-badge" aria-hidden="true">{comments.open > 99 ? "99+" : comments.open}</span>}
+          </button>
+        )}
+      </div>
+      <ol className="nbr-blocks" aria-label={`Blocks of ${name}`}>
         {page.blocks.map((b) => {
           const a = blockAnchor(page.id, b.id);
           const n = comments?.openOn(a) ?? 0;

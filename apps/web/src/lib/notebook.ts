@@ -152,6 +152,20 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
   const sorted = () => slots.sort((a, b) => a.page.position - b.page.position);
   const dirty = (s: Slot) => s.blocksDirty || s.metaDirty || (!s.page.saved && !s.starter);
   const anyDirty = () => slots.some(dirty) || deleted.length > 0;
+  /** A page to place `index`: it takes the midpoint between its new neighbours (nothing is renumbered). */
+  const movePageTo = (id: string, index: number): number => {
+    const i = sorted().findIndex((s) => s.page.id === id);
+    if (i < 0 || index < 0 || index >= slots.length || index === i) return -1;
+    const s = slots[i]!;
+    const rest = slots.filter((x) => x !== s);
+    const before = rest[index - 1]?.page.position;
+    const after = rest[index]?.page.position;
+    const position = before !== undefined && after !== undefined ? (before + after) / 2 : before !== undefined ? before + 1 : after! - 1;
+    s.page = { ...s.page, position };
+    sorted();
+    changed(s, "meta");
+    return slots.indexOf(s);
+  };
 
   const line = (): NbSave => {
     if (error) return "error";
@@ -467,19 +481,11 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
     },
     /** One place up or down: the page takes the midpoint between its new neighbours (nothing is renumbered). */
     movePage(id: string, dir: -1 | 1): boolean {
-      sorted();
-      const i = slots.findIndex((s) => s.page.id === id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= slots.length) return false;
-      const beyond = slots[j + dir];
-      const target = slots[j]!.page.position;
-      const position = beyond ? (target + beyond.page.position) / 2 : target + dir;
-      const s = slots[i]!;
-      s.page = { ...s.page, position };
-      sorted();
-      changed(s, "meta");
-      return true;
+      const i = sorted().findIndex((s) => s.page.id === id);
+      return i >= 0 && movePageTo(id, i + dir) >= 0;
     },
+    /** To place `index` (0-based) among the pages (a tab dragged, Ctrl+Shift+arrow, the All pages list); saved by the same PATCH of its place. Returns the place it took, or -1 when it did not move. */
+    movePageTo: (id: string, index: number) => movePageTo(id, index),
     /** Deletes a page; the returned function (the toast's Undo) brings it back with all its blocks. */
     deletePage(id: string): (() => void) | null {
       const s = slotOf(id);

@@ -1,5 +1,5 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Maximize2, MessageSquare, Minimize2, NotebookPen, Share2, X } from "lucide-react";
+import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Maximize2, Minimize2, NotebookPen, Share2, X } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { NOTE_COLORS, ROLE_LABEL, noteAnchor, planNewHighlight, roleAtLeast, type Answer, type Citation, type CommentAnchor, type DocNote, type DocumentInfo, type NoteColor, type NotebookBlock, type PaperAccess, type PaperInfo, type ScanInfo } from "@scholar/shared";
 import { downloadBlob } from "../../../lib/download";
@@ -47,11 +47,12 @@ const AgentsDrawer = lazy(() => loadAgents().then((mod) => ({ default: mod.Agent
 // the Notebook (the Notes tab, its store and its Markdown) is the "notebook" chunk: fetched when the panel is shown, when Add to notes is pressed, or a little after the paper is open
 const loadNotebook = () => import("./notebook/Notebook");
 const NotebookView = lazy(() => loadNotebook().then((mod) => ({ default: mod.Notebook })));
-// sharing (docs/design/paper-share.md): the owner's Share dialog ("share" chunk, on the first press of Share), and the comments and a Viewer's or Commenter's notes ("shared" chunk, when the
-// paper is shared); neither is fetched while sharing is off
+// sharing (docs/design/paper-share.md): the owner's Share dialog ("share" chunk, on the first press of Share), a Viewer's or Commenter's notes ("shared" chunk, when the paper is shared) and
+// the comments ("comments" chunk, when they are first opened); none is fetched while sharing is off
 const ShareDialog = lazy(() => import("./share/ShareDialog").then((mod) => ({ default: mod.ShareDialog })));
 const loadShared = () => import("./share/SharedParts");
-const CommentsPanel = lazy(() => loadShared().then((mod) => ({ default: mod.CommentsPanel })));
+const loadComments = () => import("./share/Comments");
+const CommentsPanel = lazy(() => loadComments().then((mod) => ({ default: mod.CommentsPanel })));
 const ReadNotebook = lazy(() => loadShared().then((mod) => ({ default: mod.ReadNotebook })));
 
 /** What the page (DocWorkspace, which keeps the paper, its notes and its drawing) hands the new reader. */
@@ -499,24 +500,12 @@ export function Desk(props: DeskProps) {
   /* ---- comments (docs/design/paper-share.md, 5): they open in the Notes tab, one thing's threads or all of them ---- */
   const openComments = useCallback(
     (anchor: CommentAnchor | null) => {
-      void loadShared().catch(() => {});
+      void loadComments().catch(() => {});
       setCommentsAt({ anchor });
       setTab("notes");
       if (shown === "paper") setView(wide ? "split" : "notes");
     },
     [shown, wide, setView],
-  );
-  const describeAnchor = useCallback(
-    (a: CommentAnchor) => {
-      if (a.startsWith("note:")) {
-        const n = existing.find((x) => x.id === a.slice(5));
-        return n ? `Highlight on p. ${n.page}: “${clip(n.quote.replace(/\s+/g, " "), 80)}”` : "A highlight that was removed";
-      }
-      const [, pageId] = a.split(":");
-      const page = nbState?.pages.find((p) => p.id === pageId);
-      return page ? `A block of the notes “${clip(page.title || "Untitled page", 40)}”` : "A block of the notes";
-    },
-    [existing, nbState],
   );
   const showAnchor = useCallback(
     (a: CommentAnchor) => {
@@ -538,7 +527,7 @@ export function Desk(props: DeskProps) {
   );
   const readOnlyCard = useMemo(() => ({ inNotes: () => false, add: () => {}, open: () => {} }), []);
   const blockComments = useMemo(
-    () => (sharing ? { openOn: (pageId: string, blockId: string) => comments.openOn(`block:${pageId}:${blockId}`), show: (pageId: string, blockId: string) => openComments(`block:${pageId}:${blockId}`) } : undefined),
+    () => (sharing ? { openOn: (pageId: string, blockId: string) => comments.openOn(`block:${pageId}:${blockId}`), show: (pageId: string, blockId: string) => openComments(`block:${pageId}:${blockId}`), open: comments.open, showAll: () => openComments(null) } : undefined),
     [sharing, comments, openComments],
   );
 
@@ -823,21 +812,13 @@ export function Desk(props: DeskProps) {
           </div>
           {/* All three stay mounted, so references being checked are not lost by switching tabs, and a note being written keeps its place. */}
           <div className="dw-side desk-tabpanel" id="desk-tabpanel-notes" role="tabpanel" aria-labelledby="desk-tab-notes" hidden={tab !== "notes"}>
-            {sharing && !commentsAt && (
-              <div className="desk-comments-filter">
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => openComments(null)}>
-                  <MessageSquare size={14} aria-hidden="true" />
-                  <span>Comments{comments.open > 0 ? ` (${comments.open})` : ""}</span>
-                </button>
-              </div>
-            )}
             {commentsAt ? (
               <Suspense fallback={<p className="nb-wait" role="status">Loading the comments…</p>}>
-                <CommentsPanel api={comments} role={role} anchor={commentsAt.anchor} describe={describeAnchor} onShow={showAnchor} onClose={() => setCommentsAt(commentsAt.anchor ? { anchor: null } : null)} announce={announce} signedIn={access?.signedIn ?? true} />
+                <CommentsPanel api={comments} role={role} anchor={commentsAt.anchor} docId={doc.id} notes={existing} pages={nbState?.pages ?? null} meanings={MEANINGS} onShow={showAnchor} onOpen={openComments} onClose={() => setCommentsAt(commentsAt.anchor ? { anchor: null } : null)} announce={announce} signedIn={access?.signedIn ?? true} />
               </Suspense>
             ) : !canEdit ? (
               <Suspense fallback={<p className="nb-wait" role="status">Loading the notes…</p>}>
-                <ReadNotebook docId={doc.id} notes={existing} meanings={MEANINGS} onGoTo={goTo} comments={sharing ? { openOn: comments.openOn, show: openComments, canWrite: canComment } : null} focus={readFocus} />
+                <ReadNotebook docId={doc.id} notes={existing} meanings={MEANINGS} onGoTo={goTo} comments={sharing ? { openOn: comments.openOn, show: openComments, canWrite: canComment, open: comments.open, showAll: () => openComments(null) } : null} focus={readFocus} />
               </Suspense>
             ) : nb ? (
               <Suspense fallback={<p className="nb-wait" role="status">Loading your notes…</p>}>
