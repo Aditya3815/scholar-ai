@@ -18,6 +18,7 @@ import {
   notebookMarkdown,
   type NotebookBlock,
 } from "./notebook";
+import { nextPageName, pageLabel } from "./notebook-names";
 
 const text = (id: string, md = "Some words"): NotebookBlock => ({ id, kind: "text", md });
 const quote = (id: string, over: Record<string, unknown> = {}) => ({ id, kind: "quote", noteId: "n1", page: 2, quote: "a passage of the paper", color: "green", ...over });
@@ -146,5 +147,21 @@ describe("notebookMarkdown", () => {
       { title: "", blocks: [] },
     ], names);
     expect(md).toBe("# Vision Transformers\n\n## Methods\n\n### Patches\nPatch embedding is **linear**.\n\n> split an image into patches\n> (Key idea, p. 4)\n\n## Untitled page\n");
+  });
+});
+
+describe("page names (the notes polish of 19 Nov)", () => {
+  it("shows a page's title, or Page N by its place when it has none (an old 'Untitled page' counts as none)", () => {
+    expect(pageLabel("Methods", 0)).toBe("Methods");
+    expect(pageLabel("", 2)).toBe("Page 3");
+    expect(pageLabel("   ", 0)).toBe("Page 1");
+    expect(pageLabel("Untitled page", 4)).toBe("Page 5");
+  });
+  it("names a new page Page N, the next number no page shows", () => {
+    expect(nextPageName([])).toBe("Page 1");
+    expect(nextPageName(["Notes"])).toBe("Page 2");
+    expect(nextPageName(["Notes", "Page 3"])).toBe("Page 4");
+    expect(nextPageName(["Page 2", "Page 3", "Page 4"])).toBe("Page 5");
+    expect(nextPageName(["Page 1", "Results"])).toBe("Page 3");
   });
 });

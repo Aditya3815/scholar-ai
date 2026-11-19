@@ -1,10 +1,12 @@
 // Browser e2e for the Notebook of the new Paper Reader, phase 2 (docs/design/paper-reader.md, 19.9): written for READER "on" (the named run reader-on starts the Worker so;
 // scripts/lib/suites.mjs). The Notes tab first; write and format (the toolbar, Ctrl+B, lists that continue); Markdown drawn as elements (a script tag stays text); Add to notes from the
-// pop-up, from a Highlights card and by dragging, with In notes; p. N back to the paper; pages: add, rename, style, move, delete and Undo; a block moved by Alt+arrow and deleted with Undo;
+// pop-up, from a Highlights card and by dragging, with In notes; p. N back to the paper; pages: add (named Page N), rename, style, move, delete and Undo; reorder by Ctrl+Shift+arrow, by drag and in All pages; a block moved by Alt+arrow and deleted with Undo;
 // offline then back; two tabs on one page; a reload keeps everything; the phone's Paper view with the toast's Open; Markdown out; axe in Light, Dark and Read at 1280 and 390; no sideways scroll.
 // Needs the Worker with the fake identity provider and the offline stand-ins: `npm run integration -w apps/api -- --browser --run=reader-on` starts it.
 //   node e2e/notebook.mjs [baseUrl]    (default http://localhost:8788; READER must be on there)
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
+// With NB_SHOTS=<folder> it also takes the pictures of the page tabs (a tab dragged, All pages) for the owner.
+if (process.env.NB_SHOTS) mkdirSync(process.env.NB_SHOTS, { recursive: true });
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 import { BASE, REFUSED_OR_BUSY, axeCheck, countFailure, desk, finish, launch, noSideways, ok, phone, setTheme, sleep, startIdp, until, untilInPage, watchPage } from "./lib/browser.mjs";
 
@@ -260,7 +262,7 @@ try {
     await page.getByRole("button", { name: "Add a page" }).click();
     await picker.getByRole("button", { name: "Ruled" }).click();
     const title = page.getByRole("textbox", { name: "Page title" });
-    ok((await title.inputValue()) === "Untitled page" && (await page.evaluate(() => document.activeElement?.classList.contains("nb-title"))) && (await page.locator(".nb-scroll").getAttribute("data-style")) === "ruled", "a paper card makes the page on that paper and focuses its title");
+    ok((await title.inputValue()) === "Page 2" && (await page.evaluate(() => document.activeElement?.classList.contains("nb-title"))) && (await page.locator(".nb-scroll").getAttribute("data-style")) === "ruled", "a paper card makes the page on that paper and focuses its title");
     await title.fill("Results");
     // Ruled: the rules are one --nb-line apart, and a line of text is one --nb-line high, so the text sits on them
     const rhythm = await page.locator(".nb-field").first().evaluate((el) => {
@@ -364,6 +366,77 @@ try {
     const file = await dl;
     const md = readFileSync(await file.path(), "utf8");
     ok(/^notes-.+-\d{4}-\d\d-\d\d\.md$/.test(file.suggestedFilename()) && md.startsWith("# ") && md.includes("\n## Results\n") && md.includes("\n## Notes\n") && /> \(Key idea, p\. 1\)/.test(md) && md.includes("### Methods"), `Download all pages: one Markdown file, quotes with their meaning and page (${file.suggestedFilename()})`);
+    await ctx.close();
+  }
+
+  /* ================================================================ 3b. the notes polish (19 Nov): page names, the header, reordering by keyboard and by drag, All pages */
+  console.log("3b. page names, reorder, All pages");
+  {
+    const { ctx, page } = await openReader(desk(1280, 800));
+    await page.locator(".nb-bar").waitFor({ timeout: 10000 });
+    const tabs = page.getByRole("tablist", { name: "Pages" }).getByRole("tab");
+    const order = async () => (await tabs.allInnerTexts()).map((t) => t.trim()).join(",");
+    await until(async () => (await order()) === "Results,Notes", { ms: 6000, what: "the tabs Results, Notes" });
+    // the header row: one quiet button style (no Comments without sharing); Export and the page's menu are the same 32 px buttons
+    const hb = await page.locator(".nb-bar").evaluate((bar) => [...bar.querySelectorAll("button")].map((b) => ({ c: b.className, h: Math.round(b.getBoundingClientRect().height) })));
+    ok(hb.length === 2 && hb.every((b) => b.c.includes("nb-hbtn") && b.h === 32) && (await page.getByRole("button", { name: /^Comments/ }).count()) === 0, `the page header: Export and ⋯ in one quiet style, 32 px, no Comments when the paper is not shared (${JSON.stringify(hb)})`);
+    // keyboard: Ctrl+Shift+→ on a focused tab moves it, the focus stays on it, and the move is said
+    await pageTab(page, "Results").focus();
+    await page.keyboard.press("Control+Shift+ArrowRight");
+    await until(async () => (await order()) === "Notes,Results", { ms: 4000, what: "Results to move right" });
+    ok(await page.evaluate(() => document.activeElement?.getAttribute("role") === "tab" && document.activeElement.textContent.trim() === "Results"), "Ctrl+Shift+→ moves the tab one place, and the focus stays on it");
+    await until(async () => ((await page.locator("[data-announcer]").allTextContents()).join(" ")).includes("Page moved to place 2 of 2"), { ms: 3000, what: "the move to be said" });
+    ok(true, "the move is said: Page moved to place 2 of 2");
+    // drag by pointer: Results lifted (a mouse after 5 px), a line where it goes, dropped first
+    const r = await pageTab(page, "Results").boundingBox();
+    const n = await pageTab(page, "Notes").boundingBox();
+    await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);
+    await page.mouse.down();
+    for (let i = 1; i <= 8; i++) await page.mouse.move(r.x + r.width / 2 - ((r.x + r.width / 2 - (n.x + 6)) * i) / 8, r.y + r.height / 2);
+    ok((await page.locator(".nb-tabwrap[data-lifted]").count()) === 1 && (await page.locator('.nb-tabwrap[data-line="before"]').count()) === 1, "a dragged tab is lifted, and a line shows where it will go");
+    if (process.env.NB_SHOTS) await page.locator("#dw-panel-side").screenshot({ path: `${process.env.NB_SHOTS}/tab-dragging.png` });
+    await page.mouse.up();
+    await until(async () => (await order()) === "Results,Notes", { ms: 4000, what: "the drag to put Results first" });
+    await sleep(1600);
+    let srv = await pagesOnServer();
+    ok(srv.map((p) => p.title).join(",") === "Results,Notes", `the order made by keyboard and drag is saved (${srv.map((p) => p.title).join(",")})`);
+    // new pages are named Page N (the next number no page shows); six pages overflow the row: All pages lists them
+    for (let k = 0; k < 4; k++) {
+      await page.getByRole("button", { name: "Add a page" }).click();
+      await page.getByRole("dialog", { name: "Choose paper for the new page" }).getByRole("button", { name: "Plain" }).click();
+      await sleep(250);
+    }
+    ok((await order()) === "Results,Notes,Page 3,Page 4,Page 5,Page 6" && (await page.locator(".nb-title").inputValue()) === "Page 6", `new pages are named Page N, not "Untitled page" (${await order()})`);
+    const widest = await tabs.evaluateAll((els) => Math.max(...els.map((e) => e.getBoundingClientRect().width)));
+    const tabH = await tabs.first().evaluate((e) => e.getBoundingClientRect().height);
+    ok(widest <= 11 * 16 + 1 && Math.round(tabH) === 36, `the tabs are at most 11 rem wide and 36 px high (${Math.round(widest)} px, ${tabH} px)`);
+    // a narrow Split panel, so the six do not fit
+    await page.setViewportSize({ width: 1024, height: 800 });
+    const all = page.getByRole("button", { name: /^All pages/ });
+    await all.waitFor({ timeout: 4000 });
+    ok((await page.locator(".nb-pagetabs").getAttribute("data-more")) !== null, "six tabs overflow the row: an edge fade, and an All pages button before +");
+    await all.click();
+    const list = page.getByRole("dialog", { name: "All pages" });
+    await list.waitFor();
+    ok(JSON.stringify((await list.locator(".nb-ap-name").allInnerTexts()).map((t) => t.trim())) === JSON.stringify(["Results", "Notes", "Page 3", "Page 4", "Page 5", "Page 6"]) && (await list.locator('[aria-current="page"]').innerText()).trim() === "Page 6", "All pages lists every page in order, the open one marked");
+    await sleep(200);
+    if (process.env.NB_SHOTS) await page.locator("#dw-panel-side").screenshot({ path: `${process.env.NB_SHOTS}/tabs-overflow-allpages.png` });
+    await axe(page, "All pages", ".nb-pop[role=dialog]");
+    await list.getByRole("button", { name: "Move Page 6 up" }).click();
+    await until(async () => (await order()) === "Results,Notes,Page 3,Page 4,Page 6,Page 5", { ms: 4000, what: "Page 6 to move up" });
+    ok(await page.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Move Page 6 up"), "Move up in All pages moves it, and the focus stays on the button");
+    await list.getByRole("button", { name: "Page 3", exact: true }).click();
+    await until(async () => (await page.locator(".nb-title").inputValue()) === "Page 3", { ms: 4000, what: "Page 3 to open" });
+    ok((await list.count()) === 0, "a page chosen in All pages opens, and the list closes");
+    await sleep(1600);
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator(".nb-bar").waitFor({ timeout: 15000 });
+    await until(async () => (await order()) === "Results,Notes,Page 3,Page 4,Page 6,Page 5", { ms: 6000, what: "the order after a reload" });
+    ok(true, "a reload keeps the new order");
+    // the extra pages go (by the API), so the parts after this find the two pages they expect
+    srv = await pagesOnServer();
+    for (const p of srv.filter((x) => /^Page \d$/.test(x.title))) await api.delete(`${BASE}/api/v1/documents/${docId}/notebook/pages/${p.id}`, { headers: { Origin: BASE } });
+    ok((await pagesOnServer()).length === 2, "the extra pages are deleted again");
     await ctx.close();
   }
 

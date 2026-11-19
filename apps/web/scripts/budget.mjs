@@ -31,6 +31,8 @@ export const LIMITS = {
   "the Notebook chunk, script and style (gzip)": 16 * KB,
   // Phase 2.5: a sketch in the notes (its pen, eraser and grip; the outlines are the ink-path chunk the paper shares), fetched when a page holds a sketch. 2.2 KB measured on 18 Nov 2026.
   "the Notebook sketch chunk, script (gzip)": 4 * KB,
+  // the page tabs, a chunk of their own since the notes polish (19 Nov 2026), fetched as soon as the Notebook's arrives
+  "the Notebook page tabs chunk (drag to reorder, All pages), script (gzip)": 4 * KB,
   // Phase 2.5: Export as PDF or Word (the pages laid out, the captures and sketches as pictures); pdf-lib and fflate are chunks of their own already. 3.0 KB measured on 18 Nov 2026.
   "the notes export chunk, script (gzip)": 5 * KB,
   // fontkit, which lets the notes PDF embed Noto Sans Devanagari as a subset: fetched only when the exported text has Devanagari. 151 KB measured on 18 Nov 2026.
@@ -38,7 +40,10 @@ export const LIMITS = {
   // Sharing a paper (docs/design/paper-share.md, 18 Nov 2026), behind the SHARE switch: the owner's Share dialog (5.5 KB measured), the comments and a Viewer's notes (4.6 KB), and the two
   // small pieces of My Workspace and the link (/s/<token>) (0.7 and 0.5 KB), each fetched only when wanted; plus about 10 to 25 %. The first load grew by 0.33 KB of script and 0.06 KB of style.
   "the Share dialog chunk, script and style (gzip)": 6.5 * KB,
-  "the shared paper chunk (comments, read-only notes), script and style (gzip)": 5.5 * KB,
+  "the shared paper chunk (read-only notes), script and style (gzip)": 5.5 * KB,
+  // The notes polish (19 Nov 2026): the comments (list, thread, the box to write in) moved out of the shared paper chunk into a chunk of their own, fetched when they are first opened,
+  // and the page tabs (drag to reorder, All pages) out of the Notebook chunk; each has a line, and neither old line was raised.
+  "the comments chunk, script and style (gzip)": 7.5 * KB,
   "Shared with me and the link opener, script (gzip)": 1.6 * KB,
   // The Rive pieces (docs/design/setu-rive.md, rive-ideas.md), fetched only when a picture is wanted: 57.6, 331 and 8.4 KB measured on 1 Nov 2026, plus about 10%. None of them may be in the first load.
   "the Rive runtime chunk, script (gzip)": 64 * KB,
@@ -75,10 +80,12 @@ const DESK = "src/components/papers/desk/Desk.tsx";
 const AGENTS = "src/components/papers/desk/AgentsDrawer.tsx";
 const NOTEBOOK = "src/components/papers/desk/notebook/Notebook.tsx";
 const NB_SKETCH = "src/components/papers/desk/notebook/NbSketch.tsx";
+const NB_TABS = "src/components/papers/desk/notebook/NbTabs.tsx";
 const NOTES_EXPORT = "src/lib/notes-export.ts";
 const FONTKIT = "../../node_modules/@cantoo/fontkit/dist/browser-module.mjs";
 const SHARE_DIALOG = "src/components/papers/desk/share/ShareDialog.tsx";
 const SHARED_PARTS = "src/components/papers/desk/share/SharedParts.tsx";
+const COMMENTS = "src/components/papers/desk/share/Comments.tsx";
 const SHARED_WITH_ME = "src/components/papers/SharedWithMe.tsx";
 const SHARE_OPEN = "src/components/papers/ShareOpen.tsx";
 const RIVE_RUNTIME = "../../node_modules/@rive-app/canvas-lite/rive.js";
@@ -98,10 +105,12 @@ const measured = {
   "the Agents drawer chunk, script and style (gzip)": sum(filesOf(AGENTS), gz),
   "the Notebook chunk, script and style (gzip)": sum(filesOf(NOTEBOOK), gz),
   "the Notebook sketch chunk, script (gzip)": sum(filesOf(NB_SKETCH), gz),
+  "the Notebook page tabs chunk (drag to reorder, All pages), script (gzip)": sum(filesOf(NB_TABS), gz),
   "the notes export chunk, script (gzip)": sum(filesOf(NOTES_EXPORT), gz),
   "the fontkit chunk, script (gzip)": sum(filesOf(FONTKIT), gz),
   "the Share dialog chunk, script and style (gzip)": sum(filesOf(SHARE_DIALOG), gz),
-  "the shared paper chunk (comments, read-only notes), script and style (gzip)": sum(filesOf(SHARED_PARTS), gz),
+  "the shared paper chunk (read-only notes), script and style (gzip)": sum(filesOf(SHARED_PARTS), gz),
+  "the comments chunk, script and style (gzip)": sum(filesOf(COMMENTS), gz),
   "Shared with me and the link opener, script (gzip)": sum([...filesOf(SHARED_WITH_ME, { css: false }), ...filesOf(SHARE_OPEN, { css: false })], gz),
   "the Rive runtime chunk, script (gzip)": sum(filesOf(RIVE_RUNTIME), gz),
   "the Rive runtime, wasm (gzip)": sum(filesOf(RIVE_WASM), gz),
@@ -135,10 +144,12 @@ const HEAVY = [
   AGENTS,
   NOTEBOOK,
   NB_SKETCH,
+  NB_TABS,
   NOTES_EXPORT,
   FONTKIT,
   SHARE_DIALOG,
   SHARED_PARTS,
+  COMMENTS,
   SHARED_WITH_ME,
   SHARE_OPEN,
   INTRO,
