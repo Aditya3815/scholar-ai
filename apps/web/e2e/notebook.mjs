@@ -389,9 +389,9 @@ try {
     ok(srv.length === 2, "two pages after all that");
     // Markdown out: Export ▾, all pages, Markdown
     await page.locator(".nb-export").click();
-    await page.getByRole("menu", { name: "Export" }).getByRole("menuitemradio", { name: "All pages" }).click();
+    await page.getByRole("menu", { name: "Download" }).getByRole("menuitemradio", { name: "All pages" }).click();
     const dl = page.waitForEvent("download");
-    await page.getByRole("menu", { name: "Export" }).getByRole("menuitem", { name: "Markdown", exact: true }).click();
+    await page.getByRole("menu", { name: "Download" }).getByRole("menuitem", { name: "Markdown", exact: true }).click();
     const file = await dl;
     const md = readFileSync(await file.path(), "utf8");
     ok(/^notes-.+-\d{4}-\d\d-\d\d\.md$/.test(file.suggestedFilename()) && md.startsWith("# ") && md.includes("\n## Results\n") && md.includes("\n## Notes\n") && /> \(Key idea, p\. 1\)/.test(md) && md.includes("### Methods"), `Download all pages: one Markdown file, quotes with their meaning and page (${file.suggestedFilename()})`);
@@ -714,7 +714,7 @@ try {
     // Export: PDF and Word of all pages, with the captures, the sketch and the picture
     const exportAs = async (what) => {
       await page.locator(".nb-export").click();
-      const m = page.getByRole("menu", { name: "Export" });
+      const m = page.getByRole("menu", { name: "Download" });
       await m.getByRole("menuitemradio", { name: "All pages" }).click();
       const dl = page.waitForEvent("download", { timeout: 30000 });
       await m.getByRole("menuitem", { name: what, exact: true }).click();

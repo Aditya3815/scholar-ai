@@ -98,7 +98,6 @@
 .nb-hbtn { position: relative; display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 0.25rem; min-width: 32px; height: 32px; padding: 0 0.4rem; border: 0; border-radius: var(--radius-s); background: none; color: var(--muted); font: inherit; font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .nb-hbtn:hover, .nb-hbtn[aria-expanded="true"] { background: var(--surface-2); color: var(--text); }
 .nb-hbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
-.nb-export { padding: 0 0.5rem; }
 /* the count of open comments, a small badge on the speech bubble */
 .nb-badge { position: absolute; top: 1px; right: 0; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--accent-fg); font-size: 0.6875rem; font-weight: 700; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; }
 @media (pointer: coarse) { .nb-hbtn { min-width: 44px; height: 44px; } .nb-badge { top: 4px; right: 4px; } }

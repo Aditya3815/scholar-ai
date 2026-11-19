@@ -1,4 +1,4 @@
-import { Bold, ChevronDown, Crop, GripVertical, Heading, Italic, List, ListOrdered, ImagePlus, MessageSquare, MoreHorizontal, PenLine, TextQuote, Type, Underline } from "lucide-react";
+import { Bold, ChevronDown, Crop, Download, GripVertical, Heading, Italic, List, ListOrdered, ImagePlus, MessageSquare, MoreHorizontal, PenLine, TextQuote, Type, Underline } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { LEGACY_PAGE_TITLE, NOTEBOOK_STYLES, NOTEBOOK_STYLE_NAMES as STYLE_NAME, nextPageName, pageLabel, type CaptureBlock, type DocNote, type ImageBlock, type NotebookBlock, type QuoteColor } from "@scholar/shared";
 import { activeMarks, continueList, isOn, toggleHeading, toggleList, toggleMark, type Edit, type Mark } from "../../../../lib/md-edit";
@@ -350,7 +350,7 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
         />
       </Suspense>
       <div className="nb-pagepanel" role="tabpanel" id="nb-pagepanel" aria-labelledby={`nbt-${page.id}`}>
-      {/* the page's header: its title, the save line, then quiet icon buttons of one style: Comments (a shared paper), Export and the page's menu (a page is deleted by the × on its tab) */}
+      {/* the page's header: its title, the save line, then quiet icon buttons of one style: Comments (a shared paper), Download and the page's menu (a page is deleted by the × on its tab) */}
       <div className="nb-bar">
         <h2 className="sr-only">Notes: {name}</h2>
         <input
@@ -369,7 +369,8 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
             }
           }}
         />
-        <p className="nb-save" data-state={st.save}>
+        {/* saving is quiet: "Saving…" and "Saved" are kept for screen readers and tests only; offline, a failed save and a merge from another window still show */}
+        <p className={st.save === "saving" || st.save === "saved" ? "nb-save sr-only" : "nb-save"} data-state={st.save}>
           {SAVE_WORDS[st.save]}
           {st.save === "error" && (
             <>
@@ -694,15 +695,14 @@ function ExportMenu({ onExport, onCopy, files }: { onExport: (fmt: ExportFormat,
       label="Export"
       align="end"
       trigger={({ open, toggle, ref }) => (
-        <button ref={ref} type="button" className="nb-hbtn nb-export" aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
-          <span>Export</span>
-          <ChevronDown size={14} aria-hidden="true" />
+        <button ref={ref} type="button" className="nb-hbtn nb-export" aria-haspopup="menu" aria-expanded={open} aria-label="Download" title="Download as PDF, Word or Markdown" onClick={toggle}>
+          <Download size={16} aria-hidden="true" />
         </button>
       )}
     >
       {(close) => (
-        <div role="menu" aria-label="Export" className="desk-menu">
-          <div role="group" aria-label="What to export">
+        <div role="menu" aria-label="Download" className="desk-menu">
+          <div role="group" aria-label="What to download">
             <NbItem checked={!all} onPick={() => setAll(false)}>
               This page
             </NbItem>
