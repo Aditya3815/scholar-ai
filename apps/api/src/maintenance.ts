@@ -31,6 +31,8 @@ export const MAINTENANCE_JOBS: { name: string; sql: string }[] = [
   { name: "audit_log", sql: "DELETE FROM audit_log WHERE ts < datetime('now', '-365 days')" },
   // A visitor's Understand calls of a day (M5, migration 0027): only today's count matters, and a day's codes go two days later.
   { name: "understand_visitors", sql: "DELETE FROM understand_visitors WHERE day < date('now', '-2 days')" },
+  // How many people an owner invited on a day (docs/design/paper-share.md, 200 a day): only today matters.
+  { name: "share_daily", sql: "DELETE FROM share_daily WHERE day < date('now', '-2 days')" },
 ];
 
 /** Every purge is `DELETE FROM <table> WHERE <what is past its date>`; this is the same purge taking at most `?1` rows (through their row number), so one night never holds the database for long. */

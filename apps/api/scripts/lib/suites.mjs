@@ -31,6 +31,8 @@ export const SUITES = [
   { label: "chat tools integration", file: "api/scripts/chat-tools-e2e.mjs", browser: false, reset: true },
   // the Notebook of the new Paper Reader, phase 2 (docs/design/paper-reader.md, 19): its routes do not exist with READER off (production), so it runs in --run=reader-on
   { label: "notebook integration (READER on)", file: "api/scripts/notebook-e2e.mjs", browser: false, reset: true, needs: { READER: ["on"] } },
+  // sharing a paper's workspace (docs/design/paper-share.md): its routes do not exist with SHARE off (production), so it runs in --run=share-on, with the new reader on
+  { label: "sharing integration (SHARE and READER on)", file: "api/scripts/share-e2e.mjs", browser: false, reset: true, needs: { SHARE: ["on"], READER: ["on"] } },
   { label: "browser: smoke + axe", file: "web/e2e/smoke.mjs", browser: true, reset: false },
   { label: "browser: auth", file: "web/e2e/auth.mjs", browser: true, reset: true },
   { label: "browser: library", file: "web/e2e/library.mjs", browser: true, reset: true },
@@ -58,6 +60,7 @@ export const SUITES = [
   { label: "browser: the new Paper Reader, phase 1 (READER on)", file: "web/e2e/reader.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
   { label: "browser: the Notebook of the new Paper Reader, phase 2 (READER on)", file: "web/e2e/notebook.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
   // the Home page's Trending row is read from the real route in one section: it is there only with the list shown
+  { label: "browser: sharing a paper (SHARE and READER on)", file: "web/e2e/share.mjs", browser: true, reset: true, needs: { SHARE: ["on"], READER: ["on"] } },
   { label: "browser: trending", file: "web/e2e/trending.mjs", browser: true, reset: true, needs: { TRENDING: ["on"] } },
   { label: "browser: ask any paper", file: "web/e2e/oa.mjs", browser: true, reset: true },
   { label: "browser: literature scan", file: "web/e2e/litscan.mjs", browser: true, reset: true },
@@ -111,6 +114,7 @@ export const RUNS = {
   "trending-dark": { vars: { TRENDING: "dark" }, suites: ["trending list integration"], why: "the job makes the list and the route hides it" },
   "mcp-on": { vars: { MCP: "on", MCP_CHECK_CLAIM: "on" }, suites: MCP_SUITES, why: "the MCP server open to every account, check_claim listed" },
   "mcp-off": { vars: { MCP: "off", MCP_CHECK_CLAIM: "off" }, suites: MCP_SUITES, why: "every path of the MCP server answers 404, as before it existed" },
+  "share-on": { vars: { SHARE: "on", READER: "on" }, suites: ["sharing integration (SHARE and READER on)", "browser: sharing a paper (SHARE and READER on)"], why: "sharing a paper for every account, in the new reader (production has SHARE off: nothing of it exists)" },
   "reader-on": { vars: { READER: "on" }, suites: READER_SUITES, why: "the new Paper Reader for every account (production has READER off: today's reader)" },
   "chat-counters-failpolicy": { vars: { CHAT_COUNTERS: "on", CHAT_FAILPOLICY: "on" }, suites: CHAT_SUITES, why: "R3 and R5 on" },
   "chat-safety": { vars: { CHAT_SAFETY: "on", CHAT_COUNTERS: "on" }, suites: CHAT_SUITES, why: "the safety lane on (R4)" },

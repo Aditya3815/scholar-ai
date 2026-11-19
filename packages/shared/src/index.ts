@@ -151,6 +151,7 @@ export * from "./notes-md";
 export * from "./notebook";
 export * from "./note-image";
 export * from "./notebook-md";
+export * from "./share";
 export * from "./quote-quads";
 export * from "./palette";
 export * from "./rive";

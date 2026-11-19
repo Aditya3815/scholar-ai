@@ -43,6 +43,10 @@ import {
   type PaperInfo,
 } from "@scholar/shared";
 import { requireUser, type Door } from "../auth/service";
+import type { PaperAccess, ShareRole } from "@scholar/shared";
+import { requirePaper, type PaperDoor } from "./paper-gate";
+import { shareOnFor, shareSwitchedOn } from "./share-flag";
+import { noteOpened, openThreads } from "./share-store";
 import { readJson } from "../platform/http/body";
 import { answerAboutHighlights } from "./highlights-qa";
 import { readerOnFor, readerSwitchedOn } from "./reader-flag";
@@ -98,13 +102,19 @@ async function owned(c: Context<HonoEnv>, userId: string, id: string): Promise<R
   return c.env.DB.prepare(`SELECT ${COLS} FROM documents WHERE id = ?1 AND user_id = ?2`).bind(id, userId).first<Row>();
 }
 
-/** Who may do what with My papers (the words differ from route to route, as they always have). A paper named by the path that is not the person's is "Paper not found". */
-const paperOf = (c: Context<HonoEnv>, userId: string) => owned(c, userId, c.req.param("id") ?? "");
+/**
+ * Who may do what with My papers (the words differ from route to route, as they always have). A paper named by the path that this person has no role on is "Paper not found".
+ * Every route of one paper goes through the one gate (docs/paper-gate.ts, docs/access.ts) and says the role it needs: `owner`, `editor`, `commenter` or `viewer`
+ * (docs/design/paper-share.md, section 6). With SHARE off nobody but the owner has a role, as before sharing existed.
+ */
 const SIGNED_IN: Door = { signIn: "Sign in first" };
-const PAPER: Door<Row> = { ...SIGNED_IN, owns: { find: paperOf, missing: "Paper not found" } };
+const PAPER: PaperDoor = { signIn: "Sign in first", missing: "Paper not found" };
 const VIEW: Door = { signIn: "Sign in to use your papers" };
-const VIEW_PAPER: Door<Row> = { ...VIEW, owns: { find: paperOf, missing: "Paper not found" } };
-const VIEW_COVER: Door<Row> = { ...VIEW, owns: { find: paperOf, missing: "No cover" } };
+const VIEW_PAPER: PaperDoor = { signIn: "Sign in to use your papers", missing: "Paper not found" };
+const VIEW_COVER: PaperDoor = { signIn: "Sign in to use your papers", missing: "No cover" };
+/** The paper the path names, whoever owns it (the gate decides who may see it). */
+const anyPaper = (c: Context<HonoEnv>) => (id: string) => c.env.DB.prepare(`SELECT ${COLS} FROM documents WHERE id = ?1`).bind(id).first<Row>();
+const paper = (c: Context<HonoEnv>, door: PaperDoor, need: ShareRole) => requirePaper(c, door, need, anyPaper(c));
 const UPLOAD: Door = { signIn: "Sign in to upload papers", ack: { title: "Please read how your papers are handled first", detail: "A short note appears before your first upload." } };
 
 /**
@@ -126,7 +136,13 @@ documentRoutes.get("/", async (c) => {
   const { user } = got;
   const rows = await c.env.DB.prepare(`SELECT ${COLS} FROM documents WHERE user_id = ?1 ORDER BY created_at DESC, rowid DESC`).bind(user.id).all<Row>();
   const used = rows.results.reduce((n, r) => n + r.size_bytes, 0);
-  return c.json({ items: rows.results.map(toInfo), usage: { count: rows.results.length, maxCount: MAX_DOCS_PER_USER, bytes: used, maxBytes: MAX_TOTAL_DOC_BYTES } });
+  const list = { items: rows.results.map(toInfo), usage: { count: rows.results.length, maxCount: MAX_DOCS_PER_USER, bytes: used, maxBytes: MAX_TOTAL_DOC_BYTES } };
+  // sharing on (docs/design/paper-share.md, 4): how many papers others shared with this account, so My Workspace knows to show "Shared with me" (said only when there are some)
+  if (await shareSwitchedOn(c.env)) {
+    const shared = (await c.env.DB.prepare("SELECT COUNT(*) AS n FROM doc_members m WHERE m.user_id = ?1 OR (m.user_id IS NULL AND m.email = (SELECT lower(email) FROM users WHERE id = ?1 AND email_verified = 1))").bind(user.id).first<{ n: number }>())?.n ?? 0;
+    if (shared > 0) return c.json({ ...list, sharedWithMe: shared });
+  }
+  return c.json(list);
 });
 
 /* these two are before "/:id" on purpose: a path segment "search" or "remember" must not be taken for a paper id */
@@ -172,22 +188,35 @@ documentRoutes.get("/remember", async (c) => {
 });
 
 documentRoutes.get("/:id", async (c) => {
-  const got = await requireUser(c, VIEW_PAPER);
+  const got = await paper(c, VIEW_PAPER, "viewer");
   if (got instanceof Response) return got;
-  const { user, row } = got;
-  const qa = await c.env.DB.prepare("SELECT answer FROM doc_qa WHERE doc_id = ?1 ORDER BY created_at, rowid LIMIT 100").bind(row.id).all<{ answer: string }>();
+  const { user, row, access } = got;
   const stored = await c.env.DB.prepare("SELECT info FROM documents WHERE id = ?1").bind(row.id).first<{ info: string | null }>();
-  const scan = row.scanned === 1 ? await scanInfo(c.env.DB, user.id, row.id, ocrPerDay(c.env)) : null;
-  // which reader the page draws (docs/design/paper-reader.md, 15): told here, with the paper, so it costs no request of its own
-  const features = { reader: await readerOnFor(c.env, user.id) };
-  return c.json({ document: toInfo(row), history: qa.results.map((r) => JSON.parse(r.answer) as Answer), info: stored?.info ? (JSON.parse(stored.info) as PaperInfo) : null, scan, features });
+  const info = stored?.info ? (JSON.parse(stored.info) as PaperInfo) : null;
+  if (access.role !== "owner") {
+    // someone the paper is shared with (docs/design/paper-share.md, 4): the shared reader (always the new one), the paper and what was found in it; never the owner's questions, scan
+    // allowance, reading place, status or tags
+    if (access.memberId) await noteOpened(c.env.DB, access.memberId);
+    const owner = await c.env.DB.prepare("SELECT name FROM users WHERE id = ?1").bind(row.user_id).first<{ name: string | null }>();
+    const shared: PaperAccess = { role: access.role, via: access.via === "member" ? "member" : "link", ownerName: owner?.name ?? null, viewersDownload: access.viewersDownload, signedIn: user !== null };
+    const document: DocumentInfo = { ...toInfo(row), readState: "to_read", tags: [], lastPage: null, maxPage: null, openedAt: null };
+    return c.json({ document, history: [], info, scan: null, features: { reader: true }, access: shared });
+  }
+  const ownerId = row.user_id;
+  const qa = await c.env.DB.prepare("SELECT answer FROM doc_qa WHERE doc_id = ?1 ORDER BY created_at, rowid LIMIT 100").bind(row.id).all<{ answer: string }>();
+  const scan = row.scanned === 1 ? await scanInfo(c.env.DB, ownerId, row.id, ocrPerDay(c.env)) : null;
+  // which reader the page draws (docs/design/paper-reader.md, 15): told here, with the paper, so it costs no request of its own; and, with SHARE on for this account (paper-share.md),
+  // that the owner may share it and how many comment threads are open
+  const reader = await readerOnFor(c.env, ownerId);
+  const features = (await shareOnFor(c.env, ownerId)) ? { reader, share: true, comments: await openThreads(c.env.DB, row.id) } : { reader };
+  return c.json({ document: toInfo(row), history: qa.results.map((r) => JSON.parse(r.answer) as Answer), info, scan, features });
 });
 
 documentRoutes.get("/:id/file", async (c) => {
-  const got = await requireUser(c, VIEW_PAPER);
+  const got = await paper(c, VIEW_PAPER, "viewer");
   if (got instanceof Response) return got;
-  const { user, row } = got;
-  const obj = await c.env.FILES.get(pdfKey(user.id, row.id));
+  const { row } = got;
+  const obj = await c.env.FILES.get(pdfKey(row.user_id, row.id));
   if (!obj) return deny(c, 404, "not_found", "The file is missing");
   return new Response(obj.body, {
     headers: {
@@ -201,11 +230,11 @@ documentRoutes.get("/:id/file", async (c) => {
 });
 
 documentRoutes.get("/:id/cover", async (c) => {
-  const got = await requireUser(c, VIEW_COVER);
+  const got = await paper(c, VIEW_COVER, "viewer");
   if (got instanceof Response) return got;
-  const { user, row } = got;
+  const { row } = got;
   if (!row.has_cover) return deny(c, 404, "not_found", "No cover");
-  const obj = await c.env.FILES.get(coverKey(user.id, row.id));
+  const obj = await c.env.FILES.get(coverKey(row.user_id, row.id));
   if (!obj) return deny(c, 404, "not_found", "No cover");
   return new Response(obj.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff" } });
 });
@@ -246,9 +275,10 @@ documentRoutes.post("/", async (c) => {
 });
 
 documentRoutes.put("/:id/cover", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "owner");
   if (got instanceof Response) return got;
-  const { user, row } = got;
+  const { row } = got;
+  const user = { id: row.user_id }; // the route needs the owner
   const img = await c.req.arrayBuffer();
   const b = new Uint8Array(img);
   if (img.byteLength > MAX_COVER_BYTES || b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8) return deny(c, 400, "invalid_cover", "The cover must be a JPEG under 300 KB");
@@ -262,9 +292,10 @@ documentRoutes.put("/:id/cover", async (c) => {
  * and, if the paper still has the title we made up from its file name, give it its real title.
  */
 documentRoutes.put("/:id/info", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "owner");
   if (got instanceof Response) return got;
-  const { user, row } = got;
+  const { row } = got;
+  const user = { id: row.user_id }; // the route needs the owner
   const raw = await c.req.text();
   if (raw.length > 700_000) return deny(c, 413, "too_large", "That is too much to store");
   const clean = sanitizePaperInfo((() => { try { return JSON.parse(raw); } catch { return null; } })());
@@ -280,9 +311,10 @@ documentRoutes.put("/:id/info", async (c) => {
 });
 
 documentRoutes.patch("/:id", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "owner");
   if (got instanceof Response) return got;
-  const { user, row } = got;
+  const { row } = got;
+  const user = { id: row.user_id }; // the route needs the owner
   const body = (await readJson(c)) as { title?: unknown } | null;
   const title = typeof body?.title === "string" ? body.title.replace(/\s+/g, " ").trim().slice(0, 200) : "";
   if (!title) return deny(c, 400, "invalid_title", "Give the paper a title");
@@ -290,7 +322,7 @@ documentRoutes.patch("/:id", async (c) => {
   return c.json({ document: toInfo((await owned(c, user.id, row.id))!) });
 });
 
-/** Deletes the PDF, its cover, its text, its question history, its highlights, drawing, tags and pages of notes. Irreversible. */
+/** Deletes the PDF, its cover, its text, its question history, its highlights, drawing, tags, pages of notes, and its sharing: the link, the people named and the comments. Irreversible. */
 export async function deleteDocument(env: Pick<Env, "DB" | "FILES">, userId: string, id: string): Promise<void> {
   await Promise.all([env.FILES.delete(pdfKey(userId, id)), env.FILES.delete(coverKey(userId, id)), deleteNotebookImages(env, userId, id)]);
   await env.DB.batch([
@@ -298,6 +330,9 @@ export async function deleteDocument(env: Pick<Env, "DB" | "FILES">, userId: str
     env.DB.prepare("DELETE FROM doc_ink WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_notebook_pages WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_notebook_image_gone WHERE doc_id = ?1").bind(id),
+    env.DB.prepare("DELETE FROM doc_comments WHERE doc_id = ?1").bind(id),
+    env.DB.prepare("DELETE FROM doc_members WHERE doc_id = ?1").bind(id),
+    env.DB.prepare("DELETE FROM doc_shares WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_tags WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_qa WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_chunks WHERE doc_id = ?1").bind(id),
@@ -307,9 +342,10 @@ export async function deleteDocument(env: Pick<Env, "DB" | "FILES">, userId: str
 }
 
 documentRoutes.delete("/:id", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "owner");
   if (got instanceof Response) return got;
-  const { user, row } = got;
+  const { row } = got;
+  const user = { id: row.user_id }; // the route needs the owner
   await deleteDocument(c.env, user.id, row.id);
   return c.json({ ok: true });
 });
@@ -317,7 +353,7 @@ documentRoutes.delete("/:id", async (c) => {
 /* ---------------------------------------------------------------- indexing (the browser reads the PDF; we chunk + embed) */
 
 documentRoutes.post("/:id/pages", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "owner");
   if (got instanceof Response) return got;
   const { row } = got;
 
@@ -372,9 +408,10 @@ documentRoutes.post("/:id/pages", async (c) => {
 });
 
 documentRoutes.post("/:id/finish", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "owner");
   if (got instanceof Response) return got;
-  const { user, row } = got;
+  const { row } = got;
+  const user = { id: row.user_id }; // the route needs the owner
   const body = (await readJson(c)) as { pages?: unknown; failed?: unknown } | null;
   const pages = typeof body?.pages === "number" && Number.isInteger(body.pages) && body.pages >= 1 && body.pages <= MAX_DOC_PAGES ? body.pages : null;
 
@@ -393,9 +430,10 @@ documentRoutes.post("/:id/finish", async (c) => {
  * can be stopped and continued (also from another day, when the daily limit has been reached). Asking again keeps what has been read.
  */
 documentRoutes.post("/:id/scan", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "owner");
   if (got instanceof Response) return got;
-  const { user, row } = got;
+  const { row } = got;
+  const user = { id: row.user_id }; // the route needs the owner
   const body = (await readJson(c)) as { pages?: unknown; scanPages?: unknown } | null;
   const pages = body?.pages;
   const list = body?.scanPages;
@@ -409,15 +447,16 @@ documentRoutes.post("/:id/scan", async (c) => {
 });
 
 documentRoutes.get("/:id/scan", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "owner");
   if (got instanceof Response) return got;
-  const { user, row } = got;
+  const { row } = got;
+  const user = { id: row.user_id }; // the route needs the owner
   return c.json({ scan: await scanInfo(c.env.DB, user.id, row.id, ocrPerDay(c.env)) });
 });
 
 /** The text that was read from the scanned pages that were used (for the paper's title, DOI and reference list, and for showing what was read). */
 documentRoutes.get("/:id/scan/text", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "owner");
   if (got instanceof Response) return got;
   const { row } = got;
   return c.json({ pages: await scanTexts(c.env.DB, row.id) });
@@ -428,9 +467,10 @@ documentRoutes.get("/:id/scan/text", async (c) => {
  * not stored. The answer says how the page was read and, for a page that was used, what it says.
  */
 documentRoutes.post("/:id/ocr", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "owner");
   if (got instanceof Response) return got;
-  const { user, row } = got;
+  const { row } = got;
+  const user = { id: row.user_id }; // the route needs the owner
   if (row.scanned !== 1) return deny(c, 409, "not_scanned", "This paper has a text layer, so nothing has to be read from pictures");
   const page = Number(c.req.query("page"));
   if (!Number.isInteger(page) || page < 1 || page > (row.pages ?? MAX_DOC_PAGES)) return deny(c, 400, "invalid_page", "That page is not in this paper");
@@ -471,9 +511,12 @@ documentRoutes.post("/:id/ocr", async (c) => {
 /* ---------------------------------------------------------------- ask */
 
 documentRoutes.post("/:id/ask", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "commenter");
   if (got instanceof Response) return got;
-  const { user, row } = got;
+  const { row, access } = got;
+  // a commenter or an editor asks on their own daily allowance (the asker is signed in: a link gives no more than Viewer to someone who is not); only the owner's questions are kept
+  const user = got.user!;
+  const keep = access.role === "owner";
   if (row.status !== "ready") return deny(c, 409, "not_ready", "This paper is not ready yet", row.status === "failed" ? row.error ?? undefined : "Wait until indexing finishes.");
 
   const body = (await readJson(c)) as { question?: unknown } | null;
@@ -498,7 +541,7 @@ documentRoutes.post("/:id/ask", async (c) => {
       try {
         const answer = await answerQuestionStream({ question, chunks, embed, stream, meta: { id: randomId(), createdAt: Date.now() }, emit: send, topK: deps.dev.topK });
         if (sse.gone) return; // the reader left: nothing to save or send
-        await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
+        if (keep) await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
         await countOutcome(c.env.DB, "doc_ask", askOutcome(answer));
         await send({ type: "answer", answer });
       } catch (e) {
@@ -521,7 +564,7 @@ documentRoutes.post("/:id/ask", async (c) => {
     if (d) return deny(c, d.status, d.code, d.title, d.detail);
     throw e;
   }
-  await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
+  if (keep) await c.env.DB.prepare("INSERT INTO doc_qa (id, doc_id, question, answer) VALUES (?1, ?2, ?3, ?4)").bind(answer.id, row.id, question, JSON.stringify(answer)).run();
   await countOutcome(c.env.DB, "doc_ask", askOutcome(answer));
   return c.json({ answer });
 });
@@ -529,9 +572,10 @@ documentRoutes.post("/:id/ask", async (c) => {
 
 /** A question about what the reader marked: the highlights are the passages, the answer's quotes are checked against them, and it is not added to the paper's question history. */
 documentRoutes.post("/:id/ask-highlights", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "commenter");
   if (got instanceof Response) return got;
-  const { user, row } = got;
+  const { row } = got;
+  const user = got.user!; // signed in (see /ask)
   const body = (await readJson(c)) as { question?: unknown; legend?: unknown } | null;
   const question = typeof body?.question === "string" ? body.question.replace(/\s+/g, " ").trim() : "";
   if (question.length < 3) return deny(c, 400, "invalid_question", "Ask a question about your highlights");
@@ -554,9 +598,10 @@ documentRoutes.post("/:id/ask-highlights", async (c) => {
 
 /** Reading status and tags (collections) of one paper. Tags are replaced as a set: the browser sends the whole list. */
 documentRoutes.put("/:id/meta", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "owner");
   if (got instanceof Response) return got;
-  const { user, row } = got;
+  const { row } = got;
+  const user = { id: row.user_id }; // the route needs the owner
   const b = (await readJson(c)) as { readState?: unknown; tags?: unknown } | null;
   if (!b || (b.readState === undefined && b.tags === undefined)) return deny(c, 400, "invalid_meta", "Nothing to change");
   const statements: D1PreparedStatement[] = [];
@@ -585,9 +630,10 @@ documentRoutes.put("/:id/meta", async (c) => {
  * "reading" once the reader is past its first page. "Done" is always the reader's own decision.
  */
 documentRoutes.post("/:id/progress", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "owner");
   if (got instanceof Response) return got;
-  const { user, row } = got;
+  const { row } = got;
+  const user = { id: row.user_id }; // the route needs the owner
   const b = (await readJson(c)) as { page?: unknown } | null;
   const limit = row.pages ?? MAX_DOC_PAGES;
   if (typeof b?.page !== "number" || !Number.isInteger(b.page) || b.page < 1 || b.page > limit) return deny(c, 400, "invalid_progress", "That page is not in this paper");
@@ -604,15 +650,17 @@ documentRoutes.post("/:id/progress", async (c) => {
 const INK_MAX_BODY = INK_LIMITS.bytes + 100_000;
 
 documentRoutes.get("/:id/ink", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "viewer");
   if (got instanceof Response) return got;
-  const { row } = got;
+  const { row, access } = got;
+  // the drawing is the owner's own (docs/design/paper-share.md, 1): someone the paper is shared with gets none
+  if (access.role !== "owner") return c.json({ strokes: [], rev: 0 });
   const ink = await c.env.DB.prepare("SELECT data, rev FROM doc_ink WHERE doc_id = ?1").bind(row.id).first<{ data: string; rev: number }>();
   return c.json({ strokes: ink ? (JSON.parse(ink.data) as unknown) : [], rev: ink?.rev ?? 0 });
 });
 
 documentRoutes.put("/:id/ink", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "owner");
   if (got instanceof Response) return got;
   const { row } = got;
   const sent = await readJson(c, INK_MAX_BODY);
@@ -643,7 +691,7 @@ const cleanText = (v: unknown, max: number) => (typeof v === "string" ? v.replac
 const NOTE_COLS = "id, page, quote, note, color, created_at, updated_at";
 
 documentRoutes.get("/:id/notes", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "viewer");
   if (got instanceof Response) return got;
   const { row } = got;
   const rows = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE doc_id = ?1 ORDER BY page, created_at, rowid`).bind(row.id).all<NoteRow>();
@@ -651,7 +699,7 @@ documentRoutes.get("/:id/notes", async (c) => {
 });
 
 documentRoutes.post("/:id/notes", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "editor");
   if (got instanceof Response) return got;
   const { row } = got;
   const b = (await readJson(c)) as Record<string, unknown> | null;
@@ -670,7 +718,7 @@ documentRoutes.post("/:id/notes", async (c) => {
 });
 
 documentRoutes.patch("/:id/notes/:nid", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "editor");
   if (got instanceof Response) return got;
   const { row } = got;
   const existing = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE id = ?1 AND doc_id = ?2`).bind(c.req.param("nid"), row.id).first<NoteRow>();
@@ -685,7 +733,7 @@ documentRoutes.patch("/:id/notes/:nid", async (c) => {
 });
 
 documentRoutes.delete("/:id/notes/:nid", async (c) => {
-  const got = await requireUser(c, PAPER);
+  const got = await paper(c, PAPER, "editor");
   if (got instanceof Response) return got;
   const { row } = got;
   const r = await c.env.DB.prepare("DELETE FROM doc_notes WHERE id = ?1 AND doc_id = ?2").bind(c.req.param("nid"), row.id).run();
@@ -700,15 +748,24 @@ documentRoutes.delete("/:id/notes/:nid", async (c) => {
  * when it is off); at dark, an account that is not in READER_BETA_USERS gets the same 404. Otherwise each is guarded as the notes and the drawing are: the same-origin check on a write,
  * the signed-in person, their own paper (404 for anyone else's), and a body read with a size limit. F10's `requireUser` door replaces these lines when the W3 untangle merges.
  */
-async function notebookDoor(c: Context<HonoEnv>): Promise<Response | { row: Row }> {
-  if (!(await readerSwitchedOn(c.env))) return deny(c, 404, "not_found", "Not found", c.req.path);
-  // the same-origin check of a write is the mount's (platform/http/guards.ts); the reader's own check sits between signing in and the paper, so it is not part of the door
-  const got = await requireUser(c, SIGNED_IN);
+async function notebookDoor(c: Context<HonoEnv>, need: "viewer" | "editor"): Promise<Response | { row: Row }> {
+  const sharing = await shareSwitchedOn(c.env);
+  if (!(await readerSwitchedOn(c.env)) && !sharing) return deny(c, 404, "not_found", "Not found", c.req.path);
+  if (!sharing) {
+    // the same-origin check of a write is the mount's (platform/http/guards.ts); the reader's own check sits between signing in and the paper, so it is not part of the door
+    const got = await requireUser(c, SIGNED_IN);
+    if (got instanceof Response) return got;
+    if (!(await readerOnFor(c.env, got.user.id))) return deny(c, 404, "not_found", "Not found", c.req.path);
+    const row = await owned(c, got.user.id, c.req.param("id") ?? "");
+    if (!row) return deny(c, 404, "not_found", "Paper not found");
+    return { row };
+  }
+  // with SHARE on (docs/design/paper-share.md): the one gate; the owner still needs the new reader, and the people the paper is shared with read it in the new reader (Viewer up), and
+  // write in it as Editors
+  const got = await paper(c, PAPER, need);
   if (got instanceof Response) return got;
-  if (!(await readerOnFor(c.env, got.user.id))) return deny(c, 404, "not_found", "Not found", c.req.path);
-  const row = await paperOf(c, got.user.id);
-  if (!row) return deny(c, 404, "not_found", "Paper not found");
-  return { row };
+  if (got.access.role === "owner" && !(await readerOnFor(c.env, got.row.user_id))) return deny(c, 404, "not_found", "Not found", c.req.path);
+  return { row: got.row };
 }
 
 /** The body of a write, read with the same limit as its check: null when it is too big, undefined when it is not JSON. */
@@ -722,13 +779,13 @@ const notebookAnswer = (c: Context<HonoEnv>, r: NotebookResult) =>
 const TOO_BIG = (c: Context<HonoEnv>) => deny(c, 413, "too_big", "That page of notes is too big to save", `A page holds at most ${NOTEBOOK_LIMITS.pageBytes / 1024} KB.`);
 
 documentRoutes.get("/:id/notebook", async (c) => {
-  const door = await notebookDoor(c);
+  const door = await notebookDoor(c, "viewer");
   if (door instanceof Response) return door;
   return c.json({ pages: await listPages(c.env.DB, door.row.id) });
 });
 
 documentRoutes.put("/:id/notebook/pages/:pageId", async (c) => {
-  const door = await notebookDoor(c);
+  const door = await notebookDoor(c, "editor");
   if (door instanceof Response) return door;
   const body = await notebookBody(c);
   if (body === null) return TOO_BIG(c);
@@ -747,7 +804,7 @@ async function pageImageIds(db: D1Database, docId: string, pageId: string): Prom
 
 /** A picture for a block of the notes (phase 2.5): the body is the file (JPEG, PNG or WebP, at most 2 MB); its kind is read from its bytes. */
 documentRoutes.put("/:id/notebook/images/:blockId", async (c) => {
-  const door = await notebookDoor(c);
+  const door = await notebookDoor(c, "editor");
   if (door instanceof Response) return door;
   if (Number(c.req.header("content-length") ?? 0) > NOTE_IMAGE_LIMITS.bytes) return deny(c, 413, "too_big", "That picture is too big", "A picture in the notes is at most 2 MB.");
   const bytes = new Uint8Array(await c.req.arrayBuffer().catch(() => new ArrayBuffer(0)));
@@ -757,9 +814,9 @@ documentRoutes.put("/:id/notebook/images/:blockId", async (c) => {
   return c.json({ w: r.w, h: r.h, type: r.type }, 201);
 });
 
-/** A picture of the notes, to its owner only (the same guards as the paper's own file). */
+/** A picture of the notes, to its owner and to the people the paper is shared with (the same guards as the paper's own file). */
 documentRoutes.get("/:id/notebook/images/:blockId", async (c) => {
-  const door = await notebookDoor(c);
+  const door = await notebookDoor(c, "viewer");
   if (door instanceof Response) return door;
   const blockId = c.req.param("blockId");
   if (!isNotebookId(blockId)) return deny(c, 404, "not_found", "No such picture");
@@ -777,7 +834,7 @@ documentRoutes.get("/:id/notebook/images/:blockId", async (c) => {
 });
 
 documentRoutes.patch("/:id/notebook/pages/:pageId", async (c) => {
-  const door = await notebookDoor(c);
+  const door = await notebookDoor(c, "editor");
   if (door instanceof Response) return door;
   const body = await notebookBody(c);
   if (body === null) return TOO_BIG(c);
@@ -785,7 +842,7 @@ documentRoutes.patch("/:id/notebook/pages/:pageId", async (c) => {
 });
 
 documentRoutes.delete("/:id/notebook/pages/:pageId", async (c) => {
-  const door = await notebookDoor(c);
+  const door = await notebookDoor(c, "editor");
   if (door instanceof Response) return door;
   const before = await pageImageIds(c.env.DB, door.row.id, c.req.param("pageId"));
   if (!(await deletePage(c.env.DB, door.row.id, c.req.param("pageId")))) return deny(c, 404, "page_gone", "That page of notes is not there any more");

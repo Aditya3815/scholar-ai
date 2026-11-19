@@ -30,6 +30,7 @@ import { ScanBanner } from "./ScanBanner";
 import type { NewNote, ViewerHandle } from "./PdfViewer";
 import { OpeningPaper, TitleEditor, authorsLine, contentsOf, type Load, type Pdf } from "./ReaderParts";
 import type { DeskProps } from "./desk/Desk";
+import { linkVisited } from "../../lib/share";
 
 // The viewer (and pdf.js with it) is its own chunk: it is only downloaded when a paper is opened.
 const PdfViewer = lazy(() => import("./PdfViewer").then((m) => ({ default: m.PdfViewer })));
@@ -89,7 +90,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const fetchIt = useCallback(async () => {
     try {
       const r = await fetchDocument(id);
-      setLoad({ status: "ready", doc: r.document, history: r.history, info: r.info, scan: r.scan, reader: r.features?.reader === true });
+      setLoad({ status: "ready", doc: r.document, history: r.history, info: r.info, scan: r.scan, reader: r.features?.reader === true, access: r.access ?? null, canShare: r.features?.share === true });
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setLoad({ status: "error", message: "Sign in to open your papers." });
       else if (e instanceof ApiError && e.status === 404) setLoad({ status: "error", message: "We could not find that paper. It may have been deleted.", notFound: true });
@@ -99,7 +100,8 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
 
   useEffect(() => {
     if (authStatus !== "ready") return;
-    if (!user) return setLoad({ status: "error", message: "Sign in to open your papers." });
+    // a visitor who opened the paper's link in this tab (docs/design/paper-share.md) may open it without signing in; anyone else is asked to sign in, as before
+    if (!user && !linkVisited(id)) return setLoad({ status: "error", message: "Sign in to open your papers." });
     setLoad({ status: "loading" });
     void fetchIt();
   }, [authStatus, user?.id, fetchIt]);
@@ -129,13 +131,14 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const needsInfo = load.status === "ready" && load.info === null && scanLeft === 0;
   useEffect(() => {
     if (!needsInfo || pdf.status !== "ready" || analyzed.current === id) return;
+    const mine = load.status === "ready" && !load.access;
     analyzed.current = id;
     let cancelled = false;
     setAnalyzing(true);
     // a scan has no text layer: its DOI and references are looked for in the text that was read from its pictures
     (isScan ? fetchScanText(id).then((pages) => analyzeScan(pages, pdf.pdf.numPages)) : analyzeOpenPdf(pdf.pdf))
       .then(async (found) => {
-        const saved = await savePaperInfo(id, found).catch(() => null);
+        const saved = mine ? await savePaperInfo(id, found).catch(() => null) : null;
         if (!cancelled) setLoad((l) => (l.status === "ready" ? { ...l, doc: saved?.document ?? l.doc, info: saved?.info ?? found } : l));
       })
       .catch(() => !cancelled && setLoad((l) => (l.status === "ready" ? { ...l, info: { pages: pdf.pdf.numPages, title: null, doi: null, arxiv: null, outline: [], headings: [], references: [], referencesSource: "none", metadata: null } } : l)))
@@ -143,7 +146,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     return () => {
       cancelled = true;
     };
-  }, [needsInfo, isScan, pdf, id]);
+  }, [needsInfo, isScan, pdf, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The checks of the paper's reference list: run by the References panel (as soon as the paper is open), and read by the citation cards in the paper too, so no entry is checked twice.
   const verify = useVerify();
@@ -223,11 +226,12 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const pageNow = useRef(1);
   pageNow.current = page;
   const sent = useRef<number | null>(null);
+  const shared = load.status === "ready" && !!load.access;
   const flush = useCallback((keepalive: boolean) => {
-    if (!tracking || sent.current === pageNow.current) return;
+    if (!tracking || shared || sent.current === pageNow.current) return;
     sent.current = pageNow.current;
     postProgress(id, pageNow.current, keepalive);
-  }, [id, tracking]);
+  }, [id, tracking, shared]);
   useEffect(() => {
     if (!tracking) return;
     const t = window.setTimeout(() => flush(false), sent.current === null ? 0 : 2000);
@@ -412,6 +416,9 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
       onPauseScan: () => myJob && pauseScan(myJob.key),
       onReindex: () => void (doc.scanned ? continueScan(doc) : reindexDoc(doc)),
       onUseReferenceList,
+      access: load.access ?? null,
+      canShare: load.canShare === true,
+      myName: user?.name ?? null,
     };
     return (
       <Suspense fallback={<div className="dw dw-center"><OpeningPaper progress={0} /></div>}>

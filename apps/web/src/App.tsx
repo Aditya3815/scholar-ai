@@ -41,6 +41,8 @@ const TermsPage = lazy(() => import("./components/legal/LegalPages").then((m) =>
 // screen, in idle time, and at once when offline reading is on, so that a paper opened before still opens without a connection.
 const loadReader = () => import("./components/papers/DocWorkspace");
 const DocWorkspace = lazy(() => loadReader().then((m) => ({ default: m.DocWorkspace })));
+// a shared paper's link, /s/<token> (docs/design/paper-share.md): a small chunk of its own that opens the link and goes to the paper
+const ShareOpen = lazy(() => import("./components/papers/ShareOpen").then((m) => ({ default: m.ShareOpen })));
 const HowWeVerifyPage = lazy(() => import("./components/legal/LegalPages").then((m) => ({ default: m.HowWeVerifyPage })));
 // Someone who has never signed in on this browser is probably about to see the intro page: ask for its chunk now, in parallel with the "who am I" request, not after it.
 if (typeof localStorage !== "undefined" && !(() => { try { return localStorage.getItem("scholar.signedin") === "1"; } catch { return false; } })()) void loadIntro();
@@ -65,7 +67,7 @@ export function MotionRoot({ children }: { children: ReactNode }) {
 
 type Sort = "relevance" | "citations" | "year";
 
-type Route = { view: View; docId: string | null; /** /home: the home screen for people who are not signed in */ home?: boolean };
+type Route = { view: View; docId: string | null; /** /home: the home screen for people who are not signed in */ home?: boolean; /** /s/<token>: a shared paper's link */ shareLink?: true };
 /** Real URLs for every page: / (search), /verify, /idea, /papers and /papers/<id>. No router library for five pages. */
 const routeFromPath = (): Route => {
   const p = location.pathname.replace(/\/+$/, "");
@@ -79,6 +81,7 @@ const routeFromPath = (): Route => {
   if (p === "/library") return { view: "library", docId: null };
   if (p === "/settings") return { view: "settings", docId: null };
   if (p === "/home") return { view: "search", docId: null, home: true };
+  if (/^\/s\/[A-Za-z0-9_-]{43}$/.test(p)) return { view: "papers", docId: null, shareLink: true };
   const m = /^\/papers(?:\/([a-f0-9]{8,40}))?$/.exec(p);
   if (m) return { view: "papers", docId: m[1] ?? null };
   return { view: "search", docId: null };
@@ -125,6 +128,12 @@ export function App() {
     },
     [view, route.docId, state.status, query],
   );
+
+  // a shared paper's link was opened: its paper, at the paper's own address (the token leaves the address bar and the history)
+  const openShared = useCallback((docId: string) => {
+    history.replaceState(null, "", `/papers/${docId}`);
+    setRoute({ view: "papers", docId });
+  }, []);
 
   // offline reading, when the reader has switched it on: the worker is kept registered and current
   useEffect(() => {
@@ -269,7 +278,7 @@ export function App() {
       ) : view === "settings" ? (
         <SettingsPage />
       ) : view === "papers" ? (
-        route.docId ? <DocWorkspace key={route.docId} id={route.docId} onBack={() => navigate("papers")} /> : <PapersPage onOpen={(id) => navigate("papers", id)} />
+        route.shareLink ? <ShareOpen onOpen={openShared} /> : route.docId ? <DocWorkspace key={route.docId} id={route.docId} onBack={() => navigate("papers")} /> : <PapersPage onOpen={(id) => navigate("papers", id)} />
       ) : (
       /* presenceAffectsLayout={false}: by default every render of this (it renders for every letter typed in the box) hands the whole page below it a new presence context, which makes every motion component of
           it render again, memo or not (four hundred cards of a long conversation: 0.4 s of every key press at a processor four times slower). Only one thing is shown here at a time (mode="wait"), so nothing around it

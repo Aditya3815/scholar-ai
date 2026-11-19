@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import {
   MAX_CHARS_PER_BATCH, MAX_DOC_BYTES, MAX_DOC_PAGES, MAX_PAGES_PER_BATCH, analyzePaper, analyzeScan, isScanned, mergeScanInfo, needsReading,
-  type Answer, type AskStreamEvent, type DocumentInfo, type Legend, type Line, type PageText, type PaperInfo, type ReadState, type ScanInfo,
+  type Answer, type AskStreamEvent, type PaperAccess, type DocumentInfo, type Legend, type Line, type PageText, type PaperInfo, type ReadState, type ScanInfo,
 } from "@scholar/shared";
 import { readSse } from "./sse";
 import { openPdf, readOutline, readPage, renderCover, PdfError, type PDFDocumentProxy } from "./pdf";
@@ -16,7 +16,8 @@ export { ApiError };
 export type Usage = { count: number; maxCount: number; bytes: number; maxBytes: number };
 
 /** `features.reader`: the new Paper Reader is on for this account (the server's READER switch; absent from an older server or a kept offline copy, which is today's reader). */
-export const fetchDocument = (id: string) => request<{ document: DocumentInfo; history: Answer[]; info: PaperInfo | null; scan: ScanInfo | null; features?: { reader?: boolean } }>(`/${id}`);
+export const fetchDocument = (id: string) =>
+  request<{ document: DocumentInfo; history: Answer[]; info: PaperInfo | null; scan: ScanInfo | null; features?: { reader?: boolean; share?: boolean; comments?: number }; access?: PaperAccess }>(`/${id}`);
 
 /** Store what was learned from reading the PDF; the server adds registry metadata and may give the paper its real title. */
 export const savePaperInfo = (id: string, info: PaperInfo) => request<{ document: DocumentInfo; info: PaperInfo }>(`/${id}/info`, json("PUT", info));
@@ -54,7 +55,7 @@ export const fileUrl = (id: string) => `/api/v1/documents/${id}/file`;
 
 /* ---------------------------------------------------------------- list store */
 
-export type DocsState = { status: "idle" | "loading" | "ready" | "error"; items: DocumentInfo[]; usage: Usage | null; error: string | null };
+export type DocsState = { status: "idle" | "loading" | "ready" | "error"; items: DocumentInfo[]; usage: Usage | null; error: string | null; /** papers others shared with this account (SHARE on; 0 otherwise) */ shared?: number };
 let docs: DocsState = { status: "idle", items: [], usage: null, error: null };
 const docListeners = new Set<() => void>();
 const setDocs = (next: Partial<DocsState>) => {
@@ -74,8 +75,8 @@ export const useDocs = (): DocsState =>
 export async function loadDocs(): Promise<void> {
   setDocs({ status: docs.status === "ready" ? "ready" : "loading", error: null });
   try {
-    const r = await request<{ items: DocumentInfo[]; usage: Usage }>("");
-    setDocs({ status: "ready", items: r.items, usage: r.usage });
+    const r = await request<{ items: DocumentInfo[]; usage: Usage; sharedWithMe?: number }>("");
+    setDocs({ status: "ready", items: r.items, usage: r.usage, shared: r.sharedWithMe ?? 0 });
   } catch (e) {
     setDocs({ status: "error", error: e instanceof Error ? e.message : "Could not load your papers" });
   }

@@ -216,6 +216,8 @@ export const SWITCHES = {
   MCP_CHECK_CLAIM: gate(["off", "shadow", "beta", "on"]),
   /** the new Paper Reader (docs/design/paper-reader.md, 15): `dark` shows it only to the accounts of READER_BETA_USERS; `shadow`, which every gate's reader takes, is off for it */
   READER: gate(["off", "dark", "on"], true),
+  /** sharing a paper's workspace (docs/design/paper-share.md): `dark` lets the accounts of SHARE_BETA_USERS share their papers; off, none of it exists (its routes answer 404) */
+  SHARE: gate(["off", "dark", "on"], true),
   CHAT_JUDGE: { kind: "kill", positions: ["off", "on"], read: "exact", kv: null, sentence: false },
   CHAT_CONTEXT: { kind: "kill", positions: ["off", "on"], read: "exact", kv: null, sentence: false },
   SEARCH_PLAINTEXT: { kind: "kill", positions: ["off", "on"], read: "exact", kv: null, sentence: false },

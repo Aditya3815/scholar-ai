@@ -49,7 +49,7 @@ jobs:
           retention-days: 7
       # Real Worker + local D1 + fake identity provider: sign-in (PKCE, replay, CSRF), library sync, export and account deletion.
       # The default run has production's switch positions; trending-on, mcp-on and reader-on add the Trending list shown, MCP on and the new Paper Reader, which production does not have yet.
-      - run: npm run integration -w apps/api -- --run=default,trending-on,mcp-on,reader-on
+      - run: npm run integration -w apps/api -- --run=default,trending-on,mcp-on,reader-on,share-on
 
   deploy:
     needs: check
