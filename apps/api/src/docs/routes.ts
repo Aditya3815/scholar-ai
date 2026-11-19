@@ -12,6 +12,8 @@ import {
   MAX_DOC_PAGES,
   MAX_NOTEBOOK_BODY,
   NOTEBOOK_LIMITS,
+  NOTE_IMAGE_LIMITS,
+  isNotebookId,
   MAX_TAGS_PER_DOC,
   READ_STATES,
   cleanLegend,
@@ -47,6 +49,7 @@ import { readerOnFor, readerSwitchedOn } from "./reader-flag";
 import { deletePage, listPages, patchPage, putPage, type NotebookResult } from "./notebook";
 import { PROFILES, modelFor } from "../platform/llm/profiles";
 import { depsOf } from "../platform/deps";
+import { deleteNotebookImages, imageIds, notebookImageKey, putNotebookImage, settleNotebookImages } from "./notebook-images";
 import { fromSqliteTime } from "../library/validate";
 import { cacheStore } from "../cache";
 import { chunkPage } from "./chunk";
@@ -289,11 +292,12 @@ documentRoutes.patch("/:id", async (c) => {
 
 /** Deletes the PDF, its cover, its text, its question history, its highlights, drawing, tags and pages of notes. Irreversible. */
 export async function deleteDocument(env: Pick<Env, "DB" | "FILES">, userId: string, id: string): Promise<void> {
-  await Promise.all([env.FILES.delete(pdfKey(userId, id)), env.FILES.delete(coverKey(userId, id))]);
+  await Promise.all([env.FILES.delete(pdfKey(userId, id)), env.FILES.delete(coverKey(userId, id)), deleteNotebookImages(env, userId, id)]);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM doc_notes WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_ink WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_notebook_pages WHERE doc_id = ?1").bind(id),
+    env.DB.prepare("DELETE FROM doc_notebook_image_gone WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_tags WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_qa WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_chunks WHERE doc_id = ?1").bind(id),
@@ -728,7 +732,48 @@ documentRoutes.put("/:id/notebook/pages/:pageId", async (c) => {
   if (door instanceof Response) return door;
   const body = await notebookBody(c);
   if (body === null) return TOO_BIG(c);
-  return notebookAnswer(c, await putPage(c.env.DB, door.row.id, c.req.param("pageId"), body, door.row.pages ?? MAX_DOC_PAGES));
+  const before = await pageImageIds(c.env.DB, door.row.id, c.req.param("pageId"));
+  const r = await putPage(c.env.DB, door.row.id, c.req.param("pageId"), body, door.row.pages ?? MAX_DOC_PAGES);
+  // the pictures this page stopped holding wait ten minutes (for Undo); those it holds now are kept
+  if ("page" in r && r.status !== 409) await settleNotebookImages(c.env, door.row.user_id, door.row.id, before, imageIds(r.page.blocks));
+  return notebookAnswer(c, r);
+});
+
+/** The picture blocks a page holds now (none when it does not exist). */
+async function pageImageIds(db: D1Database, docId: string, pageId: string): Promise<string[]> {
+  const row = await db.prepare("SELECT blocks FROM doc_notebook_pages WHERE doc_id = ?1 AND id = ?2").bind(docId, pageId).first<{ blocks: string }>();
+  return row ? imageIds(JSON.parse(row.blocks) as unknown) : [];
+}
+
+/** A picture for a block of the notes (phase 2.5): the body is the file (JPEG, PNG or WebP, at most 2 MB); its kind is read from its bytes. */
+documentRoutes.put("/:id/notebook/images/:blockId", async (c) => {
+  const door = await notebookDoor(c);
+  if (door instanceof Response) return door;
+  if (Number(c.req.header("content-length") ?? 0) > NOTE_IMAGE_LIMITS.bytes) return deny(c, 413, "too_big", "That picture is too big", "A picture in the notes is at most 2 MB.");
+  const bytes = new Uint8Array(await c.req.arrayBuffer().catch(() => new ArrayBuffer(0)));
+  if (bytes.length > NOTE_IMAGE_LIMITS.bytes) return deny(c, 413, "too_big", "That picture is too big", "A picture in the notes is at most 2 MB.");
+  const r = await putNotebookImage(c.env, door.row.user_id, door.row.id, c.req.param("blockId"), bytes);
+  if (!r.ok) return deny(c, r.status, r.type, r.title, r.detail);
+  return c.json({ w: r.w, h: r.h, type: r.type }, 201);
+});
+
+/** A picture of the notes, to its owner only (the same guards as the paper's own file). */
+documentRoutes.get("/:id/notebook/images/:blockId", async (c) => {
+  const door = await notebookDoor(c);
+  if (door instanceof Response) return door;
+  const blockId = c.req.param("blockId");
+  if (!isNotebookId(blockId)) return deny(c, 404, "not_found", "No such picture");
+  const obj = await c.env.FILES.get(notebookImageKey(door.row.user_id, door.row.id, blockId));
+  if (!obj) return deny(c, 404, "not_found", "No such picture");
+  return new Response(obj.body, {
+    headers: {
+      "Content-Type": obj.httpMetadata?.contentType ?? "application/octet-stream",
+      "Content-Length": String(obj.size),
+      "Cache-Control": "private, max-age=3600",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "default-src 'none'; sandbox",
+    },
+  });
 });
 
 documentRoutes.patch("/:id/notebook/pages/:pageId", async (c) => {
@@ -742,6 +787,8 @@ documentRoutes.patch("/:id/notebook/pages/:pageId", async (c) => {
 documentRoutes.delete("/:id/notebook/pages/:pageId", async (c) => {
   const door = await notebookDoor(c);
   if (door instanceof Response) return door;
+  const before = await pageImageIds(c.env.DB, door.row.id, c.req.param("pageId"));
   if (!(await deletePage(c.env.DB, door.row.id, c.req.param("pageId")))) return deny(c, 404, "page_gone", "That page of notes is not there any more");
+  if (before.length) await settleNotebookImages(c.env, door.row.user_id, door.row.id, before, []);
   return c.body(null, 204);
 });

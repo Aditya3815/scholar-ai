@@ -79,6 +79,7 @@ export const NOT_RUN = {
   "web/e2e/poc.mjs": "walks the static design page docs/design/poc/unified-workspace.html, not the app, and launches Edge by name (channel msedge), which the Linux CI does not have",
   "web/e2e/shots-reader.mjs": "takes the before and after pictures of the Paper Reader for the owner (it starts its own Workers, READER off and on) and checks nothing",
   "web/e2e/shots-notebook.mjs": "takes the pictures of the Notebook (Paper Reader, phase 2) for the owner (it starts its own Worker, READER on) and checks nothing",
+  "web/e2e/shots-p25.mjs": "takes the pictures of the Notes tab, phase 2.5 (Paper Reader), for the owner (it starts its own Worker, READER on) and checks nothing",
 };
 
 /** The suites whose checks follow the chat's gate flags (they read the switches through scripts/lib/harness.mjs): what each chat run of the matrix starts. */

@@ -223,7 +223,9 @@
   .desk .desk-grid[data-view="split"][data-sized="true"] { grid-template-columns: minmax(0, 1fr) 1rem var(--desk-side); }
   .desk .dw-panel { position: sticky; top: 4.6rem; height: calc(100dvh - 8.4rem); min-height: 24rem; }
   /* Notes on a wide screen: the panel fills the window and its text keeps a reading width */
-  .desk .desk-grid[data-view="notes"] .desk-tabpanel > * { width: min(100%, var(--read-measure)); margin-inline: auto; }
+  .desk .desk-grid[data-view="notes"] .desk-tabpanel:not(#desk-tabpanel-notes) > * { width: min(100%, var(--read-measure)); margin-inline: auto; }
+  /* phase 2.5 (21.1, 1): in the Notes view the page fills the panel, 32 px at its sides, with no reading-width cap */
+  .desk .desk-grid[data-view="notes"] #desk-tabpanel-notes .nb-sheet { --nb-pad: 32px; }
   .desk .desk-grid[data-view="notes"] .dw-sidetabs { justify-content: center; }
 }
 
@@ -334,13 +336,28 @@
 .desk .notes-head { flex-wrap: wrap; padding: 0.6rem 0.9rem; }
 .desk .notes-actions { flex-wrap: nowrap; align-items: center; margin-left: auto; }
 .desk .notes-export { gap: 0.3rem; }
-.desk .hl-tools { padding-bottom: 0.4rem; }
-.desk .hl-filter[data-one-row] { flex-wrap: nowrap; margin: 0 -0.9rem; padding: 0.1rem 0.9rem 0.2rem; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+/* phase 2.5 (21.1, 8): the chip row keeps 10 px from the line above and 12 px from the panel's edge; its height comes from its chips */
+.desk .hl-tools { padding: 0; }
+.desk .hl-filter[data-one-row] { flex-wrap: nowrap; margin: 0; padding: 10px 12px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
 .desk .hl-filter[data-one-row]::-webkit-scrollbar { display: none; }
 .desk .hl-filter[data-one-row] > .chip-btn { display: inline-flex; flex: none; align-items: center; min-height: 32px; padding: 0 0.75rem; font-size: 0.8125rem; white-space: nowrap; }
-.desk .hl-filter[data-more="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
-.desk .hl-filter[data-more="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent); }
-.desk .hl-filter[data-more="both"] { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }
+/* the fade starts after the padding, so a chip at rest at the start is never faded */
+.desk .hl-filter[data-more="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 12px - 2rem), transparent calc(100% - 12px)); }
+.desk .hl-filter[data-more="start"] { mask-image: linear-gradient(to right, transparent 12px, #000 calc(12px + 2rem)); }
+.desk .hl-filter[data-more="both"] { mask-image: linear-gradient(to right, transparent 12px, #000 calc(12px + 2rem), #000 calc(100% - 12px - 2rem), transparent calc(100% - 12px)); }
+
+/* phase 2.5 (21.1, 7): thin scrollbars in our tokens in every scroll area of the reader (the Agents drawer is put in the page's body, so it is named too). A browser that knows
+   scrollbar-width uses it; the others take the ::-webkit-scrollbar rules */
+.desk,
+.desk *,
+.desk-agents,
+.desk-agents * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.desk ::-webkit-scrollbar,
+.desk-agents ::-webkit-scrollbar { width: 8px; height: 8px; }
+.desk ::-webkit-scrollbar-track,
+.desk-agents ::-webkit-scrollbar-track { background: transparent; }
+.desk ::-webkit-scrollbar-thumb,
+.desk-agents ::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--border-strong); }
 
 /* a phone upright: the status and the theme on one row, the view switch under them across the width (Paper | Notes); on its side all of it fits one row */
 @media not all and (min-width: 744px) and (min-height: 520px) {
@@ -366,3 +383,8 @@
 .desk .note-nb .btn { min-height: 30px; }
 .desk .note-innotes > svg,
 .desk-pop-innotes > svg { color: var(--ok); }
+
+/* phase 2.5 (21.1, 6): Capture over a page. A frame is dragged (or placed and moved by keyboard); the rest of the page is dimmed a little while it is there */
+.desk .desk-capture { position: absolute; inset: 0; z-index: 6; cursor: crosshair; touch-action: pan-x pan-y pinch-zoom; -webkit-touch-callout: none; user-select: none; background: color-mix(in srgb, var(--accent) 4%, transparent); overflow: hidden; }
+.desk .desk-capture:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.desk .desk-capture-frame { position: absolute; border: 2px dashed var(--accent); border-radius: 2px; background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.16); pointer-events: none; }

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { NOTE_COLORS } from "./documents";
+import { HIGHLIGHTER_COLORS, PEN_COLORS } from "./ink";
 import {
   MAX_NOTEBOOK_BODY,
   NOTEBOOK_KINDS_NOW,
   NOTEBOOK_LIMITS,
   QUOTE_COLORS,
+  SKETCH_HIGHLIGHTER_COLORS,
+  SKETCH_PEN_COLORS,
   checkNotebookBlocks,
   cleanBlockText,
   cleanNotebookTitle,
@@ -22,6 +25,11 @@ const quote = (id: string, over: Record<string, unknown> = {}) => ({ id, kind: "
 describe("the Notebook's checks (shared by the page and the server)", () => {
   it("the four quote colours are the stored highlight colours", () => {
     expect([...QUOTE_COLORS]).toEqual([...NOTE_COLORS]);
+  });
+
+  it("a sketch's colours are the reader's pen and highlighter colours", () => {
+    expect([...SKETCH_PEN_COLORS]).toEqual(PEN_COLORS.map((c) => c.id));
+    expect([...SKETCH_HIGHLIGHTER_COLORS]).toEqual(HIGHLIGHTER_COLORS.map((c) => c.id));
   });
 
   it("ids: 1 to 40 characters of [A-Za-z0-9_-]", () => {
@@ -56,7 +64,7 @@ describe("the Notebook's checks (shared by the page and the server)", () => {
     expect(bad([[1]])).toMatch(/^400 a block is not an object/);
     expect(bad([{ kind: "text", md: "x" }])).toMatch(/^400 a block's id/);
     expect(bad([{ id: "a b", kind: "text", md: "x" }])).toMatch(/^400 a block's id/);
-    expect(bad([{ id: "a", kind: "image", src: "x" }])).toMatch(/^400 a block's kind/);
+    expect(bad([{ id: "a", kind: "video", src: "x" }])).toMatch(/^400 a block's kind/);
     expect(bad([{ id: "a", kind: "text" }])).toMatch(/^400 a text block has no text/);
     expect(bad([text("a"), text("a")])).toMatch(/^400 two blocks have the same id/);
     expect(bad([quote("q", { page: 0 })])).toMatch(/^400 a quote's page/);
@@ -69,23 +77,45 @@ describe("the Notebook's checks (shared by the page and the server)", () => {
     expect(bad([quote("q", { quote: 5 })])).toMatch(/^400 a quote has no text/);
   });
 
-  it("refuses a capture and an answer in phase 2, and checks them for phase 3", () => {
-    const capture = { id: "c", kind: "capture", page: 3, x: 0.1, y: 0.2, w: 0.5, h: 0.3 };
+  it("phase 2.5 takes a capture and a sketch, and still refuses an answer (phase 3), checked for then", () => {
+    const capture = { id: "c", kind: "capture", page: 3, x: 0.1, y: 0.2, w: 0.5, h: 0.3, caption: "Figure 1", size: "m" };
+    const sketch = { id: "s", kind: "sketch", height: 240, strokes: [{ id: "k1", tool: "pen", color: "blue", w: 0.004, pts: [0.1, 0.1, 0.5, 0.2, 0.3, 0.5] }] };
     const answer = { id: "a", kind: "answer", agent: "Explain", text: "It means…", pages: [1, 4] };
-    expect([...NOTEBOOK_KINDS_NOW]).toEqual(["text", "quote"]);
-    for (const b of [capture, answer]) {
-      const r = checkNotebookBlocks([b], 10);
-      expect(r.ok === false && r.status === 400 && /not accepted yet/.test(r.reason)).toBe(true);
-    }
-    const all = ["text", "quote", "capture", "answer"] as const;
-    expect(checkNotebookBlocks([capture, answer], 10, all)).toEqual({ ok: true, blocks: [capture, answer] });
-    expect(checkNotebookBlocks([{ ...capture, x: 0.8, w: 0.5 }], 10, all).ok).toBe(false);
-    expect(checkNotebookBlocks([{ ...capture, w: 0 }], 10, all).ok).toBe(false);
+    expect([...NOTEBOOK_KINDS_NOW]).toEqual(["text", "quote", "capture", "sketch", "image"]);
+    expect(checkNotebookBlocks([capture, sketch], 10)).toEqual({ ok: true, blocks: [capture, sketch] });
+    const r = checkNotebookBlocks([answer], 10);
+    expect(r.ok === false && r.status === 400 && /not accepted yet/.test(r.reason)).toBe(true);
+    const all = ["text", "quote", "capture", "sketch", "answer"] as const;
+    expect(checkNotebookBlocks([answer], 10, all)).toEqual({ ok: true, blocks: [answer] });
     expect(checkNotebookBlocks([{ ...answer, pages: [11] }], 10, all).ok).toBe(false);
     expect(checkNotebookBlocks([{ ...answer, agent: "" }], 10, all).ok).toBe(false);
   });
 
-  it("every limit: 200 blocks, 8,000 characters of text, 600 of a quote, 48 KB a page (413 for each)", () => {
+  it("a capture: inside its page, a caption of at most 500 characters (cleaned), a size of s, m or full", () => {
+    const capture = { id: "c", kind: "capture", page: 3, x: 0.1, y: 0.2, w: 0.5, h: 0.3, caption: "  Figure\n 1 ", size: "full" };
+    expect(checkNotebookBlocks([capture], 10)).toEqual({ ok: true, blocks: [{ ...capture, caption: "Figure 1" }] });
+    for (const bad of [{ x: 0.8, w: 0.5 }, { w: 0 }, { page: 11 }, { size: "xl" }, { caption: undefined }, { y: -0.1 }]) expect(checkNotebookBlocks([{ ...capture, ...bad }], 10).ok).toBe(false);
+    const long = checkNotebookBlocks([{ ...capture, caption: "c".repeat(NOTEBOOK_LIMITS.caption + 1) }], 10);
+    expect(long.ok === false && long.status).toBe(413);
+    // only its known fields come back
+    expect(checkNotebookBlocks([{ ...capture, png: "data:..." }], 10)).toEqual({ ok: true, blocks: [{ ...capture, caption: "Figure 1" }] });
+  });
+
+  it("a sketch: a height of 120 to 800, pen and highlighter strokes in their colours, every point inside, at most 400 strokes and 20,000 points", () => {
+    const stroke = (id: string, more: Record<string, unknown> = {}) => ({ id, tool: "pen", color: "ink", w: 0.004, pts: [0.1, 0.1, 0.5, 0.9, 1.4, 0.5], ...more });
+    const sketch = (strokes: unknown[], height = 240) => ({ id: "s", kind: "sketch", height, strokes });
+    expect(checkNotebookBlocks([sketch([stroke("a"), stroke("b", { tool: "highlighter", color: "yellow", w: 0.03 })])], 10).ok).toBe(true);
+    for (const h of [119, 801, 240.5]) expect(checkNotebookBlocks([sketch([], h)], 10).ok).toBe(false);
+    for (const bad of [{ tool: "eraser" }, { color: "yellow" }, { w: 0 }, { w: 0.2 }, { pts: [0.1, 0.1] }, { pts: [1.2, 0.1, 0.5] }, { pts: [0.1, -0.1, 0.5] }, { pts: [0.1, 0.1, 2] }, { id: "bad id" }])
+      expect(checkNotebookBlocks([sketch([stroke("a", bad)])], 10).ok).toBe(false);
+    const tooMany = checkNotebookBlocks([sketch(Array.from({ length: NOTEBOOK_LIMITS.sketchStrokes + 1 }, (_, i) => stroke(`k${i}`)))], 10);
+    expect(tooMany.ok === false && tooMany.status).toBe(413);
+    const pts = Array.from({ length: 3 * 10_001 }, (_, i) => (i % 3 === 2 ? 0.5 : 0.25));
+    const tooLong = checkNotebookBlocks([sketch([stroke("a", { pts }), stroke("b", { pts })])], 10);
+    expect(tooLong.ok === false && tooLong.status).toBe(413);
+  });
+
+  it("every limit: 200 blocks, 8,000 characters of text, 600 of a quote, 128 KB a page (413 for each)", () => {
     const many = Array.from({ length: NOTEBOOK_LIMITS.blocks }, (_, i) => text(`b${i}`, "x"));
     expect(checkNotebookBlocks(many, 10).ok).toBe(true);
     const tooMany = checkNotebookBlocks([...many, text("one-more")], 10);
@@ -95,9 +125,9 @@ describe("the Notebook's checks (shared by the page and the server)", () => {
     expect(long.ok === false && long.status).toBe(413);
     const longQ = checkNotebookBlocks([quote("q", { quote: "y".repeat(NOTEBOOK_LIMITS.quote + 1) })], 10);
     expect(longQ.ok === false && longQ.status).toBe(413);
-    // seven full text blocks are about 56 KB: over the page's 48 KB
-    const big = checkNotebookBlocks(Array.from({ length: 7 }, (_, i) => text(`t${i}`, "z".repeat(8000))), 10);
-    expect(big.ok === false && big.status === 413 && /48 KB/.test(big.reason)).toBe(true);
+    // seventeen full text blocks are about 136 KB: over the page's 128 KB
+    const big = checkNotebookBlocks(Array.from({ length: 17 }, (_, i) => text(`t${i}`, "z".repeat(8000))), 10);
+    expect(big.ok === false && big.status === 413 && /128 KB/.test(big.reason)).toBe(true);
     // bytes, not characters: Devanagari is three bytes a letter
     expect(notebookBytes([text("t", "क".repeat(100))])).toBeGreaterThan(300);
     expect(MAX_NOTEBOOK_BODY).toBeGreaterThan(NOTEBOOK_LIMITS.pageBytes);

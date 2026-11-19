@@ -5,6 +5,8 @@
 declare module "node:fs" {
   export function readdirSync(path: string): string[];
   export function readFileSync(path: string, encoding: "utf8"): string;
+  /** bytes (a font for the notes PDF test) */
+  export function readFileSync(path: string | URL): Uint8Array;
   export function writeFileSync(path: string, data: string): void;
 }
 declare module "node:path" {

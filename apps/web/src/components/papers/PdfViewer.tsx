@@ -74,6 +74,8 @@ export type DeskSlots = {
   quoteDrag?: boolean;
   /** Told whenever the drawing tools open or close. */
   onDraw: (open: boolean) => void;
+  /** The Capture tool in hand (phase 2.5): what goes over page n to take a frame of it, drawn by the reader's chunk. */
+  capture?: (page: number) => ReactNode;
 };
 export type DeskPopup = {
   page: number;
@@ -165,6 +167,8 @@ type PageProps = {
   draw?: DrawProps;
   /** The citations found on this page (drawn over their words; each a button that opens its card). */
   cites: PageCite[];
+  /** Over everything on the page (the new reader's Capture). */
+  overlay?: ReactNode;
 };
 
 /** What a page needs to show and take drawing. */
@@ -207,7 +211,7 @@ function noteIcons(marks: PageMark[], notesById: Map<string, DocNote>, focusId: 
   return out;
 }
 
-function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, focusId, onOpenNote, draw, cites }: PageProps) {
+function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, focusId, onOpenNote, draw, cites, overlay }: PageProps) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const text = useRef<HTMLDivElement>(null);
@@ -321,6 +325,7 @@ function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, 
         </div>
       )}
       {!painted && <span className="pdfp-skel" aria-hidden="true" />}
+      {overlay}
     </div>
   );
 }
@@ -1186,7 +1191,7 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
         >
           <div ref={pagesEl} className="pdfv-pages">
             {pages.map((n) => (
-              <PdfPage key={n} pdf={pdf} n={n} scale={scale} size={sizes[n] ?? first} root={scroller} onSize={onSize} onText={onText} marks={marks[n] ?? NO_MARKS} notesById={notesById} focusId={focusNoteId} onOpenNote={onOpenNote} draw={draw} cites={cites[n] ?? NO_CITES} />
+              <PdfPage key={n} pdf={pdf} n={n} scale={scale} size={sizes[n] ?? first} root={scroller} onSize={onSize} onText={onText} marks={marks[n] ?? NO_MARKS} notesById={notesById} focusId={focusNoteId} onOpenNote={onOpenNote} draw={draw} cites={cites[n] ?? NO_CITES} overlay={desk?.capture?.(n)} />
             ))}
           </div>
         </div>

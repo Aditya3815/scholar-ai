@@ -1,7 +1,8 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Maximize2, Minimize2, NotebookPen, X } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
-import { NOTE_COLORS, planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type NoteColor, type PaperInfo, type ScanInfo } from "@scholar/shared";
+import { NOTE_COLORS, planNewHighlight, type Answer, type Citation, type DocNote, type DocumentInfo, type NoteColor, type NotebookBlock, type PaperInfo, type ScanInfo } from "@scholar/shared";
+import { downloadBlob } from "../../../lib/download";
 import { fileUrl } from "../../../lib/documents";
 import { registerCommands } from "../../../lib/commands";
 import { copyText } from "../../../lib/copy";
@@ -30,6 +31,8 @@ import { ReferencesPanel } from "../ReferencesPanel";
 import { ScanBanner } from "../ScanBanner";
 import type { AgentsDrawerProps } from "./AgentsDrawer";
 import { AgentsFab, DownloadMenu, HighlightsExport, MeaningPicker, SIDE_KEY, SplitDivider, Toasts, ToolSegment, ViewSwitch, clampSide } from "./DeskBits";
+import { drawCapture } from "../../../lib/capture";
+import { CaptureLayer } from "./CaptureLayer";
 import { SelectionPopup, type PopupActions } from "./SelectionPopup";
 import "./desk.css";
 // the Notes tab's styles: the panel opens on it, so they come with the reader and the notes are never drawn unstyled while the notebook chunk arrives
@@ -178,7 +181,7 @@ export function Desk(props: DeskProps) {
   }, []);
 
   /* ---- the tool in hand ---- */
-  const [mode, setMode] = useState<"select" | "highlight">("select");
+  const [mode, setMode] = useState<"select" | "highlight" | "capture">("select");
   const [meaning, setMeaningState] = useState<NoteColor>(() => {
     const v = readStore(MEANING_KEY);
     return (NOTE_COLORS as readonly string[]).includes(v ?? "") ? (v as NoteColor) : "yellow";
@@ -198,6 +201,7 @@ export function Desk(props: DeskProps) {
       if (drawOpen) drawApi.current?.close();
       setMode(t);
       if (t === "highlight") announce(`Highlight: what you select is highlighted as ${MEANINGS[meaning].name}`);
+      else if (t === "capture") announce("Capture: drag a frame over a part of a page, or press Enter on a page to place one");
       else announce("Select: a selection shows what can be done with it");
     },
     [drawOpen, meaning, viewer],
@@ -382,6 +386,61 @@ export function Desk(props: DeskProps) {
     },
     [ensureNotebook, notes.error, wide, shown, tab, openInNotes],
   );
+  /* ---- Capture (phase 2.5, 21.1, 6): from the paper's tool, or the notes' toolbar (Notes view on a wide screen goes to Split; a phone goes to Paper and comes back after) ---- */
+  const captureBack = useRef(false);
+  const startCapture = useCallback(() => {
+    if (!wide) {
+      captureBack.current = shown !== "paper";
+      setView("paper");
+    } else if (shown === "notes") setView("split");
+    pickTool("capture");
+  }, [wide, shown, setView, pickTool]);
+  const onCaptured = useCallback(
+    async (r: { page: number; x: number; y: number; w: number; h: number }) => {
+      setMode("select");
+      const back = captureBack.current;
+      captureBack.current = false;
+      const store = await ensureNotebook().catch(() => null);
+      if (!store) return void showNotice("Your notes could not be opened. Check the connection, then try again.");
+      const at = store.addCapture(r);
+      if (!at) return;
+      announce(`A part of page ${r.page} is in ${at.title}`);
+      toast(`Capture from p. ${r.page} added to "${at.title}"`, { label: "Undo", run: () => (at.undo(), announce("Taken out of your notes")) }, !wide && !back ? { label: "Open", run: () => openInNotes(store, at) } : undefined);
+      if (back || (wide && tab === "notes")) openInNotes(store, at);
+    },
+    [ensureNotebook, wide, tab, openInNotes],
+  );
+  const paintCapture = useCallback(
+    async (canvas: HTMLCanvasElement, b: { page: number; x: number; y: number; w: number; h: number }, cssWidth: number) => {
+      if (pdf.status !== "ready") throw new Error("the paper is not open");
+      return drawCapture(pdf.pdf, canvas, b.page, b, cssWidth);
+    },
+    [pdf],
+  );
+  /** Export ▾ in the notes (21.1, 4): a PDF or a Word file of this page or all pages, made by a lazy chunk (lib/notes-export.ts) that draws the captures from the open paper. */
+  const exportNotes = useCallback(
+    async (fmt: "pdf" | "docx", pages: { title: string; blocks: NotebookBlock[] }[], docTitle: string, names: Record<NoteColor, string>, all: boolean) => {
+      announce(fmt === "pdf" ? "Making the PDF…" : "Making the Word file…");
+      const out = await import("../../../lib/notes-export");
+      const args = { docTitle, pages, names, pdf: pdf.status === "ready" ? pdf.pdf : null, imageUrl: (id: string) => `/api/v1/documents/${doc.id}/notebook/images/${id}` };
+      const name = out.notesFileName(docTitle, all ? null : (pages[0]?.title ?? ""), fmt);
+      if (fmt === "pdf") downloadBlob(name, new Blob([(await out.notesPdf(args)) as BlobPart], { type: "application/pdf" }));
+      else downloadBlob(name, await out.notesDocx(args));
+      toast(fmt === "pdf" ? "The PDF is downloaded" : "The Word file is downloaded");
+    },
+    [pdf, doc.id],
+  );
+  /** Pictures in the notes (the owner's yes of 18 Nov): kept under the paper, served only to its owner; the server reads the kind from the bytes and refuses what is not one. */
+  const noteImageUrl = useCallback((blockId: string) => `/api/v1/documents/${doc.id}/notebook/images/${blockId}`, [doc.id]);
+  const uploadNoteImage = useCallback(
+    async (blockId: string, blob: Blob) => {
+      const res = await fetch(noteImageUrl(blockId), { method: "PUT", body: blob, credentials: "same-origin", headers: { "Content-Type": blob.type } });
+      const body = (await res.json().catch(() => null)) as { w?: number; h?: number; type?: string; title?: string; detail?: string } | null;
+      if (!res.ok || !body?.w || !body.h || !body.type) throw new Error(body?.detail ? `${body.title ?? "The picture was not kept"}: ${body.detail}.` : (body?.title ?? "The picture could not be sent. Check the connection, then try again."));
+      return { w: body.w, h: body.h, type: body.type };
+    },
+    [noteImageUrl],
+  );
   const showInNotes = useCallback(
     (noteId: string) => {
       void ensureNotebook().then((store) => openInNotes(store, store.findQuote(noteId)));
@@ -527,8 +586,9 @@ export function Desk(props: DeskProps) {
       popup: (p) => <SelectionPopup key={p.note?.id ?? "sel"} p={p} wide={wide} actions={actions} onRect={setPopRect} />,
       onDraw: setDrawOpen,
       quoteDrag: true,
+      capture: mode === "capture" ? (n) => <CaptureLayer page={n} onCapture={(r) => void onCaptured(r)} onCancel={() => pickTool("select")} /> : undefined,
     }),
-    [mode, meaning, setMeaning, pickTool, pdfReady, pdf, doc.id, doc.title, notes.notes, ink.strokes, wide, actions],
+    [mode, meaning, setMeaning, pickTool, pdfReady, pdf, doc.id, doc.title, notes.notes, ink.strokes, wide, actions, onCaptured],
   );
 
   const meta = info?.metadata;
@@ -651,7 +711,7 @@ export function Desk(props: DeskProps) {
           <div className="dw-side desk-tabpanel" id="desk-tabpanel-notes" role="tabpanel" aria-labelledby="desk-tab-notes" hidden={tab !== "notes"}>
             {nb ? (
               <Suspense fallback={<p className="nb-wait" role="status">Loading your notes…</p>}>
-                <NotebookView store={nb} docTitle={doc.title} notes={existing} notesReady={notes.status === "ready"} wide={wide} onGoTo={goTo} onDropQuote={onDropQuote} announce={announce} focus={nbFocus} meanings={MEANINGS} copy={copyText} />
+                <NotebookView store={nb} docTitle={doc.title} notes={existing} notesReady={notes.status === "ready"} wide={wide} onGoTo={goTo} onDropQuote={onDropQuote} announce={announce} focus={nbFocus} meanings={MEANINGS} copy={copyText} onCapture={startCapture} paintCapture={paintCapture} exportFile={exportNotes} imageUrl={noteImageUrl} uploadImage={uploadNoteImage} />
               </Suspense>
             ) : (
               <p className="nb-wait" role="status">Loading your notes…</p>

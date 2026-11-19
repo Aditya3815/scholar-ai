@@ -481,7 +481,7 @@ const FLAG_SENTENCES: readonly (FlagSentence & { flag: SwitchName })[] = [
   {
     flag: "READER",
     at: ["off", "dark", "on"],
-    sentence: "including pages of notes you write in the reader, with the passages you quote into them",
+    sentence: "including pages of notes you write in the reader, with the passages you quote into them and pictures you add to your note pages",
   },
 ];
 /** Flags that are on in the committed config and need no sentence on the page, each with the reason (nothing new is sent, kept or shown that the page does not already say). Empty until a release has one. */

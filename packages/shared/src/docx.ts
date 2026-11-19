@@ -27,7 +27,12 @@ export type Block =
   | { k: "bullet"; runs: DocRun[] }
   /** A numbered paragraph of a list that keeps its own numbers (the references): the number is written, so it matches the marks in the text. */
   | { k: "ref"; no: number; runs: DocRun[]; bookmark?: string }
-  | { k: "table"; widths: number[]; head: string[]; rows: DocRun[][][] };
+  | { k: "table"; widths: number[]; head: string[]; rows: DocRun[][][] }
+  /**
+   * A picture on a line of its own (the Notebook's captures and sketches): `media` is its file's name in the zip's word/media folder ("image1.png"), which the caller adds, as this module
+   * makes text only; `w` and `h` its size in CSS pixels (made smaller to fit the page's width), `alt` what it shows.
+   */
+  | { k: "image"; media: string; w: number; h: number; alt: string };
 
 export type DocxDoc = {
   title: string;
@@ -82,7 +87,7 @@ const COMPLEX_FONT = "Nirmala UI"; // Hindi and other Indian scripts in Word
 
 /* ---------------------------------------------------------------- runs */
 
-type Ctx = { links: string[]; bookmarkId: number };
+type Ctx = { links: string[]; bookmarkId: number; images: string[] };
 
 function runXml(r: DocRun, ctx: Ctx): string {
   const text = xmlSafe(r.t);
@@ -153,12 +158,39 @@ function blockXml(b: Block, ctx: Ctx): string {
       return para("Reference", withBookmark(`${runXml({ t: `${b.no}.`, b: true }, ctx)}<w:r><w:tab/></w:r>${runsXml(b.runs, ctx)}`, b.bookmark, ctx));
     case "table":
       return tableXml(b, ctx);
+    case "image":
+      return imageXml(b, ctx);
   }
+}
+
+/** The page's text width, in EMU (A4 less its margins: 9638 twentieths of a point); a CSS pixel is 9525 EMU. */
+const TEXT_WIDTH_EMU = Math.round((9638 / 1440) * 914400);
+const MEDIA = /^[A-Za-z0-9_-]{1,40}\.png$/;
+
+function imageXml(b: Extract<Block, { k: "image" }>, ctx: Ctx): string {
+  if (!MEDIA.test(b.media) || !(b.w > 0) || !(b.h > 0)) return "";
+  let i = ctx.images.indexOf(b.media);
+  if (i < 0) i = ctx.images.push(b.media) - 1;
+  const scale = Math.min(1, TEXT_WIDTH_EMU / (b.w * 9525));
+  const cx = Math.round(b.w * 9525 * scale);
+  const cy = Math.round(b.h * 9525 * scale);
+  const id = 1000 + ctx.bookmarkId++;
+  const alt = xmlEscape(b.alt);
+  return (
+    '<w:p><w:pPr><w:keepNext/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">' +
+    `<wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="Picture ${id}" descr="${alt}"/>` +
+    '<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>' +
+    '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+    `<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" name="${b.media}" descr="${alt}"/><pic:cNvPicPr/></pic:nvPicPr>` +
+    `<pic:blipFill><a:blip r:embed="rIdI${i + 1}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>` +
+    "</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"
+  );
 }
 
 /* ---------------------------------------------------------------- parts */
 
-const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
 const XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 
 function stylesXml(lang: string): string {
@@ -192,7 +224,7 @@ const isoDate = (d: Date) => (Number.isNaN(d.getTime()) ? new Date(0) : d).toISO
 
 /** The parts of the file, by path in the zip. */
 export function buildDocx(doc: DocxDoc): DocxParts {
-  const ctx: Ctx = { links: [], bookmarkId: 1 };
+  const ctx: Ctx = { links: [], bookmarkId: 1, images: [] };
   const lang = doc.lang && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(doc.lang) ? doc.lang : "en-IN";
   const body = doc.blocks.map((b) => blockXml(b, ctx)).join("");
   const documentXml =
@@ -202,7 +234,7 @@ export function buildDocx(doc: DocxDoc): DocxParts {
     `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${xmlEscape(target)}"${external ? ' TargetMode="External"' : ""}/>`;
   return {
     "[Content_Types].xml":
-      `${XML}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>` +
+      `${XML}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/>` +
       '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
       '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
       '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' +
@@ -220,6 +252,7 @@ export function buildDocx(doc: DocxDoc): DocxParts {
       rel("rIdS", "styles", "styles.xml") +
       rel("rIdN", "numbering", "numbering.xml") +
       ctx.links.map((u, i) => rel(`rIdL${i + 1}`, "hyperlink", u, true)).join("") +
+      ctx.images.map((m, i) => rel(`rIdI${i + 1}`, "image", `media/${m}`)).join("") +
       "</Relationships>",
     "word/styles.xml": stylesXml(lang),
     "word/numbering.xml": NUMBERING,

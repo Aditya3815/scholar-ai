@@ -711,3 +711,162 @@ Phase 2 ("Notebook") is built on the branch `reader-p2`, on top of phase 1 (`rea
 **Weight.** The `notebook` chunk is 13.6 KB gzip of its 16 KB: the Markdown parser, the editor, the store and its merge. Its stylesheet (`notebook.css`, about 2.7 KB) comes with the reader's own chunk (Desk, 16.6 of 28 KB), because the Notes tab is the panel's first tab: the page is styled before the notebook chunk arrives, and nothing is added to the first load. (Putting the Markdown export behind a dynamic import was tried and made the chunk 0.9 KB larger, the loader and the module's wrapping costing more than the 0.3 KB it moved.) The first load grew by 0.09 KB gzip (233.07 to 233.16 KB), all of it the sign-out question about notes not yet sent (`lib/auth.ts`, `lib/offline.ts`), which has to be in the first load because signing out is. There is no new dependency, and the layer allowlists did not grow.
 
 **Privacy.** The words of 19.7 are on `reader-privacy`, one commit on top of this branch. `legal-match.test.ts` refuses a flag's sentence on the page while the flag is off, but 19.7 puts the words on the page before READER leaves `off`. So the READER row of `FLAG_SENTENCES` is pinned at `off`, `dark` and `on`: the page must say it at every position. That is the safe way round, since the page may say more is kept than is, never less. The row can drop `off` once READER is `on` in production.
+
+## 21. Phase 2.5: the owner's live test (18 Nov 2026)
+
+On 18 Nov the owner tested phases 1 and 2 live (READER `dark`, their account only) and asked for the changes below. They asked us to follow the mock's Notes design (`Paper Reader.dc.html`, and the screenshot they attached) closely, in our own colours and tokens, and they put user experience first. This section is the plan, and it overrides sections 7 and 19 where they differ.
+
+### 21.1 What changes
+
+| # | The owner said | Design |
+|---|---|---|
+| 1 | "dono side khali" (the Notes view wastes both sides) | In the **Notes view** on a wide screen, the page fills the panel: 32 px side padding, no reading-width cap. Text lines run the full width; long words wrap (`overflow-wrap: anywhere`). In Split, and on a phone, the page fills the panel as now. |
+| 2 | Pages as in the mock | **Page tabs** sit in a row under the panel tabs, replacing the "Title 1/2 ▾" picker. Each tab shows its paper icon (plain, ruled, dotted or graph) and its title ("Untitled page" when empty). The active tab is raised. The row scrolls sideways with an edge fade. It is `role="tablist"`: ← and → move, Enter opens. **"+ Page"** at the end of the row opens a **"Choose paper for the new page"** panel with four visual cards (Plain, Ruled, Dotted, Graph), each drawn in our tokens. Choosing one creates the page with that paper and focuses its title. Esc and × close the panel. |
+| 3 | Delete icon on the page | The page header row holds the title field ("Untitled page" placeholder), a **trash button** ("Delete this page", with a toast and Undo), the quiet "Saved" status and **Export ▾**. The ⋯ menu keeps only Move left, Move right and Rename. |
+| 4 | Download as PDF and Word | **Export ▾** offers: this page or all pages, then **PDF**, **Word (.docx)** or **Markdown**. PDF reuses the lazy `@cantoo/pdf-lib` chunk, with Noto Sans Devanagari embedded only when the text has Devanagari (subset, lazy). Word reuses the litscan DOCX writer (lazy). Captures and sketches go in as PNG images. Each is a lazy chunk with a budget line. |
+| 5 | Draw in notes | A **Sketch block**: a drawing area inside the page, 240 px high by default and resizable by dragging its bottom edge or with Alt+↑/↓. It uses the reader's ink engine (perfect-freehand): pen, highlighter, eraser and the colours and sizes of the Draw toolbar, plus undo. Strokes are stored in the block as fractions of its box. The toolbar button is **Draw**. |
+| 6 | Capture, as in the mock | **Capture** is in both toolbars: the paper's tool segment (C) and the Notes toolbar. On a wide screen in Notes view it switches to Split first; on a phone it switches to Paper and comes back to Notes after the capture. Drag a rectangle on the page; release to add a **capture block**. It is stored as `{page, x, y, w, h}` (fractions) and drawn from the open PDF at the device's pixel ratio, so no picture is stored or uploaded (section 6). The block shows the image, a **caption** field ("Add a caption…"), "p. N ↗", and a size toggle (S, M, Full). Keyboard: Enter on a page starts a frame; the arrows move it, Shift+arrows resize it, Enter captures. |
+| 7 | Scrollbar | The dark, thick native scrollbar is replaced by **thin scrollbars in our tokens** in every scroll area of the reader (`scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent`, and `::-webkit-scrollbar` 8 px with a rounded `--border-strong` thumb), in Light, Dark and Read. No area has two scrollbars. |
+| 8 | Chips touch the line and the edge | The Highlights chip row gets `padding-block: 10px` and `padding-inline: 12px`, so it no longer touches the divider above or the panel edge. The edge fade starts after the padding, so the first chip is never faded. The row's height comes from its content. |
+| 9 | Image (in the mock) | **Not built yet.** An uploaded picture would be a new kind of stored data and needs a privacy sentence that the owner reads first ("pictures you add to your note pages"). Asked; built only after a yes. |
+
+Kept from phase 2:
+- Blocks are a column, not placed freely.
+- Markdown storage.
+- The hover/focus reveal of block controls.
+- The two-row toolbar on narrow panels. With Text, Quote, Capture and Draw the groups are: H B I U Mark | lists | Text Quote Capture Draw | paper swatches. Groups wrap and never split.
+
+### 21.2 Data
+
+`packages/shared/src/notebook.ts` makes `capture` live and adds `sketch`:
+- `capture {id, page, x, y, w, h, caption ≤ 500, size: "s"|"m"|"full"}`
+- `sketch {id, height 120..800, strokes ≤ 400, points ≤ 20,000 per block}`
+
+Each stroke is the ink shape the reader already uses. The server checks every number.
+
+The size limits change:
+- **Per page:** 48 KB → 128 KB of JSON. One sketch can be tens of KB.
+- **Per paper:** 1 MB → 2 MB.
+
+D1 rows stay far below its limits. The migration is unchanged: no schema change, because blocks are JSON.
+
+### 21.3 Privacy
+
+Covered by the words already live (draft-18), with no change:
+- **Captures:** a place on the page, not a picture.
+- **Sketches:** strokes, the same kind of data as the "drawings (pen and highlighter strokes)" row.
+
+Needs new words, so it waits for the owner:
+- **Image upload.**
+
+### 21.4 Tests
+
+**Unit tests:**
+- block checks for `capture` and `sketch`, with limits;
+- the capture rectangle maths (rotated and cropped pages, as in `annotated.mjs`);
+- the sketch stroke scaling;
+- the PDF and DOCX builders, checked structurally (page count, images present, Devanagari text extractable).
+
+**`e2e/notebook.mjs`:**
+- page tabs (keyboard and scroll);
+- the paper picker;
+- delete with Undo;
+- Notes view full width at 1440 px (the page box within 40 px of the panel);
+- Capture by pointer and by keyboard, from Notes view and on a phone;
+- a sketch drawn, then reloaded;
+- Export PDF, DOCX and Markdown files downloaded and opened;
+- thin scrollbars (computed `scrollbar-width`);
+- the chip row's padding;
+- axe in the three themes;
+- no sideways scroll.
+
+**Pictures `p25-*`, for the owner:**
+- desktop Notes view;
+- page tabs and the picker;
+- a capture block;
+- a sketch block;
+- the Export menu;
+- phone;
+- the three themes.
+
+### 21.5 Order
+
+1. Scrollbars and chip spacing (small, visible at once).
+2. Notes view full width; page tabs and the paper picker; header with delete and Export.
+3. Capture (paper side, then the block).
+4. Sketch block.
+5. PDF and DOCX export.
+6. Suites, pictures, and section 22 "as built".
+
+It ships behind READER, which stays `dark` (owner only), as phases 1 and 2 do.
+
+## 22. Phase 2.5 as built (18 Nov 2026)
+
+Built on the branch `reader-p25`, from main 531121b, in the order of 21.5, behind READER (still `dark`, the owner only). Where the build differs from section 21, or adds to it:
+
+**Scrollbars and chips (21.1, 7 and 8).** Every scroll area of the desk and the Agents drawer takes `scrollbar-width: thin` with an `--border-strong` thumb on a clear track (8 px `::-webkit-scrollbar` rules for browsers that need them). The chip row has 10 px above and below and 12 px at its sides; its fade starts after the padding.
+
+**Pages (21.1, 1 to 3).**
+- In the Notes view on a wide screen the page fills the panel, 32 px at its sides (the Highlights and References keep their reading width).
+- The page tabs are a `tablist` named Pages: ← → Home End move the focus, Enter or a click opens. Each tab shows a small swatch of its paper. The row scrolls with an edge fade and keeps the open tab in sight.
+- "+ Page" opens "Choose paper for the new page": four cards (Plain, Ruled, Dotted, Graph) drawn in our tokens; Esc and × close it.
+- The header: the title, the trash ("Delete this page", toast with Undo), the save line, Export ▾, and ⋯ (Move left, Move right, Rename).
+- The paper of the open page is chosen in the toolbar, whose groups are H B I U Mark | the lists | Text Quote Capture Draw | the four papers. On a phone that is up to four rows; a group never splits. **Text** adds a text block after the one being written in.
+- "Grid" is called **Graph** on screen, as in the mock; the stored value stays `grid`.
+
+**Capture (21.1, 6).**
+- C, or Capture in either toolbar. Notes view → Split first; a phone → Paper, then back to Notes after the capture (a toast with Open when it started on Paper).
+- The layer over each page (`CaptureLayer`) is handed to the viewer as a slot, so the viewer's chunk does not carry it. Keyboard: Enter places a frame (the middle half of the page), the arrows move it, Shift and the arrows resize it, Enter captures, Esc lets it go, a second Esc puts the tool down.
+- While the tool is in hand the page cannot be scrolled by touch (the layer takes the drag); the page arrows and the page number still move through the paper. **Owner to decide** whether a long press should start a frame instead, leaving the page to scroll.
+- A capture block is drawn from the open paper (`lib/capture.ts`, the page's viewport with its rotation and crop box) at the screen's pixels, again when its width changes by more than 24 px. Where the paper is not open it says so instead of a picture.
+- New blocks (a capture, a sketch, Add to notes) go in through one store method, `insertBlock`, with Undo.
+
+**Sketch (21.1, 5).**
+- `NbSketch.tsx` is a small lazy chunk (2.2 KB), fetched only when a page holds a sketch. It has pen, highlighter and eraser, the reader's pen and highlighter colours, three sizes, and Undo (the button, or Ctrl+Z inside it). It draws on the same white paper as the pages, dimmed as they are.
+- Strokes are kept as **fractions of the sketch's width on both axes** (the paper's ink convention), so a drawing keeps its shape at any width. Fractions of width and height (as 21.2 says) would stretch it 3× sideways between Split and the Notes view. A sketch shown wider than it was drawn grows taller instead of being cut off.
+- The height is set by dragging the bottom edge, or with Alt+↑ and Alt+↓ on it (40 px a step).
+- The ink outlines moved to `lib/ink-path.ts`, shared by the paper's drawing, the annotated PDF and the sketches. That took `annotated-pdf → InkLayer` off the layer rule's allowlist. It also seems to have moved `InkLayer` back into the PDF reader chunk, which grew 55.7 → 59.9 KB of its 66.
+
+**Export (21.1, 4).** Export ▾: This page | All pages, then PDF, Word (.docx), Markdown, and Copy as Markdown.
+- `lib/notes-export.ts` is a lazy chunk (3.0 KB) that lays the pages out in the browser.
+- **PDF:**
+  - Uses the lazy pdf-lib chunk already in the app.
+  - Helvetica for Latin. Devanagari is in Noto Sans Devanagari, the WOFF the app already ships, embedded as a subset with its text map, and only when the text has Devanagari.
+  - That needs **fontkit, a new dependency: `@cantoo/fontkit` 2.0.12** (MIT, the font library made for `@cantoo/pdf-lib`). It is 151 KB gzip, fetched only for such a PDF, with a budget line.
+  - pdf-lib places glyphs by their advance only. Substitutions (conjuncts) come out right, but a vowel sign may sit a little off where the font would shift it. **Owner to judge** the Hindi output.
+  - A letter Helvetica cannot draw (outside Western European and Devanagari) is written as "?".
+- **Word:** the shared writer gains a picture block (an inline drawing pointing at its PNG in word/media, sized to the page width).
+- Captures (drawn from the open paper) and sketches go in as PNG pictures, 900 px wide.
+
+**Data (21.2).** As planned: `capture {page, x, y, w, h, caption ≤ 500, size}` and `sketch {height 120..800, strokes ≤ 400, points ≤ 20,000}`. A sketch point's y may pass 1 (the sketch is taller than wide), up to 800/120. Limits: 128 KB a page, 2 MB a paper.
+
+**Weight.**
+
+| Chunk | Size (gzip) | Note |
+|---|---|---|
+| First load | 233.3 of 250 KB | unchanged |
+| Desk | 19.3 of 28 KB | |
+| Notebook | 14.8 of 16 KB | the sketch is a chunk of its own |
+| Sketch | 2.2 of 4 KB | new line |
+| Notes export | 3.0 of 5 KB | new line |
+| fontkit | 151 of 160 KB | new line |
+| PDF reader | 59.9 of 66 KB | |
+
+**Not built (21.1, 9).** Image upload, which waits for the owner's yes and its privacy words.
+
+### 22.1 The owner's answers (18 Nov) and what was built for them
+
+- **fontkit**: yes, as built (lazy, only for Devanagari).
+- **Capture on a phone**: a **long press** starts a frame (450 ms, the finger held within 10 px); until then the page scrolls as ever. Once a frame has started, the page's touch moves are stopped so the finger draws it. The keyboard way is unchanged.
+- **Pictures in the notes** (`image` blocks):
+  - **In the browser:** Image in the toolbar takes a JPEG, PNG or WebP. The picture is turned upright, made at most 2000 px a side and re-encoded, which removes its camera data (EXIF). A PNG stays a PNG within 2 MB; anything else becomes a JPEG, made smaller until it fits.
+  - **On the server:** the file goes to `PUT /documents/:id/notebook/images/:blockId`, guarded like the paper's own file. The server reads the kind from the first bytes, and checks 2 MB, 2000 px a side, no EXIF and 200 pictures a paper. It keeps the file in R2 at `docs/<user>/<paper>/notebook/<block>` and serves it only to the owner (`nosniff`, a sandboxing CSP).
+  - **Deleting:** a file no block holds (taken out of a page, a page deleted, an upload never saved) is noted in `doc_notebook_image_gone` (migration 0029). It is deleted ten minutes later, on the next write in that paper, so Undo can bring it back. The paper's deletion, and so the account's, deletes them all at once.
+  - **Data export:** lists each picture (paper, block, kind, size, address).
+  - **PDF and Word exports:** put the picture in.
+  - **Privacy:** the words are on the "Papers you upload" row ("…and pictures you add to your note pages"), at draft-19, with a "Latest change" line.
+- **"+" (Add a page)**: an icon right after the last tab, as a browser's new tab button. It is the tab's height (44 px on touch), and stays in sight at the end of a row that scrolls.
+- **Toolbar**:
+  - **One basic row:** B, I, Mark, bullet list | Quote, Capture, Draw, Image | **More** (Aa, `aria-expanded`). On a narrow panel the words beside the icons go and the row scrolls sideways with a fade; it never wraps.
+  - **Behind More**, on a second row: H, U, numbered list, Text and the four papers.
+  - The paper is also in the page's ⋯ menu again.

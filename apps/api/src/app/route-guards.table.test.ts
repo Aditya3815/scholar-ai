@@ -59,7 +59,9 @@ function fakeFiles() {
     get: async (k: string) => (files.has(k) ? { body: new Blob([files.get(k)!]).stream(), size: files.get(k)!.byteLength } : null),
     head: async (k: string) => (files.has(k) ? { size: files.get(k)!.byteLength } : null),
     put: async (k: string, v: unknown) => void files.set(k, typeof v === "string" ? new TextEncoder().encode(v) : new Uint8Array(v as ArrayBuffer)),
-    delete: async (k: string) => void files.delete(k),
+    delete: async (k: string | string[]) => void (Array.isArray(k) ? k : [k]).forEach((x) => files.delete(x)),
+    // a paper's deletion lists the pictures of its notes (phase 2.5)
+    list: async (o: { prefix?: string }) => ({ objects: [...files.keys()].filter((k) => k.startsWith(o.prefix ?? "")).map((key) => ({ key, size: files.get(key)!.byteLength })), truncated: false }),
   };
 }
 

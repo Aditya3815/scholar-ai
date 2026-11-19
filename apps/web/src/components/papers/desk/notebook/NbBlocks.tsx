@@ -1,6 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
-import { NOTEBOOK_LIMITS, parseNotebookMd, type MdInline, type QuoteBlock, type TextBlock } from "@scholar/shared";
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { CAPTURE_SIZES, NOTEBOOK_LIMITS, parseNotebookMd, type CaptureBlock, type CaptureSize, type ImageBlock, type MdInline, type QuoteBlock, type TextBlock } from "@scholar/shared";
 import { useGrowingField } from "../../../../lib/autogrow";
 import type { Meaning } from "../../../../lib/meanings";
 
@@ -160,6 +160,88 @@ export function QuoteBlockView({ b, mean, removed, onGo }: { b: QuoteBlock; mean
         <button type="button" className="nb-go" onClick={onGo} aria-label={`Show page ${b.page} in the paper`} title="Show this passage in the paper">
           p. {b.page} <ArrowUpRight size={13} aria-hidden="true" />
         </button>
+      </figcaption>
+    </figure>
+  );
+}
+
+const CAPTURE_SIZE_NAME: Record<CaptureSize, string> = { s: "S", m: "M", full: "Full" };
+const CAPTURE_SIZE_LABEL: Record<CaptureSize, string> = { s: "Small", m: "Medium", full: "Full width" };
+
+/**
+ * A capture (docs/design/paper-reader.md, 21.1, 6): the part of the page, drawn from the open paper at this screen's pixels (`paint`, from the reader: no picture is stored), its caption,
+ * its size in the notes (S, M, Full), and "p. N" back to the paper.
+ */
+export function CaptureBlockView({ b, paint, onGo, onCaption, onSize }: { b: CaptureBlock; paint?: (canvas: HTMLCanvasElement, b: CaptureBlock, cssWidth: number) => Promise<number>; onGo: () => void; onCaption: (s: string) => void; onSize: (s: CaptureSize) => void }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const wrap = useRef<HTMLDivElement>(null);
+  const [state, setState] = useState<"drawing" | "ok" | "error">("drawing");
+  useEffect(() => {
+    const el = canvas.current;
+    const w = wrap.current;
+    if (!el || !w || !paint) return void setState("error");
+    let gone = false;
+    let drawn = 0;
+    let timer = 0;
+    const draw = () => {
+      const width = Math.round(w.clientWidth);
+      // drawn again only when the width changed enough to show (a capture is a picture of the page, sharp at the size it is drawn)
+      if (!width || Math.abs(width - drawn) < 24) return;
+      drawn = width;
+      paint(el, b, width).then(
+        () => !gone && setState("ok"),
+        () => !gone && setState("error"),
+      );
+    };
+    draw();
+    const ro = new ResizeObserver(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(draw, 150);
+    });
+    ro.observe(w);
+    return () => {
+      gone = true;
+      window.clearTimeout(timer);
+      ro.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [b.page, b.x, b.y, b.w, b.h, b.size, paint]);
+  const what = b.caption ? `A part of page ${b.page}: ${b.caption}` : `A part of page ${b.page}`;
+  return (
+    <figure className="nb-capture" data-size={b.size} data-state={state} aria-label={what}>
+      <div ref={wrap} className="nb-capture-img">
+        <canvas ref={canvas} role="img" aria-label={what} />
+        {state === "error" && <p className="nb-capture-wait">This part of page {b.page} is drawn from the paper, which is not open here.</p>}
+      </div>
+      <figcaption>
+        <input className="nb-caption" aria-label={`Caption of the capture from page ${b.page}`} placeholder="Add a caption…" maxLength={NOTEBOOK_LIMITS.caption} value={b.caption} onChange={(e) => onCaption(e.target.value)} />
+        <span className="nb-sizes" role="radiogroup" aria-label="Size in the notes">
+          {CAPTURE_SIZES.map((s) => (
+            <button key={s} type="button" role="radio" aria-checked={b.size === s} aria-label={CAPTURE_SIZE_LABEL[s]} title={CAPTURE_SIZE_LABEL[s]} className="nb-size" onClick={() => onSize(s)}>
+              {CAPTURE_SIZE_NAME[s]}
+            </button>
+          ))}
+        </span>
+        <button type="button" className="nb-go" onClick={onGo} aria-label={`Show page ${b.page} in the paper`} title="Show this page in the paper">
+          p. {b.page} <ArrowUpRight size={13} aria-hidden="true" />
+        </button>
+      </figcaption>
+    </figure>
+  );
+}
+
+/** A picture added to the notes (paper-reader.md 22): the picture, served to its owner only, and the words that say what it shows (for a screen reader, and for the exports). */
+export function ImageBlockView({ b, src, onAlt }: { b: ImageBlock; src: string; onAlt: (alt: string) => void }) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <figure className="nb-image" aria-label={b.alt ? `A picture: ${b.alt}` : "A picture"}>
+      {broken || !src ? (
+        <p className="nb-capture-wait">This picture could not be shown. Check the connection, then open the page again.</p>
+      ) : (
+        <img src={src} alt={b.alt || "A picture in your notes, not described yet"} width={b.w} height={b.h} loading="lazy" decoding="async" onError={() => setBroken(true)} />
+      )}
+      <figcaption>
+        <input className="nb-caption" aria-label="What the picture shows" placeholder="Describe the picture…" maxLength={300} value={b.alt} onChange={(e) => onAlt(e.target.value)} />
       </figcaption>
     </figure>
   );

@@ -310,6 +310,21 @@ describe("useNotebook's store", () => {
     expect(ids(open(s2).blocks)).toEqual(first);
   });
 
+  it("a picture's block takes the id its file was sent under, goes where it was asked, and Undo takes it out", async () => {
+    const w = world();
+    w.pages.set("p1", { id: "p1", title: "P", style: "plain", position: 1, blocks: [text("a", "A"), text("b", "B")], rev: 1, updatedAt: 1 });
+    const s = w.store();
+    await s.load();
+    const at = s.insertBlock({ kind: "image", w: 640, h: 480, type: "image/png", alt: "" }, { pageId: "p1", index: 1 }, "img123")!;
+    expect(at.blockId).toBe("img123");
+    expect(ids(open(s).blocks)).toEqual(["a", "img123", "b"]);
+    s.updateBlock("p1", "img123", "image", { alt: "A diagram" });
+    await w.tick(SAVE_AFTER_MS + 10);
+    expect(w.pages.get("p1")!.blocks[1]).toEqual({ id: "img123", kind: "image", w: 640, h: 480, type: "image/png", alt: "A diagram" });
+    at.undo();
+    expect(ids(open(s).blocks)).toEqual(["a", "b"]);
+  });
+
   it("a quote of a highlight that was removed loses its highlight id on the next save", async () => {
     const w = world();
     w.pages.set("p1", { id: "p1", title: "P", style: "plain", position: 1, blocks: [quote("q1", "gone"), quote("q2", "here"), text("t", "")], rev: 1, updatedAt: 1 });

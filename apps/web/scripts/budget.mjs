@@ -29,6 +29,12 @@ export const LIMITS = {
   "the Agents drawer chunk, script and style (gzip)": 20 * KB,
   // The Notebook (phase 2, 16 Nov 2026): the Notes tab, its store and merge, the Markdown parser and the editor, fetched when the panel is shown or Add to notes is pressed. The plan's 16 KB.
   "the Notebook chunk, script and style (gzip)": 16 * KB,
+  // Phase 2.5: a sketch in the notes (its pen, eraser and grip; the outlines are the ink-path chunk the paper shares), fetched when a page holds a sketch. 2.2 KB measured on 18 Nov 2026.
+  "the Notebook sketch chunk, script (gzip)": 4 * KB,
+  // Phase 2.5: Export as PDF or Word (the pages laid out, the captures and sketches as pictures); pdf-lib and fflate are chunks of their own already. 3.0 KB measured on 18 Nov 2026.
+  "the notes export chunk, script (gzip)": 5 * KB,
+  // fontkit, which lets the notes PDF embed Noto Sans Devanagari as a subset: fetched only when the exported text has Devanagari. 151 KB measured on 18 Nov 2026.
+  "the fontkit chunk, script (gzip)": 160 * KB,
   // The Rive pieces (docs/design/setu-rive.md, rive-ideas.md), fetched only when a picture is wanted: 57.6, 331 and 8.4 KB measured on 1 Nov 2026, plus about 10%. None of them may be in the first load.
   "the Rive runtime chunk, script (gzip)": 64 * KB,
   "the Rive runtime, wasm (gzip)": 365 * KB,
@@ -63,6 +69,9 @@ const READER_PAGE = "src/components/papers/DocWorkspace.tsx";
 const DESK = "src/components/papers/desk/Desk.tsx";
 const AGENTS = "src/components/papers/desk/AgentsDrawer.tsx";
 const NOTEBOOK = "src/components/papers/desk/notebook/Notebook.tsx";
+const NB_SKETCH = "src/components/papers/desk/notebook/NbSketch.tsx";
+const NOTES_EXPORT = "src/lib/notes-export.ts";
+const FONTKIT = "../../node_modules/@cantoo/fontkit/dist/browser-module.mjs";
 const RIVE_RUNTIME = "../../node_modules/@rive-app/canvas-lite/rive.js";
 const RIVE_WASM = "../../node_modules/@rive-app/canvas-lite/rive.wasm";
 const rivFiles = Object.entries(manifest).filter(([id]) => id.endsWith(".riv")).map(([, e]) => asset(e.file));
@@ -79,6 +88,9 @@ const measured = {
   "the new reader chunk (Desk), script and style (gzip)": sum(filesOf(DESK), gz),
   "the Agents drawer chunk, script and style (gzip)": sum(filesOf(AGENTS), gz),
   "the Notebook chunk, script and style (gzip)": sum(filesOf(NOTEBOOK), gz),
+  "the Notebook sketch chunk, script (gzip)": sum(filesOf(NB_SKETCH), gz),
+  "the notes export chunk, script (gzip)": sum(filesOf(NOTES_EXPORT), gz),
+  "the fontkit chunk, script (gzip)": sum(filesOf(FONTKIT), gz),
   "the Rive runtime chunk, script (gzip)": sum(filesOf(RIVE_RUNTIME), gz),
   "the Rive runtime, wasm (gzip)": sum(filesOf(RIVE_WASM), gz),
   "the Rive files of the pictures (gzip)": sum(rivFiles, gz),
@@ -110,6 +122,9 @@ const HEAVY = [
   DESK,
   AGENTS,
   NOTEBOOK,
+  NB_SKETCH,
+  NOTES_EXPORT,
+  FONTKIT,
   INTRO,
   RIVE_RUNTIME,
   "src/components/litscan/Setu.tsx",
