@@ -41,6 +41,8 @@ const NEED: Record<string, ShareRole> = {
   "PUT /api/v1/documents/:id/notebook/pages/:pageId": "editor",
   "PATCH /api/v1/documents/:id/notebook/pages/:pageId": "editor",
   "DELETE /api/v1/documents/:id/notebook/pages/:pageId": "editor",
+  "GET /api/v1/documents/:id/notebook/images/:blockId": "viewer",
+  "PUT /api/v1/documents/:id/notebook/images/:blockId": "editor",
   "PATCH /api/v1/documents/:id": "owner",
   "DELETE /api/v1/documents/:id": "owner",
   "PUT /api/v1/documents/:id/cover": "owner",
@@ -110,7 +112,7 @@ const limiter = { limit: async () => ({ success: true }) };
 const env = (db: D1Database) => ({ DB: db, FILES: fakeFiles(), SHARE: "on", READER: "on", ENABLE_DEV_ROUTES: "1", QA_STUB: "1", SEARCH_LIMITER: limiter, VERIFY_LIMITER: limiter, ASK_LIMITER: limiter, API_LIMITER: limiter });
 const ctx = { waitUntil: (p: Promise<unknown>) => void Promise.resolve(p).catch(() => {}), passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
 
-const pathOf = (route: string) => route.replace(":id", DOC).replace(":nid", NOTE).replace(":pageId", "p1").replace(":mid", "m-vi").replace(":cid", "c1");
+const pathOf = (route: string) => route.replace(":id", DOC).replace(":nid", NOTE).replace(":pageId", "p1").replace(":mid", "m-vi").replace(":cid", "c1").replace(":blockId", "b1");
 const bodyOf = (route: string) =>
   route.endsWith("/comments") ? { anchor: `note:${NOTE}`, body: "a word" } : route.endsWith("/members") ? { email: "new@example.org", role: "viewer" } : route.includes("/comments/") ? { body: "edited" } : route.includes("/members/") ? { role: "commenter" } : {};
 

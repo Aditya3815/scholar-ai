@@ -9,7 +9,7 @@ import { addComment, claimSend, deleteComment, invite, listComments, removeMembe
 
 let db: D1Database;
 let sql: ReturnType<typeof testD1>["sql"];
-const files = { delete: async () => {} } as unknown as R2Bucket;
+const files = { delete: async () => {}, list: async () => ({ objects: [], truncated: false }) } as unknown as R2Bucket;
 
 beforeEach(() => {
   ({ db, sql } = testD1());

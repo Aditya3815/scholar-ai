@@ -198,7 +198,7 @@ Until S4, Invite copies a ready message ("I've shared 'Glaucoma screening' with 
 
 ## 10. As built (18 Nov 2026)
 
-Built on the branch `reader-share` (on main 8613956), behind `SHARE`, which is not set in `wrangler.jsonc`: production has none of it. Where the build differs from the sections above, this is what was done and why.
+Built on the branch `reader-share` (on main 8468de9, after phase 2.5; the migration is `0030_doc_share.sql`), behind `SHARE`, which is not set in `wrangler.jsonc`: production has none of it. Where the build differs from the sections above, this is what was done and why.
 
 **The switch.** `SHARE` is a gate with `off`, `dark` and `on` (its row in `platform/switches.ts`; the switch table gained its rows and no other row changed). `dark` reads `SHARE_BETA_USERS` (a secret, like `READER_BETA_USERS`) and is about the **owner**: a listed owner may share, and the people they name need not be listed. With SHARE off every route of `/api/v1/share` answers 404 before anything else, the paper routes answer exactly as before (the route-guard table's old cells did not change; it gained the 15 new routes, all 404), the export has no new keys, and the page shows no Share button and no "Shared with me".
 
@@ -223,7 +223,7 @@ Built on the branch `reader-share` (on main 8613956), behind `SHARE`, which is n
 
 **Weight.** The Share dialog (5.4 KB), the comments and read-only notes (4.6 KB, with the stylesheet `share.css` shared with the dialog) and the two small pieces ("Shared with me" and the link opener, 1.2 KB together) are chunks of their own with budget lines and are on the HEAVY list. The first load grew by 0.33 KB of script and 0.06 KB of style. Two things got it there: the share client does not import `docs-api` (it cut that module out of the first load into a chunk of its own), and the lazy pieces use no icon the first load also uses (each such icon became a chunk of its own). No new dependency; the layer allowlists did not grow.
 
-**Privacy.** The words of section 7 and the line about the e-mail service are on the page (`PRIVACY_VERSION` 2026-11-draft-19, "Latest change (18 November 2026)"), with a row in "What we keep" and Cloudflare's line under the service providers. As READER's, the SHARE row of `FLAG_SENTENCES` is pinned at `off`, `dark` and `on`; drop `off` once SHARE is on in production.
+**Privacy.** The words of section 7 and the line about the e-mail service are on the page (`PRIVACY_VERSION` 2026-11-draft-20, "Latest change (19 November 2026)"; phase 2.5's pictures, draft-19, are the change before it), with a row in "What we keep" and Cloudflare's line under the service providers. As READER's, the SHARE row of `FLAG_SENTENCES` is pinned at `off`, `dark` and `on`; drop `off` once SHARE is on in production.
 
 **Tests.** Unit: the gate for every role, a pending and an unverified address, an ORCID account, a removed person, Stop, the switch's positions, a restricted, expired, reset and wrong link (`docs/access.test.ts`); the limits, Resend, comments, deleting and the export (`docs/share-store.test.ts`); the e-mail (`docs/invite-mail.test.ts`); the role table above. API: `api/scripts/share-e2e.mjs`; browser: `web/e2e/share.mjs` (it also takes the pictures with `SHARE_SHOTS=<folder>`), both in the named run `share-on` (SHARE and READER on), which `ci.yml` and `browser-e2e.yml` now run.
 

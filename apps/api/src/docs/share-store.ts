@@ -21,7 +21,7 @@ import {
 import { linkTokenHash, newLinkToken } from "./access";
 
 /**
- * The rows of sharing (migration 0029; docs/design/paper-share.md, sections 2, 5 and 6). Who may call what is decided by the routes (docs/share-routes.ts, through the one gate in
+ * The rows of sharing (migration 0030; docs/design/paper-share.md, sections 2, 5 and 6). Who may call what is decided by the routes (docs/share-routes.ts, through the one gate in
  * docs/access.ts); what is here takes a paper that is already known to be the caller's to change, and checks everything it is sent.
  */
 
