@@ -50,6 +50,19 @@ function rig(serverInk: NotebookInk[] = [], blocks: NotebookBlock[] = [{ id: "t1
 }
 
 describe("the ink store", () => {
+  it("live updates: another person's newer drawing comes in on a page not drawn on here; a page drawn on here keeps its strokes for its save", async () => {
+    const server: NotebookInk[] = [{ pageId: "p1", strokes: [stroke("a")], rev: 3, updatedAt: 0 }];
+    const r = rig(server);
+    await r.store.load();
+    server[0] = { pageId: "p1", strokes: [stroke("a"), stroke("theirs")], rev: 4, updatedAt: 0 };
+    r.store.takeServer();
+    expect(r.store.strokes("p1").map((s) => s.id)).toEqual(["a", "theirs"]);
+    r.store.commit("p1", [stroke("mine")], []);
+    server[0] = { pageId: "p1", strokes: [stroke("a"), stroke("theirs"), stroke("later")], rev: 5, updatedAt: 0 };
+    r.store.takeServer();
+    expect(r.store.strokes("p1").map((s) => s.id)).toEqual(["a", "theirs", "mine"]);
+  });
+
   it("saves a page's strokes a moment after the last change, with the revision it started from", async () => {
     const r = rig([{ pageId: "p1", strokes: [stroke("a")], rev: 3, updatedAt: 0 }]);
     await r.store.load();

@@ -74,6 +74,8 @@ export function inkStoreFor(nb: NotebookStore): NoteInkStore {
   const flush = () => made.flush();
   document.addEventListener("visibilitychange", hide);
   window.addEventListener("pagehide", flush);
+  // someone else's saved drawing comes in with the notebook's refresh (live updates)
+  nb.onServerRead(() => made.takeServer());
   nb.onDestroy(() => {
     document.removeEventListener("visibilitychange", hide);
     window.removeEventListener("pagehide", flush);

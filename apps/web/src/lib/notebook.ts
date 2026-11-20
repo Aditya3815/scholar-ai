@@ -150,6 +150,8 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
   /** The ink on the pages as the last load had it (25): the ink chunk takes it from here; and what is told when the store is destroyed (the ink sends what it holds). */
   let serverInk: NotebookInk[] = [];
   const onDestroy = new Set<() => void>();
+  /** Told after a refresh read the pages (and their ink) again: the ink store takes in the drawing others saved. */
+  const onServer = new Set<() => void>();
 
   const slotOf = (id: string) => slots.find((s) => s.page.id === id);
   const sorted = () => slots.sort((a, b) => a.page.position - b.page.position);
@@ -445,7 +447,9 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
     try {
       const res = await deps.fetch(url, { credentials: "same-origin" });
       if (!res.ok) return;
-      pages = ((await res.json()) as { pages: NotebookPage[] }).pages;
+      const got = (await res.json()) as { pages: NotebookPage[]; ink?: NotebookInk[] };
+      pages = got.pages;
+      if (got.ink) serverInk = got.ink;
     } catch {
       return;
     }
@@ -488,6 +492,7 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
       deps.onClash?.();
     }
     emit();
+    onServer.forEach((fn) => fn());
   }
 
   function saveAll(keepalive = false) {
@@ -509,6 +514,10 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
     /** The ink on the pages from the last load (25). */
     serverInk: (): readonly NotebookInk[] => serverInk,
     /** Told once when the store is destroyed. */
+    /** Called after each refresh (another person saved: docs/design/paper-live.md). */
+    onServerRead(fn: () => void) {
+      onServer.add(fn);
+    },
     onDestroy(fn: () => void) {
       onDestroy.add(fn);
     },

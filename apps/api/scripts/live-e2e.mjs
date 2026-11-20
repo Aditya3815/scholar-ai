@@ -113,6 +113,10 @@ try {
   ok((await status(B.api(`${D}/notebook/pages/p1`, { method: "PATCH", body: { title: "Methods 2" } }))) === 200, "a rename");
   await a.waitChanged((m) => m.kind === "pages" && m.id === "p1" && m.rev === undefined, "a rename sends pages");
   ok(true, "a rename sends pages");
+  const inked = await B.api(`${D}/notebook/pages/p1/ink`, { method: "PUT", body: { rev: 0, strokes: [] } });
+  ok(inked.status === 200 || inked.status === 201, `the editor saves a drawing on the page (${inked.status})`);
+  await a.waitChanged((m) => m.kind === "notebook" && m.id === "p1" && m.rev === undefined && m.by === idB, "ink sends notebook");
+  ok(true, "a drawing on a notes page sends notebook (its open windows read the page's ink again)");
 
   console.log("the limits: 2 KB, 20 a second");
   const big = room(B, doc.id);

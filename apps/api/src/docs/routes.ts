@@ -908,6 +908,8 @@ documentRoutes.put("/:id/notebook/pages/:pageId/ink", async (c) => {
   if (read.tooLarge) return deny(c, 413, "too_big", "That drawing is too big to save", `A page's drawing holds at most ${NOTE_INK_LIMITS.pageBytes / 1024} KB.`);
   const sent = read.value; // (held in a name: passed inline as `read.value ?? undefined` it arrived undefined under vitest)
   const r = await putInk(c.env.DB, door.row.id, c.req.param("pageId"), sent ?? undefined);
+  // the open windows of this page read its drawing again (docs/design/paper-live.md)
+  if ("ink" in r && r.status !== 409) liveChanged(c, door.row, { kind: "notebook", id: c.req.param("pageId"), by: door.by });
   if ("ink" in r) return c.json(r.status === 409 ? { type: "conflict", title: "The drawing on this page was changed in another window", ink: r.ink } : { ink: r.ink }, r.status);
   return deny(c, r.status, r.type, r.title, r.detail);
 });
