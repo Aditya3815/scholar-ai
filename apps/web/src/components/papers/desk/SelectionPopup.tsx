@@ -10,7 +10,7 @@ import { MeaningDot, useReportRect } from "./DeskBits";
 export type PopupActions = {
   /** The meaning a new selection's note is made in (the Highlight picker's). */
   meaning: NoteColor;
-  explain: (quote: string) => void;
+  explain: (quote: string, page: number) => void;
   copy: (quote: string) => void;
   recolor: (note: DocNote, color: NoteColor) => void;
   remove: (note: DocNote) => void;
@@ -112,7 +112,7 @@ export function SelectionPopup({ p, wide, actions, onRect }: { p: DeskPopup; wid
         </button>
       )}
       {!actions.noExplain && (
-        <button type="button" className="desk-pop-btn" onClick={done(() => actions.explain(p.quote))} title="Ask the paper to explain this, in the Agents">
+        <button type="button" className="desk-pop-btn" onClick={done(() => actions.explain(p.quote, p.page))} title="Explain this in plain words, in the Agents">
           <MessageCircleQuestion size={14} aria-hidden="true" />
           <span>Explain</span>
         </button>

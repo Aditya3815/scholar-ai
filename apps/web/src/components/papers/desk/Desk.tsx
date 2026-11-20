@@ -1,7 +1,7 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Maximize2, Minimize2, NotebookPen, Share2, X } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
-import { NOTE_COLORS, ROLE_LABEL, noteAnchor, planNewHighlight, roleAtLeast, type Answer, type Citation, type CommentAnchor, type DocNote, type DocumentInfo, type NoteColor, type NotebookBlock, type PaperAccess, type PaperInfo, type ScanInfo } from "@scholar/shared";
+import { MAX_SELECTION_CHARS, NOTEBOOK_LIMITS, NOTE_COLORS, ROLE_LABEL, noteAnchor, planNewHighlight, roleAtLeast, type Answer, type Citation, type CommentAnchor, type DocNote, type DocumentInfo, type NoteColor, type NotebookAgent, type NotebookBlock, type PaperAccess, type ReaderAgent, type PaperInfo, type ScanInfo } from "@scholar/shared";
 import { downloadBlob } from "../../../lib/download";
 import { useComments } from "../../../lib/comments";
 import { leaveShared } from "../../../lib/share";
@@ -253,7 +253,9 @@ export function Desk(props: DeskProps) {
   /* ---- the Agents ---- */
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [agentsEver, setAgentsEver] = useState(false);
-  const [prefill, setPrefill] = useState({ text: "", tick: 0 });
+  // which agent the drawer shows, and Explain asked from the pop-up (phase 3: the drawer opens on Explain with the selection as its chip; the model is asked only when the person presses Send)
+  const [agent, setAgent] = useState<ReaderAgent>("ask");
+  const [explainReq, setExplainReq] = useState<{ selection: string; page: number; tick: number } | null>(null);
   const fab = useRef<HTMLButtonElement>(null);
   const openAgents = useCallback(() => {
     setAgentsEver(true);
@@ -420,6 +422,36 @@ export function Desk(props: DeskProps) {
     },
     [ensureNotebook, notes.error, wide, shown, tab, openInNotes],
   );
+  /** "+ Add to notes" on an agent's answer (phase 3): an agent block on the open page, with a toast to undo it (and to open the notes when they are not in sight). */
+  const answerToNotes = useCallback(
+    async (n: { agent: NotebookAgent; ask: string; md: string; pages: number[] }): Promise<boolean> => {
+      const store = await ensureNotebook().catch(() => null);
+      if (!store) return (showNotice("Your notes could not be opened. Check the connection, then try again."), false);
+      const at = store.insertBlock({ kind: "agent", agent: n.agent, ask: n.ask.replace(/\s+/g, " ").trim().slice(0, NOTEBOOK_LIMITS.ask), md: n.md.slice(0, NOTEBOOK_LIMITS.answer), pages: n.pages.slice(0, NOTEBOOK_LIMITS.answerPages), at: Date.now() });
+      if (!at) return false;
+      announce(`Added to ${at.title}`);
+      const hidden = shown === "paper" || tab !== "notes";
+      toast(`Added to "${at.title}"`, { label: "Undo", run: () => (at.undo(), announce("Taken out of your notes")) }, hidden ? { label: "Open", run: () => openInNotes(store, at) } : undefined);
+      return true;
+    },
+    [ensureNotebook, shown, tab, openInNotes],
+  );
+  /** "Add as a new page" on the Note-taker's draft (phase 3): a new page at the end with the draft's blocks and a line to write on, with a toast to undo it or open it. */
+  const draftToNotes = useCallback(
+    async (d: { title: string; blocks: NotebookBlock[] }): Promise<string | null> => {
+      const store = await ensureNotebook().catch(() => null);
+      if (!store) return (showNotice("Your notes could not be opened. Check the connection, then try again."), null);
+      const id = store.addPage(d.title, "plain");
+      if (!id) return (showNotice(store.get().error ?? "A new page could not be added."), null);
+      const tail = `t${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`;
+      store.setBlocks(id, [...d.blocks, { id: tail, kind: "text", md: "" }]);
+      const at = { pageId: id, blockId: d.blocks[0]?.id ?? tail };
+      announce(`Added as a new page, ${d.title}`);
+      toast(`Added "${d.title}" to your notes`, { label: "Undo", run: () => (store.deletePage(id), announce("The page was taken out of your notes")) }, { label: "Open", run: () => openInNotes(store, at) });
+      return d.title;
+    },
+    [ensureNotebook, openInNotes],
+  );
   /* ---- Capture (phase 2.5, 21.1, 6): from the paper's tool, or the notes' toolbar (Notes view on a wide screen goes to Split; a phone goes to Paper and comes back after) ---- */
   const captureBack = useRef(false);
   const startCapture = useCallback(() => {
@@ -534,9 +566,12 @@ export function Desk(props: DeskProps) {
   const actions: PopupActions = useMemo(
     () => ({
       meaning,
-      explain: (quote) => {
-        // phase 1: Explain is Ask with the selection put into the question box (the Explain agent comes in phase 3)
-        setPrefill((p) => ({ text: `Explain: "${clip(quote.replace(/\s+/g, " ").trim(), 560)}"`, tick: p.tick + 1 }));
+      explain: (quote, page) => {
+        // the drawer opens on Explain with the selection (at most 600 characters, cut at a word: the server checks its words are in the paper)
+        const flat = quote.replace(/\s+/g, " ").trim();
+        const selection = flat.length <= MAX_SELECTION_CHARS ? flat : flat.slice(0, MAX_SELECTION_CHARS).replace(/\s+\S*$/, "");
+        setAgent("explain");
+        setExplainReq((r) => ({ selection, page, tick: (r?.tick ?? 0) + 1 }));
         openAgents();
       },
       copy: (quote) => {
@@ -617,7 +652,10 @@ export function Desk(props: DeskProps) {
         ...(canComment
           ? [
               { id: "r-agents", label: "Agents", group: "This paper", keywords: "ask question ai explain chat agents assistant", run: openAgents },
-              { id: "r-ask", label: "Ask this paper a question", group: "This paper", keywords: "chat questions agents", run: openAgents },
+              { id: "r-ask", label: "Ask this paper a question", group: "This paper", keywords: "chat questions agents", run: () => (setAgent("ask"), openAgents()) },
+              { id: "r-explain", label: "Explain an idea of this paper", group: "This paper", keywords: "explain plain words simple agents", run: () => (setAgent("explain"), openAgents()) },
+              { id: "r-critique", label: "Critique this paper", group: "This paper", keywords: "critique weak points limitations review agents", run: () => (setAgent("critique"), openAgents()) },
+              ...(canEdit ? [{ id: "r-notetaker", label: "Note-taker: a draft page from my highlights", group: "This paper", keywords: "note taker notes draft summary highlights agents", run: () => (setAgent("notes"), openAgents()) }] : []),
             ]
           : []),
         ...(isOwner && props.canShare ? [{ id: "r-share", label: "Share this paper", group: "This paper", keywords: "share invite link people collaborate", run: () => (setShareEver(true), setShareOpen(true)) }] : []),
@@ -677,7 +715,10 @@ export function Desk(props: DeskProps) {
   const meta = info?.metadata;
   const refCount = info?.references.length ?? 0;
   const views = viewsFor(wide);
-  const drawerProps: AgentsDrawerProps = { open: agentsOpen, wide, onClose: closeAgents, doc, history, notes: notes.notes, scan: doc.scanned ? scan : null, onCite, onGoToPage, onReindex: props.onReindex, reindexing: props.reindexing, prefill, top: drawerTop };
+  const drawerProps: AgentsDrawerProps = {
+    open: agentsOpen, wide, onClose: closeAgents, doc, history, notes: notes.notes, scan: doc.scanned ? scan : null, onCite, onGoToPage, onReindex: props.onReindex, reindexing: props.reindexing,
+    agent, onAgent: setAgent, explain: explainReq, canWrite: canEdit, onAddToNotes: answerToNotes, onAcceptDraft: draftToNotes, meanings: MEANINGS, top: drawerTop,
+  };
 
   return (
     <m.div ref={deskEl} className="dw desk" data-view={shown} data-wide={wide} data-drawing={drawOpen} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: easeOut }}>

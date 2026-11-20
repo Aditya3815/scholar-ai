@@ -76,6 +76,8 @@ export function applyToolEvent(t: ChatToolResult | undefined, e: ChatToolEvent):
         : x.type === "sources" ? { ...a, pages: x.pages }
         : x.type === "delta" ? { ...a, live: a.live + x.text }
         : x.type === "answer" ? { ...a, answer: x.answer, live: "", stage: null }
+        // a critique belongs to the Paper Reader's drawer, never to a tool of the chat: nothing changes
+        : x.type === "critique" ? a
         : { ...a, live: "", stage: null, error: { code: x.code, title: x.title, ...(x.detail ? { detail: x.detail } : {}) } };
       return { ...t, ask };
     }

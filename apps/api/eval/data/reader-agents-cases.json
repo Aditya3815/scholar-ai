@@ -1,0 +1,158 @@
+{
+  "note": "The Paper Reader's agents eval (eval/reader-agents.eval.ts). A made-up paper written for this eval (no real paper's text), and for each case the reply the model gave, in the shape gpt-oss-120b answers in. The replies were written by hand to hold what the live model does wrong in practice: a quote that is paraphrased or invented, a quote joined with an ellipsis, the wrong excerpt number, a kind outside the list, a bullet that names no highlight, page numbers and marks the model wrote itself. The excerpt numbers are not written here (they depend on the passages retrieved): seeding finds each quote's excerpt in the prompt, or gives a wrong one where `wrongExcerpt` is set, or 1 for a quote that is in no passage.",
+  "paper": [
+    { "page": 1, "text": "Abstract. We test whether a smartphone fundus camera with an automatic grader can screen adults for glaucoma in rural clinics. In 1,204 adults the grader reached a sensitivity of 0.91 and a specificity of 0.88 against an eye specialist." },
+    { "page": 1, "text": "Glaucoma damages the optic nerve slowly and is often found late, because early loss of side vision goes unnoticed. Screening in villages is rare because fundus cameras are costly and specialists are few." },
+    { "page": 2, "text": "Our contribution is a low-cost pipeline: a clip-on lens turns a phone into a fundus camera, and a convolutional network grades the optic disc from the photograph in under two seconds." },
+    { "page": 2, "text": "The grader estimates the cup-to-disc ratio, the size of the pale central cup compared with the whole optic disc. A ratio above 0.6 is flagged as suspected glaucoma and referred." },
+    { "page": 3, "text": "Participants were recruited from four primary health centres in one district of Maharashtra between March and October 2025. Adults aged 40 or more who came for any reason were invited." },
+    { "page": 3, "text": "Each participant had one photograph per eye taken by a health worker after a two-day training. Photographs that the grader judged too blurred were taken again, at most twice." },
+    { "page": 4, "text": "The reference standard was a single glaucoma specialist who examined every participant in person, masked to the grader's result. No second specialist reviewed the cases." },
+    { "page": 4, "text": "The network was trained on 38,000 public fundus photographs taken with desktop cameras, and fine-tuned on 600 phone photographs from a pilot clinic." },
+    { "page": 5, "text": "Of 1,204 adults, 61 had glaucoma according to the specialist. The grader found 56 of them, a sensitivity of 0.91, and flagged 137 of the 1,143 without glaucoma, a specificity of 0.88." },
+    { "page": 5, "text": "Sensitivity was lower for eyes with small pupils, 0.79, because the phone lens could not see the whole disc without dilating drops, which the clinics did not use." },
+    { "page": 6, "text": "These results show that phone-based screening can replace specialist examination for glaucoma in rural India." },
+    { "page": 6, "text": "We did not compare the grader with a desktop fundus camera read by the same specialist, or with the eye-pressure test that clinics already use." },
+    { "page": 7, "text": "A limitation is that all participants came from one district, and the health workers were trained by the study team, so the results may not hold elsewhere." },
+    { "page": 7, "text": "Future work will follow referred participants for a year to see how many reach an eye hospital and start treatment." }
+  ],
+  "explain": [
+    {
+      "id": "explain-cup-disc",
+      "selection": "The grader estimates the cup-to-disc ratio",
+      "page": 2,
+      "idea": "",
+      "reply": {
+        "found": true,
+        "answer": "The optic disc is where the nerve leaves the eye; in its middle is a paler hollow, the cup. The cup-to-disc ratio compares the two sizes [1]. When glaucoma damages the nerve the cup grows, so the paper flags a ratio above 0.6 as suspected glaucoma [1]. The grader works this out from one phone photograph in under two seconds [2].",
+        "evidence": [
+          { "quote": "the size of the pale central cup compared with the whole optic disc" },
+          { "quote": "grades the optic disc from the photograph in under two seconds" }
+        ]
+      }
+    },
+    {
+      "id": "explain-sensitivity-invented",
+      "selection": "a sensitivity of 0.91",
+      "page": 5,
+      "idea": "what does sensitivity mean here?",
+      "reply": {
+        "found": true,
+        "answer": "Sensitivity is the share of people who really have glaucoma that the grader catches [1]. Here 56 of the 61 people with glaucoma were found [1]. That is better than the 0.85 of earlier phone tools [2].",
+        "evidence": [
+          { "quote": "The grader found 56 of them, a sensitivity of 0.91" },
+          { "quote": "better than the 0.85 reported for earlier phone tools", "invented": true }
+        ]
+      }
+    },
+    {
+      "id": "explain-reference-standard-ellipsis",
+      "selection": "The reference standard was a single glaucoma specialist",
+      "page": 4,
+      "idea": "",
+      "reply": {
+        "found": true,
+        "answer": "The reference standard is the answer the grader is judged against: here one specialist's own examination of every person [1], done without knowing what the grader said [1].",
+        "evidence": [
+          { "quote": "a single glaucoma specialist who examined every participant in person ... masked to the grader's result" }
+        ]
+      }
+    },
+    {
+      "id": "explain-paraphrased-quote",
+      "selection": "",
+      "page": null,
+      "idea": "small pupils",
+      "reply": {
+        "found": true,
+        "answer": "With a small pupil the phone cannot see the whole optic disc, so it misses more cases [1].",
+        "evidence": [
+          { "quote": "small pupils made the phone miss the disc", "invented": true }
+        ]
+      }
+    },
+    {
+      "id": "explain-not-covered",
+      "selection": "",
+      "page": null,
+      "idea": "how is the eye pressure measured",
+      "reply": { "found": false, "answer": "The paper does not explain how eye pressure is measured.", "evidence": [] }
+    }
+  ],
+  "critique": [
+    {
+      "id": "critique-whole-paper",
+      "focus": "",
+      "reply": {
+        "points": [
+          { "kind": "overclaim", "text": "The paper says phone screening can replace a specialist, but it measured one district and one specialist; that supports a screening aid, not a replacement.", "quote": "phone-based screening can replace specialist examination for glaucoma in rural India" },
+          { "kind": "missing_baseline", "text": "There is no comparison with a desktop fundus camera or the eye-pressure test, so it is unclear whether the phone adds anything over what clinics have.", "quote": "We did not compare the grader with a desktop fundus camera read by the same specialist" },
+          { "kind": "thin_evidence", "text": "A single specialist is the reference standard with no second reader, so the 0.91 depends on one person's judgement.", "quote": "No second specialist reviewed the cases." , "wrongExcerpt": true },
+          { "kind": "limitation_stated", "text": "The authors say all participants came from one district, so the results may not carry over.", "quote": "all participants came from one district" },
+          { "kind": "limitation_unstated", "text": "The network learned mostly from desktop photographs; how it does on other phones is not shown.", "quote": "trained on 38,000 public fundus photographs taken with desktop cameras, and fine-tuned on 600 phone photographs" },
+          { "kind": "thin_evidence", "text": "Only 61 people had glaucoma, so the sensitivity rests on few cases and its uncertainty is wide.", "quote": "Only 61 cases were positive, too few for a firm estimate", "invented": true },
+          { "kind": "bias", "text": "Health workers trained by the study team may have done better than usual.", "quote": "the health workers were trained by the study team" }
+        ]
+      }
+    },
+    {
+      "id": "critique-methods-focus",
+      "focus": "the recruitment and the reference standard",
+      "reply": {
+        "points": [
+          { "kind": "limitation_unstated", "text": "People were invited when they came to a clinic for any reason, which may miss those who never come; the paper does not discuss it.", "quote": "Adults aged 40 or more who came for any reason were invited." },
+          { "kind": "thin_evidence", "text": "One specialist as the only reference.", "quote": "The reference standard was a single glaucoma specialist ... masked to the grader's result" },
+          { "kind": "overclaim", "text": "The paper claims the grader was validated in three countries.", "quote": "validated in three countries", "invented": true }
+        ]
+      }
+    },
+    {
+      "id": "critique-all-invented",
+      "focus": "the cost of the pipeline",
+      "reply": {
+        "points": [
+          { "kind": "missing_baseline", "text": "No cost comparison with a desktop camera is given.", "quote": "the pipeline costs less than ten dollars per patient", "invented": true },
+          { "kind": "thin_evidence", "text": "The cost claim has no numbers.", "quote": "low cost was not measured in this study", "invented": true }
+        ]
+      }
+    }
+  ],
+  "notes": [
+    {
+      "id": "notes-five-highlights",
+      "legend": { "yellow": "yellow", "green": "green", "blue": "blue", "pink": "pink" },
+      "highlights": [
+        { "id": "h1", "page": 1, "color": "yellow", "quote": "can screen adults for glaucoma in rural clinics", "note": "" },
+        { "id": "h2", "page": 2, "color": "green", "quote": "A ratio above 0.6 is flagged as suspected glaucoma and referred.", "note": "the threshold" },
+        { "id": "h3", "page": 5, "color": "pink", "quote": "a sensitivity of 0.91, and flagged 137 of the 1,143 without glaucoma, a specificity of 0.88", "note": "" },
+        { "id": "h4", "page": 5, "color": "blue", "quote": "Sensitivity was lower for eyes with small pupils, 0.79", "note": "why no dilating drops?" },
+        { "id": "h5", "page": 4, "color": "green", "quote": "The reference standard was a single glaucoma specialist", "note": "" }
+      ],
+      "reply": {
+        "bullets": [
+          { "text": "Goal: screen rural adults for glaucoma with a phone camera and an automatic grader [1].", "from": [1], "quote": false },
+          { "text": "", "from": [2], "quote": true },
+          { "text": "Graded against one specialist (p. 4).", "from": [5], "quote": false },
+          { "text": "Sensitivity 0.91, specificity 0.88.", "from": [3], "quote": false },
+          { "text": "Small pupils lowered sensitivity to 0.79; why were no drops used?", "from": [4], "quote": false },
+          { "text": "Overall the method is cheap and fast.", "from": [], "quote": false }
+        ]
+      }
+    },
+    {
+      "id": "notes-missed-highlights",
+      "legend": { "yellow": "Main point", "green": "How", "blue": "To ask", "pink": "Found" },
+      "highlights": [
+        { "id": "k1", "page": 3, "color": "green", "quote": "one photograph per eye taken by a health worker after a two-day training", "note": "" },
+        { "id": "k2", "page": 7, "color": "yellow", "quote": "the results may not hold elsewhere", "note": "" },
+        { "id": "k3", "page": 6, "color": "blue", "quote": "We did not compare the grader with a desktop fundus camera", "note": "important gap" }
+      ],
+      "reply": {
+        "bullets": [
+          { "text": "## How: one photo per eye by a trained health worker (p. 3)", "from": [1], "quote": false },
+          { "text": "Compare against desktop cameras?", "from": [9], "quote": false }
+        ]
+      }
+    }
+  ]
+}

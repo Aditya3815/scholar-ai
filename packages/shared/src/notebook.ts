@@ -24,9 +24,9 @@ export const NOTEBOOK_LIMITS = {
   text: 8000,
   /** characters of the copy of a highlight in a quote block */
   quote: 600,
-  /** characters of an agent answer's text, and its name (phase 3) */
+  /** characters of an agent's answer kept in the notes (Markdown, with its "p. N"), and of what it was asked (the question, or the selection explained) (phase 3) */
   answer: 8000,
-  agent: 40,
+  ask: 600,
   /** pages an agent answer may cite (phase 3) */
   answerPages: 50,
   /** characters of a capture's caption */
@@ -69,14 +69,28 @@ export const NOTEBOOK_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as
  * A picture added to the notes (phase 2.5, the owner's yes of 18 Nov): its file is kept apart (R2, under the paper and this block's id) and served only to its owner; the block holds
  * its size in pixels, its kind and the words that say what it shows.
  */
-export type ImageBlock = { id: string; kind: "image"; w: number; h: number; type: (typeof NOTEBOOK_IMAGE_TYPES)[number]; alt: string };
-/** An agent's answer kept in the notes. Phase 3: the server refuses it until then. */
-export type AnswerBlock = { id: string; kind: "answer"; agent: string; text: string; pages: number[] };
-export type NotebookBlock = TextBlock | QuoteBlock | CaptureBlock | SketchBlock | ImageBlock | AnswerBlock;
+export type ImageBlock = { id: string; kind: "image"; w: number; h: number; type: (typeof NOTEBOOK_IMAGE_TYPES)[number]; alt: string; width?: number };
+/**
+ * How wide a picture is shown in the notes (and in their exports): a fraction of the page's width, from 0.2 to 1, kept to three places; a picture with none is shown as wide as the page lets it
+ * (as before 20 Nov 2026). S, M and Full are quick choices of it, the same as a capture's.
+ */
+export const IMAGE_WIDTH = { min: 0.2, max: 1 } as const;
+export const IMAGE_SIZE_WIDTH = { s: 0.33, m: 0.6, full: 1 } as const;
+export const clampImageWidth = (v: number): number => Math.round(Math.min(IMAGE_WIDTH.max, Math.max(IMAGE_WIDTH.min, v)) * 1000) / 1000;
+/** The agents whose answers can be kept in the notes ("+ Add to notes", phase 3); the Note-taker makes a page of its own, not a block. */
+export const NOTEBOOK_AGENTS = ["ask", "explain", "critique"] as const;
+export type NotebookAgent = (typeof NOTEBOOK_AGENTS)[number];
+export const NOTEBOOK_AGENT_LABEL: Record<NotebookAgent, string> = { ask: "Ask", explain: "Explain", critique: "Critique" };
+/**
+ * An agent's answer kept in the notes (phase 3, docs/design/paper-reader.md, 24): which agent, what it was asked (the question, or the selection it explained), the answer as Markdown in which every
+ * citation is written as its page ("p. 4"), the pages it cites, and when it was made (ms since 1970).
+ */
+export type AgentBlock = { id: string; kind: "agent"; agent: NotebookAgent; ask: string; md: string; pages: number[]; at: number };
+export type NotebookBlock = TextBlock | QuoteBlock | CaptureBlock | SketchBlock | ImageBlock | AgentBlock;
 export type NotebookBlockKind = NotebookBlock["kind"];
-export const NOTEBOOK_BLOCK_KINDS = ["text", "quote", "capture", "sketch", "image", "answer"] as const satisfies readonly NotebookBlockKind[];
-/** The kinds the server accepts today (phase 2.5): text, quote, capture, sketch and picture. An agent's answer comes with phase 3. */
-export const NOTEBOOK_KINDS_NOW: readonly NotebookBlockKind[] = ["text", "quote", "capture", "sketch", "image"];
+export const NOTEBOOK_BLOCK_KINDS = ["text", "quote", "capture", "sketch", "image", "agent"] as const satisfies readonly NotebookBlockKind[];
+/** The kinds the server accepts (phase 3): every kind. */
+export const NOTEBOOK_KINDS_NOW: readonly NotebookBlockKind[] = NOTEBOOK_BLOCK_KINDS;
 
 /** One page as the server sends it. */
 export type NotebookPage = { id: string; title: string; style: NotebookStyle; position: number; blocks: NotebookBlock[]; rev: number; updatedAt: number };
@@ -175,15 +189,22 @@ function checkBlock(raw: unknown, maxPage: number, kinds: readonly NotebookBlock
       if (typeof b.alt !== "string") return "a picture has no words for what it shows";
       const alt = cleanQuote(b.alt);
       if (alt.length > 300) return "too long: the words for a picture are at most 300 characters";
-      return { id: b.id, kind, w: b.w, h: b.h, type: b.type as ImageBlock["type"], alt };
+      if (b.width !== undefined && (typeof b.width !== "number" || !Number.isFinite(b.width) || b.width < IMAGE_WIDTH.min || b.width > IMAGE_WIDTH.max)) return `a picture's width is not from ${IMAGE_WIDTH.min} to ${IMAGE_WIDTH.max} of the page`;
+      return { id: b.id, kind, w: b.w, h: b.h, type: b.type as ImageBlock["type"], alt, ...(b.width !== undefined ? { width: clampImageWidth(b.width as number) } : {}) };
     }
-    case "answer": {
-      if (typeof b.agent !== "string" || b.agent.length < 1 || b.agent.length > NOTEBOOK_LIMITS.agent) return "an answer's agent is not valid";
-      if (typeof b.text !== "string") return "an answer has no text";
-      const text = cleanBlockText(b.text);
-      if (text.length > NOTEBOOK_LIMITS.answer) return `too long: an answer holds at most ${NOTEBOOK_LIMITS.answer} characters`;
+    case "agent": {
+      if (!(NOTEBOOK_AGENTS as readonly unknown[]).includes(b.agent)) return `an answer's agent is not one of ${NOTEBOOK_AGENTS.join(", ")}`;
+      if (typeof b.ask !== "string") return "an answer has no question";
+      const ask = cleanQuote(b.ask);
+      if (ask.length > NOTEBOOK_LIMITS.ask) return `too long: what an agent was asked holds at most ${NOTEBOOK_LIMITS.ask} characters`;
+      if (typeof b.md !== "string") return "an answer has no text";
+      const md = cleanBlockText(b.md);
+      if (md.trim().length < 1) return "an answer is empty";
+      if (md.length > NOTEBOOK_LIMITS.answer) return `too long: an answer holds at most ${NOTEBOOK_LIMITS.answer} characters`;
       if (!Array.isArray(b.pages) || b.pages.length > NOTEBOOK_LIMITS.answerPages || !b.pages.every((p) => isInt(p, 1, maxPage))) return "an answer's pages are not in this paper";
-      return { id: b.id, kind, agent: b.agent, text, pages: [...(b.pages as number[])] };
+      if (new Set(b.pages).size !== b.pages.length) return "an answer names a page twice";
+      if (!isInt(b.at, 0, 8_640_000_000_000_000)) return "an answer's time is not valid";
+      return { id: b.id, kind, agent: b.agent as NotebookAgent, ask, md, pages: [...(b.pages as number[])], at: b.at };
     }
   }
 }
@@ -208,6 +229,9 @@ export function checkNotebookBlocks(raw: unknown, maxPage: number, kinds: readon
   return { ok: true, blocks: out };
 }
 
+/** The small header of an agent's answer: "Explain · p. 3, 4" (the name alone when it cites no page). */
+export const agentHeading = (b: Pick<AgentBlock, "agent" | "pages">): string => `${NOTEBOOK_AGENT_LABEL[b.agent]}${b.pages.length ? ` · p. ${[...b.pages].sort((x, y) => x - y).join(", ")}` : ""}`;
+
 /* ---------------------------------------------------------------- Markdown export */
 
 export type NotebookExportPage = { title: string; blocks: readonly NotebookBlock[] };
@@ -226,14 +250,14 @@ export function notebookMarkdown(paperTitle: string, pages: readonly NotebookExp
         if (md) out.push(md, "");
       } else if (b.kind === "quote") {
         out.push(`> ${b.quote}`, `> (${names[b.color]}, p. ${b.page})`, "");
-      } else if (b.kind === "answer") {
-        out.push(`**${b.agent}**${b.pages.length ? ` (p. ${b.pages.join(", ")})` : ""}`, "", b.text.trim(), "");
+      } else if (b.kind === "agent") {
+        out.push(agentHeading(b), ...(b.ask ? [`*${b.agent === "explain" ? "Explained" : "Asked"}: ${b.ask}*`] : []), "", b.md.replace(/^(#{1,3}) /gm, "##$1 ").trim(), "");
       } else if (b.kind === "capture") {
         out.push(`*A part of page ${b.page} (captured)*${b.caption ? `: ${b.caption}` : ""}`, "");
       } else if (b.kind === "sketch") {
         out.push(`*A sketch (${b.strokes.length} ${b.strokes.length === 1 ? "stroke" : "strokes"})*`, "");
       } else {
-        out.push(`*A picture*${b.alt ? `: ${b.alt}` : ""}`, "");
+        out.push(`*A picture*${b.alt ? `: ${b.alt}` : ""}${b.width !== undefined && b.width < 1 ? ` (shown at ${Math.round(b.width * 100)}% of the page's width)` : ""}`, "");
       }
     }
   }

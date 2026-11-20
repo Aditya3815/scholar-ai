@@ -1,13 +1,13 @@
 import { Bold, ChevronDown, Crop, GripVertical, Heading, Italic, List, ListOrdered, ImagePlus, MessageSquare, MoreHorizontal, PenLine, TextQuote, Type, Underline } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { LEGACY_PAGE_TITLE, NOTEBOOK_STYLES, NOTEBOOK_STYLE_NAMES as STYLE_NAME, mdPlainText, nextPageName, pageLabel, type CaptureBlock, type DocNote, type ImageBlock, type NotebookBlock, type QuoteColor } from "@scholar/shared";
+import { LEGACY_PAGE_TITLE, NOTEBOOK_STYLES, NOTEBOOK_STYLE_NAMES as STYLE_NAME, mdPlainText, nextPageName, pageLabel, type CaptureBlock, type DocNote, type ImageBlock, type NotebookBlock, type NotebookStyle, type QuoteColor } from "@scholar/shared";
 import { activeMarks, continueList, isOn, toggleHeading, toggleList, toggleMark, type Edit, type Mark } from "../../../../lib/md-edit";
 // the meanings and the copy come from the reader (props): imported here too, they would be cut out of the first load's chunks into chunks of their own
 import type { Meaning } from "../../../../lib/meanings";
 import { useNotebook, type NbPage, type NotebookStore } from "../../../../lib/notebook";
 import { showNotice } from "../../../../lib/notice";
 import { toast } from "../../../../lib/toast";
-import { CaptureBlockView, ImageBlockView, MdView, QuoteBlockView, TextBlockView } from "./NbBlocks";
+import { AgentBlockView, CaptureBlockView, ImageBlockView, MdView, QuoteBlockView, TextBlockView } from "./NbBlocks";
 import { downloadMarkdown, markdownOf } from "./nb-export";
 import { NbItem, NbPop } from "./NbMenu";
 // its stylesheet (notebook.css) comes with the reader's own chunk (Desk.tsx): the Notes tab is the panel's first tab, so the page is styled before this chunk arrives
@@ -597,11 +597,11 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                     b.kind === "capture" ? (
                       <CaptureBlockView b={b} paint={paintCapture} onGo={() => onGoTo(b.page, "")} onCaption={(caption) => store.updateBlock(page.id, b.id, "capture", { caption })} onSize={(size) => store.updateBlock(page.id, b.id, "capture", { size })} />
                     ) : b.kind === "image" ? (
-                      <ImageBlockView b={b} src={imageUrl?.(b.id) ?? ""} onAlt={(alt) => store.updateBlock(page.id, b.id, "image", { alt })} />
+                      <ImageBlockView b={b} src={imageUrl?.(b.id) ?? ""} onAlt={(alt) => store.updateBlock(page.id, b.id, "image", { alt })} onWidth={(width) => store.updateBlock(page.id, b.id, "image", { width })} />
                     ) : b.kind === "sketch" ? (
                       <Suspense fallback={<div className="nb-sketch-wait" style={{ height: b.height }} />}><SketchBlockView b={b} onStrokes={(strokes) => store.updateBlock(page.id, b.id, "sketch", { strokes })} onHeight={(height) => store.updateBlock(page.id, b.id, "sketch", { height })} onRefused={showNotice} /></Suspense>
                     ) : (
-                      <p className="nb-later">{mdPlainText(b.text)}</p>
+                      <AgentBlockView b={b} onGo={(p) => onGoTo(p, "")} />
                     )
                   )}
                 </div>

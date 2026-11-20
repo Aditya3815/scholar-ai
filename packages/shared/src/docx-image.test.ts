@@ -29,4 +29,14 @@ describe("the Word writer's pictures (the Notebook's captures and sketches, pape
     expect(parts["word/_rels/document.xml.rels"]!.match(/rIdI\d/g)).toEqual(["rIdI1"]);
     expect(parts["word/document.xml"]!.match(/<w:drawing>/g)).toHaveLength(2);
   });
+
+  it("a picture the reader made narrower is that share of the text's width, its shape kept; a share of 1 or none is as before", () => {
+    const full = Math.round((9638 / 1440) * 914400);
+    const xml = doc([{ k: "image", media: "image1.png", w: 900, h: 300, alt: "a", frac: 0.5 }])["word/document.xml"]!;
+    const [, cx, cy] = /<wp:extent cx="(\d+)" cy="(\d+)"/.exec(xml)!.map(Number);
+    expect(cx! / full).toBeCloseTo(0.5, 2);
+    expect(cx! / cy!).toBeCloseTo(3, 2);
+    const one = doc([{ k: "image", media: "image1.png", w: 200, h: 100, alt: "a", frac: 1 }])["word/document.xml"]!;
+    expect(/<wp:extent cx="(\d+)"/.exec(one)![1]).toBe(String(200 * 9525));
+  });
 });

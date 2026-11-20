@@ -1,4 +1,5 @@
 import { flatLine } from "./text";
+import type { Critique } from "./protocol/agents";
 
 /** Uploaded papers and grounded Q&A: types and limits shared by the API and the web app. */
 
@@ -80,6 +81,8 @@ export type AskStreamEvent =
   /** more of the answer text. Provisional: the final `answer` event is what has been verified. */
   | { type: "delta"; text: string }
   | { type: "answer"; answer: Answer }
+  /** the end of a Critique (`mode: "critique"`, the Paper Reader's agents): its points, each with a quote checked against the paper; it takes the place of `answer` */
+  | { type: "critique"; critique: Critique }
   | { type: "error"; code: string; title: string; detail?: string };
 
 /* ---------------------------------------------------------------- highlights and notes */

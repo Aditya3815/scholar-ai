@@ -14,14 +14,20 @@ describe("the toolbar's marks: wrap and unwrap", () => {
   it("wraps a selection in each mark, keeping the selection on the words", () => {
     expect(show(toggleMark(at("a [word] c"), "b"))).toBe("a **[word]** c");
     expect(show(toggleMark(at("a [word] c"), "i"))).toBe("a *[word]* c");
-    expect(show(toggleMark(at("a [word] c"), "u"))).toBe("a <u>[word]</u> c");
+    // underline is written ++word++ since 20 Nov 2026 (one syntax with the renderer and the exports)
+    expect(show(toggleMark(at("a [word] c"), "u"))).toBe("a ++[word]++ c");
     expect(show(toggleMark(at("a [word] c"), "mark"))).toBe("a ==[word]== c");
   });
 
   it("unwraps when the marks are just outside the selection, or at its ends", () => {
     expect(show(toggleMark(at("a **[word]** c"), "b"))).toBe("a [word] c");
     expect(show(toggleMark(at("a [**word**] c"), "b"))).toBe("a [word] c");
+    expect(show(toggleMark(at("a ++[w]++ c"), "u"))).toBe("a [w] c");
+    expect(show(toggleMark(at("a [++w++] c"), "u"))).toBe("a [w] c");
+    // an underline of the old kind (<u>) is read as one and taken away by the toolbar
     expect(show(toggleMark(at("a <u>[w]</u> c"), "u"))).toBe("a [w] c");
+    expect(show(toggleMark(at("a [<u>w</u>] c"), "u"))).toBe("a [w] c");
+    expect(activeMarks(at("a <u>[w]</u> c")).has("u")).toBe(true);
     expect(show(toggleMark(at("a ==[w]== c"), "mark"))).toBe("a [w] c");
   });
 

@@ -5,7 +5,7 @@
  */
 
 /** The features whose endings are counted (apps/api/src/outcomes.ts writes them, one row a day per feature and name). */
-export const OUTCOME_FEATURES = ["chat", "oa_ask", "oa_ask_abstract", "doc_ask", "litscan", "chat_input", "chat_understand"] as const;
+export const OUTCOME_FEATURES = ["chat", "oa_ask", "oa_ask_abstract", "doc_ask", "litscan", "chat_input", "chat_understand", "reader_agent_explain", "reader_agent_critique", "reader_agent_notes"] as const;
 export type OutcomeFeature = (typeof OUTCOME_FEATURES)[number];
 
 /**
@@ -83,6 +83,14 @@ export const UNDERSTAND_COUNTER_NAMES = [
 ] as const;
 export type UnderstandCounterName = (typeof UNDERSTAND_COUNTER_NAMES)[number];
 
+/**
+ * The Paper Reader's agents (docs/design/paper-reader.md, 9.3 and 23), one feature each (`reader_agent_<name>`; Ask is `doc_ask`, as it always was): how each ended, one count per use. Explain ends as
+ * an answer does (OUTCOME_LABELS). A critique ends with points (each with a quote that checked out), with none because every point's quote failed the check, or with none written; a Note-taker's
+ * draft ends made or empty. Names only, never any text.
+ */
+export const CRITIQUE_OUTCOMES = ["critique_points", "critique_all_dropped", "critique_none"] as const;
+export const NOTES_OUTCOMES = ["notes_drafted", "notes_empty"] as const;
+
 /* ---------------------------------------------------------------- the labels of /admin */
 
 export const FEATURE_LABELS: Record<OutcomeFeature, string> = {
@@ -93,6 +101,17 @@ export const FEATURE_LABELS: Record<OutcomeFeature, string> = {
   litscan: "Literature scan (each sub-question of each scan)",
   chat_input: "What a first message in the prompt box looked like (a message can have several of these, and Share is of the messages counted; its words are never kept)",
   chat_understand: "The Understand step, in shadow or on (a message can have several of these, and Share is of the messages it read; its words are never kept)",
+  reader_agent_explain: "Paper Reader: Explain (a selection or an idea, in plain words)",
+  reader_agent_critique: "Paper Reader: Critique (weak points, each with a checked quote)",
+  reader_agent_notes: "Paper Reader: Note-taker (a draft page from the highlights)",
+};
+
+export const AGENT_OUTCOME_LABELS: Record<(typeof CRITIQUE_OUTCOMES)[number] | (typeof NOTES_OUTCOMES)[number], string> = {
+  critique_points: "Points shown, each with a quote that was found in the paper",
+  critique_all_dropped: "The model wrote points, but no quote of theirs was found in the paper, so none was shown",
+  critique_none: "The model named no weak point in the passages it read",
+  notes_drafted: "A draft page was made from the highlights",
+  notes_empty: "No draft could be made from the highlights",
 };
 
 /** M4/M5: the Understand step's counts (apps/api/src/understand/understand-counters.ts): who decided, the intent, the agreement with the rules in shadow, the time it took, why the rules took over. Names only. */
@@ -241,6 +260,9 @@ export const OUTCOME_COUNTS: Record<OutcomeFeature, OutcomeCount> = {
   litscan: ANSWER,
   chat_input: { names: INPUT_SHAPE_NAMES, one: SUBJECT_NAMES, total: SUBJECT_NAMES, labels: INPUT_SHAPE_LABELS },
   chat_understand: { names: UNDERSTAND_COUNTER_NAMES, total: ["und_turn"], labels: UNDERSTAND_LABELS },
+  reader_agent_explain: ANSWER,
+  reader_agent_critique: { names: CRITIQUE_OUTCOMES, labels: AGENT_OUTCOME_LABELS },
+  reader_agent_notes: { names: NOTES_OUTCOMES, labels: AGENT_OUTCOME_LABELS },
 };
 const countOf = (feature: string): OutcomeCount => OUTCOME_COUNTS[feature as OutcomeFeature] ?? ANSWER;
 

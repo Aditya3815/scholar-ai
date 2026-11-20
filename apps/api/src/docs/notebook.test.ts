@@ -165,7 +165,7 @@ describe("a page: made, replaced, a stale revision, renamed, deleted and brought
 });
 
 describe("every limit and every bad block", () => {
-  it("a bad block is 400 with what is wrong; a capture and a sketch are taken (phase 2.5), an answer is refused", async () => {
+  it("a bad block is 400 with what is wrong; a capture and a sketch are taken (phase 2.5), and an agent's answer (phase 3)", async () => {
     const { call } = await setup();
     const bad = async (blocks: unknown) => call("PUT", `${PAGE}/p1`, { body: { blocks } });
     expect((await bad("x")).status).toBe(400);
@@ -176,7 +176,12 @@ describe("every limit and every bad block", () => {
     expect((await bad([{ id: "s", kind: "sketch", height: 240, strokes: [{ id: "k", tool: "pen", color: "ink", w: 0.004, pts: [2, 0, 0.5] }] }])).status).toBe(400);
     const good = await call("PUT", `${PAGE}/p2`, { body: { blocks: [{ id: "c", kind: "capture", page: 1, x: 0.1, y: 0.1, w: 0.5, h: 0.3, caption: "Fig. 1", size: "m" }, { id: "s", kind: "sketch", height: 240, strokes: [{ id: "k", tool: "pen", color: "ink", w: 0.004, pts: [0.1, 0.1, 0.5, 0.4, 0.3, 0.5] }] }] } });
     expect(good.status).toBe(201);
+    // the planned "answer" kind is "agent" since phase 3: the old shape is not a kind
     expect((await bad([{ id: "a", kind: "answer", agent: "Explain", text: "x", pages: [1] }])).status).toBe(400);
+    expect((await bad([{ id: "a", kind: "agent", agent: "explain", ask: "x", md: "It means (p. 9).", pages: [9], at: 1 }])).json).toMatchObject({ detail: "an answer's pages are not in this paper" });
+    const agent = await call("PUT", `${PAGE}/p3`, { body: { blocks: [{ id: "a", kind: "agent", agent: "critique", ask: "", md: "- **Thin evidence.** x (p. 1)", pages: [1], at: 1 }] } });
+    expect(agent.status).toBe(201);
+    expect((await call("DELETE", `${PAGE}/p3`)).status).toBe(204);
     expect((await call("PUT", `${PAGE}/p1`, { body: { rev: -1, blocks: [] } })).status).toBe(400);
     expect((await call("PUT", `${PAGE}/p1`, { body: { rev: "1", blocks: [] } })).status).toBe(400);
     expect((await call("PUT", `${PAGE}/p1`, { body: { style: "lined", blocks: [] } })).status).toBe(400);

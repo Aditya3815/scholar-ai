@@ -43,7 +43,7 @@ import {
   type PaperInfo,
 } from "@scholar/shared";
 import { requireUser, type Door } from "../auth/service";
-import type { PaperAccess, ShareRole } from "@scholar/shared";
+import { ASK_MODES, MAX_SELECTION_CHARS, roleAtLeast, type PaperAccess, type ShareRole } from "@scholar/shared";
 import { requirePaper, type PaperDoor } from "./paper-gate";
 import { shareOnFor, shareSwitchedOn } from "./share-flag";
 import { noteOpened, openThreads } from "./share-store";
@@ -59,6 +59,9 @@ import { cacheStore } from "../cache";
 import { chunkPage } from "./chunk";
 import { enrichPaperInfo, sanitizePaperInfo } from "./info";
 import { answerQuestion, answerQuestionStream, describeAskError, type StoredChunk } from "./qa";
+import { critique as critiqueOnce, critiqueOutcome, critiqueStream, draftNotes, explain, explainStream, selectionInPaper, type ExplainAsk } from "./agents";
+import type { Complete, StreamComplete } from "../platform/llm/port";
+import type { Embedder } from "../platform/llm/embedder";
 import { decodeVec, encodeVec } from "./vector";
 import { readJpeg } from "../ocr/jpeg";
 import { DailyLimitError, ReadFailedError, finishIfDone, readScanPage, registerScan, scanInfo, scanTexts } from "../ocr/process";
@@ -519,10 +522,12 @@ documentRoutes.post("/:id/ask", async (c) => {
   const keep = access.role === "owner";
   if (row.status !== "ready") return deny(c, 409, "not_ready", "This paper is not ready yet", row.status === "failed" ? row.error ?? undefined : "Wait until indexing finishes.");
 
-  const body = (await readJson(c)) as { question?: unknown } | null;
+  const body = (await readJson(c)) as { question?: unknown; mode?: unknown; selection?: unknown; page?: unknown } | null;
+  const mode = body?.mode ?? "ask";
+  if (!(ASK_MODES as readonly unknown[]).includes(mode)) return deny(c, 400, "invalid", "That is not a way to ask", `Ask with one of: ${ASK_MODES.join(", ")}.`);
   const question = typeof body?.question === "string" ? body.question.replace(/\s+/g, " ").trim() : "";
-  if (question.length < 3) return deny(c, 400, "invalid_question", "Ask a question about the paper");
   if (question.length > MAX_QUESTION_CHARS) return deny(c, 400, "invalid_question", "That question is too long", `Keep it under ${MAX_QUESTION_CHARS} characters.`);
+  if (mode === "ask" && question.length < 3) return deny(c, 400, "invalid_question", "Ask a question about the paper");
 
   const deps = depsOf(c);
   const embed = deps.embedder;
@@ -531,6 +536,9 @@ documentRoutes.post("/:id/ask", async (c) => {
 
   const rows = await c.env.DB.prepare("SELECT idx, page, text, embedding FROM doc_chunks WHERE doc_id = ?1 ORDER BY idx").bind(row.id).all<{ idx: number; page: number; text: string; embedding: string | null }>();
   const chunks: StoredChunk[] = rows.results.map((r) => ({ idx: r.idx, page: r.page, text: r.text, embedding: r.embedding ? decodeVec(r.embedding) : null }));
+
+  // the Paper Reader's Explain and Critique (docs/design/paper-reader.md, 9.3 and 23): never kept in the paper's question history, whoever asks
+  if (mode === "explain" || mode === "critique") return agentAnswer(c, { mode, question, body, row, user: user.id, chunks, embed, complete });
 
   if (c.req.query("stream") === "1") {
     const abort = new AbortController();
@@ -570,13 +578,106 @@ documentRoutes.post("/:id/ask", async (c) => {
 });
 
 
-/** A question about what the reader marked: the highlights are the passages, the answer's quotes are checked against them, and it is not added to the paper's question history. */
+/**
+ * Explain and Critique (`mode` of POST /:id/ask): Explain takes a `selection` of this paper (at most MAX_SELECTION_CHARS, its words checked to be in the paper, near its `page`) or a named idea
+ * (`question`), or both; Critique takes an optional focus (`question`). Streamed like a question (`?stream=1`: Explain's text as it is written, then its checked answer; a critique's stages, then its
+ * checked points as a `critique` event), or answered in one piece. Each is counted (`reader_agent_<name>`) and never kept.
+ */
+async function agentAnswer(
+  c: Context<HonoEnv>,
+  a: { mode: "explain" | "critique"; question: string; body: { selection?: unknown; page?: unknown } | null; row: Row; user: string; chunks: StoredChunk[]; embed: Embedder; complete: Complete },
+): Promise<Response> {
+  const deps = depsOf(c);
+  const meta = { id: randomId(), createdAt: Date.now() };
+  let run: { stream: (stream: StreamComplete, emit: (e: AskStreamEvent) => Promise<void>) => Promise<AskStreamEvent>; once: () => Promise<Record<string, unknown>> };
+  if (a.mode === "explain") {
+    const selection = typeof a.body?.selection === "string" ? a.body.selection.replace(/\s+/g, " ").trim() : "";
+    if (selection.length > MAX_SELECTION_CHARS) return deny(c, 400, "invalid_question", "That selection is too long to explain", `Select at most ${MAX_SELECTION_CHARS} characters.`);
+    const p = a.body?.page;
+    const page = typeof p === "number" && Number.isInteger(p) && p >= 1 && p <= (a.row.pages ?? MAX_DOC_PAGES) ? p : null;
+    if (selection.length < 2 && a.question.length < 3) return deny(c, 400, "invalid_question", "Select a passage, or name an idea to explain");
+    if (selection && !selectionInPaper(selection, page, a.chunks)) return deny(c, 400, "invalid_question", "That passage is not in this paper", "Select the words in the paper itself, then choose Explain.");
+    const ask: ExplainAsk = { selection, page, idea: a.question };
+    run = {
+      stream: async (stream, emit) => {
+        const answer = await explainStream({ ask, chunks: a.chunks, embed: a.embed, stream, meta, emit, topK: deps.dev.topK });
+        await countOutcome(c.env.DB, "reader_agent_explain", askOutcome(answer));
+        return { type: "answer", answer };
+      },
+      once: async () => {
+        const answer = await explain({ ask, chunks: a.chunks, embed: a.embed, complete: a.complete, meta, topK: deps.dev.topK });
+        await countOutcome(c.env.DB, "reader_agent_explain", askOutcome(answer));
+        return { answer };
+      },
+    };
+  } else {
+    const focus = a.question;
+    run = {
+      stream: async (stream, emit) => {
+        const critique = await critiqueStream({ focus, chunks: a.chunks, embed: a.embed, stream, meta, emit, topK: deps.dev.topK });
+        await countOutcome(c.env.DB, "reader_agent_critique", critiqueOutcome(critique));
+        return { type: "critique", critique };
+      },
+      once: async () => {
+        const critique = await critiqueOnce({ focus, chunks: a.chunks, embed: a.embed, complete: a.complete, meta, topK: deps.dev.topK });
+        await countOutcome(c.env.DB, "reader_agent_critique", critiqueOutcome(critique));
+        return { critique };
+      },
+    };
+  }
+  if (c.req.query("stream") === "1") {
+    const abort = new AbortController();
+    const stream = modelFor(deps, PROFILES.docsAskStream, a.user, abort.signal);
+    if (!stream) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
+    return sseStream<AskStreamEvent>(c, { terminal: ["answer", "critique", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (sse) => {
+      try {
+        const end = await run.stream(stream, sse.send);
+        if (sse.gone) return; // the reader left: nothing to send
+        await sse.send(end);
+      } catch (e) {
+        const d = describeAskError(e);
+        if (!d) console.error(JSON.stringify({ level: "error", msg: "agent_stream_failed", mode: a.mode, error: e instanceof Error ? e.name : "unknown" }));
+        await sse.send({ type: "error", code: d?.code ?? "internal_error", title: d?.title ?? "Something went wrong", detail: d?.detail });
+      }
+    });
+  }
+  try {
+    return c.json(await run.once());
+  } catch (e) {
+    const d = describeAskError(e);
+    if (d) return deny(c, d.status, d.code, d.title, d.detail);
+    throw e;
+  }
+}
+
+/**
+ * A question about what the reader marked: the highlights are the passages, the answer's quotes are checked against them, and it is not added to the paper's question history.
+ * `mode: "notes"` is the Paper Reader's Note-taker: a DRAFT page made only from the highlights (the page shows it, and keeps it only when the person adds it as a page). It writes the notes, so it
+ * needs an Editor (or the owner); it runs on the asker's own allowance, as a question does.
+ */
 documentRoutes.post("/:id/ask-highlights", async (c) => {
   const got = await paper(c, PAPER, "commenter");
   if (got instanceof Response) return got;
-  const { row } = got;
+  const { row, access } = got;
   const user = got.user!; // signed in (see /ask)
-  const body = (await readJson(c)) as { question?: unknown; legend?: unknown } | null;
+  const body = (await readJson(c)) as { question?: unknown; legend?: unknown; mode?: unknown } | null;
+  if (body?.mode !== undefined && body.mode !== "ask" && body.mode !== "notes") return deny(c, 400, "invalid", "That is not a way to ask", "Ask with one of: ask, notes.");
+  if (body?.mode === "notes") {
+    if (!roleAtLeast(access.role, "editor")) return deny(c, 403, "forbidden", "Your access to this paper does not let you change it");
+    const rows = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE doc_id = ?1 ORDER BY page, created_at, rowid LIMIT ?2`).bind(row.id, MAX_NOTES_PER_DOC).all<NoteRow>();
+    if (rows.results.length === 0) return deny(c, 409, "no_highlights", "You have not highlighted anything in this paper yet", "Select text in the paper to highlight it, then ask the Note-taker.");
+    const complete = modelFor(depsOf(c), PROFILES.docsAsk, user.id);
+    if (!complete) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
+    try {
+      const r = await draftNotes({ notes: rows.results.map(toNote), legend: cleanLegend(body?.legend), complete });
+      await countOutcome(c.env.DB, "reader_agent_notes", r.draft.blocks.length > 0 ? "notes_drafted" : "notes_empty");
+      return c.json({ draft: r.draft, used: r.used, total: r.total, dropped: r.dropped });
+    } catch (e) {
+      const d = describeAskError(e);
+      if (d) return deny(c, d.status, d.code, d.title, d.detail);
+      throw e;
+    }
+  }
   const question = typeof body?.question === "string" ? body.question.replace(/\s+/g, " ").trim() : "";
   if (question.length < 3) return deny(c, 400, "invalid_question", "Ask a question about your highlights");
   if (question.length > MAX_QUESTION_CHARS) return deny(c, 400, "invalid_question", "That question is too long", `Keep it under ${MAX_QUESTION_CHARS} characters.`);

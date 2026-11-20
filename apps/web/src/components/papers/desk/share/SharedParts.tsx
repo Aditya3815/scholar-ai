@@ -1,8 +1,9 @@
 import { MessageSquare } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { blockAnchor, mdPlainText, pageLabel, type CommentAnchor, type DocNote, type NoteColor, type NotebookPage } from "@scholar/shared";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MAX_COMMENT_CHARS, blockAnchor, mdPlainText, pageLabel, type CommentAnchor, type DocComment, type DocNote, type NoteColor, type NotebookPage } from "@scholar/shared";
+import type { CommentsApi } from "../../../../lib/comments";
 import type { Meaning } from "../../../../lib/meanings";
-import { MdView, QuoteBlockView } from "../notebook/NbBlocks";
+import { AgentBlockView, MdView, QuoteBlockView } from "../notebook/NbBlocks";
 import { readPages } from "./read-pages";
 import "./share.css";
 
@@ -89,7 +90,7 @@ export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus }
           return (
             <li key={b.id} className="nbr-block" data-block={b.id}>
               <div className="nbr-body nb-text">
-                {b.kind === "text" ? <MdView md={b.md} /> : b.kind === "quote" ? <QuoteBlockView b={b} mean={meanings[b.color]} removed={!!b.noteId && !known.has(b.noteId)} onGo={() => onGoTo(b.page, b.quote)} /> : b.kind === "image" ? <img className="nbr-img" src={`/api/v1/documents/${docId}/notebook/images/${b.id}`} alt={b.alt || "A picture in the notes"} width={b.w} height={b.h} loading="lazy" /> : <p className="cm-empty">{b.kind === "capture" ? `A part of page ${b.page}${b.caption ? `: ${b.caption}` : ""}` : b.kind === "sketch" ? "A sketch" : mdPlainText(b.text)}</p>}
+                {b.kind === "text" ? <MdView md={b.md} /> : b.kind === "quote" ? <QuoteBlockView b={b} mean={meanings[b.color]} removed={!!b.noteId && !known.has(b.noteId)} onGo={() => onGoTo(b.page, b.quote)} /> : b.kind === "image" ? <img className="nbr-img" src={`/api/v1/documents/${docId}/notebook/images/${b.id}`} alt={b.alt || "A picture in the notes"} width={b.w} height={b.h} loading="lazy" style={b.width !== undefined ? { width: `${b.width * 100}%`, height: "auto" } : undefined} /> : b.kind === "agent" ? <AgentBlockView b={b} onGo={(p) => onGoTo(p, "")} /> : <p className="cm-empty">{b.kind === "capture" ? `A part of page ${b.page}${b.caption ? `: ${b.caption}` : ""}` : "A sketch"}</p>}
               </div>
               {comments && (n > 0 || comments.canWrite) && (
                 <button type="button" className="cm-dot" data-open={n > 0 || undefined} onClick={() => comments.show(a)} aria-label={n > 0 ? `${n} open ${n === 1 ? "comment" : "comments"} on this block` : "Comment on this block"} title={n > 0 ? "Open comments" : "Comment"}>

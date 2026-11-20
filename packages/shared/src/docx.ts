@@ -11,6 +11,8 @@ export type DocRun = {
   t: string;
   i?: boolean;
   b?: boolean;
+  /** underlined (a note's ++underline++) */
+  u?: boolean;
   sup?: boolean;
   /** An address outside the document: only http(s) and mailto are linked, anything else is written as text. */
   link?: string;
@@ -32,7 +34,7 @@ export type Block =
    * A picture on a line of its own (the Notebook's captures and sketches): `media` is its file's name in the zip's word/media folder ("image1.png"), which the caller adds, as this module
    * makes text only; `w` and `h` its size in CSS pixels (made smaller to fit the page's width), `alt` what it shows.
    */
-  | { k: "image"; media: string; w: number; h: number; alt: string };
+  | { k: "image"; media: string; w: number; h: number; alt: string; /** shown at this fraction of the text's width (a picture the reader made narrower) */ frac?: number };
 
 export type DocxDoc = {
   title: string;
@@ -96,7 +98,7 @@ function runXml(r: DocRun, ctx: Ctx): string {
   const props = [
     r.b ? "<w:b/><w:bCs/>" : "",
     r.i ? "<w:i/><w:iCs/>" : "",
-    safeLink(r.link) || r.anchor ? '<w:color w:val="1F4E8C"/><w:u w:val="single"/>' : "",
+    safeLink(r.link) || r.anchor ? '<w:color w:val="1F4E8C"/><w:u w:val="single"/>' : r.u ? '<w:u w:val="single"/>' : "",
     r.sup ? '<w:vertAlign w:val="superscript"/>' : "",
   ].join("");
   const parts = text.split(/\r\n|\r|\n/);
@@ -171,7 +173,8 @@ function imageXml(b: Extract<Block, { k: "image" }>, ctx: Ctx): string {
   if (!MEDIA.test(b.media) || !(b.w > 0) || !(b.h > 0)) return "";
   let i = ctx.images.indexOf(b.media);
   if (i < 0) i = ctx.images.push(b.media) - 1;
-  const scale = Math.min(1, TEXT_WIDTH_EMU / (b.w * 9525));
+  const frac = b.frac !== undefined && b.frac > 0 && b.frac < 1 ? b.frac : null;
+  const scale = frac ? (TEXT_WIDTH_EMU * frac) / (b.w * 9525) : Math.min(1, TEXT_WIDTH_EMU / (b.w * 9525));
   const cx = Math.round(b.w * 9525 * scale);
   const cy = Math.round(b.h * 9525 * scale);
   const id = 1000 + ctx.bookmarkId++;

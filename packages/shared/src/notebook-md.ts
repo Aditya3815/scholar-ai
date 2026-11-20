@@ -1,8 +1,9 @@
 /**
- * The Markdown a Notebook text block is written in (docs/design/paper-reader.md, 19.4), and nothing more: headings (#, ##, ###), **bold**, *italic*, <u>underline</u>, ==mark==,
+ * The Markdown a Notebook text block is written in (docs/design/paper-reader.md, 19.4), and nothing more: headings (#, ##, ###), **bold**, *italic*, ++underline++ (and <u>underline</u>,
+ * which notes written before 20 Nov 2026 hold: both are read, the toolbar writes ++), ==mark==,
  * "- " and "1. " lists, paragraphs and line breaks. A pure parser from the text to tokens: the page draws the tokens as React elements and never puts an HTML string into the page,
  * so a block cannot run a script and nothing has to be sanitised. Everything else (links, pictures, any other tag) is a token of plain text: it shows as it was typed.
- * A backslash before * = < or \ makes it a plain character. Imports nothing.
+ * A backslash before * = + < or \ makes it a plain character. Imports nothing.
  */
 
 export type MdInline = { t: "text"; s: string } | { t: "br" } | { t: "b" | "i" | "u" | "mark"; c: MdInline[] };
@@ -20,10 +21,11 @@ const NUMBERED = /^ {0,3}(\d{1,9})[.)] +(.*)$/;
 const MARKS: { open: string; close: string; t: "b" | "i" | "u" | "mark" }[] = [
   { open: "**", close: "**", t: "b" },
   { open: "==", close: "==", t: "mark" },
+  { open: "++", close: "++", t: "u" },
   { open: "<u>", close: "</u>", t: "u" },
   { open: "*", close: "*", t: "i" },
 ];
-const ESCAPABLE = new Set(["*", "=", "<", "\\"]);
+const ESCAPABLE = new Set(["*", "=", "+", "<", "\\"]);
 
 const escaped = (s: string, at: number) => s[at - 1] === "\\" && s[at - 2] !== "\\";
 
@@ -47,7 +49,7 @@ function closer(s: string, from: number, m: (typeof MARKS)[number]): number {
   }
   for (let j = s.indexOf(m.close, from); j >= 0; j = s.indexOf(m.close, j + 1)) {
     if (j === from || escaped(s, j)) continue;
-    if (m.t === "mark" && /\s/.test(s[j - 1]!)) continue;
+    if ((m.t === "mark" || m.open === "++") && /\s/.test(s[j - 1]!)) continue;
     return j;
   }
   return -1;
@@ -145,4 +147,66 @@ export function mdPlainText(md: string): string {
     .join(" ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/* ---------------------------------------------------------------- the source, styled (the text field while it is written in) */
+
+/** A piece of a block's source: its characters as typed, whether they are a mark (drawn faint), and the styles of the text it is in. Together the pieces are the source, character for character. */
+export type MdRun = { s: string; mark: boolean; b: boolean; i: boolean; u: boolean; hl: boolean; h: boolean };
+type Style = Omit<MdRun, "s" | "mark">;
+const PLAIN: Style = { b: false, i: false, u: false, hl: false, h: false };
+
+function sourceInline(s: string, st: Style, out: MdRun[]) {
+  let buf = "";
+  const flush = () => {
+    if (buf) out.push({ s: buf, mark: false, ...st });
+    buf = "";
+  };
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i]!;
+    if (ch === "\\" && i + 1 < s.length && ESCAPABLE.has(s[i + 1]!)) {
+      flush();
+      out.push({ s: "\\", mark: true, ...st });
+      buf += s[i + 1];
+      i += 2;
+      continue;
+    }
+    let matched = false;
+    for (const m of MARKS) {
+      if (!s.startsWith(m.open, i)) continue;
+      const inner = i + m.open.length;
+      if (inner >= s.length || (m.open !== "<u>" && /\s/.test(s[inner]!))) continue;
+      const j = closer(s, inner, m);
+      if (j < 0) continue;
+      flush();
+      const next = { ...st, [m.t === "mark" ? "hl" : m.t]: true };
+      out.push({ s: m.open, mark: true, ...st });
+      sourceInline(s.slice(inner, j), next, out);
+      out.push({ s: m.close, mark: true, ...st });
+      i = j + m.close.length;
+      matched = true;
+      break;
+    }
+    if (matched) continue;
+    buf += ch;
+    i++;
+  }
+  flush();
+}
+
+/**
+ * The source of a block as styled pieces, line by line, for the text field while it is written in: the page draws them under the field (whose own letters are clear), so the marks show faint
+ * and the text they wrap shows underlined, marked or bold at once, and every character keeps its place (nothing is added or taken away, so the cursor stays where it is drawn).
+ * A line's heading or list sign is a mark too. Paragraphs are read line by line here (a mark does not run over a line's end while it is typed).
+ */
+export function mdSourceRuns(md: string): MdRun[][] {
+  return md.split("\n").map((line) => {
+    const out: MdRun[] = [];
+    const h = HEADING.exec(line);
+    const lead = h ? /^#{1,3} +/.exec(line)![0] : (/^ {0,3}(?:- +|\d{1,9}[.)] +)/.exec(line)?.[0] ?? "");
+    if (lead) out.push({ s: lead, mark: true, ...PLAIN });
+    sourceInline(line.slice(lead.length), { ...PLAIN, h: !!h }, out);
+    return out;
+  });
 }

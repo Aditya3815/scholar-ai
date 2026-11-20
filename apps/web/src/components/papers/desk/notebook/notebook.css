@@ -334,5 +334,45 @@
 /* a picture added to the notes (22): at its own size, never wider than the page, with the words that say what it shows */
 .nb-block[data-kind="image"] { padding: 0.4rem 0; }
 .nb-image { display: grid; gap: 0.35rem; margin: 0; }
-.nb-image img { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface-2); }
+.nb-image-box { position: relative; min-width: 96px; max-width: 100%; }
+.nb-image img { display: block; width: 100%; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface-2); }
+/* the handle at the picture's corner: drag it (it keeps the shape), or focus it and use the arrows */
+.nb-resize { position: absolute; right: -6px; bottom: -6px; width: 24px; height: 24px; border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); box-shadow: var(--shadow-1, 0 1px 2px rgb(0 0 0 / 0.25)); cursor: nwse-resize; touch-action: none; opacity: 0; transition: opacity 0.15s var(--ease); }
+.nb-image:hover .nb-resize,
+.nb-image:focus-within .nb-resize,
+.nb-image-box[data-resizing] .nb-resize { opacity: 1; }
+.nb-resize:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (hover: none) {
+  .nb-resize { opacity: 1; }
+}
+@media (pointer: coarse) {
+  .nb-resize { right: -10px; bottom: -10px; width: 32px; height: 32px; }
+  .nb-resize::before { content: ""; position: absolute; inset: -6px; }
+}
+.nb-image figcaption .nb-caption { flex: 1; }
 .nb-image figcaption { display: flex; }
+
+/* An agent's answer kept in the notes (phase 3): a quiet card, the agent's name and pages as a small header, the answer as text, and its pages back to the paper */
+.nb-agent { display: grid; gap: 0.3rem; margin: 0; padding: 0.5rem 0.7rem 0.55rem; border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: var(--radius-s); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+.nb-agent-head { display: flex; align-items: center; gap: 0.35rem; color: var(--muted); font-size: 0.75rem; letter-spacing: 0.01em; }
+.nb-agent-mark { color: var(--accent); font-size: 0.8rem; line-height: 1; }
+.nb-agent-head b { font-weight: 650; color: var(--text); }
+.nb-agent-ask { margin: 0; color: var(--muted); font-size: 0.8125rem; font-style: italic; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.nb-agent-md { color: var(--text); font-size: 0.9rem; line-height: 1.55; overflow-wrap: anywhere; }
+.nb-agent-md > :first-child { margin-top: 0; }
+.nb-agent-md > :last-child { margin-bottom: 0; }
+.nb-agent-md p, .nb-agent-md ul, .nb-agent-md ol { margin: 0 0 0.35rem; }
+.nb-agent-md ul, .nb-agent-md ol { padding-left: 1.2rem; }
+.nb-agent figcaption { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.nb-agent .nb-go { margin-left: 0; }
+
+/* a text block being written in, with marks in it: its source drawn under the field, styled; the field's own letters are clear (its cursor and selection stay) */
+.nb-edit { position: relative; }
+.nb-mirror { position: absolute; inset: 0; z-index: 0; margin: 0; padding: 0 0.5rem; color: var(--text); font-family: var(--read-font, var(--font-ui)); font-size: 0.95rem; line-height: var(--nb-line); white-space: pre-wrap; overflow-wrap: anywhere; pointer-events: none; }
+.nb-edit > .nb-field { position: relative; z-index: 1; }
+.nb-field[data-mirrored] { color: transparent; caret-color: var(--text); }
+.nb-field[data-mirrored]::selection { color: transparent; background: color-mix(in srgb, var(--accent) 28%, transparent); }
+.nb-mirror .nb-mk { color: var(--muted); }
+.nb-mirror [data-u] { text-decoration: underline; text-underline-offset: 0.15em; }
+.nb-mirror [data-hl] { background: color-mix(in srgb, var(--mean-key) 30%, var(--surface)); }
+.nb-mirror [data-b] { text-shadow: 0.4px 0 0 currentColor, -0.2px 0 0 currentColor; }

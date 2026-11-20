@@ -132,6 +132,8 @@ export * from "./vocab/notices";
 export * from "./vocab/references";
 export * from "./vocab/outcomes";
 export * from "./protocol/problem";
+export * from "./protocol/agents";
+export * from "./reader-agents";
 export * from "./vocab/ledger";
 export * from "./zoom";
 export * from "./paperinfo";
