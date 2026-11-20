@@ -166,7 +166,7 @@ try {
     // the exports
     const exportAs = async (item) => {
       await page.locator(".nb-export").click();
-      const m = page.getByRole("menu", { name: "Export" });
+      const m = page.getByRole("menu", { name: "Download" });
       await m.getByRole("menuitemradio", { name: "All pages" }).click();
       const dl = page.waitForEvent("download", { timeout: 30000 });
       await m.getByRole("menuitem", { name: item, exact: true }).click();
