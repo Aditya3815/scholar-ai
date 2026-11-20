@@ -13,9 +13,9 @@ export type MdBlock =
   | { t: "ul"; items: MdInline[][] }
   | { t: "ol"; start: number; items: MdInline[][] };
 
-const HEADING = /^(#{1,3}) +(.*)$/;
-const BULLET = /^ {0,3}- +(.*)$/;
-const NUMBERED = /^ {0,3}(\d{1,9})[.)] +(.*)$/;
+const HEADING = /^(#{1,3}) +(?! )(.*)$/;
+const BULLET = /^ {0,3}- +(?! )(.*)$/;
+const NUMBERED = /^ {0,3}(\d{1,9})[.)] +(?! )(.*)$/;
 
 /** The marks that wrap text, in the order they are tried at one place: ** before *, so "**" is never read as two italics. */
 const MARKS: { open: string; close: string; t: "b" | "i" | "u" | "mark" }[] = [

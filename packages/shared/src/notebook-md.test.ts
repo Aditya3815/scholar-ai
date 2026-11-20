@@ -113,3 +113,13 @@ describe("long runs stay fast (CodeQL, 20 Nov 2026)", () => {
     expect(runs.map((r) => r[0]!.s.length)).toEqual([50_001, 50_001, 50_002]);
   });
 });
+
+describe("a heading line with many spaces and a stray carriage return stays fast (CodeQL)", () => {
+  it("is read in linear time", () => {
+    const line = `#${" ".repeat(50_000)}\r`;
+    const t = performance.now();
+    mdSourceRuns(line);
+    parseNotebookMd(line);
+    expect(performance.now() - t).toBeLessThan(500);
+  });
+});
