@@ -389,7 +389,8 @@
 }
 .nb-inkwrap { position: relative; }
 .nb-inksvg { position: absolute; top: 0; left: 0; z-index: 1; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.nbi-hl { fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-opacity: var(--nbh-op); }
+/* a marker's ends are flat, as on the paper (ink-path.ts): it covers what was drawn over, and no more */
+.nbi-hl { fill: none; stroke-linecap: butt; stroke-linejoin: round; stroke-opacity: var(--nbh-op); }
 @media (forced-colors: active) {
   .nbi-pen { fill: CanvasText !important; }
   .nbi-hl { stroke: Highlight !important; stroke-opacity: 0.4; }

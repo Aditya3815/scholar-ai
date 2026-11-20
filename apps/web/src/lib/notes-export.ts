@@ -1,7 +1,8 @@
-import { DOCX_MIME, IMAGE_SIZE_WIDTH, agentHeading, buildDocx, inkHex, parseNotebookMd, type CaptureBlock, type DocFloat, type DocRun, type ImageBlock, type Block as DocBlock, type MdBlock, type MdInline, type NotebookBlock, type NoteStroke, type QuoteColor, type SketchBlock } from "@scholar/shared";
+import { DOCX_MIME, IMAGE_SIZE_WIDTH, agentHeading, buildDocx, inkHex, parseNotebookMd, type CaptureBlock, type DocFloat, type ImageBlock, type Block as DocBlock, type MdBlock, type MdInline, type NotebookBlock, type NoteStroke, type QuoteColor, type SketchBlock } from "@scholar/shared";
 import devanagariFace from "@fontsource/noto-sans-devanagari/files/noto-sans-devanagari-devanagari-400-normal.woff?url";
 import { drawCapture } from "./capture";
 import { markerPath, penPath } from "./ink-path";
+import { EM_PT, MID, makeBreaker, strokePts, type LayoutRun } from "./notes-layout";
 import type { PDFDocumentProxy } from "./pdf";
 
 /**
@@ -20,9 +21,6 @@ type Png = { bytes: Uint8Array; w: number; h: number; /** a picture shown narrow
 
 const DEVANAGARI = /[ऀ-ॿ꣠-ꣿ]/;
 const PICTURE_WIDTH = 900;
-/** The text's size the ink is measured in (1 em = 11 pt), and where a line's middle is above its baseline, in em (the middle of a line box on screen). */
-const EM_PT = 11;
-const MID = 0.33;
 /** The width of the text in both files: A4 less two margins of 56 pt (Word's text width is set to this when there is ink). */
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
@@ -106,7 +104,7 @@ const pictureOf = async (b: NotebookBlock, pdf: PDFDocumentProxy | null, imageUr
 const captureLine = (b: CaptureBlock) => `${b.caption ? `${b.caption} (` : "("}p. ${b.page})`;
 
 /** A run of text, with the offset of its first character in its block's plain text (mdPlain: what an ink anchor counts in); a line break has none. */
-type Run = DocRun & { o?: number };
+type Run = LayoutRun;
 
 /** Markdown's inline marks as runs: bold, italic and underline (a mark keeps its words). `at` counts the plain text as it goes. */
 function runsOf(c: MdInline[], style: { b?: boolean; i?: boolean; u?: boolean } = {}, at = { n: 0 }): Run[] {
@@ -154,16 +152,6 @@ const reachBelow = (s: NoteStroke) => {
   for (let i = 1; i < s.pts.length; i += 3) m = Math.max(m, s.pts[i]!);
   return ((m + s.w / 2) / 100) * EM_PT;
 };
-/**
- * A stroke's points in points, y down: a text stroke from its anchor (`x`, `mid`: the character's left and its line's middle), a box stroke from its box's top left (`x`, `mid` = the top)
- * scaled by the box's width. The width of the line in points too.
- */
-function strokePts(s: NoteStroke, x: number, mid: number, boxW: number): { pts: number[]; w: number } {
-  const u = s.a.k === "text" ? EM_PT / 100 : boxW / 10_000;
-  const pts: number[] = [];
-  for (let i = 0; i < s.pts.length; i += 3) pts.push(x + s.pts[i]! * u, mid + s.pts[i + 1]! * u, s.pts[i + 2]! / 100);
-  return { pts, w: s.w * u };
-}
 
 /** Strokes drawn into a transparent PNG (Word's picture of a paragraph's ink), in the light palette, at 192 dpi; its box in points (relative to the same origin as the strokes). */
 async function inkPng(list: { s: NoteStroke; pts: number[]; w: number }[]): Promise<{ bytes: Uint8Array; x: number; y: number; w: number; h: number } | null> {
@@ -196,7 +184,7 @@ async function inkPng(list: { s: NoteStroke; pts: number[]; w: number }[]): Prom
       ctx.globalAlpha = 0.45;
       ctx.strokeStyle = inkHex("highlighter", s.color);
       ctx.lineWidth = lw;
-      ctx.lineCap = "round";
+      ctx.lineCap = "butt";
       ctx.lineJoin = "round";
       ctx.stroke(new Path2D(markerPath(pts, 1)));
     }
@@ -204,89 +192,6 @@ async function inkPng(list: { s: NoteStroke; pts: number[]; w: number }[]): Prom
   return { bytes: await pngOf(c), x: x0, y: y0, w, h };
 }
 
-/* ---------------------------------------------------------------- the line-breaker (the PDF's, and Word's prediction) */
-
-type Font = { widthOfTextAtSize: (s: string, size: number) => number; getCharacterSet: () => number[] };
-type Fonts = { r: Font; b: Font; i: Font; bi: Font; deva: Font | null };
-type Part = { s: string; font: Font; u?: boolean; o?: number; len: number };
-type Line = { parts: (Part & { x: number })[]; brk: boolean };
-
-function makeBreaker(fonts: Fonts) {
-  const shown = new Set(fonts.r.getCharacterSet());
-  /** A run cut into pieces of one script: Devanagari in its face, the rest in Helvetica (a letter Helvetica cannot draw becomes "?"); each piece knows its plain-text offset. */
-  const pieces = (r: Run, t: string, o: number | undefined): Part[] => {
-    const latin = r.b && r.i ? fonts.bi : r.b ? fonts.b : r.i ? fonts.i : fonts.r;
-    const out: Part[] = [];
-    let off = o;
-    for (const ch of t) {
-      const isDeva = DEVANAGARI.test(ch) || ch === "‍" || ch === "‌";
-      const font = isDeva && fonts.deva ? fonts.deva : latin;
-      const c = font === latin && !shown.has(ch.codePointAt(0)!) && ch !== " " ? "?" : ch;
-      const last = out[out.length - 1];
-      if (last && last.font === font) {
-        last.s += c;
-        last.len += ch.length;
-      } else out.push({ s: c, font, len: ch.length, ...(off !== undefined ? { o: off } : {}), ...(r.u ? { u: true } : {}) });
-      if (off !== undefined) off += ch.length;
-    }
-    return out;
-  };
-  /** Runs broken into lines `max` wide at `size`: each line's pieces with their x (from the line's start). */
-  const lines = (runs: Run[], size: number, max: number): Line[] => {
-    type Word = { parts: Part[]; w: number; brk?: boolean };
-    const words: Word[] = [];
-    for (const r of runs) {
-      let o = r.o;
-      r.t.split("\n").forEach((ln, li) => {
-        if (li > 0) words.push({ parts: [], w: 0, brk: true });
-        for (const tok of ln.split(/(\s+)/)) {
-          if (!tok) continue;
-          if (/^\s+$/.test(tok)) words.push({ parts: [{ s: " ", font: fonts.r, len: tok.length, ...(o !== undefined ? { o } : {}), ...(r.u ? { u: true } : {}) }], w: fonts.r.widthOfTextAtSize(" ", size) });
-          else {
-            const parts = pieces(r, tok, o);
-            words.push({ parts, w: parts.reduce((a, p) => a + p.font.widthOfTextAtSize(p.s, size), 0) });
-          }
-          if (o !== undefined) o += tok.length;
-        }
-      });
-    }
-    const out: Line[] = [];
-    let line: Word[] = [];
-    let lw = 0;
-    const flush = (brk: boolean) => {
-      let x = 0;
-      const parts: Line["parts"] = [];
-      for (const w of line)
-        for (const p of w.parts) {
-          parts.push({ ...p, x });
-          x += p.font.widthOfTextAtSize(p.s, size);
-        }
-      out.push({ parts, brk });
-      line = [];
-      lw = 0;
-    };
-    for (const w of words) {
-      if (w.brk) {
-        flush(true);
-        continue;
-      }
-      if (lw + w.w > max && line.length) {
-        flush(false);
-        if (w.parts.length === 1 && w.parts[0]!.s === " ") continue;
-      }
-      line.push(w);
-      lw += w.w;
-    }
-    if (line.length || !out.length) flush(false);
-    return out;
-  };
-  /** Where character `at` is on a line: the x of its left edge, or null when the line does not hold it. */
-  const xOf = (l: Line, at: number, size: number): number | null => {
-    for (const p of l.parts) if (p.o !== undefined && at >= p.o && at < p.o + p.len) return p.x + p.font.widthOfTextAtSize(p.s.slice(0, at - p.o), size);
-    return null;
-  };
-  return { lines, xOf };
-}
 
 /* ---------------------------------------------------------------- Word */
 
@@ -542,7 +447,7 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
     const shift = Math.max(0, Math.min(maxX + w / 2 - (W - 12), minX - 12));
     if (shift > 0) for (let i = 0; i < pts.length; i += 3) pts[i] = pts[i]! - shift;
     if (k.s.tool === "pen") k.page.drawSvgPath(penPath(pts, w, 1), { x: 0, y: H, color: rgbOf(inkHex("pen", k.s.color)) });
-    else k.page.drawSvgPath(markerPath(pts, 1), { x: 0, y: H, borderColor: rgbOf(inkHex("highlighter", k.s.color)), borderWidth: w, borderOpacity: 0.45, borderLineCap: LineCapStyle.Round, blendMode: BlendMode.Multiply });
+    else k.page.drawSvgPath(markerPath(pts, 1), { x: 0, y: H, borderColor: rgbOf(inkHex("highlighter", k.s.color)), borderWidth: w, borderOpacity: 0.45, borderLineCap: LineCapStyle.Butt, blendMode: BlendMode.Multiply });
   }
   return doc.save();
 }

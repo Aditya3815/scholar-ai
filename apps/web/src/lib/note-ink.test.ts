@@ -167,3 +167,35 @@ describe("the palm rule (lib/ink-input.ts, one copy for the paper and the notes)
     expect(touchVerdict(1, true, 1000, 1000 + PEN_SEEN_MS)).toBe("draw");
   });
 });
+
+describe("ink lands on its word, not beside it (screen, PDF and Word measure an anchor from the same point)", () => {
+  // a highlight drawn exactly from a word's first letter to its last, at the middle of its line
+  const across = (b: Box) => [b.left, (b.top + b.bottom) / 2, 0.5, (b.left + b.right) / 2, (b.top + b.bottom) / 2, 0.5, b.right, (b.top + b.bottom) / 2, 0.5];
+  it("on screen: it round-trips to the same x within 1 px, at the width it was drawn and at others", () => {
+    const g = page(60);
+    const made = anchorStroke(across(wordBox(g, "district")), "highlighter", "yellow", 0.75, g, ids, texts)!;
+    for (const cols of [60, 33, 21]) {
+      const gg = page(cols);
+      const w = wordBox(gg, "district");
+      const p = placeStroke(made.stroke, gg, texts)!.pts;
+      expect(Math.abs(p[0]! - w.left)).toBeLessThanOrEqual(1);
+      expect(Math.abs(p[p.length - 3]! - w.right)).toBeLessThanOrEqual(1);
+      expect(Math.abs(p[1]! - (w.top + w.bottom) / 2)).toBeLessThanOrEqual(1);
+    }
+  });
+  it("in the PDF and Word: the stroke's ends are the word's ends, with the same font widths", async () => {
+    const { makeBreaker, strokePts, EM_PT } = await import("./notes-layout");
+    // the fake layout's letters are half an em wide (8 px of 16): a font of the same shape, in points
+    const mono = { widthOfTextAtSize: (s: string, size: number) => s.length * size * 0.5, getCharacterSet: () => Array.from({ length: 95 }, (_, i) => 32 + i) };
+    const br = makeBreaker({ r: mono, b: mono, i: mono, bi: mono, deva: null });
+    const g = page(60);
+    const made = anchorStroke(across(wordBox(g, "district")), "highlighter", "yellow", 0.75, g, ids, texts)!;
+    const at = (made.stroke.a as { at: number }).at;
+    const lines = br.lines([{ t: TEXT, o: 0 }], EM_PT, 10_000);
+    const x = br.xOf(lines[0]!, at, EM_PT)!;
+    const { pts } = strokePts(made.stroke, x, 0, 0);
+    const start = TEXT.indexOf("district") * EM_PT * 0.5;
+    expect(Math.abs(pts[0]! - start)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(pts[pts.length - 3]! - (start + 8 * EM_PT * 0.5))).toBeLessThanOrEqual(0.5);
+  });
+});

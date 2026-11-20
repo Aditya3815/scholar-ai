@@ -29,8 +29,11 @@ export function inkPlainOf(b: NotebookBlock): string | null {
 
 const width = (b: Box) => b.right - b.left;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-/** The point of a character a text anchor measures from: its left edge, at the middle of its line box (so a different line height does not move ink up or down). */
-const refOf = (b: Box) => ({ x: b.left, y: (b.top + b.bottom) / 2 });
+/**
+ * The point of a character a text anchor measures from: its middle, on both axes (the middle of its line box: a different line height does not move ink up or down; the middle of its width:
+ * where the export's font is narrower or wider, ink drifts half as far as from an edge, and the same way on both sides of a word). The PDF and Word measure from the same point (notes-layout.ts).
+ */
+const refOf = (b: Box) => ({ x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 });
 
 /** The nearest character to a point, from the boxes of all characters: on the line the point is on (or the nearest line), the nearest by x. -1 when no character has a box. */
 export function nearestIndex(boxes: readonly (Box | null)[], x: number, y: number): number {

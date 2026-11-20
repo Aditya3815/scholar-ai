@@ -868,6 +868,9 @@ try {
     for (let i = 1; i <= 10; i++) await page.mouse.move(w2.x - 2 + ((w2.w + 4) * i) / 10, w2.cy);
     await page.mouse.up();
     ok((await strokesShown()) === 2 && (await page.locator(".nb .nb-inksvg .nbi-hl").count()) >= 1, "a highlighter stroke over another word");
+    // it lies where it was drawn: from 2 px before the word to 2 px after it (its ends are flat), not a letter to one side
+    const hlBox = await page.locator(".nb .nb-inksvg path.nbi-hl:not([d=''])").first().evaluate((el) => { const r = el.getBoundingClientRect(); return { l: r.left, r: r.right }; });
+    ok(Math.abs(hlBox.l - (w2.x - 2)) <= 1.5 && Math.abs(hlBox.r - (w2.x + w2.w + 2)) <= 1.5, `the highlight starts and ends where it was drawn (${hlBox.l.toFixed(1)} to ${hlBox.r.toFixed(1)}; drawn ${(w2.x - 2).toFixed(1)} to ${(w2.x + w2.w + 2).toFixed(1)})`);
     await page.keyboard.press("Escape");
     await page.getByRole("toolbar", { name: "Format" }).waitFor();
     ok((await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))) === "Draw" && (await page.locator(".nb[data-drawing]").count()) === 0, "Esc leaves Draw mode, and the focus is on Draw again");
