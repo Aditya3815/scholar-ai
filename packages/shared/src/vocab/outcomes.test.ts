@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  AGENT_OUTCOME_LABELS,
+  CRITIQUE_OUTCOMES,
+  NOTES_OUTCOMES,
   FEATURE_LABELS,
   FLOOR_OUTCOMES,
   FOLLOW_UP_OUTCOMES,
@@ -83,9 +86,23 @@ describe("the labels of /admin", () => {
   it("the page reads the labels of the shape of messages from their own table, so that a name of one feature can never take the words of another's", () => {
     expect(outcomeLabels("chat_input")).toBe(INPUT_TEXT);
     expect(outcomeLabels("chat_understand")).toBe(UNDERSTAND_TEXT);
-    for (const f of OUTCOME_FEATURES.filter((x) => x !== "chat_input" && x !== "chat_understand")) expect(outcomeLabels(f)).toBe(OUTCOME_TEXT);
+    const ownLists = ["chat_input", "chat_understand", "reader_agent_critique", "reader_agent_notes"];
+    for (const f of OUTCOME_FEATURES.filter((x) => !ownLists.includes(x))) expect(outcomeLabels(f)).toBe(OUTCOME_TEXT);
     expect(OUTCOME_COUNTS.chat_input.names).toBe(INPUT_SHAPE_NAMES);
     expect(OUTCOME_COUNTS.chat_understand.names).toBe(UNDERSTAND_COUNTER_NAMES);
+  });
+
+  it("the Paper Reader's agents: Explain ends as an answer does, Critique and the Note-taker have closed names with one plain label each", () => {
+    expect(outcomeLabels("reader_agent_explain")).toBe(OUTCOME_TEXT);
+    const agentText: Record<string, string> = AGENT_OUTCOME_LABELS;
+    for (const name of [...CRITIQUE_OUTCOMES, ...NOTES_OUTCOMES]) {
+      expect(agentText[name], `no label for ${name}`).toBeTypeOf("string");
+      plainly(agentText[name]!);
+    }
+    expect(Object.keys(agentText).sort()).toEqual([...CRITIQUE_OUTCOMES, ...NOTES_OUTCOMES].sort());
+    expect(OUTCOME_COUNTS.reader_agent_critique.names).toBe(CRITIQUE_OUTCOMES);
+    expect(OUTCOME_COUNTS.reader_agent_notes.names).toBe(NOTES_OUTCOMES);
+    for (const f of ["reader_agent_explain", "reader_agent_critique", "reader_agent_notes"]) expect(FEATURE_NAME[f]).toMatch(/^Paper Reader: /);
   });
 
   it("M4/M5: every counter name of the Understand step has one plain label of its own, there is none for a name the list does not have, and the share of the step is of the messages it read", () => {

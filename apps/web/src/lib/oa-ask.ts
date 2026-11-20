@@ -77,6 +77,8 @@ export const reduceTurn = (t: OaTurn, e: OaAskEvent): OaTurn => {
     case "delta": return { ...t, live: t.live + e.text };
     case "answer": return { ...t, status: "done", answer: e.answer, live: "", stage: null };
     case "error": return { ...t, status: "error", live: "", error: { code: e.code, title: e.title, ...(e.detail ? { detail: e.detail } : {}) } };
+    // a critique belongs to the Paper Reader's drawer, never to a question about an open-access paper
+    case "critique": return t;
   }
 };
 

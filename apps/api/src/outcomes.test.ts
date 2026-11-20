@@ -106,7 +106,8 @@ const warnLine = (o: Record<string, unknown>) => `warn: ${JSON.stringify({ level
 
 describe("counting the shape of a message (feature chat_input)", () => {
   it("is a feature of its own, beside the ones there were", () => {
-    expect([...OUTCOME_FEATURES]).toEqual(["chat", "oa_ask", "oa_ask_abstract", "doc_ask", "litscan", "chat_input", "chat_understand"]);
+    // the Paper Reader's agents (phase 3) came after it, one feature each; the old names keep their places
+    expect([...OUTCOME_FEATURES]).toEqual(["chat", "oa_ask", "oa_ask_abstract", "doc_ask", "litscan", "chat_input", "chat_understand", "reader_agent_explain", "reader_agent_critique", "reader_agent_notes"]);
   });
 
   it("writes every name of one message in one batch, one statement a name, and nothing outside the batch", async () => {

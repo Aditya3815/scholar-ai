@@ -287,6 +287,16 @@ try {
     await shot(pp2, "phone-thread");
     await ph.close();
   }
+  // the agents (paper-reader.md 24): a Commenter asks on their own allowance, with Ask, Explain and Critique; the Note-taker and "+ Add to notes" write the notes, so they are not offered
+  await cp.locator(".desk-fab").click();
+  const cdrawer = cp.getByRole("complementary", { name: "Agents" });
+  await cdrawer.waitFor();
+  ok(JSON.stringify(await cdrawer.getByRole("radio").allInnerTexts()) === JSON.stringify(["Ask", "Explain", "Critique"]), "a Commenter's agents: Ask, Explain, Critique (no Note-taker)");
+  await cdrawer.getByRole("radio", { name: "Explain" }).click();
+  await cdrawer.locator('[data-agent="explain"]').getByRole("button", { name: "Explain the method" }).click();
+  await cdrawer.locator('[data-agent="explain"] .ask-answer, [data-agent="explain"] .ask-error').first().waitFor({ timeout: 20000 });
+  ok((await cdrawer.locator('[data-agent="explain"] .ask-answer').count()) === 1 && (await cdrawer.locator(".ask-add").count()) === 0, "a Commenter's Explain answers, with no + Add to notes");
+  await cdrawer.getByRole("button", { name: "Close the agents" }).click();
 
   /* ================================================================ 4. the owner sees the comments and resolves one */
   await openPaper(op, docId);

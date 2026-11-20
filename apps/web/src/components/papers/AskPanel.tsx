@@ -18,14 +18,14 @@ const SUGGESTIONS = [
 ];
 
 /** Where an answer is while it is being produced. `text` is provisional until the checked answer arrives. */
-type Live = { stage: AskStage; pages: number[]; text: string };
+export type Live = { stage: AskStage; pages: number[]; text: string };
 /**
  * One question and its answer. `source` says what it was answered from: the paper (checked and saved with the paper) or the reader's own highlights and notes (checked
  * against those, kept only for this visit). `hl` says how many highlights were read, `note` is an answer made here without a model (no highlights yet).
  */
 type Turn = { key: string; question: string; answer?: Answer; error?: string; live?: Live; source?: AskSource; hl?: { used: number; total: number }; note?: string; reading?: boolean };
 
-const STEPS: { id: AskStage; label: string; say: string }[] = [
+export const STEPS: { id: AskStage; label: string; say: string }[] = [
   { id: "retrieving", label: "Find", say: "Finding the right passages" },
   { id: "thinking", label: "Think", say: "Thinking it through" },
   { id: "writing", label: "Write", say: "Writing the answer" },
@@ -85,7 +85,7 @@ function Tick() {
 }
 
 /** Real progress, not a fake spinner: each step turns on when the server reports it. */
-function LiveAnswer({ live, onPage }: { live: Live; onPage: (page: number) => void }) {
+export function LiveAnswer({ live, onPage }: { live: Live; onPage: (page: number) => void }) {
   const at = stepIndex(live.stage);
   return (
     <div className="ask-live" aria-busy="true">
@@ -126,7 +126,7 @@ function LiveAnswer({ live, onPage }: { live: Live; onPage: (page: number) => vo
 }
 
 /** An answer from the reader's own highlights: its sources are their highlights, each checked against the highlight it names. */
-function HighlightAnswerCard({ turn, onCite, onSwitch, busy }: { turn: Turn; onCite: (c: Citation) => void; onSwitch: () => void; busy: boolean }) {
+function HighlightAnswerCard({ turn, onCite, onSwitch, busy, onAdd }: { turn: Turn; onCite: (c: Citation) => void; onSwitch: () => void; busy: boolean; onAdd?: (a: Answer) => Promise<boolean> | boolean }) {
   const a = turn.answer;
   if (!a) return null;
   const tone = !a.found ? "muted" : a.verified ? "ok" : "warn";
@@ -137,7 +137,10 @@ function HighlightAnswerCard({ turn, onCite, onSwitch, busy }: { turn: Turn; onC
           {a.found && a.verified ? <ShieldCheck size={15} aria-hidden="true" /> : a.found ? <TriangleAlert size={15} aria-hidden="true" /> : <SearchX size={15} aria-hidden="true" />}
           {!a.found ? "Not in your highlights" : a.verified ? "Every source is one of your highlights" : "Could not verify the source"}
         </span>
-        <span className="ask-tools">{a.found && <CopyAnswer answer={a} />}</span>
+        <span className="ask-tools">
+          {a.found && onAdd && <AddToNotes onAdd={() => onAdd(a)} />}
+          {a.found && <CopyAnswer answer={a} />}
+        </span>
       </div>
       <p className="ask-from">
         <Highlighter size={13} aria-hidden="true" /> From your highlights{turn.hl && turn.hl.used < turn.hl.total ? `: the ${turn.hl.used} that best match, of ${turn.hl.total}` : ""}.{" "}
@@ -168,6 +171,35 @@ function HighlightAnswerCard({ turn, onCite, onSwitch, busy }: { turn: Turn; onC
   );
 }
 
+/**
+ * "+ Add to notes" on an agent's answer (the new reader's drawer, paper-reader.md 24): drops it onto the open page of the notes as an agent's answer block. Shown only where the notes can be
+ * written (the owner, an Editor). Once pressed it says so, and the reader's toast has Undo.
+ */
+export function AddToNotes({ onAdd, what = "this answer" }: { onAdd: () => Promise<boolean> | boolean; what?: string }) {
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+  return (
+    <button
+      type="button"
+      className="ask-add"
+      data-state={state}
+      disabled={state !== "idle"}
+      aria-label={state === "done" ? `${what[0]!.toUpperCase()}${what.slice(1)} is in your notes` : `Add ${what} to your notes`}
+      onClick={() => {
+        setState("busy");
+        void Promise.resolve(onAdd()).then((ok) => setState(ok ? "done" : "idle"), () => setState("idle"));
+      }}
+    >
+      {state === "done" ? (
+        <>
+          <Check size={14} aria-hidden="true" /> In notes
+        </>
+      ) : (
+        "+ Add to notes"
+      )}
+    </button>
+  );
+}
+
 function CopyAnswer({ answer }: { answer: Answer }) {
   const [done, setDone] = useState(false);
   useEffect(() => {
@@ -188,7 +220,7 @@ function CopyAnswer({ answer }: { answer: Answer }) {
   );
 }
 
-function AnswerCard({ answer, docId, scan, onCite }: { answer: Answer; docId: string; scan: ScanInfo | null; onCite: (c: Citation) => void }) {
+function AnswerCard({ answer, docId, scan, onCite, onAdd }: { answer: Answer; docId: string; scan: ScanInfo | null; onCite: (c: Citation) => void; onAdd?: (a: Answer) => Promise<boolean> | boolean }) {
   // For a scan, "checked against the paper" would promise more than is true: the quote matches the text that was READ, which may differ from the page.
   const status = !answer.found
     ? { Icon: SearchX, label: "Not in this paper", tone: "muted" }
@@ -207,6 +239,7 @@ function AnswerCard({ answer, docId, scan, onCite }: { answer: Answer; docId: st
           {status.label}
         </span>
         <span className="ask-tools">
+          {answer.found && onAdd && <AddToNotes onAdd={() => onAdd(answer)} />}
           {answer.found && <CopyAnswer answer={answer} />}
           <ReportButton compact label="Report a problem with this answer" body={{ kind: "answer", docId, answerId: answer.id }} />
         </span>
@@ -248,7 +281,7 @@ function AnswerCard({ answer, docId, scan, onCite }: { answer: Answer; docId: st
   );
 }
 
-export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoToPage, onReindex, prefill, embedded = false }: { doc: DocumentInfo; history: Answer[]; /** The reader's highlights and notes on this paper: a question about them is answered from them. */ notes?: DocNote[]; scan?: ScanInfo | null; onCite: (c: Citation) => void; onGoToPage: (page: number) => void; onReindex: () => void; /** The new reader's Explain: words put into the question box (each new `tick` puts them again), to be sent or changed. */ prefill?: { text: string; tick: number }; /** Inside the new reader's Agents drawer, whose own heading names it: the panel's title row is left out (its line about the passages stays). */ embedded?: boolean }) {
+export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoToPage, onReindex, onAddToNotes, embedded = false }: { doc: DocumentInfo; history: Answer[]; /** The reader's highlights and notes on this paper: a question about them is answered from them. */ notes?: DocNote[]; scan?: ScanInfo | null; onCite: (c: Citation) => void; onGoToPage: (page: number) => void; onReindex: () => void; /** The new reader's "+ Add to notes" on an answer (the owner and Editors): resolves true when the answer went into the notes. */ onAddToNotes?: (a: Answer) => Promise<boolean> | boolean; /** Inside the new reader's Agents drawer, whose own heading names it: the panel's title row is left out (its line about the passages stays). */ embedded?: boolean }) {
   const [turns, setTurns] = useState<Turn[]>(() => history.map((a) => ({ key: a.id, question: a.question, answer: a })));
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -267,18 +300,6 @@ export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoTo
     setTurns((prev) => [...history.map((a) => ({ key: a.id, question: a.question, answer: a, source: "paper" as const })), ...prev.filter((t) => t.source === "highlights")]);
   }, [history]);
   useEffect(() => () => abort.current?.abort(), []);
-
-  // Explain in the new reader: the selection is put into the box as the question's context, and the cursor after it, so the reader can send it or add to it
-  useEffect(() => {
-    if (!prefill || prefill.tick === 0) return;
-    setQ(prefill.text.slice(0, MAX_QUESTION_CHARS));
-    window.setTimeout(() => {
-      const el = input.current;
-      if (!el || el.disabled) return;
-      el.focus();
-      el.setSelectionRange(el.value.length, el.value.length);
-    }, 0);
-  }, [prefill?.tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Grow the box with the text (up to a limit); fitted again when the tab is opened (a box that is not shown has no width and was left too short for its own line, with a scroll bar) and when the fonts arrive.
   useGrowingField(input, q, 150);
@@ -441,7 +462,7 @@ export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoTo
               </m.li>
               <li className="ask-a">
                 {t.answer && t.source === "highlights" ? (
-                  <HighlightAnswerCard turn={t} onCite={onCite} busy={busy} onSwitch={() => void ask(t.question, undefined, "paper")} />
+                  <HighlightAnswerCard turn={t} onCite={onCite} busy={busy} onSwitch={() => void ask(t.question, undefined, "paper")} onAdd={onAddToNotes} />
                 ) : t.note ? (
                   <div className="ask-answer" data-tone="muted" data-source="highlights" role="status">
                     <p className="ask-from"><Highlighter size={13} aria-hidden="true" /> From your highlights.</p>
@@ -452,7 +473,7 @@ export function AskPanel({ doc, history, notes = [], scan = null, onCite, onGoTo
                   <p className="ask-from" role="status" aria-busy="true"><Loader2 className="spin" size={14} aria-hidden="true" /> Reading your highlights…</p>
                 ) : t.answer ? (
                   <>
-                    <AnswerCard answer={t.answer} docId={doc.id} scan={scan} onCite={onCite} />
+                    <AnswerCard answer={t.answer} docId={doc.id} scan={scan} onCite={onCite} onAdd={onAddToNotes} />
                     {notes.length > 0 && !t.answer.found && (
                       <p className="ask-from">
                         Not what you meant?{" "}

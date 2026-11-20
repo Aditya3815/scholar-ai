@@ -78,18 +78,38 @@ describe("the Notebook's checks (shared by the page and the server)", () => {
     expect(bad([quote("q", { quote: 5 })])).toMatch(/^400 a quote has no text/);
   });
 
-  it("phase 2.5 takes a capture and a sketch, and still refuses an answer (phase 3), checked for then", () => {
+  it("phase 3 takes every kind: a capture, a sketch and an agent's answer; a kind a caller does not accept is still refused", () => {
     const capture = { id: "c", kind: "capture", page: 3, x: 0.1, y: 0.2, w: 0.5, h: 0.3, caption: "Figure 1", size: "m" };
     const sketch = { id: "s", kind: "sketch", height: 240, strokes: [{ id: "k1", tool: "pen", color: "blue", w: 0.004, pts: [0.1, 0.1, 0.5, 0.2, 0.3, 0.5] }] };
-    const answer = { id: "a", kind: "answer", agent: "Explain", text: "It means…", pages: [1, 4] };
-    expect([...NOTEBOOK_KINDS_NOW]).toEqual(["text", "quote", "capture", "sketch", "image"]);
-    expect(checkNotebookBlocks([capture, sketch], 10)).toEqual({ ok: true, blocks: [capture, sketch] });
-    const r = checkNotebookBlocks([answer], 10);
+    const agent = { id: "a", kind: "agent", agent: "explain", ask: "the patch embedding", md: "It means… (p. 1, 4)", pages: [1, 4], at: 1_763_500_000_000 };
+    expect([...NOTEBOOK_KINDS_NOW]).toEqual(["text", "quote", "capture", "sketch", "image", "agent"]);
+    expect(checkNotebookBlocks([capture, sketch, agent], 10)).toEqual({ ok: true, blocks: [capture, sketch, agent] });
+    const r = checkNotebookBlocks([agent], 10, ["text", "quote"]);
     expect(r.ok === false && r.status === 400 && /not accepted yet/.test(r.reason)).toBe(true);
-    const all = ["text", "quote", "capture", "sketch", "answer"] as const;
-    expect(checkNotebookBlocks([answer], 10, all)).toEqual({ ok: true, blocks: [answer] });
-    expect(checkNotebookBlocks([{ ...answer, pages: [11] }], 10, all).ok).toBe(false);
-    expect(checkNotebookBlocks([{ ...answer, agent: "" }], 10, all).ok).toBe(false);
+  });
+
+  it("an agent's answer: one of the three agents, what it was asked (one line, at most 600), its Markdown (at most 8,000, not empty), pages of this paper each once, a time", () => {
+    const agent = { id: "a", kind: "agent", agent: "critique", ask: "  the\n methods ", md: "- **Thin evidence.** Only one site.\n  “one hospital” (p. 2)", pages: [2], at: 5 };
+    expect(checkNotebookBlocks([agent], 10)).toEqual({ ok: true, blocks: [{ ...agent, ask: "the methods" }] });
+    const bad = (b: Record<string, unknown>) => {
+      const r = checkNotebookBlocks([{ ...agent, ...b }], 10);
+      return r.ok ? "ok" : `${r.status} ${r.reason}`;
+    };
+    expect(bad({ agent: "Explain" })).toMatch(/^400 an answer's agent/);
+    expect(bad({ agent: "notes" })).toMatch(/^400 an answer's agent/);
+    expect(bad({ ask: undefined })).toMatch(/^400 an answer has no question/);
+    expect(bad({ ask: "q".repeat(NOTEBOOK_LIMITS.ask + 1) })).toMatch(/^413 too long/);
+    expect(bad({ md: "  " })).toMatch(/^400 an answer is empty/);
+    expect(bad({ md: 4 })).toMatch(/^400 an answer has no text/);
+    expect(bad({ md: "m".repeat(NOTEBOOK_LIMITS.answer + 1) })).toMatch(/^413 too long/);
+    expect(bad({ pages: [11] })).toMatch(/^400 an answer's pages/);
+    expect(bad({ pages: [2, 2] })).toMatch(/^400 an answer names a page twice/);
+    expect(bad({ pages: Array.from({ length: NOTEBOOK_LIMITS.answerPages + 1 }, (_, i) => i + 1) })).toMatch(/^400 an answer's pages/);
+    expect(bad({ at: -1 })).toMatch(/^400 an answer's time/);
+    expect(bad({ at: 1.5 })).toMatch(/^400 an answer's time/);
+    // only its known fields come back
+    const more = checkNotebookBlocks([{ ...agent, extra: "<script>" }], 10);
+    expect(more.ok && Object.keys(more.blocks[0]!).sort()).toEqual(["agent", "ask", "at", "id", "kind", "md", "pages"]);
   });
 
   it("a capture: inside its page, a caption of at most 500 characters (cleaned), a size of s, m or full", () => {
@@ -163,5 +183,29 @@ describe("page names (the notes polish of 19 Nov)", () => {
     expect(nextPageName(["Notes", "Page 3"])).toBe("Page 4");
     expect(nextPageName(["Page 2", "Page 3", "Page 4"])).toBe("Page 5");
     expect(nextPageName(["Page 1", "Results"])).toBe("Page 3");
+  });
+});
+
+describe("notebookMarkdown: an agent's answer (phase 3)", () => {
+  const names = { yellow: "Key idea", green: "Method", blue: "Question", pink: "Result" } as const;
+  it("writes the small header with its pages, what it was asked, and the answer with its pages", () => {
+    const md = notebookMarkdown("P", [{ title: "Notes", blocks: [{ id: "a", kind: "agent", agent: "explain", ask: "patch embedding", md: "It cuts the image into squares (p. 3).", pages: [4, 3], at: 1 }] }], names);
+    expect(md).toBe("# P\n\n## Notes\n\nExplain · p. 3, 4\n*Explained: patch embedding*\n\nIt cuts the image into squares (p. 3).\n");
+    const ask = notebookMarkdown("P", [{ title: "Notes", blocks: [{ id: "a", kind: "agent", agent: "ask", ask: "", md: "# Big\nNo page.", pages: [], at: 1 }] }], names);
+    expect(ask).toBe("# P\n\n## Notes\n\nAsk\n\n### Big\nNo page.\n");
+  });
+});
+
+describe("a picture's width (20 Nov 2026)", () => {
+  const img = { id: "i", kind: "image", w: 800, h: 600, type: "image/png", alt: "a chart" };
+  it("is a fraction of the page from 0.2 to 1, kept to three places, and left out when not set", () => {
+    expect(checkNotebookBlocks([img], 10)).toEqual({ ok: true, blocks: [img] });
+    expect(checkNotebookBlocks([{ ...img, width: 0.45678 }], 10)).toEqual({ ok: true, blocks: [{ ...img, width: 0.457 }] });
+    for (const width of [0.1, 1.2, "0.5", Number.NaN, null]) expect(checkNotebookBlocks([{ ...img, width }], 10).ok, String(width)).toBe(false);
+  });
+  it("is said in the Markdown when the picture is narrower than the page", () => {
+    const names = { yellow: "Key idea", green: "Method", blue: "Question", pink: "Result" } as const;
+    expect(notebookMarkdown("P", [{ title: "N", blocks: [{ ...img, kind: "image", type: "image/png", width: 0.5 } as never] }], names)).toContain("*A picture*: a chart (shown at 50% of the page's width)");
+    expect(notebookMarkdown("P", [{ title: "N", blocks: [img as never] }], names)).toContain("*A picture*: a chart\n");
   });
 });

@@ -70,3 +70,24 @@ it("the files are named as the Markdown is: notes-<paper>[-<page>]-<date>", () =
   expect(notesFileName("Glaucoma screening: rural", null, "pdf")).toMatch(/^notes-Glaucoma-screening-rural-\d{4}-\d\d-\d\d\.pdf$/);
   expect(notesFileName("Glaucoma", "Methods & data", "docx")).toMatch(/^notes-Glaucoma-Methods-data-\d{4}-\d\d-\d\d\.docx$/);
 });
+
+describe("underline, in both exports (one syntax: ++words++, and the old <u> read too)", () => {
+  const under = [{ title: "U", blocks: [text("u", "plain ++new underline++ and <u>old underline</u> end")] }];
+  it("Word: a real underline on the underlined words, and no mark left in the text", async () => {
+    const blob = await notesDocx(args({ pages: under }));
+    const xml = strFromU8(unzipSync(new Uint8Array(await blob.arrayBuffer()))["word/document.xml"]!);
+    expect(xml).toMatch(/<w:u w:val="single"\/><\/w:rPr><w:t xml:space="preserve">new underline/);
+    expect(xml).toMatch(/<w:u w:val="single"\/><\/w:rPr><w:t xml:space="preserve">old underline/);
+    expect(xml).not.toMatch(/\+\+|&lt;u&gt;/);
+  });
+  it("PDF: a line drawn under the underlined words, and none for plain text", async () => {
+    const { PDFPage } = await import("@cantoo/pdf-lib");
+    const spy = vi.spyOn(PDFPage.prototype, "drawLine");
+    await notesPdf(args({ pages: [{ title: "P", blocks: [text("p", "plain words only")] }] }));
+    expect(spy).not.toHaveBeenCalled();
+    await notesPdf(args({ pages: under }));
+    // one line per piece drawn: the words and the spaces between them
+    expect(spy.mock.calls.length).toBeGreaterThanOrEqual(4);
+    spy.mockRestore();
+  });
+});

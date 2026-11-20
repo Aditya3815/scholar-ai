@@ -7,7 +7,9 @@
 export type Edit = { value: string; start: number; end: number };
 export type Mark = "b" | "i" | "u" | "mark";
 
-const PAIR: Record<Mark, [string, string]> = { b: ["**", "**"], i: ["*", "*"], u: ["<u>", "</u>"], mark: ["==", "=="] };
+const PAIR: Record<Mark, [string, string]> = { b: ["**", "**"], i: ["*", "*"], u: ["++", "++"], mark: ["==", "=="] };
+/** Underline as notes written before 20 Nov 2026 hold it: read, and taken away by the toolbar, but never written. */
+const OLD_U: [string, string] = ["<u>", "</u>"];
 
 /** How many stars stand just before `at` (looking left) or from `at` (looking right). */
 const starsBefore = (s: string, at: number) => {
@@ -22,8 +24,8 @@ const starsFrom = (s: string, at: number) => {
 };
 
 /** Is [start, end) wrapped in `m` from the outside? For stars the run is counted: an italic is 1 or 3 stars, a bold 2 or 3 (a bold italic is both). */
-function wrappedOutside(e: Edit, m: Mark): boolean {
-  const [open, close] = PAIR[m];
+function wrappedOutside(e: Edit, m: Mark, pair: [string, string] = PAIR[m]): boolean {
+  const [open, close] = pair;
   if (m === "b" || m === "i") {
     const before = starsBefore(e.value, e.start);
     const after = starsFrom(e.value, e.end);
@@ -34,8 +36,8 @@ function wrappedOutside(e: Edit, m: Mark): boolean {
 }
 
 /** Does the selection itself start and end with `m`? */
-function wrappedInside(e: Edit, m: Mark): boolean {
-  const [open, close] = PAIR[m];
+function wrappedInside(e: Edit, m: Mark, pair: [string, string] = PAIR[m]): boolean {
+  const [open, close] = pair;
   const sel = e.value.slice(e.start, e.end);
   if (sel.length < open.length + close.length + 1) return false;
   if (m === "b" || m === "i") {
@@ -49,11 +51,14 @@ function wrappedInside(e: Edit, m: Mark): boolean {
 export function activeMarks(e: Edit): Set<Mark> {
   const on = new Set<Mark>();
   for (const m of Object.keys(PAIR) as Mark[]) if (wrappedOutside(e, m) || wrappedInside(e, m)) on.add(m);
+  if (wrappedOutside(e, "u", OLD_U) || wrappedInside(e, "u", OLD_U)) on.add("u");
   return on;
 }
 
 /** Bold, italic, underline or mark on the selection: wraps it, or unwraps it when it is wrapped. Spaces at the selection's ends stay outside the marks. */
 export function toggleMark(e: Edit, m: Mark): Edit {
+  // an underline of the old kind is taken away as it is
+  if (m === "u" && (wrappedOutside(e, m, OLD_U) || wrappedInside(e, m, OLD_U))) return unwrap(e, OLD_U, wrappedOutside(e, m, OLD_U));
   const [open, close] = PAIR[m];
   const { value } = e;
   if (wrappedOutside(e, m)) {
@@ -73,6 +78,13 @@ export function toggleMark(e: Edit, m: Mark): Edit {
     return { value: value.slice(0, e.start) + open + close + value.slice(e.end), start: e.start + open.length, end: e.start + open.length };
   }
   return { value: value.slice(0, s) + open + value.slice(s, t) + close + value.slice(t), start: s + open.length, end: t + open.length };
+}
+
+function unwrap(e: Edit, [open, close]: [string, string], outside: boolean): Edit {
+  const { value } = e;
+  if (outside) return { value: value.slice(0, e.start - open.length) + value.slice(e.start, e.end) + value.slice(e.end + close.length), start: e.start - open.length, end: e.end - open.length };
+  const inner = value.slice(e.start + open.length, e.end - close.length);
+  return { value: value.slice(0, e.start) + inner + value.slice(e.end), start: e.start, end: e.start + inner.length };
 }
 
 /** The lines the selection touches: where the first starts and where the last ends. */

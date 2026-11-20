@@ -7,7 +7,7 @@ import { readPages } from "./read-pages";
 import "./comments.css";
 
 /**
- * The comments of a shared paper (docs/design/paper-share.md, 5; redrawn in the notes polish of 19 Nov, docs/design/paper-reader.md, 23): a chunk of its own, fetched when the comments
+ * The comments of a shared paper (docs/design/paper-share.md, 5; redrawn in the notes polish of 19 Nov, docs/design/paper-reader.md, 24): a chunk of its own, fetched when the comments
  * are first opened. The list of every thread (one card a thread, Open, Resolved and All with their counts), and one thing's thread: the quote it hangs on, each comment with its ⋯ menu
  * (Edit, Delete, which asks first), the replies on a thin line, Resolve in the head, and the box to write in at the bottom.
  */
@@ -63,7 +63,7 @@ function anchorOn(a: CommentAnchor, notes: DocNote[], pages: PageLike[] | null, 
   const k = ps.findIndex((p) => p.id === pageId);
   const b = ps[k]?.blocks.find((x) => x.id === blockId);
   if (!b) return { text: "A block of the notes", color: null, where: "", whereLabel: "", gone: !!pages };
-  const text = b.kind === "text" ? mdPlainText(b.md) : b.kind === "quote" ? b.quote : b.kind === "capture" ? b.caption || `A part of page ${b.page}` : b.kind === "image" ? b.alt || "A picture" : b.kind === "sketch" ? "A sketch" : mdPlainText(b.text);
+  const text = b.kind === "text" ? mdPlainText(b.md) : b.kind === "quote" ? b.quote : b.kind === "capture" ? b.caption || `A part of page ${b.page}` : b.kind === "image" ? b.alt || "A picture" : b.kind === "sketch" ? "A sketch" : mdPlainText(b.md);
   const page = pageLabel(ps[k]!.title, k);
   return { text: text.replace(/\s+/g, " ").trim() || "An empty block", color: b.kind === "quote" ? b.color : null, where: page, whereLabel: `Show it in the notes, on ${page}`, gone: false };
 }

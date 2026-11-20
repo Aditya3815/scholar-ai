@@ -65,6 +65,11 @@ function stretchInText(quote: string, text: string): boolean {
 }
 
 export type Retrieved = StoredChunk & { score: number };
+/**
+ * Another agent of the Paper Reader on the questions' checked pipeline (Explain, docs/agents.ts): its own system prompt, its own way of choosing the passages (given the embedding of `embedText`, or
+ * null), and the label of the call.
+ */
+export type AgentPlan = { system: string; embedText: string; pick: (qVec: number[] | null) => Retrieved[]; label: string };
 
 export function retrieve(question: string, qVec: number[] | null, chunks: StoredChunk[], k = TOP_K): Retrieved[] {
   const top = rank(question, qVec, chunks, BROAD.test(question) ? Math.max(1, k - 1) : k);
@@ -117,16 +122,18 @@ export async function answerQuestion(args: {
   onRaw?: (raw: unknown, excerpts: Retrieved[]) => void;
   /** Passages shown to the model (default 6). Only the cost experiments change it (docs/spikes/R5-cost.md). */
   topK?: number;
+  /** Another agent on the same checked pipeline (see answerQuestionStream). */
+  plan?: AgentPlan;
 }): Promise<Answer> {
-  const { question, chunks } = args;
+  const { question, chunks, plan } = args;
   let qVec: number[] | null = null;
   try {
-    qVec = (await args.embed([question]))[0] ?? null;
+    qVec = (await args.embed([plan?.embedText ?? question]))[0] ?? null;
   } catch {
     qVec = null; // keyword-only retrieval is worse but still better than failing the question
   }
-  const ex = retrieve(question, qVec, chunks, args.topK);
-  const { json, model } = await args.complete({ system: SYSTEM, user: buildPrompt(question, ex), schema: SCHEMA as unknown as Record<string, unknown>, maxTokens: 2500, label: "doc_qa" });
+  const ex = plan ? plan.pick(qVec) : retrieve(question, qVec, chunks, args.topK);
+  const { json, model } = await args.complete({ system: plan?.system ?? SYSTEM, user: buildPrompt(question, ex), schema: SCHEMA as unknown as Record<string, unknown>, maxTokens: 2500, label: plan?.label ?? "doc_qa" });
   args.onRaw?.(json, ex);
   return verifyAnswer(json, ex, question, { ...args.meta, model });
 }
@@ -146,16 +153,18 @@ export async function answerQuestionStream(args: {
   topK?: number;
   /** Local debugging only: receives the model's raw JSON and the excerpts it was shown. */
   onRaw?: (raw: unknown, excerpts: Retrieved[]) => void;
+  /** Another agent of the Paper Reader on the same checked pipeline (AgentPlan); left out, it is a question about the paper. */
+  plan?: AgentPlan;
 }): Promise<Answer> {
-  const { question, chunks, emit } = args;
+  const { question, chunks, emit, plan } = args;
   await emit({ type: "stage", stage: "retrieving" });
   let qVec: number[] | null = null;
   try {
-    qVec = (await args.embed([question]))[0] ?? null;
+    qVec = (await args.embed([plan?.embedText ?? question]))[0] ?? null;
   } catch {
     qVec = null;
   }
-  const ex = retrieve(question, qVec, chunks, args.topK);
+  const ex = plan ? plan.pick(qVec) : retrieve(question, qVec, chunks, args.topK);
   await emit({ type: "sources", pages: [...new Set(ex.map((c) => c.page))].sort((a, b) => a - b) });
 
   const field = new AnswerFieldStreamer();
@@ -167,7 +176,7 @@ export async function answerQuestionStream(args: {
     chain = chain.then(() => emit(e));
   };
   const { json, model } = await args.stream(
-    { system: SYSTEM, user: buildPrompt(question, ex), schema: SCHEMA as unknown as Record<string, unknown>, maxTokens: 2500, label: "doc_qa" },
+    { system: plan?.system ?? SYSTEM, user: buildPrompt(question, ex), schema: SCHEMA as unknown as Record<string, unknown>, maxTokens: 2500, label: plan?.label ?? "doc_qa" },
     {
       onThinking: () => {
         if (thinking || writing) return;

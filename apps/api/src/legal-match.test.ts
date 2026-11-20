@@ -481,7 +481,7 @@ const FLAG_SENTENCES: readonly (FlagSentence & { flag: SwitchName })[] = [
   {
     flag: "READER",
     at: ["off", "dark", "on"],
-    sentence: "including pages of notes you write in the reader, with the passages you quote into them and pictures you add to your note pages",
+    sentence: "including pages of notes you write in the reader, with the passages you quote into them, pictures you add to your note pages and answers from the reader's agents you keep there",
   },
   // Sharing a paper's workspace (docs/design/paper-share.md 7, the owner approved the words on 18 Nov 2026, with the e-mail service of S4). The plan puts them on the page before SHARE leaves
   // off, as READER's: pinned at every position, the safe way round. Drop "off" once SHARE is on in production.

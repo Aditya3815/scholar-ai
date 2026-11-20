@@ -117,14 +117,14 @@ const bodyOf = (route: string) =>
   route.endsWith("/comments") ? { anchor: `note:${NOTE}`, body: "a word" } : route.endsWith("/members") ? { email: "new@example.org", role: "viewer" } : route.includes("/comments/") ? { body: "edited" } : route.includes("/members/") ? { role: "commenter" } : {};
 
 const GATE_403 = new Set(["You cannot open this paper", "Your access to this paper is to view it", "Your access to this paper does not let you change it", "Only the paper's owner can do this"]);
-async function ask(method: string, route: string, who: Who): Promise<{ status: number; through: boolean; said: string }> {
+async function ask(method: string, route: string, who: Who, body?: unknown): Promise<{ status: number; through: boolean; said: string }> {
   const headers: Record<string, string> = { "content-type": "application/json", origin: ORIGIN, "cf-connecting-ip": "203.0.113.9" };
   const cookies: string[] = [];
   if (who.session) cookies.push(`sid=${who.session.padEnd(40, "x")}`);
   if (who.link) cookies.push(`shr_${DOC}=${LINK}`);
   if (cookies.length) headers.cookie = cookies.join("; ");
-  const body = method === "GET" ? undefined : JSON.stringify(bodyOf(route));
-  const res = await worker.fetch!(new Request(`${ORIGIN}${pathOf(route)}`, { method, headers, body }) as never, env(await freshDb()) as never, ctx);
+  const sent = method === "GET" ? undefined : JSON.stringify(body ?? bodyOf(route));
+  const res = await worker.fetch!(new Request(`${ORIGIN}${pathOf(route)}`, { method, headers, body: sent }) as never, env(await freshDb()) as never, ctx);
   const text = res.headers.get("content-type")?.includes("json") ? await res.text() : (await res.body?.cancel().catch(() => {}), "");
   let j: { type?: string; title?: string } = {};
   try {
@@ -139,6 +139,16 @@ async function ask(method: string, route: string, who: Who): Promise<{ status: n
 const paperRoutes = (): string[] =>
   [...new Set(app.routes.filter((r) => r.method !== "ALL" && (r.path.startsWith("/api/v1/documents/:id") || r.path.startsWith("/api/v1/share/papers/:id"))).map((r) => `${r.method} ${r.path}`))].sort();
 
+/**
+ * The agents of the Paper Reader (docs/design/paper-reader.md, 24) are modes of the two question routes: Explain and Critique need what a question needs (Commenter: on the asker's own allowance,
+ * never kept in the owner's history), the Note-taker writes the notes and needs an Editor. A body for each, so the route reaches its own role check.
+ */
+const MODES: { name: string; route: string; body: unknown; need: ShareRole }[] = [
+  { name: "Explain", route: "/api/v1/documents/:id/ask", body: { mode: "explain", question: "what is a quote" }, need: "commenter" },
+  { name: "Critique", route: "/api/v1/documents/:id/ask", body: { mode: "critique" }, need: "commenter" },
+  { name: "Note-taker", route: "/api/v1/documents/:id/ask-highlights", body: { mode: "notes" }, need: "editor" },
+];
+const modeResults: Record<string, Record<string, { status: number; through: boolean; said: string }>> = {};
 const results: Record<string, Record<string, { status: number; through: boolean; said: string }>> = {};
 beforeAll(async () => {
   vi.stubGlobal("fetch", async () => new Response("", { status: 503 }));
@@ -149,6 +159,10 @@ beforeAll(async () => {
     const [method, route] = key.split(" ") as [string, string];
     results[key] = {};
     for (const who of WHO) results[key]![who.name] = await ask(method, route, who);
+  }
+  for (const m of MODES) {
+    modeResults[m.name] = {};
+    for (const who of WHO) modeResults[m.name]![who.name] = await ask("POST", m.route, who, m.body);
   }
 }, 600_000);
 afterAll(() => {
@@ -182,6 +196,26 @@ describe("every paper route, asked by each kind of person, with SHARE and READER
       if (NEED[key] === "editor") expect(row["commenter (named)"]!.said, key).toBe("403 forbidden: Your access to this paper does not let you change it");
       if (NEED[key] === "commenter") expect(row["viewer (named)"]!.said, key).toBe("403 forbidden: Your access to this paper is to view it");
     }
+  });
+
+  it("the agents: Explain and Critique for a Commenter and up, the Note-taker for an Editor and up; a Viewer has none", () => {
+    const wrong: string[] = [];
+    for (const m of MODES) {
+      for (const who of WHO) {
+        const got = modeResults[m.name]![who.name]!;
+        const want = roleAtLeast(who.role, m.need);
+        // the Note-taker's own refusal is the gate's words for a lower role
+        const refused = !got.through || (got.status === 403 && got.said === "403 forbidden: Your access to this paper does not let you change it");
+        if (refused === want) wrong.push(`${m.name} for ${who.name}: ${want ? "should pass" : "should be refused"}, got ${got.said}`);
+      }
+    }
+    expect(wrong).toEqual([]);
+    expect(modeResults["Note-taker"]!["commenter (named)"]!.said).toBe("403 forbidden: Your access to this paper does not let you change it");
+    expect(modeResults["Explain"]!["viewer (named)"]!.said).toBe("403 forbidden: Your access to this paper is to view it");
+    // they answer (the stand-in model): Explain's idea and the Note-taker's draft from the one highlight
+    expect(modeResults["Explain"]!["commenter (named)"]!.status).toBe(200);
+    expect(modeResults["Critique"]!["editor (named)"]!.status).toBe(200);
+    expect(modeResults["Note-taker"]!["editor (named)"]!.status).toBe(200);
   });
 
   it("someone the paper is shared with gets the paper without the owner's questions, place, tags or drawing", async () => {

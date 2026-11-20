@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mdPlainText, parseInline, parseNotebookMd, type MdInline } from "./notebook-md";
+import { mdPlainText, mdSourceRuns, parseInline, parseNotebookMd, type MdInline } from "./notebook-md";
 
 const t = (s: string): MdInline => ({ t: "text", s });
 
@@ -70,5 +70,56 @@ describe("the Notebook's Markdown: blocks", () => {
 
   it("the plain text, for a block's name", () => {
     expect(mdPlainText("# Patches\nare **linear**\n- one\n- two")).toBe("Patches are linear one two");
+  });
+});
+
+describe("underline: one syntax (++), and the old <u> still read", () => {
+  const u = (c: unknown[]) => ({ t: "u", c });
+  it("++words++ and <u>words</u> are both an underline, inside other marks too", () => {
+    expect(parseInline("ddd++dddd++")).toEqual([{ t: "text", s: "ddd" }, u([{ t: "text", s: "dddd" }])]);
+    expect(parseInline("ddd<u>dddd</u>")).toEqual([{ t: "text", s: "ddd" }, u([{ t: "text", s: "dddd" }])]);
+    expect(parseInline("**a ++b++**")).toEqual([{ t: "b", c: [{ t: "text", s: "a " }, u([{ t: "text", s: "b" }])] }]);
+  });
+  it("C++ and a lone ++ stay text; a backslash keeps them plain", () => {
+    expect(parseInline("C++ and C++")).toEqual([{ t: "text", s: "C++ and C++" }]);
+    expect(parseInline("a ++ b")).toEqual([{ t: "text", s: "a ++ b" }]);
+    expect(mdPlainText(String.raw`\++x\++`)).toBe("++x++");
+  });
+});
+
+describe("the source, styled, for the field being written in", () => {
+  it("keeps every character, in order, and says which are marks and how the rest is styled", () => {
+    const md = "# Head\nddd++dddd++ and **b** ==m== <u>old</u>\n- item *i*";
+    const runs = mdSourceRuns(md);
+    expect(runs.map((l) => l.map((r) => r.s).join("")).join("\n")).toBe(md);
+    const line = runs[1]!;
+    expect(line.filter((r) => r.mark).map((r) => r.s)).toEqual(["++", "++", "**", "**", "==", "==", "<u>", "</u>"]);
+    expect(line.find((r) => r.s === "dddd")).toMatchObject({ mark: false, u: true });
+    expect(line.find((r) => r.s === "old")).toMatchObject({ u: true });
+    expect(line.find((r) => r.s === "b")).toMatchObject({ b: true });
+    expect(line.find((r) => r.s === "m")).toMatchObject({ hl: true });
+    expect(runs[0]![0]).toMatchObject({ s: "# ", mark: true });
+    expect(runs[0]![1]).toMatchObject({ s: "Head", h: true });
+    expect(runs[2]![0]).toMatchObject({ s: "- ", mark: true });
+  });
+});
+
+describe("long runs stay fast (CodeQL, 20 Nov 2026)", () => {
+  it("a heading or list sign followed by many spaces is read quickly and whole", () => {
+    const sp = " ".repeat(50_000);
+    const t = performance.now();
+    const runs = mdSourceRuns(`#${sp}x\n-${sp}y\n1.${sp}z`);
+    expect(performance.now() - t).toBeLessThan(500);
+    expect(runs.map((r) => r[0]!.s.length)).toEqual([50_001, 50_001, 50_002]);
+  });
+});
+
+describe("a heading line with many spaces and a stray carriage return stays fast (CodeQL)", () => {
+  it("is read in linear time", () => {
+    const line = `#${" ".repeat(50_000)}\r`;
+    const t = performance.now();
+    mdSourceRuns(line);
+    parseNotebookMd(line);
+    expect(performance.now() - t).toBeLessThan(500);
   });
 });

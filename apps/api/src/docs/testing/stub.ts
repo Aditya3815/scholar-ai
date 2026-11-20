@@ -1,6 +1,7 @@
 import { extractJson } from "../../platform/llm/gateway";
 import type { Complete, StreamComplete } from "../../platform/llm/port";
 import { keywords, lexical } from "../vector";
+import { stubCritique, stubNotes } from "./agents";
 
 /**
  * Offline stand-in for the language model, used ONLY by tests and the local end-to-end run (QA_STUB=1 together with
@@ -9,7 +10,11 @@ import { keywords, lexical } from "../vector";
  * be tested without a model. A question containing "unanswerable" gets "the paper does not cover this"; one containing
  * "hallucinate" gets an invented quote, which verification must catch.
  */
-export const stubComplete: Complete = async ({ user }) => {
+export const stubComplete: Complete = async (req) => {
+  // the Paper Reader's Critique and Note-taker have stand-ins of their own (testing/agents.ts); Explain is answered as a question
+  if (req.label === "doc_critique") return stubCritique(req);
+  if (req.label === "doc_notes") return stubNotes(req);
+  const { user } = req;
   const question = /^Question: (.*)$/m.exec(user)?.[1] ?? "";
   if (/unanswerable/i.test(question)) return { model: "stub", json: { found: false, answer: "The paper does not seem to cover this.", evidence: [] } };
 

@@ -1,4 +1,4 @@
-import { DOCX_MIME, buildDocx, inkHex, parseNotebookMd, type CaptureBlock, type DocRun, type ImageBlock, type Block as DocBlock, type MdInline, type NotebookBlock, type QuoteColor, type SketchBlock } from "@scholar/shared";
+import { DOCX_MIME, agentHeading, buildDocx, inkHex, parseNotebookMd, type CaptureBlock, type DocRun, type ImageBlock, type Block as DocBlock, type MdInline, type NotebookBlock, type QuoteColor, type SketchBlock } from "@scholar/shared";
 import devanagariFace from "@fontsource/noto-sans-devanagari/files/noto-sans-devanagari-devanagari-400-normal.woff?url";
 import { drawCapture } from "./capture";
 import { markerPath, penPath } from "./ink-path";
@@ -11,7 +11,7 @@ import type { PDFDocumentProxy } from "./pdf";
  */
 export type ExportPage = { title: string; blocks: readonly NotebookBlock[] };
 export type ExportArgs = { docTitle: string; pages: readonly ExportPage[]; names: Record<QuoteColor, string>; pdf: PDFDocumentProxy | null; imageUrl?: (blockId: string) => string };
-type Png = { bytes: Uint8Array; w: number; h: number };
+type Png = { bytes: Uint8Array; w: number; h: number; /** a picture shown narrower than the page: its share of the width */ frac?: number };
 
 const DEVANAGARI = /[ऀ-ॿ꣠-ꣿ]/;
 const PICTURE_WIDTH = 900;
@@ -72,7 +72,7 @@ async function imagePng(url: string, b: ImageBlock): Promise<Png> {
   ctx.fillRect(0, 0, w, h);
   ctx.drawImage(bitmap, 0, 0, w, h);
   bitmap.close();
-  return { bytes: await pngOf(c), w: Math.min(w, b.w), h: Math.round((h * Math.min(w, b.w)) / w) };
+  return { bytes: await pngOf(c), w: Math.min(w, b.w), h: Math.round((h * Math.min(w, b.w)) / w), ...(b.width !== undefined && b.width < 1 ? { frac: b.width } : {}) };
 }
 
 const pictureOf = async (b: NotebookBlock, pdf: PDFDocumentProxy | null, imageUrl?: (id: string) => string): Promise<Png | null> => {
@@ -88,13 +88,13 @@ const pictureOf = async (b: NotebookBlock, pdf: PDFDocumentProxy | null, imageUr
 
 const captureLine = (b: CaptureBlock) => `${b.caption ? `${b.caption} (` : "("}p. ${b.page})`;
 
-/** Markdown's inline marks as runs: bold, italic (underline and mark keep their words). */
-function runsOf(c: MdInline[], style: { b?: boolean; i?: boolean } = {}): DocRun[] {
+/** Markdown's inline marks as runs: bold, italic and underline (a mark keeps its words). */
+function runsOf(c: MdInline[], style: { b?: boolean; i?: boolean; u?: boolean } = {}): DocRun[] {
   const out: DocRun[] = [];
   for (const x of c) {
-    if (x.t === "text") out.push({ t: x.s, ...(style.b ? { b: true } : {}), ...(style.i ? { i: true } : {}) });
+    if (x.t === "text") out.push({ t: x.s, ...(style.b ? { b: true } : {}), ...(style.i ? { i: true } : {}), ...(style.u ? { u: true } : {}) });
     else if (x.t === "br") out.push({ t: "\n" });
-    else out.push(...runsOf(x.c, { ...style, ...(x.t === "b" ? { b: true } : x.t === "i" ? { i: true } : {}) }));
+    else out.push(...runsOf(x.c, { ...style, ...(x.t === "b" ? { b: true } : x.t === "i" ? { i: true } : x.t === "u" ? { u: true } : {}) }));
   }
   return out;
 }
@@ -122,13 +122,20 @@ export async function notesDocx(args: ExportArgs): Promise<Blob> {
         const alt = b.kind === "capture" ? `A part of page ${b.page}${b.caption ? `: ${b.caption}` : ""}` : b.kind === "image" ? b.alt || "A picture" : "A sketch";
         if (png) {
           media[name] = png.bytes;
-          blocks.push({ k: "image", media: name, w: png.w, h: png.h, alt });
+          blocks.push({ k: "image", media: name, w: png.w, h: png.h, alt, ...(png.frac ? { frac: png.frac } : {}) });
         }
         if (b.kind === "capture") blocks.push({ k: "p", runs: [{ t: png ? captureLine(b) : `A part of page ${b.page} ${captureLine(b)}`, i: true }] });
         else if (b.kind === "image" && b.alt) blocks.push({ k: "p", runs: [{ t: b.alt, i: true }] });
         else if (!png) blocks.push({ k: "p", runs: [{ t: b.kind === "image" ? "A picture" : "A sketch", i: true }] });
       } else {
-        blocks.push({ k: "p", runs: [{ t: b.agent, b: true }, { t: `\n${b.text}` }] });
+        // an agent's answer: its header ("Explain · p. 3, 4"), what it was asked, and its Markdown as a text block's
+        blocks.push({ k: "note", runs: [{ t: agentHeading(b), b: true }, ...(b.ask ? [{ t: `\n${b.agent === "explain" ? "Explained" : "Asked"}: ${b.ask}`, i: true }] : [])] });
+        for (const m of parseNotebookMd(b.md)) {
+          if (m.t === "h") blocks.push({ k: "h3", runs: runsOf(m.c) });
+          else if (m.t === "p") blocks.push({ k: "p", runs: runsOf(m.c) });
+          else if (m.t === "ul") for (const it of m.items) blocks.push({ k: "bullet", runs: runsOf(it) });
+          else m.items.forEach((it, i) => blocks.push({ k: "ref", no: m.start + i, runs: runsOf(it) }));
+        }
       }
     }
   }
@@ -142,7 +149,7 @@ export async function notesDocx(args: ExportArgs): Promise<Blob> {
 
 /* ---------------------------------------------------------------- PDF */
 
-type Run = { t: string; b?: boolean; i?: boolean };
+type Run = { t: string; b?: boolean; i?: boolean; u?: boolean };
 
 export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
   const lib = await import("@cantoo/pdf-lib");
@@ -181,16 +188,16 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
     }
   };
   /** A run cut into pieces of one script: Devanagari in its face, the rest in Helvetica (a letter Helvetica cannot draw becomes "?"). */
-  const pieces = (r: Run): { s: string; font: Font }[] => {
+  const pieces = (r: Run): { s: string; font: Font; u?: boolean }[] => {
     const latin = r.b && r.i ? fonts.bi : r.b ? fonts.b : r.i ? fonts.i : fonts.r;
-    const out: { s: string; font: Font }[] = [];
+    const out: { s: string; font: Font; u?: boolean }[] = [];
     for (const ch of r.t) {
       const isDeva = DEVANAGARI.test(ch) || (ch === "‍" || ch === "‌");
       const font = isDeva && deva ? deva : latin;
       const c = font === latin && !shown.has(ch.codePointAt(0)!) && ch !== " " ? "?" : ch;
       const last = out[out.length - 1];
       if (last && last.font === font) last.s += c;
-      else out.push({ s: c, font });
+      else out.push({ s: c, font, ...(r.u ? { u: true } : {}) });
     }
     return out;
   };
@@ -199,7 +206,7 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
     const indent = opts.indent ?? 0;
     const lead = size * 1.4;
     // words, each a list of pieces; a line break starts a new line
-    type Word = { parts: { s: string; font: Font }[]; w: number; brk?: boolean };
+    type Word = { parts: { s: string; font: Font; u?: boolean }[]; w: number; brk?: boolean };
     const words: Word[] = [];
     for (const r of runs) {
       const lines = r.t.split("\n");
@@ -208,7 +215,7 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
         for (const tok of ln.split(/(\s+)/)) {
           if (!tok) continue;
           if (/^\s+$/.test(tok)) {
-            words.push({ parts: [{ s: " ", font: fonts.r }], w: fonts.r.widthOfTextAtSize(" ", size) });
+            words.push({ parts: [{ s: " ", font: fonts.r, ...(r.u ? { u: true } : {}) }], w: fonts.r.widthOfTextAtSize(" ", size) });
             continue;
           }
           const parts = pieces({ ...r, t: tok });
@@ -228,7 +235,10 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
       first = false;
       for (const w of line) for (const p of w.parts) {
         if (p.s.trim() || p.s === " ") page.drawText(p.s, { x, y, size, font: p.font, color: opts.color ?? ink });
-        x += p.font.widthOfTextAtSize(p.s, size);
+        const pw = p.font.widthOfTextAtSize(p.s, size);
+        // an underline is drawn under its words (and the spaces between them)
+        if (p.u) page.drawLine({ start: { x, y: y - size * 0.14 }, end: { x: x + pw, y: y - size * 0.14 }, thickness: Math.max(0.5, size * 0.055), color: opts.color ?? ink });
+        x += pw;
       }
       line = [];
       lw = 0;
@@ -250,7 +260,8 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
   };
   const picture = async (png: Png) => {
     const img = await doc.embedPng(png.bytes);
-    const scale = Math.min(TW / png.w, (H - 2 * M) / png.h, 1);
+    // a picture the reader made narrower keeps that share of the text's width
+    const scale = Math.min(png.frac ? (TW * png.frac) / png.w : Math.min(TW / png.w, 1), (H - 2 * M) / png.h);
     const w = png.w * scale;
     const h = png.h * scale;
     need(h + 6);
@@ -284,8 +295,15 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
         else if (b.kind === "image" && b.alt) write([{ t: b.alt, i: true }], 9, { color: muted });
         else if (!png) write([{ t: b.kind === "image" ? "A picture" : "A sketch", i: true }], 9, { color: muted });
       } else {
-        write([{ t: b.agent, b: true }], 11, { gap: 2 });
-        write([{ t: b.text }], 11);
+        write([{ t: agentHeading(b), b: true }], 10, { gap: 2, color: muted });
+        if (b.ask) write([{ t: `${b.agent === "explain" ? "Explained" : "Asked"}: ${b.ask}`, i: true }], 9, { color: muted, gap: 2 });
+        for (const m of parseNotebookMd(b.md)) {
+          if (m.t === "h") write(runsOf(m.c).map((r) => ({ ...r, b: true })), 12, { gap: 4 });
+          else if (m.t === "p") write(runsOf(m.c), 11);
+          else if (m.t === "ul") for (const it of m.items) write(runsOf(it), 11, { indent: 16, prefix: "•", gap: 2 });
+          else m.items.forEach((it, i) => write(runsOf(it), 11, { indent: 20, prefix: `${m.start + i}.`, gap: 2 }));
+        }
+        y -= 4;
       }
     }
     y -= 8;

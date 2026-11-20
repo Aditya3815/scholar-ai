@@ -8,8 +8,14 @@ import { mkdirSync, readFileSync } from "node:fs";
 // With NB_SHOTS=<folder> it also takes the pictures of the page tabs (a tab dragged, All pages) for the owner.
 if (process.env.NB_SHOTS) mkdirSync(process.env.NB_SHOTS, { recursive: true });
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
+import { join } from "node:path";
 import { BASE, REFUSED_OR_BUSY, axeCheck, countFailure, desk, finish, launch, noSideways, ok, phone, setTheme, sleep, startIdp, until, untilInPage, watchPage } from "./lib/browser.mjs";
 
+// with AGENTS_SHOTS=<folder> it also takes the owner's pictures of underline and a resized picture (phase 3 fixes, 20 Nov 2026)
+const SHOTS = process.env.AGENTS_SHOTS ?? null;
+const shot = async (p, name) => {
+  if (SHOTS) await p.screenshot({ path: join(SHOTS, `${name}.png`) });
+};
 const idp = await startIdp();
 idp.setUser({ sub: "reader-notebook-1", email: "noor.n@example.edu", email_verified: true, name: "Noor N" });
 const browser = await launch();
@@ -286,6 +292,29 @@ try {
     ok((await more.getAttribute("aria-expanded")) === "false" && (await page.getByRole("button", { name: "Heading" }).count()) === 0, "Heading, Underline, the numbered list, Text and the papers wait behind More");
     await more.click();
     ok((await more.getAttribute("aria-expanded")) === "true" && (await page.getByRole("button", { name: "Numbered list" }).count()) === 1, "More opens them (aria-expanded)");
+    // underline (the owner's report of 20 Nov): U on a selection writes ++words++, shown underlined at once while it is written, and never as "<u>"
+    const uf = page.locator(".nb-field").last();
+    await uf.click();
+    await page.keyboard.type("plain underlined");
+    for (let k = 0; k < "underlined".length; k++) await page.keyboard.press("Shift+ArrowLeft");
+    await page.getByRole("button", { name: "Underline" }).click();
+    // the field is now drawn over its styled source (.nb-edit): read it there
+    const ufield = page.locator(".nb-edit .nb-field").last();
+    await ufield.waitFor({ timeout: 4000 });
+    ok((await ufield.inputValue()).endsWith("plain ++underlined++"), `U writes ++underlined++ (${JSON.stringify((await ufield.inputValue()).slice(-24))})`);
+    const mirror = page.locator(".nb-edit .nb-mirror").last();
+    const seen = await mirror.evaluate((el) => {
+      const u = [...el.querySelectorAll("[data-u]")].find((x) => !x.classList.contains("nb-mk"));
+      const field = el.parentElement.querySelector("textarea");
+      return { u: u?.textContent, line: u ? getComputedStyle(u).textDecorationLine : "", clear: getComputedStyle(field).color, text: el.textContent };
+    });
+    ok(seen.u === "underlined" && seen.line.includes("underline") && seen.clear === "rgba(0, 0, 0, 0)" && !seen.text.includes("<u>"), `while it is written the words show underlined, no "<u>" anywhere (${JSON.stringify({ u: seen.u, line: seen.line })})`);
+    await shot(page, "underline-while-writing");
+    await page.keyboard.press("Escape");
+    await sleep(200);
+    const ublock = page.locator(".nb-text").filter({ hasText: "plain underlined" }).first();
+    ok((await ublock.locator("u").textContent()) === "underlined" && !(await ublock.innerText()).includes("+") && !(await ublock.innerText()).includes("<u>"), "drawn, it is an underline element, with no mark left in the text");
+    await shot(page, "underline-drawn");
     const papers = page.getByRole("group", { name: "Paper" }).getByRole("button");
     ok(JSON.stringify(await papers.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))) === JSON.stringify(["Plain paper", "Ruled paper", "Dotted paper", "Graph paper"]), "the toolbar has the four papers");
     await page.getByRole("button", { name: "Graph paper" }).click();
@@ -653,6 +682,32 @@ try {
     srv = await pagesOnServer();
     const imgBlock = srv.flatMap((p) => p.blocks).find((b) => b.kind === "image");
     ok(!!imgBlock && imgBlock.w === 64 && imgBlock.h === 48 && imgBlock.type === "image/png" && imgBlock.alt === "A test diagram", `Image: the picture is kept under the paper and shown, with its words (${JSON.stringify(imgBlock)})`);
+    // a picture is resized (20 Nov): the handle at its corner with the arrows (5 %, Shift 20 %), by dragging it, and S, M, Full; the shape is kept and the width is kept as a share of the page
+    const handle = page.getByRole("slider", { name: "Width of the picture" }).last();
+    await handle.focus();
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("Shift+ArrowLeft");
+    ok((await handle.getAttribute("aria-valuenow")) === "70" && (await handle.getAttribute("aria-valuetext")) === "70% of the page's width", "← twice and Shift+← make it 70 % of the page's width");
+    const ratio = await pic.evaluate((el) => el.getBoundingClientRect().width / el.getBoundingClientRect().height);
+    ok(Math.abs(ratio - 64 / 48) < 0.05, `its shape is kept (${ratio.toFixed(2)})`);
+    const hb = await handle.boundingBox();
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+    await page.mouse.down();
+    for (let k = 1; k <= 6; k++) await page.mouse.move(hb.x + hb.width / 2 - k * 20, hb.y + hb.height / 2);
+    await page.mouse.up();
+    const dragged = Number(await handle.getAttribute("aria-valuenow"));
+    ok(dragged < 70 && dragged >= 20, `dragging the corner makes it narrower (${dragged} %)`);
+    await saved(page);
+    const wSrv = (await pagesOnServer()).flatMap((p) => p.blocks).find((b) => b.id === imgBlock.id)?.width;
+    ok(Math.abs(wSrv * 100 - dragged) < 1.5, `the width is kept on the server as a share of the page (${wSrv})`);
+    await shot(page, "image-resized");
+    await page.locator(".nb-image").last().getByRole("radio", { name: "Small" }).click();
+    ok((await handle.getAttribute("aria-valuenow")) === "33", "S makes it a third of the page");
+    await page.locator(".nb-image").last().getByRole("radio", { name: "Full width" }).click();
+    ok((await handle.getAttribute("aria-valuenow")) === "100", "Full makes it as wide as the page");
+    await page.locator(".nb-image").last().getByRole("radio", { name: "Medium" }).click();
+    await saved(page);
     const other = await browser.newContext();
     ok((await other.request.get(`${BASE}/api/v1/documents/${docId}/notebook/images/${imgBlock.id}`)).status() === 401, "a picture of the notes is not served to anyone not signed in as its owner");
     await other.close();

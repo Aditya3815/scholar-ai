@@ -271,16 +271,17 @@ try {
     await notice.waitFor({ timeout: 4000 });
     ok((await notice.innerText()).includes("Could not copy. Select the text and press Ctrl+C."), "a refused copy says: Could not copy. Select the text and press Ctrl+C.");
     await notice.getByRole("button", { name: "Dismiss" }).click();
-    // Explain: the Agents drawer opens on Ask with the selection in the question box
+    // Explain: the Agents drawer opens on Explain with the selection, ready to send (phase 3; e2e/agents.mjs checks the agent itself)
     await pick(page, 2);
     await pop.waitFor();
     const second = await page.evaluate(() => getSelection().toString().replace(/\s+/g, " ").trim());
     await pop.getByRole("button", { name: "Explain" }).click();
     const drawer = page.getByRole("complementary", { name: "Agents" });
     await drawer.waitFor({ timeout: 8000 });
-    await untilInPage(page, () => document.activeElement?.id === "ask-input", undefined, 5000);
-    const q = await page.locator("#ask-input").inputValue();
-    ok(q.startsWith('Explain: "') && q.includes(second.slice(0, 20)), `Explain opens the Agents on Ask, the selection in the question box ("${q.slice(0, 50)}…"), the focus in it`);
+    const sel = (await drawer.locator(".agent-sel-text").textContent()) ?? "";
+    ok((await drawer.getByRole("radio", { name: "Explain" }).getAttribute("aria-checked")) === "true" && sel.includes(second.slice(0, 20)), `Explain opens the Agents on Explain, the selection its chip (${sel.slice(0, 50)}…)`);
+    await untilInPage(page, () => document.activeElement?.id === "agent-input-explain", undefined, 5000);
+    ok((await drawer.locator('[data-agent="explain"] .ask-answer').count()) === 0, "nothing is asked yet: the focus is in its question box, ready to send");
     await page.keyboard.press("Escape");
     await sleep(200);
     ok(!(await drawer.isVisible()) && (await page.evaluate(() => document.activeElement?.classList.contains("desk-fab"))), "Esc closes the drawer and gives the focus back to the Agents button");
@@ -362,7 +363,7 @@ try {
     ok(body.legend?.yellow === "Key idea" && body.legend?.pink === "Result", `a question about the highlights sends the meanings (${JSON.stringify(body.legend)})`);
     await page.locator(".ask-answer[data-source=highlights], .ask-error").first().waitFor({ timeout: 20000 }).catch(() => {});
     ok(await page.getByText("Answers cite pages. Check the passage before you rely on an answer.").isVisible(), "the drawer's standing line");
-    ok(JSON.stringify(await page.locator(".desk-agent-chip").allInnerTexts()) === JSON.stringify(["Ask"]), "phase 1 shows Ask alone (no placeholder agents)");
+    ok(JSON.stringify(await page.locator(".desk-agent-chip").allInnerTexts()) === JSON.stringify(["Ask", "Explain", "Critique", "Note-taker"]), "the agents of phase 3: Ask, Explain, Critique, Note-taker (Related comes with phase 4)");
     await page.keyboard.press("Escape");
     // the palette lists the Agents
     await page.keyboard.press("Control+k");

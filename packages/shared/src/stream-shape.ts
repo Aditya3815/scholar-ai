@@ -58,6 +58,7 @@ const ASK: Record<OaAskEvent["type"], EventKind> = {
   paper: "meta",
   delta: "text",
   answer: "end", // a question about a paper has no separate "done": the checked answer, or an error, closes the stream
+  critique: "end", // the Paper Reader's Critique: its checked points close the stream in the place of an answer
   error: "end",
 };
 
@@ -80,7 +81,7 @@ const LITSCAN: Record<LitscanEvent["type"], EventKind> = {
 
 export const STREAMS: Record<StreamName, Spec> = {
   chat: { kinds: CHAT, end: ["done", "error"], replaced: { token: "answer", general_token: "general" }, progressFields: { step: ["type", "step"] } },
-  ask: { kinds: ASK, end: ["answer", "error"], replaced: { delta: "answer" }, progressFields: { stage: ["type", "stage"], ingest: ["type", "status", "progress", "source", "started"] } },
+  ask: { kinds: ASK, end: ["answer", "critique", "error"], replaced: { delta: "answer" }, progressFields: { stage: ["type", "stage"], ingest: ["type", "status", "progress", "source", "started"] } },
   idea: { kinds: IDEA, end: ["done", "error"], replaced: {}, progressFields: { stage: ["type", "stage"] } },
   litscan: { kinds: LITSCAN, end: ["done", "error"], replaced: {}, progressFields: { worker: ["type", "seq", "idx", "stage"], progress: ["type", "done", "total"] } },
 };
