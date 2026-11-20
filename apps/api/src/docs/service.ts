@@ -4,6 +4,7 @@
  * of others (deleting the owner's own papers, with their shares and comments, is deleteDocument's).
  */
 export { listNotebookImages } from "./notebook-images";
+export { sentByStandIn } from "./invite-mail";
 import { liveRevoke, type RoomEnv } from "./live";
 
 /** Deleting an account: its open windows of the papers others shared with it are closed (docs/design/paper-live.md, 2). Before the memberships go; never throws. */

@@ -4,7 +4,8 @@ import { currentUser } from "../auth/service";
 import { cacheStore } from "../cache";
 import { withGate, GATES, type GateName } from "../gate";
 import { TRENDING_KEYS } from "../trending/store";
-import { devMode } from "../platform/dev";
+import { devMode, standIns } from "../platform/dev";
+import { sentByStandIn } from "../docs/service";
 import type { Env } from "../platform/env";
 
 /**
@@ -35,6 +36,17 @@ devRoutes.post("/llm", async (c) => {
     const status = e instanceof PolicyError ? 403 : e instanceof NoRouteError ? 422 : e instanceof QuotaError ? 429 : e instanceof AllProvidersFailedError ? 502 : 400;
     return c.json({ type: e instanceof Error ? e.name : "error", title: "LLM request failed", detail }, status);
   }
+});
+
+/**
+ * Test runs only (the stand-in mailer, QA_STUB=1): the last invitation e-mail the stand-in "sent" in this isolate, as the binding would have been given it, the inline picture as base64.
+ * Nothing is sent anywhere in a test run; this is how the sharing run reads the e-mail it made.
+ */
+devRoutes.get("/last-invite", (c) => {
+  const m = standIns(c.env) ? sentByStandIn.at(-1) : undefined;
+  if (!m) return c.json({ type: "not_found", title: "No invitation" }, 404);
+  const b64 = (u: Uint8Array) => btoa(Array.from(u, (x) => String.fromCharCode(x)).join(""));
+  return c.json({ ...m, attachments: (m.attachments ?? []).map((a) => ({ ...a, content: b64(a.content), size: a.content.byteLength })) });
 });
 
 /** Local tests only: is a file still in storage? */

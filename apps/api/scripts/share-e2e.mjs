@@ -9,6 +9,15 @@ import { APP, countFailure, createClient, finish, loginWith, ok, sqlResults, sta
 const idp = await startIdp();
 const login = loginWith(idp);
 const upload = (c) => c.send(`${APP}/api/v1/documents`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/pdf", "X-Filename": "shared.pdf" }, body: makePdf(SAMPLE_PAPER, { title: "Glaucoma screening" }) });
+/** A JPEG's structure as the Worker reads it (SOI, JFIF, optionally Exif, a 300 x 388 frame header, the scan, EOI); the Worker never decodes the picture. */
+function fakeJpeg({ exif = false } = {}) {
+  const seg = (m, body) => [0xff, m, ((body.length + 2) >> 8) & 0xff, (body.length + 2) & 0xff, ...body];
+  const text = (t) => [...t].map((ch) => ch.charCodeAt(0));
+  return Buffer.from([
+    0xff, 0xd8, ...seg(0xe0, [...text("JFIF"), 0, 1, 1, 0, 0, 1, 0, 1, 0, 0]), ...(exif ? seg(0xe1, [...text("Exif"), 0, 0, ...text("GPS 28.6N")]) : []),
+    ...seg(0xc0, [8, 1, 132, 1, 44, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1]), ...seg(0xda, [3, 1, 0, 2, 0x11, 3, 0x11, 0, 0x3f, 0]), ...Array(400).fill(0x55), 0xff, 0xd9,
+  ]);
+}
 const one = async (sql) => (await sqlResults([sql]))?.[0]?.[0];
 const status = async (p) => (await p).status;
 
@@ -24,10 +33,23 @@ try {
   ok(mine.features?.share === true && mine.features?.reader === true && !mine.access, "SHARE is on in this run: the owner's paper says it can be shared (and has no `access`)");
 
   console.log("invite, then sign in as the invited address");
-  const inv = await A.api(`${S}/members`, { method: "POST", body: { email: "Sh-B@Example.com", role: "commenter" } });
+  const inviteNote = "Please read the methods <b>first</b> & tell me.\nThanks!";
+  const inv = await A.api(`${S}/members`, { method: "POST", body: { email: "Sh-B@Example.com", role: "commenter", note: inviteNote, picture: fakeJpeg({ exif: true }).toString("base64") } });
   const invited = await inv.json();
   ok(inv.status === 201 && invited.member.email === "sh-b@example.com" && invited.member.joined === false, "Invite: 201, the address lower-cased, not joined yet");
   ok(invited.emailed === true, "the invitation was e-mailed (the stand-in mailer of a test run)");
+  const mail = await (await fetch(`${APP}/api/v1/dev/last-invite`)).json();
+  ok(mail.to === "sh-b@example.com" && mail.from?.email === "invites@notify.sodhsetu.in" && mail.subject === `Asha Owner shared “${doc.title}” with you`, "the e-mail: to the address, from invites@, the subject names the owner and the paper");
+  ok(mail.text.includes("Asha Owner wrote:\n> Please read the methods <b>first</b> & tell me.\n> Thanks!") && mail.text.includes(`/papers/${doc.id}`) && mail.text.includes("You can view it and add comments."), "its plain text: the note quoted, the role in words, the link");
+  ok(mail.html.includes("Please read the methods &lt;b&gt;first&lt;/b&gt; &amp; tell me.<br>Thanks!") && !mail.html.includes("<b>first") && mail.html.includes(`/papers/${doc.id}"`) && mail.html.includes(">Open the paper</a>"), "its HTML: the note escaped, the button to the paper");
+  const att = mail.attachments ?? [];
+  ok(att.length === 1 && att[0].disposition === "inline" && att[0].type === "image/jpeg" && mail.html.includes(`src="cid:${att[0].contentId}"`), "the first page goes as one inline JPEG, named by its Content-ID in the HTML (no address of it anywhere)");
+  ok(att[0]?.content === fakeJpeg().toString("base64"), "the picture is passed on byte for byte, with its metadata segment (Exif) taken out");
+  const odd = await (await A.api(`${S}/members`, { method: "POST", body: { email: "sh-d@example.com", role: "viewer", picture: Buffer.from("\x89PNG not a jpeg at all, just bytes ......................................................................................................................").toString("base64") } })).json();
+  const plain = await (await fetch(`${APP}/api/v1/dev/last-invite`)).json();
+  ok(odd.emailed === true && plain.to === "sh-d@example.com" && (plain.attachments ?? []).length === 0 && !plain.html.includes("<img"), "a picture that is not a JPEG is left out: the e-mail still goes, with the page-shaped block");
+  await A.api(`${S}/members/${odd.member.id}`, { method: "DELETE" });
+  ok((await status(A.api(`${S}/members`, { method: "POST", body: { email: "sh-e@example.com", role: "viewer", note: "x".repeat(501) } }))) === 400, "a note over 500 characters is refused");
   ok((await status(A.api(`${S}/members/${invited.member.id}/resend`, { method: "POST" }))) === 429, "Resend at once: 429 (once an hour)");
   ok((await status(A.api(`${S}/members`, { method: "POST", body: { email: "sh-a@example.com", role: "viewer" } }))) === 400, "the owner's own address is refused");
   ok((await status(A.api(`${S}/members`, { method: "POST", body: { email: "not an address", role: "viewer" } }))) === 400, "a wrong address is refused");
