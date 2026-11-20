@@ -4,7 +4,7 @@
 // ⋯ menu, the list's cards and counts; Editor: highlights), the owner's Comments button in the page header and Resolve, a phone, a visitor through the link signed out, and axe in Light, Dark and Read.
 // With SHARE_SHOTS=<folder> it also takes the owner's pictures.
 //   node e2e/share.mjs [baseUrl]    (default http://localhost:8788; SHARE and READER must be on there)
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 import { BASE, axeCheck, countFailure, desk, finish, launch, noSideways, ok, phone, setTheme, sleep, startIdp, watchPage } from "./lib/browser.mjs";
@@ -83,7 +83,47 @@ try {
     await dlg.getByRole("button", { name: "Invite" }).click();
     await dlg.getByText(email).first().waitFor({ timeout: 10000 });
   };
-  await add(COMMENTER.email, "Can comment");
+  // the note and the preview of the e-mail: shown once an address is typed; the preview is the e-mail itself, with the picture of the first page
+  ok((await dlg.getByLabel("Message (optional)").count()) === 0, "no message box before an address is typed (the dialog stays clean)");
+  await dlg.getByLabel("Add people by e-mail").fill(COMMENTER.email);
+  await dlg.getByLabel("Message (optional)").fill("Have a look at the methods before Monday.\nThanks!");
+  const previewBtn = dlg.getByRole("button", { name: "Preview e-mail" });
+  await previewBtn.click();
+  ok((await dlg.getByRole("button", { name: "Hide the e-mail" }).getAttribute("aria-expanded")) === "true", "Preview e-mail is a disclosure (aria-expanded)");
+  const frame = dlg.frameLocator('iframe[title="Preview of the invitation e-mail"]');
+  await frame.getByRole("heading", { name: "Asha Owner shared a paper with you" }).waitFor({ timeout: 15000 });
+  await frame.locator('img[alt^="The first page of"]').waitFor({ timeout: 15000 });
+  await sleep(500);
+  const shown = await frame.locator("body").innerText();
+  ok(shown.includes("Have a look at the methods before Monday.") && shown.includes("You can view it and add comments.") && shown.includes(`Sign in with Google as ${COMMENTER.email}`), "the preview shows the note, the role in words and the address to sign in with");
+  ok(await frame.locator('img[alt^="The first page of"]').evaluate((img) => img.src.startsWith("data:image/jpeg") && img.naturalWidth === 300), "the preview shows the picture of the first page (a 300 px JPEG)");
+  ok(/Subject\s+Asha Owner shared “.+” with you/.test(await dlg.locator(".sh-preview-head").innerText()), "the preview shows the subject");
+  for (const theme of ["light", "dark"]) {
+    await op.emulateMedia({ colorScheme: theme });
+    await setTheme(op, theme, 250);
+    await dlg.locator(".sh-preview").scrollIntoViewIfNeeded();
+    await axe(op, `the Share dialog with the e-mail's preview, ${theme}`, ".sh-dialog");
+    await shot(op, `dialog-preview-${theme}`);
+  }
+  if (SHOTS) {
+    await dlg.locator(".sh-body").evaluate((el) => (el.scrollTop = 0));
+    await shot(op, "dialog-preview-top");
+  }
+  await op.emulateMedia({ colorScheme: "light" });
+  await setTheme(op, "light");
+  await dlg.getByRole("button", { name: /^Role for the new person/ }).click();
+  await op.getByRole("menuitemradio", { name: "Can comment" }).click();
+  await dlg.getByRole("button", { name: "Invite" }).click();
+  await dlg.getByText(COMMENTER.email).first().waitFor({ timeout: 10000 });
+  const sent = await (await op.request.get(`${BASE}/api/v1/dev/last-invite`)).json();
+  const pic = sent.attachments?.[0];
+  if (SHOTS && pic) {
+    writeFileSync(join(SHOTS, "invite-picture.jpg"), Buffer.from(pic.content, "base64"));
+    writeFileSync(join(SHOTS, "invite.json"), JSON.stringify({ ...sent, attachments: sent.attachments.map((a) => ({ ...a, content: `${a.size} bytes` })) }, null, 1));
+  }
+  ok(sent.to === COMMENTER.email && pic?.disposition === "inline" && pic.type === "image/jpeg" && pic.size > 2000 && pic.size <= 60 * 1024 && sent.html.includes(`cid:${pic.contentId}`), `the e-mail carries the first page drawn by the browser as an inline JPEG (${Math.round((pic?.size ?? 0) / 1024)} KB)`);
+  ok(sent.text.includes("> Have a look at the methods before Monday.\n> Thanks!"), "and the note");
+  ok((await dlg.getByLabel("Message (optional)").count()) === 0, "after Invite the message box and the preview are gone");
   ok((await dlg.getByRole("status").filter({ hasText: "Invited ravi.c@example.edu. We e-mailed them." }).count()) === 1, "the dialog says the person was invited and e-mailed");
   await add(VIEWER.email, "Can view");
   await add(EDITOR.email, "Can edit");
