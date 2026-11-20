@@ -90,7 +90,7 @@ const pagesSuffix = (pages: readonly number[]) => ` (p. ${[...new Set(pages)].so
 /** A bullet's words as one line: no marks, no page the model wrote (the draft writes the pages itself), no heading or list sign at its start, no line break. */
 function cleanBullet(s: string): string {
   return s
-    .replace(/【[^】]*】/g, "")
+    .replace(/【[^【】]*】/g, "")
     .replace(MARK, "")
     .replace(/\(\s?(?:pp?\.|pages?)[\d\s,–-]+\)/gi, "")
     .replace(/\s+/g, " ")

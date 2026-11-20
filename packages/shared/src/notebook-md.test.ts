@@ -103,3 +103,13 @@ describe("the source, styled, for the field being written in", () => {
     expect(runs[2]![0]).toMatchObject({ s: "- ", mark: true });
   });
 });
+
+describe("long runs stay fast (CodeQL, 20 Nov 2026)", () => {
+  it("a heading or list sign followed by many spaces is read quickly and whole", () => {
+    const sp = " ".repeat(50_000);
+    const t = performance.now();
+    const runs = mdSourceRuns(`#${sp}x\n-${sp}y\n1.${sp}z`);
+    expect(performance.now() - t).toBeLessThan(500);
+    expect(runs.map((r) => r[0]!.s.length)).toEqual([50_001, 50_001, 50_002]);
+  });
+});

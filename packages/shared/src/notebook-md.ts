@@ -200,11 +200,19 @@ function sourceInline(s: string, st: Style, out: MdRun[]) {
  * and the text they wrap shows underlined, marked or bold at once, and every character keeps its place (nothing is added or taken away, so the cursor stays where it is drawn).
  * A line's heading or list sign is a mark too. Paragraphs are read line by line here (a mark does not run over a line's end while it is typed).
  */
+/** A line's sign with all the spaces after it, counted by hand (a regular expression with " +" here is slow on a long run of spaces, CodeQL). */
+function withSpaces(line: string, m: RegExpExecArray | null): string {
+  if (!m) return "";
+  let end = m[0].length;
+  while (line.charCodeAt(end) === 32) end++;
+  return line.slice(0, end);
+}
+
 export function mdSourceRuns(md: string): MdRun[][] {
   return md.split("\n").map((line) => {
     const out: MdRun[] = [];
     const h = HEADING.exec(line);
-    const lead = h ? /^#{1,3} +/.exec(line)![0] : (/^ {0,3}(?:- +|\d{1,9}[.)] +)/.exec(line)?.[0] ?? "");
+    const lead = withSpaces(line, h ? /^#{1,3} /.exec(line) : /^ {0,3}(?:-|\d{1,9}[.)]) /.exec(line));
     if (lead) out.push({ s: lead, mark: true, ...PLAIN });
     sourceInline(line.slice(lead.length), { ...PLAIN, h: !!h }, out);
     return out;
