@@ -1,5 +1,5 @@
 import { deleteDocument } from "../docs/routes";
-import { forgetPersonStatements } from "../docs/service";
+import { closeLiveOf, forgetPersonStatements } from "../docs/service";
 import { captureException, type SentryEnv } from "../monitoring/sentry";
 import { revokeAllApps } from "../mcp/apps";
 import type { EnvPick } from "../platform/env";
@@ -17,7 +17,7 @@ export const TOMBSTONE_PREFIX = "tombstones/";
 const ID = /^[A-Za-z0-9-]{8,64}$/;
 const tombstoneKey = (userId: string) => `${TOMBSTONE_PREFIX}${userId}`;
 
-type EraseEnv = EnvPick<"DB" | "FILES" | "PUBLIC_BASE_URL", "OAUTH_KV"> & SentryEnv;
+type EraseEnv = EnvPick<"DB" | "FILES" | "PUBLIC_BASE_URL", "OAUTH_KV" | "PAPER_ROOM" | "LIVE" | "SHARE" | "SHARE_BETA_USERS" | "CACHE"> & SentryEnv;
 
 /** Erases the account's papers (files and rows), library, reports, sessions and sign-in links, in that order, then the account itself. */
 export async function eraseAccount(env: EraseEnv, userId: string, opts: { tombstone?: boolean } = {}): Promise<void> {
@@ -36,6 +36,7 @@ export async function eraseAccount(env: EraseEnv, userId: string, opts: { tombst
   const db = env.DB;
   const owned = await db.prepare("SELECT id FROM documents WHERE user_id = ?1").bind(userId).all<{ id: string }>();
   for (const d of owned.results) await deleteDocument(env, userId, d.id);
+  await closeLiveOf(env, userId);
   await db.batch([
     // papers others shared with this account: the membership goes, the comments stay by "a former member" (docs/design/paper-share.md, 6)
     ...forgetPersonStatements(db, userId),

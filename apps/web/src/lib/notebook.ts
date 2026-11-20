@@ -150,6 +150,8 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
   /** The ink on the pages as the last load had it (25): the ink chunk takes it from here; and what is told when the store is destroyed (the ink sends what it holds). */
   let serverInk: NotebookInk[] = [];
   const onDestroy = new Set<() => void>();
+  /** Told after a refresh read the pages (and their ink) again: the ink store takes in the drawing others saved. */
+  const onServer = new Set<() => void>();
 
   const slotOf = (id: string) => slots.find((s) => s.page.id === id);
   const sorted = () => slots.sort((a, b) => a.page.position - b.page.position);
@@ -429,6 +431,70 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
     }
   }
 
+  /**
+   * Someone else saved (docs/design/paper-live.md, 1, "Live updates"): the pages are read again and taken in. A page this window has not changed is replaced; one it has changed is merged by
+   * block id (mergeBlocks: a block only the other person changed comes in, one both changed keeps this window's and says "Updated from another window"); a page saving now is left to its save
+   * (which answers with the server's page, or a 409 that merges). New pages come in, pages deleted elsewhere go unless this window has writing in them. `hint`: the page and revision the
+   * room said changed; nothing is fetched when this window already has that revision (its own save).
+   */
+  async function refresh(hint: { id?: string; rev?: number } = {}): Promise<void> {
+    if (status !== "ready" || !alive) return;
+    if (hint.id && typeof hint.rev === "number") {
+      const s = slotOf(hint.id);
+      if (s && s.page.saved && s.page.rev >= hint.rev) return;
+    }
+    let pages: NotebookPage[];
+    try {
+      const res = await deps.fetch(url, { credentials: "same-origin" });
+      if (!res.ok) return;
+      const got = (await res.json()) as { pages: NotebookPage[]; ink?: NotebookInk[] };
+      pages = got.pages;
+      if (got.ink) serverInk = got.ink;
+    } catch {
+      return;
+    }
+    if (!alive || status !== "ready") return;
+    const there = new Set(pages.map((p) => p.id));
+    let clash = false;
+    for (const p of pages) {
+      const s = slotOf(p.id);
+      if (!s) {
+        if (!deleted.includes(p.id) && !deleting.has(p.id)) slots.push(slotFor(fromServer(p)));
+        continue;
+      }
+      // a save on its way, or a page made here and not yet saved: the save's answer takes the server's page in
+      if (s.saving || !s.page.saved) continue;
+      if (p.rev > s.page.rev) {
+        if (!s.blocksDirty) {
+          s.page = { ...s.page, blocks: p.blocks, rev: p.rev };
+          s.base = p.blocks;
+        } else {
+          const m = mergeBlocks(p.blocks, s.base, s.page.blocks);
+          s.page = { ...s.page, blocks: m.blocks, rev: p.rev };
+          s.base = p.blocks;
+          s.blocksDirty = JSON.stringify(m.blocks) !== JSON.stringify(p.blocks);
+          if (m.clash) clash = true;
+        }
+      }
+      if (!s.metaDirty) s.page = { ...s.page, title: p.title, style: p.style, position: p.position };
+    }
+    // deleted elsewhere: gone here too, unless this window has writing in it (its save makes it again)
+    slots = slots.filter((s) => !s.page.saved || there.has(s.page.id) || dirty(s) || s.saving);
+    // the starter page ("Notes", nothing written) gives way to the pages someone else made
+    if (pages.length) slots = slots.filter((s) => !(s.starter && isEmpty(s.page.blocks)));
+    if (!slots.length) slots = [starterPage()];
+    sorted();
+    if (!slotOf(openId ?? "")) openId = slots[0]!.page.id;
+    if (clash) {
+      conflictAt = deps.timers.now();
+      deps.timers.clear(conflictTimer);
+      conflictTimer = deps.timers.set(emit, CONFLICT_SHOWN_MS + 50);
+      deps.onClash?.();
+    }
+    emit();
+    onServer.forEach((fn) => fn());
+  }
+
   function saveAll(keepalive = false) {
     for (const s of slots) if (dirty(s)) void save(s.page.id, keepalive);
     void sendDeletes(keepalive);
@@ -448,6 +514,10 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
     /** The ink on the pages from the last load (25). */
     serverInk: (): readonly NotebookInk[] => serverInk,
     /** Told once when the store is destroyed. */
+    /** Called after each refresh (another person saved: docs/design/paper-live.md). */
+    onServerRead(fn: () => void) {
+      onServer.add(fn);
+    },
     onDestroy(fn: () => void) {
       onDestroy.add(fn);
     },
@@ -463,6 +533,7 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
       return () => listeners.delete(l);
     },
     load,
+    refresh,
     /** The page shown, and the one "Add to notes" adds to; kept on this device for this paper. */
     open(id: string) {
       if (!slotOf(id) || openId === id) return;

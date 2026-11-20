@@ -5,6 +5,7 @@ import { SWITCHES, flag, killSwitch, type GateName, type KillName } from "./swit
 import { checkClaimAllowedFor, mcpMode } from "../mcp/flag";
 import { readerOnFor } from "../docs/reader-flag";
 import { shareOnFor } from "../docs/share-flag";
+import { liveOnFor } from "../docs/live-flag";
 import { readTrending } from "../trending/routes";
 import { runTrending } from "../trending/job";
 import { fakeKv } from "../trending/fake-kv";
@@ -24,7 +25,7 @@ const kvStates = (): KvState[] => [
   { label: "(throws)", cache: { get: async () => { throw new Error("503"); } } as unknown as KVNamespace },
 ];
 
-const GATES = ["CHAT_COUNTERS", "CHAT_FAILPOLICY", "CHAT_SAFETY", "CHAT_CLEAN", "CHAT_FLOOR", "CHAT_THINK", "CHAT_UNDERSTAND", "CHAT_UNDERSTAND_VISITORS", "CHAT_TOOLS", "MCP", "MCP_CHECK_CLAIM", "READER", "SHARE"] as const;
+const GATES = ["CHAT_COUNTERS", "CHAT_FAILPOLICY", "CHAT_SAFETY", "CHAT_CLEAN", "CHAT_FLOOR", "CHAT_THINK", "CHAT_UNDERSTAND", "CHAT_UNDERSTAND_VISITORS", "CHAT_TOOLS", "MCP", "MCP_CHECK_CLAIM", "READER", "SHARE", "LIVE"] as const;
 type Gate = (typeof GATES)[number];
 
 /** The reading of one gate, as every caller makes it: through the registry. */
@@ -52,6 +53,12 @@ async function gateTable(name: Gate) {
       if (name === "SHARE") {
         const withUsers = { ...env, SHARE_BETA_USERS: "u-in" };
         cell += `; a listed owner may share ${await shareOnFor(withUsers as never, "u-in")}, another ${await shareOnFor(withUsers as never, "u-out")}`;
+      }
+      if (name === "LIVE") {
+        // LIVE needs SHARE: with SHARE on, then with SHARE off (the same KV answers for both names)
+        const on = { ...env, SHARE: "on", SHARE_BETA_USERS: "u-in" };
+        const off = { ...env, SHARE_BETA_USERS: "u-in" };
+        cell += `; with SHARE on: a listed owner's paper live ${await liveOnFor(on as never, "u-in")}, another ${await liveOnFor(on as never, "u-out")}; with SHARE off ${await liveOnFor(off as never, "u-in")}`;
       }
       row[k.label] = cell;
     }

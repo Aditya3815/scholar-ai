@@ -402,3 +402,6 @@
 .desk-shared-banner strong { font-weight: 600; }
 .desk-shared-banner .link-btn { margin-left: auto; }
 .desk-title-read { margin: 0; font-size: inherit; font-weight: 600; overflow-wrap: anywhere; }
+/* the place of the live presence row while its chunk arrives (docs/design/paper-live.md, 5: no layout shift); the row itself is live/live.css's .lv, of the same width */
+.desk-live-wait { display: inline-block; flex: none; width: 116px; min-height: 36px; }
+.desk-live-wait[data-wide="false"] { width: 44px; }

@@ -44,8 +44,10 @@
   // Invitations to a shared paper (docs/design/paper-share.md, S4; src/docs/invite-mail.ts): Cloudflare Email Service, from the subdomain notify.sodhsetu.in (DKIM selector cf-bounce, SPF and MX
   // published, 18 Nov 2026). Only the SHARE switch makes anything send; a local run (wrangler dev) simulates the binding, and the tests use a stand-in. Staging has none: its dialog copies the invite.
   "send_email": [{ "name": "EMAIL" }],
-  "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }, { "name": "API_GATE", "class_name": "ApiGate" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }, { "tag": "v2", "new_sqlite_classes": ["ApiGate"] }],
+  // One room a paper for live presence and live updates in a shared paper (docs/design/paper-live.md; src/docs/live-room.ts): hibernatable WebSockets, nothing in storage. Nothing connects
+  // while LIVE is off (unset here): the class exists, no object is made.
+  "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }, { "name": "API_GATE", "class_name": "ApiGate" }, { "name": "PAPER_ROOM", "class_name": "PaperRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }, { "tag": "v2", "new_sqlite_classes": ["ApiGate"] }, { "tag": "v3", "new_sqlite_classes": ["PaperRoom"] }],
   // Per-IP limits (the binding's period can only be 10 or 60 seconds). Search is the expensive route: it fans out to 4 APIs.
   "ratelimits": [
     { "name": "SEARCH_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
@@ -64,7 +66,9 @@
   // "MCP": "beta" (9 Nov 2026, the owner's go): the MCP server runs only for the account ids in MCP_BETA_USERS, which is a Worker secret (`wrangler secret put MCP_BETA_USERS`), not a
   // var, so that an account id is not in this public repository. Its privacy sentence is on the page (legal-match.test.ts, FLAG_SENTENCES). Off at once: `flag:MCP off` in CACHE.
   // "CHAT_TOOLS": "on" (10 Nov 2026, the owner read its sentence on 9 Nov): tools run in the reply (docs/design/chat-tools.md). Off at once: `flag:CHAT_TOOLS off` in CACHE.
-  "vars": { "EXPECT_CRON": "1", "TRENDING": "off", "MCP": "beta", "CHAT_TOOLS": "on", "READER": "dark", "SHARE": "dark" },
+  // "LIVE": "dark" (20 Nov 2026, the owner's yes after the pictures): live presence and live updates on the papers whose owner is in SHARE_BETA_USERS (docs/design/paper-live.md). Its privacy
+  // sentence is on the page (draft-22). Off at once: `flag:LIVE off` in CACHE.
+  "vars": { "EXPECT_CRON": "1", "TRENDING": "off", "MCP": "beta", "CHAT_TOOLS": "on", "READER": "dark", "SHARE": "dark", "LIVE": "dark" },
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "observability": { "enabled": true },
 
@@ -99,8 +103,8 @@
         { "binding": "OAUTH_KV", "id": "9ff6033bd73c4fa7ac159c5351fb785b" }
       ],
       "ai": { "binding": "AI" },
-      "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }, { "name": "API_GATE", "class_name": "ApiGate" }] },
-      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }, { "tag": "v2", "new_sqlite_classes": ["ApiGate"] }],
+      "durable_objects": { "bindings": [{ "name": "S2_THROTTLE", "class_name": "S2Throttle" }, { "name": "API_GATE", "class_name": "ApiGate" }, { "name": "PAPER_ROOM", "class_name": "PaperRoom" }] },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["S2Throttle"] }, { "tag": "v2", "new_sqlite_classes": ["ApiGate"] }, { "tag": "v3", "new_sqlite_classes": ["PaperRoom"] }],
       "ratelimits": [
         { "name": "SEARCH_LIMITER", "namespace_id": "2001", "simple": { "limit": 60, "period": 60 } },
         { "name": "VERIFY_LIMITER", "namespace_id": "2003", "simple": { "limit": 120, "period": 60 } },

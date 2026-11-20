@@ -13,7 +13,8 @@ export type CommentsApi = {
   openOn: (anchor: CommentAnchor) => number;
   /** All open threads. */
   open: number;
-  reload: () => Promise<void>;
+  /** Read again; answers the comments as they are now (null when that failed). */
+  reload: () => Promise<DocComment[] | null>;
   add: (q: { anchor?: CommentAnchor; parentId?: string; body: string }) => Promise<DocComment>;
   edit: (id: string, body: string) => Promise<void>;
   resolve: (id: string, resolved: boolean) => Promise<void>;
@@ -23,13 +24,16 @@ export type CommentsApi = {
 export function useComments(docId: string, on: boolean): CommentsApi {
   const [status, setStatus] = useState<CommentsApi["status"]>(on ? "loading" : "off");
   const [comments, setComments] = useState<DocComment[]>([]);
-  const reload = useCallback(async () => {
-    if (!on) return;
+  const reload = useCallback(async (): Promise<DocComment[] | null> => {
+    if (!on) return null;
     try {
-      setComments((await fetchComments(docId)).comments);
+      const list = (await fetchComments(docId)).comments;
+      setComments(list);
       setStatus("ready");
+      return list;
     } catch {
       setStatus("error");
+      return null;
     }
   }, [docId, on]);
   useEffect(() => {

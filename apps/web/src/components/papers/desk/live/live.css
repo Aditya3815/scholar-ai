@@ -1,0 +1,77 @@
+/*
+ * Live presence in a shared paper (docs/design/paper-live.md, 1 and 5): the presence row, its list, the "is editing" edge of a block, the dots on a page tab and a thumbnail, and the quiet
+ * "Reconnecting…". Part of the lazy "live" chunk. Six presence colours a theme, each with the colour of the initial on it (4.5:1 at least; the edge and the dots 3:1 on the surfaces): checked by
+ * live-colours.test.ts against tokens.css. A person's colour is a class, lv-c0 .. lv-c5, which sets --lv and --lv-fg.
+ */
+:root {
+  --lv-0: #3548c8; --lv-1: #0f766e; --lv-2: #b4236e; --lv-3: #8f5200; --lv-4: #2e7d32; --lv-5: #6d3fc0;
+  --lv-fg: #ffffff;
+}
+:root[data-theme="read"] {
+  --lv-0: #34479f; --lv-1: #0e6a63; --lv-2: #a1225f; --lv-3: #7a4b00; --lv-4: #2d6a30; --lv-5: #5f3aa6;
+  --lv-fg: #ffffff;
+}
+:root[data-theme="dark"] {
+  --lv-0: #93a6ff; --lv-1: #5ccfc2; --lv-2: #f08fb4; --lv-3: #f0b95c; --lv-4: #7fcf93; --lv-5: #c4a5ff;
+  --lv-fg: #0f1115;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --lv-0: #93a6ff; --lv-1: #5ccfc2; --lv-2: #f08fb4; --lv-3: #f0b95c; --lv-4: #7fcf93; --lv-5: #c4a5ff;
+    --lv-fg: #0f1115;
+  }
+}
+.lv-c0 { --lv: var(--lv-0); } .lv-c1 { --lv: var(--lv-1); } .lv-c2 { --lv: var(--lv-2); }
+.lv-c3 { --lv: var(--lv-3); } .lv-c4 { --lv: var(--lv-4); } .lv-c5 { --lv: var(--lv-5); }
+
+/* ---- the row in the header: it keeps its width (no layout shift when people come and go) ---- */
+.lv { position: relative; display: inline-flex; flex: none; align-items: center; justify-content: flex-end; width: 116px; min-height: 36px; }
+.lv[data-wide="false"] { width: 44px; }
+.lv-row { display: inline-flex; align-items: center; min-height: 36px; padding: 0 4px; border: 0; border-radius: 999px; background: none; color: var(--text); font: inherit; cursor: pointer; }
+.lv-row:hover { background: var(--surface-2); }
+.lv-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.lv-row > .lv-av + .lv-av, .lv-row > .lv-av + .lv-more { margin-left: -6px; }
+@media (pointer: coarse) { .lv-row { min-height: 44px; min-width: 44px; justify-content: center; } }
+
+.lv-av { position: relative; display: inline-grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--lv, var(--muted)); color: var(--lv-fg); box-shadow: 0 0 0 2px var(--surface); font-size: 0.6875rem; font-weight: 700; line-height: 1; transition: opacity 150ms ease; }
+.lv-av[data-idle="true"] { opacity: 0.45; }
+.lv-av[data-active="true"]::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px var(--surface); }
+.lv-more, .lv-count { display: inline-grid; flex: none; place-items: center; min-width: 24px; height: 24px; padding: 0 5px; border-radius: 999px; background: var(--surface-2); color: var(--text); box-shadow: 0 0 0 2px var(--surface); font-size: 0.6875rem; font-weight: 700; }
+.lv-count { margin-left: -6px; }
+
+/* ---- the list ---- */
+.lv-pop { position: fixed; z-index: 60; width: min(300px, calc(100vw - 24px)); max-height: min(60vh, 420px); overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: 0 8px 28px color-mix(in srgb, var(--text) 16%, transparent); scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; animation: lv-in 150ms ease; }
+.lv-pop-h { margin: 4px 8px 6px; color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.lv-list { margin: 0; padding: 0; list-style: none; }
+.lv-item { display: grid; grid-template-columns: 24px 1fr; column-gap: 10px; align-items: center; padding: 8px; border-radius: var(--radius-s); }
+.lv-item + .lv-item { border-top: 1px solid var(--border); border-radius: 0; }
+.lv-who { min-width: 0; }
+.lv-name { display: block; overflow: hidden; font-size: 0.875rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.lv-doing { display: block; color: var(--muted); font-size: 0.8125rem; }
+.lv-go { grid-column: 2; justify-self: start; margin-top: 4px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 0.8125rem; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.lv-go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+@media (pointer: coarse) { .lv-go { min-height: 44px; } }
+/* the list is placed under its button by Live.tsx (fixed, kept inside the window); on a phone it is a sheet across the width */
+.lv[data-wide="false"] .lv-pop { width: auto; }
+
+/* ---- Reconnecting…: under the row, out of the flow ---- */
+.lv-line { position: absolute; top: calc(100% + 2px); right: 4px; z-index: 2; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 0.75rem; white-space: nowrap; animation: lv-in 150ms ease; }
+
+/* ---- a notes page tab someone has open, and a thumbnail of a page someone reads ---- */
+.lv-dots { display: inline-flex; flex: none; align-items: center; }
+.lv-dots > .lv-av { width: 16px; height: 16px; font-size: 0.5625rem; box-shadow: 0 0 0 1.5px var(--surface); }
+.lv-dots > .lv-av + .lv-av { margin-left: -4px; }
+.lv-dots > .lv-av[data-active="true"]::after { display: none; }
+.thumb > .lv-dots { position: absolute; top: 4px; right: 6px; z-index: 1; }
+
+/* ---- a block another person is typing in: a thin edge in their colour, and their name ---- */
+.nb-block[data-live-edit]::before { content: ""; position: absolute; top: 2px; bottom: 2px; left: 0; width: 3px; border-radius: 2px; background: var(--lv); pointer-events: none; }
+.lv-edit { position: absolute; top: -9px; right: 8px; z-index: 2; display: inline-flex; align-items: center; gap: 4px; max-width: 70%; padding: 1px 8px 1px 2px; border-radius: 999px; background: var(--lv); color: var(--lv-fg); font-size: 0.6875rem; font-weight: 600; line-height: 18px; white-space: nowrap; pointer-events: none; animation: lv-in 150ms ease; }
+.lv-edit > b { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: color-mix(in srgb, var(--lv-fg) 22%, transparent); font-size: 0.5625rem; }
+.lv-edit > span { overflow: hidden; text-overflow: ellipsis; }
+
+@keyframes lv-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .lv-av { transition: none; }
+  .lv-pop, .lv-line, .lv-edit { animation: none; }
+}

@@ -87,14 +87,18 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const myJob = jobs.find((j) => j.docId === id && ["reading", "uploading", "indexing", "scanning"].includes(j.step));
   const reindexing = !!myJob;
 
-  const fetchIt = useCallback(async () => {
+  const fetchIt = useCallback(async (lost = false) => {
     try {
       const r = await fetchDocument(id);
-      setLoad({ status: "ready", doc: r.document, history: r.history, info: r.info, scan: r.scan, reader: r.features?.reader === true, access: r.access ?? null, canShare: r.features?.share === true });
+      setLoad({ status: "ready", doc: r.document, history: r.history, info: r.info, scan: r.scan, reader: r.features?.reader === true, access: r.access ?? null, canShare: r.features?.share === true, live: r.features?.live === true });
+      return true;
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setLoad({ status: "error", message: "Sign in to open your papers." });
+      // the room closed this window (docs/design/paper-live.md, 2) and the paper says the same: the person was removed, sharing stopped, or the paper was deleted
+      else if (e instanceof ApiError && e.status === 404 && lost) setLoad({ status: "error", message: "You no longer have access to this paper. Ask the person who shared it if you need it again.", notFound: true });
       else if (e instanceof ApiError && e.status === 404) setLoad({ status: "error", message: "We could not find that paper. It may have been deleted.", notFound: true });
       else setLoad({ status: "error", message: "We could not load this paper. Check your connection and try again." });
+      return false;
     }
   }, [id]);
 
@@ -418,6 +422,17 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
       onUseReferenceList,
       access: load.access ?? null,
       canShare: load.canShare === true,
+      live: load.live === true,
+      onAccessLost: async () => {
+        // still open to this person (by the link, say)? Only the 404 shows "You no longer have access"
+        try {
+          await fetchDocument(id);
+          return true;
+        } catch (e) {
+          if (e instanceof ApiError && (e.status === 404 || e.status === 401)) void fetchIt(true);
+          return false;
+        }
+      },
       myName: user?.name ?? null,
     };
     return (

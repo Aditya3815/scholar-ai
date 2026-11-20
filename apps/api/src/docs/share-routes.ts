@@ -23,6 +23,7 @@ import { setLinkCookie } from "./access";
 import { mailerFor } from "./invite-mail";
 import { requirePaper, type PaperDoor } from "./paper-gate";
 import { shareOnFor, shareSwitchedOn } from "./share-flag";
+import { liveChanged, liveRevoke } from "./live";
 import {
   addComment,
   claimSend,
@@ -128,6 +129,8 @@ shareRoutes.delete("/with-me/:id", async (c) => {
   const got = await requireUser(c, SIGNED_IN);
   if (got instanceof Response) return got;
   if (!(await leave(c.env.DB, c.req.param("id"), got.user.id))) return deny(c, 404, "not_found", "That paper is not shared with you");
+  // their other windows of it close (docs/design/paper-live.md, 2); one that still has the link connects again
+  liveRevoke(c, c.env, c.req.param("id"), { userId: got.user.id });
   return c.json({ ok: true });
 });
 
@@ -150,6 +153,9 @@ shareRoutes.put("/papers/:id", async (c) => {
   if (b.expiry !== undefined && !isLinkExpiry(b.expiry)) return deny(c, 400, "invalid_share", "A link lasts 7 days, 30 days or until you stop it");
   if (b.viewersDownload !== undefined && typeof b.viewersDownload !== "boolean") return deny(c, 400, "invalid_share", "Say whether viewers can download");
   await updateShare(c.env.DB, got.row.id, { linkMode: b.linkMode as never, linkRole: b.linkRole as never, expiry: b.expiry as LinkExpiry | undefined, viewersDownload: b.viewersDownload as boolean | undefined });
+  // the link's people: closed when the link is restricted again, told to connect again (with their new role) when its role changed
+  if (b.linkMode === "restricted") liveRevoke(c, c.env, got.row.id, { via: "link" });
+  else if (b.linkRole !== undefined) liveRevoke(c, c.env, got.row.id, { via: "link", reconnect: true });
   const share = await shareSettings(c.env.DB, got.row.id, mailerFor(c.env) !== null);
   // opened to anyone for the first time: the link is made now, and its token is said this once
   if (share.linkMode === "anyone" && !share.link) {
@@ -166,6 +172,8 @@ shareRoutes.post("/papers/:id/link", async (c) => {
   const expiry = b.expiry === undefined ? DEFAULT_LINK_EXPIRY : b.expiry;
   if (!isLinkExpiry(expiry)) return deny(c, 400, "invalid_share", "A link lasts 7 days, 30 days or until you stop it");
   const made = await makeLink(c.env.DB, got.row.id, expiry);
+  // the old link stops at once, the open sockets of the people who came by it too
+  liveRevoke(c, c.env, got.row.id, { via: "link" });
   return c.json({ share: await shareSettings(c.env.DB, got.row.id, mailerFor(c.env) !== null), token: made.token });
 });
 
@@ -173,6 +181,7 @@ shareRoutes.delete("/papers/:id", async (c) => {
   const got = await owner(c);
   if (got instanceof Response) return got;
   await stopSharing(c.env.DB, got.row.id);
+  liveRevoke(c, c.env, got.row.id, { via: "others" });
   return c.json({ share: await shareSettings(c.env.DB, got.row.id, mailerFor(c.env) !== null) });
 });
 
@@ -212,6 +221,7 @@ shareRoutes.patch("/papers/:id/members/:mid", async (c) => {
   if (!b || !isMemberRole(b.role)) return deny(c, 400, "invalid_share", "Choose Can view, Can comment or Can edit");
   const m = await setRole(c.env.DB, got.row.id, c.req.param("mid"), b.role);
   if (!m) return deny(c, 404, "not_found", "That person is not on the list");
+  liveRevoke(c, c.env, got.row.id, { memberId: m.id, reconnect: true });
   return c.json({ member: m });
 });
 
@@ -220,6 +230,7 @@ shareRoutes.delete("/papers/:id/members/:mid", async (c) => {
   if (got instanceof Response) return got;
   const m = await removeMember(c.env.DB, got.row.id, c.req.param("mid"));
   if (!m) return deny(c, 404, "not_found", "That person is not on the list");
+  liveRevoke(c, c.env, got.row.id, { memberId: m.id });
   return c.json({ removed: m });
 });
 
@@ -256,6 +267,7 @@ shareRoutes.post("/papers/:id/comments", async (c) => {
     if (r.reason === "full") return deny(c, 409, "comments_full", `A paper can hold ${MAX_COMMENTS_PER_DOC} comments`, "Delete some resolved ones to add more.");
     return deny(c, 400, "invalid_comment", r.reason === "parent" ? "That comment is not there any more" : "That highlight or note is not there any more");
   }
+  liveChanged(c, got.row, { kind: "comments", id: r.comment.id, by: got.user!.id });
   return c.json({ comment: r.comment }, 201);
 });
 
@@ -279,6 +291,7 @@ shareRoutes.patch("/papers/:id/comments/:cid", async (c) => {
     if (!roleAtLeast(got.access.role, "editor")) return deny(c, 403, "forbidden", "The owner and the editors resolve threads");
     now = (await resolveThread(c.env.DB, got.row.id, have.id, b.resolved, me)) ?? now;
   }
+  liveChanged(c, got.row, { kind: "comments", id: have.id, by: me });
   return c.json({ comment: now });
 });
 
@@ -289,5 +302,6 @@ shareRoutes.delete("/papers/:id/comments/:cid", async (c) => {
   if (!have) return deny(c, 404, "not_found", "That comment is not there any more");
   if (!have.mine && got.access.role !== "owner") return deny(c, 403, "forbidden", "Only its author or the paper's owner can delete a comment");
   await deleteComment(c.env.DB, got.row.id, have.id);
+  liveChanged(c, got.row, { kind: "comments", id: have.id, by: got.user!.id });
   return c.body(null, 204);
 });

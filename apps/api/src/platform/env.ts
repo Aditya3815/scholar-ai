@@ -74,6 +74,12 @@ type SecretsAndVariables = {
    * SHARE_BETA_USERS share their papers (the people they share with need not be listed), "on" everyone. A gate: any other value is off, and the KV key flag:SHARE can only lower it.
    */
   SHARE?: string;
+  /**
+   * Live presence and live updates in a shared paper (docs/design/paper-live.md; src/docs/live-flag.ts): "off" (unset) connects nothing (GET /api/v1/documents/:id/live answers 404, no write
+   * calls the room), "dark" only the papers whose owner is in SHARE_BETA_USERS, "on" every paper whose owner may share. A gate: any other value is off, and the KV key flag:LIVE can only lower
+   * it. It needs SHARE: with SHARE off it is off. Its privacy sentence is pinned at every position (legal-match.test.ts).
+   */
+  LIVE?: string;
   /** The MCP tool check_claim alone (src/mcp/flag.ts): "off" (unset), "beta" (the accounts in MCP_BETA_USERS) or "on". */
   MCP_CHECK_CLAIM?: string;
   /**

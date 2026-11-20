@@ -217,6 +217,14 @@
   "notOwned": "404 not_found: Paper not found [no-store]",
   "bucket": "API_LIMITER"
  },
+ "GET /api/v1/documents/:id/live": {
+  "cross": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/live) [no-store]",
+  "crossDev": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/live) [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/live) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/live) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/documents/doc-none/live) [no-store]",
+  "bucket": "API_LIMITER"
+ },
  "GET /api/v1/documents/:id/notes": {
   "cross": "401 unauthorized: Sign in first [no-store]",
   "crossDev": "401 unauthorized: Sign in first [no-store]",

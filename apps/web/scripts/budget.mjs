@@ -50,6 +50,9 @@ export const LIMITS = {
   // and the page tabs (drag to reorder, All pages) out of the Notebook chunk; each has a line, and neither old line was raised.
   "the comments chunk, script and style (gzip)": 7.5 * KB,
   "Shared with me and the link opener, script (gzip)": 1.6 * KB,
+  // Live presence and live updates in a shared paper (docs/design/paper-live.md, 20 Nov 2026), behind the LIVE switch: the room's client (reconnects, heartbeat), the presence row and its list,
+  // the dots and "is editing", and their colours; fetched only when the server says the paper is live. 4.2 KB measured, plus about 20%.
+  "the live presence chunk, script and style (gzip)": 5 * KB,
   // The Rive pieces (docs/design/setu-rive.md, rive-ideas.md), fetched only when a picture is wanted: 57.6, 331 and 8.4 KB measured on 1 Nov 2026, plus about 10%. None of them may be in the first load.
   "the Rive runtime chunk, script (gzip)": 64 * KB,
   "the Rive runtime, wasm (gzip)": 365 * KB,
@@ -94,6 +97,7 @@ const SHARED_PARTS = "src/components/papers/desk/share/SharedParts.tsx";
 const COMMENTS = "src/components/papers/desk/share/Comments.tsx";
 const SHARED_WITH_ME = "src/components/papers/SharedWithMe.tsx";
 const SHARE_OPEN = "src/components/papers/ShareOpen.tsx";
+const LIVE = "src/components/papers/desk/live/Live.tsx";
 const RIVE_RUNTIME = "../../node_modules/@rive-app/canvas-lite/rive.js";
 const RIVE_WASM = "../../node_modules/@rive-app/canvas-lite/rive.wasm";
 const rivFiles = Object.entries(manifest).filter(([id]) => id.endsWith(".riv")).map(([, e]) => asset(e.file));
@@ -119,6 +123,7 @@ const measured = {
   "the shared paper chunk (read-only notes), script and style (gzip)": sum(filesOf(SHARED_PARTS), gz),
   "the comments chunk, script and style (gzip)": sum(filesOf(COMMENTS), gz),
   "Shared with me and the link opener, script (gzip)": sum([...filesOf(SHARED_WITH_ME, { css: false }), ...filesOf(SHARE_OPEN, { css: false })], gz),
+  "the live presence chunk, script and style (gzip)": sum(filesOf(LIVE), gz),
   "the Rive runtime chunk, script (gzip)": sum(filesOf(RIVE_RUNTIME), gz),
   "the Rive runtime, wasm (gzip)": sum(filesOf(RIVE_WASM), gz),
   "the Rive files of the pictures (gzip)": sum(rivFiles, gz),
@@ -160,6 +165,7 @@ const HEAVY = [
   COMMENTS,
   SHARED_WITH_ME,
   SHARE_OPEN,
+  LIVE,
   INTRO,
   RIVE_RUNTIME,
   "src/components/litscan/Setu.tsx",

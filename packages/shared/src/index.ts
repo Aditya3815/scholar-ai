@@ -156,6 +156,8 @@ export * from "./note-image";
 export * from "./notebook-md";
 export * from "./notebook-ink";
 export * from "./share";
+// live presence and live updates in a shared paper (docs/design/paper-live.md)
+export * from "./live";
 export * from "./quote-quads";
 export * from "./palette";
 export * from "./rive";

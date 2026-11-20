@@ -231,6 +231,22 @@ export function createNoteInkStore(host: InkHost, deps: InkDeps, blocksOf: (page
       return () => listeners.delete(l);
     },
     load,
+    /**
+     * The notebook read the pages again (another person saved, docs/design/paper-live.md): the drawing of a page this window has not changed, and is not sending, is taken from the server's
+     * newer revision; a page drawn on here keeps its strokes, and its save meets the newer revision as a 409 and merges, as today.
+     */
+    takeServer() {
+      let moved = false;
+      for (const ink of host.serverInk()) {
+        const s = slotFor(ink.pageId);
+        if (s.dirty || s.saving || ink.rev <= s.rev) continue;
+        s.strokes = ink.strokes;
+        s.base = ink.strokes;
+        s.rev = ink.rev;
+        moved = true;
+      }
+      if (moved) emit();
+    },
     strokes: (pageId: string): readonly NoteStroke[] => slots.get(pageId)?.strokes ?? [],
     /** How many strokes are attached to each block of a page. */
     counts(pageId: string): Map<string, number> {

@@ -29,6 +29,8 @@ const NEED: Record<string, ShareRole> = {
   "GET /api/v1/documents/:id/notes": "viewer",
   "GET /api/v1/documents/:id/ink": "viewer",
   "GET /api/v1/documents/:id/notebook": "viewer",
+  // the paper's room (docs/design/paper-live.md): a Viewer up joins it; this table's request is not an upgrade, so a person let through gets the route's own 400
+  "GET /api/v1/documents/:id/live": "viewer",
   "GET /api/v1/share/papers/:id/comments": "viewer",
   "POST /api/v1/documents/:id/ask": "commenter",
   "POST /api/v1/documents/:id/ask-highlights": "commenter",
@@ -65,6 +67,11 @@ const NEED: Record<string, ShareRole> = {
   "PATCH /api/v1/share/papers/:id/members/:mid": "owner",
   "DELETE /api/v1/share/papers/:id/members/:mid": "owner",
   "POST /api/v1/share/papers/:id/members/:mid/resend": "owner",
+};
+
+/** Cells where a route refuses someone its role would let through, on purpose, and what it says: the room needs a name, so a visitor who is not signed in is not let in. */
+const EXCEPT: Record<string, Record<string, string>> = {
+  "GET /api/v1/documents/:id/live": { "not signed in, with the Commenter link": "401 unauthorized: Sign in to see who is here" },
 };
 
 type Who = { name: string; role: ShareRole | null; session?: string; link?: true };
@@ -110,7 +117,7 @@ function fakeFiles() {
 }
 
 const limiter = { limit: async () => ({ success: true }) };
-const env = (db: D1Database) => ({ DB: db, FILES: fakeFiles(), SHARE: "on", READER: "on", ENABLE_DEV_ROUTES: "1", QA_STUB: "1", SEARCH_LIMITER: limiter, VERIFY_LIMITER: limiter, ASK_LIMITER: limiter, API_LIMITER: limiter });
+const env = (db: D1Database) => ({ DB: db, FILES: fakeFiles(), SHARE: "on", READER: "on", LIVE: "on", ENABLE_DEV_ROUTES: "1", QA_STUB: "1", SEARCH_LIMITER: limiter, VERIFY_LIMITER: limiter, ASK_LIMITER: limiter, API_LIMITER: limiter });
 const ctx = { waitUntil: (p: Promise<unknown>) => void Promise.resolve(p).catch(() => {}), passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
 
 const pathOf = (route: string) => route.replace(":id", DOC).replace(":nid", NOTE).replace(":pageId", "p1").replace(":mid", "m-vi").replace(":cid", "c1").replace(":blockId", "b1");
@@ -171,7 +178,7 @@ afterAll(() => {
   vi.restoreAllMocks();
 });
 
-describe("every paper route, asked by each kind of person, with SHARE and READER on", () => {
+describe("every paper route, asked by each kind of person, with SHARE, READER and LIVE on", () => {
   it("states the role it needs (a new route gets a line here, and is looked at)", () => {
     expect(paperRoutes().filter((k) => !(k in NEED))).toEqual([]);
     expect(Object.keys(NEED).filter((k) => !paperRoutes().includes(k))).toEqual([]);
@@ -183,6 +190,11 @@ describe("every paper route, asked by each kind of person, with SHARE and READER
       for (const who of WHO) {
         const want = roleAtLeast(who.role, NEED[key]!);
         const got = row[who.name]!;
+        const except = EXCEPT[key]?.[who.name];
+        if (except) {
+          if (got.said !== except) wrong.push(`${key} for ${who.name}: should say ${except}, got ${got.said}`);
+          continue;
+        }
         if (got.through !== want) wrong.push(`${key} for ${who.name}: ${want ? "should pass" : "should be refused"}, got ${got.said}`);
       }
     }

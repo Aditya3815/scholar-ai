@@ -48,6 +48,9 @@ import { requireUser, type Door } from "../auth/service";
 import { ASK_MODES, MAX_SELECTION_CHARS, roleAtLeast, type PaperAccess, type ShareRole } from "@scholar/shared";
 import { requirePaper, type PaperDoor } from "./paper-gate";
 import { shareOnFor, shareSwitchedOn } from "./share-flag";
+import { liveOnFor, liveSwitchedOn } from "./live-flag";
+import { joinRoom, liveChanged, liveRevoke } from "./live";
+import { sameOrigin } from "../platform/http/guards";
 import { noteOpened, openThreads } from "./share-store";
 import { readJson } from "../platform/http/body";
 import { answerAboutHighlights } from "./highlights-qa";
@@ -205,7 +208,9 @@ documentRoutes.get("/:id", async (c) => {
     const owner = await c.env.DB.prepare("SELECT name FROM users WHERE id = ?1").bind(row.user_id).first<{ name: string | null }>();
     const shared: PaperAccess = { role: access.role, via: access.via === "member" ? "member" : "link", ownerName: owner?.name ?? null, viewersDownload: access.viewersDownload, signedIn: user !== null };
     const document: DocumentInfo = { ...toInfo(row), readState: "to_read", tags: [], lastPage: null, maxPage: null, openedAt: null };
-    return c.json({ document, history: [], info, scan: null, features: { reader: true }, access: shared });
+    // live presence (docs/design/paper-live.md): told only when it is on for this paper, so the answer is as before while LIVE is off
+    const live = user !== null && (await liveOnFor(c.env, row.user_id));
+    return c.json({ document, history: [], info, scan: null, features: live ? { reader: true, live: true } : { reader: true }, access: shared });
   }
   const ownerId = row.user_id;
   const qa = await c.env.DB.prepare("SELECT answer FROM doc_qa WHERE doc_id = ?1 ORDER BY created_at, rowid LIMIT 100").bind(row.id).all<{ answer: string }>();
@@ -213,7 +218,7 @@ documentRoutes.get("/:id", async (c) => {
   // which reader the page draws (docs/design/paper-reader.md, 15): told here, with the paper, so it costs no request of its own; and, with SHARE on for this account (paper-share.md),
   // that the owner may share it and how many comment threads are open
   const reader = await readerOnFor(c.env, ownerId);
-  const features = (await shareOnFor(c.env, ownerId)) ? { reader, share: true, comments: await openThreads(c.env.DB, row.id) } : { reader };
+  const features = (await shareOnFor(c.env, ownerId)) ? { reader, share: true, comments: await openThreads(c.env.DB, row.id), ...((await liveOnFor(c.env, ownerId)) ? { live: true } : {}) } : { reader };
   return c.json({ document: toInfo(row), history: qa.results.map((r) => JSON.parse(r.answer) as Answer), info, scan, features });
 });
 
@@ -328,7 +333,7 @@ documentRoutes.patch("/:id", async (c) => {
 });
 
 /** Deletes the PDF, its cover, its text, its question history, its highlights, drawing, tags, pages of notes (and the ink on them), and its sharing: the link, the people named and the comments. Irreversible. */
-export async function deleteDocument(env: Pick<Env, "DB" | "FILES">, userId: string, id: string): Promise<void> {
+export async function deleteDocument(env: Pick<Env, "DB" | "FILES"> & Partial<Pick<Env, "PAPER_ROOM" | "LIVE" | "SHARE" | "SHARE_BETA_USERS" | "CACHE">>, userId: string, id: string): Promise<void> {
   await Promise.all([env.FILES.delete(pdfKey(userId, id)), env.FILES.delete(coverKey(userId, id)), deleteNotebookImages(env, userId, id)]);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM doc_notes WHERE doc_id = ?1").bind(id),
@@ -345,6 +350,8 @@ export async function deleteDocument(env: Pick<Env, "DB" | "FILES">, userId: str
     env.DB.prepare("DELETE FROM doc_ocr WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM documents WHERE id = ?1 AND user_id = ?2").bind(id, userId),
   ]);
+  // everyone who had it open loses it at once (docs/design/paper-live.md, 2): from this route and when the account goes
+  await liveRevoke(null, env, id, { via: "all" });
 }
 
 documentRoutes.delete("/:id", async (c) => {
@@ -818,6 +825,7 @@ documentRoutes.post("/:id/notes", async (c) => {
   const id = randomId();
   await c.env.DB.prepare("INSERT INTO doc_notes (id, doc_id, page, quote, note, color) VALUES (?1, ?2, ?3, ?4, ?5, ?6)").bind(id, row.id, page, quote, note || null, color).run();
   const saved = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE id = ?1`).bind(id).first<NoteRow>();
+  liveChanged(c, row, { kind: "highlights", id, by: got.user?.id ?? "" });
   return c.json({ note: toNote(saved!) }, 201);
 });
 
@@ -833,6 +841,7 @@ documentRoutes.patch("/:id/notes/:nid", async (c) => {
   const color = NOTE_COLORS.includes(b.color as NoteColor) ? (b.color as NoteColor) : existing.color;
   await c.env.DB.prepare("UPDATE doc_notes SET note = ?2, color = ?3, updated_at = datetime('now') WHERE id = ?1").bind(existing.id, note || null, color).run();
   const saved = await c.env.DB.prepare(`SELECT ${NOTE_COLS} FROM doc_notes WHERE id = ?1`).bind(existing.id).first<NoteRow>();
+  liveChanged(c, row, { kind: "highlights", id: existing.id, by: got.user?.id ?? "" });
   return c.json({ note: toNote(saved!) });
 });
 
@@ -842,6 +851,7 @@ documentRoutes.delete("/:id/notes/:nid", async (c) => {
   const { row } = got;
   const r = await c.env.DB.prepare("DELETE FROM doc_notes WHERE id = ?1 AND doc_id = ?2").bind(c.req.param("nid"), row.id).run();
   if ((r.meta.changes ?? 0) === 0) return deny(c, 404, "not_found", "Note not found");
+  liveChanged(c, row, { kind: "highlights", id: c.req.param("nid"), by: got.user?.id ?? "" });
   return c.json({ ok: true });
 });
 
@@ -852,7 +862,7 @@ documentRoutes.delete("/:id/notes/:nid", async (c) => {
  * when it is off); at dark, an account that is not in READER_BETA_USERS gets the same 404. Otherwise each is guarded as the notes and the drawing are: the same-origin check on a write,
  * the signed-in person, their own paper (404 for anyone else's), and a body read with a size limit. F10's `requireUser` door replaces these lines when the W3 untangle merges.
  */
-async function notebookDoor(c: Context<HonoEnv>, need: "viewer" | "editor"): Promise<Response | { row: Row }> {
+async function notebookDoor(c: Context<HonoEnv>, need: "viewer" | "editor"): Promise<Response | { row: Row; by: string }> {
   const sharing = await shareSwitchedOn(c.env);
   if (!(await readerSwitchedOn(c.env)) && !sharing) return deny(c, 404, "not_found", "Not found", c.req.path);
   if (!sharing) {
@@ -862,14 +872,14 @@ async function notebookDoor(c: Context<HonoEnv>, need: "viewer" | "editor"): Pro
     if (!(await readerOnFor(c.env, got.user.id))) return deny(c, 404, "not_found", "Not found", c.req.path);
     const row = await owned(c, got.user.id, c.req.param("id") ?? "");
     if (!row) return deny(c, 404, "not_found", "Paper not found");
-    return { row };
+    return { row, by: got.user.id };
   }
   // with SHARE on (docs/design/paper-share.md): the one gate; the owner still needs the new reader, and the people the paper is shared with read it in the new reader (Viewer up), and
   // write in it as Editors
   const got = await paper(c, PAPER, need);
   if (got instanceof Response) return got;
   if (got.access.role === "owner" && !(await readerOnFor(c.env, got.row.user_id))) return deny(c, 404, "not_found", "Not found", c.req.path);
-  return { row: got.row };
+  return { row: got.row, by: got.user?.id ?? "" };
 }
 
 /** The body of a write, read with the same limit as its check: null when it is too big, undefined when it is not JSON. */
@@ -898,6 +908,8 @@ documentRoutes.put("/:id/notebook/pages/:pageId/ink", async (c) => {
   if (read.tooLarge) return deny(c, 413, "too_big", "That drawing is too big to save", `A page's drawing holds at most ${NOTE_INK_LIMITS.pageBytes / 1024} KB.`);
   const sent = read.value; // (held in a name: passed inline as `read.value ?? undefined` it arrived undefined under vitest)
   const r = await putInk(c.env.DB, door.row.id, c.req.param("pageId"), sent ?? undefined);
+  // the open windows of this page read its drawing again (docs/design/paper-live.md)
+  if ("ink" in r && r.status !== 409) liveChanged(c, door.row, { kind: "notebook", id: c.req.param("pageId"), by: door.by });
   if ("ink" in r) return c.json(r.status === 409 ? { type: "conflict", title: "The drawing on this page was changed in another window", ink: r.ink } : { ink: r.ink }, r.status);
   return deny(c, r.status, r.type, r.title, r.detail);
 });
@@ -910,7 +922,11 @@ documentRoutes.put("/:id/notebook/pages/:pageId", async (c) => {
   const before = await pageImageIds(c.env.DB, door.row.id, c.req.param("pageId"));
   const r = await putPage(c.env.DB, door.row.id, c.req.param("pageId"), body, door.row.pages ?? MAX_DOC_PAGES);
   // the pictures this page stopped holding wait ten minutes (for Undo); those it holds now are kept
-  if ("page" in r && r.status !== 409) await settleNotebookImages(c.env, door.row.user_id, door.row.id, before, imageIds(r.page.blocks));
+  if ("page" in r && r.status !== 409) {
+    await settleNotebookImages(c.env, door.row.user_id, door.row.id, before, imageIds(r.page.blocks));
+    // the open windows of this page fetch it (docs/design/paper-live.md): a new page is a change of the list too
+    liveChanged(c, door.row, { kind: r.status === 201 ? "pages" : "notebook", id: r.page.id, rev: r.page.rev, by: door.by });
+  }
   return notebookAnswer(c, r);
 });
 
@@ -956,7 +972,9 @@ documentRoutes.patch("/:id/notebook/pages/:pageId", async (c) => {
   if (door instanceof Response) return door;
   const body = await notebookBody(c);
   if (body === null) return TOO_BIG(c);
-  return notebookAnswer(c, await patchPage(c.env.DB, door.row.id, c.req.param("pageId"), body));
+  const r = await patchPage(c.env.DB, door.row.id, c.req.param("pageId"), body);
+  if ("page" in r && r.status === 200) liveChanged(c, door.row, { kind: "pages", id: r.page.id, by: door.by });
+  return notebookAnswer(c, r);
 });
 
 documentRoutes.delete("/:id/notebook/pages/:pageId", async (c) => {
@@ -965,5 +983,27 @@ documentRoutes.delete("/:id/notebook/pages/:pageId", async (c) => {
   const before = await pageImageIds(c.env.DB, door.row.id, c.req.param("pageId"));
   if (!(await deletePage(c.env.DB, door.row.id, c.req.param("pageId")))) return deny(c, 404, "page_gone", "That page of notes is not there any more");
   if (before.length) await settleNotebookImages(c.env, door.row.user_id, door.row.id, before, []);
+  liveChanged(c, door.row, { kind: "pages", id: c.req.param("pageId"), by: door.by });
   return c.body(null, 204);
+});
+
+/* ---------------------------------------------------------------- live presence and live updates in a shared paper (docs/design/paper-live.md) */
+
+const LIVE_DOOR: PaperDoor = { signIn: "Sign in to see who is here", missing: "Paper not found" };
+
+/**
+ * The paper's room, as a WebSocket: who is here and where, and what changed (signals only; the content comes through the routes above, with their roles). In this order, all before the upgrade:
+ * LIVE off (for anybody) 404; a page of another origin 403 (a browser always sends Origin with a WebSocket; this read is not a write, so the mount's check does not see it); the paper's one
+ * gate, Viewer up (401 signed out, 404 a paper this person cannot open); someone who came by the link and is not signed in 401 (a name is needed to be seen); LIVE off for this paper's
+ * owner 404; a request that is not an upgrade 400. Then the room takes the socket (429 when it holds as many as it can).
+ */
+documentRoutes.get("/:id/live", async (c) => {
+  if (!(await liveSwitchedOn(c.env))) return deny(c, 404, "not_found", "Not found", c.req.path);
+  if (!sameOrigin(c)) return deny(c, 403, "forbidden", "Cross-origin request blocked");
+  const got = await paper(c, LIVE_DOOR, "viewer");
+  if (got instanceof Response) return got;
+  if (!got.user) return deny(c, 401, "unauthorized", "Sign in to see who is here");
+  if (!(await liveOnFor(c.env, got.row.user_id))) return deny(c, 404, "not_found", "Not found", c.req.path);
+  if (c.req.header("upgrade")?.toLowerCase() !== "websocket") return deny(c, 400, "invalid_request", "Open this with a WebSocket");
+  return joinRoom(c, { docId: got.row.id, user: { id: got.user.id, name: got.user.name ?? null }, role: got.access.role, via: got.access.via, memberId: got.access.memberId });
 });
