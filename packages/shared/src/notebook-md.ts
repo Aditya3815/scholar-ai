@@ -229,3 +229,41 @@ export function mdSourceRuns(md: string): MdRun[][] {
     return out;
   });
 }
+
+/* ---------------------------------------------------------------- a cursor in the source, in the text as drawn (another person's caret, docs/design/paper-live.md, 9) */
+
+/**
+ * Where a cursor in a block's source (`at`, an offset into its Markdown, as a text field gives it) falls in the text as drawn (mdPlain, what MdView puts into the DOM): the offset of the
+ * character it stands before, and `after` when it ends a line (it is drawn after the character before it, so a cursor at a line's end stays on that line, and at the end of the text).
+ * An offset past the source is its end. The source's characters are matched to the text in order, its marks skipped (mdSourceRuns says which they are); a cursor inside a mark goes to
+ * the character after it. Never inside a character drawn as one with the one before it (a Devanagari vowel sign, a surrogate's second half).
+ */
+export function mdCaret(md: string, at: number): { at: number; after: boolean } {
+  const plain = mdPlain(md);
+  const shown = new Uint8Array(md.length);
+  let i = 0;
+  for (const line of mdSourceRuns(md)) {
+    for (const r of line) {
+      if (!r.mark) shown.fill(1, i, i + r.s.length);
+      i += r.s.length;
+    }
+    i++;
+  }
+  // each character of the text at the first source character after the one before it: only those shown, else (a mark read across lines in a paragraph) any
+  const match = (only: boolean): number[] | null => {
+    const pos: number[] = [];
+    for (let k = 0, j = 0; k < plain.length; k++, j++) {
+      while (j < md.length && (md[j] !== plain[k] || (only && !shown[j]))) j++;
+      if (j >= md.length) return null;
+      pos.push(j);
+    }
+    return pos;
+  };
+  const pos = match(true) ?? match(false) ?? [];
+  const a = Math.max(0, Math.min(Math.trunc(at) || 0, md.length));
+  let p = 0;
+  while (p < pos.length && pos[p]! < a) p++;
+  while (p < plain.length && p > 0 && /[\p{M}\uDC00-\uDFFF]/u.test(plain[p]!)) p++;
+  const after = p > 0 && (p >= pos.length || md.slice(a, pos[p]).includes("\n"));
+  return { at: p, after };
+}

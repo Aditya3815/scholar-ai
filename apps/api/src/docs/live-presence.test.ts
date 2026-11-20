@@ -27,6 +27,25 @@ describe("the presence reducer (docs/design/paper-live.md, 6)", () => {
     expect(owner.editingBlock).toBe("b1");
   });
 
+  it("a caret: an Editor's in the block typed in goes to the others; a Viewer's or a Commenter's never; gone with the block", () => {
+    const h = { t: "here", view: "notes", notesPage: "p1", editingBlock: "b1", caret: 7, caretEnd: 11, active: true, idle: false } as const;
+    let ed = applyHere(freshConn("c", who("u", "Bela"), 0), h, 1);
+    expect(presenceOf([ed], 1)[0]).toMatchObject({ editingBlock: "b1", caret: 7, caretEnd: 11 });
+    ed = applyHere(ed, { ...h, caretEnd: undefined }, 2);
+    expect(presenceOf([ed], 2)[0]).toMatchObject({ caret: 7 });
+    expect(presenceOf([ed], 2)[0]).not.toHaveProperty("caretEnd");
+    for (const role of ["viewer", "commenter"] as const) {
+      const c = applyHere(freshConn("c", who("u", "Sara", role), 0), h, 1);
+      expect(c.caret).toBeNull();
+      expect(presenceOf([c], 1)[0]).not.toHaveProperty("caret");
+    }
+    // left the block: no caret (whatever the page sent)
+    ed = applyHere(ed, { t: "here", view: "notes", notesPage: "p1", caret: 3, active: true, idle: false } as never, 3);
+    expect(presenceOf([ed], 3)[0]).not.toHaveProperty("caret");
+    const reading = applyHere(freshConn("c", who("u", "Bela"), 0), { ...h, view: "paper" }, 1);
+    expect(reading.caret).toBeNull();
+  });
+
   it("idle: the page's word, or a socket silent too long", () => {
     const c = applyHere(freshConn("c1", who("u1", "Ravi"), 0), { t: "here", view: "paper", active: false, idle: true }, 0);
     expect(presenceOf([c], 0)[0]).toMatchObject({ idle: true, active: false });

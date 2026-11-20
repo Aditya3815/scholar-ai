@@ -1,6 +1,6 @@
 // Browser e2e for live presence and live updates in a shared paper (docs/design/paper-live.md, section 6): written for SHARE, READER and LIVE "on" (the named run share-on starts the Worker so;
 // scripts/lib/suites.mjs). Two browser contexts, the owner and an editor, on one paper: the avatar appears ("1 person here"), the list says "Viewing p. 3", a block the editor types in shows
-// "Bela is editing" on the owner's side, a saved block and a comment appear without a reload, a page tab carries the editor's dot, "Go to where" jumps, axe in Light, Dark and Read, a phone.
+// Bela's small avatar on the owner's side (its tooltip on hover, focus and a tap) and her caret at the right letter, a saved block and a comment appear without a reload, a page tab carries the editor's dot, "Go to where" jumps, axe in Light, Dark and Read, a phone.
 // With LIVE_SHOTS=<folder> it also takes the owner's pictures (the row and its list in Light and Dark, a block being edited, a tab with a dot, a phone, Reconnecting…).
 //   node e2e/live.mjs [baseUrl]    (default http://localhost:8788; SHARE, READER and LIVE must be on there)
 import { mkdirSync } from "node:fs";
@@ -108,11 +108,90 @@ try {
   await sleep(1200);
   const edge = op.locator('.nb [data-block="b2"][data-live-edit]');
   await edge.waitFor({ timeout: 10000 });
-  ok(await op.locator(".lv-edit", { hasText: "Bela Editor is editing" }).isVisible(), "the owner sees \"Bela Editor is editing\" on that block");
   ok(await edge.evaluate((e) => { const b = getComputedStyle(e, "::before"); return b.width === "3px" && b.backgroundColor !== "rgba(0, 0, 0, 0)"; }), "with a thin coloured edge (3 px)");
   ok(await op.getByRole("tab", { name: /Methods.*Bela Editor is here/ }).count() === 1, "the page tab carries Bela's dot and says so");
+  // the marker is a small avatar only: the words are its name and its tooltip
+  const mk = op.getByRole("button", { name: "Bela Editor is editing this block" });
+  ok((await mk.count()) === 1 && (await mk.textContent()) === "B", "the block carries Bela's small avatar, named \"Bela Editor is editing this block\"");
+  ok(!((await edge.innerText()) ?? "").includes("is editing"), "with no visible name beside it");
+  ok(await mk.evaluate((e) => { const a = getComputedStyle(e.firstElementChild); return a.width === "20px" && a.boxShadow.includes("0px 0px 0px 2px") && e.getBoundingClientRect().width === 24; }), "20 px, with a 2 px ring, in a 24 px button");
+  const tip = op.getByRole("tooltip");
+  const B2 = '.nb [data-block="b2"]';
+  const blockClip = async (p, up = 24) => { const b = await p.locator(B2).boundingBox(); const n = await p.locator(".nb").first().boundingBox(); return { x: n.x, y: b.y - up, width: n.width, height: b.height + up + 16 }; };
+  await mk.hover();
+  await tip.waitFor({ timeout: 3000 });
+  ok((await tip.textContent()) === "Bela Editor is editing", "pointing at it shows the tooltip \"Bela Editor is editing\"");
+  ok((await mk.getAttribute("aria-describedby")) === (await tip.getAttribute("id")), "the avatar is described by its tooltip");
+  const tb = await tip.boundingBox();
+  ok(tb && tb.x >= 0 && tb.y >= 0 && tb.x + tb.width <= 1280, "the tooltip is inside the window");
+  ok(await tip.evaluate((e) => { const r = e.getBoundingClientRect(); const y = (r.top + r.bottom) / 2; return [[r.left + 10, y], [r.right - 10, y]].every(([x, y]) => document.elementFromPoint(x, y)?.closest(".lv-tip") === e); }), "and drawn whole, over everything (the panel does not cut it)");
+  await sleep(300);
+  await shot(op, "avatar-tooltip");
+  await shot(op, "avatar-tooltip-close", await blockClip(op, 60));
+  await op.keyboard.press("Escape");
+  await tip.waitFor({ state: "detached", timeout: 2000 });
+  ok(true, "Esc closes the tooltip");
+  await op.mouse.move(5, 500);
+  await mk.focus();
+  await tip.waitFor({ timeout: 3000 });
+  ok(true, "keyboard focus on the avatar shows the tooltip too");
+  await op.keyboard.press("Escape");
+  await mk.blur();
+
+  console.log("the caret");
+  // the editor puts the cursor in the middle of "they" (offset 6 of "How they were seen"): the owner's caret stands at that letter
+  const caretAt = async (n) => {
+    await ep.keyboard.press("Home");
+    for (let i = 0; i < n; i++) await ep.keyboard.press("ArrowRight");
+  };
+  const caretX = () => op.evaluate((sel) => { const c = document.querySelector(`${sel} .lv-caret`); if (!c) return null; const r = c.getBoundingClientRect(); return r.left + r.width / 2; }, B2);
+  const letterX = (i) => op.evaluate(([sel, i]) => { const t = document.querySelector(`${sel} .nb-text`); const w = document.createTreeWalker(t, NodeFilter.SHOW_TEXT); const n = w.nextNode(); const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + 1); return r.getBoundingClientRect().left; }, [B2, i]);
+  await caretAt(6);
+  await op.locator(`${B2} .lv-caret`).waitFor({ timeout: 5000 });
+  await sleep(500);
+  let cx = await caretX();
+  let lx = await letterX(6);
+  ok(cx !== null && Math.abs(cx - lx) < 2, `the owner sees Bela's caret in the middle of "they" (${cx?.toFixed(1)} against ${lx.toFixed(1)})`);
+  ok(await op.locator(`${B2} .lv-caret`).evaluate((e) => getComputedStyle(e, "::before").animationName === "lv-blink" && getComputedStyle(e, "::before").width === "2px"), "a 2 px line, blinking");
+  await shot(op, "caret-mid-word");
+  await shot(op, "caret-mid-word-close", await blockClip(op));
+  await op.locator(`${B2} .lv-caret`).hover({ force: true });
+  await sleep(300);
+  ok(await op.locator(`${B2} .lv-flag`).evaluate((e) => getComputedStyle(e).visibility === "visible" && e.textContent === "Bela Editor"), "pointing at the caret shows Bela's name on its flag");
+  await shot(op, "caret-flag", await blockClip(op, 30));
+  await op.mouse.move(5, 500);
+  await caretAt(9);
+  await op.waitForFunction(([sel, x]) => { const c = document.querySelector(`${sel} .lv-caret`); return c && Math.abs(c.getBoundingClientRect().left + c.getBoundingClientRect().width / 2 - x) > 4; }, [B2, cx], { timeout: 5000 });
+  await sleep(300);
+  cx = await caretX();
+  lx = await letterX(9);
+  ok(cx !== null && Math.abs(cx - lx) < 2, "the caret moves when Bela moves her cursor (to the start of \"were\")");
+  await op.locator(`${B2} .lv-cr[data-faded]`).waitFor({ state: "attached", timeout: 6000 });
+  ok(true, "it fades when it has not moved for a few seconds");
+  await caretAt(4);
+  await op.locator(`${B2} .lv-cr:not([data-faded])`).waitFor({ state: "attached", timeout: 4000 });
+  ok(true, "and comes back when it moves");
   await shot(op, "block-being-edited");
   await shot(op, "tab-with-avatar", await op.locator(".nb-tabsrow").boundingBox());
+  await caretAt(6);
+  await sleep(400);
+  await shot(op, "block-avatar-light", await blockClip(op));
+  await setTheme(op, "dark", 400);
+  await caretAt(6);
+  await sleep(400);
+  await shot(op, "block-avatar-dark", await blockClip(op));
+  await mk.hover();
+  await tip.waitFor({ timeout: 3000 });
+  await sleep(300);
+  await shot(op, "avatar-tooltip-dark", await blockClip(op, 60));
+  await op.mouse.move(5, 500);
+  for (const theme of ["light", "dark", "read"]) {
+    await setTheme(op, theme, 250);
+    await caretAt(6);
+    await sleep(300);
+    await axe(op, `the block's avatar and caret, ${theme}`, ".nb");
+  }
+  await setTheme(op, "light");
   await ep.keyboard.press("End");
   await ep.keyboard.type(", in the clinic");
   await ep.keyboard.press("Escape");
@@ -161,6 +240,28 @@ try {
   ok(sheet && sheet.x >= 0 && sheet.x + sheet.width <= 390 && sheet.y > 40, "on a phone the list is a sheet under the row, inside the screen");
   await shot(pp, "phone-presence");
   await axe(pp, "the presence list, phone", ".desk-head");
+  await pp.keyboard.press("Escape");
+  // a tap on a block's avatar shows the name
+  await ep.locator(B2).click();
+  await pp.getByRole("radio", { name: "Notes" }).click();
+  const pmk = pp.getByRole("button", { name: "Bela Editor is editing this block" });
+  await pmk.waitFor({ timeout: 10000 });
+  ok(await pmk.evaluate((e) => { const r = e.getBoundingClientRect(); const b = getComputedStyle(e, "::before"); return r.width === 24 && b.position === "absolute" && b.left === "-10px"; }), "on a phone the avatar has a 44 px place to tap");
+  await pmk.tap();
+  const ptip = pp.getByRole("tooltip");
+  await ptip.waitFor({ timeout: 3000 });
+  ok((await ptip.textContent()) === "Bela Editor is editing", "a tap on the avatar shows \"Bela Editor is editing\"");
+  const ptb = await ptip.boundingBox();
+  ok(ptb && ptb.x >= 0 && ptb.x + ptb.width <= 390 && ptb.y >= 0, "inside the screen");
+  ok(await ptip.evaluate((e) => { const r = e.getBoundingClientRect(); const y = (r.top + r.bottom) / 2; return [[r.left + 10, y], [r.right - 10, y]].every(([x, y]) => document.elementFromPoint(x, y)?.closest(".lv-tip") === e); }), "drawn whole, over the toolbar");
+  ok(await noSideways(pp), "no sideways scroll with the tooltip shown");
+  await sleep(300);
+  await shot(pp, "phone-avatar-tap");
+  await pp.locator(".nb-bar").tap().catch(() => {});
+  await ptip.waitFor({ state: "detached", timeout: 3000 });
+  ok(true, "a tap elsewhere closes it");
+  await axe(pp, "the block's avatar, phone", ".nb");
+  await ep.keyboard.press("Escape");
   await pc.close();
 
   /* ================================================================ Reconnecting…: the socket is dropped and refused for a while (Playwright stands between the page and the room) */

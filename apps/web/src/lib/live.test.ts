@@ -173,6 +173,40 @@ describe("the live client (docs/design/paper-live.md)", () => {
     expect(w.sockets).toHaveLength(3);
   });
 
+  it("sends the caret with the block typed in, at most every 120 ms, the last place always", () => {
+    const w = world();
+    const c = createLiveClient("ws://x", w.deps);
+    c.start();
+    const s = w.sockets[0]!;
+    s.open();
+    const last = () => JSON.parse(s.sent[s.sent.length - 1]!);
+    // a caret for a block not (yet) said is not sent
+    c.setCaret("b1", 4);
+    expect(last()).not.toHaveProperty("caret");
+    c.setWhere({ view: "notes", notesPage: "p1", editingBlock: "b1" });
+    expect(last()).toMatchObject({ editingBlock: "b1", caret: 4 });
+    const n = s.sent.length;
+    w.tick(50);
+    c.setCaret("b1", 5);
+    c.setCaret("b1", 6);
+    c.setCaret("b1", 7, 12);
+    expect(s.sent.length).toBe(n);
+    w.tick(80);
+    expect(s.sent.length).toBe(n + 1);
+    expect(last()).toMatchObject({ caret: 7, caretEnd: 12 });
+    // kept inside a block's length; an empty selection is a caret
+    w.tick(200);
+    c.setCaret("b1", 99_999, 99_999);
+    expect(last()).toMatchObject({ caret: 8000 });
+    expect(last()).not.toHaveProperty("caretEnd");
+    // another block: no caret until its own comes
+    c.setWhere({ view: "notes", notesPage: "p1", editingBlock: "b2" });
+    expect(last()).not.toHaveProperty("caret");
+    c.setWhere({ view: "paper", page: 1 });
+    expect(last()).not.toHaveProperty("caret");
+    c.stop();
+  });
+
   it("stop closes the socket and tries nothing more", () => {
     const w = world();
     const c = createLiveClient("ws://x", w.deps);

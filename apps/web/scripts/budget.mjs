@@ -55,7 +55,9 @@ export const LIMITS = {
   "Shared with me and the link opener, script (gzip)": 1.6 * KB,
   // Live presence and live updates in a shared paper (docs/design/paper-live.md, 20 Nov 2026), behind the LIVE switch: the room's client (reconnects, heartbeat), the presence row and its list,
   // the dots and "is editing", and their colours; fetched only when the server says the paper is live. 4.2 KB measured, plus about 20%.
-  "the live presence chunk, script and style (gzip)": 5 * KB,
+  // 7 KB since the block's marker became a small avatar with a tooltip and the other person's caret (21 Nov 2026, paper-live.md 9): the caret's offset mapped into the drawn text, its
+  // blink and fade, the tooltip kept inside the window; 6.5 KB measured (from 4.3), the Notebook chunk unchanged.
+  "the live presence chunk, script and style (gzip)": 7 * KB,
   // The Rive pieces (docs/design/setu-rive.md, rive-ideas.md), fetched only when a picture is wanted: 57.6, 331 and 8.4 KB measured on 1 Nov 2026, plus about 10%. None of them may be in the first load.
   "the Rive runtime chunk, script (gzip)": 64 * KB,
   "the Rive runtime, wasm (gzip)": 365 * KB,

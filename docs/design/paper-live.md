@@ -27,7 +27,7 @@ Today:
 ### In the notes
 - A notes page tab that someone else has open carries their small avatar.
 - A block another person is typing in gets a thin coloured left edge with their initial, "Ravi is editing". Each person gets one colour from a fixed palette of 6 token colours that pass contrast, assigned by their order in the share.
-- No live character-by-character cursor. Section 4 says why.
+- No live character-by-character co-typing. Section 4 says why. (Since 21 Nov the other person's caret is shown where they type, section 9.)
 
 ### In the paper
 - The thumbnail of a page someone is reading gets their avatar dot.
@@ -156,3 +156,35 @@ Built on the branch `reader-live` (from main bdc81d3 and this plan), behind `LIV
 **Tests.** Unit: shared `live.test.ts` (message validation, colours, words), API `docs/live-presence.test.ts` (the reducer: join, leave, idle, page change, folding; what each access change closes; the rate limit), the switch table, the route-guard and share-roles tables; web `lib/live.test.ts` (the client: heartbeat, idle, reconnect and its line, 4403 and 4001), the store's refresh (`notebook.test.ts`), the colours. API: `scripts/live-e2e.mjs` in the run `share-on`, which now also sets LIVE on (49 checks: the door before the upgrade, two sockets both ways, a viewer and a commenter cannot type, every write's signal and no content, 2 KB, 20 a second, 20 sockets in one room, 4001 on a role change, 4403 on removal, Stop sharing and the paper's deletion). Browser: `e2e/live.mjs` in the same run, 30 checks (two contexts, owner and editor: the row and its width, 24 px and the ring, "Viewing p. 2/3", the thumbnail and tab dots, "Bela Editor is editing" with its edge, a saved block and a comment without a reload, both typing in one block, "Go to where", axe in Light, Dark, Read and on a phone, the phone sheet, "Reconnecting…" only after 5 s with the socket dropped by Playwright and back; pictures with `LIVE_SHOTS`).
 
 **After the pictures (20 Nov).** The list is placed under its button by script (fixed, kept inside the window; a sheet across the width on a phone): placed by CSS alone, on a phone it covered the header. The block's edge is a straight 3 px bar (an inset shadow on the rounded block drew a bracket). A notes page this window does not know (its notes not loaded) is "Editing the notes", not "Untitled page". After the rebase onto main 4cfe65f (phase 3: the page tabs are their own chunk, `NbTabs.tsx`, which now draws the dots; the notes header with hidden "Saved" and a download icon), the browser suite passed again (30 checks) and the pictures were taken again: "Bela Editor is editing" sits at the block, clear of the new header.
+
+## 9. The block's avatar and the other person's caret (21 Nov 2026)
+
+The owner looked at the marker of section 8 ("datacollectcsam Data is editing", a pill beside the block) and asked for two changes.
+
+**A small avatar, not a pill.**
+- The block keeps its 3 px bar in the person's colour. At its top edge, clear of the block's menu, sits only their small avatar: their initial, their colour, 20 px with a 2 px `--surface` ring, in a 24 px button (the smallest target; 44 px to a finger).
+- The button is named "Bela Editor is editing this block". On hover (after 350 ms), on keyboard focus and on a tap it shows a tooltip, "Bela Editor is editing" (`role="tooltip"`, the button's `aria-describedby`). Esc, a press elsewhere, leaving it and, after a tap, 4 s close it.
+- The tooltip is put into the page's body and placed by script above the avatar (under it when there is no room), inside the window, so the notes panel's edges never cut it.
+- Several people in one block: one avatar each, overlapping; the bar takes the first one's colour.
+
+**Their caret.**
+- **What is sent.** An Editor's window sends where its cursor is in the block it types in with `here`: `caret` (an offset into the block's Markdown, its text field's `selectionStart`) and `caretEnd` (a selection's end). At most every 120 ms while typing or moving, the last place always. `readLiveHere` refuses the whole message for anything but a whole number from 0 to 8,000 (a text block's cap), a caret without `editingBlock`, or an end before its start. The room drops a Viewer's or a Commenter's caret, as it drops their `editingBlock`, and a caret goes with its block. The 2 KB and 20-a-second limits are unchanged.
+- **Where it is drawn.** `mdCaret` (shared, `notebook-md.ts`) maps the source offset to the text as drawn (`mdPlain`, the same text the ink anchors use): marks and signs are skipped (it reads `mdSourceRuns`), a cursor at a line's end stays on that line, and it is never put inside a letter drawn as one (a Devanagari vowel sign or virama, a surrogate pair). The live chunk finds that text node and offset in the block and places a 2 px line with a DOM Range's `getClientRects`. A selection is a light wash of the person's colour.
+- **When it moves.** It is placed again when the block reflows (ResizeObserver), when its text changes (MutationObserver) and when the caret moves. It lives inside the block, so it scrolls with the notes.
+- **Unsaved text.** The other person's unsaved typing is not on this side, so an offset past the saved text is drawn at the block's end. It does not jump: it is clamped and never guessed.
+- **This window's own text field.** A block this window writes in shows no caret. An empty block (a text field with "Write here…") shows it at the start.
+- **How it looks and fades.** It blinks in 1 s steps and is steady with reduced motion. Pointed at, it shows the person's name on a small flag at its top. It fades 3 s after it last moved, comes back when it moves, and is gone when they leave the block.
+- **Several people.** One caret each, in their colours.
+
+**Weight.** The live chunk grew from 4.3 to 6.5 KB (its line is now 7 KB, `budget.mjs`). The first load and the Notebook chunk did not change. Desk grew by 0.1 KB (the caret watcher's door and the block's Markdown for the mark). The tooltip is plain DOM rather than a React portal, because importing `react-dom` into the chunk made the bundler cut a new piece out of the first load.
+
+**Tests.**
+- Unit: `readLiveHere` with carets (shared `live.test.ts`); `mdCaret` with marks, headings, lists, line ends, Hindi and past the end (`notebook-md.test.ts`); the room's reducer drops a Viewer's or a Commenter's caret (`live-presence.test.ts`); the client's 120 ms pacing (`lib/live.test.ts`).
+- API: `live-e2e.mjs`: the caret and the selection relayed; a Viewer's and a Commenter's refused; out of range refused; gone with the block.
+- Browser: `e2e/live.mjs`:
+  - the avatar with no visible name, its tooltip on hover and on focus, and Esc;
+  - the caret at the letter in the other window, moving with the cursor, the flag, and the fade;
+  - axe in Light, Dark and Read;
+  - a tap on a phone, and axe there.
+
+**Privacy (for the owner).** The approved words say others see "which note you are typing in". A caret is finer than that, so the sentence should become, for example: "… which page of the paper or of its notes you are on, and which note you are typing in and where in it." The privacy page and `PRIVACY_VERSION` are not changed until the owner approves.

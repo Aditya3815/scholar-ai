@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { LIVE_COLOURS, LIVE_MAX_MESSAGE_BYTES, liveColour, liveDoing, liveInitial, liveMessageBytes, liveSlotOfId, readLiveHere, readLiveServer } from "./live";
+import { NOTEBOOK_LIMITS } from "./notebook";
+import { LIVE_CARET_MAX, LIVE_COLOURS, LIVE_MAX_MESSAGE_BYTES, liveColour, liveDoing, liveInitial, liveMessageBytes, liveSlotOfId, readLiveHere, readLiveServer } from "./live";
 
 describe("readLiveHere (what a page may send the room)", () => {
   it("reads a well-formed here, keeping only its known fields", () => {
@@ -25,6 +26,33 @@ describe("readLiveHere (what a page may send the room)", () => {
     ]) {
       expect(readLiveHere(typeof bad === "string" ? bad : JSON.stringify(bad))).toBeNull();
     }
+  });
+
+  it("reads a caret (and a selection) in the block typed in: whole numbers within a block's length", () => {
+    const at = { t: "here", view: "notes", notesPage: "p1", editingBlock: "b1", active: true, idle: false };
+    expect(readLiveHere({ ...at, caret: 12 })).toEqual({ ...at, caret: 12 });
+    expect(readLiveHere({ ...at, caret: 3, caretEnd: 9 })).toEqual({ ...at, caret: 3, caretEnd: 9 });
+    expect(readLiveHere({ ...at, caret: 0 })).toMatchObject({ caret: 0 });
+    expect(readLiveHere({ ...at, caret: LIVE_CARET_MAX })).toMatchObject({ caret: LIVE_CARET_MAX });
+    // an empty selection is a caret
+    expect(readLiveHere({ ...at, caret: 4, caretEnd: 4 })).toEqual({ ...at, caret: 4 });
+    for (const bad of [
+      { ...at, caret: -1 },
+      { ...at, caret: 2.5 },
+      { ...at, caret: "4" },
+      { ...at, caret: LIVE_CARET_MAX + 1 },
+      { ...at, caret: 1e9 },
+      { ...at, caret: 5, caretEnd: 2 },
+      { ...at, caretEnd: 2 },
+      { ...at, caret: 1, caretEnd: LIVE_CARET_MAX + 1 },
+      // a caret only with the block it is in
+      { t: "here", view: "notes", notesPage: "p1", caret: 3 },
+      { t: "here", view: "paper", page: 2, caret: 3 },
+    ]) {
+      expect(readLiveHere(JSON.stringify(bad))).toBeNull();
+    }
+    // its cap is a text block's
+    expect(LIVE_CARET_MAX).toBe(NOTEBOOK_LIMITS.text);
   });
 
   it("refuses a message over 2 KB before reading it", () => {

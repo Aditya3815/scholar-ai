@@ -1,4 +1,4 @@
-import { LIVE_ACTIVE_MS, LIVE_CLOSE, LIVE_HEARTBEAT_MS, LIVE_IDLE_MS, LIVE_RECONNECT_LINE_MS, readLiveServer, type LiveHere, type LiveKind, type LivePerson, type LiveRole } from "@scholar/shared";
+import { LIVE_ACTIVE_MS, LIVE_CARET_MAX, LIVE_CARET_SEND_MS, LIVE_CLOSE, LIVE_HEARTBEAT_MS, LIVE_IDLE_MS, LIVE_RECONNECT_LINE_MS, readLiveServer, type LiveHere, type LiveKind, type LivePerson, type LiveRole } from "@scholar/shared";
 
 /**
  * The page's side of a paper's room (docs/design/paper-live.md): one WebSocket to /api/v1/documents/:id/live, which says where this window is (on a change, and every 20 s) and hears who
@@ -45,7 +45,7 @@ export type LiveHandlers = {
   onAccessEnded?: () => void;
 };
 
-export type Where = Omit<LiveHere, "t" | "active" | "idle">;
+export type Where = Omit<LiveHere, "t" | "active" | "idle" | "caret" | "caretEnd">;
 
 const OPEN = 1;
 export const liveUrl = (docId: string, loc: { protocol: string; host: string }) => `${loc.protocol === "https:" ? "wss" : "ws"}://${loc.host}/api/v1/documents/${encodeURIComponent(docId)}/live`;
@@ -72,6 +72,10 @@ export function createLiveClient(url: string, deps: LiveDeps, on: LiveHandlers =
   let lastSent = "";
   let rawPeople: LivePerson[] = [];
   let lastBeat = 0;
+  // where the cursor is in the block typed in (sent with it, at most every LIVE_CARET_SEND_MS)
+  let caret: { block: string; at: number; end: number } | null = null;
+  let caretTimer = 0;
+  let caretSent = -Infinity;
 
   const set = (patch: Partial<LiveState>) => {
     state = { ...state, ...patch };
@@ -84,7 +88,9 @@ export function createLiveClient(url: string, deps: LiveDeps, on: LiveHandlers =
     const idle = deps.hidden() || quiet >= LIVE_IDLE_MS;
     return { active: !idle && quiet < LIVE_ACTIVE_MS, idle };
   };
-  const message = (): string => JSON.stringify({ t: "here", ...where, ...activity() } satisfies LiveHere);
+  const caretOf = (): Pick<LiveHere, "caret" | "caretEnd"> =>
+    caret && where.editingBlock === caret.block ? { caret: caret.at, ...(caret.end > caret.at ? { caretEnd: caret.end } : {}) } : {};
+  const message = (): string => JSON.stringify({ t: "here", ...where, ...caretOf(), ...activity() } satisfies LiveHere);
   const sendHere = (force: boolean) => {
     if (!ws || ws.readyState !== OPEN) return;
     const m = message();
@@ -196,6 +202,20 @@ export function createLiveClient(url: string, deps: LiveDeps, on: LiveHandlers =
       where = w;
       sendHere(false);
     },
+    /** Where the cursor is in the block typed in (an offset into its Markdown, and a selection's end), or null: sent with the block, at most every LIVE_CARET_SEND_MS, the last one always. */
+    setCaret(block: string | null, at = 0, end = at) {
+      const clamp = (n: number) => Math.max(0, Math.min(LIVE_CARET_MAX, Math.trunc(n) || 0));
+      caret = block ? { block, at: clamp(at), end: clamp(Math.max(at, end)) } : null;
+      if (caretTimer) return;
+      const send = () => {
+        caretTimer = 0;
+        caretSent = deps.timers.now();
+        sendHere(false);
+      };
+      const wait = caretSent + LIVE_CARET_SEND_MS - deps.timers.now();
+      if (wait <= 0) send();
+      else caretTimer = deps.timers.set(send, wait);
+    },
     /** The person did something (a key, a pointer, a scroll): active for 30 s. */
     touch() {
       const was = activity();
@@ -212,6 +232,7 @@ export function createLiveClient(url: string, deps: LiveDeps, on: LiveHandlers =
       deps.timers.clear(retryTimer);
       deps.timers.clear(lineTimer);
       deps.timers.clear(beatTimer);
+      deps.timers.clear(caretTimer);
       const s = ws;
       ws = null;
       try {
