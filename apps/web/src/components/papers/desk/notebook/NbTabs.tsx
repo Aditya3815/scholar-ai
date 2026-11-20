@@ -1,5 +1,5 @@
 import { ChevronUp, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import type { NotebookStyle } from "@scholar/shared";
 import type { NbPage } from "../../../../lib/notebook";
 import type { NbPop } from "./NbMenu";
@@ -27,6 +27,8 @@ export type PageTabsProps = {
   /** A page's name on screen (pageLabel), and the papers to choose from with their names: handed in for the same reason (shared's module sits in the first load's chunk). */
   label: (title: string, index: number) => string;
   papers: readonly (readonly [NotebookStyle, string])[];
+  /** Live presence (docs/design/paper-live.md): the people on a page, drawn on its tab and said in its label. Absent: LIVE is off. */
+  live?: { tab: (pageId: string) => { dots: ReactNode; label: string } | null };
 };
 
 // the icons the first load also has are drawn here (lucide's paths): imported, they would tie this small chunk to the first load's and so to everything it preloads
@@ -41,7 +43,7 @@ const Check = ({ size }: { size: number }) => <Svg size={size} d="M20 6 9 17l-5-
 
 type Press = { id: string; x: number; y: number; pid: number; touch: boolean; armed: boolean; timer: number; el: HTMLElement; mids: number[]; scroll0: number };
 
-export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, announce, Pop: NbPop, label: pageLabel, papers }: PageTabsProps) {
+export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, announce, Pop: NbPop, label: pageLabel, papers, live }: PageTabsProps) {
   const row = useRef<HTMLDivElement>(null);
   const [more, setMore] = useState("");
   useEffect(() => {
@@ -228,6 +230,8 @@ export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, annou
               >
                 <span className="nb-sw" data-style={p.style} aria-hidden="true" />
                 <span className="nb-pagetab-t">{name}</span>
+                {live?.tab(p.id)?.dots}
+                {live?.tab(p.id) && <span className="sr-only">{live.tab(p.id)!.label}</span>}
               </button>
               <button
                 type="button"

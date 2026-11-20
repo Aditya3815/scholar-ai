@@ -4,6 +4,18 @@
  * of others (deleting the owner's own papers, with their shares and comments, is deleteDocument's).
  */
 export { listNotebookImages } from "./notebook-images";
+import { liveRevoke, type RoomEnv } from "./live";
+
+/** Deleting an account: its open windows of the papers others shared with it are closed (docs/design/paper-live.md, 2). Before the memberships go; never throws. */
+export async function closeLiveOf(env: RoomEnv, userId: string): Promise<void> {
+  if (!env.PAPER_ROOM) return;
+  try {
+    const rows = await env.DB.prepare("SELECT doc_id FROM doc_members WHERE user_id = ?1").bind(userId).all<{ doc_id: string }>();
+    for (const r of rows.results) await liveRevoke(null, env, r.doc_id, { userId });
+  } catch {
+    /* the sockets close on their own when the page next asks for anything */
+  }
+}
 
 const iso = (s: string | null): string | null => (s ? new Date(Date.parse(`${s.replace(" ", "T")}Z`)).toISOString() : null);
 

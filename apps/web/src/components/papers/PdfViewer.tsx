@@ -76,6 +76,8 @@ export type DeskSlots = {
   onDraw: (open: boolean) => void;
   /** The Capture tool in hand (phase 2.5): what goes over page n to take a frame of it, drawn by the reader's chunk. */
   capture?: (page: number) => ReactNode;
+  /** Live presence (docs/design/paper-live.md): the people reading page n, drawn on its thumbnail and said in its label. */
+  thumbMark?: (page: number) => { node: ReactNode; label: string } | null;
 };
 export type DeskPopup = {
   page: number;
@@ -330,7 +332,7 @@ function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, 
   );
 }
 
-function Thumb({ pdf, n, active, root, onPick }: { pdf: PDFDocumentProxy; n: number; active: boolean; root: React.RefObject<HTMLElement | null>; onPick: (n: number) => void }) {
+function Thumb({ pdf, n, active, root, onPick, mark }: { pdf: PDFDocumentProxy; n: number; active: boolean; root: React.RefObject<HTMLElement | null>; onPick: (n: number) => void; mark: { node: ReactNode; label: string } | null }) {
   const box = useRef<HTMLButtonElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const near = useNear(box, root, "300px 0px");
@@ -362,13 +364,14 @@ function Thumb({ pdf, n, active, root, onPick }: { pdf: PDFDocumentProxy; n: num
   }, [near, pdf, n]);
 
   return (
-    <button ref={box} type="button" className="thumb" aria-label={`Go to page ${n}`} aria-current={active ? "true" : undefined} onClick={() => onPick(n)}>
+    <button ref={box} type="button" className="thumb" aria-label={`Go to page ${n}${mark ? `, ${mark.label}` : ""}`} aria-current={active ? "true" : undefined} onClick={() => onPick(n)}>
       {active && <m.span layoutId="thumb-ring" className="thumb-ring" transition={spring} />}
       <span className="thumb-page">
         <canvas ref={canvas} data-ready={ready} />
         {!ready && <span className="thumb-skel" aria-hidden="true" />}
       </span>
       <span className="thumb-n">{n}</span>
+      {mark?.node}
     </button>
   );
 }
@@ -1160,7 +1163,7 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
       <div className="pdfv-main">
         <div ref={rail} className="pdfv-rail" aria-label="Page thumbnails">
           {pages.map((n) => (
-            <Thumb key={n} pdf={pdf} n={n} active={n === current} root={rail} onPick={(p) => goTo(p)} />
+            <Thumb key={n} pdf={pdf} n={n} active={n === current} root={rail} onPick={(p) => goTo(p)} mark={desk?.thumbMark?.(n) ?? null} />
           ))}
         </div>
         <div

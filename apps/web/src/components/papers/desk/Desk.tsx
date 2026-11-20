@@ -1,7 +1,7 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Maximize2, Minimize2, NotebookPen, Share2, X } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
-import { MAX_SELECTION_CHARS, NOTEBOOK_LIMITS, NOTE_COLORS, ROLE_LABEL, noteAnchor, planNewHighlight, roleAtLeast, type Answer, type Citation, type CommentAnchor, type DocNote, type DocumentInfo, type NoteColor, type NotebookAgent, type NotebookBlock, type PaperAccess, type ReaderAgent, type PaperInfo, type ScanInfo } from "@scholar/shared";
+import { MAX_SELECTION_CHARS, NOTEBOOK_LIMITS, NOTE_COLORS, ROLE_LABEL, noteAnchor, planNewHighlight, roleAtLeast, type Answer, type Citation, type CommentAnchor, type DocNote, type DocumentInfo, type LivePerson, type NoteColor, type NotebookAgent, type NotebookBlock, type PaperAccess, type ReaderAgent, type PaperInfo, type ScanInfo } from "@scholar/shared";
 import { downloadBlob } from "../../../lib/download";
 import { useComments } from "../../../lib/comments";
 import { leaveShared } from "../../../lib/share";
@@ -16,6 +16,9 @@ import { MEANINGS } from "../../../lib/meanings";
 import { easeOut, spring } from "../../../lib/motion";
 // types only: the store's code is the notebook chunk's (a value imported here would pull it into this one)
 import type { NbState, NotebookStore } from "../../../lib/notebook";
+// types only: the live client is the "live" chunk's
+import type { LiveClient, LiveHandlers, LiveState, Where } from "../../../lib/live";
+import type { NotebookLive } from "./notebook/Notebook";
 import type { NotesApi } from "../../../lib/notes";
 import { showNotice } from "../../../lib/notice";
 import { openOaAsk } from "../../../lib/oa-ask";
@@ -54,6 +57,12 @@ const loadShared = () => import("./share/SharedParts");
 const loadComments = () => import("./share/Comments");
 const CommentsPanel = lazy(() => loadComments().then((mod) => ({ default: mod.CommentsPanel })));
 const ReadNotebook = lazy(() => loadShared().then((mod) => ({ default: mod.ReadNotebook })));
+// live presence and live updates (docs/design/paper-live.md): the "live" chunk, fetched only when the server says the paper is live
+const loadLive = () => import("./live/Live");
+type LiveModule = Awaited<ReturnType<typeof loadLive>>;
+const NO_LIVE = () => null;
+const NO_SUB = () => () => {};
+const herePhrase = (ps: LivePerson[]) => `${ps.map((p) => p.name).join(", ")} ${ps.length === 1 ? "is" : "are"} here`;
 
 /** What the page (DocWorkspace, which keeps the paper, its notes and its drawing) hands the new reader. */
 export type DeskProps = {
@@ -93,6 +102,10 @@ export type DeskProps = {
   canShare: boolean;
   /** The owner's name, for the Share dialog's "You (owner)". */
   myName: string | null;
+  /** Live presence and updates are on for this paper (LIVE, docs/design/paper-live.md). */
+  live?: boolean;
+  /** The room closed this window (access ended): true when the paper still opens for this person (then it connects again); otherwise the page shows "You no longer have access". */
+  onAccessLost?: () => Promise<boolean>;
 };
 
 type PanelTab = "notes" | "highlights" | "refs";
@@ -562,6 +575,136 @@ export function Desk(props: DeskProps) {
     [sharing, comments, openComments],
   );
 
+  /* ---- live presence and live updates (docs/design/paper-live.md): who is here and where, and other people's saved changes without a reload ---- */
+  const [liveMod, setLiveMod] = useState<LiveModule | null>(null);
+  useEffect(() => {
+    if (!props.live) return;
+    let gone = false;
+    loadLive().then((mod) => !gone && setLiveMod(mod), () => {});
+    return () => {
+      gone = true;
+    };
+  }, [props.live]);
+  const liveOn = useRef<LiveHandlers>({});
+  const [liveClient, setLiveClient] = useState<LiveClient | null>(null);
+  useEffect(() => {
+    if (!liveMod) return;
+    const c = liveMod.startLive(doc.id, { onChanged: (x) => liveOn.current.onChanged?.(x), onReconnected: () => liveOn.current.onReconnected?.(), onAccessEnded: () => liveOn.current.onAccessEnded?.() });
+    setLiveClient(c);
+    return () => {
+      c.stop();
+      setLiveClient(null);
+    };
+  }, [liveMod, doc.id]);
+  const liveState = useSyncExternalStore<LiveState | null>(liveClient?.subscribe ?? NO_SUB, liveClient?.get ?? NO_LIVE, NO_LIVE);
+  const livePeople = useMemo(() => liveState?.people ?? [], [liveState]);
+  const [readTick, setReadTick] = useState(0);
+  // what changed is fetched through its own route, with this person's role (the socket says only that it changed); the handlers see this render's state
+  useLayoutEffect(() => {
+    liveOn.current = {
+      onChanged: (ch) => {
+        if (ch.kind === "notebook" || ch.kind === "pages") {
+          if (canEdit) void nb?.refresh(ch.kind === "notebook" ? { id: ch.id, rev: ch.rev } : {});
+          else setReadTick((t) => t + 1);
+        } else if (ch.kind === "highlights") void notes.reload();
+        else {
+          const before = comments.comments.length;
+          void comments.reload().then((list) => {
+            // said only while the comments are open, and never for this person's own comment
+            if (list && commentsAt && list.length > before && ch.by !== liveState?.me) announce(`${livePeople.find((p) => p.id === ch.by)?.name ?? "Someone"} added a comment`);
+          });
+        }
+      },
+      onReconnected: () => {
+        void notes.reload();
+        if (sharing) void comments.reload();
+        if (canEdit) void nb?.refresh();
+        else setReadTick((t) => t + 1);
+      },
+      onAccessEnded: () => {
+        void props.onAccessLost?.().then((still) => still && liveClient?.restart());
+      },
+    };
+  });
+  // the person is active (a key, the pointer, a scroll), or the tab is hidden: told to the room, at most every 2 s
+  useEffect(() => {
+    if (!liveClient) return;
+    let last = 0;
+    const touch = () => {
+      const t = Date.now();
+      if (t - last < 2000) return;
+      last = t;
+      liveClient.touch();
+    };
+    const seen = () => liveClient.visibility();
+    const events = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
+    for (const e of events) window.addEventListener(e, touch, { passive: true, capture: true });
+    document.addEventListener("visibilitychange", seen);
+    return () => {
+      for (const e of events) window.removeEventListener(e, touch, { capture: true });
+      document.removeEventListener("visibilitychange", seen);
+    };
+  }, [liveClient]);
+  // where this window is: the comments, a block being typed in, a notes page, or a page of the paper
+  const [typingIn, setTypingIn] = useState<{ pageId: string; blockId: string } | null>(null);
+  const onEditing = useCallback((pageId: string | null, blockId: string | null) => setTypingIn(pageId && blockId ? { pageId, blockId } : null), []);
+  const panelShown = shown !== "paper" && tab === "notes";
+  const where: Where =
+    panelShown && commentsAt
+      ? { view: "comments" }
+      : panelShown && typingIn
+        ? { view: "notes", notesPage: typingIn.pageId, editingBlock: typingIn.blockId }
+        : shown === "notes" && tab === "notes"
+          ? { view: "notes", ...(canEdit && nbState?.openId ? { notesPage: nbState.openId } : {}) }
+          : { view: "paper", page: props.page };
+  const whereKey = JSON.stringify(where);
+  useEffect(() => {
+    liveClient?.setWhere(JSON.parse(whereKey) as Where);
+  }, [liveClient, whereKey]);
+  const pageTitle = useCallback((id: string) => nbState?.pages.find((p) => p.id === id)?.title ?? null, [nbState]);
+  const followLive = useCallback(
+    (p: LivePerson) => {
+      if (p.view === "comments") return openComments(null);
+      if (p.view === "notes") {
+        const pageId = p.notesPage;
+        const blockId = p.editingBlock;
+        if (canEdit && pageId) {
+          nb?.open(pageId);
+          openInNotes(nb, blockId ? { pageId, blockId } : null);
+        } else if (pageId && blockId) {
+          showPanel("notes");
+          setReadFocus((f) => ({ pageId, blockId, tick: (f?.tick ?? 0) + 1 }));
+        } else showPanel("notes");
+        return;
+      }
+      if (p.page) goTo(p.page);
+      else showPaper();
+    },
+    [openComments, canEdit, nb, openInNotes, showPanel, goTo, showPaper],
+  );
+  const notebookLive: NotebookLive | undefined = useMemo(() => {
+    if (!liveMod) return undefined;
+    const on = (pageId: string) => livePeople.filter((p) => p.view === "notes" && p.notesPage === pageId && !p.idle);
+    return {
+      tab: (pageId) => {
+        const ps = on(pageId);
+        return ps.length ? { dots: <liveMod.Dots people={ps} />, label: `, ${herePhrase(ps)}` } : null;
+      },
+      editor: (pageId, blockId) => {
+        const p = livePeople.find((x) => x.notesPage === pageId && x.editingBlock === blockId && !x.idle);
+        return p ? { colour: p.colour, label: <liveMod.EditingLabel p={p} /> } : null;
+      },
+      onEditing,
+    };
+  }, [liveMod, livePeople, onEditing]);
+  const thumbMark = useMemo(() => {
+    if (!liveMod) return undefined;
+    return (n: number) => {
+      const ps = livePeople.filter((p) => p.view === "paper" && p.page === n && !p.idle);
+      return ps.length ? { node: <liveMod.Dots people={ps} />, label: herePhrase(ps) } : null;
+    };
+  }, [liveMod, livePeople]);
+
   const actions: PopupActions = useMemo(
     () => ({
       meaning,
@@ -707,8 +850,9 @@ export function Desk(props: DeskProps) {
       onDraw: setDrawOpen,
       quoteDrag: canEdit,
       capture: canEdit && mode === "capture" ? (n) => <CaptureLayer page={n} onCapture={(r) => void onCaptured(r)} onCancel={() => pickTool("select")} /> : undefined,
+      thumbMark,
     }),
-    [mode, meaning, setMeaning, pickTool, pdfReady, pdf, doc.id, doc.title, notes.notes, ink.strokes, wide, actions, onCaptured, canEdit, isOwner, role, access],
+    [mode, meaning, setMeaning, pickTool, pdfReady, pdf, doc.id, doc.title, notes.notes, ink.strokes, wide, actions, onCaptured, canEdit, isOwner, role, access, thumbMark],
   );
 
   const meta = info?.metadata;
@@ -744,6 +888,8 @@ export function Desk(props: DeskProps) {
         </div>
         <div className="dw-head-end desk-head-end">
           {isOwner && <DocMeta doc={doc} onChange={(d) => props.onDoc({ ...doc, readState: d.readState, tags: d.tags })} />}
+          {/* who else is here: the row keeps its width from the start, so nothing moves when it fills (docs/design/paper-live.md, 5) */}
+          {props.live && (liveMod && liveState ? <liveMod.PresenceRow state={liveState} wide={wide} pageTitle={pageTitle} onFollow={followLive} /> : <span className="desk-live-wait" data-wide={wide} aria-hidden="true" />)}
           {isOwner && props.canShare && (
             <button ref={shareBtn} type="button" className="btn btn-ghost btn-sm desk-share-btn" aria-haspopup="dialog" onClick={() => (setShareEver(true), setShareOpen(true))} onPointerEnter={() => void import("./share/ShareDialog").catch(() => {})}>
               <Share2 size={15} aria-hidden="true" />
@@ -858,11 +1004,11 @@ export function Desk(props: DeskProps) {
               </Suspense>
             ) : !canEdit ? (
               <Suspense fallback={<p className="nb-wait" role="status">Loading the notes…</p>}>
-                <ReadNotebook docId={doc.id} notes={existing} meanings={MEANINGS} onGoTo={goTo} comments={sharing ? { openOn: comments.openOn, show: openComments, canWrite: canComment, open: comments.open, showAll: () => openComments(null) } : null} focus={readFocus} />
+                <ReadNotebook docId={doc.id} notes={existing} meanings={MEANINGS} onGoTo={goTo} comments={sharing ? { openOn: comments.openOn, show: openComments, canWrite: canComment, open: comments.open, showAll: () => openComments(null) } : null} focus={readFocus} refresh={readTick} />
               </Suspense>
             ) : nb ? (
               <Suspense fallback={<p className="nb-wait" role="status">Loading your notes…</p>}>
-                <NotebookView store={nb} docTitle={doc.title} notes={existing} notesReady={notes.status === "ready"} wide={wide} onGoTo={goTo} onDropQuote={onDropQuote} announce={announce} focus={nbFocus} meanings={MEANINGS} copy={copyText} onCapture={startCapture} paintCapture={paintCapture} exportFile={exportNotes} imageUrl={noteImageUrl} uploadImage={uploadNoteImage} comments={blockComments} />
+                <NotebookView store={nb} docTitle={doc.title} notes={existing} notesReady={notes.status === "ready"} wide={wide} onGoTo={goTo} onDropQuote={onDropQuote} announce={announce} focus={nbFocus} meanings={MEANINGS} copy={copyText} onCapture={startCapture} paintCapture={paintCapture} exportFile={exportNotes} imageUrl={noteImageUrl} uploadImage={uploadNoteImage} comments={blockComments} live={notebookLive} />
               </Suspense>
             ) : (
               <p className="nb-wait" role="status">Loading your notes…</p>

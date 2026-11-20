@@ -218,6 +218,8 @@ export const SWITCHES = {
   READER: gate(["off", "dark", "on"], true),
   /** sharing a paper's workspace (docs/design/paper-share.md): `dark` lets the accounts of SHARE_BETA_USERS share their papers; off, none of it exists (its routes answer 404) */
   SHARE: gate(["off", "dark", "on"], true),
+  /** live presence and live updates in a shared paper (docs/design/paper-live.md): `dark` for the papers whose owner is in SHARE_BETA_USERS; it needs SHARE (off with it) */
+  LIVE: gate(["off", "dark", "on"], true),
   CHAT_JUDGE: { kind: "kill", positions: ["off", "on"], read: "exact", kv: null, sentence: false },
   CHAT_CONTEXT: { kind: "kill", positions: ["off", "on"], read: "exact", kv: null, sentence: false },
   SEARCH_PLAINTEXT: { kind: "kill", positions: ["off", "on"], read: "exact", kv: null, sentence: false },

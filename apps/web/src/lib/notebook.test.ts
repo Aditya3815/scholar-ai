@@ -136,6 +136,70 @@ function world() {
 
 const open = (s: Store) => s.get().pages.find((p) => p.id === s.get().openId)!;
 
+describe("live updates: refresh after another person saved (docs/design/paper-live.md)", () => {
+  it("an unchanged page is replaced, a new page comes in, a page deleted elsewhere goes", async () => {
+    const w = world();
+    w.pages.set("p1", { id: "p1", title: "Methods", style: "plain", position: 1, blocks: [text("a", "A")], rev: 1, updatedAt: 1 });
+    w.pages.set("p2", { id: "p2", title: "Old", style: "plain", position: 2, blocks: [], rev: 1, updatedAt: 1 });
+    const s = w.store();
+    await s.load();
+    w.pages.set("p1", { ...w.pages.get("p1")!, title: "Methods (Ravi)", blocks: [text("a", "A by Ravi"), text("r", "new by Ravi")], rev: 2 });
+    w.pages.delete("p2");
+    w.pages.set("p3", { id: "p3", title: "Results", style: "ruled", position: 3, blocks: [], rev: 1, updatedAt: 1 });
+    await s.refresh({ id: "p1", rev: 2 });
+    expect(s.get().pages.map((p) => [p.id, p.title, p.rev])).toEqual([["p1", "Methods (Ravi)", 2], ["p3", "Results", 1]]);
+    expect(s.get().pages[0]!.blocks).toEqual([text("a", "A by Ravi"), text("r", "new by Ravi")]);
+    // nothing is saved back
+    await w.tick(SAVE_AFTER_MS + 100);
+    expect(w.calls.filter((c) => !c.startsWith("GET"))).toEqual([]);
+  });
+
+  it("its own save's signal fetches nothing", async () => {
+    const w = world();
+    w.pages.set("p1", { id: "p1", title: "P", style: "plain", position: 1, blocks: [text("a", "A")], rev: 4, updatedAt: 1 });
+    const s = w.store();
+    await s.load();
+    await s.refresh({ id: "p1", rev: 4 });
+    expect(w.calls).toEqual(["GET "]);
+  });
+
+  it("a page being written in here: what only the other person changed comes in, a block both changed keeps this window's and says so", async () => {
+    const w = world();
+    w.pages.set("p1", { id: "p1", title: "P", style: "plain", position: 1, blocks: [text("a", "A"), text("b", "B")], rev: 1, updatedAt: 1 });
+    const s = w.store();
+    await s.load();
+    s.setText("p1", "a", "A here");
+    w.pages.set("p1", { ...w.pages.get("p1")!, blocks: [text("a", "A"), text("b", "B there")], rev: 2 });
+    await s.refresh({ id: "p1", rev: 2 });
+    expect(s.get().pages[0]!.blocks).toEqual([text("a", "A here"), text("b", "B there")]);
+    expect(w.clashes).toHaveLength(0);
+    // the save goes on the new revision, with no conflict
+    await w.tick(SAVE_AFTER_MS + 10);
+    expect(w.pages.get("p1")).toMatchObject({ rev: 3, blocks: [text("a", "A here"), text("b", "B there")] });
+    // both change b
+    s.setText("p1", "b", "B mine");
+    w.pages.set("p1", { ...w.pages.get("p1")!, blocks: [text("a", "A here"), text("b", "B theirs")], rev: 4 });
+    await s.refresh({ id: "p1", rev: 4 });
+    expect((s.get().pages[0]!.blocks[1] as { md: string }).md).toBe("B mine");
+    expect(w.clashes).toHaveLength(1);
+    // this window's text is saved over the new revision, then the line says what happened
+    await w.tick(SAVE_AFTER_MS + 10);
+    expect(w.pages.get("p1")).toMatchObject({ rev: 5, blocks: [text("a", "A here"), text("b", "B mine")] });
+    expect(s.get().save).toBe("conflict");
+  });
+
+  it("the starter page gives way to the pages someone else made", async () => {
+    const w = world();
+    const s = w.store();
+    await s.load();
+    expect(s.get().pages.map((p) => p.title)).toEqual([STARTER_TITLE]);
+    w.pages.set("px", { id: "px", title: "From Ravi", style: "plain", position: 1, blocks: [text("a", "hi")], rev: 1, updatedAt: 1 });
+    await s.refresh();
+    expect(s.get().pages.map((p) => p.id)).toEqual(["px"]);
+    expect(s.get().openId).toBe("px");
+  });
+});
+
 describe("useNotebook's store", () => {
   it("a paper with no notebook shows one page, Notes, with an empty text block; opening it makes nothing on the server", async () => {
     const w = world();

@@ -104,6 +104,8 @@ app.onError((err, c) => {
 
 export { S2Throttle } from "./s2-throttle";
 export { ApiGate } from "./gate/api-gate";
+/** One room a paper: live presence and live updates in a shared paper (docs/design/paper-live.md). */
+export { PaperRoom } from "./docs/live-room";
 /** The reading of an open-access paper (oa/workflow.ts), with the deps of each run. */
 export class OaIngest extends OaIngestFlow {
   protected depsFor(env: Env) {

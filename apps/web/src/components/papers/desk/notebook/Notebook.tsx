@@ -49,6 +49,17 @@ export type NotebookProps = {
   exportFile?: (fmt: "pdf" | "docx", pages: NbPage[], docTitle: string, names: Record<QuoteColor, string>, all: boolean) => Promise<void>;
   /** A shared paper's comments on a block (docs/design/paper-share.md, 5): its open threads (a dot) and the way to them (the dot, and Comment in the block's menu). Absent: sharing is off. */
   comments?: { openOn: (pageId: string, blockId: string) => number; show: (pageId: string, blockId: string) => void; open: number; showAll: () => void };
+  /**
+   * Live presence in a shared paper (docs/design/paper-live.md, 1): the other people on each page (drawn on its tab, and said in its label), the person typing in a block (its edge and
+   * "Ravi is editing"), and where this window types (the reader tells the room). Absent: LIVE is off.
+   */
+  live?: NotebookLive;
+};
+
+export type NotebookLive = {
+  tab: (pageId: string) => { dots: ReactNode; label: string } | null;
+  editor: (pageId: string, blockId: string) => { colour: number; label: ReactNode } | null;
+  onEditing: (pageId: string | null, blockId: string | null) => void;
 };
 
 // ink on the pages (25) is the nb-ink chunk: fetched when a page of this paper has ink, or Draw is pressed
@@ -78,7 +89,7 @@ const isEmptyPage = (p: NbPage) => p.blocks.length === 1 && p.blocks[0]!.kind ==
  * paper's highlights), with a page picker, a page's own menu (move, paper style, delete), a formatting toolbar, reordering by drag or Alt+arrow, a drop target for quotes dragged from the paper,
  * the save line, and Copy or Download as Markdown. The `notebook` chunk: loaded when the reader needs it, never in the first load.
  */
-export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onDropQuote, announce, focus, meanings: MEANINGS, copy: copyText, exportFile, onCapture, paintCapture, imageUrl, uploadImage, comments }: NotebookProps) {
+export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onDropQuote, announce, focus, meanings: MEANINGS, copy: copyText, exportFile, onCapture, paintCapture, imageUrl, uploadImage, comments, live }: NotebookProps) {
   const NAMES = useMemo(() => ({ yellow: MEANINGS.yellow.name, green: MEANINGS.green.name, blue: MEANINGS.blue.name, pink: MEANINGS.pink.name }), [MEANINGS]);
   const st = useNotebook(store);
   const page = st.pages.find((p) => p.id === st.openId) ?? st.pages[0] ?? null;
@@ -158,6 +169,11 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
     el.focus({ preventScroll: true });
     el.setSelectionRange(want.start, want.end);
   });
+  // the block this window types in, for the others (live presence); null when none
+  const onEditing = live?.onEditing;
+  useEffect(() => {
+    onEditing?.(page?.id ?? null, editing);
+  }, [onEditing, page?.id, editing]);
   const edit = useCallback((blockId: string) => {
     setEditing(blockId);
     setEditTick((t) => t + 1);
@@ -437,6 +453,7 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
           Pop={NbPop}
           label={pageLabel}
           papers={PAPERS}
+          live={live}
         />
       </Suspense>
       <div className="nb-pagepanel" role="tabpanel" id="nb-pagepanel" aria-labelledby={`nbt-${page.id}`}>
@@ -650,7 +667,7 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
           <ol ref={list} className="nb-blocks" role="list" aria-label={`Blocks of ${name}`} data-dropping={dropAt !== null || undefined} {...dropProps}>
             {page.blocks.map((b, k) => (
               // a block's handle and menu show when it is pointed at or holds the focus; with no hover (touch), for the block that was tapped (data-active)
-              <li key={b.id} className="nb-block" role="listitem" data-block={b.id} data-kind={b.kind} data-inked={inkCounts.has(b.id) || undefined} data-active={active === b.id || undefined} onPointerDown={() => setActive(b.id)} data-flash={flash === b.id || undefined} data-dragging={dragging === b.id || undefined} data-drop-before={dropAt === k || undefined} data-drop-after={dropAt === page.blocks.length && k === page.blocks.length - 1 ? true : undefined}>
+              <li key={b.id} className={`nb-block${live?.editor(page.id, b.id) ? ` lv-c${live.editor(page.id, b.id)!.colour}` : ""}`} data-live-edit={live?.editor(page.id, b.id) ? true : undefined} role="listitem" data-block={b.id} data-kind={b.kind} data-inked={inkCounts.has(b.id) || undefined} data-active={active === b.id || undefined} onPointerDown={() => setActive(b.id)} data-flash={flash === b.id || undefined} data-dragging={dragging === b.id || undefined} data-drop-before={dropAt === k || undefined} data-drop-after={dropAt === page.blocks.length && k === page.blocks.length - 1 ? true : undefined}>
                 <button
                   type="button"
                   className="nb-handle"
@@ -693,6 +710,7 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                 >
                   <GripVertical size={15} aria-hidden="true" />
                 </button>
+                {live?.editor(page.id, b.id)?.label}
                 {inkCounts.has(b.id) && b.kind !== "space" && <span className="sr-only">Has a drawing, {strokesWord(inkCounts.get(b.id)!)}.</span>}
                 <div className="nb-body" data-ink-body>
                   {b.kind === "text" ? (

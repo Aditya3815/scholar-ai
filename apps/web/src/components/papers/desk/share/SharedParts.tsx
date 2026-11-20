@@ -24,11 +24,13 @@ export type ReadNotebookProps = {
   comments: { openOn: (a: CommentAnchor) => number; show: (a: CommentAnchor) => void; canWrite: boolean; open: number; showAll: () => void } | null;
   /** The block to bring into view and flash (a comment's "Show"). */
   focus: { pageId: string; blockId: string; tick: number } | null;
+  /** Read the pages again when this changes (someone saved: docs/design/paper-live.md). */
+  refresh?: number;
 };
 
 
 /** A Viewer's or a Commenter's Notes: the owner's pages, as they are, with a page picker and, on each block, its comments. Nothing here can be changed. */
-export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus }: ReadNotebookProps) {
+export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus, refresh = 0 }: ReadNotebookProps) {
   const [pages, setPages] = useState<NotebookPage[] | null>(() => readPages.get(docId) ?? null);
   const [ink, setInk] = useState<NotebookInk[]>(() => readInk.get(docId) ?? []);
   const wrap = useRef<HTMLDivElement>(null);
@@ -52,7 +54,7 @@ export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus }
     return () => {
       gone = true;
     };
-  }, [docId]);
+  }, [docId, refresh]);
   useEffect(() => {
     if (!focus) return;
     setOpenId(focus.pageId);

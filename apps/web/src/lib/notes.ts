@@ -24,6 +24,8 @@ export type NotesApi = {
   update: (id: string, change: { note?: string; color?: NoteColor }) => Promise<void>;
   /** true when the server removed it (on a failure `error` says why and the highlight stays) */
   remove: (id: string) => Promise<boolean>;
+  /** Read again, quietly (someone else changed them: docs/design/paper-live.md); a failure keeps what is shown. */
+  reload: () => Promise<void>;
 };
 
 /** The highlights and notes of one paper: loaded once, changed on the server first, then shown (a failed change leaves the list as it was). */
@@ -84,5 +86,14 @@ export function useNotes(docId: string): NotesApi {
     [docId],
   );
 
-  return { ...state, add, update, remove };
+  const reload = useCallback<NotesApi["reload"]>(async () => {
+    try {
+      const r = await call<{ items: DocNote[] }>(docId, "");
+      if (alive.current) setState((s) => ({ ...s, status: "ready", notes: r.items }));
+    } catch {
+      /* kept as it is */
+    }
+  }, [docId]);
+
+  return { ...state, add, update, remove, reload };
 }
