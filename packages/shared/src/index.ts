@@ -154,6 +154,7 @@ export * from "./notebook";
 export * from "./notebook-names";
 export * from "./note-image";
 export * from "./notebook-md";
+export * from "./notebook-ink";
 export * from "./share";
 export * from "./quote-quads";
 export * from "./palette";

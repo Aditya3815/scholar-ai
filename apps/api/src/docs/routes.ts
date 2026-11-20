@@ -11,6 +11,8 @@ import {
   INK_LIMITS,
   MAX_DOC_PAGES,
   MAX_NOTEBOOK_BODY,
+  MAX_NOTE_INK_BODY,
+  NOTE_INK_LIMITS,
   NOTEBOOK_LIMITS,
   NOTE_IMAGE_LIMITS,
   isNotebookId,
@@ -50,7 +52,7 @@ import { noteOpened, openThreads } from "./share-store";
 import { readJson } from "../platform/http/body";
 import { answerAboutHighlights } from "./highlights-qa";
 import { readerOnFor, readerSwitchedOn } from "./reader-flag";
-import { deletePage, listPages, patchPage, putPage, type NotebookResult } from "./notebook";
+import { deletePage, listInk, listPages, patchPage, putInk, putPage, type NotebookResult } from "./notebook";
 import { PROFILES, modelFor } from "../platform/llm/profiles";
 import { depsOf } from "../platform/deps";
 import { deleteNotebookImages, imageIds, notebookImageKey, putNotebookImage, settleNotebookImages } from "./notebook-images";
@@ -325,12 +327,13 @@ documentRoutes.patch("/:id", async (c) => {
   return c.json({ document: toInfo((await owned(c, user.id, row.id))!) });
 });
 
-/** Deletes the PDF, its cover, its text, its question history, its highlights, drawing, tags, pages of notes, and its sharing: the link, the people named and the comments. Irreversible. */
+/** Deletes the PDF, its cover, its text, its question history, its highlights, drawing, tags, pages of notes (and the ink on them), and its sharing: the link, the people named and the comments. Irreversible. */
 export async function deleteDocument(env: Pick<Env, "DB" | "FILES">, userId: string, id: string): Promise<void> {
   await Promise.all([env.FILES.delete(pdfKey(userId, id)), env.FILES.delete(coverKey(userId, id)), deleteNotebookImages(env, userId, id)]);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM doc_notes WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_ink WHERE doc_id = ?1").bind(id),
+    env.DB.prepare("DELETE FROM doc_notebook_ink WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_notebook_pages WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_notebook_image_gone WHERE doc_id = ?1").bind(id),
     env.DB.prepare("DELETE FROM doc_comments WHERE doc_id = ?1").bind(id),
@@ -882,7 +885,21 @@ const TOO_BIG = (c: Context<HonoEnv>) => deny(c, 413, "too_big", "That page of n
 documentRoutes.get("/:id/notebook", async (c) => {
   const door = await notebookDoor(c, "viewer");
   if (door instanceof Response) return door;
-  return c.json({ pages: await listPages(c.env.DB, door.row.id) });
+  // the ink on the pages (25) comes in the same answer: whoever may read the pages reads their ink
+  const [pages, ink] = await Promise.all([listPages(c.env.DB, door.row.id), listInk(c.env.DB, door.row.id)]);
+  return c.json({ pages, ink });
+});
+
+/** The ink on a page of notes (docs/design/paper-reader.md, 25): `{rev, strokes}`, the same doors as the page's own PUT (an Editor draws; a Viewer and a Commenter only see it). */
+documentRoutes.put("/:id/notebook/pages/:pageId/ink", async (c) => {
+  const door = await notebookDoor(c, "editor");
+  if (door instanceof Response) return door;
+  const read = await readJson(c, MAX_NOTE_INK_BODY);
+  if (read.tooLarge) return deny(c, 413, "too_big", "That drawing is too big to save", `A page's drawing holds at most ${NOTE_INK_LIMITS.pageBytes / 1024} KB.`);
+  const sent = read.value; // (held in a name: passed inline as `read.value ?? undefined` it arrived undefined under vitest)
+  const r = await putInk(c.env.DB, door.row.id, c.req.param("pageId"), sent ?? undefined);
+  if ("ink" in r) return c.json(r.status === 409 ? { type: "conflict", title: "The drawing on this page was changed in another window", ink: r.ink } : { ink: r.ink }, r.status);
+  return deny(c, r.status, r.type, r.title, r.detail);
 });
 
 documentRoutes.put("/:id/notebook/pages/:pageId", async (c) => {

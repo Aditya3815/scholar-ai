@@ -2,13 +2,17 @@ import type { ProblemType } from "@scholar/shared";
 import {
   NOTEBOOK_KINDS_NOW,
   NOTEBOOK_LIMITS,
+  NOTE_INK_LIMITS,
+  checkNoteInk,
   checkNotebookBlocks,
   cleanNotebookTitle,
   isNotebookId,
   isNotebookPosition,
   isNotebookStyle,
   type NotebookBlock,
+  type NotebookInk,
   type NotebookPage,
+  type NoteStroke,
   type NotebookStyle,
 } from "@scholar/shared";
 
@@ -122,6 +126,59 @@ export async function patchPage(db: D1Database, docId: string, pageId: string, b
 /** DELETE a page. Undo puts it back with PUT and no revision. */
 export async function deletePage(db: D1Database, docId: string, pageId: string): Promise<boolean> {
   if (!isNotebookId(pageId)) return false;
-  const res = await db.prepare("DELETE FROM doc_notebook_pages WHERE doc_id = ?1 AND id = ?2").bind(docId, pageId).run();
-  return (res.meta.changes ?? 0) > 0;
+  // its ink goes with it (the cascade does this too; said here, so it does not rest on the foreign keys being on)
+  const [, res] = await db.batch([
+    db.prepare("DELETE FROM doc_notebook_ink WHERE doc_id = ?1 AND page_id = ?2").bind(docId, pageId),
+    db.prepare("DELETE FROM doc_notebook_pages WHERE doc_id = ?1 AND id = ?2").bind(docId, pageId),
+  ]);
+  return (res!.meta.changes ?? 0) > 0;
+}
+
+/* ---------------------------------------------------------------- ink on the pages (docs/design/paper-reader.md, 25) */
+
+type InkRow = { page_id: string; strokes: string; rev: number; updated_at: string };
+const toInk = (r: InkRow): NotebookInk => ({ pageId: r.page_id, strokes: JSON.parse(r.strokes) as NoteStroke[], rev: r.rev, updatedAt: Date.parse(`${r.updated_at.replace(" ", "T")}Z`) });
+
+/** Every page's ink of a paper (pages with none have no row). */
+export async function listInk(db: D1Database, docId: string): Promise<NotebookInk[]> {
+  const rows = await db.prepare("SELECT page_id, strokes, rev, updated_at FROM doc_notebook_ink WHERE doc_id = ?1 ORDER BY page_id").bind(docId).all<InkRow>();
+  return rows.results.map(toInk);
+}
+
+const oneInk = (db: D1Database, docId: string, pageId: string) => db.prepare("SELECT page_id, strokes, rev, updated_at FROM doc_notebook_ink WHERE doc_id = ?1 AND page_id = ?2").bind(docId, pageId).first<InkRow>();
+
+export type InkResult = { status: 200 | 409; ink: NotebookInk } | { status: 400 | 404 | 413; type: ProblemType; title: string; detail?: string };
+
+/**
+ * PUT a page's ink: `{rev, strokes}`. With no revision (or 0) the row is made (409 with the server's ink when it is there already); with the revision it started from, the strokes are
+ * replaced (409 and the server's ink when that revision is stale). 404 when the page is not there (not saved yet, or deleted in another window): the page tries again once it is.
+ */
+export async function putInk(db: D1Database, docId: string, pageId: string, body: unknown): Promise<InkResult> {
+  const no = (status: 400 | 404 | 413, type: ProblemType, title: string, detail?: string): InkResult => ({ status, type, title, ...(detail ? { detail } : {}) });
+  if (!isNotebookId(pageId)) return no(400, "invalid_notebook", "That page id is not valid");
+  if (!body || typeof body !== "object" || Array.isArray(body)) return no(400, "invalid_notebook", "Nothing to save");
+  const b = body as Record<string, unknown>;
+  const rev = b.rev === undefined ? 0 : b.rev;
+  if (typeof rev !== "number" || !Number.isInteger(rev) || rev < 0) return no(400, "invalid_notebook", "The revision is not a whole number");
+  const checked = checkNoteInk(b.strokes);
+  if (!checked.ok) return no(checked.status, checked.status === 413 ? "too_big" : "invalid_notebook", "That drawing could not be saved", checked.reason);
+  if (!(await db.prepare("SELECT 1 AS x FROM doc_notebook_pages WHERE doc_id = ?1 AND id = ?2").bind(docId, pageId).first())) return no(404, "page_gone", "That page of notes is not there any more");
+  const data = JSON.stringify(checked.strokes);
+  const others = (await db.prepare("SELECT COALESCE(SUM(LENGTH(CAST(strokes AS BLOB))), 0) AS n FROM doc_notebook_ink WHERE doc_id = ?1 AND page_id != ?2").bind(docId, pageId).first<{ n: number }>())?.n ?? 0;
+  if (others + new TextEncoder().encode(data).length > NOTE_INK_LIMITS.paperBytes) {
+    return no(413, "too_big", "The drawings in the notes of this paper are full", `A paper's drawings in its notes hold at most ${NOTE_INK_LIMITS.paperBytes / 1024 / 1024} MB. Erase some strokes, or delete a page.`);
+  }
+  const res =
+    rev === 0
+      ? await db.prepare("INSERT INTO doc_notebook_ink (doc_id, page_id, strokes) VALUES (?1, ?2, ?3) ON CONFLICT (doc_id, page_id) DO NOTHING").bind(docId, pageId, data).run()
+      : await db.prepare("UPDATE doc_notebook_ink SET strokes = ?3, rev = rev + 1, updated_at = datetime('now') WHERE doc_id = ?1 AND page_id = ?2 AND rev = ?4").bind(docId, pageId, data, rev).run();
+  const now = await oneInk(db, docId, pageId);
+  if ((res.meta.changes ?? 0) === 0) {
+    // made already (rev 0), or saved by another window first: the server's ink, to merge into
+    if (now) return { status: 409, ink: toInk(now) };
+    // a revision given for a row that is not there (its page was deleted and made again): made now
+    await db.prepare("INSERT INTO doc_notebook_ink (doc_id, page_id, strokes) VALUES (?1, ?2, ?3) ON CONFLICT (doc_id, page_id) DO NOTHING").bind(docId, pageId, data).run();
+    return { status: 200, ink: toInk((await oneInk(db, docId, pageId))!) };
+  }
+  return { status: 200, ink: toInk(now!) };
 }

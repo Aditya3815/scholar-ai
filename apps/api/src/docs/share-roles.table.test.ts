@@ -39,6 +39,7 @@ const NEED: Record<string, ShareRole> = {
   "PATCH /api/v1/documents/:id/notes/:nid": "editor",
   "DELETE /api/v1/documents/:id/notes/:nid": "editor",
   "PUT /api/v1/documents/:id/notebook/pages/:pageId": "editor",
+  "PUT /api/v1/documents/:id/notebook/pages/:pageId/ink": "editor",
   "PATCH /api/v1/documents/:id/notebook/pages/:pageId": "editor",
   "DELETE /api/v1/documents/:id/notebook/pages/:pageId": "editor",
   "GET /api/v1/documents/:id/notebook/images/:blockId": "viewer",

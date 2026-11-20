@@ -1034,5 +1034,15 @@
   "big": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
   "chunked": "404 not_found: Not found (/api/v1/share/papers/x1) [no-store]",
   "bucket": "API_LIMITER"
+ },
+ "PUT /api/v1/documents/:id/notebook/pages/:pageId/ink": {
+  "cross": "403 forbidden: Cross-origin request blocked [no-store]",
+  "crossDev": "403 forbidden: Cross-origin request blocked [no-store]",
+  "anon": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId/ink) [no-store]",
+  "noAck": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId/ink) [no-store]",
+  "notOwned": "404 not_found: Not found (/api/v1/documents/doc-none/notebook/pages/:pageId/ink) [no-store]",
+  "big": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId/ink) [no-store]",
+  "chunked": "404 not_found: Not found (/api/v1/documents/doc0000000000000000000001/notebook/pages/:pageId/ink) [no-store]",
+  "bucket": "API_LIMITER"
  }
 }
