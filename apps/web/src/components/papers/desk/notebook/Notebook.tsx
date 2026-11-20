@@ -1,6 +1,6 @@
 import { Bold, ChevronDown, Crop, GripVertical, Heading, Italic, List, ListOrdered, ImagePlus, MessageSquare, MoreHorizontal, PenLine, TextQuote, Type, Underline } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { LEGACY_PAGE_TITLE, NOTEBOOK_STYLES, NOTEBOOK_STYLE_NAMES as STYLE_NAME, mdPlainText, nextPageName, pageLabel, type CaptureBlock, type DocNote, type ImageBlock, type NotebookBlock, type NotebookStyle, type QuoteColor } from "@scholar/shared";
+import { LEGACY_PAGE_TITLE, NOTEBOOK_STYLES, NOTEBOOK_STYLE_NAMES as STYLE_NAME, nextPageName, pageLabel, type CaptureBlock, type DocNote, type ImageBlock, type NotebookBlock, type QuoteColor } from "@scholar/shared";
 import { activeMarks, continueList, isOn, toggleHeading, toggleList, toggleMark, type Edit, type Mark } from "../../../../lib/md-edit";
 // the meanings and the copy come from the reader (props): imported here too, they would be cut out of the first load's chunks into chunks of their own
 import type { Meaning } from "../../../../lib/meanings";

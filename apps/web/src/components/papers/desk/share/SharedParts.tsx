@@ -1,7 +1,6 @@
 import { MessageSquare } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { MAX_COMMENT_CHARS, blockAnchor, mdPlainText, pageLabel, type CommentAnchor, type DocComment, type DocNote, type NoteColor, type NotebookPage } from "@scholar/shared";
-import type { CommentsApi } from "../../../../lib/comments";
+import { useEffect, useMemo, useState } from "react";
+import { blockAnchor, pageLabel, type CommentAnchor, type DocNote, type NoteColor, type NotebookPage } from "@scholar/shared";
 import type { Meaning } from "../../../../lib/meanings";
 import { AgentBlockView, MdView, QuoteBlockView } from "../notebook/NbBlocks";
 import { readPages } from "./read-pages";

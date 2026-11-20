@@ -119,7 +119,6 @@ const writeStore = (k: string, v: string | null) => {
     /* private mode: only for this visit */
   }
 };
-const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, n - 1).trimEnd()}…`);
 
 /**
  * The new Paper Reader, phase 1 "Desk" (docs/design/paper-reader.md): the view switch with the phone rule, the panel tabs Highlights and References, the tool segment (Select, Highlight,
