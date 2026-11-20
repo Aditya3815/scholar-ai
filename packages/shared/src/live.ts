@@ -136,14 +136,14 @@ export function liveInitial(name: string): string {
   return m ? m[0].toLocaleUpperCase() : "?";
 }
 
-/** What a person is doing, in words: "Editing Methods", "Viewing p. 3", "In Comments", "Reading the notes", "Viewing the paper". `pageTitle` names a notes page. */
+/** What a person is doing, in words: "Editing Methods", "Viewing p. 3", "In Comments", "Reading the notes", "Viewing the paper". `pageTitle` names a notes page (null: not known here). */
 export function liveDoing(p: Pick<LivePerson, "view" | "page" | "notesPage" | "editingBlock">, pageTitle: (id: string) => string | null): string {
   if (p.view === "comments") return "In Comments";
   if (p.view === "notes") {
+    // a page this window does not know (its notes are not loaded) is "the notes", not a wrong name
     const t = p.notesPage ? pageTitle(p.notesPage) : null;
-    const name = t?.trim() || "Untitled page";
-    if (p.editingBlock) return `Editing ${name}`;
-    return p.notesPage ? `Reading ${name}` : "Reading the notes";
+    const name = t === null ? "the notes" : t.trim() || "Untitled page";
+    return `${p.editingBlock ? "Editing" : "Reading"} ${name}`;
   }
   return p.page ? `Viewing p. ${p.page}` : "Viewing the paper";
 }

@@ -40,7 +40,7 @@
 .lv-count { margin-left: -6px; }
 
 /* ---- the list ---- */
-.lv-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; width: min(300px, calc(100vw - 24px)); max-height: min(60vh, 420px); overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: 0 8px 28px color-mix(in srgb, var(--text) 16%, transparent); scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; animation: lv-in 150ms ease; }
+.lv-pop { position: fixed; z-index: 60; width: min(300px, calc(100vw - 24px)); max-height: min(60vh, 420px); overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: 0 8px 28px color-mix(in srgb, var(--text) 16%, transparent); scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; animation: lv-in 150ms ease; }
 .lv-pop-h { margin: 4px 8px 6px; color: var(--muted); font-size: 0.75rem; font-weight: 600; }
 .lv-list { margin: 0; padding: 0; list-style: none; }
 .lv-item { display: grid; grid-template-columns: 24px 1fr; column-gap: 10px; align-items: center; padding: 8px; border-radius: var(--radius-s); }
@@ -51,8 +51,8 @@
 .lv-go { grid-column: 2; justify-self: start; margin-top: 4px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 0.8125rem; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .lv-go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 @media (pointer: coarse) { .lv-go { min-height: 44px; } }
-/* a phone: the list is a sheet across the width under the header */
-.lv[data-wide="false"] .lv-pop { position: fixed; top: auto; right: 12px; left: 12px; width: auto; margin-top: 6px; }
+/* the list is placed under its button by Live.tsx (fixed, kept inside the window); on a phone it is a sheet across the width */
+.lv[data-wide="false"] .lv-pop { width: auto; }
 
 /* ---- Reconnecting…: under the row, out of the flow ---- */
 .lv-line { position: absolute; top: calc(100% + 2px); right: 4px; z-index: 2; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 0.75rem; white-space: nowrap; animation: lv-in 150ms ease; }
@@ -65,7 +65,7 @@
 .thumb > .lv-dots { position: absolute; top: 4px; right: 6px; z-index: 1; }
 
 /* ---- a block another person is typing in: a thin edge in their colour, and their name ---- */
-.nb-block[data-live-edit] { box-shadow: inset 3px 0 0 var(--lv); }
+.nb-block[data-live-edit]::before { content: ""; position: absolute; top: 2px; bottom: 2px; left: 0; width: 3px; border-radius: 2px; background: var(--lv); pointer-events: none; }
 .lv-edit { position: absolute; top: -9px; right: 8px; z-index: 2; display: inline-flex; align-items: center; gap: 4px; max-width: 70%; padding: 1px 8px 1px 2px; border-radius: 999px; background: var(--lv); color: var(--lv-fg); font-size: 0.6875rem; font-weight: 600; line-height: 18px; white-space: nowrap; pointer-events: none; animation: lv-in 150ms ease; }
 .lv-edit > b { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: color-mix(in srgb, var(--lv-fg) 22%, transparent); font-size: 0.5625rem; }
 .lv-edit > span { overflow: hidden; text-overflow: ellipsis; }

@@ -82,9 +82,12 @@ try {
   await row(op).click();
   const list = op.getByRole("dialog", { name: "People on this paper" });
   await list.waitFor({ timeout: 5000 });
+  await sleep(400);
   ok(await list.getByText("Viewing p. 3").isVisible(), "the list says \"Viewing p. 3\"");
+  const lb = await list.boundingBox();
+  ok(lb && lb.x >= 0 && lb.x + lb.width <= 1280 && lb.y > 50, "the list sits under the row, inside the window");
   await shot(op, "row-and-list-light");
-  await setTheme(op, "dark", 250);
+  await setTheme(op, "dark", 400);
   await shot(op, "row-and-list-dark");
   for (const theme of ["light", "dark", "read"]) {
     await setTheme(op, theme, 250);
@@ -106,7 +109,7 @@ try {
   const edge = op.locator('.nb [data-block="b2"][data-live-edit]');
   await edge.waitFor({ timeout: 10000 });
   ok(await op.locator(".lv-edit", { hasText: "Bela Editor is editing" }).isVisible(), "the owner sees \"Bela Editor is editing\" on that block");
-  ok((await edge.evaluate((e) => getComputedStyle(e).boxShadow)).includes("inset"), "with a thin coloured edge");
+  ok(await edge.evaluate((e) => { const b = getComputedStyle(e, "::before"); return b.width === "3px" && b.backgroundColor !== "rgba(0, 0, 0, 0)"; }), "with a thin coloured edge (3 px)");
   ok(await op.getByRole("tab", { name: /Methods.*Bela Editor is here/ }).count() === 1, "the page tab carries Bela's dot and says so");
   await shot(op, "block-being-edited");
   await shot(op, "tab-with-avatar", await op.locator(".nb-tabsrow").boundingBox());
@@ -122,7 +125,7 @@ try {
   await op.keyboard.press("End");
   await op.keyboard.type(" over 40");
   await sleep(3500);
-  ok(await op.getByText("Updated from another window").count() >= 0, "both typing in one block: the owner keeps theirs (the merge of section 19)");
+  ok(((await op.locator('.nb [data-block="b1"]').textContent()) ?? "").includes("over 40"), "both typing in one block: the owner keeps theirs (the merge of section 19)");
 
   /* ================================================================ a comment, live */
   console.log("comments");
@@ -133,12 +136,14 @@ try {
   ok(await op.locator(".desk-comments-filter, .cm-head").first().isVisible(), "the comments panel is open");
 
   /* ================================================================ Go to where */
-  await ep.getByRole("button", { name: "Paper", exact: true }).click().catch(() => {});
-  await sleep(800);
+  await ep.keyboard.press("Escape");
+  await ep.locator('.thumb[aria-label^="Go to page 2"]').click();
+  await sleep(1500);
   await row(op).click();
+  await op.getByRole("dialog", { name: "People on this paper" }).getByText("Viewing p. 2").waitFor({ timeout: 8000 });
   await op.getByRole("button", { name: "Go to where Bela Editor is" }).click();
-  await sleep(800);
-  ok(true, "Go to where Bela Editor is takes the owner there");
+  await sleep(1200);
+  ok((await op.locator(".thumb[aria-current=true]").getAttribute("aria-label"))?.startsWith("Go to page 2"), "Go to where Bela Editor is takes the owner to page 2");
 
   /* ================================================================ a phone */
   console.log("a phone");
@@ -151,18 +156,38 @@ try {
   ok(await noSideways(pp), "no sideways scroll on a phone");
   await pp.locator(".lv-row").click();
   await pp.getByRole("dialog", { name: "People on this paper" }).waitFor({ timeout: 5000 });
+  await sleep(400);
+  const sheet = await pp.getByRole("dialog", { name: "People on this paper" }).boundingBox();
+  ok(sheet && sheet.x >= 0 && sheet.x + sheet.width <= 390 && sheet.y > 40, "on a phone the list is a sheet under the row, inside the screen");
   await shot(pp, "phone-presence");
   await axe(pp, "the presence list, phone", ".desk-head");
   await pc.close();
 
-  /* ================================================================ Reconnecting… (the socket held down for 6 s) */
+  /* ================================================================ Reconnecting…: the socket is dropped and refused for a while (Playwright stands between the page and the room) */
   console.log("reconnecting");
-  await op.context().setOffline(true);
-  await op.evaluate(() => window.dispatchEvent(new Event("offline")));
-  await op.locator(".lv-line", { hasText: "Reconnecting…" }).waitFor({ timeout: 40000 }).catch(() => {});
-  ok(await op.locator(".lv-line").count() <= 1, "\"Reconnecting…\" shows only after 5 s without a connection");
-  await shot(op, "reconnecting");
-  await op.context().setOffline(false);
+  const rp = await oc.newPage();
+  watch(rp);
+  let held = null;
+  let refuse = false;
+  await rp.routeWebSocket(/\/live$/, (ws) => {
+    if (refuse) return void ws.close({ code: 4000, reason: "test" });
+    held = ws;
+    ws.connectToServer();
+  });
+  await openPaper(rp, docId);
+  await row(rp).waitFor({ timeout: 15000 });
+  refuse = true;
+  held?.close({ code: 4000, reason: "test" });
+  await sleep(2500);
+  ok((await rp.locator(".lv-line").count()) === 0, "no \"Reconnecting…\" in the first seconds without a connection");
+  await rp.locator(".lv-line", { hasText: "Reconnecting…" }).waitFor({ timeout: 10000 });
+  ok(true, "\"Reconnecting…\" after 5 s without a connection");
+  await shot(rp, "reconnecting", { x: 560, y: 0, width: 720, height: 110 });
+  refuse = false;
+  await row(rp).waitFor({ timeout: 40000 });
+  await rp.locator(".lv-line").waitFor({ state: "detached", timeout: 5000 });
+  ok(true, "back: the line goes and the row comes back");
+  await rp.close();
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
   countFailure();

@@ -77,6 +77,8 @@ describe("words", () => {
     expect(liveDoing({ view: "notes", page: null, notesPage: "p1", editingBlock: "b1" }, title)).toBe("Editing Methods");
     expect(liveDoing({ view: "notes", page: null, notesPage: "p2", editingBlock: null }, title)).toBe("Reading Untitled page");
     expect(liveDoing({ view: "paper", page: 3, notesPage: null, editingBlock: null }, title)).toBe("Viewing p. 3");
+    expect(liveDoing({ view: "notes", page: null, notesPage: "p9", editingBlock: "b1" }, title)).toBe("Editing the notes");
+    expect(liveDoing({ view: "notes", page: null, notesPage: null, editingBlock: null }, title)).toBe("Reading the notes");
     expect(liveDoing({ view: "comments", page: 3, notesPage: null, editingBlock: null }, title)).toBe("In Comments");
     expect(liveDoing({ view: "paper", page: null, notesPage: null, editingBlock: null }, title)).toBe("Viewing the paper");
   });

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { liveDoing, type LivePerson } from "@scholar/shared";
 import { createLiveClient, liveUrl, type LiveClient, type LiveHandlers, type LiveState, type WsLike } from "../../../../lib/live";
 import "./live.css";
@@ -53,6 +53,7 @@ export type PresenceRowProps = {
 
 export function PresenceRow({ state, wide, pageTitle, onFollow }: PresenceRowProps) {
   const [open, setOpen] = useState(false);
+  const [at, setAt] = useState<CSSProperties>({ visibility: "hidden" });
   const btn = useRef<HTMLButtonElement>(null);
   const pop = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -61,7 +62,8 @@ export function PresenceRow({ state, wide, pageTitle, onFollow }: PresenceRowPro
   useEffect(() => {
     if (n === 0) setOpen(false);
   }, [n]);
-  useEffect(() => {
+  // placed before it is painted, so it never shows in the wrong place
+  useLayoutEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => {
       const t = e.target as Node;
@@ -73,14 +75,28 @@ export function PresenceRow({ state, wide, pageTitle, onFollow }: PresenceRowPro
       setOpen(false);
       btn.current?.focus({ preventScroll: true });
     };
+    // under the button, inside the window (a sheet across the width on a phone); again when the window changes
+    const place = () => {
+      const r = btn.current?.getBoundingClientRect();
+      if (!r) return;
+      const top = Math.round(r.bottom + 6);
+      if (!wide) return setAt({ top, left: 12, right: 12 });
+      const w = Math.min(300, window.innerWidth - 24);
+      setAt({ top, left: Math.round(Math.max(12, Math.min(r.right - w, window.innerWidth - 12 - w))) });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
     document.addEventListener("pointerdown", away, true);
     document.addEventListener("keydown", key, true);
     pop.current?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
     return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
       document.removeEventListener("pointerdown", away, true);
       document.removeEventListener("keydown", key, true);
     };
-  }, [open]);
+  }, [open, wide]);
   const shown = wide ? people.slice(0, n > 4 ? 3 : 4) : people.slice(0, 1);
   const rest = n - shown.length;
   const doing = (p: LivePerson) => liveDoing(p, pageTitle);
@@ -96,7 +112,7 @@ export function PresenceRow({ state, wide, pageTitle, onFollow }: PresenceRowPro
         </button>
       )}
       {open && n > 0 && (
-        <div ref={pop} id={id} className="lv-pop" role="dialog" aria-label="People on this paper">
+        <div ref={pop} id={id} className="lv-pop" role="dialog" aria-label="People on this paper" style={at}>
           <p className="lv-pop-h">{count(n)}</p>
           <ul className="lv-list">
             {people.map((p) => (
