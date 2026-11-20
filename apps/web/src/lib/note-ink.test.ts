@@ -94,7 +94,7 @@ describe("a stroke is attached to what lies under its middle", () => {
     expect(made.stroke.a).toEqual({ k: "box", b: "sp1" });
     expect(made.ask.space).toEqual({ id: "sp1", h: Math.ceil(((80 + EM) / (60 * CH)) * 10_000) });
     // and a stroke under a space that is the last block makes it taller, not a second one
-    const sp: BlockGeo = { id: "sp0", kind: "space", body: { left: 40, top: 0, right: 40 + 60 * CH, bottom: 100 } };
+    const sp: BlockGeo = { id: "sp0", kind: "space", body: { left: 40, top: 0, right: 40 + 60 * CH, bottom: 100 }, text: null };
     const g2 = page(60, [sp]);
     const grown = anchorStroke([60, g2.room!.top + 10, 0.5, 90, g2.room!.top + 60, 0.5], "pen", "ink", 0.14, g2, ids, texts)!;
     expect(grown.stroke.a).toEqual({ k: "box", b: "sp0" });
