@@ -106,6 +106,8 @@ try {
   };
   const saved = (page) => page.locator(".nb-save").filter({ hasText: /^Saved/ }).waitFor({ timeout: 10000 });
 
+  // NB_ONLY=ink runs only part 8 (ink on the pages), while it is worked on
+  if (process.env.NB_ONLY !== "ink") {
   /* ================================================================ 1. the Notes tab; write and format */
   console.log("1. the Notes tab: write and format");
   {
@@ -645,17 +647,20 @@ try {
     await until(async () => (await page.locator(".nb-capture").count()) === capturesBefore + 2, { ms: 8000, what: "the second capture" });
     ok(true, "Capture by keyboard: Enter, the arrows, Shift and the arrows, Enter");
 
-    // a sketch: Draw in the toolbar, a stroke drawn, kept after a reload
-    await tools.getByRole("button", { name: "Draw" }).click();
+    // a sketch (phase 2.5; since ink on the pages, 25, Draw draws on the page and makes no sketch: an old one is kept, drawn and edited as before): one made as an older page had it
+    await saved(page);
+    const withSketch = (await pagesOnServer()).find((p) => p.blocks.some((b) => b.kind === "capture"));
+    await api.put(`${BASE}/api/v1/documents/${docId}/notebook/pages/${withSketch.id}`, { headers: { Origin: BASE, "Content-Type": "application/json" }, data: { rev: withSketch.rev, blocks: [...withSketch.blocks, { id: "sk1", kind: "sketch", height: 240, strokes: [] }] } });
+    await page.reload({ waitUntil: "networkidle" });
     const area = page.locator(".nb-sketch-area").last();
-    await area.waitFor({ timeout: 8000 });
+    await area.waitFor({ timeout: 15000 });
     await area.scrollIntoViewIfNeeded();
     const ab = await area.boundingBox();
     await page.mouse.move(ab.x + 30, ab.y + 40);
     await page.mouse.down();
     for (let i = 1; i <= 12; i++) await page.mouse.move(ab.x + 30 + i * 20, ab.y + 40 + Math.sin(i / 2) * 25);
     await page.mouse.up();
-    ok((await area.locator("svg path").count()) === 1, "a stroke drawn in the sketch");
+    ok((await area.locator("svg path").count()) === 1, "a stroke drawn in an old sketch");
     await saved(page);
     await page.reload({ waitUntil: "networkidle" });
     await page.locator(".nb-sketch-area svg path").first().waitFor({ timeout: 15000 });
@@ -766,6 +771,356 @@ try {
     await ctx.close();
   }
 
+  }
+  /* ================================================================ 8. ink on the pages (docs/design/paper-reader.md, 25) */
+  console.log("8. ink on the pages: draw on the text, anchored to a word");
+  {
+    const INK_SHOTS = process.env.INK_SHOTS ?? null;
+    const inkShot = async (p, name) => {
+      if (INK_SHOTS) await p.screenshot({ path: join(INK_SHOTS, `${name}.png`) });
+    };
+    if (INK_SHOTS) mkdirSync(INK_SHOTS, { recursive: true });
+    const PARA = "Field teams screened adults in rural clinics. The baseline sensitivity was strong in every district we visited, and the follow up was long enough to see a change in the referral rate over two years of the programme.";
+    const put = await api.put(`${BASE}/api/v1/documents/${docId}/notebook/pages/inkp`, {
+      headers: { Origin: BASE, "Content-Type": "application/json" },
+      data: { title: "Ink page", position: 1000, blocks: [{ id: "it1", kind: "text", md: "## Methods" }, { id: "it2", kind: "text", md: PARA }, { id: "iq1", kind: "quote", noteId: null, page: 1, quote: "screened 214 adults", color: "yellow" }] },
+    });
+    ok(put.status() === 201, `a page to draw on (${put.status()})`);
+    const inkOnServer = async () => (await (await api.get(`${BASE}/api/v1/documents/${docId}/notebook`)).json()).ink.find((x) => x.pageId === "inkp")?.strokes ?? [];
+    const { ctx, page } = await openReader(desk(1280, 900));
+    await page.getByRole("radio", { name: "Notes" }).click();
+    await page.locator(".nb-bar").waitFor({ timeout: 10000 });
+    await pageTab(page, "Ink page").click();
+    await page.locator('[data-block="it2"] .nb-text').waitFor();
+    /** The client box of a word of a block, and of the page's strokes (their union). */
+    const wordBox = (word, block = "it2") =>
+      page.evaluate(
+        ([w, b]) => {
+          const el = document.querySelector(`.nb [data-block="${b}"] [data-ink-text]`);
+          const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            const i = n.data.indexOf(w);
+            if (i < 0) continue;
+            const r = document.createRange();
+            r.setStart(n, i);
+            r.setEnd(n, i + w.length);
+            const x = r.getBoundingClientRect();
+            return { x: x.left, y: x.top, w: x.width, h: x.height, cx: x.left + x.width / 2, cy: x.top + x.height / 2 };
+          }
+          return null;
+        },
+        [word, block],
+      );
+    const inkBox = (n = 0) =>
+      page.evaluate((k) => {
+        const p = document.querySelectorAll(".nb .nb-inksvg path:not([d=''])")[k];
+        if (!p) return null;
+        const x = p.getBoundingClientRect();
+        return { x: x.left, y: x.top, w: x.width, h: x.height, cx: x.left + x.width / 2, cy: x.top + x.height / 2 };
+      }, n);
+    const strokesShown = () => page.locator(".nb .nb-inksvg path:not([d=''])").count();
+    const around = async (b, pad = 10) => {
+      await page.mouse.move(b.cx + b.w / 2 + pad, b.cy);
+      await page.mouse.down();
+      for (let i = 1; i <= 28; i++) {
+        const t = (i / 28) * Math.PI * 2;
+        await page.mouse.move(b.cx + Math.cos(t) * (b.w / 2 + pad), b.cy + Math.sin(t) * (b.h / 2 + pad / 2));
+      }
+      await page.mouse.up();
+    };
+    const inside = (c, b, tol = 6) => c && b && c.cx >= b.x - tol && c.cx <= b.x + b.w + tol && c.cy >= b.y - tol && c.cy <= b.y + b.h + tol;
+
+    // Draw is a toggle: the format row gives way to the ink row, one row, whose first button is Draw, pressed, with the focus
+    const draw = page.getByRole("toolbar", { name: "Format" }).getByRole("button", { name: "Draw" });
+    ok((await draw.getAttribute("aria-pressed")) === "false", "Draw is a toggle button (aria-pressed false)");
+    const rowH = await page.locator(".nb-toolrow").evaluate((el) => el.getBoundingClientRect().height);
+    const textTop = await page.locator('[data-block="it2"]').evaluate((el) => el.getBoundingClientRect().top);
+    await draw.click();
+    const row = page.getByRole("toolbar", { name: "Draw on this page" });
+    await row.waitFor({ timeout: 10000 });
+    ok((await page.getByRole("toolbar", { name: "Format" }).count()) === 0, "in Draw mode the ink row takes the format row's place");
+    ok((await row.getByRole("button", { name: "Draw" }).getAttribute("aria-pressed")) === "true" && (await page.evaluate(() => document.activeElement?.hasAttribute("data-ink-toggle"))), "its Draw is pressed and has the focus");
+    const names = await row.getByRole("radio").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+    ok(["Pen", "Highlighter", "Eraser", "Black", "Blue", "Fine", "Medium", "Thick", "Very thick"].every((n) => names.includes(n)), `the paper's tools, colours and sizes (${names.join(", ")})`);
+    ok((await row.getByRole("switch", { name: "Draw with a finger" }).getAttribute("aria-checked")) === "false" && (await row.getByRole("button", { name: "Insert space" }).count()) === 1 && (await row.getByRole("button", { name: "Done" }).count()) === 1, "Finger (off), Insert space and Done");
+    const rowH2 = await page.locator(".nb-toolrow").evaluate((el) => el.getBoundingClientRect().height);
+    const textTop2 = await page.locator('[data-block="it2"]').evaluate((el) => el.getBoundingClientRect().top);
+    ok(Math.abs(rowH2 - rowH) <= 1 && Math.abs(textTop2 - textTop) <= 1, `no layout shift: the row keeps its height (${rowH} to ${rowH2} px) and the text its place`);
+    ok((await page.locator(".nb[data-drawing] .nb-inkpill").innerText()).includes("Esc to type"), "a pill says Drawing · Esc to type");
+
+    // a circle round "baseline": attached to that word (the centre of the stroke's box), saved in a row of its own
+    const word = await wordBox("baseline");
+    await around(word);
+    ok((await strokesShown()) === 1, "a stroke drawn on the text");
+    await until(async () => (await inkOnServer()).length === 1, { ms: 10000, what: "the stroke on the server" });
+    let srvInk = await inkOnServer();
+    const at = PARA.indexOf("baseline");
+    ok(srvInk[0].a.k === "text" && srvInk[0].a.b === "it2" && srvInk[0].a.at >= at && srvInk[0].a.at < at + 8 && srvInk[0].tool === "pen" && srvInk[0].pts.every(Number.isInteger), `it is attached to a character of "baseline" (${JSON.stringify(srvInk[0].a)}), points as integers`);
+    ok((await pagesOnServer()).find((p) => p.id === "inkp").blocks.length === 3, "the page's blocks are not touched by drawing on them");
+    await inkShot(page, "ink-desktop-light-drawing");
+
+    // the highlighter over a word, then Esc: back to typing, the focus on Draw
+    await page.keyboard.press("h");
+    ok((await row.getByRole("radio", { name: "Highlighter" }).getAttribute("aria-checked")) === "true", "H takes the highlighter");
+    const w2 = await wordBox("referral");
+    await page.mouse.move(w2.x - 2, w2.cy);
+    await page.mouse.down();
+    for (let i = 1; i <= 10; i++) await page.mouse.move(w2.x - 2 + ((w2.w + 4) * i) / 10, w2.cy);
+    await page.mouse.up();
+    ok((await strokesShown()) === 2 && (await page.locator(".nb .nb-inksvg .nbi-hl").count()) >= 1, "a highlighter stroke over another word");
+    // it lies where it was drawn: from 2 px before the word to 2 px after it (its ends are flat), not a letter to one side
+    const hlBox = await page.locator(".nb .nb-inksvg path.nbi-hl:not([d=''])").first().evaluate((el) => { const r = el.getBoundingClientRect(); return { l: r.left, r: r.right }; });
+    ok(Math.abs(hlBox.l - (w2.x - 2)) <= 1.5 && Math.abs(hlBox.r - (w2.x + w2.w + 2)) <= 1.5, `the highlight starts and ends where it was drawn (${hlBox.l.toFixed(1)} to ${hlBox.r.toFixed(1)}; drawn ${(w2.x - 2).toFixed(1)} to ${(w2.x + w2.w + 2).toFixed(1)})`);
+    await page.keyboard.press("Escape");
+    await page.getByRole("toolbar", { name: "Format" }).waitFor();
+    ok((await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))) === "Draw" && (await page.locator(".nb[data-drawing]").count()) === 0, "Esc leaves Draw mode, and the focus is on Draw again");
+    ok((await strokesShown()) === 2 && (await page.locator(".nb-inksvg").evaluate((el) => getComputedStyle(el).pointerEvents)) === "none", "out of Draw mode the ink is shown and takes no pointer");
+    await until(async () => (await inkOnServer()).length === 2, { ms: 10000, what: "two strokes on the server" });
+
+    // a reload keeps it, and draws it round the same word
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator(".nb-bar").waitFor({ timeout: 15000 });
+    await pageTab(page, "Ink page").click();
+    await until(async () => (await strokesShown()) === 2, { ms: 10000, what: "the ink after a reload" });
+    ok(inside(await inkBox(0), await wordBox("baseline")), "after a reload the circle is round the same word");
+
+    // the text above it is edited: the circle moves with its word
+    await page.locator('[data-block="it2"] .nb-text').click();
+    const field = page.locator('[data-block="it2"] textarea');
+    await field.waitFor();
+    ok((await page.locator(".nb .nb-inksvg path[opacity='0.25']").count()) >= 1, "while the block is open for typing its ink waits, faded, at its last place");
+    await field.press("Control+Home");
+    await page.keyboard.type("Before anything else, a long new opening sentence was written here to push the words along the lines. ");
+    await page.keyboard.press("Escape");
+    await sleep(400);
+    ok(inside(await inkBox(0), await wordBox("baseline")), "a sentence typed before it: the circle is still round its word");
+    await until(async () => (await inkOnServer())[0]?.a.at > at + 50, { ms: 10000, what: "the anchor moved through the edit" });
+    ok(true, "the anchor's offset is carried through the edit on the server too");
+
+    // the width changes (Split): the text reflows and the circle follows its word
+    await page.getByRole("radio", { name: "Split" }).click();
+    await until(async () => (await page.locator(".desk").getAttribute("data-view")) === "split", { ms: 6000, what: "Split" });
+    await sleep(500);
+    ok(inside(await inkBox(0), await wordBox("baseline")), "in Split (narrower, the lines break elsewhere) the circle is still round its word");
+    await page.getByRole("radio", { name: "Notes" }).click();
+    await sleep(400);
+
+    // the eraser removes whole strokes, with Undo and Redo; D enters Draw mode from the page
+    await page.locator('[data-block="it2"] .nb-text').focus();
+    await page.keyboard.press("d");
+    await row.waitFor();
+    ok(true, "D (with the focus on the page) enters Draw mode");
+    await page.keyboard.press("e");
+    const hb = await inkBox(0);
+    await page.mouse.move(hb.x - 6, hb.cy);
+    await page.mouse.down();
+    for (let i = 1; i <= 12; i++) await page.mouse.move(hb.x - 6 + ((hb.w + 12) * i) / 12, hb.cy);
+    await page.mouse.up();
+    ok((await strokesShown()) === 1, "the eraser takes a whole stroke away");
+    await page.keyboard.press("Control+z");
+    ok((await strokesShown()) === 2, "Ctrl+Z brings it back");
+    await page.keyboard.press("Control+Shift+z");
+    ok((await strokesShown()) === 1, "Ctrl+Shift+Z erases it again");
+    await row.getByRole("button", { name: "Undo" }).click();
+    ok((await strokesShown()) === 2, "and the Undo button brings it back");
+
+    // below the last block: a space is made there, which holds the drawing
+    await page.keyboard.press("p");
+    const roomBox = await page.locator(".nb-room").boundingBox();
+    await page.mouse.move(roomBox.x + 60, roomBox.y + 40);
+    await page.mouse.down();
+    for (let i = 1; i <= 16; i++) await page.mouse.move(roomBox.x + 60 + i * 12, roomBox.y + 40 + Math.sin(i / 3) * 30);
+    await page.mouse.up();
+    await page.locator('.nb-block[data-kind="space"]').waitFor({ timeout: 5000 });
+    ok((await strokesShown()) === 3 && (await page.getByRole("img", { name: /^A drawing, 1 stroke$/ }).count()) === 1, "a stroke below the last block makes a space there, named for a screen reader");
+    await inkShot(page, "ink-desktop-light-space");
+    await row.getByRole("button", { name: "Done" }).click();
+    await until(async () => (await inkOnServer()).length === 3 && (await pagesOnServer()).find((p) => p.id === "inkp").blocks.some((b) => b.kind === "space"), { ms: 10000, what: "the space and its stroke on the server" });
+    srvInk = await inkOnServer();
+    const space = (await pagesOnServer()).find((p) => p.id === "inkp").blocks.find((b) => b.kind === "space");
+    ok(srvInk.some((s) => s.a.k === "box" && s.a.b === space.id) && space.h >= 300, `the stroke is attached to the space's box, the space kept (h ${space.h})`);
+
+    // a block deleted takes its ink with it; Undo brings both back
+    await page.locator('[data-block="it2"]').hover();
+    await page.getByRole("button", { name: "Actions of block 2" }).click();
+    ok((await page.getByRole("menuitem", { name: "Remove drawing on this block" }).count()) === 1, "a block with ink has Remove drawing on this block in its menu");
+    await page.getByRole("menuitem", { name: "Delete block" }).click();
+    ok((await strokesShown()) === 1, "Delete block: its two strokes go with it");
+    await page.locator(".desk-toast").getByRole("button", { name: "Undo" }).first().click();
+    await until(async () => (await strokesShown()) === 3, { ms: 5000, what: "the strokes back" });
+    ok(inside(await inkBox(0), await wordBox("baseline")), "Undo brings the block back, and its circle round its word");
+    await until(async () => (await inkOnServer()).length === 3, { ms: 10000, what: "three strokes again on the server" });
+
+    // the block's accessible description says it has a drawing
+    ok((await page.locator('[data-block="it2"] .sr-only').innerText()).includes("Has a drawing, 2 strokes"), "a block with ink says so to a screen reader");
+    // Show drawings (More) hides all ink, for reading the text alone
+    await page.getByRole("button", { name: "More formatting and paper" }).click();
+    await page.getByRole("button", { name: "Show drawings" }).click();
+    ok((await strokesShown()) === 0, "Show drawings off hides the ink");
+    await page.getByRole("button", { name: "Show drawings" }).click();
+    ok((await strokesShown()) === 3, "and on shows it again");
+    await page.getByRole("button", { name: "More formatting and paper" }).click();
+
+    // exports: the PDF draws the ink as vectors over real text (no picture), round the same word; Word anchors a picture to each paragraph, in Arial; Markdown says what was drawn
+    const exportOne = async (what) => {
+      await page.locator(".nb-export").click();
+      const m = page.getByRole("menu", { name: "Download" });
+      await m.getByRole("menuitemradio", { name: "This page" }).click();
+      const dl = page.waitForEvent("download", { timeout: 30000 });
+      await m.getByRole("menuitem", { name: what, exact: true }).click();
+      const file = await dl;
+      return { name: file.suggestedFilename(), bytes: new Uint8Array(readFileSync(await file.path())) };
+    };
+    const pdfOut = await exportOne("PDF");
+    if (INK_SHOTS) (await import("node:fs")).writeFileSync(join(INK_SHOTS, "ink-page.pdf"), pdfOut.bytes);
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const pdfDoc = await pdfjs.getDocument({ data: pdfOut.bytes.slice(), useSystemFonts: false, disableFontFace: true }).promise;
+    const pg = await pdfDoc.getPage(1);
+    const text = (await pg.getTextContent()).items;
+    const words = text.map((t) => t.str).join("");
+    const base = text.find((t) => t.str.includes("baseline"));
+    const ops = await pg.getOperatorList();
+    const OPS = pdfjs.OPS;
+    const paths = ops.fnArray.filter((f) => f === OPS.constructPath).length;
+    const images = ops.fnArray.filter((f) => f === OPS.paintImageXObject).length;
+    ok(words.includes("baseline") && words.includes("referral") && paths >= 3 && images === 0, `PDF: the text is real text, the ink is ${paths} vector paths and no picture`);
+    // the circle against the word's place: of the paths pdf.js gives (each with its box, minMax, in the page's units), one wider than the word has its middle on the word
+    if (base) {
+      const tx = base.transform[4], ty = base.transform[5];
+      const charW = base.width / Math.max(1, base.str.length);
+      const wx0 = tx + base.str.indexOf("baseline") * charW, wx1 = wx0 + 8 * charW;
+      const boxes = ops.fnArray.flatMap((f, i) => (f === OPS.constructPath ? [Array.from(ops.argsArray[i].at(-1) ?? [])] : [])).filter((b) => b.length === 4);
+      // drawSvgPath's paths are kept in SVG units (y down from the page's top), so the line's middle is the page's height less its y
+      const midDown = pg.view[3] - (ty + 3.5);
+      const round = boxes.find(([x0, y0, x1, y1]) => x1 - x0 >= wx1 - wx0 && (x0 + x1) / 2 > wx0 - 8 && (x0 + x1) / 2 < wx1 + 8 && Math.abs((y0 + y1) / 2 - midDown) < 8);
+      ok(!!round, `PDF: a stroke is round "baseline" (the word ${wx0.toFixed(0)} to ${wx1.toFixed(0)} on the line at ${ty.toFixed(0)}; ${round ? `the stroke's box ${round.map((v) => v.toFixed(0)).join(", ")}` : `boxes: ${boxes.slice(0, 6).map((b) => b.map((v) => v.toFixed(0)).join(",")).join(" | ")}`})`);
+    } else ok(false, "PDF: the word is found");
+    const { unzipSync, strFromU8 } = await import("fflate");
+    const docxOut = await exportOne("Word (.docx)");
+    if (INK_SHOTS) (await import("node:fs")).writeFileSync(join(INK_SHOTS, "ink-page.docx"), docxOut.bytes);
+    const parts = unzipSync(docxOut.bytes);
+    const xml = strFromU8(parts["word/document.xml"]);
+    const styles = strFromU8(parts["word/styles.xml"]);
+    const anchor = xml.match(/<wp:anchor [^>]*>([\s\S]*?)<\/wp:anchor>/);
+    const order = anchor ? [...anchor[1].matchAll(/<wp:(\w+)/g)].map((m) => m[1]).filter((n) => ["simplePos", "positionH", "positionV", "extent", "effectExtent", "wrapNone", "docPr", "cNvGraphicFramePr"].includes(n)) : [];
+    ok(
+      !!anchor && /behindDoc="0"/.test(anchor[0]) && /relativeFrom="paragraph"/.test(anchor[0]) && /relativeFrom="column"/.test(anchor[0]) && JSON.stringify(order) === JSON.stringify(["simplePos", "positionH", "positionV", "extent", "effectExtent", "wrapNone", "docPr", "cNvGraphicFramePr"]),
+      `Word: the ink is a picture anchored to its paragraph, in front of the text, no wrapping, in the schema's order (${order.join(", ")})`,
+    );
+    ok(styles.includes('w:ascii="Arial"') && /w:lineRule="exact"/.test(xml) && Object.keys(parts).some((k) => /^word\/media\/ink\d+\.png$/.test(k)), "Word: a page with ink is in Arial with exact lines, and its ink pictures are in the file");
+    await page.locator(".nb-export").click();
+    const m = page.getByRole("menu", { name: "Download" });
+    await m.getByRole("menuitemradio", { name: "This page" }).click();
+    const dlMd = page.waitForEvent("download", { timeout: 30000 });
+    await m.getByRole("menuitem", { name: "Markdown", exact: true }).click();
+    const md = readFileSync(await (await dlMd).path(), "utf8");
+    ok(md.includes("*(Drawn on: 2 strokes)*") && md.includes("*(A drawing: 1 stroke)*"), "Markdown: a line after a block drawn on, and after a drawing");
+
+    // axe with ink on the page and in Draw mode, in the three themes, and pictures of each
+    await page.locator(".desk-toast").first().waitFor({ state: "detached", timeout: 12000 }).catch(() => {});
+    for (const theme of ["light", "dark", "read"]) {
+      await setTheme(page, theme, 350);
+      await axe(page, `Notes with ink, ${theme}, 1280`);
+      await inkShot(page, `ink-desktop-${theme}`);
+      await page.getByRole("toolbar", { name: "Format" }).getByRole("button", { name: "Draw" }).click();
+      await row.waitFor();
+      await axe(page, `Draw mode, ${theme}, 1280`);
+      await inkShot(page, `ink-desktop-${theme}-drawmode`);
+      await page.keyboard.press("Escape");
+      await page.getByRole("toolbar", { name: "Format" }).waitFor();
+    }
+    await setTheme(page, "light", 200);
+    ok(await noSideways(page), "no sideways scroll (1280, with ink)");
+
+    // an old sketch is kept and drawn as before; Turn into page drawing makes it a space with the same strokes
+    const pg2 = (await pagesOnServer()).find((p) => p.id === "inkp");
+    const sketch = { id: "oldsk", kind: "sketch", height: 200, strokes: [{ id: "k1", tool: "pen", color: "blue", w: 0.0034, pts: [0.1, 0.1, 0.5, 0.3, 0.2, 0.5, 0.5, 0.1, 0.5] }] };
+    await api.put(`${BASE}/api/v1/documents/${docId}/notebook/pages/inkp`, { headers: { Origin: BASE, "Content-Type": "application/json" }, data: { rev: pg2.rev, blocks: [...pg2.blocks, sketch] } });
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator(".nb-bar").waitFor({ timeout: 15000 });
+    await pageTab(page, "Ink page").click();
+    const area = page.locator('[data-block="oldsk"] .nb-sketch-area');
+    await area.locator("svg path").first().waitFor({ timeout: 10000 });
+    ok(true, "an old sketch is still drawn (existing data)");
+    const before = await area.locator("svg path").first().boundingBox();
+    await page.locator('[data-block="oldsk"]').hover();
+    await page.locator('[data-block="oldsk"] .nb-blockmenu button').click();
+    await page.getByRole("menuitem", { name: "Turn into page drawing" }).click();
+    await page.locator('[data-block="oldsk"][data-kind="space"]').waitFor({ timeout: 8000 });
+    await sleep(300);
+    const after = await page.evaluate(() => {
+      const b = document.querySelector('.nb [data-block="oldsk"] [data-ink-body]').getBoundingClientRect();
+      const ps = [...document.querySelectorAll(".nb .nb-inksvg path.nbi-pen")].map((p) => p.getBoundingClientRect()).filter((r) => r.top >= b.top - 2 && r.bottom <= b.bottom + 40);
+      return ps[0] ? { w: ps[0].width, h: ps[0].height } : null;
+    });
+    ok(after && Math.abs(after.w - before.width) <= 2 && Math.abs(after.h - before.height) <= 2, `Turn into page drawing: a space with the same stroke, the same size (${before.width.toFixed(1)}x${before.height.toFixed(1)} and ${after?.w.toFixed(1)}x${after?.h.toFixed(1)})`);
+    await page.locator(".desk-toast").getByRole("button", { name: "Undo" }).first().click();
+    await page.locator('[data-block="oldsk"][data-kind="sketch"]').waitFor({ timeout: 5000 });
+    ok(true, "and Undo makes it a sketch again");
+    await ctx.close();
+  }
+  // a phone: the ink row in one row of 44 px buttons that scrolls sideways; a finger scrolls (Finger off) and says how to draw; a stylus draws; no sideways scroll; axe
+  {
+    const { ctx, page } = await openReader(phone(390, 844));
+    await page.getByRole("radio", { name: "Notes" }).click();
+    await page.locator(".nb-bar").waitFor({ timeout: 10000 });
+    await pageTab(page, "Ink page").click();
+    await until(async () => (await page.locator(".nb .nb-inksvg path").count()) >= 3, { ms: 10000, what: "the ink on a phone" });
+    const inside = await page.evaluate(() => {
+      const el = document.querySelector('.nb [data-block="it2"] [data-ink-text]');
+      const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        const i = n.data.indexOf("baseline");
+        if (i < 0) continue;
+        const r = document.createRange();
+        r.setStart(n, i);
+        r.setEnd(n, i + 8);
+        const w = r.getBoundingClientRect();
+        const c = document.querySelector(".nb .nb-inksvg path").getBoundingClientRect();
+        const cx = c.left + c.width / 2, cy = c.top + c.height / 2;
+        return cx > w.left - 6 && cx < w.right + 6 && cy > w.top - 6 && cy < w.bottom + 6;
+      }
+      return false;
+    });
+    ok(inside, "on a phone (390 px, the lines break elsewhere again) the circle is round its word");
+    await page.getByRole("toolbar", { name: "Format" }).getByRole("button", { name: "Draw" }).click();
+    const row = page.getByRole("toolbar", { name: "Draw on this page" });
+    await row.waitFor();
+    const sizes = await row.locator("button").evaluateAll((els) => els.filter((e) => e.offsetParent).map((e) => Math.round(Math.min(e.getBoundingClientRect().width, e.getBoundingClientRect().height))));
+    ok(sizes.every((s) => s >= 44), `the ink row's buttons are 44 px or more on a phone (${Math.min(...sizes)} px the smallest)`);
+    ok((await row.getByRole("button", { name: /^Colour/ }).isVisible()) && !(await row.getByRole("radio", { name: "Blue" }).isVisible()), "the colours open from one button on a phone");
+    await row.getByRole("button", { name: /^Colour/ }).click();
+    await row.getByRole("radio", { name: "Blue" }).click();
+    ok(!(await row.getByRole("radio", { name: "Blue" }).isVisible()), "a colour picked closes them");
+    const n0 = await page.locator(".nb .nb-inksvg path:not([d=''])").count();
+    // a stylus draws (synthetic pen pointer events on the layer that takes the pen)
+    await page.evaluate(() => {
+      const el = document.querySelector(".nb-inkcatch");
+      const r = document.querySelector('.nb [data-block="it1"]').getBoundingClientRect();
+      const ev = (type, x, y) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, pointerType: "pen", pressure: 0.6, clientX: x, clientY: y, buttons: type === "pointerup" ? 0 : 1, button: 0, isPrimary: true }));
+      ev("pointerdown", r.left + 40, r.top + 8);
+      for (let i = 1; i < 10; i++) ev("pointermove", r.left + 40 + i * 8, r.top + 8 + (i % 2) * 6);
+      ev("pointerup", r.left + 120, r.top + 8);
+    });
+    await until(async () => (await page.locator(".nb .nb-inksvg path:not([d=''])").count()) === n0 + 1, { ms: 5000, what: "the stylus's stroke" });
+    ok(true, "a stylus draws on a phone");
+    ok((await page.locator(".nb-inkcatch").evaluate((el) => getComputedStyle(el).touchAction)).includes("pan-y"), "with Finger off one finger scrolls the page (touch-action: pan-y)");
+    await page.evaluate(() => {
+      const el = document.querySelector(".nb-inkcatch");
+      el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 9, pointerType: "touch", clientX: 100, clientY: 400, isPrimary: true }));
+      el.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 9, pointerType: "touch", clientX: 100, clientY: 400, isPrimary: true }));
+    });
+    await page.locator(".desk-toast").filter({ hasText: "Turn on Finger" }).waitFor({ timeout: 5000 });
+    ok(true, "a finger with Finger off draws nothing and says how to turn it on");
+    ok(await noSideways(page), "no sideways scroll on a phone in Draw mode");
+    await page.locator(".desk-toast").first().waitFor({ state: "detached", timeout: 12000 }).catch(() => {});
+    await axe(page, "Draw mode on a phone, 390");
+    if (process.env.INK_SHOTS) await page.screenshot({ path: join(process.env.INK_SHOTS, "ink-phone-drawmode.png") });
+    await page.keyboard.press("Escape");
+    if (process.env.INK_SHOTS) await page.screenshot({ path: join(process.env.INK_SHOTS, "ink-phone.png") });
+    await ctx.close();
+  }
+
   ok(errors.length === 0, `no errors on the page (${errors.length})`);
   for (const e of errors.slice(0, 8)) console.log(`        ${e}`);
 } catch (e) {
@@ -775,4 +1130,4 @@ try {
   await browser.close();
   idp.close?.();
 }
-finish("notebook (phases 2 and 2.5) e2e passed");
+finish("notebook (phases 2, 2.5 and ink on the pages) e2e passed");

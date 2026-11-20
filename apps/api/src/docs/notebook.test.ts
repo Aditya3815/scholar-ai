@@ -83,7 +83,7 @@ describe("who may use the Notebook's routes", () => {
     expect((await dark.call("GET", "/d1/notebook")).status).toBe(404);
     expect((await dark.call("GET", "/d2/notebook", { as: "u-2" })).status).toBe(200);
     const on = await setup();
-    expect((await on.call("GET", "/d1/notebook")).json).toEqual({ pages: [] });
+    expect((await on.call("GET", "/d1/notebook")).json).toEqual({ pages: [], ink: [] });
   });
 
   it("signed in, from our own pages, and only on one's own paper", async () => {
@@ -98,7 +98,7 @@ describe("who may use the Notebook's routes", () => {
     expect((await call("PUT", "/d2/notebook/pages/theirs", { body: { blocks: [] }, as: "u-2" })).status).toBe(201);
     expect((await call("PATCH", `${PAGE}/theirs`, { body: { title: "mine" } })).status).toBe(404);
     expect((await call("DELETE", `${PAGE}/theirs`)).status).toBe(404);
-    expect((await call("GET", "/d1/notebook")).json).toEqual({ pages: [] });
+    expect((await call("GET", "/d1/notebook")).json).toEqual({ pages: [], ink: [] });
   });
 });
 
@@ -288,5 +288,82 @@ describe("pictures in the notes (paper-reader.md 22)", () => {
     await deleteDocument({ DB: db, FILES: files }, "u-1", "d1");
     expect(files.objects.size).toBe(0);
     expect(gone()).toEqual([]);
+  });
+});
+
+describe("ink on the pages (paper-reader.md 25)", () => {
+  const stroke = (id: string, over: Record<string, unknown> = {}) => ({ id, tool: "pen", color: "ink", w: 14, a: { k: "text", b: "t1", at: 2, q: "rds" }, pts: [0, 0, 50, 300, -40, 50], ...over });
+  const INK = (p = "p1") => `${PAGE}/${p}/ink`;
+
+  it("is made, replaced, read with the pages, and a stale revision gets 409 with the server's ink", async () => {
+    const { call } = await setup();
+    const nope = await call("PUT", INK(), { body: { strokes: [stroke("s1")] } });
+    expect(nope.status, JSON.stringify(nope.json)).toBe(404); // the page is not there yet
+    await call("PUT", `${PAGE}/p1`, { body: { blocks: [text("t1")] } });
+    const made = await call("PUT", INK(), { body: { strokes: [stroke("s1")] } });
+    expect(made.status).toBe(200);
+    expect(made.json!.ink).toMatchObject({ pageId: "p1", rev: 1, strokes: [stroke("s1")] });
+    const again = await call("PUT", INK(), { body: { strokes: [stroke("s2")] } });
+    expect(again.status).toBe(409); // made already: the server's, to merge into
+    expect(again.json!.ink.strokes).toEqual([stroke("s1")]);
+    const next = await call("PUT", INK(), { body: { rev: 1, strokes: [stroke("s1"), stroke("s2", { a: { k: "box", b: "sp" }, pts: [100, 100, 50] })] } });
+    expect(next.status).toBe(200);
+    expect(next.json!.ink.rev).toBe(2);
+    const stale = await call("PUT", INK(), { body: { rev: 1, strokes: [] } });
+    expect(stale.status).toBe(409);
+    expect(stale.json!.type).toBe("conflict");
+    expect(stale.json!.ink.rev).toBe(2);
+    const all = await call("GET", "/d1/notebook");
+    expect(all.json!.ink).toEqual([expect.objectContaining({ pageId: "p1", rev: 2, strokes: next.json!.ink.strokes })]);
+    expect(all.json!.pages[0].rev).toBe(1); // the page's own revision does not move
+  });
+
+  it("refuses a bad stroke (400), too much (413), another person (404), a cross-origin write (403) and READER off (404)", async () => {
+    const { call } = await setup();
+    await call("PUT", `${PAGE}/p1`, { body: { blocks: [text("t1")] } });
+    expect((await call("PUT", INK(), { body: { strokes: [stroke("s1", { color: "pink" })] } })).status).toBe(400);
+    expect((await call("PUT", INK(), { body: { strokes: [stroke("s1", { pts: [0.5, 0, 50] })] } })).status).toBe(400);
+    expect((await call("PUT", INK(), { body: { rev: -1, strokes: [] } })).status).toBe(400);
+    expect((await call("PUT", INK("bad id"), { body: { strokes: [] } })).status).toBe(400);
+    expect((await call("PUT", INK(), { body: { strokes: Array.from({ length: 2001 }, (_, i) => stroke(`s${i}`)) } })).status).toBe(413);
+    expect((await call("PUT", INK(), { raw: JSON.stringify({ strokes: [stroke("s1", { pad: "x".repeat(530_000) })] }) })).status).toBe(413);
+    expect((await call("PUT", INK(), { body: { strokes: [] }, as: "u-2" })).status).toBe(404);
+    expect((await call("PUT", INK(), { body: { strokes: [] }, origin: "https://evil.example" })).status).toBe(403);
+    const off = await setup({});
+    expect((await off.call("PUT", INK(), { body: { strokes: [] } })).status).toBe(404);
+  });
+
+  it("a paper's note ink together holds at most 4 MB", async () => {
+    const { call } = await setup();
+    // 19 strokes of 2,000 points of 16 characters is about 600 KB: too big for one page; 18 of 1,600 is about 460 KB a page, and nine such pages pass 4 MB
+    const pts = Array.from({ length: 1600 * 3 }, (_, k) => [-5999, -3999, 100][k % 3]!);
+    const page = Array.from({ length: 18 }, (_, i) => stroke(`s${i}`, { pts }));
+    let refused = 0;
+    for (let i = 0; i < 10; i++) {
+      await call("PUT", `${PAGE}/f${i}`, { body: { blocks: [] } });
+      const r = await call("PUT", INK(`f${i}`), { body: { strokes: page } });
+      if (r.status === 413) refused++;
+      else expect(r.status).toBe(200);
+    }
+    expect(refused).toBeGreaterThan(0);
+  });
+
+  it("goes with its page, with the paper, and only its own", async () => {
+    const { call, sql, db } = await setup();
+    for (const p of ["p1", "p2"]) {
+      await call("PUT", `${PAGE}/${p}`, { body: { blocks: [text("t1")] } });
+      await call("PUT", INK(p), { body: { strokes: [stroke("s1")] } });
+    }
+    await call("PUT", "/d2/notebook/pages/p1", { body: { blocks: [text("t1")] }, as: "u-2" });
+    await call("PUT", "/d2/notebook/pages/p1/ink", { body: { strokes: [stroke("s1")] }, as: "u-2" });
+    const rows = () => sql.prepare("SELECT doc_id || '/' || page_id AS k FROM doc_notebook_ink ORDER BY k").all().map((r) => (r as { k: string }).k);
+    expect(rows()).toEqual(["d1/p1", "d1/p2", "d2/p1"]);
+    expect((await call("DELETE", `${PAGE}/p1`)).status).toBe(204);
+    expect(rows()).toEqual(["d1/p2", "d2/p1"]);
+    // Undo makes the page again with no revision; its ink is sent again by the page (a revision for a row that is gone makes it)
+    await call("PUT", `${PAGE}/p1`, { body: { blocks: [text("t1")] } });
+    expect((await call("PUT", INK("p1"), { body: { rev: 3, strokes: [stroke("s1")] } })).status).toBe(200);
+    await deleteDocument({ DB: db, FILES: memoryR2() }, "u-1", "d1");
+    expect(rows()).toEqual(["d2/p1"]);
   });
 });

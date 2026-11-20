@@ -162,6 +162,7 @@ export function TextBlockView({
     <div
       ref={region}
       className="nb-text"
+      data-ink-text
       role="region"
       tabIndex={0}
       aria-label={`Text block ${n}, press Enter to edit`}
@@ -188,7 +189,7 @@ export function QuoteBlockView({ b, mean, removed, onGo }: { b: QuoteBlock; mean
       <span aria-hidden="true">
         <span className="desk-dot" data-color={b.color}>{mean.letter}</span>
       </span>
-      <blockquote>“{b.quote}”</blockquote>
+      <blockquote data-ink-text>“{b.quote}”</blockquote>
       <figcaption>
         <b>{mean.name}</b>
         {removed && <span className="nb-removed">highlight removed</span>}
@@ -364,7 +365,7 @@ export function AgentBlockView({ b, onGo }: { b: AgentBlock; onGo: (page: number
         <b>{agentHeading(b)}</b>
       </header>
       {b.ask && <p className="nb-agent-ask">{b.agent === "explain" ? "Explained: " : "Asked: "}{b.ask}</p>}
-      <div className="nb-agent-md">
+      <div className="nb-agent-md" data-ink-text>
         <MdView md={b.md} />
       </div>
       {pages.length > 0 && (

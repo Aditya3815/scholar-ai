@@ -60,6 +60,9 @@ try {
   const D = `/api/v1/documents/${docId}`;
   const hl = await (await api(op, `${D}/notes`, "POST", { page: 1, quote: "glaucoma screening program", color: "pink", note: "The main claim" })).json();
   await api(op, `${D}/notebook/pages/p1`, "PUT", { title: "Methods", blocks: [{ id: "b1", kind: "text", md: "# Sample\nWho was **recruited**" }, { id: "b2", kind: "quote", noteId: hl.note.id, page: 1, quote: "glaucoma screening program", color: "pink" }] });
+  // ink on the page (paper-reader.md 25): a circle round "recruited", drawn by the owner
+  const circle = Array.from({ length: 25 }, (_, k) => [Math.round(Math.cos((k / 24) * Math.PI * 2) * 300 + 250), Math.round(Math.sin((k / 24) * Math.PI * 2) * 80), 50]).flat();
+  await api(op, `${D}/notebook/pages/p1/ink`, "PUT", { strokes: [{ id: "ink1", tool: "pen", color: "red", w: 14, a: { k: "text", b: "b1", at: 13, q: "recruited" }, pts: circle }] });
   await openPaper(op, docId);
 
   /* ================================================================ 1. the dialog, wide */
@@ -324,6 +327,25 @@ try {
   ok((await vp.getByRole("button", { name: /Download/ }).count()) > 0, "and can download (the owner allows it)");
   await vp.locator(".nbr-title", { hasText: "Methods" }).waitFor({ timeout: 10000 });
   ok((await vp.locator(".nbr").getByText("Who was").count()) > 0 && (await vp.locator(".nbr textarea, .nbr [contenteditable=true]").count()) === 0, "a Viewer's Notes tab shows the page of notes, with nothing to edit");
+  await vp.locator(".nbr .nb-inksvg path").first().waitFor({ timeout: 10000 });
+  ok((await vp.locator(".nbr .nb-inksvg path").count()) === 1 && (await vp.locator(".nb-inkcatch").count()) === 0 && (await vp.getByRole("button", { name: "Draw" }).count()) === 0, "a Viewer sees the owner's ink on the page, read only: no Draw, nothing takes the pen");
+  const ringed = await vp.evaluate(() => {
+    const el = document.querySelector('.nbr [data-block="b1"] [data-ink-text]');
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      const i = n.data.indexOf("recruited");
+      if (i < 0) continue;
+      const r = document.createRange();
+      r.setStart(n, i);
+      r.setEnd(n, i + 1);
+      const w = r.getBoundingClientRect();
+      const c = document.querySelector(".nbr .nb-inksvg path").getBoundingClientRect();
+      return c.left < w.left + 30 && c.right > w.left && c.top < w.bottom && c.bottom > w.top;
+    }
+    return false;
+  });
+  ok(ringed, "and it is drawn at the word it is attached to");
+  ok((await api(vp, `${D}/notebook/pages/p1/ink`, "PUT", { strokes: [] })).status() === 403, "a Viewer cannot draw on the notes (403)");
   await shot(vp, "reader-viewer");
   await axe(vp, "the shared reader as Viewer");
 
@@ -333,6 +355,9 @@ try {
   ok((await ep.locator(".desk-tools").count()) === 1 && (await ep.getByRole("radio", { name: /Draw/ }).count()) === 0, "an Editor gets the tools, without Draw");
   await ep.locator(".nb").getByText("Who was").first().waitFor({ timeout: 15000 });
   ok(true, "an Editor's Notes tab is the notebook itself");
+  ok((await ep.locator(".nb").getByRole("button", { name: "Draw" }).count()) === 1, "an Editor can draw on the pages of notes (Draw in the notes' toolbar)");
+  const edInk = await api(ep, `${D}/notebook/pages/p1/ink`, "PUT", { rev: 1, strokes: [] });
+  ok(edInk.status() === 200, `and the server lets an Editor's ink in (${edInk.status()})`);
   await shot(ep, "reader-editor");
 
   /* ================================================================ 7. a visitor with the link, signed out */

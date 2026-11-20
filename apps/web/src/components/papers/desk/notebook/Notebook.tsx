@@ -1,10 +1,10 @@
 import { Bold, ChevronDown, Crop, Download, GripVertical, Heading, Italic, List, ListOrdered, ImagePlus, MessageSquare, MoreHorizontal, PenLine, TextQuote, Type, Underline } from "lucide-react";
-import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { LEGACY_PAGE_TITLE, NOTEBOOK_STYLES, NOTEBOOK_STYLE_NAMES as STYLE_NAME, nextPageName, pageLabel, type CaptureBlock, type DocNote, type ImageBlock, type NotebookBlock, type QuoteColor } from "@scholar/shared";
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
+import { LEGACY_PAGE_TITLE, NOTEBOOK_STYLES, NOTEBOOK_STYLE_NAMES as STYLE_NAME, nextPageName, pageLabel, strokesWord, type CaptureBlock, type DocNote, type ImageBlock, type NotebookBlock, type NoteStroke, type QuoteColor } from "@scholar/shared";
 import { activeMarks, continueList, isOn, toggleHeading, toggleList, toggleMark, type Edit, type Mark } from "../../../../lib/md-edit";
 // the meanings and the copy come from the reader (props): imported here too, they would be cut out of the first load's chunks into chunks of their own
 import type { Meaning } from "../../../../lib/meanings";
-import { useNotebook, type NbPage, type NotebookStore } from "../../../../lib/notebook";
+import { newNotebookId, useNotebook, type NbPage, type NotebookStore } from "../../../../lib/notebook";
 import { showNotice } from "../../../../lib/notice";
 import { toast } from "../../../../lib/toast";
 import { AgentBlockView, CaptureBlockView, ImageBlockView, MdView, QuoteBlockView, TextBlockView } from "./NbBlocks";
@@ -51,6 +51,15 @@ export type NotebookProps = {
   comments?: { openOn: (pageId: string, blockId: string) => number; show: (pageId: string, blockId: string) => void; open: number; showAll: () => void };
 };
 
+// ink on the pages (25) is the nb-ink chunk: fetched when a page of this paper has ink, or Draw is pressed
+type InkModule = typeof import("./NbInk");
+type InkPrefs = import("./NbInk").InkPrefs;
+const loadInk = () => import("./NbInk");
+const NO_INK: readonly NoteStroke[] = [];
+const noInk = () => null;
+const noop = () => () => {};
+const SHOW_INK_KEY = "scholar.nbInkShow";
+const inField = (t: EventTarget | null) => !!(t as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable='true']");
 // a sketch is drawn and edited by a small chunk of its own (the pen, its outlines): most pages have none
 const SketchBlockView = lazy(() => import("./NbSketch").then((m) => ({ default: m.SketchBlockView })));
 // the page tabs (drag to reorder, All pages) are a small chunk of their own, asked for as soon as this one arrives, so this chunk does not grow
@@ -73,6 +82,63 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
   const NAMES = useMemo(() => ({ yellow: MEANINGS.yellow.name, green: MEANINGS.green.name, blue: MEANINGS.blue.name, pink: MEANINGS.pink.name }), [MEANINGS]);
   const st = useNotebook(store);
   const page = st.pages.find((p) => p.id === st.openId) ?? st.pages[0] ?? null;
+
+  /* ---- ink on the page (25): Draw mode, and the nb-ink chunk with the page's strokes ---- */
+  const [drawOn, setDrawOn] = useState(false);
+  const [inkMod, setInkMod] = useState<InkModule | null>(null);
+  const [prefs, setPrefsState] = useState<InkPrefs | null>(null);
+  const [showInk, setShowInk] = useState(() => {
+    try {
+      return localStorage.getItem(SHOW_INK_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const wantInk = drawOn || (st.status === "ready" && store.serverInk().length > 0);
+  useEffect(() => {
+    if (wantInk && !inkMod)
+      void loadInk().then(
+        (m) => {
+          setInkMod(() => m);
+          setPrefsState(m.readPrefs());
+        },
+        () => setDrawOn(false),
+      );
+  }, [wantInk, inkMod]);
+  const inkStore = inkMod ? inkMod.inkStoreFor(store) : null;
+  const inkSt = useSyncExternalStore(inkStore?.subscribe ?? noop, inkStore?.get ?? noInk, noInk);
+  const strokes = (page && inkSt?.pages.get(page.id)) || NO_INK;
+  const inkCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of strokes) m.set(s.a.b, (m.get(s.a.b) ?? 0) + 1);
+    return m;
+  }, [strokes]);
+  const wrap = useRef<HTMLDivElement>(null);
+  const room = useRef<HTMLDivElement>(null);
+  const setPrefs = (p: InkPrefs) => {
+    setPrefsState(p);
+    inkMod?.writePrefs(p);
+  };
+  const enterDraw = () => {
+    setEditing(null);
+    setDrawOn(true);
+    announce("Drawing on. Use a pen, mouse or finger. Esc to type.");
+  };
+  const backToDraw = useRef(false);
+  const leaveDraw = () => {
+    backToDraw.current = true;
+    setDrawOn(false);
+    announce("Drawing off: back to typing");
+  };
+  // the focus follows the toggle: to the ink row's Draw when it opens, back to the format row's Draw when it closes
+  useEffect(() => {
+    if (drawOn && inkMod) document.querySelector<HTMLElement>(".nb [data-ink-toggle]")?.focus();
+    else if (!drawOn && backToDraw.current) {
+      backToDraw.current = false;
+      document.querySelector<HTMLElement>(".nb [data-draw]")?.focus();
+    }
+  }, [drawOn, inkMod]);
+  useEffect(() => setDrawOn(false), [page?.id]);
 
   /* ---- editing: which text block is a field, and the last selection in one (what the toolbar acts on) ---- */
   const [editing, setEditing] = useState<string | null>(null);
@@ -237,7 +303,8 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
     : {};
 
   /* ---- Markdown out ---- */
-  const named = (all: boolean) => (all ? st.pages : page ? [page] : []).map((p) => ({ ...p, title: pageLabel(p.title, st.pages.indexOf(p)) }));
+  // with each page its ink (25): the files draw it, and Markdown says what was drawn
+  const named = (all: boolean) => (all ? st.pages : page ? [page] : []).map((p) => ({ ...p, title: pageLabel(p.title, st.pages.indexOf(p)), ink: inkSt?.pages.get(p.id) ?? store.serverInk().find((x) => x.pageId === p.id)?.strokes ?? [] }));
   const markdown = (all: boolean) => markdownOf(docTitle, named(all), NAMES);
   const copyMd = (all: boolean) => {
     void copyText(markdown(all)).then((ok) => (ok ? toast(all ? "All pages copied as Markdown" : "This page copied as Markdown") : showNotice("Could not copy. Select the text and press Ctrl+C.")));
@@ -326,6 +393,18 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
     return k >= 0 ? k + 1 : page.blocks.length;
   };
 
+  /** Insert space (Draw mode): blank room a quarter of the width high, after the block in the middle of the view (the end, when the page ends in view), to draw a diagram in. */
+  const insertSpace = () => {
+    const sc = wrap.current?.closest(".nb-scroll")?.getBoundingClientRect();
+    const mid = sc ? sc.top + sc.height / 2 : 0;
+    const items = [...(list.current?.querySelectorAll<HTMLElement>(":scope > .nb-block") ?? [])];
+    let k = items.findIndex((el) => el.getBoundingClientRect().bottom >= mid);
+    if (k < 0 || (sc && list.current && list.current.getBoundingClientRect().bottom < sc.bottom)) k = items.length - 1;
+    const after: NotebookBlock[] = [...page.blocks.slice(0, k + 1), { id: newNotebookId(), kind: "space", h: 2500 }, ...page.blocks.slice(k + 1)];
+    store.setBlocks(page.id, after);
+    announce("Room to draw in is added");
+  };
+
   // Delete a page, with Undo: the × on its tab, the tab's Delete key and "Delete page" in the page's menu all come here
   const deleteNbPage = (p: NbPage) => {
     const name = pageLabel(p.title, st.pages.indexOf(p));
@@ -333,7 +412,18 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
     if (undo) toast(`Deleted "${name}"`, { label: "Undo", run: () => (undo(), announce(`"${name}" is back`)) });
   };
   return (
-    <div className="nb" data-wide={wide}>
+    <div
+      className="nb"
+      data-wide={wide}
+      data-drawing={drawOn || undefined}
+      onKeyDown={(e) => {
+        // D draws on the page (the reader's own D is the paper's); in Draw mode the ink row's keys take over
+        if (drawOn || e.key.toLowerCase() !== "d" || e.ctrlKey || e.metaKey || e.altKey || inField(e.target)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        enterDraw();
+      }}
+    >
       {/* the pages as tabs (the mock's), each with its paper; + Page opens "Choose paper for the new page" */}
       <Suspense fallback={<div className="nb-tabsrow nb-tabsrow-wait" aria-hidden="true" />}>
         <PageTabs
@@ -420,6 +510,19 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
       <div className="nb-scroll" data-style={page.style}>
         <div className="nb-sheet">
           <div className="nb-toolrow">
+            {drawOn && inkMod && inkStore && prefs ? (
+              <inkMod.InkRow
+                prefs={prefs}
+                setPrefs={setPrefs}
+                canUndo={inkStore.canUndo(page.id)}
+                canRedo={inkStore.canRedo(page.id)}
+                onUndo={() => inkStore.undo(page.id) && announce("Undone")}
+                onRedo={() => inkStore.redo(page.id) && announce("Redone")}
+                onSpace={insertSpace}
+                onLeave={leaveDraw}
+                announce={announce}
+              />
+            ) : (
             <div
               className="nb-tools"
               role="toolbar"
@@ -478,13 +581,7 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                     <span className="nb-tl">Capture</span>
                   </Tool>
                 )}
-                <Tool
-                  label="Draw"
-                  onPress={() => {
-                    const at = store.addSketch({ pageId: page.id, index: insertAt() });
-                    if (at) announce(`A sketch is on ${at.title}: draw in it with the pen`);
-                  }}
-                >
+                <Tool label="Draw" keys="D" pressed={drawOn} onPress={enterDraw} mark="draw">
                   <PenLine size={15} aria-hidden="true" />
                   <span className="nb-tl">Draw</span>
                 </Tool>
@@ -517,6 +614,24 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                       <span className="nb-tl">Text</span>
                     </Tool>
                   </div>
+                  <div className="nb-tgroup">
+                    <Tool
+                      label="Show drawings"
+                      pressed={showInk}
+                      onPress={() => {
+                        const v = !showInk;
+                        setShowInk(v);
+                        try {
+                          localStorage.setItem(SHOW_INK_KEY, v ? "1" : "0");
+                        } catch {
+                          /* for this visit */
+                        }
+                      }}
+                    >
+                      <PenLine size={15} aria-hidden="true" />
+                      <span className="nb-tl">Drawings</span>
+                    </Tool>
+                  </div>
                   <div className="nb-tgroup" role="group" aria-label="Paper">
                     {NOTEBOOK_STYLES.map((s) => (
                       <Tool key={s} label={`${STYLE_NAME[s]} paper`} pressed={page.style === s} onPress={() => store.setStyle(page.id, s)}>
@@ -527,13 +642,15 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                 </div>
               )}
             </div>
+            )}
             {imageUrl && <input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void addPicture(f); }} />}
           </div>
 
+          <div ref={wrap} className="nb-inkwrap" data-drawing={drawOn || undefined}>
           <ol ref={list} className="nb-blocks" role="list" aria-label={`Blocks of ${name}`} data-dropping={dropAt !== null || undefined} {...dropProps}>
             {page.blocks.map((b, k) => (
               // a block's handle and menu show when it is pointed at or holds the focus; with no hover (touch), for the block that was tapped (data-active)
-              <li key={b.id} className="nb-block" role="listitem" data-block={b.id} data-kind={b.kind} data-active={active === b.id || undefined} onPointerDown={() => setActive(b.id)} data-flash={flash === b.id || undefined} data-dragging={dragging === b.id || undefined} data-drop-before={dropAt === k || undefined} data-drop-after={dropAt === page.blocks.length && k === page.blocks.length - 1 ? true : undefined}>
+              <li key={b.id} className="nb-block" role="listitem" data-block={b.id} data-kind={b.kind} data-inked={inkCounts.has(b.id) || undefined} data-active={active === b.id || undefined} onPointerDown={() => setActive(b.id)} data-flash={flash === b.id || undefined} data-dragging={dragging === b.id || undefined} data-drop-before={dropAt === k || undefined} data-drop-after={dropAt === page.blocks.length && k === page.blocks.length - 1 ? true : undefined}>
                 <button
                   type="button"
                   className="nb-handle"
@@ -576,7 +693,8 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                 >
                   <GripVertical size={15} aria-hidden="true" />
                 </button>
-                <div className="nb-body">
+                {inkCounts.has(b.id) && b.kind !== "space" && <span className="sr-only">Has a drawing, {strokesWord(inkCounts.get(b.id)!)}.</span>}
+                <div className="nb-body" data-ink-body>
                   {b.kind === "text" ? (
                     <TextBlockView
                       b={b}
@@ -599,6 +717,8 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                       <CaptureBlockView b={b} paint={paintCapture} onGo={() => onGoTo(b.page, "")} onCaption={(caption) => store.updateBlock(page.id, b.id, "capture", { caption })} onSize={(size) => store.updateBlock(page.id, b.id, "capture", { size })} />
                     ) : b.kind === "image" ? (
                       <ImageBlockView b={b} src={imageUrl?.(b.id) ?? ""} onAlt={(alt) => store.updateBlock(page.id, b.id, "image", { alt })} onWidth={(width) => store.updateBlock(page.id, b.id, "image", { width })} />
+                    ) : b.kind === "space" ? (
+                      <div className="nb-space" role="img" aria-label={`A drawing, ${strokesWord(inkCounts.get(b.id) ?? 0)}`} style={{ aspectRatio: `10000 / ${b.h}` }} />
                     ) : b.kind === "sketch" ? (
                       <Suspense fallback={<div className="nb-sketch-wait" style={{ height: b.height }} />}><SketchBlockView b={b} onStrokes={(strokes) => store.updateBlock(page.id, b.id, "sketch", { strokes })} onHeight={(height) => store.updateBlock(page.id, b.id, "sketch", { height })} onRefused={showNotice} /></Suspense>
                     ) : (
@@ -635,12 +755,39 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
                           Comment
                         </NbItem>
                       )}
+                      {inkStore && inkCounts.has(b.id) && (
+                        <NbItem
+                          onPick={() => {
+                            close(false);
+                            const back = inkStore.clearBlock(page.id, b.id);
+                            toast("Drawing removed", { label: "Undo", run: () => (back(), announce("The drawing is back")) });
+                          }}
+                        >
+                          Remove drawing on this block
+                        </NbItem>
+                      )}
+                      {b.kind === "sketch" && (
+                        <NbItem
+                          onPick={() => {
+                            close(false);
+                            const w = document.querySelector<HTMLElement>(`.nb [data-block="${b.id}"] .nb-sketch-area`)?.clientWidth ?? list.current?.clientWidth ?? 600;
+                            void loadInk().then((m) => {
+                              m.sketchToPage(store, page.id, b, w);
+                              announce("The sketch is now drawing on the page");
+                              toast("Sketch turned into page drawing", { label: "Undo", run: () => (m.inkStoreFor(store).undo(page.id), announce("The sketch is back")) });
+                            });
+                          }}
+                        >
+                          Turn into page drawing
+                        </NbItem>
+                      )}
                       <NbItem
                         danger
                         onPick={() => {
                           close(false);
+                          const back = inkStore?.dropBlock(page.id, b.id);
                           const undo = store.removeBlock(page.id, b.id);
-                          if (undo) toast("Block deleted", { label: "Undo", run: () => (undo(), announce("The block is back")) });
+                          if (undo) toast("Block deleted", { label: "Undo", run: () => (undo(), back?.(), announce("The block is back")) });
                         }}
                       >
                         Delete block
@@ -651,8 +798,17 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
               </li>
             ))}
           </ol>
+          {drawOn && <div ref={room} className="nb-room" aria-hidden="true" />}
+          {inkMod &&
+            (drawOn && inkStore && prefs ? (
+              <inkMod.InkDraw wrap={wrap} room={room} blocks={page.blocks} strokes={strokes} pageId={page.id} store={inkStore} prefs={prefs} setPrefs={setPrefs} onBlocks={(blocks) => store.setBlocks(page.id, blocks)} onLeave={leaveDraw} announce={announce} scroller={() => wrap.current?.closest<HTMLElement>(".nb-scroll") ?? null} />
+            ) : (
+              <inkMod.InkView wrap={wrap} blocks={page.blocks} strokes={strokes} editing={editing} hidden={!showInk} />
+            ))}
+          </div>
+          {drawOn && <p className="nb-inkpill" aria-hidden="true">Drawing · Esc to type</p>}
           {/* the page always ends on a line to write on: the last block when it is an empty text block, or this line, which becomes one at the first key */}
-          {!endsOnEmpty && (
+          {!endsOnEmpty && !drawOn && (
             <textarea
               className="nb-field nb-ghost"
               aria-label="Write a new text block at the end"
@@ -678,9 +834,9 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
 }
 
 /** A button of the format toolbar: a toggle (aria-pressed; an action such as Text has none) that keeps the focus in the text field it acts on. One stop in the tab order (the first); the arrows move along. */
-function Tool({ label, keys, pressed, onPress, first, children }: { label: string; keys?: string; pressed?: boolean; onPress: () => void; first?: boolean; children: ReactNode }) {
+function Tool({ label, keys, pressed, onPress, first, mark, children }: { label: string; keys?: string; pressed?: boolean; onPress: () => void; first?: boolean; mark?: string; children: ReactNode }) {
   return (
-    <button type="button" className="nb-tool" tabIndex={first ? 0 : -1} aria-label={label} aria-pressed={pressed} aria-keyshortcuts={keys?.replace("Ctrl", "Control")} title={keys ? `${label} (${keys})` : label} onMouseDown={(e) => e.preventDefault()} onClick={onPress}>
+    <button type="button" className="nb-tool" data-draw={mark === "draw" || undefined} tabIndex={first ? 0 : -1} aria-label={label} aria-pressed={pressed} aria-keyshortcuts={keys?.replace("Ctrl", "Control")} title={keys ? `${label} (${keys})` : label} onMouseDown={(e) => e.preventDefault()} onClick={onPress}>
       {children}
     </button>
   );

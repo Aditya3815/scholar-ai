@@ -65,9 +65,14 @@ accountRoutes.get("/export", async (c) => {
     .all<{ doc_id: string; data: string }>();
   // the pages of notes of the new reader (docs/design/paper-reader.md, 19.3), in each paper's order
   const notebook = await c.env.DB
-    .prepare("SELECT p.doc_id, p.title, p.style, p.blocks, p.updated_at FROM doc_notebook_pages p JOIN documents d ON d.id = p.doc_id WHERE d.user_id = ?1 ORDER BY p.doc_id, p.position, p.created_at")
+    .prepare("SELECT p.doc_id, p.id, p.title, p.style, p.blocks, p.updated_at FROM doc_notebook_pages p JOIN documents d ON d.id = p.doc_id WHERE d.user_id = ?1 ORDER BY p.doc_id, p.position, p.created_at")
     .bind(user.id)
-    .all<{ doc_id: string; title: string; style: string; blocks: string; updated_at: string }>();
+    .all<{ doc_id: string; id: string; title: string; style: string; blocks: string; updated_at: string }>();
+  // the ink drawn on those pages (docs/design/paper-reader.md, 25): one row a page
+  const notebookInk = await c.env.DB
+    .prepare("SELECT i.doc_id, i.page_id, i.strokes, i.updated_at FROM doc_notebook_ink i JOIN documents d ON d.id = i.doc_id WHERE d.user_id = ?1 ORDER BY i.doc_id, i.page_id")
+    .bind(user.id)
+    .all<{ doc_id: string; page_id: string; strokes: string; updated_at: string }>();
   // the pictures in those notes (phase 2.5): where each is, its kind and size; the files themselves are fetched from those addresses while signed in
   const notebookImages = await listNotebookImages(c.env, user.id, [...new Set(notebook.results.map((p) => p.doc_id))]);
   // sharing (docs/design/paper-share.md, 6): the people this account shared its papers with and the comments on them, and its own comments on papers shared with it
@@ -117,8 +122,15 @@ accountRoutes.get("/export", async (c) => {
     })),
     // only when there is something: with SHARE off (nothing can be shared) the export is what it was
     ...(sharing.sharedPapers.length > 0 || sharing.myCommentsOnSharedPapers.length > 0 ? sharing : {}),
-    notebook: notebook.results.map((p) => ({ docId: p.doc_id, title: p.title, style: p.style, blocks: JSON.parse(p.blocks) as unknown, updatedAt: new Date(fromSqliteTime(p.updated_at)).toISOString() })),
+    notebook: notebook.results.map((p) => ({ docId: p.doc_id, pageId: p.id, title: p.title, style: p.style, blocks: JSON.parse(p.blocks) as unknown, updatedAt: new Date(fromSqliteTime(p.updated_at)).toISOString() })),
     notebookImages,
+    notebookInk: notebookInk.results.map((r) => ({
+      docId: r.doc_id,
+      pageId: r.page_id,
+      note: "What you drew on this page of notes: pen and highlighter strokes, each attached to a character of a block (offsets in hundredths of an em) or to a block's box (ten-thousandths of its width); points are x, y, pressure.",
+      strokes: JSON.parse(r.strokes) as unknown,
+      updatedAt: new Date(fromSqliteTime(r.updated_at)).toISOString(),
+    })),
     reports: reports.results.map((r) => ({ kind: r.kind, problem: r.problem, note: r.note, sent: JSON.parse(r.context), reportedAt: new Date(fromSqliteTime(r.created_at)).toISOString() })),
     library: lib.results.map((r) => ({ ...(JSON.parse(r.data) as Paper), savedAt: new Date(fromSqliteTime(r.saved_at)).toISOString() })),
     literatureScans: scans.results.map((s) => ({ topic: s.topic, language: s.language, state: s.state, startedAt: new Date(fromSqliteTime(s.created_at)).toISOString(), keptUntil: new Date(fromSqliteTime(s.expires_at)).toISOString(), subQuestions: JSON.parse(s.plan) as unknown, results: scanParts.results.filter((p) => p.scan_id === s.id).map((p) => (JSON.parse(p.data) as { part: unknown }).part) })),

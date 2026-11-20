@@ -20,21 +20,29 @@ export type DocRun = {
   anchor?: string;
 };
 
+/**
+ * A picture floating in front of a paragraph's text without moving it (ink on the pages of notes, docs/design/paper-reader.md, 25.8): anchored to the paragraph (it moves with it), `x` from
+ * the column's left edge and `y` from the paragraph's top, its size `w` by `h`, all in points (`y` may be negative: ink above the first line). `media` is its PNG's name in word/media.
+ */
+export type DocFloat = { media: string; x: number; y: number; w: number; h: number; alt: string };
+
 export type Block =
   | { k: "title"; runs: DocRun[] }
-  | { k: "h1" | "h2" | "h3"; runs: DocRun[]; bookmark?: string }
-  | { k: "p"; runs: DocRun[]; bookmark?: string }
+  | { k: "h1" | "h2" | "h3"; runs: DocRun[]; bookmark?: string; floats?: DocFloat[] }
+  | { k: "p"; runs: DocRun[]; bookmark?: string; floats?: DocFloat[] }
   /** A paragraph that stands out (a caution): shaded, with a bar at its left edge. */
-  | { k: "note"; runs: DocRun[] }
-  | { k: "bullet"; runs: DocRun[] }
+  | { k: "note"; runs: DocRun[]; floats?: DocFloat[] }
+  | { k: "bullet"; runs: DocRun[]; floats?: DocFloat[] }
   /** A numbered paragraph of a list that keeps its own numbers (the references): the number is written, so it matches the marks in the text. */
-  | { k: "ref"; no: number; runs: DocRun[]; bookmark?: string }
+  | { k: "ref"; no: number; runs: DocRun[]; bookmark?: string; floats?: DocFloat[] }
+  /** Blank room `h` points high (a space block of the notes, 25), holding its drawing. */
+  | { k: "space"; h: number; floats?: DocFloat[] }
   | { k: "table"; widths: number[]; head: string[]; rows: DocRun[][][] }
   /**
    * A picture on a line of its own (the Notebook's captures and sketches): `media` is its file's name in the zip's word/media folder ("image1.png"), which the caller adds, as this module
    * makes text only; `w` and `h` its size in CSS pixels (made smaller to fit the page's width), `alt` what it shows.
    */
-  | { k: "image"; media: string; w: number; h: number; alt: string; /** shown at this fraction of the text's width (a picture the reader made narrower) */ frac?: number };
+  | { k: "image"; media: string; w: number; h: number; alt: string; /** shown at this fraction of the text's width (a picture the reader made narrower) */ frac?: number; floats?: DocFloat[] };
 
 export type DocxDoc = {
   title: string;
@@ -44,6 +52,11 @@ export type DocxDoc = {
   /** The language of the text, for spell checking (BCP 47: en-IN, hi-IN). */
   lang?: string;
   blocks: Block[];
+  /**
+   * The notes have ink on them (25.8): the text is Arial (Helvetica's widths, which the page's line-breaker knows, so its predicted lines are Word's), its lines exactly 1.4 times the size,
+   * and its width the PDF's (56 pt margins), so that a paragraph's drawing lands where it was drawn.
+   */
+  ink?: boolean;
 };
 
 /** What Word sees as the first line of a file: the parts of the zip, by path. */
@@ -84,12 +97,12 @@ export function safeLink(raw: string | undefined): string | null {
 /** A bookmark name Word accepts: starts with a letter, letters digits and underscores only, at most 40 characters. */
 export const bookmarkName = (raw: string): string => `b${raw.replace(/[^A-Za-z0-9_]/g, "_")}`.slice(0, 40);
 
-const FONT = "Calibri";
+const BODY_FONT = "Calibri";
 const COMPLEX_FONT = "Nirmala UI"; // Hindi and other Indian scripts in Word
 
 /* ---------------------------------------------------------------- runs */
 
-type Ctx = { links: string[]; bookmarkId: number; images: string[] };
+type Ctx = { links: string[]; bookmarkId: number; images: string[]; ink: boolean; layer: number };
 
 function runXml(r: DocRun, ctx: Ctx): string {
   const text = xmlSafe(r.t);
@@ -126,6 +139,37 @@ function withBookmark(inner: string, name: string | undefined, ctx: Ctx): string
 
 const para = (style: string | null, inner: string, extra = "") => `<w:p><w:pPr>${style ? `<w:pStyle w:val="${style}"/>` : ""}${extra}</w:pPr>${inner}</w:p>`;
 
+/** EMU in a point. */
+const PT = 12700;
+const emu = (pt: number) => Math.round(pt * PT);
+
+/** A float (25.8): wp:anchor with its children in the schema's order, relative to the column and the paragraph, no wrapping, in front of the text; each one later is on top. */
+function floatXml(f: DocFloat, ctx: Ctx): string {
+  if (!MEDIA.test(f.media) || !(f.w > 0) || !(f.h > 0) || ![f.x, f.y].every(Number.isFinite)) return "";
+  let i = ctx.images.indexOf(f.media);
+  if (i < 0) i = ctx.images.push(f.media) - 1;
+  const id = 1000 + ctx.bookmarkId++;
+  const cx = emu(f.w);
+  const cy = emu(f.h);
+  const alt = xmlEscape(f.alt);
+  return (
+    `<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="${251660000 + ctx.layer++}" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">` +
+    '<wp:simplePos x="0" y="0"/>' +
+    `<wp:positionH relativeFrom="column"><wp:posOffset>${emu(f.x)}</wp:posOffset></wp:positionH>` +
+    `<wp:positionV relativeFrom="paragraph"><wp:posOffset>${emu(f.y)}</wp:posOffset></wp:positionV>` +
+    `<wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>` +
+    `<wp:docPr id="${id}" name="Drawing ${id}" descr="${alt}"/><wp:cNvGraphicFramePr/>` +
+    '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+    `<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" name="${f.media}" descr="${alt}"/><pic:cNvPicPr/></pic:nvPicPr>` +
+    `<pic:blipFill><a:blip r:embed="rIdI${i + 1}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>` +
+    "</a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
+  );
+}
+const floatsXml = (b: { floats?: DocFloat[] }, ctx: Ctx) => (b.floats ?? []).map((f) => floatXml(f, ctx)).join("");
+/** With ink, a paragraph's lines are exactly 1.4 times its size (in twentieths of a point), as the PDF's and the page's prediction of Word's are. */
+const exact = (ctx: Ctx, size: number) => (ctx.ink ? `<w:spacing w:line="${Math.round(size * 1.4 * 20)}" w:lineRule="exact"/>` : "");
+
 function tableXml(b: Extract<Block, { k: "table" }>, ctx: Ctx): string {
   const total = b.widths.reduce((a, c) => a + c, 0) || 1;
   const widths = b.widths.map((w) => Math.max(400, Math.round((w / total) * 9638))); // A4 text width: 9638 twentieths of a point
@@ -149,15 +193,18 @@ function blockXml(b: Block, ctx: Ctx): string {
     case "h1":
     case "h2":
     case "h3":
-      return para(b.k === "h1" ? "Heading1" : b.k === "h2" ? "Heading2" : "Heading3", withBookmark(runsXml(b.runs, ctx), b.bookmark, ctx));
+      return para(b.k === "h1" ? "Heading1" : b.k === "h2" ? "Heading2" : "Heading3", floatsXml(b, ctx) + withBookmark(runsXml(b.runs, ctx), b.bookmark, ctx), b.k === "h1" ? "" : exact(ctx, b.k === "h2" ? 13 : 11.5));
     case "p":
-      return para(null, withBookmark(runsXml(b.runs, ctx), b.bookmark, ctx));
+      return para(null, floatsXml(b, ctx) + withBookmark(runsXml(b.runs, ctx), b.bookmark, ctx), exact(ctx, 11));
     case "note":
-      return para("Note", runsXml(b.runs, ctx));
+      return para("Note", floatsXml(b, ctx) + runsXml(b.runs, ctx), exact(ctx, 10));
     case "bullet":
-      return para("ListBullet", runsXml(b.runs, ctx), '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>');
+      return para("ListBullet", floatsXml(b, ctx) + runsXml(b.runs, ctx), `<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>${exact(ctx, 11)}`);
     case "ref":
-      return para("Reference", withBookmark(`${runXml({ t: `${b.no}.`, b: true }, ctx)}<w:r><w:tab/></w:r>${runsXml(b.runs, ctx)}`, b.bookmark, ctx));
+      return para("Reference", floatsXml(b, ctx) + withBookmark(`${runXml({ t: `${b.no}.`, b: true }, ctx)}<w:r><w:tab/></w:r>${runsXml(b.runs, ctx)}`, b.bookmark, ctx), exact(ctx, 11));
+    case "space":
+      // the room is the line's own exact height (Word holds at most 1,584 pt a line)
+      return para(null, floatsXml(b, ctx), `<w:spacing w:before="0" w:after="0" w:line="${Math.max(20, Math.min(31_680, Math.round(b.h * 20)))}" w:lineRule="exact"/>`);
     case "table":
       return tableXml(b, ctx);
     case "image":
@@ -180,7 +227,7 @@ function imageXml(b: Extract<Block, { k: "image" }>, ctx: Ctx): string {
   const id = 1000 + ctx.bookmarkId++;
   const alt = xmlEscape(b.alt);
   return (
-    '<w:p><w:pPr><w:keepNext/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">' +
+    `<w:p><w:pPr><w:keepNext/></w:pPr>${floatsXml(b, ctx)}<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">` +
     `<wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="Picture ${id}" descr="${alt}"/>` +
     '<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>' +
     '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
@@ -196,7 +243,8 @@ function imageXml(b: Extract<Block, { k: "image" }>, ctx: Ctx): string {
 const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
 const XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 
-function stylesXml(lang: string): string {
+function stylesXml(lang: string, ink: boolean): string {
+  const FONT = ink ? "Arial" : BODY_FONT;
   const style = (id: string, name: string, ppr: string, rpr: string, based = "Normal", next = "Normal") =>
     `<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${name}"/><w:basedOn w:val="${based}"/><w:next w:val="${next}"/><w:qFormat/>${ppr ? `<w:pPr>${ppr}</w:pPr>` : ""}${rpr ? `<w:rPr>${rpr}</w:rPr>` : ""}</w:style>`;
   return (
@@ -227,12 +275,12 @@ const isoDate = (d: Date) => (Number.isNaN(d.getTime()) ? new Date(0) : d).toISO
 
 /** The parts of the file, by path in the zip. */
 export function buildDocx(doc: DocxDoc): DocxParts {
-  const ctx: Ctx = { links: [], bookmarkId: 1, images: [] };
+  const ctx: Ctx = { links: [], bookmarkId: 1, images: [], ink: !!doc.ink, layer: 0 };
   const lang = doc.lang && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(doc.lang) ? doc.lang : "en-IN";
   const body = doc.blocks.map((b) => blockXml(b, ctx)).join("");
   const documentXml =
     `${XML}<w:document ${NS}><w:body>${body || para(null, "")}` +
-    '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1304" w:right="1134" w:bottom="1304" w:left="1134" w:header="709" w:footer="709" w:gutter="0"/></w:sectPr></w:body></w:document>';
+    `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1304" w:right="${doc.ink ? 1120 : 1134}" w:bottom="1304" w:left="${doc.ink ? 1120 : 1134}" w:header="709" w:footer="709" w:gutter="0"/></w:sectPr></w:body></w:document>`;
   const rel = (id: string, type: string, target: string, external = false) =>
     `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${xmlEscape(target)}"${external ? ' TargetMode="External"' : ""}/>`;
   return {
@@ -257,7 +305,7 @@ export function buildDocx(doc: DocxDoc): DocxParts {
       ctx.links.map((u, i) => rel(`rIdL${i + 1}`, "hyperlink", u, true)).join("") +
       ctx.images.map((m, i) => rel(`rIdI${i + 1}`, "image", `media/${m}`)).join("") +
       "</Relationships>",
-    "word/styles.xml": stylesXml(lang),
+    "word/styles.xml": stylesXml(lang, !!doc.ink),
     "word/numbering.xml": NUMBERING,
     "docProps/core.xml":
       `${XML}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">` +

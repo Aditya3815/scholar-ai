@@ -319,6 +319,7 @@
 .nb-sk-dot { display: block; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .nb-sk-dot[data-size="s"] { width: 4px; height: 4px; }
 .nb-sk-dot[data-size="l"] { width: 11px; height: 11px; }
+.nb-sk-dot[data-size="xl"] { width: 15px; height: 15px; }
 .nb-sketch-area { position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-s); background: #fff; filter: var(--page-filter); touch-action: none; cursor: crosshair; }
 .nb-sketch-area[data-tool="eraser"] { cursor: cell; }
 .nb-sketch-area svg { display: block; }
@@ -375,3 +376,59 @@
 .nb-mirror [data-u] { text-decoration: underline; text-underline-offset: 0.15em; }
 .nb-mirror [data-hl] { background: color-mix(in srgb, var(--mean-key) 30%, var(--surface)); }
 .nb-mirror [data-b] { text-shadow: 0.4px 0 0 currentColor, -0.2px 0 0 currentColor; }
+
+/* Ink on the page (docs/design/paper-reader.md, 25): drawn over the blocks by one SVG that never takes the pointer; in Draw mode a layer over the blocks and their margins takes the pen.
+   The pen's colours follow the page's theme (the paper's "ink" is the text's colour, so it never vanishes on Dark); the highlighter is see-through. Exports use the light palette on white. */
+.nb {
+  --nbi-ink: var(--text); --nbi-blue: #2b4ccf; --nbi-red: #c62d24; --nbi-green: #1b7a48; --nbi-orange: #b85800; --nbi-violet: #7a3fc2;
+  --nbh-yellow: #ffd84d; --nbh-green: #6fe3a1; --nbh-pink: #ff8fc2; --nbh-blue: #7cc4ff; --nbh-orange: #ffb066; --nbh-op: 0.45;
+}
+:root[data-theme="dark"] .nb { --nbi-blue: #9db2ff; --nbi-red: #ff9488; --nbi-green: #74d6a0; --nbi-orange: #ffb067; --nbi-violet: #caa8ff; --nbh-op: 0.32; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .nb { --nbi-blue: #9db2ff; --nbi-red: #ff9488; --nbi-green: #74d6a0; --nbi-orange: #ffb067; --nbi-violet: #caa8ff; --nbh-op: 0.32; }
+}
+.nb-inkwrap { position: relative; }
+.nb-inksvg { position: absolute; top: 0; left: 0; z-index: 1; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+/* a marker's ends are flat, as on the paper (ink-path.ts): it covers what was drawn over, and no more */
+.nbi-hl { fill: none; stroke-linecap: butt; stroke-linejoin: round; stroke-opacity: var(--nbh-op); }
+@media (forced-colors: active) {
+  .nbi-pen { fill: CanvasText !important; }
+  .nbi-hl { stroke: Highlight !important; stroke-opacity: 0.4; }
+}
+.nb-space { width: 100%; min-height: 48px; }
+.nb-block[data-kind="space"] > .nb-handle,
+.nb-block[data-kind="space"] > .nb-blockmenu .icon-btn { margin-top: 0; }
+
+/* Draw mode: a thin accent outline round the page, a crosshair, no text selection, the blocks' handles and menus away; the room below the last block to draw in; a small pill says how to leave */
+.nb-inkcatch { position: absolute; top: 0; bottom: 0; left: calc(-1 * var(--nb-pad)); right: calc(-1 * var(--nb-pad)); z-index: 1; cursor: crosshair; touch-action: pan-y pinch-zoom; outline: none; }
+.nb-inkcatch[data-finger] { touch-action: none; }
+.nb-inkcatch[data-tool="eraser"] { cursor: cell; }
+.nb[data-drawing] .nb-inkwrap { -webkit-user-select: none; user-select: none; border-radius: var(--radius-s); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 0 4px var(--accent-soft); }
+.nb[data-drawing] .nb-block > .nb-handle,
+.nb[data-drawing] .nb-block > .nb-blockmenu,
+.nb[data-drawing] .nb-block > .cm-dot { visibility: hidden; }
+.nb[data-drawing] .nb-text:hover { box-shadow: none; }
+.nb-room { min-height: max(12rem, 30vh); border-top: 1px dashed color-mix(in srgb, var(--border-strong) 60%, transparent); }
+.nb-inkpill { position: sticky; bottom: 0.75rem; z-index: 2; align-self: center; margin: 0.75rem auto 0; padding: 0.3rem 0.8rem; border-radius: 999px; background: var(--text); color: var(--surface); font-size: 0.75rem; font-weight: 600; pointer-events: none; box-shadow: var(--shadow-2); }
+
+/* the ink row: the format row's place, one row; on a phone the colours open from one button, and the row scrolls sideways with a fade */
+.nb-inkrow { display: grid; }
+.nb-inkgroup { display: inline-flex; flex: none; align-items: center; gap: 2px; }
+.nb-tool[aria-checked="true"] { background: var(--accent-soft); color: var(--accent); }
+.nb-tool:disabled { opacity: 0.4; cursor: default; }
+.nb-tool:disabled:hover { background: none; color: var(--muted); }
+.nb-inkon[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.nb-inkdot { display: block; width: 18px; height: 18px; border: 2px solid var(--surface); border-radius: 50%; box-shadow: 0 0 0 1px var(--border-strong); }
+.nb-inkcolor[aria-checked="true"] { background: none; }
+.nb-inkcolor[aria-checked="true"] .nb-inkdot { box-shadow: 0 0 0 2px var(--accent); }
+.nb-inkpalbtn { display: none; }
+.nb-inkdone { margin-left: auto; padding: 0 0.75rem; color: var(--accent); }
+.nb-tool[role="switch"][aria-checked="true"] { background: var(--accent-soft); color: var(--accent); }
+@container (max-width: 560px) {
+  .nb-inkpalbtn { display: inline-flex; }
+  .nb-inkpal:not([data-open]) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nb-tools-main::before,
+  .nb-tools-main::after { transition: none; }
+}

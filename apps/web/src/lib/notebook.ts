@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { NOTEBOOK_LIMITS, type NotebookBlock, type NotebookPage, type NotebookStyle, type QuoteColor, type TextBlock } from "@scholar/shared";
+import { NOTEBOOK_LIMITS, type NotebookBlock, type NotebookInk, type NotebookPage, type NotebookStyle, type QuoteColor, type TextBlock } from "@scholar/shared";
 import { idbDelete, idbGet, idbSet } from "./idb";
 
 /**
@@ -147,6 +147,9 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
   let known: ReadonlySet<string> | null = null;
   let snapshot: NbState;
   const listeners = new Set<() => void>();
+  /** The ink on the pages as the last load had it (25): the ink chunk takes it from here; and what is told when the store is destroyed (the ink sends what it holds). */
+  let serverInk: NotebookInk[] = [];
+  const onDestroy = new Set<() => void>();
 
   const slotOf = (id: string) => slots.find((s) => s.page.id === id);
   const sorted = () => slots.sort((a, b) => a.page.position - b.page.position);
@@ -382,7 +385,9 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
     try {
       const res = await deps.fetch(url, { credentials: "same-origin" });
       if (!res.ok) throw new Error(String(res.status));
-      const pages = ((await res.json()) as { pages: NotebookPage[] }).pages;
+      const got = (await res.json()) as { pages: NotebookPage[]; ink?: NotebookInk[] };
+      const pages = got.pages;
+      serverInk = got.ink ?? [];
       if (!alive) return;
       slots = pages.map((p) => slotFor(fromServer(p)));
       // what was written here and not sent (offline, or a tab closed too soon) is taken up again
@@ -438,7 +443,21 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
   };
 
   const api = {
+    docId,
     get: (): NbState => snapshot,
+    /** The ink on the pages from the last load (25). */
+    serverInk: (): readonly NotebookInk[] => serverInk,
+    /** Told once when the store is destroyed. */
+    onDestroy(fn: () => void) {
+      onDestroy.add(fn);
+    },
+    /** A starter page that was drawn on (and not written in) is made on the server, so its ink has a page to belong to. */
+    keep(id: string) {
+      const s = slotOf(id);
+      if (!s || !s.starter) return;
+      s.starter = false;
+      changed(s, "blocks");
+    },
     subscribe(l: () => void) {
       listeners.add(l);
       return () => listeners.delete(l);
@@ -655,6 +674,8 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
     unsafe: () => anyDirty() && !persisted,
     destroy() {
       api.flush();
+      onDestroy.forEach((fn) => fn());
+      onDestroy.clear();
       alive = false;
       for (const s of slots) {
         deps.timers.clear(s.timer);

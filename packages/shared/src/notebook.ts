@@ -86,9 +86,15 @@ export const NOTEBOOK_AGENT_LABEL: Record<NotebookAgent, string> = { ask: "Ask",
  * citation is written as its page ("p. 4"), the pages it cites, and when it was made (ms since 1970).
  */
 export type AgentBlock = { id: string; kind: "agent"; agent: NotebookAgent; ask: string; md: string; pages: number[]; at: number };
-export type NotebookBlock = TextBlock | QuoteBlock | CaptureBlock | SketchBlock | ImageBlock | AgentBlock;
+/**
+ * Blank room in the flow of a page, to draw in (ink on notes, docs/design/paper-reader.md, 25): no box and no border, only its height, as ten-thousandths of the page's width (so the ink in
+ * it keeps its shape at any width, as a sketch's does). Old clients never send it.
+ */
+export type SpaceBlock = { id: string; kind: "space"; h: number };
+export const SPACE_H = { min: 300, max: 40_000 } as const;
+export type NotebookBlock = TextBlock | QuoteBlock | CaptureBlock | SketchBlock | ImageBlock | AgentBlock | SpaceBlock;
 export type NotebookBlockKind = NotebookBlock["kind"];
-export const NOTEBOOK_BLOCK_KINDS = ["text", "quote", "capture", "sketch", "image", "agent"] as const satisfies readonly NotebookBlockKind[];
+export const NOTEBOOK_BLOCK_KINDS = ["text", "quote", "capture", "sketch", "image", "agent", "space"] as const satisfies readonly NotebookBlockKind[];
 /** The kinds the server accepts (phase 3): every kind. */
 export const NOTEBOOK_KINDS_NOW: readonly NotebookBlockKind[] = NOTEBOOK_BLOCK_KINDS;
 
@@ -206,6 +212,10 @@ function checkBlock(raw: unknown, maxPage: number, kinds: readonly NotebookBlock
       if (!isInt(b.at, 0, 8_640_000_000_000_000)) return "an answer's time is not valid";
       return { id: b.id, kind, agent: b.agent as NotebookAgent, ask, md, pages: [...(b.pages as number[])], at: b.at };
     }
+    case "space": {
+      if (!isInt(b.h, SPACE_H.min, SPACE_H.max)) return `a space's height is not from ${SPACE_H.min} to ${SPACE_H.max}`;
+      return { id: b.id, kind, h: b.h };
+    }
   }
 }
 
@@ -234,17 +244,27 @@ export const agentHeading = (b: Pick<AgentBlock, "agent" | "pages">): string => 
 
 /* ---------------------------------------------------------------- Markdown export */
 
-export type NotebookExportPage = { title: string; blocks: readonly NotebookBlock[] };
+/** A page to export; `ink` its strokes (ink on notes, 25), of which only the block each is attached to is read here. */
+export type NotebookExportPage = { title: string; blocks: readonly NotebookBlock[]; ink?: readonly { a: { b: string } }[] };
 
 /**
  * The pages as one Markdown text: the paper's title, each page under its own heading, a text block as it was written (its headings put under the page's: # is ###), a quote as a
- * Markdown quote with its meaning and page ("Key idea, p. 4"; `names` gives each colour's name), an answer with its agent and pages, a capture as the place it is.
+ * Markdown quote with its meaning and page ("Key idea, p. 4"; `names` gives each colour's name), an answer with its agent and pages, a capture as the place it is. Markdown cannot hold
+ * ink over text: a block drawn on is followed by the line "*(Drawn on: 3 strokes)*", and a space by "*(A drawing: 5 strokes)*".
  */
 export function notebookMarkdown(paperTitle: string, pages: readonly NotebookExportPage[], names: Record<QuoteColor, string>): string {
   const out: string[] = [`# ${paperTitle.replace(/\s+/g, " ").trim() || "Notes"}`, ""];
   for (const p of pages) {
     out.push(`## ${p.title.trim() || "Untitled page"}`, "");
+    const drawn = new Map<string, number>();
+    for (const s of p.ink ?? []) drawn.set(s.a.b, (drawn.get(s.a.b) ?? 0) + 1);
+    const strokes = (n: number) => `${n} ${n === 1 ? "stroke" : "strokes"}`;
     for (const b of p.blocks) {
+      const n = drawn.get(b.id) ?? 0;
+      if (b.kind === "space") {
+        if (n) out.push(`*(A drawing: ${strokes(n)})*`, "");
+        continue;
+      }
       if (b.kind === "text") {
         const md = b.md.replace(/^(#{1,3}) /gm, "##$1 ").trim();
         if (md) out.push(md, "");
@@ -259,6 +279,7 @@ export function notebookMarkdown(paperTitle: string, pages: readonly NotebookExp
       } else {
         out.push(`*A picture*${b.alt ? `: ${b.alt}` : ""}${b.width !== undefined && b.width < 1 ? ` (shown at ${Math.round(b.width * 100)}% of the page's width)` : ""}`, "");
       }
+      if (n) out.push(`*(Drawn on: ${strokes(n)})*`, "");
     }
   }
   return `${out.join("\n").replace(/\n{3,}/g, "\n\n").trim()}\n`;

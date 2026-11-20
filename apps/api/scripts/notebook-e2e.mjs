@@ -57,17 +57,45 @@ try {
   const back = await A.api(PG("p2"), { method: "PUT", body: { title: gone.title, style: gone.style, position: gone.position, blocks: gone.blocks } });
   ok(back.status === 201 && JSON.stringify((await back.json()).page.blocks) === JSON.stringify(gone.blocks), "Undo puts the page back with all its blocks (PUT with no revision)");
 
+  console.log("ink on the pages (paper-reader.md 25)");
+  const INK = (id) => `${PG(id)}/ink`;
+  const stroke = (id, over = {}) => ({ id, tool: "pen", color: "blue", w: 14, a: { k: "text", b: "t1", at: 4, q: "le" }, pts: [0, 0, 50, 200, -30, 60], ...over });
+  const inkRows = async (where) => (await sqlResults([`SELECT COUNT(*) AS n FROM doc_notebook_ink WHERE ${where}`]))?.[0]?.[0]?.n;
+  const drew = await A.api(INK("p1"), { method: "PUT", body: { strokes: [stroke("s1")] } });
+  const drewInk = (await drew.json()).ink;
+  ok(drew.status === 200 && drewInk.rev === 1 && drewInk.strokes.length === 1, "a page's ink is saved in a row of its own (PUT .../ink, revision 1)");
+  ok((await A.api(INK("p1"), { method: "PUT", body: { rev: 1, strokes: [stroke("s1"), stroke("s2", { tool: "highlighter", color: "yellow", a: { k: "box", b: "q1" } })] } })).status === 200, "replaced with its revision (a box anchor too)");
+  const inkConflict = await A.api(INK("p1"), { method: "PUT", body: { rev: 1, strokes: [] } });
+  const ic = await inkConflict.json();
+  ok(inkConflict.status === 409 && ic.ink.rev === 2 && ic.ink.strokes.length === 2, "a stale revision gets 409 and the server's ink, to merge by stroke id");
+  ok((await A.api(INK("p1"), { method: "PUT", body: { rev: 2, strokes: [stroke("s3", { color: "yellow" })] } })).status === 400, "a pen in a highlighter's colour is refused (400)");
+  ok((await A.api(INK("nope"), { method: "PUT", body: { strokes: [] } })).status === 404, "ink on a page that is not there: 404 (the page tries again once it is made)");
+  ok((await B.api(INK("p1"), { method: "PUT", body: { strokes: [] } })).status === 404, "another person cannot draw on it (404)");
+  ok((await A.api(INK("p1"), { method: "PUT", body: { strokes: [] }, origin: null })).status === 403, "a write of ink has the cross-origin check");
+  const withInk = await (await A.api(NB)).json();
+  ok(withInk.ink.length === 1 && withInk.ink[0].pageId === "p1" && withInk.ink[0].strokes.length === 2 && withInk.pages.find((p) => p.id === "p1").rev === 3, "GET .../notebook carries the ink beside the pages, and drawing does not move the page's revision");
+  await A.api(INK("p2"), { method: "PUT", body: { strokes: [stroke("r1", { a: { k: "text", b: "r1", at: 0, q: "S" } })] } });
+  ok((await inkRows(`doc_id = '${doc.id}'`)) === 2, "(ink on two pages)");
+  const p2 = (await (await A.api(NB)).json()).pages.find((p) => p.id === "p2");
+  ok((await A.api(PG("p2"), { method: "DELETE" })).status === 204 && (await inkRows(`doc_id = '${doc.id}'`)) === 1, "deleting a page deletes its ink");
+  await A.api(PG("p2"), { method: "PUT", body: { title: p2.title, style: p2.style, position: p2.position, blocks: p2.blocks } });
+  ok((await A.api(INK("p2"), { method: "PUT", body: { rev: 1, strokes: [stroke("r1")] } })).status === 200, "Undo of the page: its ink is sent again (its old revision makes the row again)");
+
   console.log("export and deletion");
   const exp = await (await A.api("/api/v1/account/export")).json();
   const mine = (exp.notebook ?? []).filter((p) => p.docId === doc.id);
   ok(mine.length === 2 && mine[0].title === "Results" && mine[1].blocks.some((b) => b.kind === "quote" && b.quote === "recruited 214 participants"), `the data export carries the notebook, in order (${mine.map((p) => p.title).join(", ")})`);
   ok(JSON.stringify((await (await B.api("/api/v1/account/export")).json()).notebook) === "[]", "and nobody else's");
+  const myInk = (exp.notebookInk ?? []).filter((p) => p.docId === doc.id);
+  ok(myInk.length === 2 && myInk.every((p) => p.pageId && Array.isArray(p.strokes) && p.note) && mine.every((p) => p.pageId), `the data export carries the ink on the pages, by page (${myInk.map((p) => `${p.pageId}: ${p.strokes.length}`).join(", ")})`);
+  ok(JSON.stringify((await (await B.api("/api/v1/account/export")).json()).notebookInk) === "[]", "and nobody else's ink");
   ok((await rows(`doc_id = '${doc.id}'`)) === 2, "(two rows before the paper is deleted)");
-  ok((await A.api(`/api/v1/documents/${doc.id}`, { method: "DELETE" })).status === 200 && (await rows(`doc_id = '${doc.id}'`)) === 0, "deleting the paper deletes its pages of notes");
+  ok((await A.api(`/api/v1/documents/${doc.id}`, { method: "DELETE" })).status === 200 && (await rows(`doc_id = '${doc.id}'`)) === 0 && (await inkRows(`doc_id = '${doc.id}'`)) === 0, "deleting the paper deletes its pages of notes and their ink");
   const doc2 = (await (await upload(A)).json()).document;
   await A.api(`/api/v1/documents/${doc2.id}/notebook/pages/k1`, { method: "PUT", body: { blocks: [text("k", "kept until the account goes")] } });
-  ok((await rows(`doc_id = '${doc2.id}'`)) === 1, "(a page on a second paper)");
-  ok((await A.api("/api/v1/account", { method: "DELETE", body: { confirm: "DELETE" } })).status === 200 && (await rows(`doc_id = '${doc2.id}'`)) === 0, "deleting the account deletes every page of notes");
+  await A.api(`/api/v1/documents/${doc2.id}/notebook/pages/k1/ink`, { method: "PUT", body: { strokes: [stroke("k1", { a: { k: "text", b: "k", at: 0, q: "k" } })] } });
+  ok((await rows(`doc_id = '${doc2.id}'`)) === 1 && (await inkRows(`doc_id = '${doc2.id}'`)) === 1, "(a page on a second paper, drawn on)");
+  ok((await A.api("/api/v1/account", { method: "DELETE", body: { confirm: "DELETE" } })).status === 200 && (await rows(`doc_id = '${doc2.id}'`)) === 0 && (await inkRows(`doc_id = '${doc2.id}'`)) === 0, "deleting the account deletes every page of notes, and the ink on them");
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
   countFailure();

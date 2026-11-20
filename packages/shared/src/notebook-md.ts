@@ -149,6 +149,17 @@ export function mdPlainText(md: string): string {
     .trim();
 }
 
+/**
+ * The text of a block exactly as the page puts it into the DOM (`element.textContent` of what MdView draws): every text token, in order, with nothing between them (a line break is an
+ * element with no text, and list numbers and bullets are CSS). Ink on notes (25) keeps its anchors as offsets in it, so the screen, the PDF and the Word file read them alike.
+ */
+export function mdPlain(md: string): string {
+  const flat = (c: MdInline[]): string => c.map((x) => (x.t === "text" ? x.s : x.t === "br" ? "" : flat(x.c))).join("");
+  return parseNotebookMd(md)
+    .map((b) => (b.t === "h" || b.t === "p" ? flat(b.c) : b.items.map(flat).join("")))
+    .join("");
+}
+
 /* ---------------------------------------------------------------- the source, styled (the text field while it is written in) */
 
 /** A piece of a block's source: its characters as typed, whether they are a mark (drawn faint), and the styles of the text it is in. Together the pieces are the source, character for character. */

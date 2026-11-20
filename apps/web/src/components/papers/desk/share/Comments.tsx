@@ -63,7 +63,7 @@ function anchorOn(a: CommentAnchor, notes: DocNote[], pages: PageLike[] | null, 
   const k = ps.findIndex((p) => p.id === pageId);
   const b = ps[k]?.blocks.find((x) => x.id === blockId);
   if (!b) return { text: "A block of the notes", color: null, where: "", whereLabel: "", gone: !!pages };
-  const text = b.kind === "text" ? mdPlainText(b.md) : b.kind === "quote" ? b.quote : b.kind === "capture" ? b.caption || `A part of page ${b.page}` : b.kind === "image" ? b.alt || "A picture" : b.kind === "sketch" ? "A sketch" : mdPlainText(b.md);
+  const text = b.kind === "text" ? mdPlainText(b.md) : b.kind === "quote" ? b.quote : b.kind === "capture" ? b.caption || `A part of page ${b.page}` : b.kind === "image" ? b.alt || "A picture" : b.kind === "sketch" ? "A sketch" : b.kind === "space" ? "A drawing" : mdPlainText(b.md);
   const page = pageLabel(ps[k]!.title, k);
   return { text: text.replace(/\s+/g, " ").trim() || "An empty block", color: b.kind === "quote" ? b.color : null, where: page, whereLabel: `Show it in the notes, on ${page}`, gone: false };
 }

@@ -82,7 +82,7 @@ describe("the Notebook's checks (shared by the page and the server)", () => {
     const capture = { id: "c", kind: "capture", page: 3, x: 0.1, y: 0.2, w: 0.5, h: 0.3, caption: "Figure 1", size: "m" };
     const sketch = { id: "s", kind: "sketch", height: 240, strokes: [{ id: "k1", tool: "pen", color: "blue", w: 0.004, pts: [0.1, 0.1, 0.5, 0.2, 0.3, 0.5] }] };
     const agent = { id: "a", kind: "agent", agent: "explain", ask: "the patch embedding", md: "It means… (p. 1, 4)", pages: [1, 4], at: 1_763_500_000_000 };
-    expect([...NOTEBOOK_KINDS_NOW]).toEqual(["text", "quote", "capture", "sketch", "image", "agent"]);
+    expect([...NOTEBOOK_KINDS_NOW]).toEqual(["text", "quote", "capture", "sketch", "image", "agent", "space"]);
     expect(checkNotebookBlocks([capture, sketch, agent], 10)).toEqual({ ok: true, blocks: [capture, sketch, agent] });
     const r = checkNotebookBlocks([agent], 10, ["text", "quote"]);
     expect(r.ok === false && r.status === 400 && /not accepted yet/.test(r.reason)).toBe(true);
