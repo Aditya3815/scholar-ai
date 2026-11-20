@@ -17,7 +17,7 @@ async function colourOf(db: D1Database, docId: string, who: { userId: string; vi
   if (who.via === "owner") return liveColour(0);
   if (who.via === "member" && who.memberId) {
     const r = await db
-      .prepare("SELECT COUNT(*) AS n FROM doc_members m, doc_members me WHERE me.doc_id = ?1 AND me.id = ?2 AND m.doc_id = ?1 AND (m.invited_at < me.invited_at OR (m.invited_at = me.invited_at AND m.id < me.id))")
+      .prepare("SELECT COUNT(*) AS n FROM doc_members m, doc_members me WHERE me.doc_id = ?1 AND me.id = ?2 AND m.doc_id = ?1 AND (m.invited_at < me.invited_at OR (m.invited_at = me.invited_at AND m.rowid < me.rowid))")
       .bind(docId, who.memberId)
       .first<{ n: number }>();
     return liveColour(1 + (r?.n ?? 0));
