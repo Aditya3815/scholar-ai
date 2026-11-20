@@ -1,11 +1,12 @@
 import { AnimatePresence, m } from "motion/react";
 import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Maximize2, Minimize2, NotebookPen, Share2, X } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
-import { MAX_SELECTION_CHARS, NOTEBOOK_LIMITS, NOTE_COLORS, ROLE_LABEL, noteAnchor, planNewHighlight, roleAtLeast, type Answer, type Citation, type CommentAnchor, type DocNote, type DocumentInfo, type LivePerson, type NoteColor, type NotebookAgent, type NotebookBlock, type PaperAccess, type ReaderAgent, type PaperInfo, type ScanInfo } from "@scholar/shared";
+import { INVITE_PICTURE_MAX_BYTES, INVITE_PICTURE_WIDTH, MAX_SELECTION_CHARS, NOTEBOOK_LIMITS, NOTE_COLORS, ROLE_LABEL, noteAnchor, planNewHighlight, roleAtLeast, type Answer, type Citation, type CommentAnchor, type DocNote, type DocumentInfo, type LivePerson, type NoteColor, type NotebookAgent, type NotebookBlock, type PaperAccess, type ReaderAgent, type PaperInfo, type ScanInfo } from "@scholar/shared";
 import { downloadBlob } from "../../../lib/download";
 import { useComments } from "../../../lib/comments";
 import { leaveShared } from "../../../lib/share";
 import { fileUrl } from "../../../lib/documents";
+import { renderInvitePicture } from "../../../lib/invite-picture";
 import { registerCommands } from "../../../lib/commands";
 import { copyText } from "../../../lib/copy";
 import { VIEW_KEY, WIDE_QUERY, fitView, setDeskOpen, startView, useWide, viewsFor, type DeskView } from "../../../lib/desk";
@@ -1040,7 +1041,7 @@ export function Desk(props: DeskProps) {
       )}
       {shareEver && (
         <Suspense fallback={null}>
-          <ShareDialog open={shareOpen} onOpenChange={setShareOpen} docId={doc.id} title={doc.title} ownerName={props.myName} toast={(t, a) => void toast(t, a)} copy={copyText} returnFocus={() => shareBtn.current?.focus({ preventScroll: true })} />
+          <ShareDialog open={shareOpen} onOpenChange={setShareOpen} docId={doc.id} title={doc.title} ownerName={props.myName} toast={(t, a) => void toast(t, a)} copy={copyText} returnFocus={() => shareBtn.current?.focus({ preventScroll: true })} pagePicture={pdfReady ? () => renderInvitePicture(pdf.pdf, INVITE_PICTURE_WIDTH, INVITE_PICTURE_MAX_BYTES) : undefined} />
         </Suspense>
       )}
       <Toasts onRect={setToastRect} />

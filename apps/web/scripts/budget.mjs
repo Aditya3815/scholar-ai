@@ -46,6 +46,9 @@ export const LIMITS = {
   // small pieces of My Workspace and the link (/s/<token>) (0.7 and 0.5 KB), each fetched only when wanted; plus about 10 to 25 %. The first load grew by 0.33 KB of script and 0.06 KB of style.
   "the Share dialog chunk, script and style (gzip)": 6.5 * KB,
   "the shared paper chunk (read-only notes), script and style (gzip)": 5.5 * KB,
+  // The preview of the invitation e-mail in the Share dialog (paper-share.md, S4, 21 Nov 2026): the e-mail's HTML and words (shared invite-email.ts) and the frame that shows them, fetched only
+  // when the owner opens "Preview e-mail". 4.3 KB measured, plus about 15%. The dialog's own chunk grew by about 0.7 KB (the message box, the disclosure, the picture's request).
+  "the e-mail preview chunk, script and style (gzip)": 5 * KB,
   // The notes polish (19 Nov 2026): the comments (list, thread, the box to write in) moved out of the shared paper chunk into a chunk of their own, fetched when they are first opened,
   // and the page tabs (drag to reorder, All pages) out of the Notebook chunk; each has a line, and neither old line was raised.
   "the comments chunk, script and style (gzip)": 7.5 * KB,
@@ -94,6 +97,7 @@ const NOTES_EXPORT = "src/lib/notes-export.ts";
 const FONTKIT = "../../node_modules/@cantoo/fontkit/dist/browser-module.mjs";
 const SHARE_DIALOG = "src/components/papers/desk/share/ShareDialog.tsx";
 const SHARED_PARTS = "src/components/papers/desk/share/SharedParts.tsx";
+const EMAIL_PREVIEW = "src/components/papers/desk/share/EmailPreview.tsx";
 const COMMENTS = "src/components/papers/desk/share/Comments.tsx";
 const SHARED_WITH_ME = "src/components/papers/SharedWithMe.tsx";
 const SHARE_OPEN = "src/components/papers/ShareOpen.tsx";
@@ -121,6 +125,7 @@ const measured = {
   "the fontkit chunk, script (gzip)": sum(filesOf(FONTKIT), gz),
   "the Share dialog chunk, script and style (gzip)": sum(filesOf(SHARE_DIALOG), gz),
   "the shared paper chunk (read-only notes), script and style (gzip)": sum(filesOf(SHARED_PARTS), gz),
+  "the e-mail preview chunk, script and style (gzip)": sum(filesOf(EMAIL_PREVIEW), gz),
   "the comments chunk, script and style (gzip)": sum(filesOf(COMMENTS), gz),
   "Shared with me and the link opener, script (gzip)": sum([...filesOf(SHARED_WITH_ME, { css: false }), ...filesOf(SHARE_OPEN, { css: false })], gz),
   "the live presence chunk, script and style (gzip)": sum(filesOf(LIVE), gz),

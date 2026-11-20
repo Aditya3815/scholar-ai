@@ -1,0 +1,7 @@
+/* The preview of the invitation e-mail in the Share dialog (EmailPreview.tsx): a mail app's head (From, Subject) over the e-mail itself. Loaded with its chunk only. */
+.sh-preview { margin-top: 0.25rem; border: 1px solid var(--border); border-radius: var(--radius-s); overflow: hidden; background: var(--surface-2); }
+.sh-preview-head { margin: 0; padding: 0.5rem 0.75rem; display: grid; gap: 0.15rem; border-bottom: 1px solid var(--border); background: var(--surface); font-size: 0.8rem; }
+.sh-preview-head div { display: flex; gap: 0.5rem; min-width: 0; }
+.sh-preview-head dt { flex: none; width: 3.6rem; color: var(--muted); }
+.sh-preview-head dd { margin: 0; min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+.sh-preview-frame { display: block; width: 100%; border: 0; background: transparent; }

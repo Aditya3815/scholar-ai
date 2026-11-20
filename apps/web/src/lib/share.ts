@@ -29,10 +29,12 @@ export const changeShare = (docId: string, change: { linkMode?: LinkMode; linkRo
 export const resetLink = (docId: string, expiry: LinkExpiry) => call<ShareAnswer>(`/papers/${docId}/link`, send("POST", { expiry }));
 export const stopSharing = (docId: string) => call<ShareAnswer>(`/papers/${docId}`, send("DELETE"));
 export type Invited = { member: ShareMember; created: boolean; emailed: boolean; link: string };
-export const inviteMember = (docId: string, email: string, role: MemberRole, opts: { restore?: boolean } = {}) => call<Invited>(`/papers/${docId}/members`, send("POST", { email, role, ...(opts.restore ? { restore: true } : {}) }));
+/** `note` and `picture` (the first page as a base64 JPEG) go into the e-mail only; the server keeps neither. */
+export const inviteMember = (docId: string, email: string, role: MemberRole, opts: { restore?: boolean; note?: string; picture?: string | null } = {}) =>
+  call<Invited>(`/papers/${docId}/members`, send("POST", { email, role, ...(opts.restore ? { restore: true } : {}), ...(opts.note ? { note: opts.note } : {}), ...(opts.picture ? { picture: opts.picture } : {}) }));
 export const changeMember = (docId: string, id: string, role: MemberRole) => call<{ member: ShareMember }>(`/papers/${docId}/members/${id}`, send("PATCH", { role }));
 export const removeMember = (docId: string, id: string) => call<{ removed: ShareMember }>(`/papers/${docId}/members/${id}`, send("DELETE"));
-export const resendInvite = (docId: string, id: string) => call<{ member: ShareMember; emailed: true }>(`/papers/${docId}/members/${id}/resend`, send("POST"));
+export const resendInvite = (docId: string, id: string, picture?: string | null) => call<{ member: ShareMember; emailed: true }>(`/papers/${docId}/members/${id}/resend`, send("POST", picture ? { picture } : {}));
 
 /** The link's token is said once, when it is made (only its hash is kept on the server). The owner's browser keeps it, so Copy link works again on this device. */
 const TOKEN_KEY = (docId: string) => `scholar.share.${docId}`;
