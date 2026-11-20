@@ -6,14 +6,18 @@ import { MdView, QuoteBlockView } from "./NbBlocks";
 import { inkPlainOf } from "../../../../lib/note-ink";
 
 /** What an ink anchor counts in (docs/design/paper-reader.md, 25.5) is exactly the text the page puts into the DOM: mdPlain(md) === element.textContent, for every kind of Markdown. */
-const textContent = (html: string) =>
-  html
-    .replace(/<[^>]+>/g, "")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;/g, "'")
-    .replace(/&amp;/g, "&");
+const ENTITY: Record<string, string> = { lt: "<", gt: ">", quot: '"', "#x27": "'", amp: "&" };
+/** The text of static markup: characters outside tags, then each entity decoded once (a hand-written walk, not a tag-stripping pattern; CodeQL). */
+function textContent(html: string): string {
+  let out = "";
+  let inTag = false;
+  for (const ch of html) {
+    if (ch === "<") inTag = true;
+    else if (ch === ">" && inTag) inTag = false;
+    else if (!inTag) out += ch;
+  }
+  return out.replace(/&(lt|gt|quot|#x27|amp);/g, (_, e: string) => ENTITY[e]!);
+}
 
 describe("an anchor's text is the DOM's text", () => {
   const cases = [
