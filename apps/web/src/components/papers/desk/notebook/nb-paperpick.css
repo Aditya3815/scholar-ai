@@ -1,0 +1,6 @@
+/* The paper picker of a page tab (NbPaperPick.tsx, a chunk of its own): four papers drawn small (notebook.css .nb-papercard), two a row, the page's ticked. */
+.nb-tabsrow .nb-stylepick { top: calc(100% + 2px); right: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; width: 15.5rem; min-width: 0; padding: 0.45rem; }
+.nb-stylepick .nb-papercard[aria-checked="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.nb-stylepick-name { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; min-height: 18px; }
+.nb-stylepick-name svg { color: var(--accent); }
+@media (hover: none) { .nb-stylepick .nb-papercard { min-height: 44px; } }

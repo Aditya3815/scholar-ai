@@ -1,8 +1,12 @@
 import { ChevronUp, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import type { NotebookStyle } from "@scholar/shared";
 import type { NbPage } from "../../../../lib/notebook";
 import type { NbPop } from "./NbMenu";
+import "./nb-tabs.css";
+
+/** The paper picker: a small chunk of its own, fetched when a tab's paper is first pressed. */
+const PaperPick = lazy(() => import("./NbPaperPick").then((m) => ({ default: m.PaperPick })));
 
 /**
  * The pages as tabs (docs/design/paper-reader.md, 21.1, 2 and the notes polish of 19 Nov), a small chunk of its own (fetched as soon as the Notebook's arrives), so the Notebook chunk does
@@ -12,6 +16,10 @@ import type { NbPop } from "./NbMenu";
  * Reordering: drag a tab (a mouse: after 5 px; a finger: a long press, then drag), with the tab lifted and a line where it will go; Ctrl+Shift+← → (or Alt+Shift) on a focused tab; and the
  * All pages list (up and down). Each move is said through the live region ("Page moved to place 2 of 5") and saved by the store's PATCH of the page's place.
  * When the tabs do not fit, the row scrolls sideways with an edge fade and an "All pages" button before "+" lists them all (with a search field above 8 pages).
+ *
+ * A page's paper (21 Nov): the small picture of its paper at the start of each tab is its control. A click (or Alt+↓ on the tab) opens four papers drawn small, the page's ticked; the arrows
+ * move, Enter takes one at once, Esc closes. The picture is a button beside the tab, hidden from assistive technology as the × is (a tablist may hold only tabs); the tab says its paper
+ * and has the key. The page's menu keeps its Paper items.
  */
 export type PageTabsProps = {
   pages: NbPage[];
@@ -29,6 +37,8 @@ export type PageTabsProps = {
   papers: readonly (readonly [NotebookStyle, string])[];
   /** Live presence (docs/design/paper-live.md): the people on a page, drawn on its tab and said in its label. Absent: LIVE is off. */
   live?: { tab: (pageId: string) => { dots: ReactNode; label: string } | null };
+  /** Sets a page's paper; absent: the papers are shown, not changed. */
+  onStyle?: (id: string, style: NotebookStyle) => void;
 };
 
 // the icons the first load also has are drawn here (lucide's paths): imported, they would tie this small chunk to the first load's and so to everything it preloads
@@ -43,8 +53,11 @@ const Check = ({ size }: { size: number }) => <Svg size={size} d="M20 6 9 17l-5-
 
 type Press = { id: string; x: number; y: number; pid: number; touch: boolean; armed: boolean; timer: number; el: HTMLElement; mids: number[]; scroll0: number };
 
-export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, announce, Pop: NbPop, label: pageLabel, papers, live }: PageTabsProps) {
+export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, announce, Pop: NbPop, label: pageLabel, papers, live, onStyle }: PageTabsProps) {
   const row = useRef<HTMLDivElement>(null);
+  const paperName = (s: NotebookStyle) => papers.find(([x]) => x === s)?.[1] ?? s;
+  /** The paper picker: open for one page, under that page's picture. */
+  const [pick, setPick] = useState<string | null>(null);
   const [more, setMore] = useState("");
   useEffect(() => {
     const el = row.current;
@@ -175,6 +188,11 @@ export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, annou
       onDelete(pages[k]!);
       return;
     }
+    if (e.altKey && e.key === "ArrowDown" && onStyle) {
+      e.preventDefault();
+      setPick(id);
+      return;
+    }
     if (e.shiftKey && (e.ctrlKey || e.metaKey || e.altKey) && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
       e.preventDefault();
       move(id, k + (e.key === "ArrowLeft" ? -1 : 1));
@@ -210,6 +228,31 @@ export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, annou
               data-line={lineBefore === p.id ? "before" : lineAfter === p.id ? "after" : undefined}
               style={lifted ? { transform: `translateX(${drag.dx}px)` } : undefined}
             >
+              {/* the tab's paper, said as its description */}
+              <span id={`nbt-paper-${p.id}`} hidden>
+                {paperName(p.style)} paper.
+              </span>
+              {onStyle ? (
+                <button
+                  type="button"
+                  className="nb-tabsw"
+                  data-page-style={p.id}
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  title={`Page style: ${paperName(p.style)}. Change`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPick((x) => (x === p.id ? null : p.id));
+                  }}
+                >
+                  <span className="nb-sw" data-style={p.style} />
+                </button>
+              ) : (
+                <span className="nb-tabsw" aria-hidden="true" title={`${paperName(p.style)} paper`}>
+                  <span className="nb-sw" data-style={p.style} />
+                </span>
+              )}
               <button
                 id={`nbt-${p.id}`}
                 type="button"
@@ -217,9 +260,9 @@ export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, annou
                 className="nb-pagetab"
                 aria-selected={p.id === openId}
                 aria-controls="nb-pagepanel"
-                aria-describedby="nb-tabs-hint"
+                aria-describedby={`nbt-paper-${p.id} nb-tabs-hint`}
                 tabIndex={p.id === openId ? 0 : -1}
-                aria-keyshortcuts="Delete Control+Shift+ArrowLeft Control+Shift+ArrowRight"
+                aria-keyshortcuts={`Delete Control+Shift+ArrowLeft Control+Shift+ArrowRight${onStyle ? " Alt+ArrowDown" : ""}`}
                 title={name}
                 onClick={() => {
                   if (swallow.current) return void (swallow.current = false);
@@ -228,7 +271,6 @@ export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, annou
                 onKeyDown={(e) => keys(e, k)}
                 {...handlers(p.id)}
               >
-                <span className="nb-sw" data-style={p.style} aria-hidden="true" />
                 <span className="nb-pagetab-t">{name}</span>
                 {live?.tab(p.id)?.dots}
                 {live?.tab(p.id) && <span className="sr-only">{live.tab(p.id)!.label}</span>}
@@ -251,8 +293,27 @@ export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, annou
         })}
       </div>
       <span id="nb-tabs-hint" className="sr-only">
-        Drag to reorder, or press Control+Shift with the left or right arrow.
+        Drag to reorder, or press Control+Shift with the left or right arrow.{onStyle ? " Alt+Down arrow changes the page's paper." : ""}
       </span>
+      {pick && onStyle && pages.some((p) => p.id === pick) && (
+        <Suspense fallback={null}>
+        <PaperPick
+          page={pages.find((p) => p.id === pick)!}
+          name={pageLabel(pages.find((p) => p.id === pick)!.title, pages.findIndex((p) => p.id === pick))}
+          papers={papers}
+          row={row}
+          onPick={(s) => {
+            onStyle(pick, s);
+            announce(`${paperName(s)} paper`);
+          }}
+          onClose={(refocus) => {
+            const id = pick;
+            setPick(null);
+            if (refocus) window.setTimeout(() => document.getElementById(`nbt-${id}`)?.focus({ preventScroll: true }), 0);
+          }}
+        />
+        </Suspense>
+      )}
       {more && (
         <NbPop
           kind="dialog"

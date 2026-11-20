@@ -1,6 +1,6 @@
 import { MessageSquare } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { blockAnchor, pageLabel, strokesWord, type CommentAnchor, type DocNote, type NoteColor, type NotebookInk, type NotebookPage } from "@scholar/shared";
+import { NOTEBOOK_STYLE_NAMES, blockAnchor, pageLabel, strokesWord, type CommentAnchor, type DocNote, type NoteColor, type NotebookInk, type NotebookPage } from "@scholar/shared";
 import type { Meaning } from "../../../../lib/meanings";
 import { AgentBlockView, MdView, QuoteBlockView } from "../notebook/NbBlocks";
 import { readInk, readPages } from "./read-pages";
@@ -81,12 +81,15 @@ export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus, 
         <div className="nbr-pages" role="group" aria-label="Pages of notes">
           {pages.map((p, k) => (
             <button key={p.id} type="button" className="nbr-page" aria-pressed={p.id === page.id} onClick={() => setOpenId(p.id)}>
-              {pageLabel(p.title, k)}
+              <span className="nb-sw" data-style={p.style} aria-hidden="true" />
+              <span className="nbr-page-t">{pageLabel(p.title, k)}</span>
             </button>
           ))}
         </div>
       )}
       <div className="nbr-head">
+        {/* the page's paper, shown (only its owner and editors change it) */}
+        <span className="nb-sw" data-style={page.style} role="img" aria-label={`${NOTEBOOK_STYLE_NAMES[page.style] ?? "Plain"} paper`} title={`${NOTEBOOK_STYLE_NAMES[page.style] ?? "Plain"} paper`} />
         <h3 className="nbr-title">{name}</h3>
         {comments && (
           <button type="button" className="nb-hbtn nb-cmbtn" aria-label={comments.open ? `Comments, ${comments.open} open` : "Comments"} title="Comments" onClick={comments.showAll}>
