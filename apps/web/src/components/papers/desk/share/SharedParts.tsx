@@ -1,9 +1,11 @@
 import { MessageSquare } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { blockAnchor, pageLabel, type CommentAnchor, type DocNote, type NoteColor, type NotebookPage } from "@scholar/shared";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { blockAnchor, pageLabel, strokesWord, type CommentAnchor, type DocNote, type NoteColor, type NotebookInk, type NotebookPage } from "@scholar/shared";
 import type { Meaning } from "../../../../lib/meanings";
 import { AgentBlockView, MdView, QuoteBlockView } from "../notebook/NbBlocks";
-import { readPages } from "./read-pages";
+import { readInk, readPages } from "./read-pages";
+// the ink on the pages (paper-reader.md 25), drawn by the nb-ink chunk's read-only layer, fetched only when a page has ink
+const InkView = lazy(() => import("../notebook/NbInk").then((m) => ({ default: m.InkView })));
 import "./share.css";
 
 /**
@@ -28,16 +30,22 @@ export type ReadNotebookProps = {
 /** A Viewer's or a Commenter's Notes: the owner's pages, as they are, with a page picker and, on each block, its comments. Nothing here can be changed. */
 export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus }: ReadNotebookProps) {
   const [pages, setPages] = useState<NotebookPage[] | null>(() => readPages.get(docId) ?? null);
+  const [ink, setInk] = useState<NotebookInk[]>(() => readInk.get(docId) ?? []);
+  const wrap = useRef<HTMLDivElement>(null);
   const [error, setError] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   useEffect(() => {
     let gone = false;
     fetch(`/api/v1/documents/${docId}/notebook`, { credentials: "same-origin" })
-      .then((r) => (r.ok ? (r.json() as Promise<{ pages: NotebookPage[] }>) : Promise.reject(new Error(String(r.status)))))
+      .then((r) => (r.ok ? (r.json() as Promise<{ pages: NotebookPage[]; ink?: NotebookInk[] }>) : Promise.reject(new Error(String(r.status)))))
       .then(
         (j) => {
           readPages.set(docId, j.pages);
-          if (!gone) setPages(j.pages);
+          readInk.set(docId, j.ink ?? []);
+          if (!gone) {
+            setPages(j.pages);
+            setInk(j.ink ?? []);
+          }
         },
         () => !gone && !readPages.has(docId) && setError(true),
       );
@@ -62,6 +70,9 @@ export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus }
   if (pages.length === 0) return <p className="cm-empty nbr">No notes on this paper yet.</p>;
   const page = pages.find((p) => p.id === openId) ?? pages[0]!;
   const name = pageLabel(page.title, pages.indexOf(page));
+  const strokes = ink.find((x) => x.pageId === page.id)?.strokes ?? [];
+  const counts = new Map<string, number>();
+  for (const s of strokes) counts.set(s.a.b, (counts.get(s.a.b) ?? 0) + 1);
   return (
     <div className="nbr nb">
       {pages.length > 1 && (
@@ -82,14 +93,16 @@ export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus }
           </button>
         )}
       </div>
+      <div ref={wrap} className="nb-inkwrap">
       <ol className="nbr-blocks" aria-label={`Blocks of ${name}`}>
         {page.blocks.map((b) => {
           const a = blockAnchor(page.id, b.id);
           const n = comments?.openOn(a) ?? 0;
           return (
             <li key={b.id} className="nbr-block" data-block={b.id}>
-              <div className="nbr-body nb-text">
-                {b.kind === "text" ? <MdView md={b.md} /> : b.kind === "quote" ? <QuoteBlockView b={b} mean={meanings[b.color]} removed={!!b.noteId && !known.has(b.noteId)} onGo={() => onGoTo(b.page, b.quote)} /> : b.kind === "image" ? <img className="nbr-img" src={`/api/v1/documents/${docId}/notebook/images/${b.id}`} alt={b.alt || "A picture in the notes"} width={b.w} height={b.h} loading="lazy" style={b.width !== undefined ? { width: `${b.width * 100}%`, height: "auto" } : undefined} /> : b.kind === "agent" ? <AgentBlockView b={b} onGo={(p) => onGoTo(p, "")} /> : <p className="cm-empty">{b.kind === "capture" ? `A part of page ${b.page}${b.caption ? `: ${b.caption}` : ""}` : "A sketch"}</p>}
+              {counts.has(b.id) && b.kind !== "space" && <span className="sr-only">Has a drawing, {strokesWord(counts.get(b.id)!)}.</span>}
+              <div className="nbr-body nb-text" data-ink-body data-ink-text={b.kind === "text" || undefined}>
+                {b.kind === "text" ? <MdView md={b.md} /> : b.kind === "space" ? <div className="nb-space" role="img" aria-label={`A drawing, ${strokesWord(counts.get(b.id) ?? 0)}`} style={{ aspectRatio: `10000 / ${b.h}` }} /> : b.kind === "quote" ? <QuoteBlockView b={b} mean={meanings[b.color]} removed={!!b.noteId && !known.has(b.noteId)} onGo={() => onGoTo(b.page, b.quote)} /> : b.kind === "image" ? <img className="nbr-img" src={`/api/v1/documents/${docId}/notebook/images/${b.id}`} alt={b.alt || "A picture in the notes"} width={b.w} height={b.h} loading="lazy" style={b.width !== undefined ? { width: `${b.width * 100}%`, height: "auto" } : undefined} /> : b.kind === "agent" ? <AgentBlockView b={b} onGo={(p) => onGoTo(p, "")} /> : <p className="cm-empty">{b.kind === "capture" ? `A part of page ${b.page}${b.caption ? `: ${b.caption}` : ""}` : "A sketch"}</p>}
               </div>
               {comments && (n > 0 || comments.canWrite) && (
                 <button type="button" className="cm-dot" data-open={n > 0 || undefined} onClick={() => comments.show(a)} aria-label={n > 0 ? `${n} open ${n === 1 ? "comment" : "comments"} on this block` : "Comment on this block"} title={n > 0 ? "Open comments" : "Comment"}>
@@ -101,6 +114,12 @@ export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus }
           );
         })}
       </ol>
+      {strokes.length > 0 && (
+        <Suspense fallback={null}>
+          <InkView wrap={wrap} blocks={page.blocks} strokes={strokes} />
+        </Suspense>
+      )}
+      </div>
     </div>
   );
 }

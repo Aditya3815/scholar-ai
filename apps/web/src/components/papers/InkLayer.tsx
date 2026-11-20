@@ -5,6 +5,7 @@ import {
   type InkItem, type InkShape, type InkSize, type InkSticky, type InkStroke, type InkText, type InkTool, type ShapeKind,
 } from "@scholar/shared";
 import { newStrokeId } from "../../lib/ink";
+import { isEraserEnd, pressureOf, samplesOf, touchVerdict } from "../../lib/ink-input";
 import { markerPath, penOutline, penPath } from "../../lib/ink-path";
 
 export { penOutline };
@@ -70,7 +71,6 @@ function ShapeEl({ s, pageW, erasing, selected, live = false }: { s: Pick<InkSha
 
 /** Screen distance a pointer must move before another point is kept (less is noise, and only adds points). */
 const MIN_STEP_PX = 0.8;
-const PEN_SEEN_MS = 4000;
 /** A press that moves less than this (screen pixels) and is let go is a tap. */
 const TAP_PX = 8;
 
@@ -229,10 +229,12 @@ export function InkLayer({ page, size, scale, items, tool, open, color, sizeKey,
     const tap = tool === "text" || tool === "sticky";
     if (e.pointerType === "touch") {
       touchIds.current.add(e.pointerId);
-      if (touchIds.current.size > 1) return cancel(); // a second finger is a pinch, not a stroke
-      if (!tap && (!finger || Date.now() - penSeen.current < PEN_SEEN_MS)) {
-        if (!finger) onFingerBlocked?.();
-        return; // the palm resting while a stylus writes, or a finger that was not asked to draw
+      // lib/ink-input.ts: a second finger is a pinch, not a stroke; the palm resting while a stylus writes, or a finger that was not asked to draw, draws nothing (a tap still places a note)
+      const verdict = touchVerdict(touchIds.current.size, finger, penSeen.current, Date.now());
+      if (verdict === "pinch") return cancel();
+      if (!tap && verdict !== "draw") {
+        if (verdict === "finger-off") onFingerBlocked?.();
+        return;
       }
     }
     const { x, y, r } = norm(e);
@@ -243,8 +245,8 @@ export function InkLayer({ page, size, scale, items, tool, open, color, sizeKey,
       return;
     }
     // the eraser end of a stylus (or its barrel button) erases whatever tool is on
-    const eraserEnd = e.pointerType === "pen" && (e.buttons & 32 || e.button === 5);
-    const p = e.pointerType === "pen" ? e.pressure || 0.5 : 0.5;
+    const eraserEnd = isEraserEnd(e);
+    const p = pressureOf(e);
     top.current!.setPointerCapture(e.pointerId);
     e.preventDefault();
     if (tool === "lasso" && !eraserEnd) {
@@ -286,9 +288,7 @@ export function InkLayer({ page, size, scale, items, tool, open, color, sizeKey,
       setShift(dx, dy);
       return;
     }
-    const events = typeof e.nativeEvent.getCoalescedEvents === "function" ? e.nativeEvent.getCoalescedEvents() : [];
-    const list = events.length > 0 ? events : [e.nativeEvent];
-    for (const ev of list) {
+    for (const ev of samplesOf(e.nativeEvent)) {
       const x = (ev.clientX - r.left) / r.width;
       const y = (ev.clientY - r.top) / r.width;
       if (a.mode === "eraser") {
@@ -297,7 +297,7 @@ export function InkLayer({ page, size, scale, items, tool, open, color, sizeKey,
       }
       const n = a.pts.length;
       if (Math.hypot((x - a.pts[n - 3]!) * r.width, (y - a.pts[n - 2]!) * r.width) < MIN_STEP_PX) continue;
-      a.pts.push(x, y, ev.pointerType === "pen" ? ev.pressure || 0.5 : 0.5);
+      a.pts.push(x, y, pressureOf(ev));
     }
     if (a.mode !== "eraser" && !a.frame) a.frame = requestAnimationFrame(paintLive);
     moveRing(e, r, a.mode);
