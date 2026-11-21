@@ -492,7 +492,10 @@ try {
       await page.keyboard.press("Enter");
       const swatch = () => icon.locator(".nb-sw").getAttribute("data-style");
       await until(async () => (await swatch()) === "dotted", { ms: 3000, what: "the page to be dotted" });
-      ok((await menu.count()) === 0 && (await page.evaluate(() => document.activeElement?.id)) === (await pageTab(page, "Results").getAttribute("id")), "Enter takes it at once (on a page that is not the open one too): its tab shows Dotted, the picker closes, the focus goes back to the tab");
+      // the picker hands the focus back to the tab in a task after it closes (NbTabs onClose: setTimeout 0, once the picker has gone), so the check waits for it rather than reading it at once
+      const tabId = await pageTab(page, "Results").getAttribute("id");
+      const focusBack = () => untilInPage(page, (id) => document.activeElement?.id === id, tabId, 2000).then(() => true, () => false);
+      ok((await menu.count()) === 0 && (await focusBack()), "Enter takes it at once (on a page that is not the open one too): its tab shows Dotted, the picker closes, the focus goes back to the tab");
       await until(async () => (await pagesOnServer()).find((p) => p.title === "Results")?.style === "dotted", { ms: 8000, what: "Dotted to be saved" });
       ok(true, "the paper chosen from the tab is saved");
       // Alt+Down on the tab opens it; Esc closes it and changes nothing
@@ -501,8 +504,8 @@ try {
       await menu.waitFor({ timeout: 3000 });
       await page.keyboard.press("ArrowDown");
       await page.keyboard.press("Escape");
-      await sleep(100);
-      const after = { open: await menu.count(), paper: await swatch(), focus: await page.evaluate(() => document.activeElement?.getAttribute("role") ?? document.activeElement?.tagName) };
+      const back = await focusBack();
+      const after = { open: await menu.count(), paper: await swatch(), focus: back ? "tab" : await page.evaluate(() => document.activeElement?.getAttribute("role") ?? document.activeElement?.tagName) };
       ok(after.open === 0 && after.paper === "dotted" && after.focus === "tab", `Alt+Down on the tab opens it; Esc closes it, changes nothing, and the focus is back on the tab (${JSON.stringify(after)})`);
       // a press outside closes it; a click on a paper takes it (back to Graph, which the parts after this expect)
       await icon.click();
