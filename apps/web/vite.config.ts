@@ -46,7 +46,17 @@ export default defineConfig({
     // packages/shared is plain functions, constants and types: none of its modules does anything when it is imported (no statement at the top level of any of them is a call or an assignment
     // to something outside it). Told so, the bundler leaves out a module of it that nobody uses, and the parts of one that nobody uses, instead of keeping them in case importing them did
     // something: about 4 KB (gzip) of the first load on 3 Nov 2026 (docs/design/chatview-and-trending.md, C3). A module of it that ever has to run when it is imported must not be put here.
-    rolldownOptions: { treeshake: { moduleSideEffects: (id: string) => !/packages[\\/]shared[\\/]src[\\/]/.test(id) } },
+    rolldownOptions: {
+      treeshake: { moduleSideEffects: (id: string) => !/packages[\\/]shared[\\/]src[\\/]/.test(id) },
+      // The bundler cuts a module that the first load and later chunks both import into a file of its own for each set of importers. The page's one API client, its retry, the
+      // Idempotency-Key header and the IndexedDB helper are small, import nothing at run time and are always in the first load, so they ride in one file ("api") instead of four:
+      // on the slow profile each file of the first load is a request of 150 ms (docs/design/untangle.md, F9; 21 Nov 2026: 58 -> 55 module preloads, main had 54).
+      output: {
+        codeSplitting: {
+          groups: [{ name: "api", test: /apps[\\/]web[\\/]src[\\/]lib[\\/](api[\\/](client|retry)|idb)\.ts$|packages[\\/]shared[\\/]src[\\/]protocol[\\/]problem\.ts$/ }],
+        },
+      },
+    },
     // A small file is normally written into the script as a data: address. The CSP forbids fetching those, and the Rive runtime fetches its files: so a .riv is always a file of its own.
     assetsInlineLimit: (file) => (file.endsWith(".riv") ? false : undefined),
   },
