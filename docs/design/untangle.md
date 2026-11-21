@@ -1533,7 +1533,7 @@ Verification (this branch on main 37629ad, ports 8794/9917; npm install first: t
 
 The branch is now faster than main on every paint line (intro desktop by about 90 ms, phone 30, home 30). The intro's desktop line (4,500 ms) failed for main too in every one of these runs: the machine was slower than in the morning, when main passed it at 4,436 ms. Before the two changes above, alternating runs (just after the first browser run, on main 780ec3d) had the branch 50 to 200 ms slower.
 
-### W4, step 4: F9, server half, one wire contract (21 Nov 2026, branch `w4-server`, on main 1088ea9)
+### W4, step 4: F9, server half, one wire contract (21 Nov 2026, branch `w4-server`, rebased onto main f69f503: the web half, #59, and the picker check, #60)
 
 Commits (in order): every hand-written refusal pinned byte for byte (`problem-replies.test.ts`); one stream error type (`protocol/streams.ts`); sseStream from the stream table; every refusal through `deny()`.
 
@@ -1543,7 +1543,7 @@ Done as planned:
 - The table's `end` lists are derived from its kinds (they were a second copy, which a test compared with the kinds); `stream-shape.test.ts` now holds the lists themselves (chat done/error, ask answer/critique/error, idea and litscan done/error), so a change to what ends a stream fails a test instead of passing a self-check.
 - Every refusal the API wrote by hand goes through `deny()`: the account's 2, the admin's 8, 7 of the development routes' 8, the unknown sign-in provider, the strict check's 3, the live room's 2 (status and type chosen from the room's answer), the drawing conflict (its strokes and revision as extra fields), the references' 2, the app's 404 and 500 (its request id as an extra field) and the rate limit. `deny()` takes 422 and 500 too; `problem()` builds the same body for the Idempotency-Key's 4 replies, which are made without a request's context (a Response with its Retry-After).
 
-Counts, main 1088ea9 -> after (apps/api/src and packages/shared/src without tests):
+Counts, main 1088ea9 (before the web half; nothing it changed is counted here) -> after (apps/api/src and packages/shared/src without tests):
 - terminal lists written per route 8 -> 0 (the table); the fallback event written out 10 -> 1 (`STREAM_FALLBACK`; 8 sseStream options and 2 catch blocks); the stream error type 6 -> 1.
 - problem bodies written by hand (`c.json({ type: ...` and idempotency's 4) 35 -> 1 (the development LLM tool, below).
 - layers.test.ts ALLOW: unchanged (api 114, shared 52, web 57): the new imports are of `problem.ts` from inside the API and type imports of `protocol/`, which the rules allow.
@@ -1556,14 +1556,16 @@ Kept against the plan, and why:
 - The development LLM tool (`/api/v1/dev/llm`) keeps its own reply: its type is the thrown error's name (QuotaError, NoRouteError, ...), not a ProblemType, and it is the raw gateway tool of local runs (F8 kept its status map for the same reason).
 - Not done, left for later waves: the chat's event list still touches several places when an event is added (F17's turn pipeline); `stream-shape.ts` keeps its one-stream rules inside the checker (the ingest progress and the scan's done/total); the page's admin views still restate the admin routes' and MCP's literals (`AdminMcp.tsx`, `AdminOps.tsx`: F21).
 
-Verification (this branch on main 1088ea9, ports 8794/9917):
+Verification (this branch on main f69f503, ports 8794/9917):
 
 | check | result |
 | --- | --- |
 | typecheck | clean |
-| `npm test` | api 3,855 passed / 2 skipped (169 files; main + problem-replies.test.ts's 10), web 190, shared 836 / 1 skipped |
+| `npm test` | api 3,855 passed / 2 skipped (169 files; main + problem-replies.test.ts's 10), web 280, shared 836 / 1 skipped |
 | test:scripts, eval | 191 passed; 371 passed / 1 skipped |
 | problem-replies.test.ts | written before the change (36 replies), passes unchanged after it |
 | route-guard table, production test | pass untouched |
-| integration, API, `--run=default,reader-on,share-on,mcp-on,trending-on` | API_RESULT |
+| integration, API, `--run=default,reader-on,share-on,mcp-on,trending-on` (on main 1088ea9, before the rebase) | 1,507 checks, all passed |
+| build, budget, contrast | built; first-load scripts 228.1 KB of 250 (the web half's; this branch changes no page code); 0 contrast failures |
+| integration, API, `--run=default,reader-on,share-on` (after the rebase) | API6 |
 | integration, `--browser --run=default` | BROWSER_RESULT |
