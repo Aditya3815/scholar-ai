@@ -37,8 +37,8 @@ export type PageTabsProps = {
   papers: readonly (readonly [NotebookStyle, string])[];
   /** Live presence (docs/design/paper-live.md): the people on a page, drawn on its tab and said in its label. Absent: LIVE is off. */
   live?: { tab: (pageId: string) => { dots: ReactNode; label: string } | null };
-  /** Sets a page's paper; absent: the papers are shown, not changed. */
-  onStyle?: (id: string, style: NotebookStyle) => void;
+  /** Sets a page's paper (the tabs are the owner's and editors' only: a Viewer's notes are SharedParts.tsx's). */
+  onStyle: (id: string, style: NotebookStyle) => void;
 };
 
 // the icons the first load also has are drawn here (lucide's paths): imported, they would tie this small chunk to the first load's and so to everything it preloads
@@ -188,7 +188,7 @@ export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, annou
       onDelete(pages[k]!);
       return;
     }
-    if (e.altKey && e.key === "ArrowDown" && onStyle) {
+    if (e.altKey && e.key === "ArrowDown") {
       e.preventDefault();
       setPick(id);
       return;
@@ -232,27 +232,21 @@ export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, annou
               <span id={`nbt-paper-${p.id}`} hidden>
                 {paperName(p.style)} paper.
               </span>
-              {onStyle ? (
-                <button
-                  type="button"
-                  className="nb-tabsw"
-                  data-page-style={p.id}
-                  tabIndex={-1}
-                  aria-hidden="true"
-                  title={`Page style: ${paperName(p.style)}. Change`}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPick((x) => (x === p.id ? null : p.id));
-                  }}
-                >
-                  <span className="nb-sw" data-style={p.style} />
-                </button>
-              ) : (
-                <span className="nb-tabsw" aria-hidden="true" title={`${paperName(p.style)} paper`}>
-                  <span className="nb-sw" data-style={p.style} />
-                </span>
-              )}
+              <button
+                type="button"
+                className="nb-tabsw"
+                data-page-style={p.id}
+                tabIndex={-1}
+                aria-hidden="true"
+                title={`Page style: ${paperName(p.style)}. Change`}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPick((x) => (x === p.id ? null : p.id));
+                }}
+              >
+                <span className="nb-sw" data-style={p.style} />
+              </button>
               <button
                 id={`nbt-${p.id}`}
                 type="button"
@@ -262,7 +256,7 @@ export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, annou
                 aria-controls="nb-pagepanel"
                 aria-describedby={`nbt-paper-${p.id} nb-tabs-hint`}
                 tabIndex={p.id === openId ? 0 : -1}
-                aria-keyshortcuts={`Delete Control+Shift+ArrowLeft Control+Shift+ArrowRight${onStyle ? " Alt+ArrowDown" : ""}`}
+                aria-keyshortcuts="Delete Control+Shift+ArrowLeft Control+Shift+ArrowRight Alt+ArrowDown"
                 title={name}
                 onClick={() => {
                   if (swallow.current) return void (swallow.current = false);
@@ -293,9 +287,9 @@ export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, annou
         })}
       </div>
       <span id="nb-tabs-hint" className="sr-only">
-        Drag to reorder, or press Control+Shift with the left or right arrow.{onStyle ? " Alt+Down arrow changes the page's paper." : ""}
+        Drag to reorder, or press Control+Shift with the left or right arrow. Alt+Down arrow changes the page's paper.
       </span>
-      {pick && onStyle && pages.some((p) => p.id === pick) && (
+      {pick && pages.some((p) => p.id === pick) && (
         <Suspense fallback={null}>
         <PaperPick
           page={pages.find((p) => p.id === pick)!}
