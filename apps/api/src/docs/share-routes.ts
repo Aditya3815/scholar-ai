@@ -23,7 +23,8 @@ import { deny } from "../problem";
 import type { HonoEnv } from "../platform/env";
 import { setLinkCookie } from "./access";
 import { mailerFor } from "./invite-mail";
-import { checkInvitePicture, type InvitePicture } from "./invite-picture";
+import { checkInvitePicture, coverPicture, leftOut, type InvitePicture } from "./invite-picture";
+import { coverKey } from "./cover-key";
 import { requirePaper, type PaperDoor } from "./paper-gate";
 import { shareOnFor, shareSwitchedOn } from "./share-flag";
 import { liveChanged, liveRevoke } from "./live";
@@ -81,7 +82,8 @@ const OFF = (c: Context<HonoEnv>) => deny(c, 404, "not_found", "Not found", c.re
 const SIGNED_IN: Door = { signIn: "Sign in first" };
 const OWNER: PaperDoor = { signIn: "Sign in first", missing: "Paper not found" };
 const COMMENTS: PaperDoor = { signIn: "Sign in to see the comments", missing: "Paper not found" };
-const paperRow = (c: Context<HonoEnv>) => (id: string) => c.env.DB.prepare("SELECT id, user_id, title FROM documents WHERE id = ?1").bind(id).first<{ id: string; user_id: string; title: string }>();
+const paperRow = (c: Context<HonoEnv>) => (id: string) =>
+  c.env.DB.prepare("SELECT id, user_id, title, has_cover FROM documents WHERE id = ?1").bind(id).first<{ id: string; user_id: string; title: string; has_cover: number }>();
 
 // off: nothing here exists, for anyone, before any other check
 shareRoutes.use("*", async (c, next) => {
@@ -195,19 +197,27 @@ shareRoutes.delete("/papers/:id", async (c) => {
 function pictureOf(b: Record<string, unknown>): InvitePicture | null {
   if (b.picture === undefined || b.picture === null) return null;
   const got = checkInvitePicture(b.picture);
-  if (got.ok) return got.picture;
-  console.warn(JSON.stringify({ level: "warn", msg: "invite_picture_left_out", reason: got.reason }));
-  return null;
+  return got.ok ? got.picture : leftOut(got.reason);
+}
+
+/**
+ * The e-mail's picture of the first page: the paper's stored cover first (it is there whatever the device or the connection, and it is the same page), then a picture the dialog drew (a
+ * paper with no cover), then none (the e-mail's neutral page block).
+ */
+async function invitePicture(c: Context<HonoEnv>, row: { id: string; user_id: string; has_cover: number }, b: Record<string, unknown>): Promise<InvitePicture | null> {
+  const cover = row.has_cover ? await coverPicture(c.env, coverKey(row.user_id, row.id)) : null;
+  return cover ?? pictureOf(b);
 }
 
 /** E-mails the invitation when the Worker can and it may (once, then Resend once an hour). True when it went. */
 async function sendInvite(
   c: Context<HonoEnv>,
-  q: { docId: string; title: string; memberId: string; email: string; role: "viewer" | "commenter" | "editor"; inviter: string | null; note?: string | null; picture?: InvitePicture | null },
+  q: { docId: string; title: string; memberId: string; email: string; role: "viewer" | "commenter" | "editor"; inviter: string | null; note?: string | null; picture: () => Promise<InvitePicture | null> },
 ): Promise<boolean> {
   const mailer = mailerFor(c.env);
   if (!mailer || !(await claimSend(c.env.DB, q.docId, q.memberId))) return false;
-  const ok = await mailer({ to: q.email, paperTitle: q.title, inviterName: q.inviter ?? "Someone", role: q.role, link: paperLink(c, q.docId), note: q.note ?? null, picture: q.picture ?? null });
+  // the picture is found only for an e-mail that goes (the cover is read from storage)
+  const ok = await mailer({ to: q.email, paperTitle: q.title, inviterName: q.inviter ?? "Someone", role: q.role, link: paperLink(c, q.docId), note: q.note ?? null, picture: await q.picture() });
   if (!ok) await releaseSend(c.env.DB, q.docId, q.memberId);
   return ok;
 }
@@ -231,7 +241,7 @@ shareRoutes.post("/papers/:id/members", async (c) => {
     if (r.reason === "full") return deny(c, 409, "members_full", `A paper can be shared with ${SHARE_MAX_MEMBERS} people`, "Remove someone to add another.");
     return deny(c, 429, "invite_limit", `You can invite ${SHARE_INVITES_PER_DAY} people a day`, "Try again tomorrow.");
   }
-  const emailed = r.created && !restore && b.send !== false ? await sendInvite(c, { docId: got.row.id, title: got.row.title, memberId: r.member.id, email, role: b.role, inviter: got.user.name, note, picture: pictureOf(b) }) : false;
+  const emailed = r.created && !restore && b.send !== false ? await sendInvite(c, { docId: got.row.id, title: got.row.title, memberId: r.member.id, email, role: b.role, inviter: got.user.name, note, picture: () => invitePicture(c, got.row, b) }) : false;
   return c.json({ member: (await memberById(c.env.DB, got.row.id, r.member.id)) ?? r.member, created: r.created, emailed, link: paperLink(c, got.row.id) }, r.created ? 201 : 200);
 });
 
@@ -263,7 +273,7 @@ shareRoutes.post("/papers/:id/members/:mid/resend", async (c) => {
   if (!mailerFor(c.env)) return deny(c, 503, "unavailable", "Invitations cannot be e-mailed from here", "Copy the invitation and send it yourself.");
   // an older page sends no body; a body too big is the same as none
   const b = (await body(c, MAX_INVITE_BODY)) ?? {};
-  const sent = await sendInvite(c, { docId: got.row.id, title: got.row.title, memberId: m.id, email: m.email, role: m.role, inviter: got.user.name, picture: pictureOf(b) });
+  const sent = await sendInvite(c, { docId: got.row.id, title: got.row.title, memberId: m.id, email: m.email, role: m.role, inviter: got.user.name, picture: () => invitePicture(c, got.row, b) });
   if (!sent) return deny(c, 429, "rate_limited", "The invitation was e-mailed less than an hour ago", "You can send it again an hour after the last one.");
   return c.json({ member: await memberById(c.env.DB, got.row.id, m.id), emailed: true });
 });

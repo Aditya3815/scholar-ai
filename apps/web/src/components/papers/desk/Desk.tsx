@@ -1050,7 +1050,7 @@ export function Desk(props: DeskProps) {
       )}
       {shareEver && (
         <Suspense fallback={null}>
-          <ShareDialog open={shareOpen} onOpenChange={setShareOpen} docId={doc.id} title={doc.title} ownerName={props.myName} toast={(t, a) => void toast(t, a)} copy={copyText} returnFocus={() => shareBtn.current?.focus({ preventScroll: true })} pagePicture={pdfReady ? () => renderInvitePicture(pdf.pdf, INVITE_PICTURE_WIDTH, INVITE_PICTURE_MAX_BYTES) : undefined} />
+          <ShareDialog open={shareOpen} onOpenChange={setShareOpen} docId={doc.id} title={doc.title} ownerName={props.myName} toast={(t, a) => void toast(t, a)} copy={copyText} returnFocus={() => shareBtn.current?.focus({ preventScroll: true })} hasCover={doc.hasCover} pagePicture={pdfReady ? () => renderInvitePicture(pdf.pdf, INVITE_PICTURE_WIDTH, INVITE_PICTURE_MAX_BYTES) : undefined} />
         </Suspense>
       )}
       <Toasts onRect={setToastRect} />

@@ -10,12 +10,12 @@ const idp = await startIdp();
 const login = loginWith(idp);
 const upload = (c) => c.send(`${APP}/api/v1/documents`, { method: "POST", headers: { Origin: APP, "Content-Type": "application/pdf", "X-Filename": "shared.pdf" }, body: makePdf(SAMPLE_PAPER, { title: "Glaucoma screening" }) });
 /** A JPEG's structure as the Worker reads it (SOI, JFIF, optionally Exif, a 300 x 388 frame header, the scan, EOI); the Worker never decodes the picture. */
-function fakeJpeg({ exif = false } = {}) {
+function fakeJpeg({ exif = false, fill = 0x55 } = {}) {
   const seg = (m, body) => [0xff, m, ((body.length + 2) >> 8) & 0xff, (body.length + 2) & 0xff, ...body];
   const text = (t) => [...t].map((ch) => ch.charCodeAt(0));
   return Buffer.from([
     0xff, 0xd8, ...seg(0xe0, [...text("JFIF"), 0, 1, 1, 0, 0, 1, 0, 1, 0, 0]), ...(exif ? seg(0xe1, [...text("Exif"), 0, 0, ...text("GPS 28.6N")]) : []),
-    ...seg(0xc0, [8, 1, 132, 1, 44, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1]), ...seg(0xda, [3, 1, 0, 2, 0x11, 3, 0x11, 0, 0x3f, 0]), ...Array(400).fill(0x55), 0xff, 0xd9,
+    ...seg(0xc0, [8, 1, 132, 1, 44, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1]), ...seg(0xda, [3, 1, 0, 2, 0x11, 3, 0x11, 0, 0x3f, 0]), ...Array(400).fill(fill), 0xff, 0xd9,
   ]);
 }
 const one = async (sql) => (await sqlResults([sql]))?.[0]?.[0];
@@ -49,6 +49,25 @@ try {
   const plain = await (await fetch(`${APP}/api/v1/dev/last-invite`)).json();
   ok(odd.emailed === true && plain.to === "sh-d@example.com" && (plain.attachments ?? []).length === 0 && !plain.html.includes("<img"), "a picture that is not a JPEG is left out: the e-mail still goes, with the page-shaped block");
   await A.api(`${S}/members/${odd.member.id}`, { method: "DELETE" });
+  // the stored cover (made by the page at upload) is the first choice: from any device, with no picture in the body
+  const coverPut = await A.send(`${APP}${D}/cover`, { method: "PUT", headers: { Origin: APP, "Content-Type": "image/jpeg" }, body: fakeJpeg({ exif: true, fill: 0x66 }) });
+  ok(coverPut.status === 200, "the paper has a stored cover");
+  const lastInvite = async (email, body = {}) => {
+    const r = await (await A.api(`${S}/members`, { method: "POST", body: { email, role: "viewer", ...body } })).json();
+    const m = await (await fetch(`${APP}/api/v1/dev/last-invite`)).json();
+    await A.api(`${S}/members/${r.member.id}`, { method: "DELETE" });
+    return r.emailed === true && m.to === email ? m : null;
+  };
+  const fromCover = await lastInvite("sh-f@example.com");
+  ok(fromCover?.attachments?.length === 1 && fromCover.attachments[0].content === fakeJpeg({ fill: 0x66 }).toString("base64") && fromCover.html.includes(`src="cid:${fromCover.attachments[0].contentId}"`), "no picture in the body: the e-mail carries the stored cover as its inline JPEG (its Exif taken out)");
+  const coverFirst = await lastInvite("sh-g@example.com", { picture: fakeJpeg().toString("base64") });
+  ok(coverFirst?.attachments?.[0]?.content === fakeJpeg({ fill: 0x66 }).toString("base64"), "the cover is chosen over a picture the dialog sent");
+  const owner = await one(`SELECT user_id FROM documents WHERE id = '${doc.id}'`);
+  await fetch(`${APP}/api/v1/dev/r2-object?key=${encodeURIComponent(`docs/${owner.user_id}/${doc.id}.cover.jpg`)}`, { method: "DELETE" });
+  const noCover = await lastInvite("sh-h@example.com");
+  ok(noCover && (noCover.attachments ?? []).length === 0 && !noCover.html.includes("<img"), "the cover missing from storage: the e-mail still goes, with the page-shaped block");
+  const drawn = await lastInvite("sh-i@example.com", { picture: fakeJpeg().toString("base64") });
+  ok(drawn?.attachments?.[0]?.content === fakeJpeg().toString("base64"), "and a picture the dialog drew is used then");
   ok((await status(A.api(`${S}/members`, { method: "POST", body: { email: "sh-e@example.com", role: "viewer", note: "x".repeat(501) } }))) === 400, "a note over 500 characters is refused");
   ok((await status(A.api(`${S}/members/${invited.member.id}/resend`, { method: "POST" }))) === 429, "Resend at once: 429 (once an hour)");
   ok((await status(A.api(`${S}/members`, { method: "POST", body: { email: "sh-a@example.com", role: "viewer" } }))) === 400, "the owner's own address is refused");

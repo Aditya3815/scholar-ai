@@ -9,17 +9,27 @@ import "./email-preview.css";
  */
 export type PreviewPicture = { dataUrl: string; width: number; height: number };
 
-export default function EmailPreview({ inviterName, title, role, to, note, link, picture }: { inviterName: string; title: string; role: InviteRole; to: string; note: string; link: string; picture: Promise<PreviewPicture | null> }) {
+/** The stored cover as the preview shows it: its address and its size (the e-mail gives the picture its height). */
+const coverOf = (src: string) =>
+  new Promise<PreviewPicture | null>((done) => {
+    const img = new Image();
+    img.onload = () => done(img.naturalWidth ? { dataUrl: src, width: img.naturalWidth, height: img.naturalHeight } : null);
+    img.onerror = () => done(null);
+    img.src = src;
+  });
+
+/** `cover`: the paper's stored cover, which the server puts in the e-mail (then `picture` is not used); otherwise the picture the dialog drew and sends. */
+export default function EmailPreview({ inviterName, title, role, to, note, link, picture, cover }: { inviterName: string; title: string; role: InviteRole; to: string; note: string; link: string; picture: Promise<PreviewPicture | null>; cover: string | null }) {
   const [pic, setPic] = useState<PreviewPicture | null>(null);
   const [height, setHeight] = useState(420);
   const frame = useRef<HTMLIFrameElement>(null);
   useEffect(() => {
     let live = true;
-    void picture.then((p) => live && setPic(p));
+    void (cover ? coverOf(cover) : picture).then((p) => live && setPic(p));
     return () => {
       live = false;
     };
-  }, [picture]);
+  }, [picture, cover]);
   const mail = buildInviteEmail({
     inviterName,
     paperTitle: title,
