@@ -25,8 +25,12 @@ export function PaperPick({ page, name, papers, row, onPick, onClose }: { page: 
     const b = bar.getBoundingClientRect();
     const at = icon ? icon.getBoundingClientRect().left - b.left - 8 : 8;
     setLeft(Math.max(8, Math.min(at, b.width - el.offsetWidth - 8)));
-    el.querySelector<HTMLElement>('[aria-checked="true"]')?.focus({ preventScroll: true });
   }, [page.id, row]);
+  // placed (and so shown: a hidden box cannot take the focus), the focus goes to the page's paper
+  const placed = left !== null;
+  useLayoutEffect(() => {
+    if (placed) box.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus({ preventScroll: true });
+  }, [placed]);
   const shut = useRef(onClose);
   shut.current = onClose;
   useEffect(() => {
