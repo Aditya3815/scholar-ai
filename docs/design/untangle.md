@@ -1491,3 +1491,41 @@ After the rebase (this branch on 3e1ef74, 8793/9916):
 | build, budget | built; every budget line met (first-load scripts 235.2 of 250 KB) |
 | `--browser --run=default,trending-on,mcp-on,reader-on` | 4,520 checks, 5 FAIL, all paint times of perf.mjs (intro FCP/LCP on desktop and phone, check references LCP); alone again 3 of them; main's own web build on the same Worker and machine failed the same checks (intro 4.4 to 4.6 s against 4.5 s): the machine, not this branch |
 | the six chat switch runs (API) | 1,047, all passed |
+
+### W4, step 3: F9, web half, one browser client (13 to 21 Nov 2026, branch `w4-web-client`, rebased 21 Nov onto main 780ec3d)
+
+The branch was made on the W3 branch (8de0d0b) before W3 was squashed into main; its eight F9 commits were moved onto main with `git rebase --onto origin/main 8de0d0b` (the W2 and W3 commits under them are main's #33 and #40). Main had moved on by Paper Reader phases 2.5 and 3, the Notes polish, sharing, ink on note pages and live presence.
+
+Commits (in order): the requests, streams and retries of the page pinned by tests (src/test/fake-net.ts, fake-react.ts); `lib/api/` (client, stream, retry; the reader moves to `lib/api/sse.ts`); bug B1; the papers, Idea Check, the literature scan, report a problem, the privacy note and a paper's notes; Check references and bug B2; the chat, Check strictly and Ask this paper; the library; the old results page (bug B3) and ink's RESAVE_MS; after the rebase: the reader's agents pinned (agents-api.test.ts), sharing pinned (share.test.ts) and moved, a Viewer's read-only notes moved.
+
+Done as planned:
+- `lib/api/client.ts`: `send()` and `api<T>()` (the person's cookies, a JSON body as JSON, a refusal rejects), the one `ApiError` (status, a `ProblemType` or "error", title, detail, the problem's other fields, Retry-After), `problemError`, `streamError`, `isAbort`. `lib/api/stream.ts`: `postStream`, `streamResult`, `perFrame`, `endingOf`. `lib/api/retry.ts`: the one abortable `sleep`, `retryAfterMs`, `retry(policy)`; each call site keeps its numbers as a named policy (UPLOAD_RETRY, INDEX_RETRY, REPORT_RETRY, SCAN_RETRY, VERIFY_RETRY, RECONNECT_MS, RESAVE_MS).
+- Every surface the plan listed asks through it: the papers (docs-api.ts goes), Idea Check, the literature scan (ScanRunningError goes: the problem type `scan_running`), report a problem, the privacy note, a paper's notes, Check references and the chat's Check again, the chat, Check strictly, Ask this paper, the library. Each surface keeps its own words in one map (chatRefused and CHAT_ENDINGS, tightenRefused, OA_REFUSED and OA_ENDINGS, LIBRARY_REFUSED, recheckWords).
+- Bugs B1 (readSse swallowed the handler's throw), B2 (a 4xx with a detail was retried: now decided by the status) and B3 (the old results page parsed its error event unguarded): each has a test that failed before.
+- Main's code added since F9 began, moved where it was the same pattern (each pinned first by a test that passes on main's code and after the move): the reader's agents (`lib/agents-api.ts`, Explain, Critique and the Note-taker: its own fetch, problem parser and `ApiError` from docs-api go; folded into the commits that move sse.ts and delete docs-api.ts, so every commit typechecks); sharing (`lib/share.ts`: its fetch, parser and ShareError go, a 204 still resolves with nothing); a Viewer's read-only notes (`share/SharedParts.tsx`'s fetch becomes `api()`).
+
+Counts, main 780ec3d -> after (apps/web/src without tests):
+- `fetch(` 60 -> 30; `new ApiError(` 16 -> 2 (problemError and streamError); `res.json().catch` 18 -> 6; API error classes (docs-api's ApiError, ScanRunningError, ShareError) 3 -> 1; per-frame queues 2 -> 1 (`perFrame`).
+- layers.test.ts ALLOW: unchanged (web 57, api 114, shared 52). F9's web work is lib -> lib and component -> lib, which the rule allows, so no entry went stale and none was added.
+
+Special cases removed: ScanRunningError and ShareError; the retry `if`s and sleeps of the upload, the indexing, report a problem, the scan reader, the literature scan and Check references (named policies over one `retry`/`sleep`); the message-text regex of B2; the four 401/403/429 `if`s (one map of words per surface).
+
+Kept against the plan, and why (what is left of F9):
+- The server half of F9 (`protocol/streams.ts`, `sseStream(c, STREAMS.x, run)`, terminal events and fallbacks from one table, the 47 inline problem replies onto `deny`) is not started: it waits for nothing now that F7 is merged, and is the next step of W4.
+- Raw fetches left on the page (30), each with a reason: the admin pages (AdminOps, AdminPage, AdminMcp) and ConnectedApps, SettingsDialog's account erase, auth.ts (me, providers, logout), monitoring.ts, chat.ts's config read (a 1.5 s timeout and its own fallback), trending.ts (credentials "omit", a public file) were outside the plan's F9 list and say their own words from the status; they are the same pattern and can move in a small follow-up, each pinned first. Not the same pattern, kept: the notebook store and the note-ink store (`lib/notebook.ts`, `lib/note-ink-store.ts`: a fetch passed in as a dependency for their tests, keepalive saves under a size limit, their own retries), ink.ts's saver (keepalive), Desk.tsx's note-picture upload (raw bytes, its own words from title and detail, and it checks the reply's w/h/type), the annotated download and notes export (a file, not JSON), offline.ts's warm-up, the Devanagari font.
+- The old branch had three files left uncommitted: `lib/api/client.ts` emptied and two callers (documents.ts, feedback.ts) half-moved to a `retry` option on `send`. client.ts could not build, so it was not committed; the patch is kept in git stash on this worktree ("w4-web uncommitted ...") for whoever wants the retry-as-option idea.
+- The first load grew: scripts 235.8 -> 237.5 KB of 250 (gzip; every other budget line met; the Notebook chunk 16.7 -> 16.8 of 17, the Desk 26.6 -> 26.7, the shared paper 4.7 -> 4.8). It all comes from the commit that moves the papers onto the client (235.8 -> 237.3) and the chat's (237.5). Raw bytes grow by about 1.1 KB (client.ts 0.9, retry.ts 0.3, stream.ts 0.5 against docs-api's and the parsers' 1.6 that went); the rest is the bundler splitting six more small shared chunks out of the first load (client, retry, the problem module's IDEMPOTENCY_HEADER, idb, pdf, the references vocabulary), each with its own gzip and import lines. Folding retry.ts into client.ts gains only 0.2 KB. Not growing would need a chunking decision for the whole page (rolldown's chunk groups or a minimum chunk size), which is the owner's, not F9's.
+
+Verification (this branch on main 780ec3d, ports 8794/9917; npm install first: the lock file had moved):
+
+| check | result |
+| --- | --- |
+| typecheck, at every commit of the branch (web) and at the end (all) | clean |
+| `npm test` | api 3,834 passed / 2 skipped (168 files), web 271 (33 files; main 255 + agents-api 7 + share 4 + the F9 pins), shared 815 / 1 skipped |
+| test:scripts, contrast | 191 passed; 0 contrast failures in the four themes |
+| build, budget | built; every line met; first-load scripts 237.5 of 250 KB (main 235.8), see above |
+| integration, API, `--run=default,reader-on,share-on` | 1,283 checks, all passed |
+| integration, `--browser --run=default,reader-on,share-on` | 4,559 ok, 2 FAIL: perf.mjs's intro first contentful paint (desktop 4,776 ms, phone 4,752 ms, limit 4,500) |
+| perf.mjs alone, branch / main / branch, one after the other on the same machine | intro desktop FCP 4,640 / 4,436 / 4,580 ms, intro phone 4,420 / 4,372 / 4,404, home desktop 3,852 / 3,804 / 3,888, check references LCP 4,936 / 4,832 / 4,916: main passes and this branch fails the intro's desktop line each time |
+
+The paint times are slower on this branch by about 50 to 200 ms, every time: the larger first load (six more small files, 1.7 KB) on the slow profile. Before this branch merges, the first load has to come back to main's size (the chunking decision above, or keeping the client out of the first-load graph): the owner's decision. Everything else holds.
