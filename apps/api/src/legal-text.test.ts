@@ -29,7 +29,7 @@ const LEGAL_TS = read("../../../packages/shared/src/legal.ts");
 const PAGE = plain(read("../../web/src/components/legal/LegalPages.tsx"));
 
 /** Every version this text has replaced: when it changes in a way that matters again, add the version it replaces here, so a forgotten bump fails. */
-const RETIRED_VERSIONS = ["2026-10-draft-13", "2026-11-draft-14", "2026-11-draft-17", "2026-11-draft-18", "2026-11-draft-19", "2026-11-draft-20", "2026-11-draft-21"];
+const RETIRED_VERSIONS = ["2026-10-draft-13", "2026-11-draft-14", "2026-11-draft-17", "2026-11-draft-18", "2026-11-draft-19", "2026-11-draft-20", "2026-11-draft-21", "2026-11-draft-22"];
 
 describe("PRIVACY_VERSION", () => {
   it("keeps the exact line that the staging script reads", () => {
@@ -145,10 +145,12 @@ describe("the privacy page after earlier messages are sent to the AI service", (
   it("says in 'Changes' that the chat does not ask first, and what changed", () => {
     expect(PAGE).toMatch(/before you upload a paper, check an idea or run a literature scan, and we will say here what changed/);
     expect(PAGE).toMatch(/The prompt box on Home does not ask first/);
+    // draft-23 (21 Nov, the invitation e-mail with a first-page picture and the caret in a note, owner approved 21 Nov) is the latest change;
     // draft-22 (20 Nov, seeing each other on a shared paper, docs/design/paper-live.md 3) is the latest change; draft-21 (19 Nov, the reader's agents' answers kept in the notes,
     // docs/design/paper-reader.md 24), draft-20 (19 Nov, sharing a paper), draft-19 (18 Nov, pictures in the notes) and draft-18 (17 Nov, the Notebook) are the changes before it;
     // CHAT_TOOLS, the MCP beta and the earlier-chats changes stay on the page under them.
-    expect(PAGE).toContain("Latest change (20 November 2026): while you have a shared paper open, the people it is shared with can see your name");
+    expect(PAGE).toContain("Latest change (21 November 2026): an invitation to a shared paper now shows your name, the paper's title, a small picture of its first page and any message you add");
+    expect(PAGE).toContain("Change before it (20 November 2026): while you have a shared paper open, the people it is shared with can see your name");
     expect(PAGE).toContain("Change before it (19 November 2026): the answers of the paper reader's agents (Ask, Explain, Critique) that you add to your notes are kept with the paper like your other notes");
     expect(PAGE).toContain("answers from the reader's agents you keep there");
     expect(PAGE).toContain("Change before it (19 November 2026): you can share one of your papers, with its highlights and notes, with people you name by e-mail");
