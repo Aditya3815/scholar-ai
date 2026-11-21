@@ -1,7 +1,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { ChevronDown, Globe, Link2, Lock, Mail, RefreshCw, X } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { LINK_EXPIRY_DAYS, MEMBER_ROLES, ROLE_LABEL, cleanEmail, type LinkExpiry, type LinkRole, type MemberRole, type ShareMember, type ShareSettings } from "@scholar/shared";
+import { Suspense, lazy, useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { INVITE_NOTE_MAX, LINK_EXPIRY_DAYS, MEMBER_ROLES, ROLE_LABEL, cleanEmail, type LinkExpiry, type LinkRole, type MemberRole, type ShareMember, type ShareSettings } from "@scholar/shared";
 import {
   changeMember,
   changeShare,
@@ -17,7 +17,11 @@ import {
   resetLink,
   stopSharing,
 } from "../../../../lib/share";
+import type { PreviewPicture } from "./EmailPreview";
 import "./share.css";
+
+// the preview of the invitation e-mail, a chunk of its own (it holds the e-mail's HTML), fetched when "Preview e-mail" is first opened
+const EmailPreview = lazy(() => import("./EmailPreview"));
 
 /**
  * The Share dialog (docs/design/paper-share.md, section 3), a chunk of its own ("share"), fetched when the owner first presses Share. Drive's model: people by e-mail as Can view, Can comment
@@ -34,7 +38,13 @@ export type ShareDialogProps = {
   copy: (text: string) => Promise<boolean>;
   /** Where the focus goes when it closes (the Share button). */
   returnFocus: () => void;
+  /** Draws the paper's first page as a small JPEG for the invitation e-mail (null when it cannot); absent while the PDF is not open. */
+  pagePicture?: () => Promise<Picture | null>;
 };
+
+type Picture = PreviewPicture & { base64: string };
+/** At most `ms` for the picture: the invitation never waits long for it, and goes without it. */
+const within = <T,>(p: Promise<T>, ms: number, or: T) => Promise.race([p, new Promise<T>((done) => window.setTimeout(() => done(or), ms))]);
 
 const EXPIRY_LABEL = (d: LinkExpiry) => (d === null ? "Never expires" : `Expires in ${d} days`);
 const LINK_ROLE_LABEL: Record<LinkRole, string> = { viewer: "Viewer", commenter: "Commenter" };
@@ -134,11 +144,25 @@ function Menu<T extends string | number | null>({ label, value, options, onPick,
   );
 }
 
-export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast, copy, returnFocus }: ShareDialogProps) {
+export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast, copy, returnFocus, pagePicture }: ShareDialogProps) {
   const [share, setShare] = useState<ShareSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<MemberRole>("commenter");
+  const [note, setNote] = useState("");
+  const [previewing, setPreviewing] = useState(false);
+  // what the preview shows of the note, a moment after the typing stops (each change draws the e-mail again)
+  const [shownNote, setShownNote] = useState("");
+  useEffect(() => {
+    const t = window.setTimeout(() => setShownNote(note), 350);
+    return () => window.clearTimeout(t);
+  }, [note]);
+  // the picture of the first page, drawn once a visit of the dialog when it is first wanted
+  const picture = useRef<Promise<Picture | null> | null>(null);
+  const getPicture = useCallback((): Promise<Picture | null> => {
+    if (!pagePicture) return Promise.resolve(null); // the PDF is not open yet: asked again next time
+    return (picture.current ??= pagePicture().catch(() => null));
+  }, [pagePicture]);
   const [busy, setBusy] = useState(false);
   const [token, setToken] = useState<string | null>(() => keptToken(docId));
   // Undo of Remove, in the dialog itself: the reader's toasts sit behind the modal, where nothing can be pressed
@@ -211,9 +235,13 @@ export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast
   const valid = cleanEmail(email);
   const invite = async () => {
     if (!valid) return setError("Write an e-mail address, like name@university.edu");
-    const r = await run(() => inviteMember(docId, valid, role));
+    const mailing = share?.email === true;
+    const pic = mailing ? await within(getPicture(), 4000, null) : null;
+    const r = await run(() => inviteMember(docId, valid, role, mailing ? { note: note.trim(), picture: pic?.base64 } : {}));
     if (!r) return;
     setEmail("");
+    setNote("");
+    setPreviewing(false);
     await load();
     if (r.emailed) say(`Invited ${valid}. We e-mailed them.`);
     else {
@@ -236,7 +264,8 @@ export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast
     setRemoved(m);
   };
   const resend = async (m: ShareMember) => {
-    const done = await run(() => resendInvite(docId, m.id));
+    const pic = await within(getPicture(), 4000, null);
+    const done = await run(() => resendInvite(docId, m.id, pic?.base64));
     if (done) {
       setShare((s) => (s ? { ...s, members: s.members.map((x) => (x.id === m.id ? done.member : x)) } : s));
       say(`The invitation was e-mailed to ${m.email} again`);
@@ -310,6 +339,23 @@ export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast
         </button>
       </form>
       {share && !share.email && <p className="sh-fine">Invitations are not e-mailed from here: Invite copies a ready message for you to send.</p>}
+      {share?.email && email.trim() && (
+        <div className="sh-msg">
+          <label className="sr-only" htmlFor="sh-note">Message (optional)</label>
+          <textarea id="sh-note" className="sh-input sh-note" rows={2} maxLength={INVITE_NOTE_MAX} placeholder="Add a message (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <div className="sh-msg-row">
+            <button type="button" className="link-btn" aria-expanded={previewing} aria-controls="sh-preview" onClick={() => setPreviewing((p) => !p)}>
+              {previewing ? "Hide the e-mail" : "Preview e-mail"}
+            </button>
+            {note.length > INVITE_NOTE_MAX - 100 && <span className="sh-meta">{INVITE_NOTE_MAX - note.length} characters left</span>}
+          </div>
+          {previewing && (
+            <Suspense fallback={<p className="sh-fine">Opening the preview…</p>}>
+              <EmailPreview inviterName={ownerName ?? "Someone"} title={title} role={role} to={valid ?? email.trim()} note={shownNote} link={paperAddress(docId)} picture={getPicture()} />
+            </Suspense>
+          )}
+        </div>
+      )}
 
       <h3 className="sh-h">People with access</h3>
       <ul className="sh-people" aria-label="People with access">

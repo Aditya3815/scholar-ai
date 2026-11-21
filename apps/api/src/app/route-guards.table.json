@@ -169,6 +169,14 @@
   "notOwned": "404 not_found: Not found [no-store]",
   "bucket": "API_LIMITER"
  },
+ "GET /api/v1/dev/last-invite": {
+  "cross": "404 not_found: Not found",
+  "crossDev": "404 not_found: No invitation",
+  "anon": "404 not_found: No invitation",
+  "noAck": "404 not_found: No invitation",
+  "notOwned": "404 not_found: No invitation",
+  "bucket": "API_LIMITER"
+ },
  "GET /api/v1/dev/r2-exists": {
   "cross": "404 not_found: Not found",
   "crossDev": "200",

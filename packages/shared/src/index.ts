@@ -156,6 +156,8 @@ export * from "./note-image";
 export * from "./notebook-md";
 export * from "./notebook-ink";
 export * from "./share";
+// the invitation e-mail of a shared paper, sent by the Worker and previewed in the Share dialog (paper-share.md, S4)
+export * from "./invite-email";
 // live presence and live updates in a shared paper (docs/design/paper-live.md)
 export * from "./live";
 export * from "./quote-quads";

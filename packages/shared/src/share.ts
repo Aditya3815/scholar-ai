@@ -30,6 +30,10 @@ export const isLinkMode = (v: unknown): v is LinkMode => typeof v === "string" &
 /** The limits of section 6. */
 export const SHARE_MAX_MEMBERS = 50;
 export const SHARE_INVITES_PER_DAY = 200;
+/** The invitation e-mail (invite-email.ts): the longest note the owner may add, and the picture of the first page the dialog makes and the Worker accepts (a JPEG this wide, at most this many bytes). */
+export const INVITE_NOTE_MAX = 500;
+export const INVITE_PICTURE_WIDTH = 300;
+export const INVITE_PICTURE_MAX_BYTES = 60 * 1024;
 export const MAX_COMMENTS_PER_DOC = 500;
 export const MAX_COMMENT_CHARS = 2000;
 /** "Resend" sends the invitation e-mail again at most once an hour. */

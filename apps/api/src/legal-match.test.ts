@@ -489,14 +489,14 @@ const FLAG_SENTENCES: readonly (FlagSentence & { flag: SwitchName })[] = [
     flag: "SHARE",
     at: ["off", "dark", "on"],
     sentence:
-      "You can share one of your papers, with its highlights and notes, with people you name by e-mail, or with anyone who has its link. We keep the e-mail addresses you add, so that the right person can open it, until you remove them or stop sharing. People you share with see the paper and its notes, not your other papers or your questions to the AI. Comments are kept with the paper and deleted with it. A link can be reset or switched off at any time, and stops working at once. When you add someone, an invitation is sent to that address through Cloudflare's e-mail service; the address is used only to send that invitation.",
+      "You can share one of your papers, with its highlights and notes, with people you name by e-mail, or with anyone who has its link. We keep the e-mail addresses you add, so that the right person can open it, until you remove them or stop sharing. People you share with see the paper and its notes, not your other papers or your questions to the AI. Comments are kept with the paper and deleted with it. A link can be reset or switched off at any time, and stops working at once. When you add someone, an invitation is sent to that address through Cloudflare's e-mail service. It shows your name, the paper's title, a small picture of its first page and any message you add; the address, the picture and the message are used only to send that invitation and are not kept.",
   },
   // Live presence in a shared paper (docs/design/paper-live.md 3, the owner approved the words on 20 Nov 2026): on the page before LIVE leaves off, as READER's and SHARE's: pinned at every
   // position. Drop "off" once LIVE is on in production.
   {
     flag: "LIVE",
     at: ["off", "dark", "on"],
-    sentence: "While you have a shared paper open, the people it is shared with can see your name, which page of the paper or of its notes you are on, and which note you are typing in. This is shown only while you are there and is not kept.",
+    sentence: "While you have a shared paper open, the people it is shared with can see your name, which page of the paper or of its notes you are on, and which note you are typing in and where in it. This is shown only while you are there and is not kept.",
   },
 ];
 /** Flags that are on in the committed config and need no sentence on the page, each with the reason (nothing new is sent, kept or shown that the page does not already say). Empty until a release has one. */

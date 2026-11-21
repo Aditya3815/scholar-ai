@@ -92,12 +92,12 @@ export async function readOutline(pdf: PDFDocumentProxy): Promise<OutlineItem[]>
   return out;
 }
 
-/** A small JPEG of the first page (about 360 px wide) used as the paper's cover in the list. Always under the server's limit. */
-export async function renderCover(pdf: PDFDocumentProxy): Promise<Blob | null> {
+/** The first page drawn as a JPEG `width` px wide, at the best quality (of those given) that is at most `maxBytes`; null when it cannot be drawn or is still too big. */
+export async function firstPageJpeg(pdf: PDFDocumentProxy, width: number, maxBytes: number, qualities: number[]): Promise<{ blob: Blob; width: number; height: number } | null> {
   try {
     const page = await pdf.getPage(1);
     const base = page.getViewport({ scale: 1 });
-    const viewport = page.getViewport({ scale: 360 / base.width });
+    const viewport = page.getViewport({ scale: width / base.width });
     const canvas = document.createElement("canvas");
     canvas.width = Math.floor(viewport.width);
     canvas.height = Math.floor(viewport.height);
@@ -106,12 +106,17 @@ export async function renderCover(pdf: PDFDocumentProxy): Promise<Blob | null> {
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     await page.render({ canvas, canvasContext: ctx, viewport }).promise;
-    for (const q of [0.85, 0.7, 0.55, 0.4]) {
+    for (const q of qualities) {
       const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", q));
-      if (blob && blob.size <= 290 * 1024) return blob;
+      if (blob && blob.size <= maxBytes) return { blob, width: canvas.width, height: canvas.height };
     }
     return null;
   } catch {
     return null;
   }
+}
+
+/** A small JPEG of the first page (about 360 px wide) used as the paper's cover in the list. Always under the server's limit. */
+export async function renderCover(pdf: PDFDocumentProxy): Promise<Blob | null> {
+  return (await firstPageJpeg(pdf, 360, 290 * 1024, [0.85, 0.7, 0.55, 0.4]))?.blob ?? null;
 }

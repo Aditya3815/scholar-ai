@@ -1,10 +1,12 @@
 import { Hono, type Context } from "hono";
 import {
   DEFAULT_LINK_EXPIRY,
+  INVITE_NOTE_MAX,
   MAX_COMMENTS_PER_DOC,
   SHARE_INVITES_PER_DAY,
   SHARE_MAX_MEMBERS,
   SHARE_TOKEN,
+  cleanInviteNote,
   cleanCommentBody,
   cleanEmail,
   isLinkExpiry,
@@ -21,6 +23,7 @@ import { deny } from "../problem";
 import type { HonoEnv } from "../platform/env";
 import { setLinkCookie } from "./access";
 import { mailerFor } from "./invite-mail";
+import { checkInvitePicture, type InvitePicture } from "./invite-picture";
 import { requirePaper, type PaperDoor } from "./paper-gate";
 import { shareOnFor, shareSwitchedOn } from "./share-flag";
 import { liveChanged, liveRevoke } from "./live";
@@ -59,10 +62,11 @@ import {
  *   PUT    /papers/:id                        general access (restricted | anyone), the link's role (viewer | commenter), expiry (7, 30, null), viewers can download
  *   POST   /papers/:id/link                   make the link, or reset it (the old one stops at once): the token, shown this once
  *   DELETE /papers/:id                        stop sharing: the link and every person go
- *   POST   /papers/:id/members                invite a person by e-mail as viewer, commenter or editor (and e-mail them, when the Worker can)
+ *   POST   /papers/:id/members                invite a person by e-mail as viewer, commenter or editor (and e-mail them, when the Worker can, with the owner's note and a picture
+ *                                             of the first page when the dialog sends them: used for that e-mail only, never kept)
  *   PATCH  /papers/:id/members/:mid           change a person's role
  *   DELETE /papers/:id/members/:mid           remove a person (the dialog's Undo invites them again, without an e-mail)
- *   POST   /papers/:id/members/:mid/resend    e-mail the invitation again (at most once an hour)
+ *   POST   /papers/:id/members/:mid/resend    e-mail the invitation again (at most once an hour; the picture of the first page may come again)
  *   GET    /papers/:id/comments               the comments (Viewer up)
  *   POST   /papers/:id/comments               a comment or a reply (Commenter up)
  *   PATCH  /papers/:id/comments/:cid          edit one's own words; resolve or open a thread (the owner and Editors)
@@ -71,6 +75,8 @@ import {
 export const shareRoutes = new Hono<HonoEnv>();
 
 const MAX_BODY = 8 * 1024;
+/** An invitation may carry the picture of the first page (at most 60 KB, as base64) and a note. */
+const MAX_INVITE_BODY = 96 * 1024;
 const OFF = (c: Context<HonoEnv>) => deny(c, 404, "not_found", "Not found", c.req.path);
 const SIGNED_IN: Door = { signIn: "Sign in first" };
 const OWNER: PaperDoor = { signIn: "Sign in first", missing: "Paper not found" };
@@ -84,8 +90,8 @@ shareRoutes.use("*", async (c, next) => {
 });
 
 /** A body read with a limit: null when it is too big or not an object. */
-async function body(c: Context<HonoEnv>): Promise<Record<string, unknown> | null> {
-  const read = await readJson(c, MAX_BODY);
+async function body(c: Context<HonoEnv>, max = MAX_BODY): Promise<Record<string, unknown> | null> {
+  const read = await readJson(c, max);
   if (read.tooLarge) return null;
   return read.value && typeof read.value === "object" && !Array.isArray(read.value) ? (read.value as Record<string, unknown>) : null;
 }
@@ -185,11 +191,23 @@ shareRoutes.delete("/papers/:id", async (c) => {
   return c.json({ share: await shareSettings(c.env.DB, got.row.id, mailerFor(c.env) !== null) });
 });
 
+/** The picture of the first page a body carries, when it passes every check; a picture that fails is left out of the e-mail (logged by its reason only), never a refusal. */
+function pictureOf(b: Record<string, unknown>): InvitePicture | null {
+  if (b.picture === undefined || b.picture === null) return null;
+  const got = checkInvitePicture(b.picture);
+  if (got.ok) return got.picture;
+  console.warn(JSON.stringify({ level: "warn", msg: "invite_picture_left_out", reason: got.reason }));
+  return null;
+}
+
 /** E-mails the invitation when the Worker can and it may (once, then Resend once an hour). True when it went. */
-async function sendInvite(c: Context<HonoEnv>, q: { docId: string; title: string; memberId: string; email: string; role: "viewer" | "commenter" | "editor"; inviter: string | null }): Promise<boolean> {
+async function sendInvite(
+  c: Context<HonoEnv>,
+  q: { docId: string; title: string; memberId: string; email: string; role: "viewer" | "commenter" | "editor"; inviter: string | null; note?: string | null; picture?: InvitePicture | null },
+): Promise<boolean> {
   const mailer = mailerFor(c.env);
   if (!mailer || !(await claimSend(c.env.DB, q.docId, q.memberId))) return false;
-  const ok = await mailer({ to: q.email, paperTitle: q.title, inviterName: q.inviter ?? "Someone", role: q.role, link: paperLink(c, q.docId) });
+  const ok = await mailer({ to: q.email, paperTitle: q.title, inviterName: q.inviter ?? "Someone", role: q.role, link: paperLink(c, q.docId), note: q.note ?? null, picture: q.picture ?? null });
   if (!ok) await releaseSend(c.env.DB, q.docId, q.memberId);
   return ok;
 }
@@ -197,11 +215,14 @@ async function sendInvite(c: Context<HonoEnv>, q: { docId: string; title: string
 shareRoutes.post("/papers/:id/members", async (c) => {
   const got = await owner(c);
   if (got instanceof Response) return got;
-  const b = await body(c);
+  const b = await body(c, MAX_INVITE_BODY);
   if (!b) return TOO_BIG_OR_EMPTY(c);
   const email = cleanEmail(b.email);
   if (!email) return deny(c, 400, "invalid_email", "That is not an e-mail address");
   if (!isMemberRole(b.role)) return deny(c, 400, "invalid_share", "Choose Can view, Can comment or Can edit");
+  if (b.note !== undefined && b.note !== null && typeof b.note !== "string") return deny(c, 400, "invalid_share", "A note is text");
+  const note = cleanInviteNote(b.note);
+  if (note && note.length > INVITE_NOTE_MAX) return deny(c, 400, "invalid_share", `A note can be at most ${INVITE_NOTE_MAX} characters`);
   // Undo of a removal puts the person back as they were: not counted again, not e-mailed again
   const restore = b.restore === true;
   const r = await invite(c.env.DB, { docId: got.row.id, ownerId: got.user.id, ownerEmail: got.user.email, email, role: b.role, count: !restore });
@@ -210,7 +231,7 @@ shareRoutes.post("/papers/:id/members", async (c) => {
     if (r.reason === "full") return deny(c, 409, "members_full", `A paper can be shared with ${SHARE_MAX_MEMBERS} people`, "Remove someone to add another.");
     return deny(c, 429, "invite_limit", `You can invite ${SHARE_INVITES_PER_DAY} people a day`, "Try again tomorrow.");
   }
-  const emailed = r.created && !restore && b.send !== false ? await sendInvite(c, { docId: got.row.id, title: got.row.title, memberId: r.member.id, email, role: b.role, inviter: got.user.name }) : false;
+  const emailed = r.created && !restore && b.send !== false ? await sendInvite(c, { docId: got.row.id, title: got.row.title, memberId: r.member.id, email, role: b.role, inviter: got.user.name, note, picture: pictureOf(b) }) : false;
   return c.json({ member: (await memberById(c.env.DB, got.row.id, r.member.id)) ?? r.member, created: r.created, emailed, link: paperLink(c, got.row.id) }, r.created ? 201 : 200);
 });
 
@@ -240,7 +261,9 @@ shareRoutes.post("/papers/:id/members/:mid/resend", async (c) => {
   const m = await c.env.DB.prepare("SELECT id, email, role FROM doc_members WHERE doc_id = ?1 AND id = ?2").bind(got.row.id, c.req.param("mid")).first<{ id: string; email: string; role: string }>();
   if (!m || !isMemberRole(m.role)) return deny(c, 404, "not_found", "That person is not on the list");
   if (!mailerFor(c.env)) return deny(c, 503, "unavailable", "Invitations cannot be e-mailed from here", "Copy the invitation and send it yourself.");
-  const sent = await sendInvite(c, { docId: got.row.id, title: got.row.title, memberId: m.id, email: m.email, role: m.role, inviter: got.user.name });
+  // an older page sends no body; a body too big is the same as none
+  const b = (await body(c, MAX_INVITE_BODY)) ?? {};
+  const sent = await sendInvite(c, { docId: got.row.id, title: got.row.title, memberId: m.id, email: m.email, role: m.role, inviter: got.user.name, picture: pictureOf(b) });
   if (!sent) return deny(c, 429, "rate_limited", "The invitation was e-mailed less than an hour ago", "You can send it again an hour after the last one.");
   return c.json({ member: await memberById(c.env.DB, got.row.id, m.id), emailed: true });
 });
