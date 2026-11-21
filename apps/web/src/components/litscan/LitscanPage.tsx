@@ -14,10 +14,10 @@ import {
   type LitscanPublic,
 } from "@scholar/shared";
 import { useAuth } from "../../lib/auth";
-import { ApiError } from "../../lib/documents";
+import { ApiError } from "../../lib/api/client";
 import { PlanStep, toDraft, type Draft } from "./PlanStep";
 import { ExportMenu, Review, ThemeBoard } from "./Review";
-import { ScanRunningError, cancelScan, deleteScan, getSharedScan, listScans, planScan, shareScan, startScan, unshareScan, useScan } from "../../lib/litscan";
+import { cancelScan, deleteScan, getSharedScan, listScans, planScan, runningScanId, shareScan, startScan, unshareScan, useScan } from "../../lib/litscan";
 import { showNotice } from "../../lib/notice";
 import { askNotifyPermission, notifySupport, notifyWanted, setNotifyWanted, showScanNotice } from "../../lib/notify";
 import { ProviderButtons } from "../ProviderButtons";
@@ -434,8 +434,9 @@ function ScanApp() {
       setDraft(null);
       setScanId(sid);
     } catch (e) {
-      if (e instanceof ScanRunningError) {
-        setRunning(e.id);
+      const other = runningScanId(e);
+      if (other) {
+        setRunning(other);
         setDraft(null);
         showNotice("A scan is already running. Wait for it to finish, or stop it, before starting another.");
       } else showNotice(errorText(e, "The scan could not be started. Please try again.") || "The scan could not be started.");

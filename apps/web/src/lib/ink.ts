@@ -30,6 +30,8 @@ export const newStrokeId = () => (typeof crypto !== "undefined" && "randomUUID" 
 const url = (docId: string) => `/api/v1/documents/${docId}/ink`;
 const SAVE_AFTER_MS = 1200;
 const KEEPALIVE_LIMIT = 60_000; // a request that may outlive the page can carry at most about 64 KB
+/** Saving the drawing again after the `failures`-th failure in a row: 4, 8, 16, then every 30 s (a timer, so that a change made meanwhile is saved with it). */
+const RESAVE_MS = (failures: number) => Math.min(30_000, 2000 * 2 ** Math.min(failures, 4));
 
 /**
  * The drawing on one paper: loaded once, changed in the browser at once (so drawing never waits for the network), and saved a moment after the last change.
@@ -149,7 +151,7 @@ export function useInk(docId: string): InkApi {
       if (alive.current) {
         setStatus(navigator.onLine ? "error" : "offline");
         window.clearTimeout(retryTimer.current);
-        retryTimer.current = window.setTimeout(() => void save(), Math.min(30_000, 2000 * 2 ** Math.min(failures.current, 4)));
+        retryTimer.current = window.setTimeout(() => void save(), RESAVE_MS(failures.current));
       }
     } finally {
       saving.current = false;

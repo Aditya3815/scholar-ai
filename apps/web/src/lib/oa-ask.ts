@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { MAX_OA_ABSTRACT_CHARS, oaKey, refFromPaper, type Answer, type AskStage, type OaAskEvent, type OaIngestEvent, type OaPaperEvent, type Paper } from "@scholar/shared";
-import { readSse } from "./sse";
+import { ApiError } from "./api/client";
+import { endingOf, perFrame, postStream, readSse, type Ending } from "./api/stream";
 
 /**
  * "Ask this paper" on any search result (W4). The sheet shows the questions asked about one paper at a time; they are kept for the visit (in memory, per paper) and nowhere else:
@@ -82,6 +83,24 @@ export const reduceTurn = (t: OaTurn, e: OaAskEvent): OaTurn => {
   }
 };
 
+/** The sheet's words for a question the server refused, by status: signed out (401) and too many questions (429) have their own; anything they leave out is the server's problem. */
+const OA_REFUSED: Partial<Record<number, { code: string; title: string; detail?: string }>> = {
+  401: { code: "sign_in", title: "Sign in to ask this paper" },
+  429: { code: "rate_limited", title: "Too many questions just now", detail: "Please wait a minute and try again." },
+};
+const refusal = (e: ApiError) => {
+  const own = OA_REFUSED[e.status];
+  const detail = own?.detail ?? e.detail;
+  return { code: own?.code ?? e.type, title: own?.title ?? e.title, ...(detail ? { detail } : {}) };
+};
+
+/** The sheet's words for a stream that did not finish. */
+const OA_ENDINGS: Record<Exclude<Ending, "stopped">, { code: string; title: string; detail: string }> = {
+  cut_off: { code: "cut_off", title: "The answer was cut off", detail: "Ask again: a paper that was being read keeps being read." },
+  connection_lost: { code: "network", title: "The connection was lost", detail: "Check your internet and ask again." },
+  failed: { code: "network", title: "Something went wrong", detail: "Check your internet and ask again." },
+};
+
 /** Whether a question is being answered for this paper now (one at a time). */
 export const isAsking = (key: string | null): boolean => !!key && (state.turns.get(key) ?? []).some((t) => t.status === "working");
 
@@ -98,41 +117,24 @@ export async function askPaper(paper: Paper, question: string, again?: string): 
 
   const ctl = new AbortController();
   controllers.set(key, ctl);
-  let queue: OaAskEvent[] = [];
-  let raf = 0;
-  const flush = () => {
-    raf = 0;
-    const batch = queue;
-    queue = [];
-    if (batch.length) patch(key, id, (t) => batch.reduce(reduceTurn, t));
-  };
+  const frames = perFrame<OaAskEvent>((batch) => patch(key, id, (t) => batch.reduce(reduceTurn, t)));
   try {
-    const res = await fetch("/api/v1/papers/oa/ask", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-      body: JSON.stringify({ ...ref, question: q, ...(paper.abstract ? { abstract: paper.abstract.slice(0, MAX_OA_ABSTRACT_CHARS) } : {}) }),
-      signal: ctl.signal,
-    });
-    if (!res.ok) {
-      const j = (await res.json().catch(() => null)) as { type?: string; title?: string; detail?: string } | null;
-      const code = res.status === 401 ? "sign_in" : res.status === 429 ? "rate_limited" : (j?.type ?? "error");
-      const title = res.status === 401 ? "Sign in to ask this paper" : res.status === 429 ? "Too many questions just now" : (j?.title ?? "That could not be sent");
-      patch(key, id, (t) => reduceTurn(t, { type: "error", code, title, ...(res.status === 429 ? { detail: "Please wait a minute and try again." } : j?.detail ? { detail: j.detail } : {}) }));
+    let res: Response;
+    try {
+      res = await postStream("/api/v1/papers/oa/ask", { ...ref, question: q, ...(paper.abstract ? { abstract: paper.abstract.slice(0, MAX_OA_ABSTRACT_CHARS) } : {}) }, { headers: { Accept: "text/event-stream" }, signal: ctl.signal, fallback: "That could not be sent" });
+    } catch (e) {
+      if (!(e instanceof ApiError)) throw e;
+      patch(key, id, (t) => reduceTurn(t, { type: "error", ...refusal(e) }));
       return "sent";
     }
-    await readSse<OaAskEvent>(res, (e) => {
-      queue.push(e);
-      if (!raf) raf = requestAnimationFrame(flush);
-    }, ctl.signal);
-    if (raf) cancelAnimationFrame(raf);
-    flush();
-    patch(key, id, (t) => (t.status === "working" ? reduceTurn(t, { type: "error", code: "cut_off", title: "The answer was cut off", detail: "Ask again: a paper that was being read keeps being read." }) : t));
+    await readSse<OaAskEvent>(res, frames.push, ctl.signal);
+    frames.flush();
+    patch(key, id, (t) => (t.status === "working" ? reduceTurn(t, { type: "error", ...OA_ENDINGS.cut_off }) : t));
   } catch (e) {
-    if (raf) cancelAnimationFrame(raf);
-    flush();
-    if (e instanceof DOMException && e.name === "AbortError") patch(key, id, (t) => (t.status === "working" ? { ...t, status: "stopped", live: "" } : t));
-    else patch(key, id, (t) => reduceTurn(t, { type: "error", code: "network", title: e instanceof TypeError ? "The connection was lost" : "Something went wrong", detail: "Check your internet and ask again." }));
+    frames.flush();
+    const end = endingOf(e);
+    if (end === "stopped") patch(key, id, (t) => (t.status === "working" ? { ...t, status: "stopped", live: "" } : t));
+    else patch(key, id, (t) => reduceTurn(t, { type: "error", ...OA_ENDINGS[end] }));
   } finally {
     controllers.delete(key);
   }

@@ -6,7 +6,8 @@ import {
 } from "@scholar/shared";
 import { idbClear, idbDelete, idbRead, idbSwap } from "./idb";
 import { showNotice } from "./notice";
-import { readSse } from "./sse";
+import { ApiError, send } from "./api/client";
+import { endingOf, perFrame, postStream, readSse } from "./api/stream";
 
 /**
  * The conversations of the prompt box. They live in this browser and nowhere else: the list in localStorage (so the rail can show it at once, and another tab hears of a change),
@@ -636,6 +637,15 @@ async function ledgerWanted(signedIn: boolean): Promise<boolean> {
   }
 }
 
+/** The chat's words for a message the server refused: too many searches (429), otherwise the server's title (its detail is not shown). */
+const chatRefused = (e: ApiError): string => (e.status === 429 ? "Too many searches just now. Please wait a minute and try again." : e.title);
+/** The chat's words for a reply whose stream did not finish (stopped is said by the reply itself). */
+const CHAT_ENDINGS = { cut_off: "The answer was cut off. Search again.", connection_lost: "The connection was lost. Check your internet and search again." } as const;
+
+/** Check strictly's words for a check the server refused: its own for 429 (the server's title, or "Too many requests.", and its detail) and 403; otherwise the title, and the detail unless the request itself was refused (400). */
+const tightenRefused = (e: ApiError): string =>
+  e.status === 429 ? `${e.title}${e.detail ? ` ${e.detail}` : ""}` : e.status === 403 ? "Sign in again to check an answer strictly." : e.title + (e.detail && e.status !== 400 ? ` ${e.detail}` : "");
+
 /**
  * Write one reply. `history` is what the message may lean on (`contextBefore`, only in Auto; empty means nothing is sent, and the body is what it was before there was any). The server reads it
  * strictly and refuses a body it could not have been sent (400 `invalid_history`), which would end every follow-up of the conversation in an error the person cannot mend: the message itself
@@ -656,54 +666,46 @@ async function run(chatId: string, assistantId: string, text: string, mode: Send
     if (msgs) changeReply(chatId, msgs, (m) => (m.id === assistantId && m.role === "assistant" ? fn(m) : m));
   };
   // events arrive many times a second: they are applied together once per frame
-  let queue: ChatEvent[] = [];
-  let raf = 0;
-  const flush = () => {
-    raf = 0;
-    const batch = queue;
-    queue = [];
-    if (batch.length) {
-      patch((m) => batch.reduce(applyChatEvent, m));
-      persist(chatId); // a moment later: so a page closed part way keeps the papers found so far
-    }
-  };
+  const frames = perFrame<ChatEvent>((batch) => {
+    patch((m) => batch.reduce(applyChatEvent, m));
+    persist(chatId); // a moment later: so a page closed part way keeps the papers found so far
+  });
   try {
     // M4: the turn ledger goes only when the server said the Understand step reads it (GET /chat/config), and only in Auto; a page that could not ask sends none
     const ledger = mode === "auto" && !anyway && ledgerTurns.length > 0 && (await ledgerWanted(signedIn)) ? ledgerForSend(ledgerTurns, { signedIn }) : [];
     const post = (turns: HistoryEntry[], led: readonly unknown[]) =>
-      fetch("/api/v1/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify(chatRequestBody({ signedIn, mode, message: text, scope, anyway, history: turns, sinceYear, ledger: led })), signal: ctl.signal });
-    let res = await post(history, ledger);
-    const refused = res.status === 400 ? ((await res.clone().json().catch(() => null)) as { type?: string } | null)?.type : undefined;
-    if (refused === "invalid_history" && history.length > 0) {
-      console.warn("The earlier messages were not accepted, so this message was sent without them.");
-      res = await post([], []);
-    } else if (refused === "invalid_ledger" && ledger.length > 0) {
-      console.warn("The record of this chat was not accepted, so this message was sent without it.");
-      res = await post(history, []);
-    }
-    if (!res.ok) {
-      const j = (await res.json().catch(() => null)) as { title?: string; detail?: string } | null;
-      throw new Error(res.status === 429 ? "Too many searches just now. Please wait a minute and try again." : (j?.title ?? "That could not be sent. Please try again."));
+      postStream("/api/v1/chat", chatRequestBody({ signedIn, mode, message: text, scope, anyway, history: turns, sinceYear, ledger: led }), { headers: { Accept: "text/event-stream" }, signal: ctl.signal, fallback: "That could not be sent. Please try again." });
+    const refused = (e: unknown, type: string) => e instanceof ApiError && e.status === 400 && e.type === type;
+    let res: Response;
+    try {
+      res = await post(history, ledger);
+    } catch (e) {
+      if (refused(e, "invalid_history") && history.length > 0) {
+        console.warn("The earlier messages were not accepted, so this message was sent without them.");
+        res = await post([], []);
+      } else if (refused(e, "invalid_ledger") && ledger.length > 0) {
+        console.warn("The record of this chat was not accepted, so this message was sent without it.");
+        res = await post(history, []);
+      } else throw e;
     }
     await readSse<ChatEvent>(
       res,
       (e) => {
-        queue.push(e);
+        frames.push(e);
         // the reply followed the search before the one that did not finish: it says so (the reducer keeps one notice of a kind, and this kind is the page's own)
-        if (mayNote && e.type === "understood" && usesEarlierTurns(e.context)) queue.push({ type: "notice", kind: "unfinished", text: didNotFinishText(e.language) });
-        if (!raf) raf = requestAnimationFrame(flush);
+        if (mayNote && e.type === "understood" && usesEarlierTurns(e.context)) frames.push({ type: "notice", kind: "unfinished", text: didNotFinishText(e.language) });
       },
       ctl.signal,
     );
-    if (raf) cancelAnimationFrame(raf);
-    flush();
+    frames.flush();
     // a stream that ended without saying it was done was cut off
-    patch((m) => (m.status === "working" ? applyChatEvent(m, { type: "error", code: "cut_off", title: "The answer was cut off. Search again." }) : m));
+    patch((m) => (m.status === "working" ? applyChatEvent(m, { type: "error", code: "cut_off", title: CHAT_ENDINGS.cut_off }) : m));
   } catch (e) {
-    if (raf) cancelAnimationFrame(raf);
-    flush();
-    if (e instanceof DOMException && e.name === "AbortError") patch(stopAssistant);
-    else patch((m) => (m.status === "working" ? applyChatEvent(m, { type: "error", code: "network", title: e instanceof TypeError ? "The connection was lost. Check your internet and search again." : e instanceof Error ? e.message : "Something went wrong." }) : m));
+    frames.flush();
+    const end = endingOf(e);
+    const title = end === "connection_lost" ? CHAT_ENDINGS.connection_lost : e instanceof ApiError ? chatRefused(e) : e instanceof Error ? e.message : "Something went wrong.";
+    if (end === "stopped") patch(stopAssistant);
+    else patch((m) => (m.status === "working" ? applyChatEvent(m, { type: "error", code: "network", title }) : m));
   } finally {
     // only this run's own registration: a run that was stopped ends after a new one began, and must not unregister it (the box would take the new run's reply for finished)
     releaseRun(runs, chatId, ctl);
@@ -774,16 +776,13 @@ export async function tightenReply(assistantId: string): Promise<void> {
   tightening.set(assistantId, ctl);
   patch(startTighten);
   try {
-    const res = await fetch("/api/v1/chat/tighten", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal });
-    if (!res.ok) {
-      const j = (await res.json().catch(() => null)) as { title?: string; detail?: string } | null;
-      throw new Error(res.status === 429 ? `${j?.title ?? "Too many requests."}${j?.detail ? ` ${j.detail}` : ""}` : res.status === 403 ? "Sign in again to check an answer strictly." : (j?.title ?? "The strict check could not be done.") + (j?.detail && res.status !== 400 ? ` ${j.detail}` : ""));
-    }
+    const res = await send("/api/v1/chat/tighten", { method: "POST", json: body, signal: ctl.signal, fallback: (status) => (status === 429 ? "Too many requests." : "The strict check could not be done.") });
     const out = (await res.json().catch(() => null)) as TightenResponse | null;
     patch((m) => applyTighten(m, out as TightenResponse, asked));
   } catch (e) {
-    if (e instanceof DOMException && e.name === "AbortError") patch((m) => ({ ...m, strict: undefined }));
-    else patch((m) => failTighten(m, e instanceof TypeError ? "The connection was lost. Check your internet and try again." : e instanceof Error ? e.message : "The strict check could not be done."));
+    const end = endingOf(e);
+    if (end === "stopped") patch((m) => ({ ...m, strict: undefined }));
+    else patch((m) => failTighten(m, end === "connection_lost" ? "The connection was lost. Check your internet and try again." : e instanceof ApiError ? tightenRefused(e) : e instanceof Error ? e.message : "The strict check could not be done."));
   } finally {
     // only its own registration: a reply asked again begins by stopping this check and may have started another since
     if (tightening.get(assistantId) === ctl) tightening.delete(assistantId);

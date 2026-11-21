@@ -32,8 +32,8 @@ let session = storage();
 const g = globalThis as unknown as Record<string, unknown>;
 
 type Net = {
-  /** Every request, in order: the url and the parsed body. */
-  calls: { url: string; body: Record<string, unknown> }[];
+  /** Every request, in order: the url, the parsed body, and the rest of what was sent. */
+  calls: { url: string; body: Record<string, unknown>; init?: RequestInit }[];
   /** What the server says to /api/v1/chat. */
   chat: (body: Record<string, unknown>) => Response | Promise<Response>;
   /** What it says to /api/v1/chat/tighten: a promise the case resolves when it likes. */
@@ -101,10 +101,10 @@ beforeEach(() => {
     chat: () => finish(),
     tighten: async () => new Response("{}", { status: 500 }),
   };
-  g.fetch = async (url: string, init?: { body?: string; signal?: AbortSignal }) => {
+  g.fetch = async (url: string, init?: RequestInit & { body?: string }) => {
     const body = init?.body ? (JSON.parse(init.body) as Record<string, unknown>) : {};
-    net.calls.push({ url, body });
-    return url.endsWith("/tighten") ? net.tighten(body, init?.signal) : net.chat(body);
+    net.calls.push({ url, body, init });
+    return url.endsWith("/tighten") ? net.tighten(body, init?.signal ?? undefined) : net.chat(body);
   };
 });
 
@@ -578,5 +578,116 @@ describe("what the removed earlier-chats feature left in the browser", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(JSON.stringify(chatBodies())).not.toContain("EARLIERCANARY");
     expect(JSON.stringify(stored("s2"))).not.toContain("EARLIERCANARY");
+  });
+});
+
+/* ================================================================ the chat's requests and their words (docs/design/untangle.md, F9) */
+
+describe("the chat's requests and the words of their failures, as they were before the one browser client", () => {
+  const theReply = (t: Tab, id?: string) => {
+    const msgs = t.st().chats.get(id ?? t.st().active!)!;
+    return msgs.find((m) => m.role === "assistant") as AssistantMsg;
+  };
+  const headersOf = (init?: RequestInit) => Object.fromEntries(new Headers(init?.headers).entries());
+  const ask = async (chat: Net["chat"]) => {
+    // a page of its own each time (the chat that was open before is not opened again)
+    local = storage();
+    session = storage();
+    g.localStorage = local;
+    g.sessionStorage = session;
+    fake.records.clear();
+    const t = await openTab();
+    t.lib.setChatOwner("u1");
+    net.chat = chat;
+    t.lib.sendMessage("glaucoma screening", "search");
+    await idle(t);
+    return { t, reply: theReply(t) };
+  };
+
+  it("a message: POST /api/v1/chat, as JSON, asking for an event stream, with the person's cookies and a way to stop it", async () => {
+    await ask(() => finish());
+    const call = net.calls.find((c) => c.url === "/api/v1/chat")!;
+    expect(call.init).toMatchObject({ method: "POST", credentials: "same-origin" });
+    expect(call.init!.signal).toBeInstanceOf(AbortSignal);
+    expect(headersOf(call.init)).toEqual({ "content-type": "application/json", accept: "text/event-stream" });
+  });
+
+  it("refused: too many searches (429), the problem's title (not its detail), or the words for a reply without one", async () => {
+    const r429 = (await ask(() => new Response(JSON.stringify({ type: "rate_limited", title: "x" }), { status: 429 }))).reply;
+    expect(r429).toMatchObject({ status: "error", error: "Too many searches just now. Please wait a minute and try again." });
+    const r400 = (await ask(() => new Response(JSON.stringify({ type: "invalid_message", title: "That message is empty", detail: "Write something" }), { status: 400 }))).reply;
+    expect(r400.error).toBe("That message is empty");
+    const r502 = (await ask(() => new Response("<html>", { status: 502 }))).reply;
+    expect(r502.error).toBe("That could not be sent. Please try again.");
+  });
+
+  it("the earlier messages refused (400 invalid_history): sent again once without them", async () => {
+    const t = await openTab();
+    t.lib.setChatOwner("u1");
+    net.chat = () => finish([paper("p1")], []);
+    t.lib.sendMessage("glaucoma screening", "auto");
+    await idle(t);
+    let n = 0;
+    // (GET /api/v1/chat/config, asked first, has no message)
+    net.chat = (b) => (!("message" in b) ? json({ ledger: false }) : n++ === 0 ? new Response(JSON.stringify({ type: "invalid_history", title: "x" }), { status: 400 }) : finish());
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    t.lib.sendMessage("only after 2020", "auto");
+    await idle(t);
+    warn.mockRestore();
+    const bodies = chatBodies();
+    expect(bodies).toHaveLength(3);
+    expect(bodies[1]).toHaveProperty("history");
+    expect(bodies[2]).not.toHaveProperty("history");
+  });
+
+  it("the endings of a stream that did not finish: cut off, the connection lost, stopped", async () => {
+    const cut = (await ask(() => sse([understood(), { type: "papers", results: [paper("p1")], final: false }]))).reply;
+    expect(cut.error).toBe("The answer was cut off. Search again.");
+    const lost = (await ask(() => Promise.reject(new TypeError("Failed to fetch")))).reply;
+    expect(lost.error).toBe("The connection was lost. Check your internet and search again.");
+    const odd = (await ask(() => Promise.reject(new Error("odd")))).reply;
+    expect(odd.error).toBe("odd");
+    const stopped = (await ask(() => Promise.reject(new DOMException("aborted", "AbortError")))).reply;
+    expect(stopped.status).toBe("stopped");
+  });
+
+  describe("Check strictly", () => {
+    const strict = async (res: () => Promise<Response>) => {
+      seed("c1", "metformin", [user("u1", "metformin hba1c"), answered("r1")], { owner: "u" });
+      const t = await openTab();
+      t.lib.setChatOwner("u");
+      await t.lib.openChat("c1");
+      net.tighten = res;
+      await t.lib.tightenReply("r1");
+      return { reply: theReply(t, "c1"), call: net.calls.find((c) => c.url === "/api/v1/chat/tighten")! };
+    };
+    const problemOf = (status: number, body: unknown) => async () => new Response(typeof body === "string" ? body : JSON.stringify(body), { status });
+
+    it("POST /api/v1/chat/tighten, as JSON, with the person's cookies and a way to stop it", async () => {
+      const { call } = await strict(async () => json(TIGHT));
+      expect(call.init).toMatchObject({ method: "POST", credentials: "same-origin" });
+      expect(call.init!.signal).toBeInstanceOf(AbortSignal);
+      expect(headersOf(call.init)).toEqual({ "content-type": "application/json" });
+    });
+
+    it("the words of each failure", async () => {
+      const cases: [() => Promise<Response>, string][] = [
+        [problemOf(429, { type: "quota", title: "Today's strict checks are used.", detail: "They come back tomorrow." }), "Today's strict checks are used. They come back tomorrow."],
+        [problemOf(429, ""), "Too many requests."],
+        [problemOf(403, { type: "forbidden", title: "x", detail: "y" }), "Sign in again to check an answer strictly."],
+        [problemOf(400, { type: "invalid_request", title: "That answer cannot be checked.", detail: "not shown" }), "That answer cannot be checked."],
+        [problemOf(503, { type: "ai_unavailable", title: "The model is busy.", detail: "Try in a minute." }), "The model is busy. Try in a minute."],
+        [problemOf(500, "x"), "The strict check could not be done."],
+        [() => Promise.reject(new TypeError("Failed to fetch")), "The connection was lost. Check your internet and try again."],
+      ];
+      for (const [res, note] of cases) {
+        local = storage();
+        session = storage();
+        g.localStorage = local;
+        g.sessionStorage = session;
+        fake.records.clear();
+        expect((await strict(res)).reply.strict).toEqual({ status: "failed", note });
+      }
+    });
   });
 });

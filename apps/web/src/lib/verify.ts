@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MAX_REFERENCES, type RefVerdict } from "@scholar/shared";
+import { ApiError, api } from "./api/client";
+import { retryAfterMs, sleep } from "./api/retry";
 
 export type ItemState = "queued" | "checking" | "done" | "error";
 export type VerifyItem = {
@@ -21,33 +23,20 @@ export type VerifyState = {
 const CONCURRENCY = 2;
 const idle: VerifyState = { items: [], running: false, skipped: 0 };
 
-class RateLimited extends Error {
-  constructor(readonly waitMs: number) {
-    super("rate limited");
-  }
-}
+/** One reference checked (also the chat's tool card's "Check again"). A failure rejects with an ApiError, or with fetch's TypeError when the connection is lost. */
+export const checkReference = (reference: string, signal?: AbortSignal) => api<RefVerdict>("/api/v1/references/verify", { method: "POST", json: { reference }, signal });
 
-async function checkOne(input: string, signal: AbortSignal): Promise<RefVerdict> {
-  const res = await fetch("/api/v1/references/verify", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ reference: input }),
-    signal,
-  });
-  if (res.status === 429) throw new RateLimited(Math.min(Number(res.headers.get("retry-after")) || 20, 60) * 1000);
-  if (!res.ok) {
-    const detail = ((await res.json().catch(() => null)) as { detail?: string } | null)?.detail;
-    throw new Error(detail ?? `The service answered ${res.status}`);
-  }
-  return (await res.json()) as RefVerdict;
-}
+/**
+ * Trying a reference again: a 429 waits what its Retry-After says (20 s without one, 60 s at most), every worker with it, and is tried three times in all; any other failure that is not
+ * a refusal (a 4xx: bug B2, this used to be read from the message's words) is tried once more after 0.6 s.
+ */
+const VERIFY_RETRY = { busy: { tries: 3, fallbackS: 20, maxS: 60 }, failed: { tries: 2, waitMs: 600 } } as const;
+const busy = (e: unknown): e is ApiError => e instanceof ApiError && e.status === 429;
+const refused = (e: unknown): boolean => e instanceof ApiError && e.status >= 400 && e.status < 500;
 
-const sleep = (ms: number, signal: AbortSignal) =>
-  new Promise<void>((resolve) => {
-    const t = window.setTimeout(resolve, ms);
-    signal.addEventListener("abort", () => { window.clearTimeout(t); resolve(); }, { once: true });
-  });
+/** Check references' words for a reference that could not be checked: too many requests, the server's detail or its status, the network's own message. */
+const verifyWords = (e: unknown): string =>
+  busy(e) ? "Too many requests at once. Wait a minute, then re-check." : e instanceof ApiError ? (e.detail ?? `The service answered ${e.status}`) : e instanceof Error ? e.message : "Network error";
 
 /**
  * Runs a bibliography through the verifier: one request per reference, a few at a time, results appear as they arrive and
@@ -80,20 +69,20 @@ export function useVerify() {
             if (wait > 0) await sleep(wait, signal);
             if (signal.aborted) return;
             try {
-              const verdict = await checkOne(input, signal);
+              const verdict = await checkReference(input, signal);
               patch(id, { state: "done", verdict: { ...verdict, input } });
               break;
             } catch (e) {
               if (signal.aborted) return;
-              if (e instanceof RateLimited && attempt < 2) {
-                pausedUntil = Math.max(pausedUntil, Date.now() + e.waitMs);
+              if (busy(e) && attempt < VERIFY_RETRY.busy.tries - 1) {
+                pausedUntil = Math.max(pausedUntil, Date.now() + retryAfterMs(e.retryAfter, VERIFY_RETRY.busy.fallbackS, VERIFY_RETRY.busy.maxS));
                 continue;
               }
-              if (!(e instanceof RateLimited) && attempt < 1 && !(e instanceof Error && /answered 4/.test(e.message))) {
-                await sleep(600, signal);
+              if (!busy(e) && !refused(e) && attempt < VERIFY_RETRY.failed.tries - 1) {
+                await sleep(VERIFY_RETRY.failed.waitMs, signal);
                 continue;
               }
-              patch(id, { state: "error", error: e instanceof RateLimited ? "Too many requests at once. Wait a minute, then re-check." : e instanceof Error ? e.message : "Network error" });
+              patch(id, { state: "error", error: verifyWords(e) });
               break;
             }
           }

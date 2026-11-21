@@ -1,5 +1,5 @@
 import { PRIVACY_VERSION } from "@scholar/shared";
-import { ApiError } from "./documents";
+import { send } from "./api/client";
 import { refreshAuth } from "./auth";
 
 /**
@@ -33,10 +33,6 @@ export const LEGAL_LINKS = [
 
 /** "I have read this": recorded against the account with the version of the text. */
 export async function acknowledgePrivacy(): Promise<void> {
-  const res = await fetch("/api/v1/account/privacy-ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: PRIVACY_VERSION }), credentials: "same-origin" });
-  if (!res.ok) {
-    const j = (await res.json().catch(() => null)) as { type?: string; title?: string; detail?: string } | null;
-    throw new ApiError(res.status, j?.type ?? "error", j?.title ?? "That could not be saved", j?.detail);
-  }
+  await send("/api/v1/account/privacy-ack", { method: "POST", json: { version: PRIVACY_VERSION }, fallback: "That could not be saved" });
   await refreshAuth();
 }
