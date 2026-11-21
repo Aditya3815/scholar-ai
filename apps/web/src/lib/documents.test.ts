@@ -152,6 +152,15 @@ describe("an upload", () => {
     net.reply = (c) => json(c.url.endsWith("/finish") ? { document: DOC } : c.url.endsWith("/info") ? { document: DOC, info: {} } : { items: [], usage: null, document: DOC });
   });
 
+  it("puts the job on screen at once, before the code that reads and sends the paper has arrived", async () => {
+    xhrReply = () => created;
+    const p = docs.startUpload(file("now.pdf"));
+    expect(jobOf()).toMatchObject({ name: "now.pdf", step: "reading", detail: "Opening the PDF" });
+    for (let i = 0; i < 20; i++) await vi.advanceTimersByTimeAsync(1000);
+    await p;
+    expect(jobOf()).toMatchObject({ name: "now.pdf", step: "done" });
+  });
+
   it("sends the file with its name and an Idempotency-Key, then the info, the pages and the finish", async () => {
     xhrReply = () => created;
     await run(file("My paper (1).pdf"));
