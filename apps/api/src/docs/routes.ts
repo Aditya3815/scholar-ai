@@ -1,6 +1,7 @@
 import { searchWords } from "@scholar/shared";
 import { Hono, type Context } from "hono";
 import { rememberOne } from "./remember";
+import { coverKey } from "./cover-key";
 import { d1KeyStore, readKey, runIdempotent } from "../idempotency";
 import { sseStream } from "../sse";
 import {
@@ -93,7 +94,7 @@ const toInfo = (r: Row): DocumentInfo => ({
 
 const randomId = () => [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("");
 export const pdfKey = (userId: string, id: string) => `docs/${userId}/${id}.pdf`;
-export const coverKey = (userId: string, id: string) => `docs/${userId}/${id}.cover.jpg`;
+export { coverKey };
 
 /** Strip any path, control characters and quotes; the name is only ever shown, never used as a storage key. */
 export function safeFilename(raw: string | undefined | null): string {

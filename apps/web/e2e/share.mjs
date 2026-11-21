@@ -96,7 +96,7 @@ try {
   await sleep(500);
   const shown = await frame.locator("body").innerText();
   ok(shown.includes("Have a look at the methods before Monday.") && shown.includes("You can view it and add comments.") && shown.includes(`Sign in with Google as ${COMMENTER.email}`), "the preview shows the note, the role in words and the address to sign in with");
-  ok(await frame.locator('img[alt^="The first page of"]').evaluate((img) => img.src.startsWith("data:image/jpeg") && img.naturalWidth === 300), "the preview shows the picture of the first page (a 300 px JPEG)");
+  ok(await frame.locator('img[alt^="The first page of"]').evaluate((img, id) => img.src.endsWith(`/api/v1/documents/${id}/cover`) && img.naturalWidth === 360, docId), "the preview shows the paper's stored cover (its first page, 360 px), the picture the e-mail will carry");
   ok(/Subject\s+Asha Owner shared “.+” with you/.test(await dlg.locator(".sh-preview-head").innerText()), "the preview shows the subject");
   for (const theme of ["light", "dark"]) {
     await op.emulateMedia({ colorScheme: theme });
@@ -121,7 +121,8 @@ try {
     writeFileSync(join(SHOTS, "invite-picture.jpg"), Buffer.from(pic.content, "base64"));
     writeFileSync(join(SHOTS, "invite.json"), JSON.stringify({ ...sent, attachments: sent.attachments.map((a) => ({ ...a, content: `${a.size} bytes` })) }, null, 1));
   }
-  ok(sent.to === COMMENTER.email && pic?.disposition === "inline" && pic.type === "image/jpeg" && pic.size > 2000 && pic.size <= 60 * 1024 && sent.html.includes(`cid:${pic.contentId}`), `the e-mail carries the first page drawn by the browser as an inline JPEG (${Math.round((pic?.size ?? 0) / 1024)} KB)`);
+  const stored = (await (await op.request.get(`${BASE}${D}/cover`)).body()).toString("base64");
+  ok(sent.to === COMMENTER.email && pic?.disposition === "inline" && pic.type === "image/jpeg" && pic.content === stored && sent.html.includes(`cid:${pic.contentId}`), `the e-mail carries the stored cover as an inline JPEG, the picture the preview showed (${Math.round((pic?.size ?? 0) / 1024)} KB)`);
   ok(sent.text.includes("> Have a look at the methods before Monday.\n> Thanks!"), "and the note");
   ok((await dlg.getByLabel("Message (optional)").count()) === 0, "after Invite the message box and the preview are gone");
   ok((await dlg.getByRole("status").filter({ hasText: "Invited ravi.c@example.edu. We e-mailed them." }).count()) === 1, "the dialog says the person was invited and e-mailed");

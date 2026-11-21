@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { INVITE_PICTURE_CID, INVITE_PICTURE_MAX_BYTES } from "@scholar/shared";
 import { INVITE_FROM, bindingMailer, inviteMessage, mailerFor, sentByStandIn, standInMailer } from "./invite-mail";
-import { checkInvitePicture } from "./invite-picture";
+import { COVER_LIMITS, checkInvitePicture, coverPicture } from "./invite-picture";
 
 /** The invitation e-mail (docs/design/paper-share.md, S4): what it says, what the binding is given, the picture's checks, and that nothing else is in it or in the logs. */
 
@@ -162,5 +162,43 @@ describe("the picture of the first page", () => {
     expect(checkInvitePicture(b64(bad))).toEqual({ ok: false, reason: "bad_segment" });
     const noFrame = new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0, 4, 0, 0, ...Array(200).fill(0x55), 0xff, 0xd9]);
     expect(checkInvitePicture(b64(noFrame))).toEqual({ ok: false, reason: "no_frame" });
+  });
+});
+
+describe("the stored cover as the picture (first choice)", () => {
+  const files = (got: Uint8Array | null | "throw") => ({
+    FILES: {
+      get: async (key: string) => {
+        if (got === "throw") throw new TypeError(`store down ${key}`);
+        return got && key === "docs/u1/d1.cover.jpg" ? { size: got.byteLength, arrayBuffer: async () => got.slice().buffer } : null;
+      },
+    } as never,
+  });
+  const quiet = () => vi.spyOn(console, "warn").mockImplementation(() => {});
+
+  it("a cover 360 px wide passes, without its metadata", async () => {
+    const pic = await coverPicture(files(fakeJpeg({ width: 360, height: 466, exif: true })), "docs/u1/d1.cover.jpg");
+    expect(pic).toMatchObject({ width: 360, height: 466 });
+    expect(Buffer.from(pic!.bytes).equals(Buffer.from(fakeJpeg({ width: 360, height: 466 })))).toBe(true);
+  });
+
+  it("a cover may be bigger than a sent picture (up to the upload's 300 KB and 600 px wide), never more", async () => {
+    const log = quiet();
+    expect(await coverPicture(files(fakeJpeg({ width: 360, height: 466, scan: 120 * 1024 })), "docs/u1/d1.cover.jpg")).not.toBeNull();
+    expect(await coverPicture(files(fakeJpeg({ width: 360, height: 466, scan: COVER_LIMITS.maxBytes })), "docs/u1/d1.cover.jpg")).toBeNull();
+    expect(await coverPicture(files(fakeJpeg({ width: 900, height: 1164 })), "docs/u1/d1.cover.jpg")).toBeNull();
+    expect(JSON.stringify(log.mock.calls)).toContain("cover_too_big");
+    log.mockRestore();
+  });
+
+  it("no cover, a store that fails, or a cover that is not a JPEG: null (the e-mail shows the page block), and the log names no paper", async () => {
+    const log = quiet();
+    expect(await coverPicture(files(null), "docs/u1/d1.cover.jpg")).toBeNull();
+    expect(await coverPicture(files("throw"), "docs/u1/d1.cover.jpg")).toBeNull();
+    expect(await coverPicture(files(new Uint8Array(400).fill(7)), "docs/u1/d1.cover.jpg")).toBeNull();
+    const said = JSON.stringify(log.mock.calls);
+    for (const reason of ["cover_missing", "cover_TypeError", "cover_not_jpeg"]) expect(said).toContain(reason);
+    expect(said).not.toContain("d1");
+    log.mockRestore();
   });
 });

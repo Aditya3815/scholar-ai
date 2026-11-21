@@ -38,9 +38,12 @@ export type ShareDialogProps = {
   copy: (text: string) => Promise<boolean>;
   /** Where the focus goes when it closes (the Share button). */
   returnFocus: () => void;
-  /** Draws the paper's first page as a small JPEG for the invitation e-mail (null when it cannot); absent while the PDF is not open. */
+  /** The paper has a stored cover (its first page, made at upload): the server puts that in the e-mail, and the preview shows it. */
+  hasCover?: boolean;
+  /** For a paper with no cover: draws its first page as a small JPEG to send with the invitation (null when it cannot); absent while the PDF is not open. */
   pagePicture?: () => Promise<Picture | null>;
 };
+
 
 type Picture = PreviewPicture & { base64: string };
 /** At most `ms` for the picture: the invitation never waits long for it, and goes without it. */
@@ -144,7 +147,7 @@ function Menu<T extends string | number | null>({ label, value, options, onPick,
   );
 }
 
-export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast, copy, returnFocus, pagePicture }: ShareDialogProps) {
+export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast, copy, returnFocus, hasCover, pagePicture }: ShareDialogProps) {
   const [share, setShare] = useState<ShareSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -157,12 +160,16 @@ export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast
     const t = window.setTimeout(() => setShownNote(note), 350);
     return () => window.clearTimeout(t);
   }, [note]);
-  // the picture of the first page, drawn once a visit of the dialog when it is first wanted
+  // The picture of the first page. A paper with a cover sends none: the server reads the stored cover, from any device on any connection. A paper without one has its first page drawn
+  // here, as soon as the dialog is open (drawn only at Invite, it waited behind the reader's own work on the PDF, the 4 s ran out and the e-mail went with the page block).
   const picture = useRef<Promise<Picture | null> | null>(null);
   const getPicture = useCallback((): Promise<Picture | null> => {
-    if (!pagePicture) return Promise.resolve(null); // the PDF is not open yet: asked again next time
+    if (hasCover || !pagePicture) return Promise.resolve(null); // the PDF not open yet: asked again next time
     return (picture.current ??= pagePicture().catch(() => null));
-  }, [pagePicture]);
+  }, [hasCover, pagePicture]);
+  useEffect(() => {
+    if (open) void getPicture();
+  }, [open, getPicture]);
   const [busy, setBusy] = useState(false);
   const [token, setToken] = useState<string | null>(() => keptToken(docId));
   // Undo of Remove, in the dialog itself: the reader's toasts sit behind the modal, where nothing can be pressed
@@ -351,7 +358,7 @@ export function ShareDialog({ open, onOpenChange, docId, title, ownerName, toast
           </div>
           {previewing && (
             <Suspense fallback={<p className="sh-fine">Opening the preview…</p>}>
-              <EmailPreview inviterName={ownerName ?? "Someone"} title={title} role={role} to={valid ?? email.trim()} note={shownNote} link={paperAddress(docId)} picture={getPicture()} />
+              <EmailPreview inviterName={ownerName ?? "Someone"} title={title} role={role} to={valid ?? email.trim()} note={shownNote} link={paperAddress(docId)} picture={getPicture()} cover={hasCover ? `/api/v1/documents/${docId}/cover` : null} />
             </Suspense>
           )}
         </div>
