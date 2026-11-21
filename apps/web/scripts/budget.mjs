@@ -34,12 +34,16 @@ export const LIMITS = {
   "the Notebook sketch chunk, script (gzip)": 4 * KB,
   // the page tabs, a chunk of their own since the notes polish (19 Nov 2026), fetched as soon as the Notebook's arrives
   "the Notebook page tabs chunk (drag to reorder, All pages), script (gzip)": 4 * KB,
+  // A page's paper chosen from its tab (21 Nov 2026): the picker of four papers, a chunk of its own fetched when a tab's paper is first pressed. 1.4 KB measured.
+  "the Notebook paper picker chunk, script and style (gzip)": 1.6 * KB,
   // Ink on the pages of notes (docs/design/paper-reader.md, 25, 20 Nov 2026): the layer that draws and takes the pen, the anchoring engine, the ink row and its store, fetched when a page has
   // ink or Draw is pressed. The plan's 9 KB.
   "the Notebook ink chunk (nb-ink: drawing on the pages), script (gzip)": 9 * KB,
   // Phase 2.5: Export as PDF or Word (the pages laid out, the captures and sketches as pictures); pdf-lib and fflate are chunks of their own already. 3.0 KB measured on 18 Nov 2026.
   // 6 KB since ink on the pages (25.11 foresaw about 2 KB more): the ink as vectors in the PDF, the line-breaker that predicts Word's lines, one picture per paragraph; 5.3 KB measured on 20 Nov 2026.
   "the notes export chunk, script (gzip)": 6 * KB,
+  // Each page's paper in the exports (21 Nov 2026): where the lines and dots go, and Word's picture of them; fetched by the export only when a page is not on plain paper. 0.8 KB measured.
+  "the notes paper chunk (ruled, dotted, graph in the exports), script (gzip)": 1 * KB,
   // fontkit, which lets the notes PDF embed Noto Sans Devanagari as a subset: fetched only when the exported text has Devanagari. 151 KB measured on 18 Nov 2026.
   "the fontkit chunk, script (gzip)": 160 * KB,
   // Sharing a paper (docs/design/paper-share.md, 18 Nov 2026), behind the SHARE switch: the owner's Share dialog (5.5 KB measured), the comments and a Viewer's notes (4.6 KB), and the two
@@ -96,6 +100,8 @@ const NB_SKETCH = "src/components/papers/desk/notebook/NbSketch.tsx";
 const NB_TABS = "src/components/papers/desk/notebook/NbTabs.tsx";
 const NB_INK = "src/components/papers/desk/notebook/NbInk.tsx";
 const NOTES_EXPORT = "src/lib/notes-export.ts";
+const NB_PAPER_PICK = "src/components/papers/desk/notebook/NbPaperPick.tsx";
+const NOTES_PAPER = "src/lib/notes-paper.ts";
 const FONTKIT = "../../node_modules/@cantoo/fontkit/dist/browser-module.mjs";
 const SHARE_DIALOG = "src/components/papers/desk/share/ShareDialog.tsx";
 const SHARED_PARTS = "src/components/papers/desk/share/SharedParts.tsx";
@@ -124,6 +130,8 @@ const measured = {
   "the Notebook page tabs chunk (drag to reorder, All pages), script (gzip)": sum(filesOf(NB_TABS), gz),
   "the Notebook ink chunk (nb-ink: drawing on the pages), script (gzip)": sum(filesOf(NB_INK), gz),
   "the notes export chunk, script (gzip)": sum(filesOf(NOTES_EXPORT), gz),
+  "the Notebook paper picker chunk, script and style (gzip)": sum(filesOf(NB_PAPER_PICK), gz),
+  "the notes paper chunk (ruled, dotted, graph in the exports), script (gzip)": sum(filesOf(NOTES_PAPER), gz),
   "the fontkit chunk, script (gzip)": sum(filesOf(FONTKIT), gz),
   "the Share dialog chunk, script and style (gzip)": sum(filesOf(SHARE_DIALOG), gz),
   "the shared paper chunk (read-only notes), script and style (gzip)": sum(filesOf(SHARED_PARTS), gz),

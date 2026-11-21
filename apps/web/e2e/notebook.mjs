@@ -4,9 +4,10 @@
 // offline then back; two tabs on one page; a reload keeps everything; the phone's Paper view with the toast's Open; Markdown out; axe in Light, Dark and Read at 1280 and 390; no sideways scroll.
 // Needs the Worker with the fake identity provider and the offline stand-ins: `npm run integration -w apps/api -- --browser --run=reader-on` starts it.
 //   node e2e/notebook.mjs [baseUrl]    (default http://localhost:8788; READER must be on there)
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 // With NB_SHOTS=<folder> it also takes the pictures of the page tabs (a tab dragged, All pages) for the owner.
 if (process.env.NB_SHOTS) mkdirSync(process.env.NB_SHOTS, { recursive: true });
+if (process.env.STYLE_SHOTS) mkdirSync(process.env.STYLE_SHOTS, { recursive: true });
 import { SAMPLE_PAPER, makePdf } from "@scholar/test-support/make-pdf.mjs";
 import { join } from "node:path";
 import { BASE, REFUSED_OR_BUSY, axeCheck, countFailure, desk, finish, launch, noSideways, ok, phone, setTheme, sleep, startIdp, until, untilInPage, watchPage } from "./lib/browser.mjs";
@@ -464,6 +465,61 @@ try {
     await page.locator(".nb-bar").waitFor({ timeout: 15000 });
     await until(async () => (await order()) === "Results,Notes,Page 3,Page 4,Page 6,Page 5", { ms: 6000, what: "the order after a reload" });
     ok(true, "a reload keeps the new order");
+    // a page's paper from its tab (21 Nov): the small picture of the paper is the control; four papers drawn small, the page's ticked; arrows, Enter, Esc; Alt+Down from the tab
+    {
+      const icon = page.locator('.nb-tabwrap:has(#nbt-' + srv.find((p) => p.title === "Results").id + ') button.nb-tabsw');
+      ok((await icon.getAttribute("aria-hidden")) === "true" && (await icon.getAttribute("tabindex")) === "-1" && (await icon.getAttribute("title")) === "Page style: Graph. Change", "the tab's paper is a button beside the tab, out of the tab order and hidden from assistive technology as the × is (titled Page style: Graph. Change)");
+      const desc = await pageTab(page, "Results").evaluate((t) => t.getAttribute("aria-describedby").split(" ").map((id) => document.getElementById(id)?.textContent.trim()).join(" "));
+      ok(desc.startsWith("Graph paper.") && desc.includes("Alt+Down arrow changes the page's paper."), `the tab says its paper and the key (${desc})`);
+      await icon.click();
+      const menu = page.getByRole("menu", { name: "Paper for Results" });
+      await menu.waitFor({ timeout: 4000 });
+      const items = menu.getByRole("menuitemradio");
+      ok(JSON.stringify((await items.allInnerTexts()).map((t) => t.trim())) === JSON.stringify(["Plain", "Ruled", "Dotted", "Graph"]) && (await menu.getByRole("menuitemradio", { checked: true }).innerText()).trim() === "Graph", "a click opens four papers drawn small, the page's ticked");
+      ok(await page.evaluate(() => document.activeElement?.getAttribute("aria-checked") === "true"), "the focus is on the page's paper");
+      await sleep(250);
+      if (process.env.STYLE_SHOTS) {
+        for (const theme of ["light", "dark", "read"]) {
+          await setTheme(page, theme, 300);
+          await page.locator(".nb-tabsrow").screenshot({ path: `${process.env.STYLE_SHOTS}/picker-${theme}.png` }).catch(() => {});
+          await page.locator("#dw-panel-side").screenshot({ path: `${process.env.STYLE_SHOTS}/picker-${theme}-panel.png` });
+        }
+        await setTheme(page, "light", 300);
+      }
+      await axe(page, "the paper picker", ".nb-stylepick");
+      await page.keyboard.press("ArrowLeft");
+      ok(await page.evaluate(() => document.activeElement?.textContent.trim() === "Dotted"), "← moves to the paper before (Dotted)");
+      await page.keyboard.press("Enter");
+      const swatch = () => icon.locator(".nb-sw").getAttribute("data-style");
+      await until(async () => (await swatch()) === "dotted", { ms: 3000, what: "the page to be dotted" });
+      ok((await menu.count()) === 0 && (await page.evaluate(() => document.activeElement?.id)) === (await pageTab(page, "Results").getAttribute("id")), "Enter takes it at once (on a page that is not the open one too): its tab shows Dotted, the picker closes, the focus goes back to the tab");
+      await until(async () => (await pagesOnServer()).find((p) => p.title === "Results")?.style === "dotted", { ms: 8000, what: "Dotted to be saved" });
+      ok(true, "the paper chosen from the tab is saved");
+      // Alt+Down on the tab opens it; Esc closes it and changes nothing
+      await pageTab(page, "Results").focus();
+      await page.keyboard.press("Alt+ArrowDown");
+      await menu.waitFor({ timeout: 3000 });
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("Escape");
+      await sleep(100);
+      const after = { open: await menu.count(), paper: await swatch(), focus: await page.evaluate(() => document.activeElement?.getAttribute("role") ?? document.activeElement?.tagName) };
+      ok(after.open === 0 && after.paper === "dotted" && after.focus === "tab", `Alt+Down on the tab opens it; Esc closes it, changes nothing, and the focus is back on the tab (${JSON.stringify(after)})`);
+      // a press outside closes it; a click on a paper takes it (back to Graph, which the parts after this expect)
+      await icon.click();
+      await menu.waitFor();
+      const sb = await page.locator(".nb-scroll").boundingBox();
+      await page.mouse.click(sb.x + sb.width / 2, sb.y + sb.height - 20);
+      ok((await menu.count()) === 0, "a press outside closes it");
+      await icon.click();
+      await menu.getByRole("menuitemradio", { name: "Graph" }).click();
+      await until(async () => (await pagesOnServer()).find((p) => p.title === "Results")?.style === "grid", { ms: 8000, what: "Graph to be saved" });
+      ok((await swatch()) === "grid", "a click on a paper takes it");
+      // the page's menu keeps its Paper items
+      await pageTab(page, "Results").click();
+      await page.getByRole("button", { name: "Page actions" }).click();
+      ok((await page.getByRole("menu", { name: "Page actions" }).getByRole("menuitemradio", { name: "Graph" }).getAttribute("aria-checked")) === "true", "the page's menu still has the papers, Graph ticked");
+      await page.keyboard.press("Escape");
+    }
     // the extra pages go (by the API), so the parts after this find the two pages they expect
     srv = await pagesOnServer();
     for (const p of srv.filter((x) => /^Page \d$/.test(x.title))) await api.delete(`${BASE}/api/v1/documents/${docId}/notebook/pages/${p.id}`, { headers: { Origin: BASE } });
@@ -544,6 +600,22 @@ try {
       return { rows: new Set(bs.map((b) => Math.round(b.top))).size, small: Math.min(...bs.map((b) => Math.min(b.width, b.height))), scrolls: row.scrollWidth > row.clientWidth, fade: row.dataset.more ?? "" };
     });
     ok(bar.rows === 1 && bar.small >= 44 && (!bar.scrolls || bar.fade === "end"), `the toolbar on a phone: one row of basic actions, 44 px each, scrolling with a fade when it does not fit (${JSON.stringify(bar)})`);
+    // a tab's paper on a phone: 44 px to press, and its picker inside the screen
+    {
+      const icon = page.locator('.nb-tabwrap:has(.nb-pagetab[aria-selected="true"]) button.nb-tabsw');
+      const ib = await icon.boundingBox();
+      ok(ib && ib.width >= 44 && ib.height >= 44, `a tab's paper is 44 px to press on a phone (${ib && `${Math.round(ib.width)} by ${Math.round(ib.height)}`})`);
+      await icon.click();
+      const pk = page.locator(".nb-stylepick");
+      await pk.waitFor();
+      await sleep(250);
+      const pb = await pk.boundingBox();
+      const items = await pk.getByRole("menuitemradio").evaluateAll((els) => Math.min(...els.map((e) => e.getBoundingClientRect().height)));
+      ok(pb && pb.x >= 0 && pb.x + pb.width <= 390 && items >= 44, `the picker is inside the screen, its papers 44 px high (${pb && Math.round(pb.x)} to ${pb && Math.round(pb.x + pb.width)}; ${Math.round(items)} px)`);
+      if (process.env.STYLE_SHOTS) await page.screenshot({ path: `${process.env.STYLE_SHOTS}/picker-phone.png` });
+      await axe(page, "the paper picker on a phone", ".nb-stylepick");
+      await page.keyboard.press("Escape");
+    }
     // the Highlights chips on a phone: one line, no meaning with none
     await page.getByRole("tab", { name: /^Highlights/ }).click();
     const chipRow = await page.locator(".hl-filter").evaluate((row) => ({ tops: new Set([...row.children].map((c) => Math.round(c.getBoundingClientRect().top))).size, zero: [...row.querySelectorAll(".hl-chip")].some((c) => /\b0\s*$/.test(c.textContent.trim())) }));
@@ -731,12 +803,36 @@ try {
     const pdfDoc = await PDFDocument.load(pdfOut.bytes);
     const images = pdfDoc.context.enumerateIndirectObjects().filter(([, o]) => o instanceof PDFRawStream && o.dict.get(PDFName.of("Subtype")) === PDFName.of("Image")).length;
     ok(/^notes-.+-\d{4}-\d\d-\d\d\.pdf$/.test(pdfOut.name) && pdfDoc.getPageCount() >= 1 && images >= 4, `Export ▾ PDF: a PDF with the two captures, the sketch and the picture (${pdfOut.name}, ${pdfDoc.getPageCount()} pages, ${images} pictures)`);
+    // each page on its paper (21 Nov): Results is on Graph paper, so its sheet has the graph's lines behind the text (35 across and 24 down, as vector lines); Notes is plain, on a sheet of its own
+    {
+      const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+      const pj = await pdfjs.getDocument({ data: pdfOut.bytes.slice(), useSystemFonts: false, disableFontFace: true }).promise;
+      const strokes = async (n) => {
+        const ops = await (await pj.getPage(n)).getOperatorList();
+        return ops.fnArray.filter((f) => f === pdfjs.OPS.constructPath).length;
+      };
+      const firstWords = async (n) => (await (await pj.getPage(n)).getTextContent()).items.map((t) => t.str).join(" ");
+      let notesAt = 0;
+      for (let n = 1; n <= pj.numPages; n++) if ((await firstWords(n)).trimStart().startsWith("Notes")) notesAt = notesAt || n;
+      const graph = await strokes(1);
+      const plain = notesAt ? await strokes(notesAt) : -1;
+      ok((await firstWords(1)).includes("Results") && graph >= 59 && notesAt > 1 && plain < 59, `Export ▾ PDF: the Graph page's sheet has its graph lines (${graph} paths), the plain page starts a sheet of its own without them (page ${notesAt}, ${plain} paths)`);
+      if (process.env.STYLE_SHOTS) writeFileSync(`${process.env.STYLE_SHOTS}/notes-graph.pdf`, pdfOut.bytes);
+    }
     const { unzipSync, strFromU8 } = await import("fflate");
     const docxOut = await exportAs("Word (.docx)");
     const parts = unzipSync(docxOut.bytes);
     const media = Object.keys(parts).filter((k) => k.startsWith("word/media/"));
     const xml = strFromU8(parts["word/document.xml"]);
     ok(/\.docx$/.test(docxOut.name) && media.length >= 4 && xml.includes("Figure one") && xml.includes("A test diagram") && xml.includes("Results"), `Export ▾ Word: a .docx with the pictures and the captions (${media.length} pictures)`);
+    {
+      const heads = [...xml.matchAll(/<w:headerReference w:type="default" r:id="(rIdH\d)"\/>/g)].map((m) => m[1]);
+      const rels = strFromU8(parts["word/_rels/document.xml.rels"]);
+      const paperHeader = Object.keys(parts).find((k) => /^word\/header\d\.xml$/.test(k) && strFromU8(parts[k]).includes('behindDoc="1"'));
+      const png = parts["word/media/paper-grid.png"];
+      ok(heads.length >= 2 && heads[0] !== heads[1] && !!paperHeader && rels.includes(`Target="${paperHeader.slice(5)}"`) && png?.length > 1000 && strFromU8(parts[paperHeader]).includes('descr="Graph paper"'), `Export ▾ Word: a section a page, the Graph page's header holds its paper behind the text (${heads.join(", ")}; ${png?.length} bytes), the plain page's an empty one`);
+      if (process.env.STYLE_SHOTS) writeFileSync(`${process.env.STYLE_SHOTS}/notes-graph.docx`, docxOut.bytes);
+    }
 
     // axe with a capture and a sketch on the page, in the three themes
     // the export's toasts go first (one still fading in while the theme changes would be read half way)

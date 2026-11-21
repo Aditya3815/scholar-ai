@@ -1,4 +1,4 @@
-import { DOCX_MIME, IMAGE_SIZE_WIDTH, agentHeading, buildDocx, inkHex, parseNotebookMd, type CaptureBlock, type DocFloat, type ImageBlock, type Block as DocBlock, type MdBlock, type MdInline, type NotebookBlock, type NoteStroke, type QuoteColor, type SketchBlock } from "@scholar/shared";
+import { DOCX_MIME, IMAGE_SIZE_WIDTH, agentHeading, buildDocx, inkHex, parseNotebookMd, type CaptureBlock, type DocFloat, type ImageBlock, type Block as DocBlock, type MdBlock, type MdInline, type NotebookBlock, type NotebookStyle, type NoteStroke, type QuoteColor, type SketchBlock } from "@scholar/shared";
 import devanagariFace from "@fontsource/noto-sans-devanagari/files/noto-sans-devanagari-devanagari-400-normal.woff?url";
 import { drawCapture } from "./capture";
 import { markerPath, penPath } from "./ink-path";
@@ -15,7 +15,7 @@ import type { PDFDocumentProxy } from "./pdf";
  * (Helvetica's widths) with exact line spacing, our line-breaker predicts each anchor's line and place, and each paragraph's ink is one transparent picture anchored to that paragraph, in front
  * of the text. Ink on a box (a space, a picture, a capture, a sketch) is placed by the box's width, in both.
  */
-export type ExportPage = { title: string; blocks: readonly NotebookBlock[]; ink?: readonly NoteStroke[] };
+export type ExportPage = { title: string; blocks: readonly NotebookBlock[]; ink?: readonly NoteStroke[]; /** its paper, drawn behind its text (plain when absent) */ style?: NotebookStyle };
 export type ExportArgs = { docTitle: string; pages: readonly ExportPage[]; names: Record<QuoteColor, string>; pdf: PDFDocumentProxy | null; imageUrl?: (blockId: string) => string };
 type Png = { bytes: Uint8Array; w: number; h: number; /** a picture shown narrower than the page: its share of the width */ frac?: number };
 
@@ -26,6 +26,9 @@ const PAGE_W = 595.28;
 const PAGE_H = 841.89;
 const MARGIN = 56;
 const TEXT_W = PAGE_W - 2 * MARGIN;
+
+/** The papers' own small chunk (notes-paper.ts), fetched only when a page is on a paper other than plain. */
+const paperFor = (pages: readonly ExportPage[]) => (pages.some((p) => p.style && p.style !== "plain") ? import("./notes-paper") : null);
 
 const pngOf = (c: HTMLCanvasElement) =>
   new Promise<Uint8Array>((res, rej) => c.toBlob((b) => (b ? b.arrayBuffer().then((a) => res(new Uint8Array(a)), rej) : rej(new Error("no picture"))), "image/png"));
@@ -209,8 +212,20 @@ export async function notesDocx(args: ExportArgs): Promise<Blob> {
     const d = await PDFDocument.create();
     breaker = makeBreaker({ r: await d.embedFont(StandardFonts.Helvetica), b: await d.embedFont(StandardFonts.HelveticaBold), i: await d.embedFont(StandardFonts.HelveticaOblique), bi: await d.embedFont(StandardFonts.HelveticaBoldOblique), deva: null });
   }
-  const blocks: DocBlock[] = [{ k: "title", runs: [{ t: args.docTitle || "Notes" }] }];
   const media: Record<string, Uint8Array> = {};
+  const paper = await paperFor(args.pages);
+  /** A page's paper: a section of its own, its paper one picture of the whole page behind the text (made once for each paper). */
+  const section = async (style: NotebookStyle | undefined): Promise<DocBlock> => {
+    if (!paper || !style || style === "plain") return { k: "section" };
+    const name = `paper-${style}.png`;
+    try {
+      media[name] ??= await paper.paperPng(style, hasInk);
+    } catch {
+      return { k: "section" }; // no canvas: the page is on plain paper
+    }
+    return { k: "section", paper: name, alt: paper.paperAlt(style) };
+  };
+  const blocks: DocBlock[] = [await section(args.pages[0]?.style), { k: "title", runs: [{ t: args.docTitle || "Notes" }] }];
   let floats = 0;
   /** A paragraph's ink as one picture anchored to it (in front of the text, moving with it). */
   const floatOf = async (list: { s: NoteStroke; pts: number[]; w: number }[], what: string): Promise<DocFloat[] | undefined> => {
@@ -251,7 +266,8 @@ export async function notesDocx(args: ExportArgs): Promise<Blob> {
       else blocks.push({ k: "ref", no: m.no!, runs: m.runs, ...f });
     }
   };
-  for (const p of args.pages) {
+  for (const [k, p] of args.pages.entries()) {
+    if (k > 0) blocks.push(await section(p.style));
     blocks.push({ k: "h1", runs: [{ t: p.title.trim() || "Untitled page" }] });
     const ink = byBlock(p.ink);
     for (const b of p.blocks) {
@@ -318,15 +334,39 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
   const H = PAGE_H;
   const M = MARGIN;
   const TW = TEXT_W;
-  let page = doc.addPage([W, H]);
+  const rgbOf = (hex: string) => rgb(parseInt(hex.slice(1, 3), 16) / 255, parseInt(hex.slice(3, 5), 16) / 255, parseInt(hex.slice(5, 7), 16) / 255);
+  /**
+   * Each page of notes starts a sheet of its own, on its paper: the lines or dots are drawn first, behind everything (25.12). On a paper other than plain, every line of text takes whole
+   * lines of the paper (onLines) and every block starts on one, so the text sits between the ruled lines as it does on screen.
+   */
+  let style: NotebookStyle = args.pages[0]?.style ?? "plain";
+  const paper = await paperFor(args.pages);
+  const P = paper?.PAPER.pitch ?? 21;
+  const newPage = () => {
+    const pg = doc.addPage([W, H]);
+    if (paper) {
+      const m = paper.paperMarks(style, { x: M, y: M, w: TW, h: H - 2 * M });
+      const color = rgbOf(m.color);
+      for (const [x1, y1, x2, y2] of m.lines) pg.drawLine({ start: { x: x1, y: H - y1 }, end: { x: x2, y: H - y2 }, thickness: paper.PAPER.lineW, color });
+      for (const [x, y0] of m.dots) pg.drawCircle({ x, y: H - y0, size: paper.PAPER.dotR, color });
+    }
+    y = H - M;
+    return pg;
+  };
   let y = H - M;
+  let page = newPage();
   const ink = rgb(0.1, 0.11, 0.13);
   const muted = rgb(0.38, 0.38, 0.4);
   const need = (h: number) => {
-    if (y - h < M) {
-      page = doc.addPage([W, H]);
-      y = H - M;
-    }
+    if (y - h < M) page = newPage();
+  };
+  const lined = () => !!paper && style !== "plain";
+  /** Room between blocks on plain paper; on lines, the next block starts on the next line instead. */
+  const gap = (n: number) => {
+    if (!lined()) y -= n;
+  };
+  const snap = () => {
+    if (lined()) y = H - M - Math.ceil((H - M - y) / P - 1e-6) * P;
   };
   /** Ink to draw once the text is down: each stroke, the page it is on and where its anchor landed (x, and the middle of the line or the top of the box, y down from the page's top). */
   const pending: { page: typeof page; s: NoteStroke; x: number; mid: number; boxW: number }[] = [];
@@ -336,7 +376,8 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
   /** Writes runs as wrapped lines at `size`, `indent` from the margin; moves y. A line that holds an anchored character takes the ink below it to the next page with it, and notes where it is. */
   const write = (runs: Run[], size: number, opts: { indent?: number; color?: ReturnType<typeof rgb>; gap?: number; prefix?: string } = {}) => {
     const indent = opts.indent ?? 0;
-    const lead = size * 1.4;
+    snap();
+    const { lead, off } = lined() ? paper!.onLines(size) : { lead: size * 1.4, off: 0 };
     const lines = breaker.lines(runs, size, TW - indent);
     lines.forEach((l, li) => {
       // the anchors on this line, and how far their ink reaches below it
@@ -351,17 +392,19 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
         }
       need(lead + Math.max(0, below - (lead - size)));
       y -= lead;
-      if (li === 0 && opts.prefix) page.drawText(opts.prefix, { x: M + indent - 14, y, size, font: fonts.r, color: opts.color ?? ink });
+      // the baseline (on lines, above the foot of the line)
+      const yb = y + off;
+      if (li === 0 && opts.prefix) page.drawText(opts.prefix, { x: M + indent - 14, y: yb, size, font: fonts.r, color: opts.color ?? ink });
       for (const p of l.parts) {
         const x = M + indent + p.x;
-        if (p.s.trim() || p.s === " ") page.drawText(p.s, { x, y, size, font: p.font as typeof fonts.r, color: opts.color ?? ink });
+        if (p.s.trim() || p.s === " ") page.drawText(p.s, { x, y: yb, size, font: p.font as typeof fonts.r, color: opts.color ?? ink });
         const pw = p.font.widthOfTextAtSize(p.s, size);
         // an underline is drawn under its words (and the spaces between them)
-        if (p.u) page.drawLine({ start: { x, y: y - size * 0.14 }, end: { x: x + pw, y: y - size * 0.14 }, thickness: Math.max(0.5, size * 0.055), color: opts.color ?? ink });
+        if (p.u) page.drawLine({ start: { x, y: yb - size * 0.14 }, end: { x: x + pw, y: yb - size * 0.14 }, thickness: Math.max(0.5, size * 0.055), color: opts.color ?? ink });
       }
-      for (const h of here) for (const s of anchored.get(h.at)!) pending.push({ page, s, x: M + indent + h.x, mid: H - (y + MID * size), boxW: TW });
+      for (const h of here) for (const s of anchored.get(h.at)!) pending.push({ page, s, x: M + indent + h.x, mid: H - (yb + MID * size), boxW: TW });
     });
-    y -= opts.gap ?? size * 0.5;
+    gap(opts.gap ?? size * 0.5);
   };
   /** Where a block's box starts (its ink on the box is placed from here, by the text's width). */
   const boxAt = (strokes: NoteStroke[] | undefined, topY: number) => {
@@ -377,7 +420,7 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
     boxAt(strokes, y);
     y -= h;
     page.drawImage(img, { x: M, y, width: w, height: h });
-    y -= 6;
+    gap(6);
   };
   const md = (text: string, strokes: NoteStroke[] | undefined, h1: number) => {
     for (const m of mdParas(text)) {
@@ -390,12 +433,16 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
   };
 
   write([{ t: args.docTitle || "Notes", b: true }], 18, { gap: 14 });
-  for (const p of args.pages) {
-    need(40);
+  for (const [k, p] of args.pages.entries()) {
+    if (k > 0) {
+      style = p.style ?? "plain";
+      page = newPage();
+    }
     write([{ t: p.title.trim() || "Untitled page", b: true }], 15, { gap: 8 });
     const inkOf = byBlock(p.ink);
     for (const b of p.blocks) {
       const strokes = inkOf.get(b.id);
+      snap();
       anchored = new Map();
       for (const s of strokes ?? []) if (s.a.k === "text") anchored.set(s.a.at, [...(anchored.get(s.a.at) ?? []), s]);
       if (b.kind === "text") {
@@ -407,7 +454,7 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
         anchored = new Map();
         write([{ t: `${args.names[b.color]}, p. ${b.page}`, b: true }], 9, { indent: 12, color: muted, gap: 4 });
         if (top > y) page.drawRectangle({ x: M, y: y + 4, width: 2.5, height: Math.min(top - y - 4, H), color: rgb(0.62, 0.5, 0.1) });
-        y -= 4;
+        gap(4);
       } else if (b.kind === "space") {
         const h = (b.h / 10_000) * TW;
         need(Math.min(h, H - 2 * M));
@@ -427,15 +474,13 @@ export async function notesPdf(args: ExportArgs): Promise<Uint8Array> {
         if (b.ask) write([{ t: `${b.agent === "explain" ? "Explained" : "Asked"}: ${b.ask}`, i: true }], 9, { color: muted, gap: 2 });
         anchored = keep;
         md(b.md, strokes, 12);
-        y -= 4;
+        gap(4);
       }
     }
     anchored = new Map();
-    y -= 8;
   }
 
   // the ink, last: vector paths over the real text (pen strokes filled, the highlighter a wide see-through line, multiplied so the text shows through it)
-  const rgbOf = (hex: string) => rgb(parseInt(hex.slice(1, 3), 16) / 255, parseInt(hex.slice(3, 5), 16) / 255, parseInt(hex.slice(5, 7), 16) / 255);
   for (const k of pending) {
     const { pts, w } = strokePts(k.s, k.x, k.mid, k.boxW);
     // a stroke that would cross the page's right edge is moved left to fit (never scaled)

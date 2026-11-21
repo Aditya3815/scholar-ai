@@ -454,6 +454,7 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
           label={pageLabel}
           papers={PAPERS}
           live={live}
+          onStyle={(id, s) => store.setStyle(id, s)}
         />
       </Suspense>
       <div className="nb-pagepanel" role="tabpanel" id="nb-pagepanel" aria-labelledby={`nbt-${page.id}`}>

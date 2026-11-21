@@ -16,9 +16,7 @@
 /* the notes polish (19 Nov): narrower tabs (11 rem, then an ellipsis; the full name is the tooltip), quieter when not open, 36 px high */
 .nb-pagetab { position: relative; top: 1px; display: inline-flex; flex: none; align-items: center; gap: 0.5rem; max-width: 11rem; height: 36px; padding: 0 0.75rem; border: 1px solid transparent; border-bottom: 0; border-radius: var(--radius-s) var(--radius-s) 0 0; background: transparent; color: var(--muted); font: inherit; font-size: 0.8125rem; font-weight: 500; cursor: pointer; -webkit-touch-callout: none; user-select: none; transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease); }
 .nb-pagetab:hover { color: var(--text); background: color-mix(in srgb, var(--surface) 55%, transparent); }
-.nb-pagetab .nb-sw { opacity: 0.7; }
 .nb-pagetab[aria-selected="true"] { border-color: var(--border); background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 -1px 2px color-mix(in srgb, var(--text) 6%, transparent); }
-.nb-pagetab[aria-selected="true"] .nb-sw { opacity: 1; }
 /* a tab being dragged: lifted (a card's shadow, the pointer's grab), and a line in the accent where it will go */
 .nb-tabsrow[data-dragging] .nb-pagetab { cursor: grabbing; }
 .nb-tabwrap[data-lifted] { z-index: 3; }

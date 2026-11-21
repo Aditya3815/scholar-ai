@@ -42,7 +42,12 @@ export type Block =
    * A picture on a line of its own (the Notebook's captures and sketches): `media` is its file's name in the zip's word/media folder ("image1.png"), which the caller adds, as this module
    * makes text only; `w` and `h` its size in CSS pixels (made smaller to fit the page's width), `alt` what it shows.
    */
-  | { k: "image"; media: string; w: number; h: number; alt: string; /** shown at this fraction of the text's width (a picture the reader made narrower) */ frac?: number; floats?: DocFloat[] };
+  | { k: "image"; media: string; w: number; h: number; alt: string; /** shown at this fraction of the text's width (a picture the reader made narrower) */ frac?: number; floats?: DocFloat[] }
+  /**
+   * A section starts here, on a new page (each page of the notes is one, docs/design/paper-reader.md, 25.12): `paper` is the PNG (in word/media) of its paper, a whole page drawn behind
+   * the text by the section's header, so it moves nothing; none is plain paper. Before any other block, it only sets the first section's paper.
+   */
+  | { k: "section"; paper?: string; alt?: string };
 
 export type DocxDoc = {
   title: string;
@@ -209,6 +214,8 @@ function blockXml(b: Block, ctx: Ctx): string {
       return tableXml(b, ctx);
     case "image":
       return imageXml(b, ctx);
+    case "section":
+      return "";
   }
 }
 
@@ -271,24 +278,78 @@ const NUMBERING =
   '<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum>' +
   '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>';
 
+/** The page Word is given, in points (A4; its margins: 1304 and 1134 twentieths of a point, 1120 at the sides with ink), so that a page's paper can be drawn to fit its text. */
+export const docxPage = (ink: boolean) => ({ w: 595.3, h: 841.9, top: 65.2, bottom: 65.2, side: ink ? 56 : 56.7 });
+
+/** A header holding only a page's paper: one picture the size of the page, behind the text, in an empty line of 1 pt (so it never moves the text). */
+function paperHeaderXml(paper: string | null, alt: string, id: number): string {
+  const page = docxPage(false);
+  const cx = emu(page.w);
+  const cy = emu(page.h);
+  const pic = paper
+    ? '<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="0" behindDoc="1" locked="1" layoutInCell="1" allowOverlap="1">' +
+      '<wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionV>' +
+      `<wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${id}" name="Paper ${id}" descr="${xmlEscape(alt)}"/><wp:cNvGraphicFramePr/>` +
+      '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+      `<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" name="${paper}" descr="${xmlEscape(alt)}"/><pic:cNvPicPr/></pic:nvPicPr>` +
+      '<pic:blipFill><a:blip r:embed="rIdP"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
+      `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>` +
+      "</a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>"
+    : "";
+  return `${XML}<w:hdr ${NS}><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr>${pic}</w:p></w:hdr>`;
+}
+
 const isoDate = (d: Date) => (Number.isNaN(d.getTime()) ? new Date(0) : d).toISOString().replace(/\.\d{3}Z$/, "Z");
 
 /** The parts of the file, by path in the zip. */
+const rel = (id: string, type: string, target: string, external = false) =>
+  `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${xmlEscape(target)}"${external ? ' TargetMode="External"' : ""}/>`;
+
 export function buildDocx(doc: DocxDoc): DocxParts {
   const ctx: Ctx = { links: [], bookmarkId: 1, images: [], ink: !!doc.ink, layer: 0 };
   const lang = doc.lang && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(doc.lang) ? doc.lang : "en-IN";
-  const body = doc.blocks.map((b) => blockXml(b, ctx)).join("");
-  const documentXml =
-    `${XML}<w:document ${NS}><w:body>${body || para(null, "")}` +
-    `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1304" w:right="${doc.ink ? 1120 : 1134}" w:bottom="1304" w:left="${doc.ink ? 1120 : 1134}" w:header="709" w:footer="709" w:gutter="0"/></w:sectPr></w:body></w:document>`;
-  const rel = (id: string, type: string, target: string, external = false) =>
-    `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${xmlEscape(target)}"${external ? ' TargetMode="External"' : ""}/>`;
+  // the sections (a page of notes each) and their papers: a header for each paper, and an empty one for plain paper once any section has a paper (a section without a header of its own
+  // would show the one before it)
+  type Sect = { paper: string | null; alt: string };
+  const papers: Sect[] = [];
+  for (const b of doc.blocks) if (b.k === "section" && b.paper && MEDIA.test(b.paper) && !papers.some((p) => p.paper === b.paper)) papers.push({ paper: b.paper, alt: b.alt ?? "" });
+  const headers: Sect[] = papers.length ? [{ paper: null, alt: "" }, ...papers] : [];
+  const sectPr = (s: Sect, first: boolean) => {
+    const h = headers.findIndex((x) => x.paper === s.paper);
+    return (
+      `<w:sectPr>${h >= 0 ? `<w:headerReference w:type="default" r:id="rIdH${h}"/>` : ""}${first ? "" : '<w:type w:val="nextPage"/>'}` +
+      `<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1304" w:right="${doc.ink ? 1120 : 1134}" w:bottom="1304" w:left="${doc.ink ? 1120 : 1134}" w:header="709" w:footer="709" w:gutter="0"/></w:sectPr>`
+    );
+  };
+  let body = "";
+  const sects: Sect[] = [];
+  for (const b of doc.blocks) {
+    if (b.k !== "section") {
+      body += blockXml(b, ctx);
+      continue;
+    }
+    const next = { paper: b.paper && MEDIA.test(b.paper) ? b.paper : null, alt: b.alt ?? "" };
+    if (body) {
+      // the section before ends with a line of 1 pt that holds its properties
+      if (!sects.length) sects.push({ paper: null, alt: "" });
+      body += `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/>${sectPr(sects[sects.length - 1]!, sects.length === 1)}</w:pPr></w:p>`;
+      sects.push(next);
+    } else sects[0] = next;
+  }
+  const last = sects[sects.length - 1] ?? { paper: null, alt: "" };
+  const documentXml = `${XML}<w:document ${NS}><w:body>${body || para(null, "")}${sectPr(last, sects.length <= 1)}</w:body></w:document>`;
+  const headerParts: DocxParts = {};
+  headers.forEach((h, i) => {
+    headerParts[`word/header${i}.xml`] = paperHeaderXml(h.paper, h.alt, 3000 + i);
+    if (h.paper) headerParts[`word/_rels/header${i}.xml.rels`] = `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rel("rIdP", "image", `media/${h.paper}`)}</Relationships>`;
+  });
   return {
     "[Content_Types].xml":
       `${XML}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/>` +
       '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
       '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
       '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' +
+      headers.map((_, i) => `<Override PartName="/word/header${i}.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>`).join("") +
       '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' +
       '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>',
     "_rels/.rels":
@@ -304,6 +365,7 @@ export function buildDocx(doc: DocxDoc): DocxParts {
       rel("rIdN", "numbering", "numbering.xml") +
       ctx.links.map((u, i) => rel(`rIdL${i + 1}`, "hyperlink", u, true)).join("") +
       ctx.images.map((m, i) => rel(`rIdI${i + 1}`, "image", `media/${m}`)).join("") +
+      headers.map((_, i) => rel(`rIdH${i}`, "header", `header${i}.xml`)).join("") +
       "</Relationships>",
     "word/styles.xml": stylesXml(lang, !!doc.ink),
     "word/numbering.xml": NUMBERING,
@@ -311,6 +373,7 @@ export function buildDocx(doc: DocxDoc): DocxParts {
       `${XML}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">` +
       `<dc:title>${xmlEscape(doc.title)}</dc:title><dc:creator>${xmlEscape(doc.author)}</dc:creator><cp:lastModifiedBy>${xmlEscape(doc.author)}</cp:lastModifiedBy>` +
       `<dcterms:created xsi:type="dcterms:W3CDTF">${isoDate(doc.created)}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${isoDate(doc.created)}</dcterms:modified></cp:coreProperties>`,
+    ...headerParts,
     "docProps/app.xml": `${XML}<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>${xmlEscape(doc.author)}</Application></Properties>`,
   };
 }

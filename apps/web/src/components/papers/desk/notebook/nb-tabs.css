@@ -1,0 +1,18 @@
+/*
+ * The page tabs' own rules (the tabs chunk, so the Notebook chunk does not grow): a page's paper, drawn small at the start of its tab, is the button that opens its picker (four papers, drawn
+ * small, the page's ticked). The picture sits where it always did, so nothing moves; 44 px to press on a touch screen.
+ */
+.nb-tabwrap .nb-pagetab { padding-left: calc(0.75rem + 16px + 0.5rem); }
+.nb-tabsw { position: absolute; top: 50%; left: calc(0.75rem - 4px); z-index: 1; display: inline-grid; place-items: center; width: 24px; height: 24px; margin-top: -11px; padding: 0; border: 0; border-radius: 6px; background: none; pointer-events: none; }
+button.nb-tabsw { cursor: pointer; pointer-events: auto; transition: background-color 0.12s; }
+@media (hover: hover) {
+  button.nb-tabsw:hover { background: var(--surface-2); }
+  button.nb-tabsw:hover .nb-sw { border-color: var(--accent); opacity: 1; }
+}
+.nb-tabsw .nb-sw { opacity: 0.7; }
+.nb-tabwrap:has(.nb-pagetab[aria-selected="true"]) .nb-tabsw .nb-sw { opacity: 1; }
+@media (hover: none) {
+  .nb-tabwrap .nb-pagetab { height: 44px; padding-left: 44px; }
+  .nb-tabsw { left: 0; width: 44px; height: 44px; margin-top: -21px; }
+}
+@media (prefers-reduced-motion: reduce) { button.nb-tabsw { transition: none; } }
