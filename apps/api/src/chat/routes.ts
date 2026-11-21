@@ -905,7 +905,7 @@ chatRoutes.post("/tighten", async (c) => {
   if (got instanceof Response) return got;
   const { user } = got;
   // the switch that turns the support judge off (CHAT_JUDGE=off) turns the strict check off too: a page that was opened before it still shows the button
-  if (killSwitch(c.env, "CHAT_JUDGE") === "off") return c.json({ type: "unavailable", title: "The strict check is switched off", detail: "Try again later." }, 503);
+  if (killSwitch(c.env, "CHAT_JUDGE") === "off") return deny(c, 503, "unavailable", "The strict check is switched off", "Try again later.");
   // a limit on the size of the body, from the most the page can send (bug B7: this body was read with none)
   const sent = await readJson(c, MAX_TIGHTEN_BODY_BYTES);
   if (sent.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
@@ -926,8 +926,8 @@ chatRoutes.post("/tighten", async (c) => {
   if (report) logJudged({ ...report, verdicts: undefined, rewrites: report.rewrites?.map((x) => ({ c: x.c, text: "", ...(x.accepted === undefined ? {} : { accepted: x.accepted }) })) });
   if (!judged) {
     return quota
-      ? c.json({ type: "quota", title: "Today's AI allowance is used up", detail: "The strict check uses about 5,000 tokens. It resets at 00:00 UTC." }, 429)
-      : c.json({ type: "unavailable", title: "The strict check could not be done", detail: "Try again in a moment." }, 503);
+      ? deny(c, 429, "quota", "Today's AI allowance is used up", "The strict check uses about 5,000 tokens. It resets at 00:00 UTC.")
+      : deny(c, 503, "unavailable", "The strict check could not be done", "Try again in a moment.");
   }
   const answer: ChatAnswer = { text: judged.text, citations: judged.citations, grounded: judged.grounded, checked: judged.checked, leftOut: judged.leftOut, rewritten: judged.rewritten, strict: true };
   const changed = judged.leftOut > 0 || judged.rewritten > 0 || judged.text !== text;

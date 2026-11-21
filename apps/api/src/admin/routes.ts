@@ -12,6 +12,7 @@ import { captureException, parseDsn, sendEvent } from "../monitoring/sentry";
 import { readMcpAdmin } from "../mcp/calls";
 import { mcpMode } from "../mcp/flag";
 import type { HonoEnv } from "../platform/env";
+import { deny } from "../problem";
 
 export const adminRoutes = new Hono<HonoEnv>();
 
@@ -83,7 +84,7 @@ adminRoutes.get("/integrity", async (c) => {
     return c.json(compareInventory(files.objects, rows, { now: Date.now(), graceMinutes, truncated: files.truncated }));
   } catch (err) {
     captureException(c.env, err, { route: "/api/v1/admin/integrity", waitUntil: (p) => c.executionCtx.waitUntil(p) });
-    return c.json({ type: "check_failed", title: "The check could not run", detail: "Storage or the database did not answer. Try again." }, 502);
+    return deny(c, 502, "check_failed", "The check could not run", "Storage or the database did not answer. Try again.");
   }
 });
 
@@ -98,7 +99,7 @@ adminRoutes.post("/reapply-deletions", async (c) => {
     return c.json(await reapplyDeletions(c.env));
   } catch (err) {
     captureException(c.env, err, { route: "/api/v1/admin/reapply-deletions", waitUntil: (p) => c.executionCtx.waitUntil(p) });
-    return c.json({ type: "reapply_failed", title: "Deletions could not be re-applied", detail: "Storage or the database did not answer. Nothing was half done that a second run cannot finish." }, 502);
+    return deny(c, 502, "reapply_failed", "Deletions could not be re-applied", "Storage or the database did not answer. Nothing was half done that a second run cannot finish.");
   }
 });
 
@@ -112,19 +113,19 @@ adminRoutes.post("/erase-account", async (c) => {
   if (got instanceof Response) return got;
   const me = got.user;
   const body = (await readJson(c)) as { account?: unknown; confirm?: unknown } | null;
-  if (body?.confirm !== "ERASE") return c.json({ type: "confirmation_required", title: 'Send {"account": ..., "confirm": "ERASE"}' }, 400);
+  if (body?.confirm !== "ERASE") return deny(c, 400, "confirmation_required", 'Send {"account": ..., "confirm": "ERASE"}');
   const ref = parseAccountRef(body.account);
-  if (!ref) return c.json({ type: "invalid_account", title: "Give an e-mail address or an ORCID iD", detail: "For example name@university.edu or 0000-0002-1825-0097." }, 400);
+  if (!ref) return deny(c, 400, "invalid_account", "Give an e-mail address or an ORCID iD", "For example name@university.edu or 0000-0002-1825-0097.");
   const found = await findAccount(c.env.DB, ref);
-  if (!found) return c.json({ type: "no_account", title: "No account has that address", detail: "Nothing was erased. Check the spelling, or whether the person signed in with ORCID only." }, 404);
-  if (found.id === me.id) return c.json({ type: "own_account", title: "That is your own account", detail: "Use Settings and data to delete your own account." }, 409);
-  if (found.role === "admin") return c.json({ type: "admin_account", title: "That account is an admin", detail: "Remove the admin role first (docs/runbook.md), so that an admin cannot be erased by mistake." }, 409);
+  if (!found) return deny(c, 404, "no_account", "No account has that address", "Nothing was erased. Check the spelling, or whether the person signed in with ORCID only.");
+  if (found.id === me.id) return deny(c, 409, "own_account", "That is your own account", "Use Settings and data to delete your own account.");
+  if (found.role === "admin") return deny(c, 409, "admin_account", "That account is an admin", "Remove the admin role first (docs/runbook.md), so that an admin cannot be erased by mistake.");
   try {
     await eraseAccount(c.env, found.id);
     await c.env.DB.prepare("INSERT INTO audit_log (action) VALUES ('account_erased_by_admin')").run();
   } catch (err) {
     captureException(c.env, err, { route: "/api/v1/admin/erase-account", waitUntil: (p) => c.executionCtx.waitUntil(p) });
-    return c.json({ type: "erase_failed", title: "The account could not be erased", detail: "Something went wrong part way. Running the same request again finishes it." }, 502);
+    return deny(c, 502, "erase_failed", "The account could not be erased", "Something went wrong part way. Running the same request again finishes it.");
   }
   return c.json({ erased: true });
 });

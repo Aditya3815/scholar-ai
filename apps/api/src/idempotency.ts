@@ -13,6 +13,7 @@
  */
 
 import { sqlTime } from "./sql-time";
+import { problem, type ProblemStatus } from "./problem";
 
 export const KEY_PATTERN = /^[A-Za-z0-9_.:-]{16,100}$/;
 export const IN_FLIGHT_TIMEOUT_MS = 60_000;
@@ -36,24 +37,24 @@ export function readKey(header: string | null | undefined): string | null | unde
   return KEY_PATTERN.test(header) ? header : null;
 }
 
-const json = (status: number, body: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
+const json = (status: ProblemStatus, body: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
 
 export async function runIdempotent(store: KeyStore, scope: Scope, key: string | null | undefined, fingerprint: string, now: number, work: () => Promise<Response>): Promise<Response> {
   if (key === undefined) return work();
-  if (key === null) return json(400, { type: "invalid_idempotency_key", title: "That Idempotency-Key is not valid", detail: "Use 16 to 100 letters, digits, dots, dashes or underscores, for example a random UUID." });
+  if (key === null) return json(400, problem("invalid_idempotency_key", "That Idempotency-Key is not valid", "Use 16 to 100 letters, digits, dots, dashes or underscores, for example a random UUID."));
 
   let owned = await store.claim(scope, key, fingerprint, now);
   if (!owned) {
     const seen = await store.get(scope, key);
     if (seen) {
-      if (seen.fingerprint !== fingerprint) return json(422, { type: "idempotency_key_reused", title: "That key was used for a different request", detail: "Use a new Idempotency-Key for a new request." });
+      if (seen.fingerprint !== fingerprint) return json(422, problem("idempotency_key_reused", "That key was used for a different request", "Use a new Idempotency-Key for a new request."));
       if (seen.status !== null && seen.body !== null) return new Response(seen.body, { status: seen.status, headers: { "Content-Type": "application/json", "Idempotent-Replayed": "true" } });
       owned = await store.takeOver(scope, key, fingerprint, now, now - IN_FLIGHT_TIMEOUT_MS);
-      if (!owned) return json(409, { type: "idempotency_in_progress", title: "The first request is still being handled", detail: "Wait a moment and try again." }, { "Retry-After": "1" });
+      if (!owned) return json(409, problem("idempotency_in_progress", "The first request is still being handled", "Wait a moment and try again."), { "Retry-After": "1" });
     } else {
       // the record vanished between the two calls (cleared by the daily clean-up): claim again once
       owned = await store.claim(scope, key, fingerprint, now);
-      if (!owned) return json(409, { type: "idempotency_in_progress", title: "The first request is still being handled", detail: "Wait a moment and try again." }, { "Retry-After": "1" });
+      if (!owned) return json(409, problem("idempotency_in_progress", "The first request is still being handled", "Wait a moment and try again."), { "Retry-After": "1" });
     }
   }
 

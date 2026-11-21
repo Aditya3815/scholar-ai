@@ -789,7 +789,7 @@ documentRoutes.put("/:id/ink", async (c) => {
       : await c.env.DB.prepare("UPDATE doc_ink SET data = ?2, rev = rev + 1, updated_at = datetime('now') WHERE doc_id = ?1 AND rev = ?3").bind(row.id, data, body.rev).run();
   if ((res.meta.changes ?? 0) === 0) {
     const now = await c.env.DB.prepare("SELECT data, rev FROM doc_ink WHERE doc_id = ?1").bind(row.id).first<{ data: string; rev: number }>();
-    return c.json({ type: "conflict", title: "This paper was drawn on in another window", strokes: now ? (JSON.parse(now.data) as unknown) : [], rev: now?.rev ?? 0 }, 409);
+    return deny(c, 409, "conflict", "This paper was drawn on in another window", undefined, { strokes: now ? (JSON.parse(now.data) as unknown) : [], rev: now?.rev ?? 0 });
   }
   return c.json({ rev: body.rev + 1 });
 });

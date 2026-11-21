@@ -7,6 +7,7 @@ import { TRENDING_KEYS } from "../trending/store";
 import { devMode, standIns } from "../platform/dev";
 import { sentByStandIn } from "../docs/service";
 import type { Env } from "../platform/env";
+import { deny } from "../problem";
 
 /**
  * Every development route of the Worker, /api/v1/dev/* (docs/design/untangle.md, F7): what the local test runs use to look inside the Worker and to set up what they test. They are
@@ -15,7 +16,7 @@ import type { Env } from "../platform/env";
  */
 export const devRoutes = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
 
-devRoutes.use("*", async (c, next) => (devMode(c.env) ? next() : c.json({ type: "not_found", title: "Not found" }, 404)));
+devRoutes.use("*", async (c, next) => (devMode(c.env) ? next() : deny(c, 404, "not_found", "Not found")));
 
 /** Local smoke test for the LLM Gateway (a plain 404 in production, like every route here, so it can never be used as a free, anonymous LLM endpoint). */
 devRoutes.post("/llm", async (c) => {
@@ -44,7 +45,7 @@ devRoutes.post("/llm", async (c) => {
  */
 devRoutes.get("/last-invite", (c) => {
   const m = standIns(c.env) ? sentByStandIn.at(-1) : undefined;
-  if (!m) return c.json({ type: "not_found", title: "No invitation" }, 404);
+  if (!m) return deny(c, 404, "not_found", "No invitation");
   const b64 = (u: Uint8Array) => btoa(Array.from(u, (x) => String.fromCharCode(x)).join(""));
   return c.json({ ...m, attachments: (m.attachments ?? []).map((a) => ({ ...a, content: b64(a.content), size: a.content.byteLength })) });
 });
@@ -72,7 +73,7 @@ devRoutes.delete("/r2-object", async (c) => {
 devRoutes.post("/sql", async (c) => {
   const body = (await c.req.json().catch(() => null)) as { sql?: unknown } | null;
   const list = body?.sql;
-  if (!Array.isArray(list) || list.length === 0 || list.length > 100 || !list.every((s) => typeof s === "string" && s.length < 20_000)) return c.json({ type: "invalid", title: "Send {sql: [statement, ...]}" }, 400);
+  if (!Array.isArray(list) || list.length === 0 || list.length > 100 || !list.every((s) => typeof s === "string" && s.length < 20_000)) return deny(c, 400, "invalid", "Send {sql: [statement, ...]}");
   const results: unknown[][] = [];
   for (const s of list) results.push((await c.env.DB.prepare(s).all()).results);
   return c.json({ results });
@@ -92,7 +93,7 @@ devRoutes.post("/cache", async (c) => {
   }
   if (b?.op === "get" && typeof b.key === "string") return c.json({ ok: true, driver, value: await store.get(b.key) });
   if (b?.op === "getMany" && Array.isArray(b.keys) && b.keys.length <= 500) return c.json({ ok: true, driver, values: Object.fromEntries(await (store.getMany ? store.getMany(b.keys) : Promise.resolve(new Map()))) });
-  return c.json({ type: "invalid", title: "Send {op: set|get|getMany, key, value, ttl, keys}" }, 400);
+  return deny(c, 400, "invalid", "Send {op: set|get|getMany, key, value, ttl, keys}");
 });
 
 /**
@@ -104,7 +105,7 @@ devRoutes.post("/kv", async (c) => {
   const kv = c.env.CACHE;
   const b = (await c.req.json().catch(() => null)) as { op?: string; key?: string; value?: string; ttl?: number } | null;
   const key = typeof b?.key === "string" && b.key.startsWith(TRENDING_KEYS.file) && b.key.length <= 200 ? b.key : null;
-  if (!kv) return c.json({ type: "invalid", title: "No KV namespace is bound here" }, 400);
+  if (!kv) return deny(c, 400, "invalid", "No KV namespace is bound here");
   if (b?.op === "get" && key) return c.json({ ok: true, value: await kv.get(key) });
   if (b?.op === "put" && key && typeof b.value === "string") {
     await kv.put(key, b.value, { expirationTtl: Math.max(60, Math.ceil(b.ttl ?? 3600)) });
@@ -125,7 +126,7 @@ devRoutes.post("/kv", async (c) => {
     }
     return c.json({ ok: true, keys });
   }
-  return c.json({ type: "invalid", title: "Send {op: get|put|delete|list, key (a name starting trending:v1), value, ttl}" }, 400);
+  return deny(c, 400, "invalid", "Send {op: get|put|delete|list, key (a name starting trending:v1), value, ttl}");
 });
 
 /**
@@ -134,7 +135,7 @@ devRoutes.post("/kv", async (c) => {
  */
 devRoutes.post("/gate", async (c) => {
   const b = (await c.req.json().catch(() => null)) as { name?: string; n?: number; holdMs?: number; maxWaitMs?: number } | null;
-  if (!b?.name || !(b.name in GATES)) return c.json({ type: "invalid", title: "name must be a lane" }, 400);
+  if (!b?.name || !(b.name in GATES)) return deny(c, 400, "invalid", "name must be a lane");
   const name = b.name as GateName;
   const n = Math.min(Math.max(1, b.n ?? 1), 40);
   const t0 = Date.now();
@@ -161,7 +162,7 @@ devRoutes.post("/gate", async (c) => {
 /** Local tests only: makes the signed-in user an admin, so the admin page can be tested. */
 devRoutes.post("/make-admin", async (c) => {
   const user = await currentUser(c);
-  if (!user) return c.json({ type: "unauthorized", title: "Sign in first" }, 401);
+  if (!user) return deny(c, 401, "unauthorized", "Sign in first");
   await c.env.DB.prepare("UPDATE users SET role = 'admin' WHERE id = ?1").bind(user.id).run();
   return c.json({ ok: true });
 });

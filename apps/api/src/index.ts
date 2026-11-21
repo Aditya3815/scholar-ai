@@ -16,6 +16,7 @@ import { devRoutes } from "./app/dev-routes";
 import { depsFor, trendingJobFor } from "./app/deps";
 import { OaIngestFlow } from "./oa/workflow";
 import { LitscanFlow } from "./litscan/workflow";
+import { deny } from "./problem";
 
 app.get("/api/v1/health", async (c) => {
   let db: HealthResponse["db"] = "ok";
@@ -93,13 +94,13 @@ app.get("/api/v1/search/stream", (c) => {
 app.route("/api/v1/dev", devRoutes);
 
 app.notFound((c) =>
-  c.json({ type: "not_found", title: "Not found", detail: c.req.path }, 404),
+  deny(c, 404, "not_found", "Not found", c.req.path),
 );
 
 app.onError((err, c) => {
   captureException(c.env, err, { route: c.req.routePath, release: c.env.CF_VERSION_METADATA?.id, waitUntil: (p) => c.executionCtx.waitUntil(p) });
   console.error(JSON.stringify({ level: "error", msg: "unhandled", requestId: c.get("requestId"), error: err.name }));
-  return c.json({ type: "internal_error", title: "Internal error", requestId: c.get("requestId") }, 500);
+  return deny(c, 500, "internal_error", "Internal error", undefined, { requestId: c.get("requestId") });
 });
 
 export { S2Throttle } from "./s2-throttle";
