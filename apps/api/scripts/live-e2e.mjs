@@ -142,11 +142,11 @@ try {
   const big = room(B, doc.id);
   await big.open();
   big.ws.send(JSON.stringify({ t: "here", view: "paper", pad: "x".repeat(3000) }));
-  ok((await big.waitClosed()) === 1009, "a message over 2 KB closes the socket (1009)");
+  { const got = await big.waitClosed(); ok(got === 1009, `a message over 2 KB closes the socket (1009) (got ${got})`); }
   const fast = room(B, doc.id);
   await fast.open();
   for (let i = 0; i < 200; i++) fast.ws.send(JSON.stringify({ t: "here", view: "paper", page: (i % 3) + 1, active: true, idle: false }));
-  ok((await fast.waitClosed()) === 1008, "200 messages at once: the socket is closed (1008)");
+  { const got = await fast.waitClosed(); ok(got === 1008, `200 messages at once: the socket is closed (1008) (got ${got})`); }
   ok(a.ws.readyState === 1 && b.ws.readyState === 1, "and nobody else's");
 
   console.log("20 sockets in one room");
@@ -160,14 +160,14 @@ try {
 
   console.log("access changes close sockets");
   ok((await status(A.api(`${S}/members/${mB.id}`, { method: "PATCH", body: { role: "commenter" } }))) === 200, "the editor is made a commenter");
-  ok((await b.waitClosed()) === 4001, "their socket is closed with 4001 (connect again, with the new role)");
+  { const got = await b.waitClosed(); ok(got === 4001, `their socket is closed with 4001 (connect again, with the new role) (got ${got})`); }
   const b2 = room(B, doc.id);
   await b2.open();
   b2.here({ view: "notes", notesPage: "p1", editingBlock: "b1" });
   await a.waitPeople((p) => p[idB]?.role === "commenter", "the new role");
   ok(a.people()[idB]?.editingBlock === null, "back as a commenter, they cannot say they type");
   ok((await status(A.api(`${S}/members/${mC.id}`, { method: "DELETE" }))) === 200, "the owner removes the commenter");
-  ok((await c.waitClosed()) === 4403, "their socket is closed with 4403");
+  { const got = await c.waitClosed(); ok(got === 4403, `their socket is closed with 4403 (got ${got})`); }
   await a.waitPeople((p) => !p[idC], "the commenter gone from the list");
   ok(true, "and they leave the owner's list");
   ok((await status(C.api(`${D}/live`))) === 404, "and cannot come back (404)");
@@ -178,7 +178,7 @@ try {
 
   console.log("deleting the paper");
   ok((await status(A.api(D, { method: "DELETE" }))) === 200, "the owner deletes the paper");
-  ok((await a.waitClosed()) === 4403, "and their own socket is closed with 4403");
+  { const got = await a.waitClosed(); ok(got === 4403, `and their own socket is closed with 4403 (got ${got})`); }
 } catch (e) {
   console.log(" FAIL unexpected error:", e);
   countFailure();
