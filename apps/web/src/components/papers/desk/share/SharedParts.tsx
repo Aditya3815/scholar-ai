@@ -1,6 +1,7 @@
 import { MessageSquare } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { NOTEBOOK_STYLE_NAMES, blockAnchor, pageLabel, strokesWord, type CommentAnchor, type DocNote, type NoteColor, type NotebookInk, type NotebookPage } from "@scholar/shared";
+import { api } from "../../../../lib/api/client";
 import type { Meaning } from "../../../../lib/meanings";
 import { AgentBlockView, MdView, QuoteBlockView } from "../notebook/NbBlocks";
 import { readInk, readPages } from "./read-pages";
@@ -38,19 +39,17 @@ export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus, 
   const [openId, setOpenId] = useState<string | null>(null);
   useEffect(() => {
     let gone = false;
-    fetch(`/api/v1/documents/${docId}/notebook`, { credentials: "same-origin" })
-      .then((r) => (r.ok ? (r.json() as Promise<{ pages: NotebookPage[]; ink?: NotebookInk[] }>) : Promise.reject(new Error(String(r.status)))))
-      .then(
-        (j) => {
-          readPages.set(docId, j.pages);
-          readInk.set(docId, j.ink ?? []);
-          if (!gone) {
-            setPages(j.pages);
-            setInk(j.ink ?? []);
-          }
-        },
-        () => !gone && !readPages.has(docId) && setError(true),
-      );
+    api<{ pages: NotebookPage[]; ink?: NotebookInk[] }>(`/api/v1/documents/${docId}/notebook`).then(
+      (j) => {
+        readPages.set(docId, j.pages);
+        readInk.set(docId, j.ink ?? []);
+        if (!gone) {
+          setPages(j.pages);
+          setInk(j.ink ?? []);
+        }
+      },
+      () => !gone && !readPages.has(docId) && setError(true),
+    );
     return () => {
       gone = true;
     };
