@@ -8,6 +8,7 @@ import type { ThinkLine } from "./think";
 import type { RouteHow, RouteMode as ChatMode } from "./route";
 import type { Reading } from "./reading";
 import type { ChatToolEvent } from "./chat-tools";
+import type { StreamError } from "./protocol/streams";
 import { flatLine } from "./text";
 
 /**
@@ -124,7 +125,7 @@ export type ChatEvent =
   /** The general background, final: `text` is empty unless `kind` is "background" or "not_research". */
   | { type: "general"; kind: GeneralKind; text: string }
   | { type: "done"; answered: boolean; reason?: ChatNoAnswer; tookMs: number }
-  | { type: "error"; code: string; title: string; detail?: string }
+  | StreamError
   /**
    * One line of the Thinking block (M2, think.ts): what a stage did, from its real counts. Sent only while CHAT_THINK is "on"; the same `id` again replaces the line. A reducer that does not know an event
    * keeps the reply as it was (`applyChatEvent`'s default), so a page always survives a newer server.

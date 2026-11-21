@@ -2,6 +2,7 @@ import { MARK } from "./ids";
 import type { ChatCitation } from "./chat";
 import type { SearchScope } from "./index";
 import type { Lang } from "./vocab/languages";
+import type { StreamError } from "./protocol/streams";
 import { flatLine } from "./text";
 
 /**
@@ -98,7 +99,7 @@ export type LitscanEvent =
   | { type: "part"; seq?: number; part: LitscanPart }
   /** The one end of a stream. */
   | { type: "done"; seq?: number; state: Exclude<LitscanState, "running">; answered: number; gaps: number }
-  | { type: "error"; code: string; title: string; detail?: string };
+  | StreamError;
 
 /** A topic as it is sent: whitespace tidied, 8 to 400 characters with a letter or number in it. Null if it cannot be used. */
 export function cleanLitscanTopic(raw: unknown): string | null {

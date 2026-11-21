@@ -133,6 +133,7 @@ export * from "./vocab/references";
 export * from "./vocab/outcomes";
 export * from "./protocol/problem";
 export * from "./protocol/agents";
+export * from "./protocol/streams";
 export * from "./reader-agents";
 export * from "./vocab/ledger";
 export * from "./zoom";
