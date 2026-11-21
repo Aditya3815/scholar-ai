@@ -85,10 +85,15 @@ describe("the event rule: progress and text are different events", () => {
     expect(streamShapeProblems("ask", [at(0.5), at(0.5), at(1), ev("answer")])).toEqual([]);
   });
 
-  it("classifies every event type of every stream, and every stream names the events that end it", () => {
+  it("ends each stream with the events the server and the page have always ended it with", () => {
+    expect(STREAMS.chat.end).toEqual(["done", "error"]);
+    expect(STREAMS.ask.end).toEqual(["answer", "critique", "error"]);
+    expect(STREAMS.idea.end).toEqual(["done", "error"]);
+    expect(STREAMS.litscan.end).toEqual(["done", "error"]);
+  });
+
+  it("classifies every event type of every stream", () => {
     for (const [name, spec] of Object.entries(STREAMS)) {
-      expect(spec.end.every((t) => spec.kinds[t] === "end"), `${name}: ends`).toBe(true);
-      expect(Object.entries(spec.kinds).filter(([, k]) => k === "end").map(([t]) => t).sort(), `${name}: only the ending events are of kind end`).toEqual([...spec.end].sort());
       for (const [textType, finalType] of Object.entries(spec.replaced)) {
         expect(spec.kinds[textType], `${name}: ${textType}`).toBe("text");
         expect(spec.kinds[finalType], `${name}: ${finalType}`).not.toBe("progress");

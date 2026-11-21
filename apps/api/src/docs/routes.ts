@@ -555,7 +555,7 @@ documentRoutes.post("/:id/ask", async (c) => {
     const abort = new AbortController();
     const stream = modelFor(deps, PROFILES.docsAskStream, user.id, abort.signal);
     if (!stream) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
-    return sseStream<AskStreamEvent>(c, { terminal: ["answer", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (sse) => {
+    return sseStream<AskStreamEvent>(c, { stream: "ask", abort }, async (sse) => {
       const send = sse.send;
       try {
         const answer = await answerQuestionStream({ question, chunks, embed, stream, meta: { id: randomId(), createdAt: Date.now() }, emit: send, topK: deps.dev.topK });
@@ -640,7 +640,7 @@ async function agentAnswer(
     const abort = new AbortController();
     const stream = modelFor(deps, PROFILES.docsAskStream, a.user, abort.signal);
     if (!stream) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
-    return sseStream<AskStreamEvent>(c, { terminal: ["answer", "critique", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (sse) => {
+    return sseStream<AskStreamEvent>(c, { stream: "ask", abort }, async (sse) => {
       try {
         const end = await run.stream(stream, sse.send);
         if (sse.gone) return; // the reader left: nothing to send

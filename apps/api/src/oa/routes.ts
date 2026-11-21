@@ -53,7 +53,7 @@ oaRoutes.post("/ask", async (c) => {
   if (!embed) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
 
   const abort = new AbortController();
-  return sseStream<OaAskEvent>(c, { terminal: ["answer", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, (s) =>
+  return sseStream<OaAskEvent>(c, { stream: "ask", abort }, (s) =>
     oaService.ask(c.env, { userId: user.id, ref, key, question, clientAbstract, embed, abort, deps }, s),
   );
 });

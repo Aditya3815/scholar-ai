@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { ABSTRACTS_NOTICE, isLaneReason, MARK, stripInvisible, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MAX_OA_ABSTRACT_CHARS, MIN_SINCE_YEAR, type AskStreamEvent, type ChatRetraction, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, refTally, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
+import { ABSTRACTS_NOTICE, STREAM_FALLBACK, isLaneReason, MARK, stripInvisible, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MAX_OA_ABSTRACT_CHARS, MIN_SINCE_YEAR, type AskStreamEvent, type ChatRetraction, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, refTally, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
 import { currentUser, requireUser } from "../auth/service";
 import { readJson } from "../platform/http/body";
 import type { Complete, StreamComplete } from "../platform/llm/port";
@@ -217,7 +217,7 @@ chatRoutes.post("/", async (c) => {
   const started = Date.now();
 
   const abort = new AbortController();
-  return sseStream<ChatEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (s) => {
+  return sseStream<ChatEvent>(c, { stream: "chat", abort }, async (s) => {
     const send = s.send;
     // M2: the Thinking block's lines, only with CHAT_THINK "on" (with it off nothing below sends one, and the stream is what it was). A line is never logged: it goes to the page and nowhere else.
     const thinkOn = (await gate(c.env, "CHAT_THINK")) === "on";
@@ -797,7 +797,7 @@ chatRoutes.post("/", async (c) => {
       await done(answer.grounded, answer.grounded ? undefined : answer.enough ? "not_grounded" : "not_answered");
     } catch (e) {
       console.error(JSON.stringify({ level: "error", msg: "chat_stream_failed", error: e instanceof Error ? e.name : "unknown" }));
-      await send({ type: "error", code: "internal_error", title: "Something went wrong" });
+      await send(STREAM_FALLBACK);
     } finally {
       await countMessage();
     }

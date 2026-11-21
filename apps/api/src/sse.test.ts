@@ -1,15 +1,16 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
+import { STREAM_FALLBACK } from "@scholar/shared";
 import { KEEP_ALIVE_MS, sseStream, type SseSession } from "./sse";
 
 type Ev = { type: "step" | "done" | "error"; n?: number; title?: string };
-const FALLBACK: Ev = { type: "error", title: "Something went wrong" };
+const FALLBACK = STREAM_FALLBACK as Ev;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Runs `work` inside a stream and returns the raw text the browser would have received. */
 async function body(work: (s: SseSession<Ev>) => Promise<void>, env: Record<string, string> = {}, abort?: AbortController): Promise<string> {
   const app = new Hono();
-  app.get("/", (c) => sseStream<Ev>(c, { terminal: ["done", "error"], fallback: FALLBACK, abort }, work));
+  app.get("/", (c) => sseStream<Ev>(c, { stream: "idea", abort }, work));
   const res = await app.request("/", {}, env);
   expect(res.headers.get("content-type")).toContain("text/event-stream");
   return await res.text();
