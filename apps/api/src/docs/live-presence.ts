@@ -26,6 +26,9 @@ export type LiveConn = {
   page: number | null;
   notesPage: string | null;
   editingBlock: string | null;
+  /** Where their cursor is in `editingBlock` (an offset into its Markdown) and the end of a selection; null when not said. */
+  caret?: number | null;
+  caretEnd?: number | null;
   active: boolean;
   idle: boolean;
   /** When the room last heard from this socket (ms). */
@@ -42,15 +45,18 @@ export function freshConn(conn: string, who: LiveWho, now: number): LiveConn {
   return { conn, ...who, view: "paper", page: null, notesPage: null, editingBlock: null, active: true, idle: false, seen: now };
 }
 
-/** A `here` applied: a Viewer or a Commenter never has an `editingBlock` (they cannot edit), whatever the page sent. */
+/** A `here` applied: a Viewer or a Commenter never has an `editingBlock` (they cannot edit), nor a caret, whatever the page sent. */
 export function applyHere(c: LiveConn, h: LiveHere, now: number): LiveConn {
   const mayEdit = c.role === "editor" || c.role === "owner";
+  const editingBlock = mayEdit && h.view === "notes" && h.notesPage ? (h.editingBlock ?? null) : null;
   return {
     ...c,
     view: h.view,
     page: h.page ?? null,
     notesPage: h.notesPage ?? null,
-    editingBlock: mayEdit && h.view === "notes" && h.notesPage ? (h.editingBlock ?? null) : null,
+    editingBlock,
+    caret: editingBlock ? (h.caret ?? null) : null,
+    caretEnd: editingBlock && h.caret !== undefined ? (h.caretEnd ?? null) : null,
     active: h.active,
     idle: h.idle,
     seen: now,
@@ -87,6 +93,7 @@ export function presenceOf(conns: readonly LiveConn[], now: number): LivePerson[
       page: at.page,
       notesPage: at.notesPage,
       editingBlock: at.editingBlock,
+      ...(at.editingBlock && typeof at.caret === "number" ? { caret: at.caret, ...(typeof at.caretEnd === "number" ? { caretEnd: at.caretEnd } : {}) } : {}),
       active: !idle && list.some((c) => c.active),
       idle,
     });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mdPlainText, mdSourceRuns, parseInline, parseNotebookMd, type MdInline } from "./notebook-md";
+import { mdCaret, mdPlain, mdPlainText, mdSourceRuns, parseInline, parseNotebookMd, type MdInline } from "./notebook-md";
 
 const t = (s: string): MdInline => ({ t: "text", s });
 
@@ -121,5 +121,53 @@ describe("a heading line with many spaces and a stray carriage return stays fast
     mdSourceRuns(line);
     parseNotebookMd(line);
     expect(performance.now() - t).toBeLessThan(500);
+  });
+});
+
+describe("mdCaret: a cursor in the source, in the text as drawn (another person's caret)", () => {
+  // the text as drawn, with "|" where the caret stands ("|" after a character when `after`)
+  const show = (md: string, at: number) => {
+    const c = mdCaret(md, at);
+    const p = mdPlain(md);
+    return `${p.slice(0, c.at)}|${p.slice(c.at)}${c.after ? " (after)" : ""}`;
+  };
+  it("plain text: the same offset", () => {
+    expect(show("Who was recruited", 4)).toBe("Who |was recruited");
+    expect(show("Who was recruited", 0)).toBe("|Who was recruited");
+    expect(show("Who was recruited", 17)).toBe("Who was recruited| (after)");
+  });
+  it("skips the marks: bold, italic, underline (++ and <u>), mark", () => {
+    expect(show("a **bold** word", 6)).toBe("a bo|ld word");
+    expect(show("a **bold** word", 2)).toBe("a |bold word");
+    expect(show("a **bold** word", 10)).toBe("a bold| word");
+    expect(show("x ++under++ y", 7)).toBe("x und|er y");
+    expect(show("x <u>under</u> y", 8)).toBe("x und|er y");
+    expect(show("*it* ==hl==", 8)).toBe("it h|l");
+    expect(show("*it* ==hl==", 9)).toBe("it hl| (after)");
+    // an escaped star inside a bold: the bold's own stars are marks, the escaped one is drawn
+    expect(show(String.raw`**\*b**`, 4)).toBe("*|b");
+  });
+  it("headings and lists: their signs are not drawn", () => {
+    expect(show("# Methods\nWho", 4)).toBe("Me|thodsWho");
+    expect(show("# Methods\nWho", 0)).toBe("|MethodsWho");
+    expect(show("- one\n- two", 9)).toBe("onet|wo");
+    expect(show("1. one\n2. two", 3)).toBe("|onetwo");
+  });
+  it("at a line's end the caret stays on that line", () => {
+    expect(show("first\nsecond", 5)).toBe("first|second (after)");
+    expect(show("first\nsecond", 6)).toBe("first|second");
+    expect(show("- one\n- two", 5)).toBe("one|two (after)");
+    expect(show("para\n\nnext", 4)).toBe("para|next (after)");
+  });
+  it("past the text (typing not saved yet): at its end; never negative", () => {
+    expect(show("short", 400)).toBe("short| (after)");
+    expect(show("short", -3)).toBe("|short");
+    expect(mdCaret("", 5)).toEqual({ at: 0, after: false });
+  });
+  it("Hindi: never between a letter and its vowel sign", () => {
+    // "नमस्ते": न म स ् त े; a cursor after त (before its vowel sign े) is drawn after the sign
+    expect(show("नमस्ते दुनिया", 5)).toBe("नमस्ते| दुनिया");
+    expect(show("**नमस्ते** दुनिया", 4)).toBe("नम|स्ते दुनिया");
+    expect(show("😀 ok", 1)).toBe("😀| ok");
   });
 });

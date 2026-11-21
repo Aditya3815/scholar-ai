@@ -19,6 +19,12 @@ export const LIVE_IDLE_MS = 120_000;
 export const LIVE_RECONNECT_LINE_MS = 5_000;
 /** How many presence colours there are (each person one, by their order in the share). */
 export const LIVE_COLOURS = 6;
+/** A caret is an offset into the block's Markdown: at most this (a text block's cap, NOTEBOOK_LIMITS.text; live.test.ts keeps them equal). */
+export const LIVE_CARET_MAX = 8000;
+/** While typing or moving, the page sends where its caret is at most this often (the last place always goes). */
+export const LIVE_CARET_SEND_MS = 120;
+/** Another person's caret fades this long after it last moved. */
+export const LIVE_CARET_FADE_MS = 3000;
 
 /** How the room closes a socket: 4403 when access has ended (the page shows "You no longer have access" once the paper says so too); 4001 when the role changed (the page connects again at once). */
 export const LIVE_CLOSE = { noAccess: 4403, reconnect: 4001, full: 4429, tooBig: 1009, abuse: 1008, gone: 1001 } as const;
@@ -30,8 +36,11 @@ export const LIVE_KINDS = ["notebook", "highlights", "comments", "pages"] as con
 /** What changed: a page of notes (its blocks: `id` and `rev`), the highlights, the comments, or the list of pages (a rename, a move, a delete). */
 export type LiveKind = (typeof LIVE_KINDS)[number];
 
-/** Client to room: where this window is. Sent on a change and every LIVE_HEARTBEAT_MS. `active`: something was done in the last LIVE_ACTIVE_MS; `idle`: nothing for LIVE_IDLE_MS. */
-export type LiveHere = { t: "here"; view: LiveView; page?: number; notesPage?: string; editingBlock?: string; active: boolean; idle: boolean };
+/**
+ * Client to room: where this window is. Sent on a change and every LIVE_HEARTBEAT_MS. `active`: something was done in the last LIVE_ACTIVE_MS; `idle`: nothing for LIVE_IDLE_MS.
+ * `caret` (with `editingBlock` only): where the cursor is in that block, an offset into its Markdown; `caretEnd`: the end of a selection from `caret` (larger than it).
+ */
+export type LiveHere = { t: "here"; view: LiveView; page?: number; notesPage?: string; editingBlock?: string; caret?: number; caretEnd?: number; active: boolean; idle: boolean };
 
 /** One person in the room, as the others see them (one entry a person, whatever the number of their windows). */
 export type LivePerson = {
@@ -45,6 +54,9 @@ export type LivePerson = {
   page: number | null;
   notesPage: string | null;
   editingBlock: string | null;
+  /** Where their cursor is in `editingBlock` (an offset into its Markdown), and the end of their selection; absent when not known. */
+  caret?: number;
+  caretEnd?: number;
   active: boolean;
   idle: boolean;
 };
@@ -74,7 +86,7 @@ export const liveMessageBytes = bytes;
 
 /**
  * A message from a page, read: a `here` with only known fields of the right shape (an unknown field is dropped, a wrong one refuses the whole message), or null. Never throws. The room then
- * also takes `editingBlock` away from a person who may not edit (a Viewer or a Commenter), whatever the page sent.
+ * also takes `editingBlock` (and its caret) away from a person who may not edit (a Viewer or a Commenter), whatever the page sent.
  */
 export function readLiveHere(raw: unknown): LiveHere | null {
   let v: unknown = raw;
@@ -100,6 +112,15 @@ export function readLiveHere(raw: unknown): LiveHere | null {
     out[k] = m[k] as string;
   }
   if (out.editingBlock && !out.notesPage) return null;
+  for (const k of ["caret", "caretEnd"] as const) {
+    if (m[k] === undefined || m[k] === null) continue;
+    if (typeof m[k] !== "number" || !Number.isInteger(m[k]) || (m[k] as number) < 0 || (m[k] as number) > LIVE_CARET_MAX) return null;
+    out[k] = m[k] as number;
+  }
+  // a caret only in the block typed in; a selection's end only after its start (an empty one is a caret)
+  if (out.caret !== undefined && !out.editingBlock) return null;
+  if (out.caretEnd !== undefined && (out.caret === undefined || out.caretEnd < out.caret)) return null;
+  if (out.caretEnd === out.caret) delete out.caretEnd;
   if (out.active && out.idle) out.active = false;
   return out;
 }

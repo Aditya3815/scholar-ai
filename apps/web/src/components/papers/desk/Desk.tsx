@@ -683,6 +683,10 @@ export function Desk(props: DeskProps) {
     },
     [openComments, canEdit, nb, openInNotes, showPanel, goTo, showPaper],
   );
+  const nbRef = useRef(nbState);
+  nbRef.current = nbState;
+  // where this window's cursor is in the block it types in (an Editor's)
+  useEffect(() => (liveMod && liveClient && canEdit ? liveMod.watchCaret(liveClient) : undefined), [liveMod, liveClient, canEdit]);
   const notebookLive: NotebookLive | undefined = useMemo(() => {
     if (!liveMod) return undefined;
     const on = (pageId: string) => livePeople.filter((p) => p.view === "notes" && p.notesPage === pageId && !p.idle);
@@ -691,9 +695,14 @@ export function Desk(props: DeskProps) {
         const ps = on(pageId);
         return ps.length ? { dots: <liveMod.Dots people={ps} />, label: `, ${herePhrase(ps)}` } : null;
       },
+      // the people typing in a block: their avatars and carets (the caret is an offset into the block's Markdown, read from this window's notes when it is drawn)
       editor: (pageId, blockId) => {
-        const p = livePeople.find((x) => x.notesPage === pageId && x.editingBlock === blockId && !x.idle);
-        return p ? { colour: p.colour, label: <liveMod.EditingLabel p={p} /> } : null;
+        const ps = livePeople.filter((x) => x.notesPage === pageId && x.editingBlock === blockId && !x.idle);
+        const md = () => {
+          const b = nbRef.current?.pages.find((x) => x.id === pageId)?.blocks.find((x) => x.id === blockId);
+          return b && "md" in b ? b.md : "";
+        };
+        return ps.length ? { colour: ps[0]!.colour, label: <liveMod.EditingMark people={ps} md={md} /> } : null;
       },
       onEditing,
     };
