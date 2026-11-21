@@ -62,6 +62,9 @@ export const LIMITS = {
   // 7 KB since the block's marker became a small avatar with a tooltip and the other person's caret (21 Nov 2026, paper-live.md 9): the caret's offset mapped into the drawn text, its
   // blink and fade, the tooltip kept inside the window; 6.5 KB measured (from 4.3), the Notebook chunk unchanged.
   "the live presence chunk, script and style (gzip)": 7 * KB,
+  // Adding a paper (lib/ingest.ts: reading the PDF, the upload, the indexing, the scan reader and their retries), fetched when a paper is added or read again. It left the first load on
+  // 21 Nov 2026 (docs/design/untangle.md, F9: the first load fell from 237.5 to 228.4 KB): 2.8 KB measured, plus about 15%.
+  "the paper ingest chunk (adding a paper), script (gzip)": 3.2 * KB,
   // The Rive pieces (docs/design/setu-rive.md, rive-ideas.md), fetched only when a picture is wanted: 57.6, 331 and 8.4 KB measured on 1 Nov 2026, plus about 10%. None of them may be in the first load.
   "the Rive runtime chunk, script (gzip)": 64 * KB,
   "the Rive runtime, wasm (gzip)": 365 * KB,
@@ -110,6 +113,7 @@ const COMMENTS = "src/components/papers/desk/share/Comments.tsx";
 const SHARED_WITH_ME = "src/components/papers/SharedWithMe.tsx";
 const SHARE_OPEN = "src/components/papers/ShareOpen.tsx";
 const LIVE = "src/components/papers/desk/live/Live.tsx";
+const INGEST = "src/lib/ingest.ts";
 const RIVE_RUNTIME = "../../node_modules/@rive-app/canvas-lite/rive.js";
 const RIVE_WASM = "../../node_modules/@rive-app/canvas-lite/rive.wasm";
 const rivFiles = Object.entries(manifest).filter(([id]) => id.endsWith(".riv")).map(([, e]) => asset(e.file));
@@ -139,6 +143,7 @@ const measured = {
   "the comments chunk, script and style (gzip)": sum(filesOf(COMMENTS), gz),
   "Shared with me and the link opener, script (gzip)": sum([...filesOf(SHARED_WITH_ME, { css: false }), ...filesOf(SHARE_OPEN, { css: false })], gz),
   "the live presence chunk, script and style (gzip)": sum(filesOf(LIVE), gz),
+  "the paper ingest chunk (adding a paper), script (gzip)": sum(filesOf(INGEST, { css: false }), gz),
   "the Rive runtime chunk, script (gzip)": sum(filesOf(RIVE_RUNTIME), gz),
   "the Rive runtime, wasm (gzip)": sum(filesOf(RIVE_WASM), gz),
   "the Rive files of the pictures (gzip)": sum(rivFiles, gz),
@@ -202,7 +207,7 @@ for (const name of HEAVY_SHARED) {
 // Pieces that are fetched only when they are wanted (docs/design/chatview-and-trending.md, C3). Each must stay a chunk of its own: when somebody imports it with a plain `import` from the
 // first screen, the bundler folds it back into the main script and the size limit above is spent again, with no other sign. The second list is of pages whose style sheet is imported by the page
 // itself (idea.css and admin.css were in the first load's style sheet for everybody until 3 Nov 2026); put back into src/main.tsx, they would be again.
-const OWN_CHUNK_SCRIPT = ["src/workspace/ChatView.tsx"];
+const OWN_CHUNK_SCRIPT = ["src/workspace/ChatView.tsx", INGEST];
 const OWN_CHUNK_STYLE = ["src/components/idea/IdeaPage.tsx", "src/components/admin/AdminPage.tsx"];
 for (const id of OWN_CHUNK_SCRIPT) {
   if (!entry(id)?.isDynamicEntry) fail(`${id} is no longer a chunk of its own: it is part of the first load again`);
