@@ -121,7 +121,24 @@ try {
     writeFileSync(join(SHOTS, "invite-picture.jpg"), Buffer.from(pic.content, "base64"));
     writeFileSync(join(SHOTS, "invite.json"), JSON.stringify({ ...sent, attachments: sent.attachments.map((a) => ({ ...a, content: `${a.size} bytes` })) }, null, 1));
   }
-  const stored = (await (await op.request.get(`${BASE}${D}/cover`)).body()).toString("base64");
+  // the stored cover as the Worker passes it on: without its metadata segments (APP1 to APP15, comments; the browser's JPEG has an ICC profile in APP2)
+  const bare = (b) => {
+    const kept = [b.subarray(0, 2)];
+    for (let i = 2; i + 4 <= b.length; ) {
+      const m = b[i + 1];
+      const len = b.readUInt16BE(i + 2);
+      if (m === 0xda) {
+        kept.push(b.subarray(i));
+        break;
+      }
+      if (!((m >= 0xe1 && m <= 0xef) || m === 0xfe)) kept.push(b.subarray(i, i + 2 + len));
+      i += 2 + len;
+    }
+    return Buffer.concat(kept);
+  };
+  const coverRes = await op.request.get(`${BASE}${D}/cover`);
+  const stored = bare(await coverRes.body()).toString("base64");
+  if (pic?.content !== stored) console.log(`    the cover: HTTP ${coverRes.status()}, ${stored.length} base64 characters without its metadata; the e-mail's picture: ${pic?.content?.length}`);
   ok(sent.to === COMMENTER.email && pic?.disposition === "inline" && pic.type === "image/jpeg" && pic.content === stored && sent.html.includes(`cid:${pic.contentId}`), `the e-mail carries the stored cover as an inline JPEG, the picture the preview showed (${Math.round((pic?.size ?? 0) / 1024)} KB)`);
   ok(sent.text.includes("> Have a look at the methods before Monday.\n> Thanks!"), "and the note");
   ok((await dlg.getByLabel("Message (optional)").count()) === 0, "after Invite the message box and the preview are gone");
@@ -164,7 +181,8 @@ try {
   await setTheme(op, "light");
   await op.keyboard.press("Escape");
   await dlg.waitFor({ state: "detached", timeout: 5000 });
-  ok(await op.evaluate(() => document.activeElement?.textContent?.trim() === "Share"), "Esc closes it and the focus goes back to Share");
+  const focused = await op.evaluate(() => document.activeElement?.outerHTML.slice(0, 160) ?? "nothing");
+  ok(await op.evaluate(() => document.activeElement?.textContent?.trim() === "Share"), `Esc closes it and the focus goes back to Share${focused.includes("Share") ? "" : ` (the focus is on ${focused})`}`);
 
   /* ================================================================ 2. the dialog on a phone: a bottom sheet */
   const pc = await browser.newContext({ ...phone(390, 700), storageState: await oc.storageState() });
