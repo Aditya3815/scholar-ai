@@ -5,6 +5,7 @@ import { MAX_NOTE_CHARS, NOTE_COLORS, notesMarkdown, type DocNote, type Document
 import { easeOut, spring } from "../../lib/motion";
 import { useLegend } from "../../lib/legend";
 import { type NotesApi } from "../../lib/notes";
+import { useNotFound } from "../../lib/anchor-status";
 import { PARKED } from "../../lib/workspace";
 import { ColourFilter, LegendEditor } from "./HighlightsTools";
 
@@ -18,6 +19,8 @@ function NoteItem({ n, api, autoFocus, focusTick, onGo, onFocusDone, notebook, r
   const legend = useLegend();
   const area = useRef<HTMLTextAreaElement>(null);
   const item = useRef<HTMLLIElement>(null);
+  // its words were looked for on its page and are not there (a highlight is never left out in silence): said here, and its page still opens
+  const notFound = useNotFound(n.id);
   useEffect(() => setText(n.note), [n.note]);
   // asked for (a new note, or the icon on the page was pressed): bring it into view in the list and put the cursor in it
   useEffect(() => {
@@ -51,6 +54,7 @@ function NoteItem({ n, api, autoFocus, focusTick, onGo, onFocusDone, notebook, r
       <button type="button" className="note-quote" onClick={() => onGo(n)}>
         “{n.quote}”
       </button>
+      {notFound && <p className="note-missing">Not found on the page. Its page still opens.</p>}
       {readOnly ? (
         n.note ? <p className="note-text note-text-read">{n.note}</p> : null
       ) : (<>

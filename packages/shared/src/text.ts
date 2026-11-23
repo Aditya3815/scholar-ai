@@ -337,31 +337,6 @@ export function findAll(needle: string[], hay: string[]): number[] {
 
 export type SpanPos = { span: number; start: number; end: number };
 
-/**
- * Where a saved quote sits among the pieces of text of a rendered page (the spans of pdf.js's text layer): the first and the last word of the quote, each with
- * the span it is in and its character positions there. Found by words, like every other quote in the app, so it survives zoom and re-rendering. Null when
- * too little of the quote is on the page (`minShare` of its words, and at least `minWords`).
- * A span whose words cannot be mapped one to one onto its characters counts as wholly part of the quote (a marker slightly too wide, never one that is missing).
- */
-export function locateInSpans(texts: readonly string[], quote: string, minShare = 0.6, minWords = 2): { first: SpanPos; last: SpanPos; matched: number; of: number } | null {
-  const hay: string[] = [];
-  const pos: SpanPos[] = [];
-  texts.forEach((t, i) => {
-    const w = words(t);
-    const raw = [...t.matchAll(/[\p{L}\p{N}]+/gu)];
-    const exact = raw.length === w.length;
-    w.forEach((word, k) => {
-      hay.push(word);
-      pos.push(exact ? { span: i, start: raw[k]!.index!, end: raw[k]!.index! + raw[k]![0].length } : { span: i, start: 0, end: t.length });
-    });
-  });
-  const q = words(quote);
-  if (q.length === 0 || hay.length === 0) return null;
-  const run = findRun(q, hay);
-  if (run.len < Math.max(minWords, Math.ceil(q.length * minShare))) return null;
-  return { first: pos[run.start]!, last: pos[run.start + run.len - 1]!, matched: run.len, of: q.length };
-}
-
 export type MarkRect = { x: number; y: number; w: number; h: number };
 
 /**

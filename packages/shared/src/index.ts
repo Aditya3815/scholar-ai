@@ -123,6 +123,7 @@ export type SearchResponse = {
 export * from "./references";
 export * from "./documents";
 export * from "./text";
+export * from "./anchor";
 export * from "./ids";
 export * from "./vocab/languages";
 export * from "./vocab/intents";
@@ -160,7 +161,6 @@ export * from "./share";
 export * from "./invite-email";
 // live presence and live updates in a shared paper (docs/design/paper-live.md)
 export * from "./live";
-export * from "./quote-quads";
 export * from "./palette";
 export * from "./rive";
 export * from "./ask-source";
