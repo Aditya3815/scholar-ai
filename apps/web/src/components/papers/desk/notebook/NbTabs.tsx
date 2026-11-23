@@ -1,4 +1,4 @@
-import { ChevronUp, X } from "lucide-react";
+import { X } from "lucide-react";
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import type { NotebookStyle } from "@scholar/shared";
 import type { NbPage } from "../../../../lib/notebook";
@@ -7,6 +7,9 @@ import "./nb-tabs.css";
 
 /** The paper picker: a small chunk of its own, fetched when a tab's paper is first pressed. */
 const PaperPick = lazy(() => import("./NbPaperPick").then((m) => ({ default: m.PaperPick })));
+/** All pages (its list, drag and keyboard reordering): a small chunk of its own, asked for when the row overflows and its button shows. */
+const allPagesChunk = () => import("./NbAllPages");
+const AllPages = lazy(() => allPagesChunk().then((m) => ({ default: m.AllPages })));
 
 /**
  * The pages as tabs (docs/design/paper-reader.md, 21.1, 2 and the notes polish of 19 Nov), a small chunk of its own (fetched as soon as the Notebook's arrives), so the Notebook chunk does
@@ -14,7 +17,7 @@ const PaperPick = lazy(() => import("./NbPaperPick").then((m) => ({ default: m.P
  * (on the open tab, under the pointer, always on touch; a button beside the tab, hidden from assistive technology, since the tab's Delete key and the page's menu do the same).
  *
  * Reordering: drag a tab (a mouse: after 5 px; a finger: a long press, then drag), with the tab lifted and a line where it will go; Ctrl+Shift+← → (or Alt+Shift) on a focused tab; and the
- * All pages list (up and down). Each move is said through the live region ("Page moved to place 2 of 5") and saved by the store's PATCH of the page's place.
+ * All pages list (NbAllPages.tsx: drag a row, or its grip's keys). Each move is said through the live region ("Page moved to place 2 of 5") and saved by the store's PATCH of the page's place.
  * When the tabs do not fit, the row scrolls sideways with an edge fade and an "All pages" button before "+" lists them all (with a search field above 8 pages).
  *
  * A page's paper (21 Nov): the small picture of its paper at the start of each tab is its control. A click (or Alt+↓ on the tab) opens four papers drawn small, the page's ticked; the arrows
@@ -49,7 +52,6 @@ const Svg = ({ d, size }: { d: string; size: number }) => (
 );
 const ChevronDown = ({ size }: { size: number }) => <Svg size={size} d="m6 9 6 6 6-6" />;
 const Plus = ({ size }: { size: number }) => <Svg size={size} d="M5 12h14M12 5v14" />;
-const Check = ({ size }: { size: number }) => <Svg size={size} d="M20 6 9 17l-5-5" />;
 
 type Press = { id: string; x: number; y: number; pid: number; touch: boolean; armed: boolean; timer: number; el: HTMLElement; mids: number[]; scroll0: number };
 
@@ -76,6 +78,10 @@ export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, annou
       ro.disconnect();
     };
   }, [pages.length]);
+  // the All pages button shows: its list's chunk is fetched now, so it opens at once
+  useEffect(() => {
+    if (more) void allPagesChunk().catch(() => {});
+  }, [more]);
   // the open page's tab is kept in sight
   useEffect(() => {
     document.getElementById(`nbt-${openId}`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -319,7 +325,11 @@ export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, annou
             </button>
           )}
         >
-          {(close) => <AllPages label={pageLabel} pages={pages} openId={openId} onPick={(id) => (close(false), onOpen(id), window.setTimeout(() => document.getElementById(`nbt-${id}`)?.focus(), 0))} onMove={(id, to) => move(id, to, false)} />}
+          {(close) => (
+            <Suspense fallback={<p className="nb-allpages-none" role="status">Loading the pages…</p>}>
+              <AllPages label={pageLabel} pages={pages} openId={openId} onPick={(id) => (close(false), onOpen(id), window.setTimeout(() => document.getElementById(`nbt-${id}`)?.focus(), 0))} onMove={onMove} announce={announce} />
+            </Suspense>
+          )}
         </NbPop>
       )}
       <NbPop
@@ -351,57 +361,6 @@ export function PageTabs({ pages, openId, onOpen, onNew, onDelete, onMove, annou
           </div>
         )}
       </NbPop>
-    </div>
-  );
-}
-
-/** "All pages": every page (a search field above 8), the open one ticked; a click opens one, and its ↑ ↓ move it. */
-function AllPages({ label: pageLabel, pages, openId, onPick, onMove }: { label: PageTabsProps["label"]; pages: NbPage[]; openId: string; onPick: (id: string) => void; onMove: (id: string, to: number) => void }) {
-  const [q, setQ] = useState("");
-  const words = q.trim().toLowerCase();
-  const rows = pages.map((p, k) => ({ p, k, name: pageLabel(p.title, k) })).filter((r) => !words || r.name.toLowerCase().includes(words));
-  // a moved page keeps the focus on the button pressed (or its other one, at an end)
-  const refocus = useRef<{ id: string; dir: "up" | "down" } | null>(null);
-  const list = useRef<HTMLUListElement>(null);
-  useLayoutEffect(() => {
-    const r = refocus.current;
-    if (!r) return;
-    refocus.current = null;
-    const btn = (d: string) => list.current?.querySelector<HTMLButtonElement>(`[data-mv="${r.id}-${d}"]`);
-    const b = btn(r.dir);
-    (b && !b.disabled ? b : btn(r.dir === "up" ? "down" : "up"))?.focus();
-  });
-  const mv = (id: string, dir: "up" | "down", k: number) => {
-    refocus.current = { id, dir };
-    onMove(id, k + (dir === "up" ? -1 : 1));
-  };
-  return (
-    <div className="nb-allpages-box">
-      <p className="nb-allpages-h">
-        All pages <span>{pages.length}</span>
-      </p>
-      {pages.length > 8 && <input className="nb-allpages-find" type="search" data-autofocus aria-label="Find a page" placeholder="Find a page" value={q} onChange={(e) => setQ(e.target.value)} />}
-      {rows.length === 0 ? (
-        <p className="nb-allpages-none" role="status">No page has that name.</p>
-      ) : (
-        <ul ref={list} className="nb-allpages-list" aria-label="Pages">
-          {rows.map(({ p, k, name }) => (
-            <li key={p.id}>
-              <button type="button" className="nb-ap-open" aria-current={p.id === openId ? "page" : undefined} data-autofocus={!words && pages.length <= 8 && p.id === openId ? true : undefined} onClick={() => onPick(p.id)}>
-                <span className="nb-sw" data-style={p.style} aria-hidden="true" />
-                <span className="nb-ap-name">{name}</span>
-                {p.id === openId && <Check size={14} />}
-              </button>
-              <button type="button" className="nb-ap-mv" data-mv={`${p.id}-up`} aria-label={`Move ${name} up`} disabled={k === 0} onClick={() => mv(p.id, "up", k)}>
-                <ChevronUp size={15} aria-hidden="true" />
-              </button>
-              <button type="button" className="nb-ap-mv" data-mv={`${p.id}-down`} aria-label={`Move ${name} down`} disabled={k === pages.length - 1} onClick={() => mv(p.id, "down", k)}>
-                <ChevronDown size={15} />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

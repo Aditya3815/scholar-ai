@@ -121,3 +121,17 @@ pre {
   line-height: var(--read-leading);
   max-width: var(--read-measure);
 }
+
+/*
+ * Thin scrollbars in our colours for the small scroll panes: pop-overs, menus, lists (and anything given .scroll-thin). Chromium and Safari take the ::-webkit-scrollbar rules, which
+ * draw no arrow buttons (Chrome on Windows draws them with scrollbar-width, so the standard properties are given only to a browser without ::-webkit-scrollbar, Firefox). The reader
+ * (.desk, the Agents drawer) uses them in every scroll area, as it did; the page's own scrollbar is left as the browser draws it.
+ */
+:root { --scroll-thumb: color-mix(in srgb, var(--muted) 42%, transparent); }
+:is(.scroll-thin, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents)::-webkit-scrollbar, :is(.scroll-thin, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents) ::-webkit-scrollbar { width: 10px; height: 10px; }
+:is(.scroll-thin, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents)::-webkit-scrollbar-button, :is(.scroll-thin, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents) ::-webkit-scrollbar-button { display: none; }
+:is(.scroll-thin, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents)::-webkit-scrollbar-thumb, :is(.scroll-thin, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents) ::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 9px; background: var(--scroll-thumb) padding-box; }
+:is(.scroll-thin, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents)::-webkit-scrollbar-thumb:hover, :is(.scroll-thin, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents) ::-webkit-scrollbar-thumb:hover { background-color: var(--muted); }
+@supports not selector(::-webkit-scrollbar) {
+  :is(.scroll-thin, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents), :is(.scroll-thin, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents) * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+}

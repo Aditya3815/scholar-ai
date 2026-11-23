@@ -1,0 +1,59 @@
+/* Contents (PdfViewer.tsx: Contents, TocList), with the PDF reader's chunk: it was in the first load's style sheet until 21 Nov 2026 */
+.toc {
+  position: relative;
+  width: min(24rem, calc(100vw - 2rem));
+  /* what the window leaves below (or above) the button, less the pop-over's padding: never off a short screen or a phone on its side */
+  max-height: min(26rem, calc(var(--radix-popover-content-available-height, 70vh) - 2rem));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding-block: 1.75rem;
+}
+/* more above or below: the edge fades (the -webkit- one first, the minifier keeps both so) */
+.toc[data-more="end"] { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2.25rem), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 2.25rem), transparent); }
+.toc[data-more="start"] { -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 2.25rem), transparent); mask-image: linear-gradient(to top, #000 calc(100% - 2.25rem), transparent); }
+.toc[data-more="both"] { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 2.25rem, #000 calc(100% - 2.25rem), transparent); mask-image: linear-gradient(to bottom, transparent, #000 2.25rem, #000 calc(100% - 2.25rem), transparent); }
+.toc-item:focus-visible { outline-offset: -2px; }
+.toc-note {
+  margin: 0 0 0.5rem;
+  padding: 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.toc-list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.toc-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.875rem;
+  text-align: left;
+}
+.toc-item:hover {
+  background: var(--surface-2);
+}
+.toc-item[aria-current="location"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 650;
+}
+.toc-title {
+  overflow-wrap: anywhere;
+}
+.toc-page {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}

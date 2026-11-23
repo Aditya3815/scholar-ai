@@ -63,6 +63,8 @@ export const SUITES = [
   // the new Paper Reader, phase 1 (docs/design/paper-reader.md): written for READER on; production (the default run) has it off, so it runs in --run=reader-on
   { label: "browser: the new Paper Reader, phase 1 (READER on)", file: "web/e2e/reader.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
   { label: "browser: the Notebook of the new Paper Reader, phase 2 (READER on)", file: "web/e2e/notebook.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
+  // three fixes of the new reader (21 Nov 2026): a paper that could not be loaded (Try again, offline, a stale chunk), Contents (opened on the section, the fade), All pages by drag and keys
+  { label: "browser: reader fixes: load errors, Contents, All pages (READER on)", file: "web/e2e/reader-ux.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
   { label: "browser: the agents of the new Paper Reader, phase 3 (READER on)", file: "web/e2e/agents.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
   // the Home page's Trending row is read from the real route in one section: it is there only with the list shown
   { label: "browser: sharing a paper (SHARE and READER on)", file: "web/e2e/share.mjs", browser: true, reset: true, needs: { SHARE: ["on"], READER: ["on"] } },

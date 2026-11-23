@@ -64,6 +64,9 @@ try {
   const circle = Array.from({ length: 25 }, (_, k) => [Math.round(Math.cos((k / 24) * Math.PI * 2) * 300 + 250), Math.round(Math.sin((k / 24) * Math.PI * 2) * 80), 50]).flat();
   await api(op, `${D}/notebook/pages/p1/ink`, "PUT", { strokes: [{ id: "ink1", tool: "pen", color: "red", w: 14, a: { k: "text", b: "b1", at: 13, q: "recruited" }, pts: circle }] });
   await openPaper(op, docId);
+  // no comment yet: the notes page's header has no Comments button (it shows once the paper has a comment; the block's ⋯ menu and a highlight's card keep "Comment")
+  await op.locator(".nb-bar").waitFor({ timeout: 15000 });
+  ok((await op.locator(".nb-cmbtn").count()) === 0, "no comment yet: no Comments button in the notes page's header");
 
   /* ================================================================ 1. the dialog, wide */
   console.log("the Share dialog");
@@ -217,6 +220,8 @@ try {
   ok((await cp.locator(".desk-tools").count()) === 0, "no tool segment for a Commenter");
   ok((await cp.getByRole("button", { name: "Share", exact: true }).count()) === 0, "no Share button");
   ok((await cp.getByRole("button", { name: "Rename this paper" }).count()) === 0, "no renaming");
+  await cp.locator(".nbr-head").waitFor({ timeout: 15000 });
+  ok((await cp.locator(".nbr-head .nb-cmbtn").count()) === 0 && (await cp.locator(".cm-dot").count()) > 0, "no comment yet: no Comments button in the read-only page's head, and each block keeps its Comment dot");
   // a comment on the highlight, from its card: the thread's head (back to Comments), the quote it hangs on, the box at the bottom
   await cp.getByRole("tab", { name: /Highlights/ }).click();
   await cp.getByRole("button", { name: /Comment on the highlight on page 1/ }).click();
@@ -365,6 +370,7 @@ try {
   const cmBtn = op.getByRole("button", { name: "Comments, 2 open" });
   await cmBtn.waitFor({ timeout: 10000 });
   ok((await cmBtn.evaluate((b) => b.closest(".nb-bar") !== null)) && (await op.locator(".desk-comments-filter").count()) === 0, "the owner's Comments button is in the page's header row (no row of its own)");
+  ok((await cmBtn.evaluate((b) => getComputedStyle(b).animationName)) === "nb-in", "it fades in when it appears (to the left of Export and the page's menu)");
   if (SHOTS) await op.locator(".nb-tabsrow").evaluate((el) => el.scrollIntoView());
   if (SHOTS) await op.locator("#dw-panel-side").screenshot({ path: join(SHOTS, "panel-header.png") });
   await cmBtn.click();
