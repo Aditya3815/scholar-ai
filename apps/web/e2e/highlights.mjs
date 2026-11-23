@@ -164,7 +164,7 @@ try {
     const look = await page.evaluate(() => {
       const el = document.querySelector(".pdfp-flash");
       const cs = el && getComputedStyle(el);
-      return cs ? { outline: cs.outlineStyle !== "none" || cs.boxShadow !== "none", hidden: el.getAttribute("aria-hidden"), anim: cs.animationName } : null;
+      return cs ? { outline: cs.outlineStyle !== "none" || cs.boxShadow !== "none", hidden: el.closest("[aria-hidden]")?.getAttribute("aria-hidden") ?? null, anim: cs.animationName } : null;
     });
     ok(look && look.outline && look.hidden === "true" && look.anim !== "none", `it looks unlike a highlight: an outline, hidden from screen readers, fading (${JSON.stringify(look)})`);
     const pg = await page.locator('[data-page="1"]').boundingBox();
