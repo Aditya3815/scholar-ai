@@ -454,9 +454,11 @@ try {
     await sleep(200);
     if (process.env.NB_SHOTS) await page.locator("#dw-panel-side").screenshot({ path: `${process.env.NB_SHOTS}/tabs-overflow-allpages.png` });
     await axe(page, "All pages", ".nb-pop[role=dialog]");
-    await list.getByRole("button", { name: "Move Page 6 up" }).click();
+    // All pages reorders by drag or by its grip's keys (reader-ux.mjs covers both); here Alt+↑ on Page 6's grip moves it one place, the focus staying on the grip
+    await list.getByRole("button", { name: "Reorder Page 6" }).focus();
+    await page.keyboard.press("Alt+ArrowUp");
     await until(async () => (await order()) === "Results,Notes,Page 3,Page 4,Page 6,Page 5", { ms: 4000, what: "Page 6 to move up" });
-    ok(await page.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Move Page 6 up"), "Move up in All pages moves it, and the focus stays on the button");
+    ok(await page.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Reorder Page 6"), "Alt+↑ on a row's grip in All pages moves it, and the focus stays on the grip");
     await list.getByRole("button", { name: "Page 3", exact: true }).click();
     await until(async () => (await page.locator(".nb-title").inputValue()) === "Page 3", { ms: 4000, what: "Page 3 to open" });
     ok((await list.count()) === 0, "a page chosen in All pages opens, and the list closes");

@@ -208,8 +208,12 @@ try {
 
   /* ================================================================ a comment, live */
   console.log("comments");
-  await op.getByRole("button", { name: /^Comments/ }).click();
+  // the header's Comments button shows only once the paper has a comment: a comment from the other window brings it, without a reload
+  ok((await op.getByRole("button", { name: /^Comments/ }).count()) === 0, "no comment yet: no Comments button in the notes page's header");
   await api(ep, `/api/v1/share/papers/${docId}/comments`, "POST", { anchor: `note:${hl.note.id}`, body: "Is this the main claim?" });
+  await op.getByRole("button", { name: /^Comments/ }).waitFor({ timeout: 8000 });
+  ok(true, "a comment from another window brings the Comments button, without a reload");
+  await op.getByRole("button", { name: /^Comments/ }).click();
   await op.getByText("Is this the main claim?").waitFor({ timeout: 8000 });
   ok(true, "a comment appears on the owner's side without a reload");
   ok(await op.locator(".desk-comments-filter, .cm-head").first().isVisible(), "the comments panel is open");

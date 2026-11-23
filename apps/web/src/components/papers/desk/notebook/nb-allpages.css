@@ -1,0 +1,34 @@
+/*
+ * All pages (NbAllPages.tsx, a chunk of its own): every page, the open one ticked; a grip at the start of each row to drag it (or the whole row), a line where it will go, the lifted
+ * row with a shadow. 44 px rows on a touch screen.
+ */
+.nb-allpages-box { display: grid; gap: 0.5rem; }
+.nb-allpages-h { display: flex; align-items: center; gap: 0.5rem; margin: 0; padding: 0.25rem 0.5rem 0; font-size: 0.875rem; font-weight: 650; }
+.nb-allpages-h > span { color: var(--muted); font-weight: 500; }
+.nb-allpages-find { min-height: 36px; padding: 0 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-s); background: var(--bg); color: var(--text); font: inherit; font-size: 0.875rem; }
+.nb-allpages-find:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.nb-allpages-none { margin: 0.25rem 0.5rem; color: var(--muted); font-size: 0.8125rem; }
+.nb-allpages-list { position: relative; display: grid; gap: 2px; max-height: min(20rem, 50vh); margin: 0; padding: 2px 0; overflow: auto; overscroll-behavior: contain; list-style: none; }
+.nb-allpages-list > li { position: relative; display: flex; align-items: center; border-radius: var(--radius-s); -webkit-user-select: none; user-select: none; }
+.nb-allpages-list[data-dragging] { cursor: grabbing; }
+.nb-allpages-list[data-dragging] * { cursor: grabbing; }
+.nb-allpages-list > li[data-lifted] { z-index: 2; background: var(--surface); box-shadow: var(--shadow-2); outline: 1px solid var(--border-strong); }
+.nb-allpages-list > li[data-held] { background: var(--accent-soft); }
+.nb-allpages-list > li[data-line]::before { content: ""; position: absolute; left: 4px; right: 4px; top: -2px; z-index: 3; height: 3px; border-radius: 2px; background: var(--accent); pointer-events: none; }
+.nb-allpages-list > li[data-line="after"]::before { top: auto; bottom: -2px; }
+.nb-ap-grip { display: inline-grid; flex: none; place-items: center; width: 24px; height: 32px; padding: 0; border: 0; border-radius: var(--radius-s); background: none; color: var(--muted); cursor: grab; touch-action: none; opacity: 0.6; transition: opacity 0.12s; }
+.nb-allpages-list > li:hover .nb-ap-grip, .nb-ap-grip:focus-visible, li[data-held] .nb-ap-grip, li[data-lifted] .nb-ap-grip { opacity: 1; color: var(--text); }
+.nb-ap-open { display: flex; flex: 1; min-width: 0; align-items: center; gap: 0.5rem; height: 32px; padding: 0 0.5rem 0 0.25rem; border: 0; border-radius: var(--radius-s); background: none; color: var(--text); font: inherit; font-size: 0.875rem; text-align: left; cursor: pointer; }
+.nb-ap-grip + .nb-ap-open { padding-left: 0.25rem; }
+.nb-ap-open:only-child { padding-left: 0.5rem; }
+.nb-ap-open[aria-current="page"] { font-weight: 600; }
+.nb-ap-open > svg { margin-left: auto; color: var(--accent); }
+.nb-ap-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-ap-open:hover, .nb-ap-grip:hover { background: var(--surface-2); color: var(--text); }
+.nb-allpages-list[data-dragging] .nb-ap-open:hover, .nb-allpages-list[data-dragging] .nb-ap-grip:hover { background: none; }
+.nb-ap-open:focus-visible, .nb-ap-grip:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (hover: none), (pointer: coarse) {
+  .nb-ap-grip { width: 44px; height: 44px; opacity: 1; }
+  .nb-ap-open { height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { .nb-ap-grip { transition: none; } }
