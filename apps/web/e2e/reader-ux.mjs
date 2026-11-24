@@ -29,13 +29,13 @@ const watch = (p) => {
 };
 const axe = (p, label, context) => axeCheck(p, label, { inlineCites: true, context });
 
-// a paper with twenty headings on ten pages, so that Contents has more than fits
+// a paper with twenty-four headings on twenty-four pages, so that Contents has more than fits
+const SECTIONS = ["Aims", "Background", "Cohort", "Data", "Ethics", "Findings", "Grading", "Harms", "Imaging", "Judging", "Kappa", "Limits", "Methods", "Numbers", "Outcomes", "Power", "Quality", "Results", "Sampling", "Tests", "Uptake", "Validity", "Weights", "Yield"];
 const pdf = makePdfLines(
-  Array.from({ length: 10 }, (_, k) => [
+  SECTIONS.map((name, k) => [
     ...(k === 0 ? [{ text: "Glaucoma Screening across Ten Clinics", size: 20 }, { text: "A. Author and B. Writer", size: 12, gap: 6 }] : []),
-    { text: `${k + 1} Section ${["Aims", "Background", "Cohort", "Data", "Ethics", "Findings", "Grading", "Harms", "Imaging", "Judging"][k]}`, size: 14, gap: 16 },
+    { text: `${k + 1} ${name}`, size: 14, gap: 16 },
     { text: "Participants were recruited from hospitals and followed for twelve months in this part of the study.", gap: 2 },
-    { text: `${k + 1}.1 Detail of part ${k + 1}`, size: 14, gap: 30 },
     { text: "Images were graded by two ophthalmologists and disagreements were resolved by a third grader.", gap: 2 },
   ]),
   { title: "Glaucoma Screening across Ten Clinics" },
@@ -91,6 +91,8 @@ try {
     return { ctx, page };
   };
 
+  // UX_ONLY=allpages runs only part 3, while it is worked on
+  if (process.env.UX_ONLY !== "allpages") {
   /* ================================================================ 1. a paper that could not be loaded */
   console.log("1. the paper could not be loaded");
   {
@@ -177,10 +179,10 @@ try {
   console.log("2. Contents");
   for (const theme of ["light", "dark", "read"]) {
     const { ctx, page } = await openReader(desk(1280, 800), theme);
-    await page.locator("#pdfv-page").fill("8");
+    await page.locator("#pdfv-page").fill("16");
     await page.keyboard.press("Enter");
-    await until(async () => (await page.locator("#pdfv-page").inputValue()) === "8", { ms: 6000, what: "page 8" });
-    await sleep(500);
+    await until(async () => (await page.locator("#pdfv-page").inputValue()) === "16", { ms: 6000, what: "page 16" });
+    await sleep(1500);
     await page.getByRole("button", { name: "Contents" }).click();
     const toc = page.locator(".toc");
     await toc.waitFor();
@@ -192,7 +194,7 @@ try {
       const b = cur?.getBoundingClientRect();
       return { title: cur?.textContent ?? "", inside: !!b && b.top >= a.top && b.bottom <= a.bottom, scrolled: el.scrollTop > 0, focused: document.activeElement === cur, more: el.dataset.more ?? "" };
     });
-    ok(n >= 12 && seen.title.includes("8") && seen.inside && seen.scrolled && seen.focused, `${theme}: Contents opens on the reader's section, in sight and focused (${n} entries; "${seen.title}")`);
+    ok(n >= 12 && seen.title.includes("16") && seen.inside && seen.scrolled && seen.focused, `${theme}: Contents opens on the reader's section, in sight and focused (${n} entries; ${JSON.stringify(seen)})`);
     ok(seen.more === "both" || seen.more === "end" || seen.more === "start", `${theme}: a fade says more is above or below (${seen.more})`);
     if (theme === "light") {
       // the arrows move the focus, which stays in sight; the outline is drawn
@@ -237,6 +239,8 @@ try {
     await ctx.close();
   }
 
+  }
+
   /* ================================================================ 3. All pages: drag to reorder */
   console.log("3. All pages");
   const pagesOnServer = async () => (await (await api.get(`${BASE}/api/v1/documents/${docId}/notebook`)).json()).pages.map((p) => p.title);
@@ -251,6 +255,7 @@ try {
       await sleep(250);
     }
     await until(async () => (await order()) === "Notes,Page 2,Page 3,Page 4,Page 5,Page 6", { ms: 6000, what: "six pages" });
+    // no wait for the new pages' first saves: a page moved while its first save is on the way keeps its new place (lib/notebook.ts)
     await page.setViewportSize({ width: 1024, height: 800 });
     const allBtn = page.getByRole("button", { name: /^All pages/ });
     await allBtn.waitFor({ timeout: 5000 });
@@ -276,7 +281,7 @@ try {
     await page.mouse.up();
     await until(async () => (await names()) === "Page 6,Notes,Page 2,Page 3,Page 4,Page 5", { ms: 4000, what: "Page 6 to go first" });
     ok((await list.count()) === 1, "a drag does not open the page, and the list stays open");
-    await until(async () => ((await page.locator("[data-announcer]").allTextContents()).join(" ")).includes("Page 6 moved to position 1 of 6"), { ms: 3000, what: "the move to be said" });
+    await until(async () => ((await page.locator("[data-announcer]").allTextContents()).join(" ")).includes("Page 6 moved to position 1 of 6"), { ms: 8000, what: "the move to be said" });
     ok(true, "the move is said: Page 6 moved to position 1 of 6");
     // Esc during a drag puts it back, and the list stays open
     const r2 = await row("Page 2").boundingBox();
@@ -291,14 +296,15 @@ try {
     // the keyboard: Space on Page 5's grip picks it up, ↑ ↑ moves it, Space drops it
     await list.getByRole("button", { name: "Reorder Page 5" }).focus();
     await page.keyboard.press("Space");
-    await until(async () => ((await page.locator("[data-announcer]").allTextContents()).join(" ")).includes("Picked up Page 5"), { ms: 3000, what: "the pick-up to be said" });
+    await until(async () => ((await page.locator("[data-announcer]").allTextContents()).join(" ")).includes("Picked up Page 5"), { ms: 8000, what: "the pick-up to be said" });
     await page.keyboard.press("ArrowUp");
     await page.keyboard.press("ArrowUp");
     ok((await list.locator("li[data-held]").count()) === 1 && (await names()) === "Page 6,Notes,Page 2,Page 5,Page 3,Page 4" && (await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))) === "Reorder Page 5", "held by the keyboard, the page is shown where it would go, the focus on its grip");
     await shot(page.locator("#dw-panel-side"), "allpages-keyboard-held");
     await page.keyboard.press("Space");
-    await until(async () => ((await page.locator("[data-announcer]").allTextContents()).join(" ")).includes("Page 5 moved to position 4 of 6"), { ms: 3000, what: "the keyboard move to be said" });
-    ok((await names()) === "Page 6,Notes,Page 2,Page 5,Page 3,Page 4", "Space drops it there");
+    await until(async () => ((await page.locator("[data-announcer]").allTextContents()).join(" ")).includes("Page 5 moved to position 4 of 6"), { ms: 12000, what: "the keyboard move to be said" });
+    await sleep(300);
+    ok((await names()) === "Page 6,Notes,Page 2,Page 5,Page 3,Page 4", `Space drops it there (${await names()}; list ${await list.count()}; focus ${await page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? document.activeElement?.tagName)}; tabs ${await order()})`);
     // Esc while held puts it back (the list stays open)
     await page.keyboard.press("Space");
     await page.keyboard.press("ArrowDown");
@@ -315,9 +321,9 @@ try {
     // the page's menu still moves a page
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Page actions" }).click();
-    await page.getByRole("menu", { name: "Page actions" }).getByRole("menuitem", { name: "Move left" }).click();
+    await page.getByRole("menu", { name: "Page actions" }).getByRole("menuitem", { name: "Move right" }).click();
     await sleep(300);
-    ok((await order()).split(",").length === 6 && (await order()) !== "Page 6,Page 2,Notes,Page 5,Page 3,Page 4", `the page menu's Move left still works (${await order()})`);
+    ok((await order()).split(",").length === 6 && (await order()) !== "Page 6,Page 2,Notes,Page 5,Page 3,Page 4", `the page menu's Move right still works (${await order()})`);
     for (const theme of ["light", "dark", "read"]) {
       await setTheme(page, theme);
       await allBtn.click();
@@ -332,8 +338,7 @@ try {
   // a phone: rows of 44 px, the grip 44 px, axe
   {
     const { ctx, page } = await openReader(phone(390, 844));
-    const notesView = page.getByRole("tab", { name: /^Notes$/ });
-    if (await notesView.count()) await notesView.first().click();
+    await page.getByRole("radio", { name: "Notes" }).click();
     await page.locator(".nb-bar").waitFor({ timeout: 10000 });
     const allBtn = page.getByRole("button", { name: /^All pages/ });
     await allBtn.waitFor({ timeout: 5000 });

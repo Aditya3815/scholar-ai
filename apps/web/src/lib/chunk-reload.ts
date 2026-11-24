@@ -23,5 +23,6 @@ export function reloadOnce(): boolean {
 
 /** Vite tells the page when a lazy chunk (or one it needs) could not be fetched: a stale page after a deploy. Called once at start. */
 export function watchChunkErrors(): void {
-  window.addEventListener("vite:preloadError", () => void reloadOnce());
+  // offline, a reload would only show the browser's own offline page: the page says so itself
+  window.addEventListener("vite:preloadError", () => void (navigator.onLine !== false && reloadOnce()));
 }

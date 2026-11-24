@@ -80,22 +80,27 @@ export const OFFLINE_WORDS = "You're offline. The paper will load as soon as you
  * A paper (or its file) that could not be loaded, in both readers: words for people, the browser's own words tucked under "Technical details", and three ways on: Try again (fetches
  * again, no reload), Reload page (a stale page after a deploy) and Back to the list. Offline, it says so; the caller tries again when the `online` event comes.
  */
-export function LoadFailed({ title = "We couldn't load this paper", message, detail, offline = false, onRetry, onBack, backLabel }: { title?: string; message: string; detail?: string; offline?: boolean; onRetry?: () => void; onBack?: () => void; backLabel?: string }) {
+export function LoadFailed({ title = "We couldn't load this paper", message, detail, offline = false, reloadFirst = false, onRetry, onBack, backLabel }: { title?: string; message: string; detail?: string; offline?: boolean; /** a stale page: Reload page is the main button */ reloadFirst?: boolean; onRetry?: () => void; onBack?: () => void; backLabel?: string }) {
+  const reload = (
+    <button type="button" className={onRetry && !reloadFirst ? "btn btn-ghost" : "btn btn-primary"} onClick={() => location.reload()}>
+      Reload page
+    </button>
+  );
   return (
     <div className="empty load-failed" role="alert" data-offline={offline || undefined}>
       {offline ? <WifiOff size={28} aria-hidden="true" /> : <FileWarning size={28} aria-hidden="true" />}
       <p className="empty-title">{offline ? "You're offline" : title}</p>
-      <p>{offline ? OFFLINE_WORDS : message}</p>
+      {/* the words people see are often "<title>. <what to do>": the title is said once */}
+      <p>{offline ? OFFLINE_WORDS : message.startsWith(`${title}. `) ? message.slice(title.length + 2) : message}</p>
       <div className="empty-actions">
+        {reloadFirst && reload}
         {onRetry && (
-          <button type="button" className="btn btn-primary" onClick={onRetry}>
+          <button type="button" className={reloadFirst ? "btn btn-ghost" : "btn btn-primary"} onClick={onRetry}>
             <RotateCw size={16} aria-hidden="true" />
             <span>Try again</span>
           </button>
         )}
-        <button type="button" className={onRetry ? "btn btn-ghost" : "btn btn-primary"} onClick={() => location.reload()}>
-          Reload page
-        </button>
+        {!reloadFirst && reload}
         {onBack && (
           <button type="button" className="link-btn load-back" onClick={onBack}>
             <ArrowLeft size={15} aria-hidden="true" />
@@ -116,5 +121,5 @@ export function LoadFailed({ title = "We couldn't load this paper", message, det
 /** The paper's file could not be opened (both readers): Try again only where it can help (not for a password or a file that is not a PDF). */
 export function PdfFailed({ pdf, onRetry, onBack }: { pdf: Extract<Pdf, { status: "error" }>; onRetry: () => void; onBack: () => void }) {
   const retry = pdf.kind !== "password" && pdf.kind !== "invalid" && pdf.kind !== "missing";
-  return <LoadFailed title={retry ? "We couldn't load this paper" : "The paper could not be shown"} message={pdf.message} detail={pdf.detail} offline={pdf.kind === "offline"} onRetry={retry ? onRetry : undefined} onBack={onBack} backLabel={`Back to ${PAPERS_NAME}`} />;
+  return <LoadFailed title={retry ? "We couldn't load this paper" : "The paper could not be shown"} message={pdf.message} detail={pdf.detail} offline={pdf.kind === "offline"} reloadFirst={pdf.kind === "chunk"} onRetry={retry ? onRetry : undefined} onBack={onBack} backLabel={`Back to ${PAPERS_NAME}`} />;
 }

@@ -450,6 +450,8 @@ try {
     await all.click();
     const list = page.getByRole("dialog", { name: "All pages" });
     await list.waitFor();
+    // its list is a chunk of its own (NbAllPages.tsx)
+    await list.locator(".nb-ap-name").first().waitFor({ timeout: 5000 });
     ok(JSON.stringify((await list.locator(".nb-ap-name").allInnerTexts()).map((t) => t.trim())) === JSON.stringify(["Results", "Notes", "Page 3", "Page 4", "Page 5", "Page 6"]) && (await list.locator('[aria-current="page"]').innerText()).trim() === "Page 6", "All pages lists every page in order, the open one marked");
     await sleep(200);
     if (process.env.NB_SHOTS) await page.locator("#dw-panel-side").screenshot({ path: `${process.env.NB_SHOTS}/tabs-overflow-allpages.png` });
@@ -681,7 +683,8 @@ try {
       return { left: sheet.left - panel.left, right: panel.right - sheet.right };
     });
     ok(fit.left <= 40 && fit.right <= 40, `the Notes view at 1440 px: the page fills the panel (${Math.round(fit.left)} px and ${Math.round(fit.right)} px at its sides)`);
-    ok((await page.locator(".nb-scroll").evaluate((el) => getComputedStyle(el).scrollbarWidth)) === "thin", "thin scrollbars in our tokens (scrollbar-width: thin)");
+    // Chromium takes the ::-webkit-scrollbar rules of styles/base.css (no arrow buttons); Firefox would take scrollbar-width: thin
+    ok((await page.locator(".nb-scroll").evaluate((el) => getComputedStyle(el, "::-webkit-scrollbar").width)) === "10px", "thin scrollbars in our tokens (10 px, no arrow buttons)");
     await page.getByRole("tab", { name: /^Highlights/ }).click();
     const pad = await page.locator(".hl-filter").evaluate((el) => { const cs = getComputedStyle(el); return [cs.paddingTop, cs.paddingBottom, cs.paddingLeft, cs.paddingRight].join(" "); });
     ok(pad === "10px 10px 12px 12px", `the chip row keeps 10 px above and below and 12 px at its sides (${pad})`);

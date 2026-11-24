@@ -109,7 +109,7 @@ const MCP_SUITES = ["MCP server integration", "browser: AI apps (MCP consent and
  * new one too (cites.mjs and polish-reader.mjs follow READER where the layout differs). papers.mjs and workspace.mjs are not here: their reader checks are of today's layout (its phone tabs,
  * the side panel put away, the colours' plain names, the old pop-up), which the new reader replaces; they keep running in the default run, where READER is off.
  */
-const READER_SUITES = ["documents integration", "notebook integration (READER on)", "reader agents integration (READER on)", "browser: the new Paper Reader, phase 1 (READER on)", "browser: the Notebook of the new Paper Reader, phase 2 (READER on)", "browser: the agents of the new Paper Reader, phase 3 (READER on)", "browser: reader polish (back, drawing tools, question box)", "browser: citation cards in the reader"];
+const READER_SUITES = ["documents integration", "notebook integration (READER on)", "reader agents integration (READER on)", "browser: the new Paper Reader, phase 1 (READER on)", "browser: the Notebook of the new Paper Reader, phase 2 (READER on)", "browser: the agents of the new Paper Reader, phase 3 (READER on)", "browser: reader fixes: load errors, Contents, All pages (READER on)", "browser: reader polish (back, drawing tools, question box)", "browser: citation cards in the reader"];
 
 /**
  * The runs. `default` is production's positions (decision 13): wrangler.jsonc's `vars` as committed (TRENDING off, MCP beta, CHAT_TOOLS on, every other gate unset), and every suite that is
