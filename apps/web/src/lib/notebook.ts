@@ -241,10 +241,12 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
         if (res.status === 201 || res.status === 409) {
           const page = ((await res.json()) as { page: NotebookPage }).page;
           if (res.status === 201) {
-            s.page = { ...s.page, rev: page.rev, saved: true, position: page.position };
+            // a page moved while its first save was on the way keeps its new place (and sends it next), not the place the answer echoes
+            const moved = s.page.position !== meta.position;
+            s.page = { ...s.page, rev: page.rev, saved: true, position: moved ? s.page.position : page.position };
             s.base = page.blocks;
             s.blocksDirty = JSON.stringify(s.page.blocks) !== JSON.stringify(sending);
-            s.metaDirty = s.page.title !== meta.title || s.page.style !== meta.style;
+            s.metaDirty = s.page.title !== meta.title || s.page.style !== meta.style || moved;
           } else {
             // it is there already (a save whose answer was lost, or another window made it): merge into the server's
             merged(s, page);

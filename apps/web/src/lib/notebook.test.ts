@@ -370,6 +370,26 @@ describe("useNotebook's store", () => {
     expect([...w.pages.values()].sort((x, y) => x.position - y.position).map((p) => p.title).join("")).toBe("DBCA");
   });
 
+  it("a page moved while its first save is on the way keeps its new place, and the place is sent next (All pages, 21 Nov 2026)", async () => {
+    const w = world();
+    for (const [k, id] of ["a", "b"].entries()) w.pages.set(id, { id, title: id.toUpperCase(), style: "plain", position: k + 1, blocks: [text(`t${id}`, id)], rev: 1, updatedAt: 1 });
+    // the first save of the new page is held until released, as a slow connection holds it
+    let release = () => {};
+    const real = w.fetch.bind(w);
+    w.fetch = (url: string, init: RequestInit = {}) =>
+      init.method === "PUT" && !JSON.parse(String(init.body)).rev ? new Promise<Response>((res) => (release = () => void real(url, init).then(res))) : real(url, init);
+    const s = w.store();
+    await s.load();
+    const id = s.addPage("C")!;
+    await w.tick(SAVE_AFTER_MS + 10);
+    expect(s.movePageTo(id, 0)).toBe(0);
+    release();
+    await w.tick(SAVE_AFTER_MS + 10);
+    expect(s.get().pages.map((p) => p.title).join("")).toBe("CAB");
+    await w.tick(SAVE_AFTER_MS + 10);
+    expect([...w.pages.values()].sort((x, y) => x.position - y.position).map((p) => p.title).join("")).toBe("CAB");
+  });
+
   it("Undo of Add to notes takes the quote and the empty block it brought; the starter page gets its empty block back", async () => {
     const w = world();
     w.pages.set("p1", { id: "p1", title: "P", style: "plain", position: 1, blocks: [text("a", "A")], rev: 1, updatedAt: 1 });

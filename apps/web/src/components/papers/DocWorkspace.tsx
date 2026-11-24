@@ -136,10 +136,11 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
         .catch((e: unknown) => {
           if (cancelled) return;
           const err = pdfErrorOf(e);
-          if (err.kind === "chunk" && reloadOnce()) return;
-          const offline = navigator.onLine === false;
+          if (err.kind === "chunk" && navigator.onLine !== false && reloadOnce()) return;
+          // offline, whatever the browser said: the file is not the problem
+          const offline = navigator.onLine === false && (err.kind === "network" || err.kind === "chunk" || err.kind === "other");
           if (err.kind === "network" && left > 0 && !offline) return void (timer = window.setTimeout(() => attempt(left - 1), 1200));
-          setPdf({ status: "error", message: err.kind === "network" && offline ? OFFLINE_WORDS : err.message, detail: err.detail, kind: err.kind === "network" && offline ? "offline" : err.kind });
+          setPdf({ status: "error", message: offline ? OFFLINE_WORDS : err.message, detail: err.detail, kind: offline ? "offline" : err.kind });
         });
     void attempt(1);
     return () => {
