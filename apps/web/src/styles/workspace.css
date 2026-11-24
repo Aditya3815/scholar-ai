@@ -623,9 +623,34 @@
   cursor: default;
 }
 .pdfv-main {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
+}
+/* a quiet line over the pages when a passage a jump asked for is not on its page; empty, it takes no room (it stays in the page so that what it says is read out) */
+.pdfv-hint {
+  position: absolute;
+  z-index: 6;
+  top: 0.6rem;
+  left: 50%;
+  max-width: min(32rem, calc(100% - 2rem));
+  margin: 0;
+  padding: 0.45rem 0.8rem;
+  transform: translateX(-50%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.pdfv-hint:empty {
+  padding: 0;
+  border: 0;
+  box-shadow: none;
 }
 .pdfv-rail {
   display: flex;
@@ -1459,6 +1484,45 @@
   background: color-mix(in srgb, var(--hl-pink) 62%, transparent);
   box-shadow: inset 0 -2px 0 var(--hl-pink);
 }
+/* A passage marked for a moment (a jump from a citation, an answer, a highlight's card): an outline in ink on the paper with a faint tint, never a filled highlight; it fades out and goes.
+   The page is paper in every theme, so the ink is one colour (the light theme's accent, 7:1 on white). */
+.pdfp-flashes {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.pdfp-flash {
+  position: absolute;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px #3548c8;
+  background: rgb(53 72 200 / 0.1);
+  animation: pdfp-flash 2.4s ease-out forwards;
+}
+@keyframes pdfp-flash {
+  0% {
+    opacity: 0;
+  }
+  8%,
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pdfp-flash {
+    animation: none;
+  }
+}
+@media (forced-colors: active) {
+  .pdfp-flash {
+    box-shadow: none;
+    outline: 2px solid Highlight;
+    background: transparent;
+  }
+}
 /* the icon that says "there is a note here", just above the highlight */
 .pdfp-noteicon {
   position: absolute;
@@ -1694,6 +1758,13 @@
 }
 .note-quote:hover {
   color: var(--accent);
+}
+/* a highlight whose words are not on its page (its card says so; the page still opens) */
+.note-missing {
+  margin: 0.35rem 0 0;
+  color: var(--warn);
+  font-size: 0.8125rem;
+  line-height: 1.4;
 }
 .note-text {
   width: 100%;

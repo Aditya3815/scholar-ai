@@ -6,7 +6,8 @@ import { NOTE_COLORS, anchoredScroll, clampZoom, pinchFactor, stepZoom, wheelFac
 import type { PDFDocumentProxy } from "../../lib/pdf";
 import { Pop } from "../Pop";
 import { pdfjs, readPage } from "../../lib/pdf";
-import { clearHighlights, highlightMatches, highlightQuote, quoteRects } from "../../lib/highlight";
+import { clearHighlights, highlightMatches, quoteRects, readLayer } from "../../lib/highlight";
+import { setPlaced } from "../../lib/anchor-status";
 import { locate, usePaperSearch } from "../../lib/paperSearch";
 import { spring } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
@@ -171,7 +172,11 @@ type PageProps = {
   cites: PageCite[];
   /** Over everything on the page (the new reader's Capture). */
   overlay?: ReactNode;
+  /** A passage marked for a moment (a jump from a citation, an answer, a highlight's card): never a highlight, never saved. `key` starts the mark again when the same passage is shown twice. */
+  flash?: Flash | null;
 };
+/** A passage marked for a moment on one page: its boxes, in pixels from the page's top-left corner. */
+type Flash = { page: number; rects: MarkRect[]; key: number };
 
 /** What a page needs to show and take drawing. */
 export type DrawProps = {
@@ -213,7 +218,7 @@ function noteIcons(marks: PageMark[], notesById: Map<string, DocNote>, focusId: 
   return out;
 }
 
-function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, focusId, onOpenNote, draw, cites, overlay }: PageProps) {
+function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, focusId, onOpenNote, draw, cites, overlay, flash }: PageProps) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const text = useRef<HTMLDivElement>(null);
@@ -296,6 +301,12 @@ function PdfPage({ pdf, n, scale, size, root, onSize, onText, marks, notesById, 
               <StickyNote size={11} aria-hidden="true" />
             </button>
           ))}
+        </div>
+      )}
+      {flash && (
+        // an outline that fades, under no pointer and hidden from screen readers (the jump itself is the news; a highlight is drawn by .pdfp-hl and looks nothing like it)
+        <div key={flash.key} className="pdfp-flashes" aria-hidden="true">
+          {flash.rects.map((r, i) => <span key={i} className="pdfp-flash" style={{ left: r.x - 2, top: r.y - 2, width: r.w + 4, height: r.h + 4 }} />)}
         </div>
       )}
       {cites.length > 0 && (
@@ -444,7 +455,6 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
   const [findIdx, setFindIdx] = useState(0);
   const findInput = useRef<HTMLInputElement>(null);
   const find = usePaperSearch(pdf, findOpen);
-  const lastHl = useRef<HTMLElement | null>(null);
   const N = pdf.numPages;
   const reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -671,17 +681,45 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
     setSizes((s) => (s[n] && Math.abs(s[n]!.w - w) < 0.5 && Math.abs(s[n]!.h - h) < 0.5 ? s : { ...s, [n]: { w, h } }));
   }, []);
 
+  /* ---- a passage marked for a moment: where a citation, an answer or a highlight's card sends the reader (never a highlight, never saved) ---- */
+  const [flash, setFlash] = useState<Flash | null>(null);
+  const [hint, setHint] = useState<{ text: string; key: number } | null>(null);
+  const flashKey = useRef(0);
+  useEffect(() => {
+    if (!flash) return;
+    // the mark fades out in 2.4 s (workspace.css, .pdfp-flash); with reduced motion it does not move and is taken away after 4 s
+    const t = window.setTimeout(() => setFlash((f) => (f?.key === flash.key ? null : f)), reduced ? 4000 : 2600);
+    return () => window.clearTimeout(t);
+  }, [flash, reduced]);
+  useEffect(() => {
+    if (!hint) return;
+    const t = window.setTimeout(() => setHint((h) => (h?.key === hint.key ? null : h)), 6000);
+    return () => window.clearTimeout(t);
+  }, [hint]);
+  // a new zoom draws the page again: the boxes of the mark would no longer fit it
+  useEffect(() => setFlash(null), [scale]);
+
+  /** Marks `quote` on page `page` for a moment and brings it to the middle of the view; says so quietly when it is not on the page (the page is shown). False while the page's text is not drawn yet. */
   const applyHighlight = useCallback((page: number, quote: string) => {
     const layer = layers.current.get(page);
     if (!layer) return false;
-    const el = highlightQuote(layer, quote);
-    lastHl.current = el;
+    const found = quoteRects(layer, quote, { sentence: true });
+    const key = ++flashKey.current;
+    if (!found) {
+      setFlash(null);
+      setHint({ text: `The passage was not found on page ${page}. Showing the page.`, key });
+      return true;
+    }
+    setFlash({ page, rects: found.rects, key });
+    setHint(found.how === "sentence" ? { text: `The exact words were not found on page ${page}. The closest sentence is marked.`, key } : null);
     // Scroll only the page area (scrollIntoView would also scroll the whole window and push the toolbar under the header).
     const sc = scroller.current;
-    if (el && sc) {
-      const a = el.getBoundingClientRect();
-      const b = sc.getBoundingClientRect();
-      sc.scrollTo({ top: sc.scrollTop + (a.top - b.top) - sc.clientHeight / 2 + a.height / 2, behavior: reduced ? "auto" : "smooth" });
+    const box = layer.closest<HTMLElement>("[data-page]");
+    if (sc && box) {
+      const top = Math.min(...found.rects.map((r) => r.y));
+      const bottom = Math.max(...found.rects.map((r) => r.y + r.h));
+      const y = bottom - top > sc.clientHeight * 0.7 ? box.offsetTop + top - 64 : box.offsetTop + (top + bottom) / 2 - sc.clientHeight / 2;
+      sc.scrollTo({ top: Math.max(0, y), behavior: reduced ? "auto" : "smooth" });
     }
     return true;
   }, [reduced]);
@@ -701,17 +739,28 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
     return true;
   }, [scrollToSpan]);
 
-  /** Measures where the saved highlights of one page are, once its text is on screen. They are drawn in a layer of their own, so several can overlap. */
+  /**
+   * Measures where the saved highlights of one page are, once its text is on screen. They are drawn in a layer of their own, so several can overlap. A highlight whose words are not found
+   * on its page is told to its card (anchor-status.ts), never left out in silence.
+   */
   const paintSaved = useCallback((n: number) => {
     const layer = layers.current.get(n);
     if (!layer) return;
     const list: PageMark[] = [];
+    const placed: string[] = [];
+    const notFound: string[] = [];
+    let read: ReturnType<typeof readLayer> | null = null;
     for (const note of notesRef.current) {
       if (note.page !== n) continue;
-      const rects = quoteRects(layer, note.quote);
-      if (rects.length > 0) list.push({ id: note.id, rects });
+      read ??= readLayer(layer);
+      const found = quoteRects(layer, note.quote, {}, read);
+      if (found) {
+        list.push({ id: note.id, rects: found.rects });
+        placed.push(note.id);
+      } else notFound.push(note.id);
     }
     setMarks((m) => ({ ...m, [n]: list }));
+    setPlaced(placed, notFound);
   }, []);
 
   /* ---- citations: found on each page as its text appears, drawn as buttons over their words (only in My Workspace, where `citations` is given) ---- */
@@ -774,6 +823,7 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
       } else {
         layers.current.delete(n);
         setMarks((m) => (m[n] ? { ...m, [n]: [] } : m));
+        setFlash((f) => (f?.page === n ? null : f));
         setCites((c) => (c[n]?.length ? { ...c, [n]: NO_CITES } : c));
       }
       if (layer && pending.current?.page === n) {
@@ -886,7 +936,9 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
   const goTo = useCallback(
     (page: number, quote?: string, instant = false) => {
       const n = Math.min(Math.max(1, page), N);
-      layers.current.forEach((l) => clearHighlights(l));
+      setFlash(null);
+      setHint(null);
+      pending.current = null;
       const el = pageEl(n);
       if (el && scroller.current) scroller.current.scrollTo({ top: el.offsetTop - 12, behavior: reduced || instant ? "auto" : "smooth" });
       if (quote) {
@@ -1161,6 +1213,8 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
       )}
 
       <div className="pdfv-main">
+        {/* a quiet line when a passage a jump asked for is not on its page (the page is shown); always there, so that what it says is read out */}
+        <p className="pdfv-hint" role="status" aria-live="polite">{hint?.text ?? ""}</p>
         <div ref={rail} className="pdfv-rail" aria-label="Page thumbnails">
           {pages.map((n) => (
             <Thumb key={n} pdf={pdf} n={n} active={n === current} root={rail} onPick={(p) => goTo(p)} mark={desk?.thumbMark?.(n) ?? null} />
@@ -1194,7 +1248,7 @@ export function PdfViewer({ pdf, ref, title, docId, downloadHref, onPage, conten
         >
           <div ref={pagesEl} className="pdfv-pages">
             {pages.map((n) => (
-              <PdfPage key={n} pdf={pdf} n={n} scale={scale} size={sizes[n] ?? first} root={scroller} onSize={onSize} onText={onText} marks={marks[n] ?? NO_MARKS} notesById={notesById} focusId={focusNoteId} onOpenNote={onOpenNote} draw={draw} cites={cites[n] ?? NO_CITES} overlay={desk?.capture?.(n)} />
+              <PdfPage key={n} pdf={pdf} n={n} scale={scale} size={sizes[n] ?? first} root={scroller} onSize={onSize} onText={onText} marks={marks[n] ?? NO_MARKS} notesById={notesById} focusId={focusNoteId} onOpenNote={onOpenNote} draw={draw} cites={cites[n] ?? NO_CITES} overlay={desk?.capture?.(n)} flash={flash?.page === n ? flash : null} />
             ))}
           </div>
         </div>

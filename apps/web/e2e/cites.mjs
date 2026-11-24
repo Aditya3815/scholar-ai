@@ -67,6 +67,14 @@ const card = (p) => p.locator(".cite-card");
 /** The status words as a reader sees them (without the words only a screen reader gets). */
 const statusText = (p) => p.evaluate(() => { const s = document.querySelector(".cite-card .cite-status"); if (!s) return null; const c = s.cloneNode(true); c.querySelectorAll(".sr-only").forEach((x) => x.remove()); return c.textContent.replace(/\s+/g, " ").trim(); });
 
+/** The words under the temporary jump mark (.pdfp-flash, paper-reader highlights fix): the text-layer spans its boxes cover, read while it is on screen. */
+const flashText = (page, scope = "") =>
+  page.evaluate((scope) => {
+    const marks = [...document.querySelectorAll(`${scope} .pdfp-flash`)].map((m) => m.getBoundingClientRect());
+    const hit = (r) => marks.some((m) => r.right > m.left + 1 && r.left < m.right - 1 && r.bottom > m.top + 1 && r.top < m.bottom - 1);
+    return [...document.querySelectorAll(`${scope} .textLayer span`)].filter((s) => !s.children.length && hit(s.getBoundingClientRect())).map((s) => s.textContent).join(" ");
+  }, scope);
+
 try {
   /* ================================================================ sign in and upload the paper */
   const c0 = await browser.newContext(desk(1280, 860));
@@ -197,8 +205,8 @@ try {
     /* ---------------- Show in reference list */
     await page.locator(".cite-card").getByRole("button", { name: "Show in reference list" }).click();
     await card(page).waitFor({ state: "detached", timeout: 3000 });
-    await page.waitForFunction(() => document.querySelector(".pdfp[data-page='2'] .pdf-hl") !== null, null, { timeout: 8000 });
-    const hl = await page.locator(".pdfp[data-page='2'] .pdf-hl").first().textContent();
+    await page.waitForFunction(() => document.querySelector(".pdfp[data-page='2'] .pdfp-flash") !== null, null, { timeout: 8000 });
+    const hl = await flashText(page, ".pdfp[data-page='2']");
     ok(/Vaswani/.test(hl ?? ""), `Show in reference list goes to the entry on page 2 and marks it (${hl?.slice(0, 40)})`);
     await page.screenshot({ path: join(SHOTS, "cite-show-in-list.png") });
 
