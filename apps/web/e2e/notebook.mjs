@@ -575,14 +575,22 @@ try {
     const notes1 = (await pagesOnServer()).find((p) => p.title === "Notes");
     const all = notes1.blocks.filter((b) => b.kind === "text").map((b) => b.md).join("|");
     ok(all.includes("(tab one)") && all.includes("(tab two)"), "two tabs, two blocks changed: both are kept (merged by block id)");
+    // both change the same block at once. With live updates (LIVE on) a change saved in one tab reaches the other before it types, so there is nothing to clash; a clash needs two
+    // changes that cross: a third window, offline, changes the block while this one saves it, then comes back
+    const { ctx: offCtx, page: away } = await openReader(desk(1280, 800));
+    await away.locator(".nb-bar").waitFor({ timeout: 10000 });
+    await offCtx.setOffline(true);
+    await edit(away, 0, " two again");
+    await away.locator(".nb-save", { hasText: "Offline: kept on this device" }).waitFor({ timeout: 8000 });
     await edit(page, 0, " one again");
     await saved(page);
-    await edit(other, 0, " two again");
-    await other.locator(".desk-toast", { hasText: "Updated from another window" }).waitFor({ timeout: 10000 });
-    ok(true, "both tabs changed the same block: the second is told Updated from another window");
+    await offCtx.setOffline(false);
+    await away.locator(".desk-toast", { hasText: "Updated from another window" }).waitFor({ timeout: 15000 });
+    ok(true, "both windows changed the same block at once: the one that saves second is told Updated from another window");
     await sleep(1500);
     const first = (await pagesOnServer()).find((p) => p.title === "Notes").blocks.find((b) => b.kind === "text").md;
     ok(first.includes("two again"), "and its text wins");
+    await offCtx.close();
     await ctx.close();
   }
 

@@ -249,10 +249,6 @@ try {
     await page.locator(".nb-bar").waitFor({ timeout: 10000 });
     const tabs = page.getByRole("tablist", { name: "Pages" }).getByRole("tab");
     const order = async () => (await tabs.allInnerTexts()).map((t) => t.trim()).join(",");
-    // the starter page is kept only once it holds something (an untouched one can give way to the pages saved on the server): a line written on it, saved
-    await page.locator(".nb-field").first().click();
-    await page.keyboard.type("First notes");
-    await page.locator(".nb-save").filter({ hasText: /^Saved/ }).waitFor({ timeout: 10000 });
     for (let k = 0; k < 5; k++) {
       await page.getByRole("button", { name: "Add a page" }).click();
       await page.getByRole("dialog", { name: "Choose paper for the new page" }).getByRole("button", { name: ["Plain", "Ruled", "Dotted", "Graph"][k % 4] }).click();

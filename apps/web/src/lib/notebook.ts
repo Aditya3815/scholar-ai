@@ -457,6 +457,8 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
     }
     if (!alive || status !== "ready") return;
     const there = new Set(pages.map((p) => p.id));
+    // pages this window does not know: made by someone else (a page this window made, whose save's answer has not come yet, is not one)
+    const fromElsewhere = pages.some((p) => !slotOf(p.id) && !deleted.includes(p.id) && !deleting.has(p.id));
     let clash = false;
     for (const p of pages) {
       const s = slotOf(p.id);
@@ -482,8 +484,8 @@ export function createNotebookStore(docId: string, deps: NbDeps) {
     }
     // deleted elsewhere: gone here too, unless this window has writing in it (its save makes it again)
     slots = slots.filter((s) => !s.page.saved || there.has(s.page.id) || dirty(s) || s.saving);
-    // the starter page ("Notes", nothing written) gives way to the pages someone else made
-    if (pages.length) slots = slots.filter((s) => !(s.starter && isEmpty(s.page.blocks)));
+    // the starter page ("Notes", nothing written) gives way to the pages someone else made, never to this window's own (its save echoed back by the room before its answer came)
+    if (fromElsewhere) slots = slots.filter((s) => !(s.starter && isEmpty(s.page.blocks)));
     if (!slots.length) slots = [starterPage()];
     sorted();
     if (!slotOf(openId ?? "")) openId = slots[0]!.page.id;
