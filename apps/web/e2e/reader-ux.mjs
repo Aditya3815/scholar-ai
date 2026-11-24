@@ -249,12 +249,18 @@ try {
     await page.locator(".nb-bar").waitFor({ timeout: 10000 });
     const tabs = page.getByRole("tablist", { name: "Pages" }).getByRole("tab");
     const order = async () => (await tabs.allInnerTexts()).map((t) => t.trim()).join(",");
+    // the starter page is kept only once it holds something (an untouched one can give way to the pages saved on the server): a line written on it, saved
+    await page.locator(".nb-field").first().click();
+    await page.keyboard.type("First notes");
+    await page.locator(".nb-save").filter({ hasText: /^Saved/ }).waitFor({ timeout: 10000 });
     for (let k = 0; k < 5; k++) {
       await page.getByRole("button", { name: "Add a page" }).click();
       await page.getByRole("dialog", { name: "Choose paper for the new page" }).getByRole("button", { name: ["Plain", "Ruled", "Dotted", "Graph"][k % 4] }).click();
       await sleep(250);
     }
-    await until(async () => (await order()) === "Notes,Page 2,Page 3,Page 4,Page 5,Page 6", { ms: 6000, what: "six pages" });
+    await until(async () => (await order()) === "Notes,Page 2,Page 3,Page 4,Page 5,Page 6", { ms: 6000, what: "six pages" }).catch(async (e) => {
+      throw new Error(`${e.message} (the tabs: ${await order()})`);
+    });
     // no wait for the new pages' first saves: a page moved while its first save is on the way keeps its new place (lib/notebook.ts)
     await page.setViewportSize({ width: 1024, height: 800 });
     const allBtn = page.getByRole("button", { name: /^All pages/ });
