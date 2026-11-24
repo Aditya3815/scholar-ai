@@ -26,7 +26,8 @@ jobs:
     # The run took 17 minutes on 2 Nov 2026 with the old chat suite (70 s on the runner); the chat suite is now about 430 checks, 3 to 4 minutes, and every suite runs one after another, so 20 was no longer enough.
     # One job ran every run in turn until 17 Nov 2026, when the Paper Reader's run (reader-on) took it past 35 minutes; the runs are now two jobs side by side, each with its own Worker,
     # and each limit has room above what it took (the default run alone about 30 minutes).
-    timeout-minutes: 45
+    # 24 Nov 2026: READER, SHARE and LIVE are on in production, so the default run carries the reader, sharing and live suites too: 60.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -34,7 +35,7 @@ jobs:
           - part: production positions
             runs: default
           - part: positions production does not have
-            runs: trending-on,mcp-on,reader-on,share-on
+            runs: trending-on,mcp-on,reader-off
     env:
       E2E_BROWSER: chrome # preinstalled on GitHub's Ubuntu runners; playwright-core does not download browsers
       OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
