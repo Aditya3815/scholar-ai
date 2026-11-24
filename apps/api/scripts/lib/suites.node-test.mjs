@@ -26,10 +26,10 @@ test("the default run is production's positions, read from wrangler.jsonc throug
   assert.equal(position("MCP_CHECK_CLAIM", vars), "off");
   // and a suite written for other positions is not run there, but in a named run that gives them
   const skipped = SUITES.filter((s) => Object.entries(s.needs ?? {}).some(([sw, ps]) => !ps.includes(position(sw, vars))));
-  assert.equal(position("READER", vars), "dark"); // on for the owner's account only (READER_BETA_USERS), so the default run still has the old reader
-  assert.equal(position("LIVE", vars), "dark"); // live presence for the owner's papers only (SHARE_BETA_USERS, none of the run's accounts): its suites run in share-on, with LIVE on
-  assert.equal(position("SHARE", vars), "dark"); // sharing only for the owner's account (SHARE_BETA_USERS); the default run's accounts cannot share
-  assert.deepEqual(skipped.map((s) => s.label).sort(), ["MCP server integration", "browser: AI apps (MCP consent and Connected apps)", "browser: trending", "browser: the new Paper Reader, phase 1 (READER on)", "notebook integration (READER on)", "browser: the Notebook of the new Paper Reader, phase 2 (READER on)", "sharing integration (SHARE and READER on)", "browser: sharing a paper (SHARE and READER on)", "reader agents integration (READER on)", "browser: the agents of the new Paper Reader, phase 3 (READER on)", "browser: highlights and marked passages (READER on)", "live presence integration (SHARE, READER and LIVE on)", "browser: live presence in a shared paper (SHARE, READER and LIVE on)"].sort());
+  assert.equal(position("READER", vars), "on"); // the new reader for every account (24 Nov 2026)
+  assert.equal(position("LIVE", vars), "on"); // live presence on every shared paper (24 Nov 2026)
+  assert.equal(position("SHARE", vars), "on"); // sharing for every account (24 Nov 2026)
+  assert.deepEqual(skipped.map((s) => s.label).sort(), ["MCP server integration", "browser: AI apps (MCP consent and Connected apps)", "browser: trending", "browser: papers", "browser: workspace (new look)"].sort());
 });
 
 test("a suite marked last runs after every other suite of each run that has it", () => {
