@@ -1,17 +1,19 @@
 import { m } from "motion/react";
+import "./reader-parts.css";
 import type { PaperAccess } from "@scholar/shared";
-import { Pencil } from "lucide-react";
+import { ArrowLeft, FileWarning, Pencil, RotateCw, WifiOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Answer, DocumentInfo, OutlineItem, PaperInfo, ScanInfo } from "@scholar/shared";
 import { renameDoc } from "../../lib/documents";
 import { showNotice } from "../../lib/notice";
 import { spring } from "../../lib/motion";
-import type { PDFDocumentProxy } from "../../lib/pdf";
+import { PAPERS_NAME } from "../../lib/workspace";
+import type { PDFDocumentProxy, PdfErrorKind } from "../../lib/pdf";
 
 /* The pieces both readers draw the same (today's, DocWorkspace, and the new one, desk/Desk.tsx): moved here unchanged from DocWorkspace.tsx so that the new reader's chunk can use them. */
 
-export type Load = { status: "loading" } | { status: "error"; message: string; notFound?: boolean } | { status: "ready"; doc: DocumentInfo; history: Answer[]; info: PaperInfo | null; scan: ScanInfo | null; /** the new Paper Reader (READER, told by the server with the paper) */ reader?: boolean; /** a paper shared with this person (docs/design/paper-share.md); null: their own */ access?: PaperAccess | null; /** the owner may share it (SHARE) */ canShare?: boolean; /** live presence and updates (LIVE, docs/design/paper-live.md) */ live?: boolean };
-export type Pdf = { status: "loading"; progress: number } | { status: "error"; message: string } | { status: "ready"; pdf: PDFDocumentProxy };
+export type Load = { status: "loading" } | { status: "error"; message: string; notFound?: boolean; /** what the browser said */ detail?: string; /** the connection failed (worth trying again; tried again by itself when back online) */ network?: boolean } | { status: "ready"; doc: DocumentInfo; history: Answer[]; info: PaperInfo | null; scan: ScanInfo | null; /** the new Paper Reader (READER, told by the server with the paper) */ reader?: boolean; /** a paper shared with this person (docs/design/paper-share.md); null: their own */ access?: PaperAccess | null; /** the owner may share it (SHARE) */ canShare?: boolean; /** live presence and updates (LIVE, docs/design/paper-live.md) */ live?: boolean };
+export type Pdf = { status: "loading"; progress: number } | { status: "error"; message: string; detail?: string; kind?: PdfErrorKind | "offline" } | { status: "ready"; pdf: PDFDocumentProxy };
 
 export function TitleEditor({ doc, onChange }: { doc: DocumentInfo; onChange: (d: DocumentInfo) => void }) {
   const [editing, setEditing] = useState(false);
@@ -69,4 +71,55 @@ export function OpeningPaper({ progress }: { progress: number }) {
       <p>Opening the paper{progress > 0 ? ` · ${Math.round(progress * 100)}%` : "…"}</p>
     </div>
   );
+}
+
+/** Said when the browser is offline: the page tries again by itself when the connection is back. */
+export const OFFLINE_WORDS = "You're offline. The paper will load as soon as you're back online.";
+
+/**
+ * A paper (or its file) that could not be loaded, in both readers: words for people, the browser's own words tucked under "Technical details", and three ways on: Try again (fetches
+ * again, no reload), Reload page (a stale page after a deploy) and Back to the list. Offline, it says so; the caller tries again when the `online` event comes.
+ */
+export function LoadFailed({ title = "We couldn't load this paper", message, detail, offline = false, reloadFirst = false, onRetry, onBack, backLabel }: { title?: string; message: string; detail?: string; offline?: boolean; /** a stale page: Reload page is the main button */ reloadFirst?: boolean; onRetry?: () => void; onBack?: () => void; backLabel?: string }) {
+  const reload = (
+    <button type="button" className={onRetry && !reloadFirst ? "btn btn-ghost" : "btn btn-primary"} onClick={() => location.reload()}>
+      Reload page
+    </button>
+  );
+  return (
+    <div className="empty load-failed" role="alert" data-offline={offline || undefined}>
+      {offline ? <WifiOff size={28} aria-hidden="true" /> : <FileWarning size={28} aria-hidden="true" />}
+      <p className="empty-title">{offline ? "You're offline" : title}</p>
+      {/* the words people see are often "<title>. <what to do>": the title is said once */}
+      <p>{offline ? OFFLINE_WORDS : message.startsWith(`${title}. `) ? message.slice(title.length + 2) : message}</p>
+      <div className="empty-actions">
+        {reloadFirst && reload}
+        {onRetry && (
+          <button type="button" className={reloadFirst ? "btn btn-ghost" : "btn btn-primary"} onClick={onRetry}>
+            <RotateCw size={16} aria-hidden="true" />
+            <span>Try again</span>
+          </button>
+        )}
+        {!reloadFirst && reload}
+        {onBack && (
+          <button type="button" className="link-btn load-back" onClick={onBack}>
+            <ArrowLeft size={15} aria-hidden="true" />
+            <span>{backLabel}</span>
+          </button>
+        )}
+      </div>
+      {detail && (
+        <details className="load-detail">
+          <summary>Technical details</summary>
+          <code>{detail}</code>
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** The paper's file could not be opened (both readers): Try again only where it can help (not for a password or a file that is not a PDF). */
+export function PdfFailed({ pdf, onRetry, onBack }: { pdf: Extract<Pdf, { status: "error" }>; onRetry: () => void; onBack: () => void }) {
+  const retry = pdf.kind !== "password" && pdf.kind !== "invalid" && pdf.kind !== "missing";
+  return <LoadFailed title={retry ? "We couldn't load this paper" : "The paper could not be shown"} message={pdf.message} detail={pdf.detail} offline={pdf.kind === "offline"} reloadFirst={pdf.kind === "chunk"} onRetry={retry ? onRetry : undefined} onBack={onBack} backLabel={`Back to ${PAPERS_NAME}`} />;
 }

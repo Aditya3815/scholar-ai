@@ -19,11 +19,14 @@ import "./styles/shell.css";
 import "./styles/icons.css";
 import { initPrefs } from "./lib/prefs";
 import { initMonitoring } from "./lib/monitoring";
+import { watchChunkErrors } from "./lib/chunk-reload";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { App, MotionRoot } from "./App";
 
 initPrefs();
 initMonitoring();
+// a page left open across a deploy loads itself again (once) when a lazy chunk is gone
+watchChunkErrors();
 // the switch to the old pages (`?ws=0`) is gone since W6b; a value it left in this browser is of no use
 try {
   localStorage.removeItem("scholar.ws");

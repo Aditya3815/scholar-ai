@@ -48,7 +48,7 @@ export type NotebookProps = {
   /** PDF and Word (21.1, 4): made by the reader, which holds the open paper (the captures are drawn from it); without it, Export offers Markdown only. */
   exportFile?: (fmt: "pdf" | "docx", pages: NbPage[], docTitle: string, names: Record<QuoteColor, string>, all: boolean) => Promise<void>;
   /** A shared paper's comments on a block (docs/design/paper-share.md, 5): its open threads (a dot) and the way to them (the dot, and Comment in the block's menu). Absent: sharing is off. */
-  comments?: { openOn: (pageId: string, blockId: string) => number; show: (pageId: string, blockId: string) => void; open: number; showAll: () => void };
+  comments?: { openOn: (pageId: string, blockId: string) => number; show: (pageId: string, blockId: string) => void; open: number; /** every comment, open or resolved: the header's icon shows only once there is one */ total: number; showAll: () => void };
   /**
    * Live presence in a shared paper (docs/design/paper-live.md, 1): the other people on each page (drawn on its tab, and said in its label), the person typing in a block (its edge and
    * "Ravi is editing"), and where this window types (the reader tells the room). Absent: LIVE is off.
@@ -489,7 +489,7 @@ export function Notebook({ store, docTitle, notes, notesReady, wide, onGoTo, onD
             </>
           )}
         </p>
-        {comments && (
+        {comments && comments.total > 0 && (
           <button type="button" className="nb-hbtn nb-cmbtn" aria-label={comments.open ? `Comments, ${comments.open} open` : "Comments"} title="Comments" onClick={comments.showAll}>
             <MessageSquare size={16} aria-hidden="true" />
             {comments.open > 0 && <span className="nb-badge" aria-hidden="true">{comments.open > 99 ? "99+" : comments.open}</span>}

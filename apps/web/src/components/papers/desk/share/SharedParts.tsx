@@ -22,7 +22,7 @@ export type ReadNotebookProps = {
   meanings: Record<NoteColor, Meaning>;
   onGoTo: (page: number, quote: string) => void;
   /** Open threads on a block, and the way to them (a Commenter up writes; a Viewer reads). */
-  comments: { openOn: (a: CommentAnchor) => number; show: (a: CommentAnchor) => void; canWrite: boolean; open: number; showAll: () => void } | null;
+  comments: { openOn: (a: CommentAnchor) => number; show: (a: CommentAnchor) => void; canWrite: boolean; open: number; /** every comment, open or resolved: the header's icon shows only once there is one */ total: number; showAll: () => void } | null;
   /** The block to bring into view and flash (a comment's "Show"). */
   focus: { pageId: string; blockId: string; tick: number } | null;
   /** Read the pages again when this changes (someone saved: docs/design/paper-live.md). */
@@ -90,7 +90,7 @@ export function ReadNotebook({ docId, notes, meanings, onGoTo, comments, focus, 
         {/* the page's paper, shown (only its owner and editors change it) */}
         <span className="nb-sw" data-style={page.style} role="img" aria-label={`${NOTEBOOK_STYLE_NAMES[page.style] ?? "Plain"} paper`} title={`${NOTEBOOK_STYLE_NAMES[page.style] ?? "Plain"} paper`} />
         <h3 className="nbr-title">{name}</h3>
-        {comments && (
+        {comments && comments.total > 0 && (
           <button type="button" className="nb-hbtn nb-cmbtn" aria-label={comments.open ? `Comments, ${comments.open} open` : "Comments"} title="Comments" onClick={comments.showAll}>
             <MessageSquare size={16} aria-hidden="true" />
             {comments.open > 0 && <span className="nb-badge" aria-hidden="true">{comments.open > 99 ? "99+" : comments.open}</span>}

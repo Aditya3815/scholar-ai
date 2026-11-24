@@ -64,6 +64,8 @@ export const SUITES = [
   // the new Paper Reader, phase 1 (docs/design/paper-reader.md): written for READER on; production (the default run) has it off, so it runs in --run=reader-on
   { label: "browser: the new Paper Reader, phase 1 (READER on)", file: "web/e2e/reader.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
   { label: "browser: the Notebook of the new Paper Reader, phase 2 (READER on)", file: "web/e2e/notebook.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
+  // three fixes of the new reader (21 Nov 2026): a paper that could not be loaded (Try again, offline, a stale chunk), Contents (opened on the section, the fade), All pages by drag and keys
+  { label: "browser: reader fixes: load errors, Contents, All pages (READER on)", file: "web/e2e/reader-ux.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
   { label: "browser: the agents of the new Paper Reader, phase 3 (READER on)", file: "web/e2e/agents.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
   // highlights and the passages a jump marks for a moment (the owner's report of 21 Nov 2026): a two-column TeX-like paper with math, ligatures and a hyphenated word
   { label: "browser: highlights and marked passages (READER on)", file: "web/e2e/highlights.mjs", browser: true, reset: true, needs: { READER: ["on"] } },
@@ -110,7 +112,7 @@ const MCP_SUITES = ["MCP server integration", "browser: AI apps (MCP consent and
  * new one too (cites.mjs and polish-reader.mjs follow READER where the layout differs). papers.mjs and workspace.mjs are not here: their reader checks are of today's layout (its phone tabs,
  * the side panel put away, the colours' plain names, the old pop-up), which the new reader replaces; they keep running in the default run, where READER is off.
  */
-const READER_SUITES = ["documents integration", "notebook integration (READER on)", "reader agents integration (READER on)", "browser: the new Paper Reader, phase 1 (READER on)", "browser: the Notebook of the new Paper Reader, phase 2 (READER on)", "browser: the agents of the new Paper Reader, phase 3 (READER on)", "browser: highlights and marked passages (READER on)", "browser: reader polish (back, drawing tools, question box)", "browser: citation cards in the reader"];
+const READER_SUITES = ["documents integration", "notebook integration (READER on)", "reader agents integration (READER on)", "browser: the new Paper Reader, phase 1 (READER on)", "browser: the Notebook of the new Paper Reader, phase 2 (READER on)", "browser: the agents of the new Paper Reader, phase 3 (READER on)", "browser: highlights and marked passages (READER on)", "browser: reader fixes: load errors, Contents, All pages (READER on)", "browser: reader polish (back, drawing tools, question box)", "browser: citation cards in the reader"];
 
 /**
  * The runs. `default` is production's positions (decision 13): wrangler.jsonc's `vars` as committed (TRENDING off, MCP beta, CHAT_TOOLS on, every other gate unset), and every suite that is

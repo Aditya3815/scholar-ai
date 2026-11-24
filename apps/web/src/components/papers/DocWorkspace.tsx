@@ -16,7 +16,8 @@ import { useInk } from "../../lib/ink";
 import { PAPERS_NAME, PARKED } from "../../lib/workspace";
 import { easeOut, spring } from "../../lib/motion";
 import { showNotice } from "../../lib/notice";
-import { PdfError, openPdf, type PDFDocumentProxy } from "../../lib/pdf";
+import { openPdf, pdfErrorOf, type PDFDocumentProxy } from "../../lib/pdf";
+import { reloadOnce } from "../../lib/chunk-reload";
 import { useVerify } from "../../lib/verify";
 import { savedIdOf, toggleSaved, useLibrary } from "../../lib/library";
 import { openOaAsk } from "../../lib/oa-ask";
@@ -29,7 +30,7 @@ import { NotesPanel } from "./NotesPanel";
 import { ReferencesPanel } from "./ReferencesPanel";
 import { ScanBanner } from "./ScanBanner";
 import type { NewNote, ViewerHandle } from "./PdfViewer";
-import { OpeningPaper, TitleEditor, authorsLine, contentsOf, type Load, type Pdf } from "./ReaderParts";
+import { LoadFailed, OFFLINE_WORDS, OpeningPaper, PdfFailed, TitleEditor, authorsLine, contentsOf, type Load, type Pdf } from "./ReaderParts";
 import type { DeskProps } from "./desk/Desk";
 import { linkVisited } from "../../lib/share";
 
@@ -88,7 +89,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   const myJob = jobs.find((j) => j.docId === id && ["reading", "uploading", "indexing", "scanning"].includes(j.step));
   const reindexing = !!myJob;
 
-  const fetchIt = useCallback(async (lost = false) => {
+  const fetchIt = useCallback(async (lost = false, again = 1): Promise<boolean> => {
     try {
       const r = await fetchDocument(id);
       setLoad({ status: "ready", doc: r.document, history: r.history, info: r.info, scan: r.scan, reader: r.features?.reader === true, access: r.access ?? null, canShare: r.features?.share === true, live: r.features?.live === true });
@@ -98,7 +99,10 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
       // the room closed this window (docs/design/paper-live.md, 2) and the paper says the same: the person was removed, sharing stopped, or the paper was deleted
       else if (e instanceof ApiError && e.status === 404 && lost) setLoad({ status: "error", message: "You no longer have access to this paper. Ask the person who shared it if you need it again.", notFound: true });
       else if (e instanceof ApiError && e.status === 404) setLoad({ status: "error", message: "We could not find that paper. It may have been deleted.", notFound: true });
-      else setLoad({ status: "error", message: "We could not load this paper. Check your connection and try again." });
+      else if (e instanceof ApiError && e.status < 500) setLoad({ status: "error", message: "We could not load this paper. Please try again." });
+      // a dropped connection or a server hiccup: tried once more by itself after a moment, then said (offline: tried again when the connection is back)
+      else if (again > 0 && navigator.onLine !== false) return new Promise((res) => window.setTimeout(() => res(fetchIt(lost, again - 1)), 1200));
+      else setLoad({ status: "error", message: "We couldn't load this paper. Check your connection and try again.", network: true, detail: e instanceof Error ? e.message : undefined });
       return false;
     }
   }, [id]);
@@ -111,25 +115,53 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
     void fetchIt();
   }, [authStatus, user?.id, fetchIt]);
 
-  // Open the PDF itself once we know the paper exists and is ours.
+  // Open the PDF itself once we know the paper exists and is ours. A download cut off by the connection is tried once more after a moment before anything is said; a script of
+  // ours that is gone (a page left open across a deploy) loads the page again, once (lib/chunk-reload.ts). `pdfTry` is Try again: it opens the file afresh without a reload.
   const found = load.status === "ready";
+  const [pdfTry, setPdfTry] = useState(0);
+  const retryPdf = useCallback(() => setPdfTry((n) => n + 1), []);
   useEffect(() => {
     if (!found) return;
     let cancelled = false;
     let opened: PDFDocumentProxy | null = null;
+    let timer = 0;
     setPdf({ status: "loading", progress: 0 });
-    openPdf({ url: fileUrl(id) }, (f) => !cancelled && setPdf({ status: "loading", progress: f }))
-      .then((p) => {
-        opened = p;
-        if (cancelled) void p.loadingTask.destroy();
-        else setPdf({ status: "ready", pdf: p });
-      })
-      .catch((e) => !cancelled && setPdf({ status: "error", message: e instanceof PdfError ? e.message : "The paper could not be opened." }));
+    const attempt = (left: number) =>
+      openPdf({ url: fileUrl(id) }, (f) => !cancelled && setPdf({ status: "loading", progress: f }))
+        .then((p) => {
+          opened = p;
+          if (cancelled) void p.loadingTask.destroy();
+          else setPdf({ status: "ready", pdf: p });
+        })
+        .catch((e: unknown) => {
+          if (cancelled) return;
+          const err = pdfErrorOf(e);
+          if (err.kind === "chunk" && navigator.onLine !== false && reloadOnce()) return;
+          // offline, whatever the browser said: the file is not the problem
+          const offline = navigator.onLine === false && (err.kind === "network" || err.kind === "chunk" || err.kind === "other");
+          if (err.kind === "network" && left > 0 && !offline) return void (timer = window.setTimeout(() => attempt(left - 1), 1200));
+          setPdf({ status: "error", message: offline ? OFFLINE_WORDS : err.message, detail: err.detail, kind: offline ? "offline" : err.kind });
+        });
+    void attempt(1);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
       void opened?.loadingTask.destroy();
     };
-  }, [found, id]);
+  }, [found, id, pdfTry]);
+  // back online: what failed for want of a connection is tried again by itself
+  const netFailed = (pdf.status === "error" && (pdf.kind === "network" || pdf.kind === "offline")) || (load.status === "error" && load.network === true);
+  useEffect(() => {
+    if (!netFailed) return;
+    const back = () => {
+      if (load.status === "error") {
+        setLoad({ status: "loading" });
+        void fetchIt();
+      } else retryPdf();
+    };
+    window.addEventListener("online", back);
+    return () => window.removeEventListener("online", back);
+  }, [netFailed, load.status, fetchIt, retryPdf]);
 
   const isScan = load.status === "ready" && load.doc.scanned;
   const scanLeft = load.status === "ready" && load.doc.scanned ? load.doc.scanPending : 0;
@@ -371,19 +403,23 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
   if (load.status === "error") {
     return (
       <div className="dw dw-center">
-        <div className="empty" role="alert">
-          <FileWarning size={30} aria-hidden="true" />
-          <p className="empty-title">{load.message}</p>
-          <div className="empty-actions">
-            <button type="button" className="btn btn-primary" onClick={onBack}>
-              <ArrowLeft size={16} aria-hidden="true" />
-              <span>Back to {PAPERS_NAME}</span>
-            </button>
-            {!load.notFound && authStatus === "ready" && user && (
-              <button type="button" className="btn btn-ghost" onClick={() => { setLoad({ status: "loading" }); void fetchIt(); }}>Try again</button>
-            )}
+        {load.network ? (
+          <LoadFailed message={load.message} detail={load.detail} offline={navigator.onLine === false} onRetry={() => { setLoad({ status: "loading" }); void fetchIt(); }} onBack={onBack} backLabel={`Back to ${PAPERS_NAME}`} />
+        ) : (
+          <div className="empty" role="alert">
+            <FileWarning size={30} aria-hidden="true" />
+            <p className="empty-title">{load.message}</p>
+            <div className="empty-actions">
+              <button type="button" className="btn btn-primary" onClick={onBack}>
+                <ArrowLeft size={16} aria-hidden="true" />
+                <span>Back to {PAPERS_NAME}</span>
+              </button>
+              {!load.notFound && authStatus === "ready" && user && (
+                <button type="button" className="btn btn-ghost" onClick={() => { setLoad({ status: "loading" }); void fetchIt(); }}>Try again</button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
@@ -397,6 +433,7 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
       scan,
       onDoc: (d) => setLoad((l) => (l.status === "ready" ? { ...l, doc: d } : l)),
       pdf,
+      onRetryPdf: retryPdf,
       notes,
       ink,
       viewer,
@@ -568,10 +605,8 @@ export function DocWorkspace({ id, onBack }: { id: string; onBack: () => void })
               </m.div>
             )}
             {pdf.status === "error" && (
-              <m.div key="e" className="empty" role="alert" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <FileWarning size={28} aria-hidden="true" />
-                <p className="empty-title">The paper could not be shown</p>
-                <p>{pdf.message}</p>
+              <m.div key="e" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <PdfFailed pdf={pdf} onRetry={retryPdf} onBack={onBack} />
               </m.div>
             )}
             {pdf.status === "ready" && (

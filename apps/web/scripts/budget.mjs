@@ -34,6 +34,9 @@ export const LIMITS = {
   "the Notebook sketch chunk, script (gzip)": 4 * KB,
   // the page tabs, a chunk of their own since the notes polish (19 Nov 2026), fetched as soon as the Notebook's arrives
   "the Notebook page tabs chunk (drag to reorder, All pages), script (gzip)": 4 * KB,
+  // All pages, a chunk of its own since its rows are dragged to reorder (21 Nov 2026: the grip, the pointer and keyboard moves, the line), fetched when the tab row overflows and its
+  // button shows. 3.7 KB measured; the page tabs chunk fell from 4.0 to 3.6 KB.
+  "the Notebook All pages chunk (drag and keys to reorder), script and style (gzip)": 4 * KB,
   // A page's paper chosen from its tab (21 Nov 2026): the picker of four papers, a chunk of its own fetched when a tab's paper is first pressed. 1.4 KB measured.
   "the Notebook paper picker chunk, script and style (gzip)": 1.6 * KB,
   // Ink on the pages of notes (docs/design/paper-reader.md, 25, 20 Nov 2026): the layer that draws and takes the pen, the anchoring engine, the ink row and its store, fetched when a page has
@@ -102,6 +105,7 @@ const NOTEBOOK = "src/components/papers/desk/notebook/Notebook.tsx";
 const NB_SKETCH = "src/components/papers/desk/notebook/NbSketch.tsx";
 const NB_TABS = "src/components/papers/desk/notebook/NbTabs.tsx";
 const NB_INK = "src/components/papers/desk/notebook/NbInk.tsx";
+const NB_ALLPAGES = "src/components/papers/desk/notebook/NbAllPages.tsx";
 const NOTES_EXPORT = "src/lib/notes-export.ts";
 const NB_PAPER_PICK = "src/components/papers/desk/notebook/NbPaperPick.tsx";
 const NOTES_PAPER = "src/lib/notes-paper.ts";
@@ -134,6 +138,7 @@ const measured = {
   "the Notebook page tabs chunk (drag to reorder, All pages), script (gzip)": sum(filesOf(NB_TABS), gz),
   "the Notebook ink chunk (nb-ink: drawing on the pages), script (gzip)": sum(filesOf(NB_INK), gz),
   "the notes export chunk, script (gzip)": sum(filesOf(NOTES_EXPORT), gz),
+  "the Notebook All pages chunk (drag and keys to reorder), script and style (gzip)": sum(filesOf(NB_ALLPAGES), gz),
   "the Notebook paper picker chunk, script and style (gzip)": sum(filesOf(NB_PAPER_PICK), gz),
   "the notes paper chunk (ruled, dotted, graph in the exports), script (gzip)": sum(filesOf(NOTES_PAPER), gz),
   "the fontkit chunk, script (gzip)": sum(filesOf(FONTKIT), gz),
@@ -178,6 +183,7 @@ const HEAVY = [
   NB_SKETCH,
   NB_TABS,
   NB_INK,
+  NB_ALLPAGES,
   NOTES_EXPORT,
   FONTKIT,
   SHARE_DIALOG,

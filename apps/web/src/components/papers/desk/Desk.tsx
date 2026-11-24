@@ -1,5 +1,5 @@
 import { AnimatePresence, m } from "motion/react";
-import { ArrowLeft, BookMarked, ExternalLink, FileWarning, Highlighter, Maximize2, Minimize2, NotebookPen, Share2, X } from "lucide-react";
+import { ArrowLeft, BookMarked, ExternalLink, Highlighter, Maximize2, Minimize2, NotebookPen, Share2, X } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { INVITE_PICTURE_MAX_BYTES, INVITE_PICTURE_WIDTH, MAX_SELECTION_CHARS, NOTEBOOK_LIMITS, NOTE_COLORS, ROLE_LABEL, noteAnchor, planNewHighlight, roleAtLeast, type Answer, type Citation, type CommentAnchor, type DocNote, type DocumentInfo, type LivePerson, type NoteColor, type NotebookAgent, type NotebookBlock, type PaperAccess, type ReaderAgent, type PaperInfo, type ScanInfo } from "@scholar/shared";
 import { downloadBlob } from "../../../lib/download";
@@ -32,7 +32,7 @@ import { ThemeSwitch } from "../../ThemeSwitch";
 import { DocMeta } from "../DocMeta";
 import { NotesPanel } from "../NotesPanel";
 import type { DeskSlots, NewNote, ViewerHandle } from "../PdfViewer";
-import { OpeningPaper, TitleEditor, authorsLine, contentsOf, type Pdf } from "../ReaderParts";
+import { OpeningPaper, PdfFailed, TitleEditor, authorsLine, contentsOf, type Pdf } from "../ReaderParts";
 import { ReferencesPanel } from "../ReferencesPanel";
 import { ScanBanner } from "../ScanBanner";
 import type { AgentsDrawerProps } from "./AgentsDrawer";
@@ -73,6 +73,8 @@ export type DeskProps = {
   scan: ScanInfo | null;
   onDoc: (d: DocumentInfo) => void;
   pdf: Pdf;
+  /** Opens the paper's file again (Try again), without a reload. */
+  onRetryPdf: () => void;
   notes: NotesApi;
   ink: InkApi;
   viewer: RefObject<ViewerHandle | null>;
@@ -572,7 +574,7 @@ export function Desk(props: DeskProps) {
   );
   const readOnlyCard = useMemo(() => ({ inNotes: () => false, add: () => {}, open: () => {} }), []);
   const blockComments = useMemo(
-    () => (sharing ? { openOn: (pageId: string, blockId: string) => comments.openOn(`block:${pageId}:${blockId}`), show: (pageId: string, blockId: string) => openComments(`block:${pageId}:${blockId}`), open: comments.open, showAll: () => openComments(null) } : undefined),
+    () => (sharing ? { openOn: (pageId: string, blockId: string) => comments.openOn(`block:${pageId}:${blockId}`), show: (pageId: string, blockId: string) => openComments(`block:${pageId}:${blockId}`), open: comments.open, total: comments.comments.length, showAll: () => openComments(null) } : undefined),
     [sharing, comments, openComments],
   );
 
@@ -942,10 +944,8 @@ export function Desk(props: DeskProps) {
               </m.div>
             )}
             {pdf.status === "error" && (
-              <m.div key="e" className="empty" role="alert" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <FileWarning size={28} aria-hidden="true" />
-                <p className="empty-title">The paper could not be shown</p>
-                <p>{pdf.message}</p>
+              <m.div key="e" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <PdfFailed pdf={pdf} onRetry={props.onRetryPdf} onBack={onBack} />
               </m.div>
             )}
             {pdf.status === "ready" && (
@@ -1014,7 +1014,7 @@ export function Desk(props: DeskProps) {
               </Suspense>
             ) : !canEdit ? (
               <Suspense fallback={<p className="nb-wait" role="status">Loading the notes…</p>}>
-                <ReadNotebook docId={doc.id} notes={existing} meanings={MEANINGS} onGoTo={goTo} comments={sharing ? { openOn: comments.openOn, show: openComments, canWrite: canComment, open: comments.open, showAll: () => openComments(null) } : null} focus={readFocus} refresh={readTick} />
+                <ReadNotebook docId={doc.id} notes={existing} meanings={MEANINGS} onGoTo={goTo} comments={sharing ? { openOn: comments.openOn, show: openComments, canWrite: canComment, open: comments.open, total: comments.comments.length, showAll: () => openComments(null) } : null} focus={readFocus} refresh={readTick} />
               </Suspense>
             ) : nb ? (
               <Suspense fallback={<p className="nb-wait" role="status">Loading your notes…</p>}>

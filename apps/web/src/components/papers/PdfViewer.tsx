@@ -1,4 +1,5 @@
 import "pdfjs-dist/web/pdf_viewer.css";
+import "./toc.css";
 import { m } from "motion/react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, ListTree, Loader2, MoveHorizontal, Minus, PencilLine, Plus, Quote, Search, StickyNote, X } from "lucide-react";
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
@@ -403,22 +404,58 @@ function Contents({ items, detected, current, onPick }: { items: OutlineItem[]; 
         </button>
       )}
     >
-      {(close) => (
-        <div className="toc">
-          <p className="toc-note">{detected ? "Headings found by reading the pages. May be incomplete." : "From the PDF's own bookmarks."}</p>
-          <ol className="toc-list">
-            {items.map((it, i) => (
-              <li key={i} style={{ paddingLeft: `${Math.min(it.level - 1, 3) * 0.8}rem` }}>
-                <button type="button" className="toc-item" aria-current={i === here ? "location" : undefined} onClick={() => { onPick(it.page); close(); }}>
-                  <span className="toc-title">{it.title}</span>
-                  <span className="toc-page">{it.page}</span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
+      {(close) => <TocList items={items} detected={detected} here={here} onPick={(page) => (onPick(page), close())} />}
     </Pop>
+  );
+}
+
+/**
+ * The list inside Contents: opened on the reader's section (scrolled to the middle and focused, so the arrows start there), ↑ ↓ Home End move between entries with the focus kept in
+ * sight, and a fade at an edge says more is above or below. Its height is what the window leaves (Radix's available height), so it never runs off a short screen.
+ */
+function TocList({ items, detected, here, onPick }: { items: OutlineItem[]; detected: boolean; here: number; onPick: (page: number) => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState("");
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const seen = () => {
+      const up = el.scrollTop > 1;
+      const down = el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+      setMore(up && down ? "both" : up ? "start" : down ? "end" : "");
+    };
+    const cur = el.querySelector<HTMLElement>('[aria-current="location"]');
+    if (cur) {
+      el.scrollTop = Math.max(0, cur.offsetTop - (el.clientHeight - cur.offsetHeight) / 2);
+      cur.focus({ preventScroll: true });
+    }
+    seen();
+    el.addEventListener("scroll", seen, { passive: true });
+    return () => el.removeEventListener("scroll", seen);
+  }, []);
+  const keys = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const all = [...(box.current?.querySelectorAll<HTMLButtonElement>(".toc-item") ?? [])];
+    const at = all.indexOf(document.activeElement as HTMLButtonElement);
+    const to = e.key === "ArrowDown" ? Math.min(all.length - 1, at + 1) : e.key === "ArrowUp" ? Math.max(0, at - 1) : e.key === "Home" ? 0 : e.key === "End" ? all.length - 1 : -1;
+    if (to < 0 || !all[to]) return;
+    e.preventDefault();
+    all[to].focus({ preventScroll: true });
+    all[to].scrollIntoView({ block: "nearest" });
+  };
+  return (
+    <div ref={box} className="toc" data-more={more || undefined} onKeyDown={keys}>
+      <p className="toc-note">{detected ? "Headings found by reading the pages. May be incomplete." : "From the PDF's own bookmarks."}</p>
+      <ol className="toc-list">
+        {items.map((it, i) => (
+          <li key={i} style={{ paddingLeft: `${Math.min(it.level - 1, 3) * 0.8}rem` }}>
+            <button type="button" className="toc-item" aria-current={i === here ? "location" : undefined} onClick={() => onPick(it.page)}>
+              <span className="toc-title">{it.title}</span>
+              <span className="toc-page">{it.page}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

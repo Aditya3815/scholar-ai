@@ -1,0 +1,7 @@
+/* a paper that could not be loaded (ReaderParts LoadFailed): Try again, Reload page, the way back; the browser's own words folded away */
+.load-failed { max-width: 30rem; margin-inline: auto; }
+.load-failed .empty-actions { align-items: center; }
+.load-back { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 44px; padding-inline: 0.5rem; }
+.load-detail { margin-top: 0.6rem; color: var(--muted); font-size: 0.78rem; }
+.load-detail summary { display: inline-flex; align-items: center; min-height: 32px; cursor: pointer; }
+.load-detail code { display: block; max-width: 26rem; margin-top: 0.25rem; padding: 0.4rem 0.6rem; border-radius: var(--radius-s); background: var(--surface-2); color: var(--text); font-family: var(--font-mono); overflow-wrap: anywhere; text-align: left; }

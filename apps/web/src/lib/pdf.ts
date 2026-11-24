@@ -9,10 +9,17 @@ import { groupLines, rawItems, type Line, type OutlineItem } from "@scholar/shar
  */
 let lib: Promise<typeof PdfJs> | undefined;
 export function pdfjs(): Promise<typeof PdfJs> {
-  lib ??= import("pdfjs-dist").then((m) => {
-    m.GlobalWorkerOptions.workerSrc = workerUrl;
-    return m;
-  });
+  lib ??= import("pdfjs-dist").then(
+    (m) => {
+      m.GlobalWorkerOptions.workerSrc = workerUrl;
+      return m;
+    },
+    (e: unknown) => {
+      // a failed import is not kept: Try again (or the next paper) asks for it afresh
+      lib = undefined;
+      throw e;
+    },
+  );
   return lib;
 }
 
@@ -27,24 +34,71 @@ const OPTIONS = {
 
 export type { PDFDocumentProxy, PDFPageProxy };
 
+/**
+ * Why a paper could not be opened. "network": the file's download failed or was cut off (a dropped connection, a server hiccup), worth trying again; "chunk": a script of ours
+ * (pdf.js or its worker) could not be fetched, which after a deploy means the page is stale and must load again; "missing": the server has no file for the paper.
+ */
+const messageOf = (e: unknown): string => (e instanceof Error ? e.message : typeof e === "string" ? e : "");
+
+/** A failure to fetch one of our own script files (a lazy chunk, its style sheet, or the pdf.js worker), as each browser words it: a stale page after a deploy (lib/chunk-reload.ts). */
+export const isChunkError = (e: unknown): boolean =>
+  /dynamically imported module|importing a module script failed|error loading dynamically imported module|unable to preload css|fake worker failed|loading chunk \S+ failed/i.test(messageOf(e));
+
+export type PdfErrorKind = "password" | "invalid" | "network" | "chunk" | "missing" | "other";
+
 export class PdfError extends Error {
-  constructor(message: string, readonly kind: "password" | "invalid" | "network" | "other" = "other") {
+  constructor(
+    message: string,
+    readonly kind: PdfErrorKind = "other",
+    /** What the browser or pdf.js said, for the "Technical details" line (never shown as the message). */
+    readonly detail = "",
+  ) {
     super(message);
   }
 }
 
+/** The words people see for each kind (the raw "Failed to fetch" goes to the details). */
+export const PDF_ERROR_WORDS = {
+  network: "We couldn't load this paper. Check your connection and try again.",
+  chunk: "This page was updated while it was open. Reload the page to get the new version.",
+  missing: "The paper's file could not be found. Try adding the paper again.",
+} as const;
+
+const NETWORK = /failed to fetch|networkerror|network ?error|load failed|network connection was lost|err_network|err_connection|err_internet|aborted|the operation was aborted|body stream|unexpected end|terminated/i;
+
+/** Sorts what openPdf caught into a PdfError with words for people. */
+export function pdfErrorOf(e: unknown): PdfError {
+  if (e instanceof PdfError) return e;
+  const name = (e as { name?: string } | null)?.name;
+  const raw = e instanceof Error ? e.message : String(e ?? "");
+  const detail = [name && name !== "Error" ? name : "", raw].filter(Boolean).join(": ");
+  if (name === "PasswordException") return new PdfError("This PDF is password protected. Remove the password and upload it again.", "password", detail);
+  if (name === "InvalidPDFException" || name === "FormatError") return new PdfError("This file could not be read as a PDF.", "invalid", detail);
+  if (isChunkError(e)) return new PdfError(PDF_ERROR_WORDS.chunk, "chunk", detail);
+  if (name === "UnexpectedResponseException" || name === "ResponseException" || name === "MissingPDFException") {
+    const status = (e as { status?: number }).status ?? 0;
+    if (name === "MissingPDFException" || status === 404 || status === 410) return new PdfError(PDF_ERROR_WORDS.missing, "missing", detail);
+    return new PdfError(PDF_ERROR_WORDS.network, "network", detail);
+  }
+  if (NETWORK.test(raw)) return new PdfError(PDF_ERROR_WORDS.network, "network", detail);
+  return new PdfError("The paper could not be opened. Try again, or reload the page.", "other", detail);
+}
+
 export async function openPdf(source: { url: string } | { data: ArrayBuffer }, onProgress?: (fraction: number) => void): Promise<PDFDocumentProxy> {
-  const m = await pdfjs();
+  let m: typeof PdfJs;
+  try {
+    m = await pdfjs();
+  } catch (e) {
+    // pdf.js itself could not be fetched: a stale page after a deploy, or no network
+    const detail = e instanceof Error ? e.message : String(e);
+    throw navigator.onLine === false ? new PdfError(PDF_ERROR_WORDS.network, "network", detail) : new PdfError(PDF_ERROR_WORDS.chunk, "chunk", detail);
+  }
   try {
     const task = m.getDocument({ ...OPTIONS, ...("url" in source ? { url: source.url, withCredentials: true } : { data: new Uint8Array(source.data) }) });
     if (onProgress) task.onProgress = ({ loaded, total }: { loaded: number; total: number }) => total > 0 && onProgress(Math.min(1, loaded / total));
     return await task.promise;
   } catch (e) {
-    const name = (e as { name?: string }).name;
-    if (name === "PasswordException") throw new PdfError("This PDF is password protected. Remove the password and upload it again.", "password");
-    if (name === "InvalidPDFException" || name === "FormatError") throw new PdfError("This file could not be read as a PDF.", "invalid");
-    if (name === "UnexpectedResponseException" || name === "ResponseException") throw new PdfError("The paper could not be downloaded. Check your connection and try again.", "network");
-    throw new PdfError(e instanceof Error ? e.message : "The PDF could not be opened.");
+    throw pdfErrorOf(e);
   }
 }
 
