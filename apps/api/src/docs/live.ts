@@ -77,7 +77,18 @@ export async function liveRevoke(c: Context<HonoEnv> | null, env: RoomEnv, docId
   if (!ns) return;
   const job = (async () => {
     if (!(await liveSwitchedOn(env))) return;
-    await ns.getByName(docId).revoke(r);
+    // A Durable Object call can fail now and then (the object was moved, reset, or the connection dropped); a stub that threw is not used again, so each try makes a new one.
+    // Closing the sockets of people who lost access matters, so it is tried three times, and a failure is logged instead of being swallowed.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await ns.getByName(docId).revoke(r);
+        return;
+      } catch (e) {
+        console.warn(JSON.stringify({ level: "warn", msg: "live_revoke_failed", attempt, error: e instanceof Error ? e.message : String(e) }));
+        if (attempt >= 3) return;
+        await new Promise((ok) => setTimeout(ok, 100 * attempt));
+      }
+    }
   })();
   if (c) return later(c, job);
   await job.catch(() => {});
