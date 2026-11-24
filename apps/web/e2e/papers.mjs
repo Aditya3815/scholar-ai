@@ -35,6 +35,14 @@ const papers = [1, 2, 3].map((n) => ({
   sources: ["openalex", "s2"], score: 0.05, doiStatus: "verified",
 }));
 
+/** The words under the temporary jump mark (.pdfp-flash, paper-reader highlights fix): the text-layer spans its boxes cover, read while it is on screen. */
+const flashText = (page, scope = "") =>
+  page.evaluate((scope) => {
+    const marks = [...document.querySelectorAll(`${scope} .pdfp-flash`)].map((m) => m.getBoundingClientRect());
+    const hit = (r) => marks.some((m) => r.right > m.left + 1 && r.left < m.right - 1 && r.bottom > m.top + 1 && r.top < m.bottom - 1);
+    return [...document.querySelectorAll(`${scope} .textLayer span`)].filter((s) => !s.children.length && hit(s.getBoundingClientRect())).map((s) => s.textContent).join(" ");
+  }, scope);
+
 try {
   /* ---------- paper preview (search results, library, verifier) ---------- */
   console.log("paper preview");
@@ -160,16 +168,16 @@ try {
   await page.waitForTimeout(700);
   await shot("59-answer");
   await chip.click();
-  await page.locator(".pdf-hl").first().waitFor({ timeout: 15000 });
-  const lit = await page.locator(".pdf-hl").evaluateAll((els) => els.map((e) => e.textContent).join(" "));
+  await page.locator(".pdfp-flash").first().waitFor({ timeout: 15000 });
+  const lit = await flashText(page);
   ok(/glaucoma|retinal|convolutional/i.test(lit), `clicking it highlights the passage in the PDF ("${lit.slice(0, 60)}…")`);
   await page.locator("#ask-input").fill("How were participants recruited?");
   await page.locator("#ask-input").press("Enter");
   await page.locator(".ask-answer").nth(1).waitFor({ timeout: 30000 });
   await page.locator(".cite-chip").nth(1).click();
-  await page.locator(".pdf-hl").first().waitFor({ timeout: 15000 });
+  await page.locator(".pdfp-flash").first().waitFor({ timeout: 15000 });
   await page.waitForTimeout(600);
-  const lit2 = await page.locator(".pdf-hl").evaluateAll((els) => els.map((e) => e.textContent).join(" | "));
+  const lit2 = await flashText(page);
   ok(/Participants|Pune|hospitals/.test(lit2) && !/glaucoma|convolutional/i.test(lit2), `a second answer highlights its own passage and clears the first ("${lit2.slice(0, 70)}")`);
   ok(await until(async () => (await page.locator("#pdfv-page").inputValue()) === "2"), "and scrolls to page 2");
   await shot("60-highlight");
