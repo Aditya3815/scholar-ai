@@ -121,3 +121,18 @@ pre {
   line-height: var(--read-leading);
   max-width: var(--read-measure);
 }
+
+/*
+ * Thin scrollbars in our colours for the small scroll panes: pop-overs, menus, lists, the reader's Contents (and anything given .scroll-thin). Chromium and Safari take the
+ * ::-webkit-scrollbar rules, which draw no arrow buttons (Chrome on Windows draws arrows with scrollbar-width, so the standard properties are given only to a browser without
+ * ::-webkit-scrollbar, i.e. Firefox). The reader (.desk, the Agents drawer) uses them in every scroll area; the page's own scrollbar is left as the browser draws it.
+ */
+:root { --scroll-thumb: color-mix(in srgb, var(--muted) 42%, transparent); }
+:is(.scroll-thin, .toc, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents)::-webkit-scrollbar, :is(.scroll-thin, .toc, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents) ::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
+:is(.scroll-thin, .toc, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents)::-webkit-scrollbar-button, :is(.scroll-thin, .toc, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents) ::-webkit-scrollbar-button { display: none; }
+:is(.scroll-thin, .toc, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents)::-webkit-scrollbar-track, :is(.scroll-thin, .toc, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents) ::-webkit-scrollbar-track { background: transparent; }
+:is(.scroll-thin, .toc, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents)::-webkit-scrollbar-thumb, :is(.scroll-thin, .toc, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents) ::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 9px; background: var(--scroll-thumb) padding-box; }
+:is(.scroll-thin, .toc, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents)::-webkit-scrollbar-thumb:hover, :is(.scroll-thin, .toc, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents) ::-webkit-scrollbar-thumb:hover { background-color: var(--muted); }
+@supports not selector(::-webkit-scrollbar) {
+  :is(.scroll-thin, .toc, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents), :is(.scroll-thin, .toc, .pop, .nb-pop, .lv-pop, [role="menu"], [role="listbox"], .desk, .desk-agents) * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+}
