@@ -15,11 +15,13 @@ export type ScanEnv = LlmEnv & SearchBindings & Pick<Env, "CHAT_JUDGE">;
  */
 
 /** The search of one sub-question: what the prompt box does for a message, without the progressive lists, in the scan's scope (the regular sources, or only Indian ones). */
-export function searchFor(env: ScanEnv, scope: SearchScope = "all"): (query: string) => Promise<SearchResponse> {
+export function searchFor(env: ScanEnv, scope: SearchScope = "all", fromYear?: number | null): (query: string) => Promise<SearchResponse> {
   const se = searchEnvFrom(env);
   return async (query) => {
     // the lane keeps a scan's searches from asking the sources all at once (see GATES.litscan); waiting there is not an error, a lane that stays busy for two minutes is
-    const r = await withGate("litscan", 120_000, () => runSearch(se, query, 20, {}, scope));
+    // with a first year, the search asks for more and the papers older than it are dropped (the sources have no year filter of their own that is used here): the twenty are the newest-enough twenty
+    const found = await withGate("litscan", 120_000, () => runSearch(se, query, fromYear ? 40 : 20, {}, scope));
+    const r = fromYear ? { ...found, results: found.results.filter((p) => p.year !== null && p.year >= fromYear).slice(0, 20) } : found;
     // a search that found nothing, or that some source did not answer, leaves one line (the sources' states and error words; no person, no text of the topic)
     const bad = Object.entries(r.providers).filter(([, p]) => !p.ok);
     if (r.results.length === 0 || bad.length > 0) {

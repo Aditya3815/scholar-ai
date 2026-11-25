@@ -56,7 +56,7 @@ export const themeTitle = (item: Pick<LitscanItem, "title" | "question">): strin
 export type LitscanPlan = { topic: string; language: LitscanLanguage; items: LitscanItem[]; allowance: { limit: number; used: number; estimate: number } };
 
 /** What the browser sends to start a scan: the plan as approved, and where to search ("india": only Indian sources; absent: the regular ones). */
-export type LitscanStartRequest = { topic: string; language: LitscanLanguage; items: LitscanItem[]; scope?: SearchScope };
+export type LitscanStartRequest = { topic: string; language: LitscanLanguage; items: LitscanItem[]; scope?: SearchScope; /** Only papers from this year on (absent: any year). */ fromYear?: number };
 
 export type LitscanState = "running" | "completed" | "canceled" | "failed";
 
@@ -218,6 +218,8 @@ export type LitscanSnapshot = {
   share?: string | null;
   /** Present when the scan searched only Indian sources. */
   scope?: SearchScope;
+  /** Present when the scan read only papers from this year on. */
+  fromYear?: number;
 };
 
 /** What anyone with a shared link reads: the scan without the person, its id or its allowance. */
@@ -231,6 +233,7 @@ export type LitscanPublic = {
   createdAt: string;
   expiresAt: string;
   scope?: SearchScope;
+  fromYear?: number;
 };
 
 /** The scans of the last day, newest first, for the list on the page. */

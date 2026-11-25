@@ -15,6 +15,8 @@ export type ScanRow = {
   est_tokens: number;
   /** Where it searches (migration 0023). */
   scope: SearchScope;
+  /** The earliest publication year read (migration 0032); null: any. */
+  from_year: number | null;
   created_at: string;
   updated_at: string;
   expires_at: string;
@@ -25,10 +27,10 @@ export type StoredEvent = Exclude<LitscanEvent, { type: "progress" } | { type: "
 
 export const itemsOf = (row: Pick<ScanRow, "plan">): LitscanItem[] => JSON.parse(row.plan) as LitscanItem[];
 
-export async function createScan(db: D1Database, s: { id: string; userId: string; topic: string; language: LitscanLanguage; items: LitscanItem[]; estimate: number; scope?: SearchScope }): Promise<void> {
+export async function createScan(db: D1Database, s: { id: string; userId: string; topic: string; language: LitscanLanguage; items: LitscanItem[]; estimate: number; scope?: SearchScope; fromYear?: number | null }): Promise<void> {
   await db
-    .prepare("INSERT INTO litscans (id, user_id, topic, language, plan, est_tokens, expires_at, scope) VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now', ?7), ?8)")
-    .bind(s.id, s.userId, s.topic, s.language, JSON.stringify(s.items), s.estimate, `+${LITSCAN_KEEP_HOURS} hours`, s.scope ?? "all")
+    .prepare("INSERT INTO litscans (id, user_id, topic, language, plan, est_tokens, expires_at, scope, from_year) VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now', ?7), ?8, ?9)")
+    .bind(s.id, s.userId, s.topic, s.language, JSON.stringify(s.items), s.estimate, `+${LITSCAN_KEEP_HOURS} hours`, s.scope ?? "all", s.fromYear ?? null)
     .run();
   await appendEvent(db, s.id, "started", { type: "started", total: s.items.length });
 }
@@ -134,6 +136,7 @@ export async function snapshotOf(db: D1Database, row: ScanRow): Promise<LitscanS
     expiresAt: new Date(fromSqliteTime(row.expires_at)).toISOString(),
     estimate: row.est_tokens,
     ...(row.scope === "india" ? { scope: row.scope } : {}),
+    ...(row.from_year ? { fromYear: row.from_year } : {}),
   };
 }
 

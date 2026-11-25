@@ -20,6 +20,19 @@ beforeEach(() => {
   sql.prepare("INSERT INTO users (id, email) VALUES ('u1', 'u1@example.com'), ('u2', 'u2@example.com')").run();
 });
 
+describe("the first year of a scan", () => {
+  it("is stored, shown in the snapshot, and absent when there is none", async () => {
+    await createScan(db, { id: "y1", userId: "u1", topic: "a topic of research", language: "en", items, estimate: 4400, fromYear: 2019 });
+    await make("y2");
+    expect((await getScan(db, "y1", "u1"))!.from_year).toBe(2019);
+    expect((await snapshotOf(db, (await getScan(db, "y1", "u1"))!)).fromYear).toBe(2019);
+    expect((await snapshotOf(db, (await getScan(db, "y2", "u1"))!)).fromYear).toBeUndefined();
+  });
+  it("refuses a year the database would not keep", async () => {
+    await expect(createScan(db, { id: "y3", userId: "u1", topic: "a topic of research", language: "en", items, estimate: 1, fromYear: 1800 })).rejects.toThrow();
+  });
+});
+
 describe("a scan and its events", () => {
   it("is created running, with its plan and a started event, and read back by its owner only", async () => {
     await make();

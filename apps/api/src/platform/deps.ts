@@ -20,7 +20,7 @@ export type Deps = {
   /** The literature search as the chat and the MCP tools ask it (search/service.ts). `onSnapshot` sees the list grow as each source answers. */
   search: (q: string, o: { limit: number; scope: SearchScope; onSnapshot?: (s: SearchSnapshot) => void | Promise<void> }) => Promise<SearchResponse>;
   /** The search of one sub-question of a literature scan (litscan/model.ts: its lane and its log line). */
-  scanSearch: (scope: SearchScope) => (query: string) => Promise<SearchResponse>;
+  scanSearch: (scope: SearchScope, fromYear?: number | null) => (query: string) => Promise<SearchResponse>;
   /** Idea Check's search of an approved plan (idea/search.ts), telling `emit` its stages. */
   ideaSearch: (req: IdeaSearchRequest, emit: (e: IdeaSearchEvent) => void | Promise<void>) => Promise<IdeaSearchResult>;
   /** One reference checked (references/service.ts), for the chat's tool. */

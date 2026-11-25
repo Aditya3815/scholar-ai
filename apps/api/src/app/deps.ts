@@ -27,7 +27,7 @@ export function depsFor(env: Env): Deps {
     embedder,
     pageReader: env.AI ? workersAiReader(env.AI) : null,
     search: (q, o) => (o.onSnapshot ? searchService.run(env, { q, limit: o.limit, scope: o.scope }, { onSnapshot: o.onSnapshot }) : searchService.run(env, { q, limit: o.limit, scope: o.scope })),
-    scanSearch: (scope) => searchFor(env, scope),
+    scanSearch: (scope, fromYear) => searchFor(env, scope, fromYear),
     ideaSearch: (req, emit) => runIdeaSearch({ env: searchEnvFrom(env), embed: embedder, req, emit }),
     verifyReference: async (text) => (await referenceService.verify(env, text)).result,
     papersByDoi: (dois) => ledgerPapersByDoi(searchEnvFrom(env), dois),
