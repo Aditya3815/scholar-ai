@@ -207,7 +207,8 @@ try {
       });
       ok(f.cls === "toc-item" && f.inside && f.outline !== "none", `↓ moves the focus down the list, kept in sight with its outline (${JSON.stringify(f)})`);
       await page.keyboard.press("End");
-      ok(await toc.evaluate((el) => el.dataset.more === "start"), "at the end, the fade is only at the top");
+      // the fade follows the scroll event, a frame after the key
+      ok(await until(() => toc.evaluate((el) => el.dataset.more === "start"), { ms: 2000 }), "at the end, the fade is only at the top");
       const thumb = await toc.evaluate((el) => {
         const s = getComputedStyle(el, "::-webkit-scrollbar");
         return { width: s.width, buttons: getComputedStyle(el, "::-webkit-scrollbar-button").display };
