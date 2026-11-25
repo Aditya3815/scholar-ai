@@ -198,6 +198,26 @@ describe("live updates: refresh after another person saved (docs/design/paper-li
     expect(s.get().pages.map((p) => p.id)).toEqual(["px"]);
     expect(s.get().openId).toBe("px");
   });
+
+  it("the starter page stays when the pages read again are this window's own (its new page's save echoed by the room before its answer came)", async () => {
+    const w = world();
+    // the server makes the page at once, but its answer is held until released
+    let release = () => {};
+    const real = w.fetch.bind(w);
+    w.fetch = (url: string, init: RequestInit = {}) =>
+      init.method === "PUT" && !JSON.parse(String(init.body)).rev ? real(url, init).then((r) => new Promise<Response>((res) => (release = () => res(r)))) : real(url, init);
+    const s = w.store();
+    await s.load();
+    const id = s.addPage("Second")!;
+    await w.tick(SAVE_AFTER_MS + 10);
+    expect([...w.pages.keys()]).toEqual([id]);
+    // the room says the page changed (this window's own save); the pages are read again before the answer
+    await s.refresh({ id, rev: 1 });
+    expect(s.get().pages.map((p) => p.title)).toEqual([STARTER_TITLE, "Second"]);
+    release();
+    await w.tick(10);
+    expect(s.get().pages.map((p) => p.title)).toEqual([STARTER_TITLE, "Second"]);
+  });
 });
 
 describe("useNotebook's store", () => {
