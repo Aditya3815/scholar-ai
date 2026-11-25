@@ -1,13 +1,15 @@
 import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
+import { STREAMS, STREAM_FALLBACK, type StreamName } from "@scholar/shared";
 import type { Env } from "./platform/env";
 import { devOptions } from "./platform/dev";
 
 /**
  * One way to open an event stream, for every endpoint that has one (chat, Idea Check, paper Q&A, and the open-access ingest to come).
  *
- * - **A terminal event, always.** Every stream ends with exactly one event of `terminal` (done, answer or error, whichever that endpoint uses). If the work finishes or
- *   throws without sending one, `fallback` is sent; a second terminal event is dropped. The browser therefore never has to guess whether a silent end was a success.
+ * - **A terminal event, always.** Every stream ends with exactly one of the events that end it in the stream table (`STREAMS[stream].end`, shared stream-shape.ts: done, answer,
+ *   critique or error). If the work finishes or throws without sending one, `STREAM_FALLBACK` (shared protocol/streams.ts) is sent; a second terminal event is dropped. The browser
+ *   therefore never has to guess whether a silent end was a success.
  * - **A keep-alive line** (a comment, `: keep-alive`, ignored by the browser's reader) every 15 seconds while the stream is open, so a proxy or a mobile network that cuts
  *   an idle connection (the standard's own warning) does not cut an answer the model is still thinking about (the first word of an answer takes 9 to 12 s).
  * - **Leaving stops the work**: when the reader goes away `gone` turns true, nothing more is written and `abort` (if given) is aborted, which cancels the model call.
@@ -21,32 +23,32 @@ export type SseSession<E extends { type: string }> = {
   readonly gone: boolean;
 };
 
-type Options<E extends { type: string }> = {
-  /** The event types that end the stream. */
-  terminal: readonly E["type"][];
-  /** Sent if the work ended without a terminal event. Its type must be one of `terminal`. */
-  fallback: E;
-  /** Aborted when the reader leaves. */
-  abort?: AbortController;
-};
-
 /** In development and tests the interval can be shortened with the variable SSE_KEEPALIVE_MS (never below 50 ms, and only with the dev switch); otherwise it is fixed. */
 function keepAliveMs(c: Context): number {
   const env: Pick<Env, "ENABLE_DEV_ROUTES" | "SSE_KEEPALIVE_MS"> = c.env ?? {};
   return devOptions(env).keepAliveMs ?? KEEP_ALIVE_MS;
 }
 
-export function sseStream<E extends { type: string }>(c: Context, opts: Options<E>, run: (session: SseSession<E>) => Promise<void>): Response {
+type Options = {
+  /** Which stream of the table this is: its end events end it. */
+  stream: StreamName;
+  /** Aborted when the reader leaves. */
+  abort?: AbortController;
+};
+
+export function sseStream<E extends { type: string }>(c: Context, { stream, abort }: Options, run: (session: SseSession<E>) => Promise<void>): Response {
+  const terminal: readonly string[] = STREAMS[stream].end;
+  const fallback = STREAM_FALLBACK as unknown as E;
   return streamSSE(c, async (sse) => {
     let gone = false;
     let ended = false;
     sse.onAbort(() => {
       gone = true;
-      opts.abort?.abort();
+      abort?.abort();
     });
     const send = async (e: E) => {
       if (gone) return;
-      if (opts.terminal.includes(e.type)) {
+      if (terminal.includes(e.type)) {
         if (ended) return;
         ended = true;
       }
@@ -63,6 +65,6 @@ export function sseStream<E extends { type: string }>(c: Context, opts: Options<
     } finally {
       clearInterval(timer);
     }
-    if (!ended) await send(opts.fallback);
+    if (!ended) await send(fallback);
   });
 }

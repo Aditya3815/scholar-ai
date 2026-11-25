@@ -76,7 +76,7 @@ ideaRoutes.post("/search", async (c) => {
   if (!req) return deny(c, 400, "invalid_plan", "The search plan is empty", "Keep at least one keyword search, or a description of a few sentences.");
 
   const deps = depsOf(c);
-  return sseStream<IdeaSearchEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" } }, async (sse) => {
+  return sseStream<IdeaSearchEvent>(c, { stream: "idea" }, async (sse) => {
     const send = sse.send;
     try {
       const result = await deps.ideaSearch(req, send);
@@ -108,7 +108,7 @@ ideaRoutes.post("/compare", async (c) => {
   const stream = modelFor(deps, PROFILES.ideaCompare, user.id, abort.signal);
   if (!stream) return deny(c, 503, "ai_unavailable", "Comparing is unavailable right now");
 
-  return sseStream<IdeaCompareEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (sse) => {
+  return sseStream<IdeaCompareEvent>(c, { stream: "idea", abort }, async (sse) => {
     const send = sse.send;
     try {
       const comparison = await compareIdea({
@@ -158,7 +158,7 @@ ideaRoutes.post("/insights", async (c) => {
   const stream = modelFor(deps, PROFILES.ideaInsights, user.id, abort.signal);
   if (!stream) return deny(c, 503, "ai_unavailable", "Reading the papers is unavailable right now");
 
-  return sseStream<IdeaInsightsEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (sse) => {
+  return sseStream<IdeaInsightsEvent>(c, { stream: "idea", abort }, async (sse) => {
     const send = sse.send;
     try {
       const insights = await insightsIdea({

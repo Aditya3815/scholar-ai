@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import type { EnvPick } from "./platform/env";
+import { deny } from "./problem";
 
 export type LimitEnv = EnvPick<never, "SEARCH_LIMITER" | "VERIFY_LIMITER" | "ASK_LIMITER" | "API_LIMITER">;
 
@@ -27,7 +28,7 @@ export function rateLimit(): MiddlewareHandler<{ Bindings: LimitEnv }> {
     if (limiter) {
       if (!(await allows(limiter, c.req.header("cf-connecting-ip") ?? "unknown"))) {
         c.header("Retry-After", "60");
-        return c.json({ type: "rate_limited", title: "Too many requests", detail: "Please wait a minute and try again." }, 429);
+        return deny(c, 429, "rate_limited", "Too many requests", "Please wait a minute and try again.");
       }
     }
     return next();

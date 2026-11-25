@@ -1532,3 +1532,40 @@ Verification (this branch on main 37629ad, ports 8794/9917; npm install first: t
 | perf.mjs alone, branch and main alternately, four runs each, under the browser lock (13:22 to 13:32) | intro desktop FCP branch 4,624 / 4,516 / 4,596 / 4,644 ms, main 4,688 / 4,608 / 4,768 / 4,672; intro phone branch 4,480 / 4,396 / 4,512 / 4,488, main 4,500 / 4,468 / 4,508 / 4,524; home desktop branch 3,840 / 3,820 / 3,820 / 3,868, main 3,908 / 3,860 / 3,880 / 3,820; check references LCP branch 4,852 / 4,848 / 4,876 / 4,888, main 4,876 / 4,868 / 4,904 / 4,888 |
 
 The branch is now faster than main on every paint line (intro desktop by about 90 ms, phone 30, home 30). The intro's desktop line (4,500 ms) failed for main too in every one of these runs: the machine was slower than in the morning, when main passed it at 4,436 ms. Before the two changes above, alternating runs (just after the first browser run, on main 780ec3d) had the branch 50 to 200 ms slower.
+
+### W4, step 4: F9, server half, one wire contract (21 Nov 2026, branch `w4-server`, rebased onto main d57ab3f: the web half #59, the picker check #60, the invitation's stored cover)
+
+Commits (in order): every hand-written refusal pinned byte for byte (`problem-replies.test.ts`); one stream error type (`protocol/streams.ts`); sseStream from the stream table; every refusal through `deny()`.
+
+Done as planned:
+- `shared/protocol/streams.ts`: `StreamError`, the one error event of every stream (the chat's, a paper question's, Idea Check's three and the literature scan's unions named six copies), and `STREAM_FALLBACK`, the event the server sends when a stream's work ended without its end event.
+- `sseStream(c, { stream, abort }, run)` (apps/api/src/sse.ts) ends a stream with the events of kind "end" in the stream table and with `STREAM_FALLBACK`; the eight routes (chat; a paper's question and the reader's agents; open-access questions; Idea Check's search, comparison and insights; the literature scan) name their stream instead of a terminal list and a fallback each. The chat's and the literature scan's own catch blocks send `STREAM_FALLBACK`.
+- The table's `end` lists are derived from its kinds (they were a second copy, which a test compared with the kinds); `stream-shape.test.ts` now holds the lists themselves (chat done/error, ask answer/critique/error, idea and litscan done/error), so a change to what ends a stream fails a test instead of passing a self-check.
+- Every refusal the API wrote by hand goes through `deny()`: the account's 2, the admin's 8, 7 of the development routes' 8, the unknown sign-in provider, the strict check's 3, the live room's 2 (status and type chosen from the room's answer), the drawing conflict (its strokes and revision as extra fields), the references' 2, the app's 404 and 500 (its request id as an extra field) and the rate limit. `deny()` takes 422 and 500 too; `problem()` builds the same body for the Idempotency-Key's 4 replies, which are made without a request's context (a Response with its Retry-After).
+
+Counts, main 1088ea9 (before the web half; nothing it changed is counted here) -> after (apps/api/src and packages/shared/src without tests):
+- terminal lists written per route 8 -> 0 (the table); the fallback event written out 10 -> 1 (`STREAM_FALLBACK`; 8 sseStream options and 2 catch blocks); the stream error type 6 -> 1.
+- problem bodies written by hand (`c.json({ type: ...` and idempotency's 4) 35 -> 1 (the development LLM tool, below).
+- layers.test.ts ALLOW: unchanged (api 114, shared 52, web 57): the new imports are of `problem.ts` from inside the API and type imports of `protocol/`, which the rules allow.
+
+Special cases removed: the per-route terminal list and fallback (eight options objects); the hand-built problem bodies, which each could drift from `deny()`'s shape (a `detail` of "" or a missing key).
+
+Kept against the plan, and why:
+- The table of event kinds stays in `stream-shape.ts`, not `protocol/streams.ts`: shared's rule lets `protocol/` import only text, ids, vocab and protocol types, and the event unions live in chat.ts, documents.ts, idea.ts, litscan.ts and oa.ts. Moving them is F2's work (W5). `protocol/streams.ts` holds what has no such dependency: the error type and the fallback.
+- The routes of the ask stream (a paper's question, open-access questions) now count `critique` as an end event too, as the table always did; they never send one, so nothing on the wire changes.
+- The development LLM tool (`/api/v1/dev/llm`) keeps its own reply: its type is the thrown error's name (QuotaError, NoRouteError, ...), not a ProblemType, and it is the raw gateway tool of local runs (F8 kept its status map for the same reason).
+- Not done, left for later waves: the chat's event list still touches several places when an event is added (F17's turn pipeline); `stream-shape.ts` keeps its one-stream rules inside the checker (the ingest progress and the scan's done/total); the page's admin views still restate the admin routes' and MCP's literals (`AdminMcp.tsx`, `AdminOps.tsx`: F21).
+
+Verification (this branch on main d57ab3f, ports 8794/9917):
+
+| check | result |
+| --- | --- |
+| typecheck | clean |
+| `npm test` | api 3,855 passed / 2 skipped (169 files; main + problem-replies.test.ts's 10), web 280, shared 836 / 1 skipped; after the rebase onto d57ab3f the api run under load timed out 4 cases of clean-route.test.ts (its 5 s limit, as in W4 step 2), which pass alone, 27 of 27 |
+| test:scripts, eval | 191 passed; 371 passed / 1 skipped |
+| problem-replies.test.ts | written before the change (36 replies), passes unchanged after it |
+| route-guard table, production test | pass untouched |
+| integration, API, `--run=default,reader-on,share-on,mcp-on,trending-on` (on main 1088ea9, before the rebase) | 1,507 checks, all passed |
+| build, budget, contrast | built; first-load scripts 228.1 KB of 250 (the web half's; this branch changes no page code); 0 contrast failures |
+| integration, API, `--run=default,reader-on,share-on` (after the rebase) | 1,296 checks, all passed |
+| integration, `--browser --run=default` | 3,525 ok, 2 FAIL: the intro's first contentful paint (desktop 4,684 ms, phone 4,696 ms, limit 4,500); this branch changes no page code (the page is main's build), so it is the machine (the other paint lines passed, and main failed the same line on the same machine on 21 Nov). The library suite's "save while signed out" click that timed out in a stopped run on 21 Nov passed |

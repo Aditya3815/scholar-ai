@@ -22,7 +22,7 @@ export type StreamName = "chat" | "ask" | "idea" | "litscan";
 
 type Spec = {
   kinds: Record<string, EventKind>;
-  /** the event types that close the stream: exactly one, and last */
+  /** the event types that close the stream (exactly one, and last): those of kind "end". The server ends each stream with one of them (apps/api/src/sse.ts). */
   end: string[];
   /** a text event type, and the final event that replaces what it wrote (nothing of that text may come after the final one) */
   replaced: Record<string, string>;
@@ -79,11 +79,13 @@ const LITSCAN: Record<LitscanEvent["type"], EventKind> = {
   error: "end",
 };
 
+const ends = (kinds: Record<string, EventKind>): string[] => Object.keys(kinds).filter((t) => kinds[t] === "end");
+
 export const STREAMS: Record<StreamName, Spec> = {
-  chat: { kinds: CHAT, end: ["done", "error"], replaced: { token: "answer", general_token: "general" }, progressFields: { step: ["type", "step"] } },
-  ask: { kinds: ASK, end: ["answer", "critique", "error"], replaced: { delta: "answer" }, progressFields: { stage: ["type", "stage"], ingest: ["type", "status", "progress", "source", "started"] } },
-  idea: { kinds: IDEA, end: ["done", "error"], replaced: {}, progressFields: { stage: ["type", "stage"] } },
-  litscan: { kinds: LITSCAN, end: ["done", "error"], replaced: {}, progressFields: { worker: ["type", "seq", "idx", "stage"], progress: ["type", "done", "total"] } },
+  chat: { kinds: CHAT, end: ends(CHAT), replaced: { token: "answer", general_token: "general" }, progressFields: { step: ["type", "step"] } },
+  ask: { kinds: ASK, end: ends(ASK), replaced: { delta: "answer" }, progressFields: { stage: ["type", "stage"], ingest: ["type", "status", "progress", "source", "started"] } },
+  idea: { kinds: IDEA, end: ends(IDEA), replaced: {}, progressFields: { stage: ["type", "stage"] } },
+  litscan: { kinds: LITSCAN, end: ends(LITSCAN), replaced: {}, progressFields: { worker: ["type", "seq", "idx", "stage"], progress: ["type", "done", "total"] } },
 };
 
 type Ev = { type?: unknown; [k: string]: unknown };

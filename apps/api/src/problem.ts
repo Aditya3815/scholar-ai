@@ -2,11 +2,13 @@ import type { ProblemType } from "@scholar/shared";
 import type { Context } from "hono";
 
 /** The statuses the API answers with when it refuses or fails a request. */
-export type ProblemStatus = 400 | 401 | 403 | 404 | 409 | 413 | 415 | 429 | 502 | 503;
+export type ProblemStatus = 400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 429 | 500 | 502 | 503;
 
 /**
  * The API's error reply: `{ type, title }`, with a `detail` (what to do about it) and any `extra` fields when given. The browser reads `type` to decide what to say;
  * `title` and `detail` are for the person. One place, so every route answers a refusal in the same shape.
  */
-export const deny = (c: Context, status: ProblemStatus, type: ProblemType, title: string, detail?: string, extra?: Record<string, unknown>) =>
-  c.json({ type, title, ...(detail ? { detail } : {}), ...extra }, status);
+export const deny = (c: Context, status: ProblemStatus, type: ProblemType, title: string, detail?: string, extra?: Record<string, unknown>) => c.json(problem(type, title, detail, extra), status);
+
+/** The body of a refusal, for a reply made without a request's context (the Idempotency-Key's, idempotency.ts). */
+export const problem = (type: ProblemType, title: string, detail?: string, extra?: Record<string, unknown>) => ({ type, title, ...(detail ? { detail } : {}), ...extra });

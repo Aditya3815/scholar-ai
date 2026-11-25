@@ -10,6 +10,7 @@ import { PRIVACY_VERSION } from "@scholar/shared";
 import { listNotebookImages, shareExport } from "../docs/service";
 import { eraseAccount } from "./erase";
 import type { HonoEnv } from "../platform/env";
+import { deny } from "../problem";
 
 export const accountRoutes = new Hono<HonoEnv>();
 
@@ -147,7 +148,7 @@ accountRoutes.post("/privacy-ack", async (c) => {
   if (got instanceof Response) return got;
   const { user } = got;
   const body = (await readJson(c)) as { version?: unknown } | null;
-  if (body?.version !== PRIVACY_VERSION) return c.json({ type: "outdated", title: "That text has changed", detail: "Reload the page and read the current text." }, 400);
+  if (body?.version !== PRIVACY_VERSION) return deny(c, 400, "outdated", "That text has changed", "Reload the page and read the current text.");
   await c.env.DB.prepare("UPDATE users SET privacy_ack = ?2, privacy_ack_at = datetime('now') WHERE id = ?1").bind(user.id, PRIVACY_VERSION).run();
   return c.json({ ok: true, privacyAck: PRIVACY_VERSION });
 });
@@ -158,7 +159,7 @@ accountRoutes.delete("/", async (c) => {
   if (got instanceof Response) return got;
   const { user } = got;
   const body = (await readJson(c)) as { confirm?: unknown } | null;
-  if (body?.confirm !== "DELETE") return c.json({ type: "confirmation_required", title: 'Send {"confirm":"DELETE"}' }, 400);
+  if (body?.confirm !== "DELETE") return deny(c, 400, "confirmation_required", 'Send {"confirm":"DELETE"}');
 
   // Files first (the rows that name them disappear with the user), and a deletion marker before both: see account/erase.ts.
   await eraseAccount(c.env, user.id);

@@ -7,6 +7,7 @@ import { configuredProviders, type ProviderId } from "./providers";
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, createSession, destroySession, userFromSession } from "./session";
 import { resolveUser } from "./users";
 import type { HonoEnv } from "../platform/env";
+import { deny } from "../problem";
 
 
 export const authRoutes = new Hono<HonoEnv>();
@@ -35,7 +36,7 @@ authRoutes.post("/logout", async (c) => {
 
 authRoutes.get("/:provider/start", async (c) => {
   const def = configuredProviders(c.env).find((p) => p.id === c.req.param("provider"));
-  if (!def) return c.json({ type: "not_found", title: "Unknown or unconfigured provider" }, 404);
+  if (!def) return deny(c, 404, "not_found", "Unknown or unconfigured provider");
 
   // ?link=1 while signed in attaches this provider to the current account instead of logging in.
   let linkUserId: string | null = null;

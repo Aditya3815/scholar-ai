@@ -555,7 +555,7 @@ documentRoutes.post("/:id/ask", async (c) => {
     const abort = new AbortController();
     const stream = modelFor(deps, PROFILES.docsAskStream, user.id, abort.signal);
     if (!stream) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
-    return sseStream<AskStreamEvent>(c, { terminal: ["answer", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (sse) => {
+    return sseStream<AskStreamEvent>(c, { stream: "ask", abort }, async (sse) => {
       const send = sse.send;
       try {
         const answer = await answerQuestionStream({ question, chunks, embed, stream, meta: { id: randomId(), createdAt: Date.now() }, emit: send, topK: deps.dev.topK });
@@ -640,7 +640,7 @@ async function agentAnswer(
     const abort = new AbortController();
     const stream = modelFor(deps, PROFILES.docsAskStream, a.user, abort.signal);
     if (!stream) return deny(c, 503, "ai_unavailable", "Answering is unavailable right now");
-    return sseStream<AskStreamEvent>(c, { terminal: ["answer", "critique", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (sse) => {
+    return sseStream<AskStreamEvent>(c, { stream: "ask", abort }, async (sse) => {
       try {
         const end = await run.stream(stream, sse.send);
         if (sse.gone) return; // the reader left: nothing to send
@@ -789,7 +789,7 @@ documentRoutes.put("/:id/ink", async (c) => {
       : await c.env.DB.prepare("UPDATE doc_ink SET data = ?2, rev = rev + 1, updated_at = datetime('now') WHERE doc_id = ?1 AND rev = ?3").bind(row.id, data, body.rev).run();
   if ((res.meta.changes ?? 0) === 0) {
     const now = await c.env.DB.prepare("SELECT data, rev FROM doc_ink WHERE doc_id = ?1").bind(row.id).first<{ data: string; rev: number }>();
-    return c.json({ type: "conflict", title: "This paper was drawn on in another window", strokes: now ? (JSON.parse(now.data) as unknown) : [], rev: now?.rev ?? 0 }, 409);
+    return deny(c, 409, "conflict", "This paper was drawn on in another window", undefined, { strokes: now ? (JSON.parse(now.data) as unknown) : [], rev: now?.rev ?? 0 });
   }
   return c.json({ rev: body.rev + 1 });
 });

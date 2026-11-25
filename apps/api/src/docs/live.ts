@@ -3,6 +3,7 @@ import { liveColour, liveSlotOfId, type LiveRole } from "@scholar/shared";
 import type { EnvPick, HonoEnv } from "../platform/env";
 import { liveOnFor, liveSwitchedOn } from "./live-flag";
 import { LIVE_WHO_HEADER, type LiveRevoke, type LiveSignal, type LiveWho } from "./live-presence";
+import { deny } from "../problem";
 
 /**
  * The Worker's side of a paper's room (docs/design/paper-live.md, section 2): joining it after the paper's gate, and telling it, after a write, that something changed or that someone's access
@@ -34,12 +35,12 @@ export async function joinRoom(
   q: { docId: string; user: { id: string; name: string | null }; role: LiveRole; via: "owner" | "member" | "link"; memberId: string | null },
 ): Promise<Response> {
   const ns = c.env.PAPER_ROOM;
-  if (!ns) return c.json({ type: "unavailable", title: "Live updates are not available here" }, 503);
+  if (!ns) return deny(c, 503, "unavailable", "Live updates are not available here");
   const colour = await colourOf(c.env.DB, q.docId, { userId: q.user.id, via: q.via, memberId: q.memberId });
   const who: LiveWho = { userId: q.user.id, name: (q.user.name ?? "").trim().slice(0, 80) || "Someone", colour, role: q.role, via: q.via, memberId: q.memberId };
   const res = await ns.getByName(q.docId).fetch(new Request("https://paper-room/connect", { headers: { Upgrade: "websocket", [LIVE_WHO_HEADER]: JSON.stringify(who) } }));
   // a fresh response (its headers can be changed by the app's middleware), with the room's socket
-  if (res.status !== 101 || !res.webSocket) return c.json({ type: res.status === 429 ? "rate_limited" : "unavailable", title: res.status === 429 ? "This paper has as many people open as it can hold" : "Live updates are not available now" }, res.status === 429 ? 429 : 503);
+  if (res.status !== 101 || !res.webSocket) return deny(c, res.status === 429 ? 429 : 503, res.status === 429 ? "rate_limited" : "unavailable", res.status === 429 ? "This paper has as many people open as it can hold" : "Live updates are not available now");
   return new Response(null, { status: 101, webSocket: res.webSocket });
 }
 

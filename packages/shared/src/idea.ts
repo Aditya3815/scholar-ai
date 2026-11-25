@@ -1,4 +1,5 @@
 import type { Paper } from "./index";
+import type { StreamError } from "./protocol/streams";
 
 /**
  * Idea Check, step M1: a researcher brings an idea (a file or a paragraph) and we find the papers closest to it.
@@ -63,7 +64,7 @@ export type IdeaSearchEvent =
   | { type: "stage"; stage: "searching" | "ranking" | "checking" }
   | { type: "papers"; papers: IdeaPaper[]; searched: IdeaSearched[] }
   | { type: "done"; result: IdeaSearchResult }
-  | { type: "error"; code: string; title: string; detail?: string };
+  | StreamError;
 
 /* ---------------------------------------------------------------- M2: compare the closest papers with the idea */
 
@@ -126,7 +127,7 @@ export type IdeaCompareRequest = {
 export type IdeaCompareEvent =
   | { type: "stage"; stage: "reading" | "comparing" | "checking" }
   | { type: "done"; comparison: IdeaComparison }
-  | { type: "error"; code: string; title: string; detail?: string };
+  | StreamError;
 
 /* ---------------------------------------------------------------- M3: gaps, feasibility, an answer, a report */
 
@@ -180,4 +181,4 @@ export type IdeaInsights = {
 export type IdeaInsightsEvent =
   | { type: "stage"; stage: "reading" | "analysing" | "checking" }
   | { type: "done"; insights: IdeaInsights }
-  | { type: "error"; code: string; title: string; detail?: string };
+  | StreamError;

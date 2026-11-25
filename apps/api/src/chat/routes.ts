@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { ABSTRACTS_NOTICE, isLaneReason, MARK, stripInvisible, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MAX_OA_ABSTRACT_CHARS, MIN_SINCE_YEAR, type AskStreamEvent, type ChatRetraction, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, refTally, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
+import { ABSTRACTS_NOTICE, STREAM_FALLBACK, isLaneReason, MARK, stripInvisible, FOLLOWUP_UNREAD_NOTICE, FOLLOW_UP_TOKENS_ESTIMATE, MAX_CHAT_BODY_BYTES, MAX_OA_ABSTRACT_CHARS, MIN_SINCE_YEAR, type AskStreamEvent, type ChatRetraction, NOTHING_NOTICE, NO_TOPIC_TEXT, PARTIAL_NOTICE, YEAR_FILTER_FEW, YEAR_FILTER_SEARCH_LIMIT, cleanAutoMessage, cleanChatMessage, detectLanguage, isSearchScope, refTally, isSmallTalk, languageWithContext, needsContext, offlineRoute, ruleRoute, slimForInterim, smallTalkReply, type ChatAnswer, type ChatCitation, type ChatConfig, type ChatContextInfo, type ChatEvent, type TightenResponse, type ChatNoAnswer, type MessageReading as Reading, type Paper, type Route, type SearchResponse, type SearchScope, type SearchSnapshot, type ThinkLine } from "@scholar/shared";
 import { currentUser, requireUser } from "../auth/service";
 import { readJson } from "../platform/http/body";
 import type { Complete, StreamComplete } from "../platform/llm/port";
@@ -217,7 +217,7 @@ chatRoutes.post("/", async (c) => {
   const started = Date.now();
 
   const abort = new AbortController();
-  return sseStream<ChatEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" }, abort }, async (s) => {
+  return sseStream<ChatEvent>(c, { stream: "chat", abort }, async (s) => {
     const send = s.send;
     // M2: the Thinking block's lines, only with CHAT_THINK "on" (with it off nothing below sends one, and the stream is what it was). A line is never logged: it goes to the page and nowhere else.
     const thinkOn = (await gate(c.env, "CHAT_THINK")) === "on";
@@ -797,7 +797,7 @@ chatRoutes.post("/", async (c) => {
       await done(answer.grounded, answer.grounded ? undefined : answer.enough ? "not_grounded" : "not_answered");
     } catch (e) {
       console.error(JSON.stringify({ level: "error", msg: "chat_stream_failed", error: e instanceof Error ? e.name : "unknown" }));
-      await send({ type: "error", code: "internal_error", title: "Something went wrong" });
+      await send(STREAM_FALLBACK);
     } finally {
       await countMessage();
     }
@@ -905,7 +905,7 @@ chatRoutes.post("/tighten", async (c) => {
   if (got instanceof Response) return got;
   const { user } = got;
   // the switch that turns the support judge off (CHAT_JUDGE=off) turns the strict check off too: a page that was opened before it still shows the button
-  if (killSwitch(c.env, "CHAT_JUDGE") === "off") return c.json({ type: "unavailable", title: "The strict check is switched off", detail: "Try again later." }, 503);
+  if (killSwitch(c.env, "CHAT_JUDGE") === "off") return deny(c, 503, "unavailable", "The strict check is switched off", "Try again later.");
   // a limit on the size of the body, from the most the page can send (bug B7: this body was read with none)
   const sent = await readJson(c, MAX_TIGHTEN_BODY_BYTES);
   if (sent.tooLarge) return deny(c, 413, "too_large", "That is too much text", "Send a shorter message.");
@@ -926,8 +926,8 @@ chatRoutes.post("/tighten", async (c) => {
   if (report) logJudged({ ...report, verdicts: undefined, rewrites: report.rewrites?.map((x) => ({ c: x.c, text: "", ...(x.accepted === undefined ? {} : { accepted: x.accepted }) })) });
   if (!judged) {
     return quota
-      ? c.json({ type: "quota", title: "Today's AI allowance is used up", detail: "The strict check uses about 5,000 tokens. It resets at 00:00 UTC." }, 429)
-      : c.json({ type: "unavailable", title: "The strict check could not be done", detail: "Try again in a moment." }, 503);
+      ? deny(c, 429, "quota", "Today's AI allowance is used up", "The strict check uses about 5,000 tokens. It resets at 00:00 UTC.")
+      : deny(c, 503, "unavailable", "The strict check could not be done", "Try again in a moment.");
   }
   const answer: ChatAnswer = { text: judged.text, citations: judged.citations, grounded: judged.grounded, checked: judged.checked, leftOut: judged.leftOut, rewritten: judged.rewritten, strict: true };
   const changed = judged.leftOut > 0 || judged.rewritten > 0 || judged.text !== text;

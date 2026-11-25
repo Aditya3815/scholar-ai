@@ -13,6 +13,7 @@ import {
   type LitscanPublic,
   type LitscanPlan,
   type LitscanSnapshot,
+  STREAM_FALLBACK,
 } from "@scholar/shared";
 import { requireUser, type Door } from "../auth/service";
 import { readJson } from "../platform/http/body";
@@ -177,7 +178,7 @@ litscanRoutes.get("/:id/events", async (c) => {
   // a quiet scan is asked less and less often (a scan is a minute or two of work; the first answers come fast, the long waits do not need a read a second)
   const polls = devOptions(c.env).scanPollsMs ?? STREAM_POLLS_MS;
 
-  return sseStream<LitscanEvent>(c, { terminal: ["done", "error"], fallback: { type: "error", code: "internal_error", title: "Something went wrong" } }, async (s) => {
+  return sseStream<LitscanEvent>(c, { stream: "litscan" }, async (s) => {
     const send = s.send;
     try {
       const before = await db.prepare("SELECT COUNT(*) AS n FROM litscan_events WHERE scan_id = ?1 AND type = 'part' AND seq <= ?2").bind(id, after).first<{ n: number }>();
@@ -206,7 +207,7 @@ litscanRoutes.get("/:id/events", async (c) => {
       }
     } catch (e) {
       console.error(JSON.stringify({ level: "error", msg: "litscan_stream_failed", error: e instanceof Error ? e.name : "unknown" }));
-      await send({ type: "error", code: "internal_error", title: "Something went wrong" });
+      await send(STREAM_FALLBACK);
     }
   });
 });
