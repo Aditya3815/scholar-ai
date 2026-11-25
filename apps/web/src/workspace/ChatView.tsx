@@ -6,6 +6,9 @@ import { stripMarks, GENERAL_LABEL, INDIA_SCOPE_LABEL, LEFT_OUT_LABEL, MAX_CHAT_
 import { SignInDialog } from "../components/SignInDialog";
 import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
+import { allowanceMayHaveChanged } from "../lib/allowance";
+import { ResultFilters } from "./ResultFilters";
+import { NO_REFINE, refine, yearSpan, type Refine } from "../lib/refine";
 import { cancelTighten, editMessage, retryReply, sendMessage, showVersion, tightenReply, type EditResult } from "../lib/chat";
 import { fitField } from "../lib/autogrow";
 import { useCopy } from "../lib/copy";
@@ -507,15 +510,23 @@ function ReplyActions({ msg, onRetry }: { msg: AssistantMsg; onRetry: (id: strin
  * again for a word. `flashN` is the number of the card that is being pointed at now (0 for none), a number and not the flash object, so that only the reply that holds the card is touched when one is pointed at.
  */
 const PaperList = memo(function PaperList({ msgId, papers, flashN, working }: { msgId: string; papers: Paper[]; flashN: number; working: boolean }) {
-  const preview = useCallback((paper: Paper) => openPreview(paper, papers), [papers]);
+  const [view, setView] = useState<Refine>(NO_REFINE);
+  const shown = useMemo(() => refine(papers, view), [papers, view]);
+  const span = useMemo(() => yearSpan(papers), [papers]);
+  const preview = useCallback((paper: Paper) => openPreview(paper, shown.map((s) => s.paper)), [shown]);
   return (
-    <ol className="chat-papers" aria-label={`${papers.length} papers found`}>
-      <AnimatePresence initial={false}>
-        {papers.map((p, i) => (
-          <ResultCard key={p.id} paper={p} index={Math.min(i, 5)} onPreview={preview} anchor={{ id: `p-${msgId}-${i + 1}`, number: i + 1, flash: flashN === i + 1 }} settled={!working} />
-        ))}
-      </AnimatePresence>
-    </ol>
+    <>
+      {papers.length >= 4 && !working && <ResultFilters value={view} onChange={setView} shown={shown.length} total={papers.length} span={span} />}
+      {shown.length === 0 && <p className="rf-none">No paper matches these filters. <button type="button" className="rf-chip" onClick={() => setView(NO_REFINE)}>Reset</button></p>}
+      <ol className="chat-papers" aria-label={`${shown.length} papers shown`}>
+        <AnimatePresence initial={false}>
+          {shown.map(({ paper: p, index: i }, k) => (
+            // the number on a card is its place in the reply's own list, whatever the filters do: the answer's [n] marks point at it
+            <ResultCard key={p.id} paper={p} index={Math.min(k, 5)} onPreview={preview} anchor={{ id: `p-${msgId}-${i + 1}`, number: i + 1, flash: flashN === i + 1 }} settled={!working} />
+          ))}
+        </AnimatePresence>
+      </ol>
+    </>
   );
 });
 
@@ -542,6 +553,12 @@ const REPLY_IN = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }
  */
 const AssistantTurn = memo(function AssistantTurn({ msg, text, signedIn, flashN, onCite, onRetry, onChange, onRefine, onOpenPage, onDelete }: { msg: AssistantMsg; text: string; signedIn: boolean; flashN: number; onCite: (msgId: string, n: number) => void; onRetry: (id: string, as?: "search" | "anyway") => void; onChange: ChangeTool; onRefine: (text: string) => void; onOpenPage: (to: "idea" | "litscan", text: string) => void; onDelete: () => void }) {
   const working = msg.status === "working";
+  // a reply that has just finished may have spent tokens: the ring in the menu asks for the new number
+  const wasWorkingForRing = useRef(working);
+  useEffect(() => {
+    if (wasWorkingForRing.current && !working) allowanceMayHaveChanged();
+    wasWorkingForRing.current = working;
+  }, [working]);
   const byN = (n: number) => msg.papers[n - 1];
   const answer = msg.answer?.grounded ? msg.answer : null;
   const titleOf = (n: number) => byN(n)?.title ?? `paper ${n}`;

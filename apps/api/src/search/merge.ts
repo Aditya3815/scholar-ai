@@ -1,5 +1,6 @@
 import { titleKey, type Paper } from "@scholar/shared";
 import type { ProviderPaper } from "./types";
+import { rerank } from "./rank";
 
 const RRF_K = 60;
 
@@ -7,7 +8,7 @@ const RRF_K = 60;
  * DOI (phir PMID, phir title+year) se dedup, aur reciprocal rank fusion se ranking.
  * Field merge: khali fields bharo, lamba abstract rakho, max citation count, retracted = OR.
  */
-export function mergeAndRank(lists: Record<string, ProviderPaper[]>, limit: number): Paper[] {
+export function mergeAndRank(lists: Record<string, ProviderPaper[]>, limit: number, query?: string, pool: number = limit): Paper[] {
   const papers: Paper[] = [];
   const byDoi = new Map<string, Paper>();
   const byPmid = new Map<string, Paper>();
@@ -65,7 +66,9 @@ export function mergeAndRank(lists: Record<string, ProviderPaper[]>, limit: numb
     });
   }
 
-  return papers
-    .sort((a, b) => b.score - a.score || (b.citationCount ?? 0) - (a.citationCount ?? 0))
-    .slice(0, limit);
+  const fused = papers.sort((a, b) => b.score - a.score || (b.citationCount ?? 0) - (a.citationCount ?? 0));
+  // with the words that were searched, the fusion order is only one of the inputs (src/search/rank.ts); without them (Idea Check, a lookup by DOI) it is the whole order, as it always was
+  // `pool`: how many of the fused papers the rerank may choose the list from. The default is the list itself (the same papers, best match first); a larger pool can also bring up a paper the sources ranked low,
+  // but it changes which DOIs are checked, so the recorded eval (apps/api/eval) has to be recorded again before it is raised (`npm run eval:record`, needs network).
+  return (query ? rerank(fused.slice(0, Math.max(pool, limit)), query).slice(0, limit) : fused.slice(0, limit));
 }

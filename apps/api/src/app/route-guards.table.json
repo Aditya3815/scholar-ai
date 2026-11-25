@@ -89,6 +89,14 @@
   "chunked": "200 [no-store]",
   "bucket": "API_LIMITER"
  },
+ "GET /api/v1/account/allowance": {
+  "cross": "401 unauthorized: Sign in first [no-store]",
+  "crossDev": "401 unauthorized: Sign in first [no-store]",
+  "anon": "401 unauthorized: Sign in first [no-store]",
+  "noAck": "200 [no-store]",
+  "notOwned": "200 [no-store]",
+  "bucket": "API_LIMITER"
+ },
  "GET /api/v1/account/export": {
   "cross": "401 unauthorized: Sign in first [no-store]",
   "crossDev": "401 unauthorized: Sign in first [no-store]",

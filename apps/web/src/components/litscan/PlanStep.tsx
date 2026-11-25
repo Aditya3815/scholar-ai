@@ -19,9 +19,9 @@ import {
 
 const tokens = (n: number) => n.toLocaleString("en-IN");
 
-export type Draft = { topic: string; language: LitscanLanguage; scope: SearchScope; items: (LitscanItem & { key: number; editing?: boolean })[]; allowance: LitscanPlan["allowance"] };
+export type Draft = { topic: string; language: LitscanLanguage; scope: SearchScope; /** Only papers from this year on; null: any year. */ fromYear: number | null; items: (LitscanItem & { key: number; editing?: boolean })[]; allowance: LitscanPlan["allowance"] };
 let keyCounter = 0;
-export const toDraft = (p: LitscanPlan, scope: SearchScope = "all"): Draft => ({ topic: p.topic, language: p.language, scope, items: p.items.map((i) => ({ ...i, key: ++keyCounter })), allowance: p.allowance });
+export const toDraft = (p: LitscanPlan, scope: SearchScope = "all"): Draft => ({ topic: p.topic, language: p.language, scope, fromYear: null, items: p.items.map((i) => ({ ...i, key: ++keyCounter })), allowance: p.allowance });
 
 /**
  * The plan, before anything is searched: the themes the review will cover, as cards. Each says its name, the question it is answered as and the English search words (the only part that
@@ -29,6 +29,7 @@ export const toDraft = (p: LitscanPlan, scope: SearchScope = "all"): Draft => ({
  */
 export function PlanStep({ draft, busy, onChange, onBack, onStart }: { draft: Draft; busy: boolean; onChange: (d: Draft) => void; onBack: () => void; onStart: () => void }) {
   const id = useId();
+  const thisYear = new Date().getFullYear();
   const n = draft.items.length;
   const estimate = estimateScanTokens(n);
   const left = Math.max(0, draft.allowance.limit - draft.allowance.used);
@@ -130,6 +131,15 @@ export function PlanStep({ draft, busy, onChange, onBack, onStart }: { draft: Dr
               <Landmark size={15} aria-hidden="true" />
               <span>{INDIA_SCOPE_LABEL} only</span>
             </button>
+          </div>
+        </div>
+        <div className="ls-years">
+          <label className="ls-label" htmlFor={`${id}-from`}>Only papers from year <span className="ls-opt">(optional)</span></label>
+          <div className="ls-years-row">
+            <input id={`${id}-from`} className="ls-input ls-year" inputMode="numeric" maxLength={4} placeholder="e.g. 2019" value={draft.fromYear ?? ""} disabled={busy} onChange={(e) => { const n = Number(e.target.value); onChange({ ...draft, fromYear: /^\d{4}$/.test(e.target.value) && n >= 1900 && n <= thisYear ? n : null }); }} />
+            {[5, 10].map((back) => (
+              <button key={back} type="button" className="rf-chip" aria-pressed={draft.fromYear === thisYear - back} disabled={busy} onClick={() => onChange({ ...draft, fromYear: draft.fromYear === thisYear - back ? null : thisYear - back })}>Last {back} years</button>
+            ))}
           </div>
         </div>
         <p className="ls-hint" id={`${id}-scope-h`}>{india ? INDIA_SCOPE_HELP : "All the regular sources. Turn on Indian sources to search only journals published in India, Shodhganga theses and Indian institutions."}</p>

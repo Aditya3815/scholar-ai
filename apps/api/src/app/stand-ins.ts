@@ -70,7 +70,10 @@ export function standInDeps(env: Env): Deps {
     embedder: hashEmbedder,
     pageReader: stubReader,
     search: chatSearch(env),
-    scanSearch: (scope) => async (q) => scan.search(q, scope),
+    scanSearch: (scope, fromYear) => async (q) => {
+      const r = scan.search(q, scope);
+      return fromYear ? { ...r, results: r.results.filter((p) => p.year !== null && p.year >= fromYear) } : r;
+    },
     ideaSearch: stubIdeaSearch,
     verifyReference: stubVerify,
     papersByDoi: async (dois) => stubPapersByDoi(dois),

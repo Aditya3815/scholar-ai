@@ -40,7 +40,7 @@ export abstract class LitscanFlow extends WorkflowEntrypoint<Env, LitscanParams>
     const scan = await step.do("load", async () => {
       const row = await getScanForRun(db, id);
       if (!row || row.state !== "running") throw new NonRetryableError("the scan is not running");
-      return { userId: row.user_id, language: row.language, items: itemsOf(row), scope: row.scope === "india" ? ("india" as const) : ("all" as const) };
+      return { userId: row.user_id, language: row.language, items: itemsOf(row), scope: row.scope === "india" ? ("india" as const) : ("all" as const), fromYear: row.from_year };
     });
 
     await Promise.allSettled(
@@ -60,7 +60,7 @@ export abstract class LitscanFlow extends WorkflowEntrypoint<Env, LitscanParams>
               idx,
               item,
               language: scan.language,
-              deps: { search: d.scanSearch(scan.scope), stream, judge: killSwitch(env, "CHAT_JUDGE") === "off" ? undefined : judge },
+              deps: { search: d.scanSearch(scan.scope, scan.fromYear), stream, judge: killSwitch(env, "CHAT_JUDGE") === "off" ? undefined : judge },
               onStage: async (stage) => void (await appendEvent(db, id, `w:${idx}:${stage}`, { type: "worker", idx, stage })),
               signal: clock.signal,
             });

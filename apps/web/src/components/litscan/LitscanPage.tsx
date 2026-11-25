@@ -214,7 +214,7 @@ function ScanView({ id, onLeave }: { id: string; onLeave: () => void }) {
       <div className="card ls-card">
         <p className="eyebrow">Literature scan · {STATE_NAME[view.state]}</p>
         <h2 className="ls-topic" tabIndex={-1} ref={headRef}>{scan.topic}</h2>
-        <p className="ls-meta">Written in {LITSCAN_LANGUAGE_NAMES[scan.language]}{scan.scope === "india" ? " · Indian sources only" : ""} · kept until {when(scan.expiresAt)}, then removed</p>
+        <p className="ls-meta">Written in {LITSCAN_LANGUAGE_NAMES[scan.language]}{scan.scope === "india" ? " · Indian sources only" : ""}{scan.fromYear ? ` · papers from ${scan.fromYear}` : ""} · kept until {when(scan.expiresAt)}, then removed</p>
         {(running || (scan && watchedId === scan.id)) && (
           <Suspense fallback={null}>
             <Setu view={view} />
@@ -361,7 +361,7 @@ function SharedPage({ token }: { token: string }) {
           <div className="card ls-card">
             <p className="eyebrow">Literature scan · {STATE_NAME[scan.state]}</p>
             <h2 className="ls-topic">{scan.topic}</h2>
-            <p className="ls-meta">Written in {LITSCAN_LANGUAGE_NAMES[scan.language]}{scan.scope === "india" ? " · Indian sources only" : ""} · removed {when(scan.expiresAt)}</p>
+            <p className="ls-meta">Written in {LITSCAN_LANGUAGE_NAMES[scan.language]}{scan.scope === "india" ? " · Indian sources only" : ""}{scan.fromYear ? ` · papers from ${scan.fromYear}` : ""} · removed {when(scan.expiresAt)}</p>
             <p className="ls-count">{report.answered} of {scan.total} themes answered{report.gaps ? `, ${report.gaps} without a written answer` : ""}.</p>
           </div>
           <Review report={report} scope={scan.scope} />
@@ -430,7 +430,7 @@ function ScanApp() {
     if (!draft) return;
     setStarting(true);
     try {
-      const sid = await startScan({ topic: draft.topic, language: draft.language, items: draft.items.map(({ title, question, searchQuery }) => ({ title: (title ?? "").trim(), question: question.trim(), searchQuery: searchQuery.trim() })), ...(draft.scope === "india" ? { scope: "india" as const } : {}) });
+      const sid = await startScan({ topic: draft.topic, language: draft.language, items: draft.items.map(({ title, question, searchQuery }) => ({ title: (title ?? "").trim(), question: question.trim(), searchQuery: searchQuery.trim() })), ...(draft.scope === "india" ? { scope: "india" as const } : {}), ...(draft.fromYear ? { fromYear: draft.fromYear } : {}) });
       setDraft(null);
       setScanId(sid);
     } catch (e) {
