@@ -9,11 +9,20 @@ import { fromSqliteTime } from "../library/validate";
 import { PRIVACY_VERSION } from "@scholar/shared";
 import { listNotebookImages, shareExport } from "../docs/service";
 import { eraseAccount } from "./erase";
+import { allowanceOf } from "../platform/llm";
 import type { HonoEnv } from "../platform/env";
 
 export const accountRoutes = new Hono<HonoEnv>();
 
 const SIGNED_IN: Door = { signIn: "Sign in first" };
+
+/** Today's AI allowance of the signed-in person: how many tokens the day allows, how many are used and how many are left (the ring in the menu reads it). Numbers only. */
+accountRoutes.get("/allowance", async (c) => {
+  const got = await requireUser(c, SIGNED_IN);
+  if (got instanceof Response) return got;
+  const { limit, used, left } = await allowanceOf(c.env.DB, got.user.id);
+  return c.json({ limit, used: Math.min(used, limit), left: Math.max(left, 0) });
+});
 
 
 /** Everything we hold about the signed-in user, as a downloadable JSON file (DPDP: right to access / portability). */

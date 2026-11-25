@@ -1,0 +1,24 @@
+/* The AI allowance ring in the menu (components/AllowanceRing.tsx). */
+.allow { display: flex; align-items: center; gap: 0.65rem; padding: 0.45rem 0.4rem; border-radius: 0.75rem; }
+.allow-ring { flex: none; }
+.allow-track { stroke: var(--border); }
+.allow-fill { stroke: var(--ok); transition: stroke-dashoffset 0.6s ease, stroke 0.3s ease; }
+.allow[data-level="mid"] .allow-fill { stroke: var(--warn); }
+.allow[data-level="high"] .allow-fill { stroke: var(--danger); }
+.allow-pct { font-size: 9px; font-weight: 700; fill: var(--text); font-variant-numeric: tabular-nums; }
+.allow-txt { display: grid; line-height: 1.25; min-width: 0; }
+.allow-txt strong { font-size: 0.82rem; font-weight: 600; }
+.allow-txt small { color: var(--muted); font-size: 0.75rem; }
+@media (prefers-reduced-motion: reduce) { .allow-fill { transition: none; } }
+
+/* Sort and filter bar over a reply's papers (components/ResultFilters.tsx). */
+.rf { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; margin: 0.4rem 0 0.7rem; }
+.rf-field { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0 0.6rem; min-height: 2.2rem; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--muted); }
+.rf-field:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rf-field select, .rf-field input { border: 0; background: transparent; color: var(--text); font: inherit; font-size: 0.86rem; outline: none; min-width: 0; }
+.rf-years input { width: 3.2rem; text-align: center; font-variant-numeric: tabular-nums; }
+.rf-author input { width: 7.5rem; }
+.rf-chip { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.2rem; padding: 0 0.7rem; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; font-size: 0.86rem; cursor: pointer; }
+.rf-chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.rf-count { color: var(--muted); font-size: 0.82rem; margin-left: 0.2rem; }
+.rf-none { color: var(--muted); padding: 1rem 0.2rem; }

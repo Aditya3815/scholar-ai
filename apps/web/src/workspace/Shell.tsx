@@ -12,6 +12,7 @@ import { warmSettings } from "./Pages";
 import { Logo } from "../components/Logo";
 import { SignInDialog } from "../components/SignInDialog";
 import { ThemeSwitch } from "../components/ThemeSwitch";
+import { AllowanceRing } from "./AllowanceRing";
 import { PAPERS_NAME } from "../lib/workspace";
 import type { View } from "../lib/view";
 
@@ -141,6 +142,7 @@ function RailContent({ view, onNavigate, onHome, onHomeLink, onClose }: { view: 
             link({ id: "settings", label: "Settings", href: "/settings", Icon: Settings })}
           {user?.role === "admin" && link({ id: "admin", label: "Admin", href: "/admin", Icon: Activity })}
         </ul>
+        <AllowanceRing signedIn={!!user} />
         <ThemeSwitch scope={onClose ? "drawer" : "rail"} />
       </div>
     </div>

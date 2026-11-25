@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import type { AuthProviderInfo, AuthUser } from "@scholar/shared";
 import { beginWipe, clearChats, setChatOwner } from "./chat";
 import { clearOaAsk } from "./oa-ask";
+import { clearAllowance } from "./allowance";
 import { clearOfflineData, pendingDrawings, pendingNotebooks } from "./offline";
 
 export type AuthState = {
@@ -86,6 +87,7 @@ export async function signOut(): Promise<void> {
   await clearOfflineData();
   // and the conversations: a shared computer must not show the last person's questions
   clearOaAsk();
+  clearAllowance();
   await clearChats();
   await refreshAuth();
 }

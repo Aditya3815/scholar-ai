@@ -3,6 +3,7 @@ import { cacheKey, cached } from "./cache";
 import { applyDoiChecks, checkDois } from "./doi-check";
 import { crossref } from "./crossref";
 import { mergeAndRank } from "./merge";
+import { rerank } from "./rank";
 import { plainPapers } from "./normalize";
 import { openalex } from "./openalex";
 import { pubmed } from "./pubmed";
@@ -128,12 +129,12 @@ export async function runSearch(
           error: err instanceof Error ? err.message : String(err),
         };
       }
-      await hooks.onSnapshot?.({ results: mergeAndRank(ordered(lists), limit), providers: { ...providers }, alsoSearched });
+      await hooks.onSnapshot?.({ results: mergeAndRank(ordered(lists), limit, q), providers: { ...providers }, alsoSearched });
     }),
   );
 
   // Few papers found, and the search has a name written as one word ("SwinYolo"): search again with it written as the words it is, and add what that finds.
-  if (Object.keys(lists).length > 0 && mergeAndRank(ordered(lists), 100).length < FEW_RESULTS) {
+  if (Object.keys(lists).length > 0 && mergeAndRank(ordered(lists), 100, q).length < FEW_RESULTS) {
     const variants = queryVariants(q);
     if (variants.length > 0) {
       alsoSearched = variants;
@@ -144,12 +145,14 @@ export async function runSearch(
           providers[p.name] = { ...providers[p.name]!, count: lists[p.name]!.length };
         }),
       );
-      await hooks.onSnapshot?.({ results: mergeAndRank(ordered(lists), limit), providers: { ...providers }, alsoSearched });
+      await hooks.onSnapshot?.({ results: mergeAndRank(ordered(lists), limit, q), providers: { ...providers }, alsoSearched });
     }
   }
 
-  const results = mergeAndRank(ordered(lists), limit);
-  const doiCheck = await applyDoiIntegrity(env, results);
-  const retractionCheck = await applyRetractions(env, results); // after the DOI check, so removed DOIs are not looked up
+  const fused = mergeAndRank(ordered(lists), limit);
+  const doiCheck = await applyDoiIntegrity(env, fused);
+  const retractionCheck = await applyRetractions(env, fused); // after the DOI check, so removed DOIs are not looked up
+  // best match first, last: the checks above are asked for the same papers in the same order whatever the rerank does (their recorded answers in apps/api/eval are found by that order)
+  const results = rerank(fused, q);
   return { query: q, results, providers, doiCheck, retractionCheck, tookMs: Date.now() - started, ...(alsoSearched.length ? { alsoSearched } : {}), ...(scope !== "all" ? { scope } : {}) };
 }
