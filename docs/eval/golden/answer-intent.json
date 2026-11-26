@@ -1,0 +1,366 @@
+{
+ "version": 1,
+ "about": "Guard set for the intent 'answer' (design of 27 Nov 2026). expect 'answer': a concept question the model may call answer, and checkReading must leave it as answer. expect 'search': a message that asks for evidence, which checkReading must turn into search even when the model said answer. Tests the rules around the model, not the model; the model's own accuracy needs a recorded run (npm run eval:record). None of these is an example of UNDERSTAND_SYSTEM.",
+ "items": [
+  {
+   "id": "a001",
+   "text": "what is overfitting in machine learning",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a002",
+   "text": "explain backpropagation in simple words",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a003",
+   "text": "what does p-hacking mean",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a004",
+   "text": "bias vs variance samjhao",
+   "language": "hinglish",
+   "expect": "answer"
+  },
+  {
+   "id": "a005",
+   "text": "random forest kaise kaam karta hai",
+   "language": "hinglish",
+   "expect": "answer"
+  },
+  {
+   "id": "a006",
+   "text": "what is a randomized controlled trial",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a007",
+   "text": "difference between supervised and unsupervised learning",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a008",
+   "text": "what is transfer learning",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a009",
+   "text": "explain the central limit theorem",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a010",
+   "text": "what is a null hypothesis",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a011",
+   "text": "regularization kya hota hai",
+   "language": "hinglish",
+   "expect": "answer"
+  },
+  {
+   "id": "a012",
+   "text": "what is the difference between correlation and causation",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a013",
+   "text": "how does a convolutional layer work",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a014",
+   "text": "explain k-means clustering",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a015",
+   "text": "embedding kya hoti hai NLP mein",
+   "language": "hinglish",
+   "expect": "answer"
+  },
+  {
+   "id": "a016",
+   "text": "what is an ablation study",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a017",
+   "text": "explain cross validation like I am new to this",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a018",
+   "text": "tokenization ka matlab kya hai",
+   "language": "hinglish",
+   "expect": "answer"
+  },
+  {
+   "id": "a019",
+   "text": "what is a systematic review",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a020",
+   "text": "what is the vanishing gradient problem",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a021",
+   "text": "मशीन लर्निंग क्या है",
+   "language": "hi",
+   "expect": "answer"
+  },
+  {
+   "id": "a022",
+   "text": "परिकल्पना का मतलब क्या होता है",
+   "language": "hi",
+   "expect": "answer"
+  },
+  {
+   "id": "a023",
+   "text": "सहसंबंध और कारण में क्या अंतर है",
+   "language": "hi",
+   "expect": "answer"
+  },
+  {
+   "id": "a024",
+   "text": "ओवरफिटिंग क्या होती है",
+   "language": "hi",
+   "expect": "answer"
+  },
+  {
+   "id": "a025",
+   "text": "what is a confounding variable",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a026",
+   "text": "explain the ROC curve",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a027",
+   "text": "batch size ka effect kya hota hai simple words mein",
+   "language": "hinglish",
+   "expect": "answer"
+  },
+  {
+   "id": "a028",
+   "text": "what is Bayes theorem",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a029",
+   "text": "meaning of sensitivity and specificity",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a030",
+   "text": "what is a transformer in deep learning",
+   "language": "en",
+   "expect": "answer"
+  },
+  {
+   "id": "a031",
+   "text": "latest studies on transformers in radiology",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a032",
+   "text": "how many people have diabetes in India",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a033",
+   "text": "efficacy of metformin in prediabetes",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a034",
+   "text": "recent survey of federated learning",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a035",
+   "text": "2023 meta-analysis of yoga for back pain",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a036",
+   "text": "diabetes par naye shodh dikhao",
+   "language": "hinglish",
+   "expect": "search"
+  },
+  {
+   "id": "a037",
+   "text": "prevalence of anaemia in women 15 to 49",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a038",
+   "text": "evidence for intermittent fasting and weight loss",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a039",
+   "text": "benchmark results for vision transformers",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a040",
+   "text": "papers on graph neural networks for drug discovery",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a041",
+   "text": "statistics on air pollution deaths 2022",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a042",
+   "text": "systematic review of mindfulness for anxiety",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a043",
+   "text": "kya machine learning se TB detect ho sakta hai adhyayan",
+   "language": "hinglish",
+   "expect": "search"
+  },
+  {
+   "id": "a044",
+   "text": "effectiveness of online learning in rural schools",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a045",
+   "text": "haal ke research papers on quantum error correction",
+   "language": "hinglish",
+   "expect": "search"
+  },
+  {
+   "id": "a046",
+   "text": "outcomes of bariatric surgery after 5 years",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a047",
+   "text": "recent advances in protein folding prediction",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a048",
+   "text": "how effective is the BCG vaccine against covid",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a049",
+   "text": "शोध पत्र बताइए मधुमेह और योग पर",
+   "language": "hi",
+   "expect": "search"
+  },
+  {
+   "id": "a050",
+   "text": "हाल के अध्ययन जलवायु परिवर्तन और फसल उत्पादन",
+   "language": "hi",
+   "expect": "search"
+  },
+  {
+   "id": "a051",
+   "text": "survey of retrieval augmented generation 2024",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a052",
+   "text": "percent of students who drop out after class 8 in India",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a053",
+   "text": "natije kya rahe cash transfer programs ke",
+   "language": "hinglish",
+   "expect": "search"
+  },
+  {
+   "id": "a054",
+   "text": "studies showing sleep affects memory",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a055",
+   "text": "review of lithium ion battery degradation",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a056",
+   "text": "clinical trials of semaglutide for obesity",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a057",
+   "text": "pramaan hai kya ki zinc cold mein kaam karta hai",
+   "language": "hinglish",
+   "expect": "search"
+  },
+  {
+   "id": "a058",
+   "text": "latest benchmark for speech recognition in Hindi",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a059",
+   "text": "meta-analysis of statins and dementia risk",
+   "language": "en",
+   "expect": "search"
+  },
+  {
+   "id": "a060",
+   "text": "recent papers on diffusion models for medical imaging",
+   "language": "en",
+   "expect": "search"
+  }
+ ]
+}
