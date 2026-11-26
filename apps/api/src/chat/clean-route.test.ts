@@ -262,8 +262,7 @@ describe("what the cleaner is never asked to touch", () => {
     expect(r.res.status).toBe(200);
     expect(r.understood.reading).toBeUndefined();
     expect(searchesOf()).toHaveLength(1);
-    expect(searchesOf()[0]).toMatch(/ please and in children\?$/);
-    expect(searchesOf()[0]!.length).toBeGreaterThan("please and in children?".length);
+    expect(searchesOf()[0]).toBe("glaucoma screening children");
     expect(r.done).toMatchObject({ answered: false, reason: "quota" });
   });
 });

@@ -392,6 +392,22 @@ export function subjectWords(text: string): string[] {
   return out;
 }
 
+/**
+ * The words of a message worth searching, as written: everything except function words, Hinglish glue and bare numbers. Unlike `subjectWords` it keeps the words of a kind ("limitations", "children",
+ * "side effects"), which are what a follow-up asks for. Used to build the search of a follow-up that no model could read.
+ */
+export function queryWords(text: string): string[] {
+  const t = text.normalize("NFKC").replace(/n['’]t\b/gi, "").replace(/['’](?:s|re|ve|ll|d|m)\b/gi, "");
+  const out: string[] = [];
+  for (const m of t.matchAll(TOPIC_TOKEN)) {
+    const w = m[0];
+    const low = w.toLowerCase();
+    if (/^\p{N}+$/u.test(w) || FUNCTION_WORDS.has(low) || HINGLISH.has(low)) continue;
+    if ([...w].length >= 2) out.push(w);
+  }
+  return out;
+}
+
 /** A way of putting the answer ("in two lines", "as bullet points", "in simple words", "chhota karke"): what a person asks of an answer that is already on the screen. */
 const RESTYLE = wholeWord(
   String.raw`bullets?|bulleted|bullet points?|summari[sz]e|summary|tl;?dr|eli5|short version|(?:in|as|into) (?:one|two|three|four|five|a few|\d+) (?:lines?|sentences?|points?|words?|paragraphs?|bullets?)|(?:simple|plain|easy|easier) (?:words|terms|language|english)|chhota|chhoti|chhote|chota|aasan|asaan|saral|sankshep|संक्षेप|सरल|आसान|छोटा|छोटी|छोटे`,

@@ -1566,7 +1566,7 @@
     {
      "id": "understood",
      "kind": "understood",
-     "text": "you are looking for papers on “glaucoma screening in rural India and in children?”",
+     "text": "you are looking for papers on “glaucoma screening children”",
      "actions": [
       "change"
      ]
@@ -1574,7 +1574,7 @@
     {
      "id": "searched",
      "kind": "searched",
-     "text": "Searched for “glaucoma screening in rural India and in children?”",
+     "text": "Searched for “glaucoma screening children”",
      "counts": {
       "queries": 1
      }
