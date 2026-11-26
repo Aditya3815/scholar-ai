@@ -16,6 +16,8 @@ import {
   neutralise,
   statedNumbers,
   offlineRoute,
+  queryWords,
+  subjectWords,
   ruleRoute,
   type AnswerLanguage,
   type ChatContextInfo,
@@ -136,7 +138,15 @@ export function carryOver(text: string, ctx: RouterContext): string {
   const message = flatLine(text);
   const earlier = ownQuestions(ctx).at(-1);
   if (!earlier) return message;
-  return `${flatLine(earlier).slice(0, 160)} ${message}`.slice(0, 260);
+  // only the words that mean something: "What is retrieval augmented generation and why is it used? what are its main limitations?" would match any title that has "what is it ... limitations" in it
+  const subject = subjectWords(earlier);
+  if (subject.length === 0) return `${flatLine(earlier).slice(0, 160)} ${message}`.slice(0, 260);
+  const seen = new Set<string>();
+  const words = [...subject, ...queryWords(message)].filter((w) => {
+    const k = w.toLowerCase();
+    return seen.has(k) ? false : (seen.add(k), true);
+  });
+  return words.join(" ").slice(0, 260);
 }
 
 /** The rules' view of the same conversation: the earlier turns count as turns there is to lean on. */
