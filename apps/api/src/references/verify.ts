@@ -120,7 +120,7 @@ async function viaDoi(text: string, spaced: string, dois: string[], env: LookupE
     const rec = (await crossrefByDoi(doi, env)) ?? (await openAlexByDoi(doi, env));
     if (!rec) continue;
     const checks = checkMatch(text, rec);
-    if (doiOnly) return withRetraction(result(text, "verified", `Only the DOI was given, so only that was checked: it names ${describe(rec)}. Compare the title and authors with your source.`, rec, checks), env);
+    if (doiOnly) return withRetraction(result(text, "verified", `Only the DOI was given, so only that was checked: it names ${describe(rec)}. Compare the title and authors with your source.`, rec, { ...checks, doiOnly: true }), env);
     const v = verdict(rec, checks);
     if (v === "verified") return withRetraction(result(text, "verified", `Matches ${describe(rec)}.${note(text, rec, checks)}`, rec, checks), env);
     first ??= { rec, checks, v };

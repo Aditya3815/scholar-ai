@@ -45,6 +45,7 @@ describe("with a DOI", () => {
       expect(r.status).toBe("verified");
       expect(r.match?.doi).toBe("10.1000/real.1");
       expect(r.reason).toMatch(/only the DOI/i);
+      expect(r.checks?.doiOnly).toBe(true);
     }
   });
 
