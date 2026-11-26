@@ -64,7 +64,7 @@ export function RememberThis({ onOpen }: { onOpen: (id: string) => void }) {
   return (
     <m.aside className="hm-remember" aria-label="Remember this?" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: easeOut, delay: 0.4 }}>
       <p className="hm-k"><Quote size={13} aria-hidden="true" /> Remember this?</p>
-      <blockquote className="hm-rem-q" data-color={h.color}>{h.quote}</blockquote>
+      <blockquote className="hm-rem-q" data-color={h.color}>{/^\p{Ll}/u.test(h.quote) ? `…${h.quote}` : h.quote}</blockquote>
       {h.note && <p className="hm-rem-note">Your note: {h.note}</p>}
       <p className="hm-meta">{h.title} · page {h.page}</p>
       <div className="hm-rem-actions">

@@ -12,6 +12,12 @@ const STOP = new Set(["the", "a", "an", "of", "for", "and", "or", "in", "on", "t
 /** A field of the feed as plain text: the CDATA brackets out, then the one decoder of both apps (plainText: every entity it knows, white space collapsed). */
 const decode = (s: string) => plainText(s.replace(/<!\[CDATA\[|\]\]>/g, ""));
 
+/**
+ * A "?" between two lower-case letters inside a word ("gener?ation", "particu?lar") is where a hyphenation hint of the paper's abstract was lost on its way here; it is never part of the word. Words that
+ * hold a URL's marks ("/", "=", "&", ":", ".") are left alone, because "page?id" in a link is real.
+ */
+export const mendBreaks = (s: string): string => s.replace(/\S+/g, (w) => (/[/=&:.]/.test(w) ? w : w.replace(/(?<=\p{Ll})\?(?=\p{Ll})/gu, "")));
+
 const tag = (xml: string, name: string) => decode(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`).exec(xml)?.[1] ?? "");
 
 /** Every word that carries meaning, all of which must appear ("smartphone fundus photography glaucoma" -> all:smartphone AND all:fundus ...). */
@@ -37,7 +43,7 @@ export function parseArxivFeed(xml: string): ProviderPaper[] {
       authors: [...e.matchAll(/<author>[\s\S]*?<name>([\s\S]*?)<\/name>[\s\S]*?<\/author>/g)].map((a) => decode(a[1]!)).filter(Boolean).slice(0, 10),
       year: Number.isFinite(year) ? year : null,
       venue: "arXiv",
-      abstract: tag(e, "summary") || null,
+      abstract: mendBreaks(tag(e, "summary")) || null,
       citationCount: null,
       oaUrl: `https://arxiv.org/pdf/${id}`,
       retracted: false,
