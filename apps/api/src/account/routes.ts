@@ -20,7 +20,7 @@ const SIGNED_IN: Door = { signIn: "Sign in first" };
 accountRoutes.get("/allowance", async (c) => {
   const got = await requireUser(c, SIGNED_IN);
   if (got instanceof Response) return got;
-  const { limit, used, left } = await allowanceOf(c.env.DB, got.user.id);
+  const { limit, used, left } = await allowanceOf(c.env.DB, got.user.id, c.env);
   return c.json({ limit, used: Math.min(used, limit), left: Math.max(left, 0) });
 });
 
