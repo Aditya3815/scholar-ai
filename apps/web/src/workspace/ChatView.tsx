@@ -8,7 +8,7 @@ import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
 import { allowanceMayHaveChanged } from "../lib/allowance";
 import { ResultFilters } from "./ResultFilters";
-import { NO_REFINE, refine, yearSpan, type Refine } from "../lib/refine";
+import { NO_REFINE, journalFacets, refine, yearSpan, type Refine } from "../lib/refine";
 import { cancelTighten, editMessage, retryReply, sendMessage, showVersion, tightenReply, type EditResult } from "../lib/chat";
 import { fitField } from "../lib/autogrow";
 import { useCopy } from "../lib/copy";
@@ -515,10 +515,11 @@ const PaperList = memo(function PaperList({ msgId, papers, flashN, working }: { 
   const [view, setView] = useState<Refine>(NO_REFINE);
   const shown = useMemo(() => refine(papers, view), [papers, view]);
   const span = useMemo(() => yearSpan(papers), [papers]);
+  const journals = useMemo(() => journalFacets(papers), [papers]);
   const preview = useCallback((paper: Paper) => openPreview(paper, shown.map((s) => s.paper)), [shown]);
   return (
     <>
-      {papers.length >= 4 && !working && <ResultFilters value={view} onChange={setView} shown={shown.length} total={papers.length} span={span} />}
+      {papers.length >= 4 && !working && <ResultFilters value={view} onChange={setView} shown={shown.length} total={papers.length} span={span} journals={journals} />}
       {shown.length === 0 && <p className="rf-none">No paper matches these filters. <button type="button" className="rf-chip" onClick={() => setView(NO_REFINE)}>Reset</button></p>}
       <ol className="chat-papers" aria-label={`${shown.length} papers shown`}>
         <AnimatePresence initial={false}>

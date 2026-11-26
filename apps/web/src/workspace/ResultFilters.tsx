@@ -1,4 +1,4 @@
-import { ArrowDownUp, Calendar, LockOpen, RotateCcw, User } from "lucide-react";
+import { ArrowDownUp, BookOpen, Calendar, LockOpen, RotateCcw, User } from "lucide-react";
 import { useId } from "react";
 import { NO_REFINE, isRefined, type Refine } from "../lib/refine";
 
@@ -15,7 +15,7 @@ const yearOf = (v: string): number | null => {
 };
 
 /** Sort and narrow the papers of a reply, on the page, at once (no new search). Year range, author, open access, order. */
-export function ResultFilters({ value, onChange, shown, total, span }: { value: Refine; onChange: (r: Refine) => void; shown: number; total: number; span: { min: number; max: number } | null }) {
+export function ResultFilters({ value, onChange, shown, total, span, journals = [] }: { value: Refine; onChange: (r: Refine) => void; shown: number; total: number; span: { min: number; max: number } | null; journals?: { name: string; count: number }[] }) {
   const id = useId();
   const set = (patch: Partial<Refine>) => onChange({ ...value, ...patch });
   return (
@@ -42,6 +42,25 @@ export function ResultFilters({ value, onChange, shown, total, span }: { value: 
         <span className="sr-only">Author</span>
         <input id={`${id}-author`} type="search" placeholder="Author" value={value.author} onChange={(e) => set({ author: e.target.value })} autoComplete="off" />
       </label>
+      {journals.length >= 2 && (
+        <details className="rf-menu">
+          <summary className="rf-field">
+            <BookOpen size={14} aria-hidden="true" />
+            <span>{value.journals.length > 0 ? `Journal (${value.journals.length})` : "Journal"}</span>
+          </summary>
+          <ul className="rf-menu-list" aria-label="Journals of these papers">
+            {journals.map((j) => (
+              <li key={j.name}>
+                <label>
+                  <input type="checkbox" checked={value.journals.includes(j.name)} onChange={(e) => set({ journals: e.target.checked ? [...value.journals, j.name] : value.journals.filter((x) => x !== j.name) })} />
+                  <span>{j.name}</span>
+                  <span className="rf-menu-n">{j.count}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <button type="button" className="rf-chip" aria-pressed={value.openOnly} onClick={() => set({ openOnly: !value.openOnly })}>
         <LockOpen size={14} aria-hidden="true" />
         <span>Free to read</span>

@@ -22,3 +22,13 @@
 .rf-chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .rf-count { color: var(--muted); font-size: var(--fs-sm); margin-left: 0.2rem; }
 .rf-none { color: var(--muted); padding: 1rem 0.2rem; }
+
+/* The Journal menu of the sort and filter bar: a plain details element, so it opens with Enter or Space and needs no script. */
+.rf-menu { position: relative; }
+.rf-menu > summary { list-style: none; cursor: pointer; }
+.rf-menu > summary::-webkit-details-marker { display: none; }
+.rf-menu-list { position: absolute; z-index: 5; top: calc(100% + 0.25rem); left: 0; margin: 0; padding: 0.35rem; list-style: none; min-width: 16rem; max-width: min(26rem, 90vw); max-height: 16rem; overflow: auto; border: 1px solid var(--border-strong); border-radius: 0.6rem; background: var(--surface); box-shadow: 0 6px 20px rgb(0 0 0 / 0.12); }
+.rf-menu-list label { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; border-radius: 0.4rem; cursor: pointer; font-size: var(--fs-sm); color: var(--text); }
+.rf-menu-list label:hover { background: var(--surface-2, rgb(0 0 0 / 0.05)); }
+.rf-menu-list label > span:nth-of-type(1) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rf-menu-n { color: var(--muted); font-variant-numeric: tabular-nums; }

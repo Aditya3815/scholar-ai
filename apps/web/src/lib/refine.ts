@@ -6,12 +6,14 @@ export type Refine = {
   from: number | null;
   to: number | null;
   author: string;
+  /** journals (a paper's `venue`, as written) the papers must be in; none chosen means every journal */
+  journals: string[];
   openOnly: boolean;
 };
 
-export const NO_REFINE: Refine = { sort: "relevance", from: null, to: null, author: "", openOnly: false };
+export const NO_REFINE: Refine = { sort: "relevance", from: null, to: null, author: "", journals: [], openOnly: false };
 
-export const isRefined = (r: Refine): boolean => r.sort !== "relevance" || r.from !== null || r.to !== null || r.author.trim() !== "" || r.openOnly;
+export const isRefined = (r: Refine): boolean => r.sort !== "relevance" || r.from !== null || r.to !== null || r.author.trim() !== "" || r.journals.length > 0 || r.openOnly;
 
 const fold = (s: string) => s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -29,7 +31,7 @@ export function matchesAuthor(authors: readonly string[], typed: string): boolea
 export function refine(papers: readonly Paper[], r: Refine): { paper: Paper; index: number }[] {
   const out = papers
     .map((paper, index) => ({ paper, index }))
-    .filter(({ paper: p }) => (r.from === null || (p.year !== null && p.year >= r.from)) && (r.to === null || (p.year !== null && p.year <= r.to)) && (!r.openOnly || !!p.oaUrl) && matchesAuthor(p.authors, r.author));
+    .filter(({ paper: p }) => (r.from === null || (p.year !== null && p.year >= r.from)) && (r.to === null || (p.year !== null && p.year <= r.to)) && (!r.openOnly || !!p.oaUrl) && (r.journals.length === 0 || (!!p.venue && r.journals.includes(p.venue.trim()))) && matchesAuthor(p.authors, r.author));
   const by: Record<Refine["sort"], ((a: Paper, b: Paper) => number) | null> = {
     relevance: null,
     cited: (a, b) => (b.citationCount ?? -1) - (a.citationCount ?? -1),
@@ -44,4 +46,14 @@ export function refine(papers: readonly Paper[], r: Refine): { paper: Paper; ind
 export function yearSpan(papers: readonly Paper[]): { min: number; max: number } | null {
   const ys = papers.map((p) => p.year).filter((y): y is number => y !== null);
   return ys.length ? { min: Math.min(...ys), max: Math.max(...ys) } : null;
+}
+
+/** The journals of the papers with how many papers each has, most first (ties by name), for the Journal menu. A paper with no venue is in none. */
+export function journalFacets(papers: readonly Paper[], max = 12): { name: string; count: number }[] {
+  const n = new Map<string, number>();
+  for (const p of papers) {
+    const v = p.venue?.trim();
+    if (v) n.set(v, (n.get(v) ?? 0) + 1);
+  }
+  return [...n].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)).slice(0, max);
 }
