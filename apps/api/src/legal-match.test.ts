@@ -515,6 +515,7 @@ const understandFiles = (): string[] => listModules(UNDERSTAND);
 const NO_FUNCTION_TO_CALL: Readonly<Record<string, string>> = {
   "hostile-messages.ts": "exports a list of messages and a canary string, no function",
   "lane-words.ts": "exports the phrase lists of the safety lane as data, no function (lane.ts, which reads them, is run here)",
+  "vocab-en.ts": "exports the English word list of the typo mender as data, no function (typo.ts, which reads it, is run here)",
   "frame-words.ts": "exports the word lists of the request-frame cleaner (R8) as data, no function (frame.ts, which reads them, is run here through readRequest)",
 };
 const moduleOf = (file: string): Module => ({ label: `understand/${file}`, source: readFileSync(join(UNDERSTAND, file), "utf8"), dir: dirname(join(UNDERSTAND, file)) });
