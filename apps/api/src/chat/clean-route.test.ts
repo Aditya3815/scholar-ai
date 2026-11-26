@@ -256,12 +256,14 @@ describe("what the cleaner is never asked to touch", () => {
     expect(searchesOf()).toEqual(["effect of yoga on blood pressure"]);
   });
 
-  it("a day with no allowance for a model reading the turns searches the words as written and cleans nothing", async () => {
-    // the message leans on the turns (it is short), the day cannot pay for the model that would read them: it is searched as written, and it is not a message the cleaner may read
+  it("a day with no allowance for a model reading the turns searches the earlier question and the words as written, and cleans nothing", async () => {
+    // the message leans on the turns (it is short), the day cannot pay for the model that would read them: nothing is read, so it is searched behind the last thing asked (carryOver), as written, and it is not a message the cleaner may read
     const r = await post(auto("please and in children?", { history: GLAUCOMA }), { env: ON, used: 60_000 });
     expect(r.res.status).toBe(200);
     expect(r.understood.reading).toBeUndefined();
-    expect(searchesOf()).toEqual(["please and in children?"]);
+    expect(searchesOf()).toHaveLength(1);
+    expect(searchesOf()[0]).toMatch(/ please and in children\?$/);
+    expect(searchesOf()[0]!.length).toBeGreaterThan("please and in children?".length);
     expect(r.done).toMatchObject({ answered: false, reason: "quota" });
   });
 });

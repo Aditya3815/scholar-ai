@@ -128,6 +128,17 @@ export type RouterContext = { history: ChatHistory };
 /** What the person asked in THIS conversation, oldest first: the language of an answer is read from these. */
 export const ownQuestions = (ctx: RouterContext): string[] => ctx.history.entries.flatMap((e) => (e.role === "user" ? [e.text] : []));
 
+/**
+ * The search words of a follow-up that no model reads (the day's allowance is used): the last thing the person asked, then the message. "what are its main limitations?" alone finds papers about the
+ * limitations of anything; after "What is retrieval augmented generation...?" it finds the ones about this. No guess at what "its" means: the earlier question is kept whole.
+ */
+export function carryOver(text: string, ctx: RouterContext): string {
+  const message = flatLine(text);
+  const earlier = ownQuestions(ctx).at(-1);
+  if (!earlier) return message;
+  return `${flatLine(earlier).slice(0, 160)} ${message}`.slice(0, 260);
+}
+
 /** The rules' view of the same conversation: the earlier turns count as turns there is to lean on. */
 export const routeContextOf = (ctx: RouterContext): RouteContext => ({ turns: ctx.history.turns });
 
