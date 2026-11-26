@@ -38,6 +38,22 @@ afterEach(() => {
 const GOOD = "Desai, A., & Verma, R. (2021). Graph neural networks for protein function prediction. Bioinformatics, 37(5), 1-12.";
 
 describe("with a DOI", () => {
+  it("a reference that is only a DOI is verified by the record the DOI names, not called a different paper", async () => {
+    stub((u) => (u.includes("/works/10.1000/real.1") ? json({ message: cr() }) : undefined));
+    for (const text of ["10.1000/real.1", "https://doi.org/10.1000/real.1", "doi:10.1000/real.1"]) {
+      const r = await verifyReference(text, env);
+      expect(r.status).toBe("verified");
+      expect(r.match?.doi).toBe("10.1000/real.1");
+      expect(r.reason).toMatch(/only the DOI/i);
+    }
+  });
+
+  it("a DOI-only reference whose DOI does not resolve is still not found", async () => {
+    stub();
+    const r = await verifyReference("10.1000/does.not.exist", env);
+    expect(r.status).not.toBe("verified");
+  });
+
   it("verifies when the DOI's record matches title, authors and year", async () => {
     stub((u) => (u.includes("/works/10.1000/real.1") ? json({ message: cr() }) : undefined));
     const r = await verifyReference(`${GOOD} https://doi.org/10.1000/real.1`, env);

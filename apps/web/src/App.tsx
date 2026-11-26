@@ -1,3 +1,4 @@
+import { isKnownPath } from "./lib/known-path";
 import { AnimatePresence, LazyMotion, MotionConfig, m } from "motion/react";
 import { SearchX, WifiOff } from "lucide-react";
 import { getThemePref } from "./lib/prefs";
@@ -114,6 +115,15 @@ export function App() {
   useEffect(() => {
     document.title = view === "search" && !user && !route.home && state.status === "idle" ? "Sodhsetu: research you can trust" : TITLES[view];
   }, [view, user, route.home, state.status]);
+  // an address the app does not draw is shown as the home page with status 200 (the SPA fallback); keep it out of search engines
+  useEffect(() => {
+    const known = isKnownPath(location.pathname);
+    let tag = document.head.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    if (!known) {
+      if (!tag) { tag = document.createElement("meta"); tag.name = "robots"; document.head.appendChild(tag); }
+      tag.content = "noindex";
+    } else tag?.remove();
+  }, [route]);
   useEffect(() => {
     if (view === "papers") window.scrollTo(0, 0);
   }, [view, route.docId]);
