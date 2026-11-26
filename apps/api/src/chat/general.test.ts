@@ -107,3 +107,21 @@ describe("answerGeneral", () => {
     await expect(answerGeneral({ question: "q", stream: (async () => { throw new Error("down"); }) as never, emit: () => {} })).rejects.toThrow("down");
   });
 });
+
+describe("checkExplanation", () => {
+  const ok = "A confidence interval is a range built from the data so that, repeated many times, about 95 of 100 such ranges hold the true value.";
+  it("accepts a plain explanation", async () => {
+    const { checkExplanation } = await import("./general");
+    expect(checkExplanation({ kind: "explanation", answer: ok })).toMatchObject({ kind: "explanation", text: ok });
+  });
+  it("rejects a text that names a paper, one that is too short, and one that is too long", async () => {
+    const { checkExplanation } = await import("./general");
+    expect(checkExplanation({ kind: "explanation", answer: "Smith et al. showed in 2019 that a confidence interval is a range of values." }).kind).toBe("unsure");
+    expect(checkExplanation({ kind: "explanation", answer: "A range." }).kind).toBe("unsure");
+    expect(checkExplanation({ kind: "explanation", answer: "word ".repeat(600) }).kind).toBe("unsure");
+  });
+  it("garbled input is unsure", async () => {
+    const { checkExplanation } = await import("./general");
+    expect(checkExplanation(null).kind).toBe("unsure");
+  });
+});

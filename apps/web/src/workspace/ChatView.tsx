@@ -2,7 +2,7 @@ import { AnimatePresence, m } from "motion/react";
 import { ArrowDown, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileStack, Info, Lightbulb, ListChecks, MessageCircle, Pencil, Plus, RefreshCw, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { stripMarks, GENERAL_LABEL, INDIA_SCOPE_LABEL, LEFT_OUT_LABEL, MAX_CHAT_CHARS, MAX_VERSIONS, ROUTE_NAMES, SAFETY_NOTICE_KINDS, answerCopy, busyReason, canTighten, citeParts, editInfo, followUpNote, noticeOffersRetry, quoted, readingLines, restoreWords, textAttrs, turnToShow, unfilteredWords, versionInfo, type AssistantMsg, type MessageReading, type ChatMsg, type EditInfo, type IdeaMsg, type ChatNoAnswer, type Paper, type RouteMode, type UserMsg } from "@scholar/shared";
+import { stripMarks, EXPLANATION_LABEL, GENERAL_LABEL, INDIA_SCOPE_LABEL, LEFT_OUT_LABEL, MAX_CHAT_CHARS, MAX_VERSIONS, ROUTE_NAMES, SAFETY_NOTICE_KINDS, answerCopy, busyReason, canTighten, citeParts, editInfo, followUpNote, noticeOffersRetry, quoted, readingLines, restoreWords, textAttrs, turnToShow, unfilteredWords, versionInfo, type AssistantMsg, type MessageReading, type ChatMsg, type EditInfo, type IdeaMsg, type ChatNoAnswer, type Paper, type RouteMode, type UserMsg } from "@scholar/shared";
 import { SignInDialog } from "../components/SignInDialog";
 import { Pop } from "../components/Pop";
 import { ResultCard, SkeletonCard } from "../components/ResultCard";
@@ -237,12 +237,14 @@ function Background({ msg, question, onRefine }: { msg: AssistantMsg; question: 
   const g = msg.general;
   const live = msg.generalLive ?? "";
   if (g?.kind === "not_research" && g.text) return <p className="chat-why" role="note" {...textAttrs(g.text)}>{g.text}</p>;
-  if (g?.kind !== "background" && !(msg.status === "working" && live)) return null;
+  const written = g?.kind === "background" || g?.kind === "explanation";
+  if (!written && !(msg.status === "working" && live)) return null;
+  const label = msg.intent === "answer" || g?.kind === "explanation" ? EXPLANATION_LABEL : GENERAL_LABEL;
   return (
-    <section className="chat-general" aria-label={GENERAL_LABEL}>
-      <p className="chat-general-label"><Info size={15} aria-hidden="true" /> <b>{GENERAL_LABEL}</b></p>
-      {g?.kind === "background" ? <p className="reading chat-text" {...textAttrs(g.text)}>{g.text}</p> : <LiveText text={live} writing />}
-      {g?.kind === "background" && (
+    <section className="chat-general" aria-label={label}>
+      <p className="chat-general-label"><Info size={15} aria-hidden="true" /> <b>{label}</b></p>
+      {written ? <p className="reading chat-text" {...textAttrs(g.text)}>{g.text}</p> : <LiveText text={live} writing />}
+      {written && (
         <p className="chat-general-note">
           No paper is cited here, so check it before you rely on it.{" "}
           <button type="button" className="link-btn" onClick={() => onRefine(question)}>Edit the question and search again</button>

@@ -31,7 +31,9 @@ export const MAX_CHAT_CHARS = 300;
  * (the screen says what the box is for).
  */
 export const GENERAL_LABEL = "General background, not from a paper in your results";
-export const GENERAL_KINDS = ["background", "unsure", "not_research"] as const;
+/** The label of an explanation written without searching (intent `answer`): shown every time, never with a citation. */
+export const EXPLANATION_LABEL = "General explanation, not from papers";
+export const GENERAL_KINDS = ["background", "unsure", "not_research", "explanation"] as const;
 export type GeneralKind = (typeof GENERAL_KINDS)[number];
 
 /** A claim's evidence: the sentence (by its number in the abstract) of paper number `n` of the list. `sentence` is that sentence, word for word, taken from the abstract by the server. */

@@ -363,3 +363,43 @@ describe("visitors", () => {
     expect(r.understood.fallback).toBeUndefined();
   });
 });
+
+describe("intent answer: a general explanation, written with no search", () => {
+  it("explains under its own label: no search, no paper, no citation, and the ledger gets the intent", async () => {
+    const r = await run(auto("what is a confidence interval undexplain"), { env: ON_THINK });
+    expect(r.understood.intent).toBe("answer");
+    expect(r.papers).toEqual([]);
+    expect(r.steps).not.toContain("search");
+    expect(r.general?.kind).toBe("explanation");
+    expect(r.general?.text).toContain("confidence interval");
+    expect(r.done.answered).toBe(true);
+    expect(r.outcomes).toContain("chat:explained");
+    expect(callsOf("writer").filter((c) => c.label === "chat_explain")).toHaveLength(1);
+    expect(streamShapeProblems("chat", r.ev)).toEqual([]);
+  });
+
+  it("a message that asks for evidence is searched, whatever the model said", async () => {
+    const r = await run(auto("recent studies on the confidence interval undexplain"), { env: ON });
+    expect(r.understood.intent).toBe("search");
+    expect(r.papers.length).toBeGreaterThan(0);
+    expect(callsOf("writer").some((c) => c.label === "chat_explain")).toBe(false);
+  });
+
+  it("an explanation that names a paper is thrown away and the message is searched", async () => {
+    const r = await run(auto("what is a confidence interval cites undexplain"), { env: ON });
+    expect(r.general?.kind).not.toBe("explanation");
+    expect(r.papers.length).toBeGreaterThan(0);
+  });
+
+  it("a subject it does not recognise is searched, not guessed", async () => {
+    const r = await run(auto("what is a gibberish undexplain"), { env: ON });
+    expect(r.general?.kind).not.toBe("explanation");
+    expect(r.papers.length).toBeGreaterThan(0);
+  });
+
+  it("a visitor (not signed in) is searched: the writer is paid from a signed-in allowance", async () => {
+    const r = await run(auto("what is a confidence interval undexplain"), { env: { ...ON, CHAT_UNDERSTAND_VISITORS: "on" }, signedIn: false });
+    expect(r.general?.kind).not.toBe("explanation");
+    expect(callsOf("writer").some((c) => c.label === "chat_explain")).toBe(false);
+  });
+});
