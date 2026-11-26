@@ -118,6 +118,7 @@ const ALLOW: string[] = [
   "api/chat/routes.ts -> api/understand/lane.ts",
   "api/chat/routes.ts -> api/understand/ledger-input.ts",
   "api/chat/routes.ts -> api/understand/reading-check.ts",
+  "api/chat/routes.ts -> api/understand/typo.ts",
   "api/chat/routes.ts -> api/understand/tiers-text.ts",
   "api/chat/routes.ts -> api/understand/tiers.ts",
   "api/chat/routes.ts -> api/understand/understand-counters.ts",

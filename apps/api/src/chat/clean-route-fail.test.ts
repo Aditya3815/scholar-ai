@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatEvent } from "@scholar/shared";
 import { OWNER_MESSAGE } from "./clean-cases";
-import { mendTypos } from "../search/typo";
+import { mendTypos } from "../understand/typo";
 
-// without a cleaner, a plain English message is searched with its slips mended (search/typo.ts)
+// without a cleaner, a plain English message is searched with its slips mended (understand/typo.ts)
 const MENDED = mendTypos(OWNER_MESSAGE) ?? OWNER_MESSAGE;
 
 /**

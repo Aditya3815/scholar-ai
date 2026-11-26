@@ -35,7 +35,7 @@ vi.mock("./testing/stub-route", async (importOriginal) => {
 });
 
 import { chatRoutes } from "./routes";
-import { mendTypos } from "../search/typo";
+import { mendTypos } from "../understand/typo";
 import { withDeps } from "../app/deps";
 
 const TOKEN = "t".repeat(40);
@@ -165,7 +165,7 @@ describe("the three positions of the flag", () => {
       calls.length = 0;
       const r = await post(auto(OWNER_MESSAGE), { env });
       expect(searchesOf(), JSON.stringify(env)).toEqual([mendTypos(OWNER_MESSAGE) ?? OWNER_MESSAGE]);
-      // the typos of the message are mended with no model (search/typo.ts), and the page is told which words were searched
+      // the typos of the message are mended with no model (understand/typo.ts), and the page is told which words were searched
       expect(r.understood.searchQuery, JSON.stringify(env)).toBe(mendTypos(OWNER_MESSAGE) ?? undefined);
       expect(r.understood.reading, JSON.stringify(env)).toBeUndefined();
       expect(r.text).not.toMatch(/"reading"/);
@@ -334,7 +334,7 @@ describe("the notes and the line the page draws from them", () => {
       const asked = searchesOf();
       expect(asked).toHaveLength(1);
       const written = text.replace(/\s+/g, " ").trim();
-      // the message, with its slips mended (search/typo.ts): the words of it that were not mended are the ones the person wrote
+      // the message, with its slips mended (understand/typo.ts): the words of it that were not mended are the ones the person wrote
       const message = mendTypos(written) ?? written;
       // (1) what the indexes are asked is the reading's topic or the message
       expect([r.understood.reading?.topic, message, written].includes(asked[0]), text).toBe(true);

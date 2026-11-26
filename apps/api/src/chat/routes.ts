@@ -13,7 +13,7 @@ import { answerFromResults, pickEvidencePapers, type Picked } from "./answer";
 import { judgeAnswer, type JudgeReport } from "./support";
 import { MAX_TIGHTEN_BODY_BYTES, readTighten } from "./tighten";
 import { answerGeneral } from "./general";
-import { mendTypos } from "../search/typo";
+import { mendTypos } from "../understand/typo";
 import { askedOf, carryOver, contextInfo, ownQuestions, routeContextOf, routeFollowUp, routeMessage, routerCallFailed, type FollowUp, type RouterContext } from "./router";
 import { readHistory, type ChatHistory } from "./history";
 import { attemptsForLog } from "../platform/llm/failure";
@@ -587,7 +587,7 @@ chatRoutes.post("/", async (c) => {
         context = { turns: ledger.length, intent: u.intent === "refine_search" ? "refine" : "same_papers", rewrote: !!u.standalone, ...(u.standalone ? { question: u.standalone.slice(0, 200) } : {}), ...(years?.from === undefined ? {} : { yearFrom: years.from }), ...(years?.to === undefined ? {} : { yearTo: years.to }) };
       else if (u && years) context = { turns: 0, intent: "new", rewrote: false, ...(years.from === undefined ? {} : { yearFrom: years.from }), ...(years.to === undefined ? {} : { yearTo: years.to }) };
       else if (widened) context = { turns: 0, intent: "new", rewrote: false, ...(years.from === undefined ? {} : { yearFrom: years.from }), ...(years.to === undefined ? {} : { yearTo: years.to }) };
-      // a slip in plain English ("machin lerning") is mended with no model (search/typo.ts); the page says which words were searched and offers the exact ones (Change, exact words)
+      // a slip in plain English ("machin lerning") is mended with no model (understand/typo.ts); the page says which words were searched and offers the exact ones (Change, exact words)
       if (auto && !preset && !u && !carried && !route.searchQuery && route.language === "en" && route.mode === "search" && !talk) {
         const mended = mendTypos(text.replace(/\s+/g, " ").trim());
         if (mended) route = { ...route, searchQuery: mended };
