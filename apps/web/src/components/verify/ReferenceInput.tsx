@@ -118,7 +118,7 @@ export function ReferenceInput({
         </div>
       </div>
       <p className="vin-privacy">
-        Your list is not saved. Only the text of each reference is sent to Crossref and OpenAlex to look it up. <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to verify.
+        Your list is not saved on our servers; this tab keeps the draft until you close it. Only the text of each reference is sent to Crossref and OpenAlex to look it up. <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to verify.
       </p>
     </form>
   );

@@ -34,6 +34,8 @@ export type RefChecks = {
   shortened?: boolean;
   /** The reference gives no title: the record was matched by its first author, year, volume and page. */
   locator?: boolean;
+  /** The reference was only a DOI: nothing but the DOI could be compared. */
+  doiOnly?: boolean;
 };
 
 export type RefVerdict = {

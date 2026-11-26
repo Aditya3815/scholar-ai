@@ -31,7 +31,12 @@ const authorLine = (a: string[]) => (a.length === 0 ? "No authors listed" : a.le
 
 /** What was compared, in words, so a verdict is never a black box. Each pill has an icon-free text meaning of its own. */
 function Checks({ checks }: { checks: RefChecks }) {
-  const items: { ok: boolean | null; text: string }[] = checks.locator
+  const items: { ok: boolean | null; text: string }[] = checks.doiOnly
+    ? [
+        { ok: null, text: "Only a DOI was given" },
+        { ok: true, text: "DOI names a real paper" },
+      ]
+    : checks.locator
     ? [
         { ok: null, text: "No title in the reference" },
         { ok: true, text: "Author matches" },
