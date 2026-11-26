@@ -1,0 +1,799 @@
+{
+ "version": 1,
+ "about": "100 references for the verifier (Check references; no AI). kind: clean 30, wrong_year 20, fake 20, doi_only 10, book 10, reprint 10. expect: verified | year_mismatch | not_found | book | verified_same_work. The real works are famous papers whose DOIs are known; `fake` entries are invented titles, authors and journals. The verdict names are the target behaviour; the scorer maps the verifier's own outcomes to them. Metrics: verifier precision and recall of 'problem' (year_mismatch, not_found) against the rest. Live scoring needs network (npm run eval:record).",
+ "items": [
+  {
+   "id": "r001",
+   "raw": "Vaswani, A., Shazeer, N., Parmar, N., et al. (2017). Attention is all you need. Advances in Neural Information Processing Systems.",
+   "expect": "verified",
+   "doi": "10.48550/arXiv.1706.03762",
+   "year": 2017,
+   "kind": "clean"
+  },
+  {
+   "id": "r002",
+   "raw": "LeCun, Y., Bengio, Y., Hinton, G. (2015). Deep learning. Nature.",
+   "expect": "verified",
+   "doi": "10.1038/nature14539",
+   "year": 2015,
+   "kind": "clean"
+  },
+  {
+   "id": "r003",
+   "raw": "He, K., Zhang, X., Ren, S., Sun, J. (2016). Deep residual learning for image recognition. CVPR.",
+   "expect": "verified",
+   "doi": "10.1109/CVPR.2016.90",
+   "year": 2016,
+   "kind": "clean"
+  },
+  {
+   "id": "r004",
+   "raw": "Devlin, J., Chang, M., Lee, K., Toutanova, K. (2019). BERT: Pre-training of deep bidirectional transformers for language understanding. NAACL.",
+   "expect": "verified",
+   "doi": "10.18653/v1/N19-1423",
+   "year": 2019,
+   "kind": "clean"
+  },
+  {
+   "id": "r005",
+   "raw": "Hochreiter, S., Schmidhuber, J. (1997). Long short-term memory. Neural Computation.",
+   "expect": "verified",
+   "doi": "10.1162/neco.1997.9.8.1735",
+   "year": 1997,
+   "kind": "clean"
+  },
+  {
+   "id": "r006",
+   "raw": "Breiman, L. (2001). Random forests. Machine Learning.",
+   "expect": "verified",
+   "doi": "10.1023/A:1010933404324",
+   "year": 2001,
+   "kind": "clean"
+  },
+  {
+   "id": "r007",
+   "raw": "Russakovsky, O., Deng, J., Su, H., et al. (2015). ImageNet large scale visual recognition challenge. International Journal of Computer Vision.",
+   "expect": "verified",
+   "doi": "10.1007/s11263-015-0816-y",
+   "year": 2015,
+   "kind": "clean"
+  },
+  {
+   "id": "r008",
+   "raw": "Kingma, D. P., Ba, J. (2015). Adam: A method for stochastic optimization. ICLR.",
+   "expect": "verified",
+   "doi": "10.48550/arXiv.1412.6980",
+   "year": 2015,
+   "kind": "clean"
+  },
+  {
+   "id": "r009",
+   "raw": "Silver, D., Huang, A., Maddison, C. J., et al. (2016). Mastering the game of Go with deep neural networks and tree search. Nature.",
+   "expect": "verified",
+   "doi": "10.1038/nature16961",
+   "year": 2016,
+   "kind": "clean"
+  },
+  {
+   "id": "r010",
+   "raw": "Cortes, C., Vapnik, V. (1995). Support-vector networks. Machine Learning.",
+   "expect": "verified",
+   "doi": "10.1007/BF00994018",
+   "year": 1995,
+   "kind": "clean"
+  },
+  {
+   "id": "r011",
+   "raw": "Mnih, V., Kavukcuoglu, K., Silver, D., et al. (2015). Human-level control through deep reinforcement learning. Nature.",
+   "expect": "verified",
+   "doi": "10.1038/nature14236",
+   "year": 2015,
+   "kind": "clean"
+  },
+  {
+   "id": "r012",
+   "raw": "Goodfellow, I., Pouget-Abadie, J., Mirza, M., et al. (2014). Generative adversarial nets. Advances in Neural Information Processing Systems.",
+   "expect": "verified",
+   "doi": "10.48550/arXiv.1406.2661",
+   "year": 2014,
+   "kind": "clean"
+  },
+  {
+   "id": "r013",
+   "raw": "Jumper, J., Evans, R., Pritzel, A., et al. (2021). Highly accurate protein structure prediction with AlphaFold. Nature.",
+   "expect": "verified",
+   "doi": "10.1038/s41586-021-03819-2",
+   "year": 2021,
+   "kind": "clean"
+  },
+  {
+   "id": "r014",
+   "raw": "LeCun, Y., Bottou, L., Bengio, Y., Haffner, P. (1998). Gradient-based learning applied to document recognition. Proceedings of the IEEE.",
+   "expect": "verified",
+   "doi": "10.1109/5.726791",
+   "year": 1998,
+   "kind": "clean"
+  },
+  {
+   "id": "r015",
+   "raw": "Page, M. J., McKenzie, J. E., Bossuyt, P. M., et al. (2021). The PRISMA 2020 statement: an updated guideline for reporting systematic reviews. BMJ.",
+   "expect": "verified",
+   "doi": "10.1136/bmj.n71",
+   "year": 2021,
+   "kind": "clean"
+  },
+  {
+   "id": "r016",
+   "raw": "Sung, H., Ferlay, J., Siegel, R. L., et al. (2021). Global cancer statistics 2020: GLOBOCAN estimates of incidence and mortality worldwide for 36 cancers in 185 countries. CA: A Cancer Journal for Clinicians.",
+   "expect": "verified",
+   "doi": "10.3322/caac.21660",
+   "year": 2021,
+   "kind": "clean"
+  },
+  {
+   "id": "r017",
+   "raw": "Shannon, C. E. (1948). A mathematical theory of communication. Bell System Technical Journal.",
+   "expect": "verified",
+   "doi": "10.1002/j.1538-7305.1948.tb01338.x",
+   "year": 1948,
+   "kind": "clean"
+  },
+  {
+   "id": "r018",
+   "raw": "Watson, J. D., Crick, F. H. C. (1953). Molecular structure of nucleic acids. Nature.",
+   "expect": "verified",
+   "doi": "10.1038/171737a0",
+   "year": 1953,
+   "kind": "clean"
+  },
+  {
+   "id": "r019",
+   "raw": "Krizhevsky, A., Sutskever, I., Hinton, G. E. (2017). ImageNet classification with deep convolutional neural networks. Communications of the ACM.",
+   "expect": "verified",
+   "doi": "10.1145/3065386",
+   "year": 2017,
+   "kind": "clean"
+  },
+  {
+   "id": "r020",
+   "raw": "Brown, T. B., Mann, B., Ryder, N., et al. (2020). Language models are few-shot learners. Advances in Neural Information Processing Systems.",
+   "expect": "verified",
+   "doi": "10.48550/arXiv.2005.14165",
+   "year": 2020,
+   "kind": "clean"
+  },
+  {
+   "id": "r021",
+   "raw": "Esteva, A., Kuprel, B., Novoa, R. A., et al. (2017). Dermatologist-level classification of skin cancer with deep neural networks. Nature.",
+   "expect": "verified",
+   "doi": "10.1038/nature21056",
+   "year": 2017,
+   "kind": "clean"
+  },
+  {
+   "id": "r022",
+   "raw": "Ioffe, S., Szegedy, C. (2015). Batch normalization: Accelerating deep network training by reducing internal covariate shift. ICML.",
+   "expect": "verified",
+   "doi": "10.48550/arXiv.1502.03167",
+   "year": 2015,
+   "kind": "clean"
+  },
+  {
+   "id": "r023",
+   "raw": "Dosovitskiy, A., Beyer, L., Kolesnikov, A., et al. (2021). An image is worth 16x16 words: Transformers for image recognition at scale. ICLR.",
+   "expect": "verified",
+   "doi": "10.48550/arXiv.2010.11929",
+   "year": 2021,
+   "kind": "clean"
+  },
+  {
+   "id": "r024",
+   "raw": "Hinton, G. E., Salakhutdinov, R. R. (2006). Reducing the dimensionality of data with neural networks. Science.",
+   "expect": "verified",
+   "doi": "10.1126/science.1127647",
+   "year": 2006,
+   "kind": "clean"
+  },
+  {
+   "id": "r025",
+   "raw": "Hinton, G. E., Osindero, S., Teh, Y.-W. (2006). A fast learning algorithm for deep belief nets. Neural Computation.",
+   "expect": "verified",
+   "doi": "10.1162/neco.2006.18.7.1527",
+   "year": 2006,
+   "kind": "clean"
+  },
+  {
+   "id": "r026",
+   "raw": "Huang, C., Wang, Y., Li, X., et al. (2020). Clinical features of patients infected with 2019 novel coronavirus in Wuhan, China. The Lancet.",
+   "expect": "verified",
+   "doi": "10.1016/S0140-6736(20)30183-5",
+   "year": 2020,
+   "kind": "clean"
+  },
+  {
+   "id": "r027",
+   "raw": "Polack, F. P., Thomas, S. J., Kitchin, N., et al. (2020). Safety and efficacy of the BNT162b2 mRNA Covid-19 vaccine. New England Journal of Medicine.",
+   "expect": "verified",
+   "doi": "10.1056/NEJMoa2034577",
+   "year": 2020,
+   "kind": "clean"
+  },
+  {
+   "id": "r028",
+   "raw": "Sutskever, I., Vinyals, O., Le, Q. V. (2014). Sequence to sequence learning with neural networks. Advances in Neural Information Processing Systems.",
+   "expect": "verified",
+   "doi": "10.48550/arXiv.1409.3215",
+   "year": 2014,
+   "kind": "clean"
+  },
+  {
+   "id": "r029",
+   "raw": "Radford, A., Kim, J. W., Hallacy, C., et al. (2021). Learning transferable visual models from natural language supervision. ICML.",
+   "expect": "verified",
+   "doi": "10.48550/arXiv.2103.00020",
+   "year": 2021,
+   "kind": "clean"
+  },
+  {
+   "id": "r030",
+   "raw": "Ho, J., Jain, A., Abbeel, P. (2020). Denoising diffusion probabilistic models. Advances in Neural Information Processing Systems.",
+   "expect": "verified",
+   "doi": "10.48550/arXiv.2006.11239",
+   "year": 2020,
+   "kind": "clean"
+  },
+  {
+   "id": "r031",
+   "raw": "Vaswani, A., Shazeer, N., Parmar, N., et al. (2018). Attention is all you need. Advances in Neural Information Processing Systems.",
+   "expect": "year_mismatch",
+   "doi": "10.48550/arXiv.1706.03762",
+   "year": 2017,
+   "given_year": 2018,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r032",
+   "raw": "LeCun, Y., Bengio, Y., Hinton, G. (2014). Deep learning. Nature.",
+   "expect": "year_mismatch",
+   "doi": "10.1038/nature14539",
+   "year": 2015,
+   "given_year": 2014,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r033",
+   "raw": "He, K., Zhang, X., Ren, S., Sun, J. (2018). Deep residual learning for image recognition. CVPR.",
+   "expect": "year_mismatch",
+   "doi": "10.1109/CVPR.2016.90",
+   "year": 2016,
+   "given_year": 2018,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r034",
+   "raw": "Devlin, J., Chang, M., Lee, K., Toutanova, K. (2017). BERT: Pre-training of deep bidirectional transformers for language understanding. NAACL.",
+   "expect": "year_mismatch",
+   "doi": "10.18653/v1/N19-1423",
+   "year": 2019,
+   "given_year": 2017,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r035",
+   "raw": "Hochreiter, S., Schmidhuber, J. (2000). Long short-term memory. Neural Computation.",
+   "expect": "year_mismatch",
+   "doi": "10.1162/neco.1997.9.8.1735",
+   "year": 1997,
+   "given_year": 2000,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r036",
+   "raw": "Breiman, L. (2002). Random forests. Machine Learning.",
+   "expect": "year_mismatch",
+   "doi": "10.1023/A:1010933404324",
+   "year": 2001,
+   "given_year": 2002,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r037",
+   "raw": "Russakovsky, O., Deng, J., Su, H., et al. (2014). ImageNet large scale visual recognition challenge. International Journal of Computer Vision.",
+   "expect": "year_mismatch",
+   "doi": "10.1007/s11263-015-0816-y",
+   "year": 2015,
+   "given_year": 2014,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r038",
+   "raw": "Kingma, D. P., Ba, J. (2017). Adam: A method for stochastic optimization. ICLR.",
+   "expect": "year_mismatch",
+   "doi": "10.48550/arXiv.1412.6980",
+   "year": 2015,
+   "given_year": 2017,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r039",
+   "raw": "Silver, D., Huang, A., Maddison, C. J., et al. (2014). Mastering the game of Go with deep neural networks and tree search. Nature.",
+   "expect": "year_mismatch",
+   "doi": "10.1038/nature16961",
+   "year": 2016,
+   "given_year": 2014,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r040",
+   "raw": "Cortes, C., Vapnik, V. (1998). Support-vector networks. Machine Learning.",
+   "expect": "year_mismatch",
+   "doi": "10.1007/BF00994018",
+   "year": 1995,
+   "given_year": 1998,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r041",
+   "raw": "Mnih, V., Kavukcuoglu, K., Silver, D., et al. (2016). Human-level control through deep reinforcement learning. Nature.",
+   "expect": "year_mismatch",
+   "doi": "10.1038/nature14236",
+   "year": 2015,
+   "given_year": 2016,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r042",
+   "raw": "Goodfellow, I., Pouget-Abadie, J., Mirza, M., et al. (2013). Generative adversarial nets. Advances in Neural Information Processing Systems.",
+   "expect": "year_mismatch",
+   "doi": "10.48550/arXiv.1406.2661",
+   "year": 2014,
+   "given_year": 2013,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r043",
+   "raw": "Jumper, J., Evans, R., Pritzel, A., et al. (2023). Highly accurate protein structure prediction with AlphaFold. Nature.",
+   "expect": "year_mismatch",
+   "doi": "10.1038/s41586-021-03819-2",
+   "year": 2021,
+   "given_year": 2023,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r044",
+   "raw": "LeCun, Y., Bottou, L., Bengio, Y., Haffner, P. (1996). Gradient-based learning applied to document recognition. Proceedings of the IEEE.",
+   "expect": "year_mismatch",
+   "doi": "10.1109/5.726791",
+   "year": 1998,
+   "given_year": 1996,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r045",
+   "raw": "Page, M. J., McKenzie, J. E., Bossuyt, P. M., et al. (2024). The PRISMA 2020 statement: an updated guideline for reporting systematic reviews. BMJ.",
+   "expect": "year_mismatch",
+   "doi": "10.1136/bmj.n71",
+   "year": 2021,
+   "given_year": 2024,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r046",
+   "raw": "Sung, H., Ferlay, J., Siegel, R. L., et al. (2022). Global cancer statistics 2020: GLOBOCAN estimates of incidence and mortality worldwide for 36 cancers in 185 countries. CA: A Cancer Journal for Clinicians.",
+   "expect": "year_mismatch",
+   "doi": "10.3322/caac.21660",
+   "year": 2021,
+   "given_year": 2022,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r047",
+   "raw": "Shannon, C. E. (1947). A mathematical theory of communication. Bell System Technical Journal.",
+   "expect": "year_mismatch",
+   "doi": "10.1002/j.1538-7305.1948.tb01338.x",
+   "year": 1948,
+   "given_year": 1947,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r048",
+   "raw": "Watson, J. D., Crick, F. H. C. (1955). Molecular structure of nucleic acids. Nature.",
+   "expect": "year_mismatch",
+   "doi": "10.1038/171737a0",
+   "year": 1953,
+   "given_year": 1955,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r049",
+   "raw": "Krizhevsky, A., Sutskever, I., Hinton, G. E. (2015). ImageNet classification with deep convolutional neural networks. Communications of the ACM.",
+   "expect": "year_mismatch",
+   "doi": "10.1145/3065386",
+   "year": 2017,
+   "given_year": 2015,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r050",
+   "raw": "Brown, T. B., Mann, B., Ryder, N., et al. (2023). Language models are few-shot learners. Advances in Neural Information Processing Systems.",
+   "expect": "year_mismatch",
+   "doi": "10.48550/arXiv.2005.14165",
+   "year": 2020,
+   "given_year": 2023,
+   "kind": "wrong_year"
+  },
+  {
+   "id": "r051",
+   "raw": "Hargrove, T., Mensah, K. (2021). Quantum gradient folding for sparse climate transformers. Journal of Applied Neural Geometry.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r052",
+   "raw": "Pellegrini, R., Okonkwo, D. (2020). Recursive lattice attention for low-resource speech. Transactions on Synthetic Acoustics.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r053",
+   "raw": "Lindqvist, A., Rao, S., Tanaka, H. (2022). Self-healing optimizers in federated chemistry. Proceedings of the Imaginary Learning Society.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r054",
+   "raw": "Brandt, M., Iyer, P. (2019). A thermodynamic theory of dropout in graph kernels. Annals of Computational Folklore.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r055",
+   "raw": "Castellanos, J., Wu, L. (2023). Zero-shot tuberculosis grading with phonon embeddings. Journal of Plausible Medicine.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r056",
+   "raw": "Novak, E., Adeyemi, F. (2018). Stochastic cathedral search for protein docking. International Review of Hypothetical Biology.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r057",
+   "raw": "Sorensen, K., Banerjee, A. (2021). Entropy-regularised monsoon forecasting with spiking kernels. Meteorological Fictions.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r058",
+   "raw": "Fitzgerald, O., Nakamura, Y. (2020). Cross-modal gradient weather for banking compliance. Journal of Unlikely Finance.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r059",
+   "raw": "Dlamini, Z., Petrov, V. (2022). Hyperbolic sleep staging with attention to mangoes. Letters in Applied Absurdity.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r060",
+   "raw": "Moreau, C., Gupta, R. (2019). Elastic homology for low-latency crop disease routing. Journal of Speculative Agronomy.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r061",
+   "raw": "Johansson, E., Ibrahim, S. (2023). Bayesian cathode memory in transformer batteries. Proceedings of Invented Energy.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r062",
+   "raw": "Valdez, M., Kulkarni, N. (2021). Persistent contrastive lasagne for text retrieval. Transactions on Culinary Computing.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r063",
+   "raw": "Aaltonen, J., Osei, B. (2020). Diffusion priors for stellar tax records. Journal of Cosmic Accounting.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r064",
+   "raw": "Whitfield, G., Das, T. (2018). Wavelet theory of loneliness in rural clinics. Annals of Imaginary Sociology.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r065",
+   "raw": "Kowalski, P., Mbeki, L. (2022). Neural scaling of paperclip logistics. Journal of Industrial Mythology.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r066",
+   "raw": "Ferreira, L., Joshi, A. (2021). Orthogonal ritual learning for tropical bridges. Reviews of Fabricated Engineering.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r067",
+   "raw": "Takahashi, S., Olsen, H. (2019). Counterfactual pottery for vaccine allocation. Journal of Hypothetical Policy.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r068",
+   "raw": "Ramirez, D., Sharma, K. (2023). Sparse mirror attention for legal haiku. Proceedings of Nonexistent Linguistics.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r069",
+   "raw": "Eriksen, B., Waweru, J. (2020). Fractal anaesthesia in transformer vision. Journal of Counterfeit Medicine.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r070",
+   "raw": "Lombardi, G., Pillai, R. (2022). Variational orchard networks for tidal prediction. Annals of Synthetic Oceanography.",
+   "expect": "not_found",
+   "kind": "fake"
+  },
+  {
+   "id": "r071",
+   "raw": "10.48550/arXiv.1706.03762",
+   "expect": "verified",
+   "doi": "10.48550/arXiv.1706.03762",
+   "year": 2017,
+   "kind": "doi_only"
+  },
+  {
+   "id": "r072",
+   "raw": "10.1038/nature14539",
+   "expect": "verified",
+   "doi": "10.1038/nature14539",
+   "year": 2015,
+   "kind": "doi_only"
+  },
+  {
+   "id": "r073",
+   "raw": "10.1109/CVPR.2016.90",
+   "expect": "verified",
+   "doi": "10.1109/CVPR.2016.90",
+   "year": 2016,
+   "kind": "doi_only"
+  },
+  {
+   "id": "r074",
+   "raw": "10.18653/v1/N19-1423",
+   "expect": "verified",
+   "doi": "10.18653/v1/N19-1423",
+   "year": 2019,
+   "kind": "doi_only"
+  },
+  {
+   "id": "r075",
+   "raw": "10.1162/neco.1997.9.8.1735",
+   "expect": "verified",
+   "doi": "10.1162/neco.1997.9.8.1735",
+   "year": 1997,
+   "kind": "doi_only"
+  },
+  {
+   "id": "r076",
+   "raw": "10.1023/A:1010933404324",
+   "expect": "verified",
+   "doi": "10.1023/A:1010933404324",
+   "year": 2001,
+   "kind": "doi_only"
+  },
+  {
+   "id": "r077",
+   "raw": "10.1007/s11263-015-0816-y",
+   "expect": "verified",
+   "doi": "10.1007/s11263-015-0816-y",
+   "year": 2015,
+   "kind": "doi_only"
+  },
+  {
+   "id": "r078",
+   "raw": "10.48550/arXiv.1412.6980",
+   "expect": "verified",
+   "doi": "10.48550/arXiv.1412.6980",
+   "year": 2015,
+   "kind": "doi_only"
+  },
+  {
+   "id": "r079",
+   "raw": "10.1038/nature16961",
+   "expect": "verified",
+   "doi": "10.1038/nature16961",
+   "year": 2016,
+   "kind": "doi_only"
+  },
+  {
+   "id": "r080",
+   "raw": "10.1007/BF00994018",
+   "expect": "verified",
+   "doi": "10.1007/BF00994018",
+   "year": 1995,
+   "kind": "doi_only"
+  },
+  {
+   "id": "r081",
+   "raw": "Bishop, C. M. (2006). Pattern Recognition and Machine Learning. Springer.",
+   "expect": "book",
+   "year": 2006,
+   "kind": "book"
+  },
+  {
+   "id": "r082",
+   "raw": "Goodfellow, I., Bengio, Y., Courville, A. (2016). Deep Learning. MIT Press.",
+   "expect": "book",
+   "year": 2016,
+   "kind": "book"
+  },
+  {
+   "id": "r083",
+   "raw": "Russell, S., Norvig, P. (2020). Artificial Intelligence: A Modern Approach (4th ed.). Pearson.",
+   "expect": "book",
+   "year": 2020,
+   "kind": "book"
+  },
+  {
+   "id": "r084",
+   "raw": "Sutton, R. S., Barto, A. G. (2018). Reinforcement Learning: An Introduction (2nd ed.). MIT Press.",
+   "expect": "book",
+   "year": 2018,
+   "kind": "book"
+  },
+  {
+   "id": "r085",
+   "raw": "Hastie, T., Tibshirani, R., Friedman, J. (2009). The Elements of Statistical Learning (2nd ed.). Springer.",
+   "expect": "book",
+   "year": 2009,
+   "kind": "book"
+  },
+  {
+   "id": "r086",
+   "raw": "Murphy, K. P. (2012). Machine Learning: A Probabilistic Perspective. MIT Press.",
+   "expect": "book",
+   "year": 2012,
+   "kind": "book"
+  },
+  {
+   "id": "r087",
+   "raw": "Kahneman, D. (2011). Thinking, Fast and Slow. Farrar, Straus and Giroux.",
+   "expect": "book",
+   "year": 2011,
+   "kind": "book"
+  },
+  {
+   "id": "r088",
+   "raw": "Kuhn, T. S. (1962). The Structure of Scientific Revolutions. University of Chicago Press.",
+   "expect": "book",
+   "year": 1962,
+   "kind": "book"
+  },
+  {
+   "id": "r089",
+   "raw": "Cormen, T. H., Leiserson, C. E., Rivest, R. L., Stein, C. (2009). Introduction to Algorithms (3rd ed.). MIT Press.",
+   "expect": "book",
+   "year": 2009,
+   "kind": "book"
+  },
+  {
+   "id": "r090",
+   "raw": "Manning, C. D., Raghavan, P., Schutze, H. (2008). Introduction to Information Retrieval. Cambridge University Press.",
+   "expect": "book",
+   "year": 2008,
+   "kind": "book"
+  },
+  {
+   "id": "r091",
+   "raw": "Vaswani, A., Shazeer, N., Parmar, N., et al. (2017). Attention is all you need. arXiv preprint.",
+   "expect": "verified_same_work",
+   "doi": "10.48550/arXiv.1706.03762",
+   "accept_years": [
+    2017
+   ],
+   "kind": "reprint"
+  },
+  {
+   "id": "r092",
+   "raw": "Kingma, D. P., Ba, J. (2014). Adam: A method for stochastic optimization. arXiv preprint.",
+   "expect": "verified_same_work",
+   "doi": "10.48550/arXiv.1412.6980",
+   "accept_years": [
+    2014,
+    2015
+   ],
+   "kind": "reprint"
+  },
+  {
+   "id": "r093",
+   "raw": "Goodfellow, I., Pouget-Abadie, J., Mirza, M., et al. (2014). Generative adversarial nets. arXiv preprint.",
+   "expect": "verified_same_work",
+   "doi": "10.48550/arXiv.1406.2661",
+   "accept_years": [
+    2014
+   ],
+   "kind": "reprint"
+  },
+  {
+   "id": "r094",
+   "raw": "Ioffe, S., Szegedy, C. (2015). Batch normalization: Accelerating deep network training by reducing internal covariate shift. arXiv preprint.",
+   "expect": "verified_same_work",
+   "doi": "10.48550/arXiv.1502.03167",
+   "accept_years": [
+    2015
+   ],
+   "kind": "reprint"
+  },
+  {
+   "id": "r095",
+   "raw": "Dosovitskiy, A., Beyer, L., Kolesnikov, A., et al. (2021). An image is worth 16x16 words: Transformers for image recognition at scale. arXiv preprint.",
+   "expect": "verified_same_work",
+   "doi": "10.48550/arXiv.2010.11929",
+   "accept_years": [
+    2021
+   ],
+   "kind": "reprint"
+  },
+  {
+   "id": "r096",
+   "raw": "Brown, T. B., Mann, B., Ryder, N., et al. (2020). Language models are few-shot learners. arXiv preprint.",
+   "expect": "verified_same_work",
+   "doi": "10.48550/arXiv.2005.14165",
+   "accept_years": [
+    2020
+   ],
+   "kind": "reprint"
+  },
+  {
+   "id": "r097",
+   "raw": "Ho, J., Jain, A., Abbeel, P. (2020). Denoising diffusion probabilistic models. arXiv preprint.",
+   "expect": "verified_same_work",
+   "doi": "10.48550/arXiv.2006.11239",
+   "accept_years": [
+    2020
+   ],
+   "kind": "reprint"
+  },
+  {
+   "id": "r098",
+   "raw": "Radford, A., Kim, J. W., Hallacy, C., et al. (2021). Learning transferable visual models from natural language supervision. arXiv preprint.",
+   "expect": "verified_same_work",
+   "doi": "10.48550/arXiv.2103.00020",
+   "accept_years": [
+    2021
+   ],
+   "kind": "reprint"
+  },
+  {
+   "id": "r099",
+   "raw": "Polack, F. P., Thomas, S. J., Kitchin, N., et al. (2014). Safety and efficacy of the BNT162b2 mRNA Covid-19 vaccine. arXiv preprint.",
+   "expect": "verified_same_work",
+   "doi": "10.1056/NEJMoa2034577",
+   "accept_years": [
+    2014,
+    2020
+   ],
+   "kind": "reprint"
+  },
+  {
+   "id": "r100",
+   "raw": "Sutskever, I., Vinyals, O., Le, Q. V. (2021). Sequence to sequence learning with neural networks. arXiv preprint.",
+   "expect": "verified_same_work",
+   "doi": "10.48550/arXiv.1409.3215",
+   "accept_years": [
+    2014,
+    2021
+   ],
+   "kind": "reprint"
+  }
+ ]
+}

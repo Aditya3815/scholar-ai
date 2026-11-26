@@ -1,0 +1,1812 @@
+{
+ "version": 1,
+ "about": "200 search queries (design of 27 Nov 2026). Groups: known_item 40 (a famous paper by title or author-year; expected_doi is the pass condition: the paper in the top 5), topical_en 40, hinglish 30, hindi 15, typos 25, off_topic 25 (expect none: no papers should be searched), indian_topic 25 (india true). For the topical groups `terms` is a cheap relevance proxy: a top-5 result is counted relevant when its title or abstract holds any term; this is a floor, not nDCG. Graded relevance for nDCG@10 needs pooled human judgements, which come after the first live run. No query is an example of UNDERSTAND_SYSTEM.",
+ "items": [
+  {
+   "id": "q001",
+   "text": "Attention is all you need",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.48550/arXiv.1706.03762"
+  },
+  {
+   "id": "q002",
+   "text": "Deep learning",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1038/nature14539"
+  },
+  {
+   "id": "q003",
+   "text": "Deep residual learning for image recognition",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1109/CVPR.2016.90"
+  },
+  {
+   "id": "q004",
+   "text": "BERT: Pre-training of deep bidirectional transformers for language understanding",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.18653/v1/N19-1423"
+  },
+  {
+   "id": "q005",
+   "text": "Long short-term memory",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1162/neco.1997.9.8.1735"
+  },
+  {
+   "id": "q006",
+   "text": "Random forests",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1023/A:1010933404324"
+  },
+  {
+   "id": "q007",
+   "text": "ImageNet large scale visual recognition challenge",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1007/s11263-015-0816-y"
+  },
+  {
+   "id": "q008",
+   "text": "Adam: A method for stochastic optimization",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.48550/arXiv.1412.6980"
+  },
+  {
+   "id": "q009",
+   "text": "Mastering the game of Go with deep neural networks and tree search",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1038/nature16961"
+  },
+  {
+   "id": "q010",
+   "text": "Support-vector networks",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1007/BF00994018"
+  },
+  {
+   "id": "q011",
+   "text": "Human-level control through deep reinforcement learning",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1038/nature14236"
+  },
+  {
+   "id": "q012",
+   "text": "Generative adversarial nets",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.48550/arXiv.1406.2661"
+  },
+  {
+   "id": "q013",
+   "text": "Highly accurate protein structure prediction with AlphaFold",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1038/s41586-021-03819-2"
+  },
+  {
+   "id": "q014",
+   "text": "Gradient-based learning applied to document recognition",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1109/5.726791"
+  },
+  {
+   "id": "q015",
+   "text": "The PRISMA 2020 statement: an updated guideline for reporting systematic reviews",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1136/bmj.n71"
+  },
+  {
+   "id": "q016",
+   "text": "Global cancer statistics 2020: GLOBOCAN estimates of incidence and mortality worldwide for 36 cancers in 185 countries",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.3322/caac.21660"
+  },
+  {
+   "id": "q017",
+   "text": "A mathematical theory of communication",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1002/j.1538-7305.1948.tb01338.x"
+  },
+  {
+   "id": "q018",
+   "text": "Molecular structure of nucleic acids",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1038/171737a0"
+  },
+  {
+   "id": "q019",
+   "text": "ImageNet classification with deep convolutional neural networks",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1145/3065386"
+  },
+  {
+   "id": "q020",
+   "text": "Language models are few-shot learners",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.48550/arXiv.2005.14165"
+  },
+  {
+   "id": "q021",
+   "text": "Dermatologist-level classification of skin cancer with deep neural networks",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1038/nature21056"
+  },
+  {
+   "id": "q022",
+   "text": "Batch normalization: Accelerating deep network training by reducing internal covariate shift",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.48550/arXiv.1502.03167"
+  },
+  {
+   "id": "q023",
+   "text": "An image is worth 16x16 words: Transformers for image recognition at scale",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.48550/arXiv.2010.11929"
+  },
+  {
+   "id": "q024",
+   "text": "Reducing the dimensionality of data with neural networks",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1126/science.1127647"
+  },
+  {
+   "id": "q025",
+   "text": "A fast learning algorithm for deep belief nets",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1162/neco.2006.18.7.1527"
+  },
+  {
+   "id": "q026",
+   "text": "Clinical features of patients infected with 2019 novel coronavirus in Wuhan, China",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1016/S0140-6736(20)30183-5"
+  },
+  {
+   "id": "q027",
+   "text": "Safety and efficacy of the BNT162b2 mRNA Covid-19 vaccine",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1056/NEJMoa2034577"
+  },
+  {
+   "id": "q028",
+   "text": "Sequence to sequence learning with neural networks",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.48550/arXiv.1409.3215"
+  },
+  {
+   "id": "q029",
+   "text": "Learning transferable visual models from natural language supervision",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.48550/arXiv.2103.00020"
+  },
+  {
+   "id": "q030",
+   "text": "Denoising diffusion probabilistic models",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.48550/arXiv.2006.11239"
+  },
+  {
+   "id": "q031",
+   "text": "Vaswani 2017 Attention is all",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.48550/arXiv.1706.03762"
+  },
+  {
+   "id": "q032",
+   "text": "LeCun 2015 Deep learning",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1038/nature14539"
+  },
+  {
+   "id": "q033",
+   "text": "He 2016 Deep residual learning",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1109/CVPR.2016.90"
+  },
+  {
+   "id": "q034",
+   "text": "Devlin 2019 BERT: Pre-training of",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.18653/v1/N19-1423"
+  },
+  {
+   "id": "q035",
+   "text": "Hochreiter 1997 Long short-term memory",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1162/neco.1997.9.8.1735"
+  },
+  {
+   "id": "q036",
+   "text": "Breiman 2001 Random forests",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1023/A:1010933404324"
+  },
+  {
+   "id": "q037",
+   "text": "Russakovsky 2015 ImageNet large scale",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1007/s11263-015-0816-y"
+  },
+  {
+   "id": "q038",
+   "text": "Kingma 2015 Adam: A method",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.48550/arXiv.1412.6980"
+  },
+  {
+   "id": "q039",
+   "text": "Silver 2016 Mastering the game",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1038/nature16961"
+  },
+  {
+   "id": "q040",
+   "text": "Cortes 1995 Support-vector networks",
+   "group": "known_item",
+   "expect": "papers",
+   "expected_doi": "10.1007/BF00994018"
+  },
+  {
+   "id": "q041",
+   "text": "effect of intermittent fasting on type 2 diabetes",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "fasting",
+    "diabetes"
+   ]
+  },
+  {
+   "id": "q042",
+   "text": "deep learning for diabetic retinopathy screening",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "retinopathy",
+    "diabetic"
+   ]
+  },
+  {
+   "id": "q043",
+   "text": "mindfulness based stress reduction in nurses",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "mindfulness",
+    "stress"
+   ]
+  },
+  {
+   "id": "q044",
+   "text": "lithium ion battery degradation mechanisms",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "lithium",
+    "battery",
+    "degradation"
+   ]
+  },
+  {
+   "id": "q045",
+   "text": "graph neural networks for molecular property prediction",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "graph",
+    "molecular"
+   ]
+  },
+  {
+   "id": "q046",
+   "text": "retrieval augmented generation for question answering",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "retrieval",
+    "generation"
+   ]
+  },
+  {
+   "id": "q047",
+   "text": "climate change impact on wheat yield",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "wheat",
+    "climate"
+   ]
+  },
+  {
+   "id": "q048",
+   "text": "federated learning privacy in healthcare",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "federated",
+    "privacy"
+   ]
+  },
+  {
+   "id": "q049",
+   "text": "microplastics in drinking water",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "microplastic",
+    "water"
+   ]
+  },
+  {
+   "id": "q050",
+   "text": "sleep deprivation and working memory",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "sleep",
+    "memory"
+   ]
+  },
+  {
+   "id": "q051",
+   "text": "CRISPR off-target effects detection",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "crispr",
+    "off-target"
+   ]
+  },
+  {
+   "id": "q052",
+   "text": "telemedicine adoption in primary care",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "telemedicine",
+    "primary care"
+   ]
+  },
+  {
+   "id": "q053",
+   "text": "transformer models for time series forecasting",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "time series",
+    "forecast"
+   ]
+  },
+  {
+   "id": "q054",
+   "text": "gut microbiome and depression",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "microbiome",
+    "depression"
+   ]
+  },
+  {
+   "id": "q055",
+   "text": "perovskite solar cell stability",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "perovskite",
+    "solar"
+   ]
+  },
+  {
+   "id": "q056",
+   "text": "reinforcement learning for robotic grasping",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "grasping",
+    "robot"
+   ]
+  },
+  {
+   "id": "q057",
+   "text": "vaccine hesitancy interventions",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "vaccine",
+    "hesitancy"
+   ]
+  },
+  {
+   "id": "q058",
+   "text": "explainable AI in credit scoring",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "explainable",
+    "credit"
+   ]
+  },
+  {
+   "id": "q059",
+   "text": "anomaly detection in industrial IoT",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "anomaly",
+    "iot"
+   ]
+  },
+  {
+   "id": "q060",
+   "text": "urban heat island mitigation",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "heat island",
+    "urban"
+   ]
+  },
+  {
+   "id": "q061",
+   "text": "speech emotion recognition deep learning",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "speech",
+    "emotion"
+   ]
+  },
+  {
+   "id": "q062",
+   "text": "remote sensing crop classification",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "remote sensing",
+    "crop"
+   ]
+  },
+  {
+   "id": "q063",
+   "text": "cash transfers and child nutrition",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "cash transfer",
+    "nutrition"
+   ]
+  },
+  {
+   "id": "q064",
+   "text": "vision language models hallucination",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "hallucination",
+    "vision"
+   ]
+  },
+  {
+   "id": "q065",
+   "text": "semantic segmentation of satellite images",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "segmentation",
+    "satellite"
+   ]
+  },
+  {
+   "id": "q066",
+   "text": "antibiotic resistance surveillance",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "antibiotic",
+    "resistance"
+   ]
+  },
+  {
+   "id": "q067",
+   "text": "digital twin for manufacturing",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "digital twin",
+    "manufacturing"
+   ]
+  },
+  {
+   "id": "q068",
+   "text": "low rank adaptation of large language models",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "low-rank",
+    "adaptation"
+   ]
+  },
+  {
+   "id": "q069",
+   "text": "physical activity and cognitive decline",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "physical activity",
+    "cognitive"
+   ]
+  },
+  {
+   "id": "q070",
+   "text": "quantum error correction codes",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "quantum",
+    "error correction"
+   ]
+  },
+  {
+   "id": "q071",
+   "text": "handwritten text recognition for historical documents",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "handwritten",
+    "recognition"
+   ]
+  },
+  {
+   "id": "q072",
+   "text": "autism early screening tools",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "autism",
+    "screening"
+   ]
+  },
+  {
+   "id": "q073",
+   "text": "blockchain for supply chain traceability",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "blockchain",
+    "supply chain"
+   ]
+  },
+  {
+   "id": "q074",
+   "text": "neural machine translation for low resource languages",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "translation",
+    "low-resource"
+   ]
+  },
+  {
+   "id": "q075",
+   "text": "renewable energy storage grid integration",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "storage",
+    "grid"
+   ]
+  },
+  {
+   "id": "q076",
+   "text": "breast cancer detection mammography AI",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "breast",
+    "mammography"
+   ]
+  },
+  {
+   "id": "q077",
+   "text": "knowledge distillation for model compression",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "distillation",
+    "compression"
+   ]
+  },
+  {
+   "id": "q078",
+   "text": "water quality prediction machine learning",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "water quality",
+    "prediction"
+   ]
+  },
+  {
+   "id": "q079",
+   "text": "social media and adolescent mental health",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "social media",
+    "adolescent"
+   ]
+  },
+  {
+   "id": "q080",
+   "text": "fairness in machine learning hiring",
+   "group": "topical_en",
+   "expect": "papers",
+   "terms": [
+    "fairness",
+    "hiring"
+   ]
+  },
+  {
+   "id": "q081",
+   "text": "diabetes mein yoga ke fayde par research",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "yoga",
+    "diabetes"
+   ]
+  },
+  {
+   "id": "q082",
+   "text": "fasal ki bimariyon ko pehchanne ke liye deep learning",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "crop",
+    "disease"
+   ]
+  },
+  {
+   "id": "q083",
+   "text": "online padhai ka bachon par asar",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "online",
+    "learning"
+   ]
+  },
+  {
+   "id": "q084",
+   "text": "mobile se TB ki screening kaise hoti hai",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "tuberculosis",
+    "screening"
+   ]
+  },
+  {
+   "id": "q085",
+   "text": "solar panel ki efficiency badhane ke tareeke",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "solar",
+    "efficiency"
+   ]
+  },
+  {
+   "id": "q086",
+   "text": "dengue ke liye early warning system",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "dengue",
+    "warning"
+   ]
+  },
+  {
+   "id": "q087",
+   "text": "hindi speech recognition ke naye models",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "speech",
+    "hindi"
+   ]
+  },
+  {
+   "id": "q088",
+   "text": "pollution se bachon ki sehat par asar",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "pollution",
+    "children"
+   ]
+  },
+  {
+   "id": "q089",
+   "text": "machine learning se loan default prediction",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "loan",
+    "default"
+   ]
+  },
+  {
+   "id": "q090",
+   "text": "sugarcane yield prediction satellite se",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "sugarcane",
+    "yield"
+   ]
+  },
+  {
+   "id": "q091",
+   "text": "mental health apps ki effectiveness",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "mental health",
+    "app"
+   ]
+  },
+  {
+   "id": "q092",
+   "text": "drones se kheti ki monitoring",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "drone",
+    "agriculture"
+   ]
+  },
+  {
+   "id": "q093",
+   "text": "chatbots ka customer support mein use",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "chatbot",
+    "customer"
+   ]
+  },
+  {
+   "id": "q094",
+   "text": "heart disease prediction ke liye ML models",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "heart",
+    "prediction"
+   ]
+  },
+  {
+   "id": "q095",
+   "text": "groundwater level forecasting neural network",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "groundwater",
+    "forecast"
+   ]
+  },
+  {
+   "id": "q096",
+   "text": "women entrepreneurs aur microfinance ke natije",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "microfinance",
+    "women"
+   ]
+  },
+  {
+   "id": "q097",
+   "text": "fake news detection Hindi mein",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "fake news",
+    "detection"
+   ]
+  },
+  {
+   "id": "q098",
+   "text": "covid ke baad long term symptoms par studies",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "covid",
+    "symptoms"
+   ]
+  },
+  {
+   "id": "q099",
+   "text": "traffic prediction graph neural network se",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "traffic",
+    "graph"
+   ]
+  },
+  {
+   "id": "q100",
+   "text": "edge devices par LLM chalane ke tareeke",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "edge",
+    "language model"
+   ]
+  },
+  {
+   "id": "q101",
+   "text": "malnutrition aur anganwadi programs",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "malnutrition",
+    "anganwadi"
+   ]
+  },
+  {
+   "id": "q102",
+   "text": "cyber security mein anomaly detection ka kaam",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "cyber",
+    "anomaly"
+   ]
+  },
+  {
+   "id": "q103",
+   "text": "rainfall prediction ke liye LSTM",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "rainfall",
+    "lstm"
+   ]
+  },
+  {
+   "id": "q104",
+   "text": "teachers ki training ka student results par asar",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "teacher",
+    "training"
+   ]
+  },
+  {
+   "id": "q105",
+   "text": "blood pressure ko bina cuff ke napna",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "blood pressure",
+    "cuffless"
+   ]
+  },
+  {
+   "id": "q106",
+   "text": "medical images mein transfer learning ka use",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "transfer learning",
+    "medical"
+   ]
+  },
+  {
+   "id": "q107",
+   "text": "e-commerce recommendation systems ke naye tareeke",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "recommendation",
+    "e-commerce"
+   ]
+  },
+  {
+   "id": "q108",
+   "text": "air quality sensors low cost ki accuracy",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "air quality",
+    "sensor"
+   ]
+  },
+  {
+   "id": "q109",
+   "text": "neural network pruning ka effect accuracy par",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "pruning",
+    "accuracy"
+   ]
+  },
+  {
+   "id": "q110",
+   "text": "startups mein funding aur success ka rishta",
+   "group": "hinglish",
+   "expect": "papers",
+   "terms": [
+    "startup",
+    "funding"
+   ]
+  },
+  {
+   "id": "q111",
+   "text": "मधुमेह रोगियों में व्यायाम का प्रभाव",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "diabetes",
+    "exercise"
+   ]
+  },
+  {
+   "id": "q112",
+   "text": "भारत में वायु प्रदूषण और स्वास्थ्य",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "air pollution",
+    "india"
+   ]
+  },
+  {
+   "id": "q113",
+   "text": "फसल रोग पहचान के लिए मशीन लर्निंग",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "crop",
+    "disease"
+   ]
+  },
+  {
+   "id": "q114",
+   "text": "ग्रामीण शिक्षा में डिजिटल तकनीक",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "rural",
+    "education"
+   ]
+  },
+  {
+   "id": "q115",
+   "text": "बच्चों में कुपोषण के कारण",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "malnutrition",
+    "children"
+   ]
+  },
+  {
+   "id": "q116",
+   "text": "सौर ऊर्जा का कृषि में उपयोग",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "solar",
+    "agriculture"
+   ]
+  },
+  {
+   "id": "q117",
+   "text": "हिंदी भाषा के लिए प्राकृतिक भाषा प्रसंस्करण",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "hindi",
+    "language"
+   ]
+  },
+  {
+   "id": "q118",
+   "text": "महिला स्वास्थ्य और एनीमिया",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "anaemia",
+    "women"
+   ]
+  },
+  {
+   "id": "q119",
+   "text": "जलवायु परिवर्तन और मानसून",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "climate",
+    "monsoon"
+   ]
+  },
+  {
+   "id": "q120",
+   "text": "तपेदिक की जांच में एआई",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "tuberculosis",
+    "ai"
+   ]
+  },
+  {
+   "id": "q121",
+   "text": "डिजिटल भुगतान और छोटे व्यापारी",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "digital payment",
+    "merchant"
+   ]
+  },
+  {
+   "id": "q122",
+   "text": "योग और तनाव कम करना",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "yoga",
+    "stress"
+   ]
+  },
+  {
+   "id": "q123",
+   "text": "भूजल प्रबंधन",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "groundwater",
+    "management"
+   ]
+  },
+  {
+   "id": "q124",
+   "text": "साइबर सुरक्षा में डीप लर्निंग",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "cyber",
+    "deep learning"
+   ]
+  },
+  {
+   "id": "q125",
+   "text": "मोबाइल स्वास्थ्य सेवाएं",
+   "group": "hindi",
+   "expect": "papers",
+   "terms": [
+    "mobile health",
+    "mhealth"
+   ]
+  },
+  {
+   "id": "q126",
+   "text": "attension mechansim in transfomers",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "attention",
+    "transformer"
+   ]
+  },
+  {
+   "id": "q127",
+   "text": "diabetis and excersise",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "diabetes",
+    "exercise"
+   ]
+  },
+  {
+   "id": "q128",
+   "text": "convolutonal neural netwrok medical imagng",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "convolutional",
+    "imaging"
+   ]
+  },
+  {
+   "id": "q129",
+   "text": "reinforcment learning robot navigaton",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "reinforcement",
+    "navigation"
+   ]
+  },
+  {
+   "id": "q130",
+   "text": "clmate change agricultur india",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "climate",
+    "agriculture"
+   ]
+  },
+  {
+   "id": "q131",
+   "text": "federeted learing healthcare",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "federated",
+    "healthcare"
+   ]
+  },
+  {
+   "id": "q132",
+   "text": "sentimnt analysis twiter",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "sentiment",
+    "twitter"
+   ]
+  },
+  {
+   "id": "q133",
+   "text": "breat cancer detction",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "breast",
+    "cancer"
+   ]
+  },
+  {
+   "id": "q134",
+   "text": "blockchian supply chian",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "blockchain",
+    "supply"
+   ]
+  },
+  {
+   "id": "q135",
+   "text": "natual languge processing hindi",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "natural language",
+    "hindi"
+   ]
+  },
+  {
+   "id": "q136",
+   "text": "tubercolosis screning chest xray",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "tuberculosis",
+    "chest"
+   ]
+  },
+  {
+   "id": "q137",
+   "text": "recomendation sytem collaborative filterng",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "recommendation",
+    "filtering"
+   ]
+  },
+  {
+   "id": "q138",
+   "text": "anaemia prevelance in womn",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "anaemia",
+    "women"
+   ]
+  },
+  {
+   "id": "q139",
+   "text": "objct detecton yolo",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "object",
+    "detection"
+   ]
+  },
+  {
+   "id": "q140",
+   "text": "quantm computng algorithms",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "quantum",
+    "computing"
+   ]
+  },
+  {
+   "id": "q141",
+   "text": "malnutriton in chidren",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "malnutrition",
+    "children"
+   ]
+  },
+  {
+   "id": "q142",
+   "text": "pollutin and astma",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "pollution",
+    "asthma"
+   ]
+  },
+  {
+   "id": "q143",
+   "text": "transfer lerning small datset",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "transfer",
+    "dataset"
+   ]
+  },
+  {
+   "id": "q144",
+   "text": "depresion and socal media",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "depression",
+    "social"
+   ]
+  },
+  {
+   "id": "q145",
+   "text": "water qualty predicton",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "water",
+    "quality"
+   ]
+  },
+  {
+   "id": "q146",
+   "text": "crop yeild predicion satelite",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "crop",
+    "yield"
+   ]
+  },
+  {
+   "id": "q147",
+   "text": "text sumarization abstractve",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "summarization",
+    "abstractive"
+   ]
+  },
+  {
+   "id": "q148",
+   "text": "graph nueral netwrks",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "graph",
+    "neural"
+   ]
+  },
+  {
+   "id": "q149",
+   "text": "fake nwes detecton",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "fake news",
+    "detection"
+   ]
+  },
+  {
+   "id": "q150",
+   "text": "covid vacine efectiveness",
+   "group": "typos",
+   "expect": "papers",
+   "terms": [
+    "covid",
+    "vaccine"
+   ]
+  },
+  {
+   "id": "q151",
+   "text": "aaj ka mausam kaisa hai",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q152",
+   "text": "write me a poem about the rain",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q153",
+   "text": "best biryani recipe kya hai",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q154",
+   "text": "who won the IPL final last year",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q155",
+   "text": "tell me a joke",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q156",
+   "text": "mera python code error de raha hai fix karo",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q157",
+   "text": "translate good morning into French",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q158",
+   "text": "kya tum mere dost ho",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q159",
+   "text": "movie suggest karo weekend ke liye",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q160",
+   "text": "what is the price of bitcoin today",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q161",
+   "text": "how to lose belly fat in a week",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q162",
+   "text": "hello",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q163",
+   "text": "thanks bhai",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q164",
+   "text": "kya kar sakte ho tum",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q165",
+   "text": "how old are you",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q166",
+   "text": "mujhe ek cover letter likh do",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q167",
+   "text": "best phone under 20000",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q168",
+   "text": "can you play music",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q169",
+   "text": "sing me a song",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q170",
+   "text": "explain how to cook rice",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q171",
+   "text": "asdfgh qwerty zxcv",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q172",
+   "text": "???",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q173",
+   "text": "ok",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q174",
+   "text": "good night",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q175",
+   "text": "tum kaun ho",
+   "group": "off_topic",
+   "expect": "none"
+  },
+  {
+   "id": "q176",
+   "text": "rural healthcare access in Bihar",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "rural",
+    "health"
+   ],
+   "india": true
+  },
+  {
+   "id": "q177",
+   "text": "Aadhaar and welfare delivery",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "aadhaar",
+    "welfare"
+   ],
+   "india": true
+  },
+  {
+   "id": "q178",
+   "text": "MGNREGA impact on rural employment",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "mgnrega",
+    "employment"
+   ],
+   "india": true
+  },
+  {
+   "id": "q179",
+   "text": "Ayurveda clinical trials diabetes",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "ayurveda",
+    "diabetes"
+   ],
+   "india": true
+  },
+  {
+   "id": "q180",
+   "text": "monsoon variability and Indian agriculture",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "monsoon",
+    "agriculture"
+   ],
+   "india": true
+  },
+  {
+   "id": "q181",
+   "text": "UPI digital payments adoption",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "upi",
+    "payment"
+   ],
+   "india": true
+  },
+  {
+   "id": "q182",
+   "text": "Jal Jeevan Mission drinking water",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "water",
+    "drinking"
+   ],
+   "india": true
+  },
+  {
+   "id": "q183",
+   "text": "Indian classical music and stress",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "music",
+    "stress"
+   ],
+   "india": true
+  },
+  {
+   "id": "q184",
+   "text": "PM-JAY health insurance outcomes",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "insurance",
+    "health"
+   ],
+   "india": true
+  },
+  {
+   "id": "q185",
+   "text": "literacy among tribal women in India",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "tribal",
+    "literacy"
+   ],
+   "india": true
+  },
+  {
+   "id": "q186",
+   "text": "Indian language machine translation",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "indian",
+    "translation"
+   ],
+   "india": true
+  },
+  {
+   "id": "q187",
+   "text": "stubble burning and air quality Delhi",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "stubble",
+    "air quality"
+   ],
+   "india": true
+  },
+  {
+   "id": "q188",
+   "text": "ASHA workers maternal health",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "asha",
+    "maternal"
+   ],
+   "india": true
+  },
+  {
+   "id": "q189",
+   "text": "Green revolution Punjab groundwater",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "punjab",
+    "groundwater"
+   ],
+   "india": true
+  },
+  {
+   "id": "q190",
+   "text": "caste and educational outcomes in India",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "caste",
+    "education"
+   ],
+   "india": true
+  },
+  {
+   "id": "q191",
+   "text": "startups ecosystem Bengaluru",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "startup",
+    "bengaluru"
+   ],
+   "india": true
+  },
+  {
+   "id": "q192",
+   "text": "Kerala flood resilience",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "kerala",
+    "flood"
+   ],
+   "india": true
+  },
+  {
+   "id": "q193",
+   "text": "tuberculosis elimination India programme",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "tuberculosis",
+    "india"
+   ],
+   "india": true
+  },
+  {
+   "id": "q194",
+   "text": "self help groups women empowerment",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "self-help",
+    "women"
+   ],
+   "india": true
+  },
+  {
+   "id": "q195",
+   "text": "Himalayan glacier retreat",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "himalayan",
+    "glacier"
+   ],
+   "india": true
+  },
+  {
+   "id": "q196",
+   "text": "Shodhganga thesis on rural banking",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "rural",
+    "banking"
+   ],
+   "india": true
+  },
+  {
+   "id": "q197",
+   "text": "DBT subsidies and farmers income",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "farmers",
+    "income"
+   ],
+   "india": true
+  },
+  {
+   "id": "q198",
+   "text": "Indian Ocean cyclones prediction",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "cyclone",
+    "indian ocean"
+   ],
+   "india": true
+  },
+  {
+   "id": "q199",
+   "text": "traditional knowledge digital library",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "traditional knowledge",
+    "library"
+   ],
+   "india": true
+  },
+  {
+   "id": "q200",
+   "text": "Jan Dhan accounts financial inclusion",
+   "group": "indian_topic",
+   "expect": "papers",
+   "terms": [
+    "jan dhan",
+    "financial inclusion"
+   ],
+   "india": true
+  }
+ ]
+}
