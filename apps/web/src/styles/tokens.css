@@ -59,6 +59,10 @@
   --read-size: 1.0625rem;
   --read-leading: 1.7;
   --read-measure: 66ch;
+  /* One small-text scale. Twelve near-identical sizes (0.78 to 0.88rem) were in use on one page; they are now --fs-sm and --fs-md. */
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-md: 0.875rem;
 
   color-scheme: light;
 }

@@ -41,7 +41,7 @@
 .vin-hint {
   margin: 0.2rem 0 0.7rem;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 .vin-text {
   display: block;
@@ -106,7 +106,7 @@
 .vin-privacy {
   margin: 0.8rem 0 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .vin-privacy kbd {
   padding: 0.05rem 0.35rem;
@@ -209,7 +209,7 @@
 .vsum-note {
   margin: 0;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 .vsum-actions {
   margin: 0;
@@ -321,7 +321,7 @@
 .ref-num {
   margin-left: auto;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
 }
 .ref-input {
@@ -350,7 +350,7 @@
   border-radius: var(--radius-s);
   background: var(--surface-2);
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 }
 .ref-help svg {
   flex: none;
@@ -380,7 +380,7 @@
 .ref-match-meta {
   margin: 0.15rem 0 0;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 }
 .ref-checks {
   display: flex;
@@ -398,7 +398,7 @@
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 560;
 }
 .ref-check-mark {

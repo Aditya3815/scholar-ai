@@ -76,7 +76,7 @@
 }
 .uz-sub {
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 
 .jobs {
@@ -139,7 +139,7 @@
 .job-detail {
   margin: 0.1rem 0 0;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 }
 .job[data-state="error"] .job-detail {
   color: var(--text);
@@ -153,7 +153,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 560;
 }
 .job-steps li {
@@ -207,7 +207,7 @@
 .papers-usage {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
 }
 .dgrid {
@@ -339,12 +339,12 @@
 .dc-meta {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .dc-note {
   margin: 0.2rem 0 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .dc-note[data-tone="warn"] {
   color: var(--warn);
@@ -422,7 +422,7 @@
 .dw-meta {
   margin: 0.1rem 0 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .dw-tabs {
   display: none;
@@ -472,7 +472,7 @@
   .dw-tab {
     gap: 0.3rem;
     padding: 0 0.35rem;
-    font-size: 0.8125rem;
+    font-size: var(--fs-sm);
   }
 }
 @media (max-width: 359.98px) {
@@ -586,7 +586,7 @@
   align-items: center;
   gap: 0.35rem;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-variant-numeric: tabular-nums;
 }
 .pdfv-go input {
@@ -611,7 +611,7 @@
   border-radius: 999px;
   background: transparent;
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -643,7 +643,7 @@
   background: var(--surface);
   box-shadow: var(--shadow-2);
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   line-height: 1.4;
   pointer-events: none;
 }
@@ -828,7 +828,7 @@
   gap: 0.4rem;
   margin: 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .ask-sub svg {
   flex: none;
@@ -911,7 +911,7 @@
   align-items: center;
   gap: 0.4rem;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 650;
 }
 .ask-status[data-tone="ok"] {
@@ -968,7 +968,7 @@
   border-radius: var(--radius-s);
   background: var(--surface-2);
   color: var(--warn);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 }
 .ask-warn svg {
   flex: none;
@@ -977,7 +977,7 @@
 .ask-hint {
   margin: 0.5rem 0 0;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 }
 .ask-sources {
   display: grid;
@@ -1137,7 +1137,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 560;
 }
 .ask-steps li {
@@ -1177,7 +1177,7 @@
 }
 .ask-pages-label {
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 560;
 }
 .ask-page-chip {
@@ -1260,7 +1260,7 @@
   border-radius: 999px 999px 0 0;
   background: transparent;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 600;
 }
 .dw-sidetab[aria-selected="true"] {
@@ -1310,7 +1310,7 @@
   gap: 0.35rem 0.6rem;
   margin: 0.15rem 0 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .dw-doi {
   display: inline-flex;
@@ -1393,7 +1393,7 @@
   gap: 0.3rem;
   min-width: 5.5rem;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1584,7 +1584,7 @@
   background: var(--accent-soft);
   color: var(--accent);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 620;
   cursor: pointer;
 }
@@ -1620,7 +1620,7 @@
 .notes-count {
   margin: 0;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 .notes-actions {
   display: flex;
@@ -1629,7 +1629,7 @@
 .notes-error {
   margin: 0;
   color: var(--danger);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 .notes-empty {
   display: grid;
@@ -1690,7 +1690,7 @@
   background: var(--surface-2);
   color: var(--text);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 650;
   cursor: pointer;
 }
@@ -1715,7 +1715,7 @@
 .note-missing {
   margin: 0.35rem 0 0;
   color: var(--warn);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   line-height: 1.4;
 }
 .note-text {
@@ -1753,7 +1753,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.6rem 0.8rem;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 620;
   cursor: pointer;
 }
@@ -1771,14 +1771,14 @@
 .refsec-count {
   margin: 0;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 .refsec-verdict {
   display: flex;
   gap: 0.45rem;
   align-items: flex-start;
   margin: 0;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 .refsec-verdict[data-ok="true"] {
   color: var(--ok);
@@ -1791,7 +1791,7 @@
   margin-top: 0.15rem;
 }
 .refsec-label {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 620;
 }
 .refsec-text {
@@ -1802,7 +1802,7 @@
   background: var(--bg);
   color: var(--text);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   line-height: 1.5;
   resize: vertical;
 }
@@ -1872,14 +1872,14 @@
 .scan-fine,
 .scan-note {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 .scan-sub,
 .scan-fine {
   color: var(--muted);
 }
 .scan-fine {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .scan-note {
   display: flex;
@@ -1917,7 +1917,7 @@
   border-radius: 999px;
   background: var(--surface);
   color: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 620;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
@@ -1931,7 +1931,7 @@
 }
 .scan-more {
   align-self: center;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .dc-scan {
   display: inline-flex;

@@ -42,7 +42,7 @@
 .admin-stat-s {
   margin: 0.15rem 0 0;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 .admin-sec {
   margin-bottom: 1.25rem;
@@ -68,7 +68,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .admin-bars li {
   display: grid;
@@ -117,7 +117,7 @@
 .admin-table caption {
   padding-bottom: 0.4rem;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   text-align: left;
 }
 .admin-table th,
@@ -149,7 +149,7 @@
 .admin-report-time,
 .admin-report-user {
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .admin-report-head .icon-btn {
   margin-left: auto;
@@ -160,7 +160,7 @@
 }
 .admin-report details {
   margin-top: 0.5rem;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 .admin-report summary {
   width: fit-content;
@@ -212,7 +212,7 @@
 }
 .admin-job-err {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   overflow-wrap: anywhere;
 }
 .admin-test-gap {

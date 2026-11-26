@@ -105,7 +105,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   line-height: 1.2;
 }
@@ -163,13 +163,13 @@
 .cite-meta {
   margin: 0 0 0.75rem;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   line-height: 1.4;
 }
 .cite-printed {
   margin: 0 0 0.6rem;
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -183,7 +183,7 @@
   min-height: 34px;
 }
 .cite-list {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 
 /* "Show in reference list" when the entry's page is not known: its card in the References tab flashes once */
