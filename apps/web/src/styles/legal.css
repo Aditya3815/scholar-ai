@@ -116,6 +116,9 @@
   margin-top: 0.8rem;
 }
 .footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem; /* 28px: WCAG 2.2 target size (2.5.8) asks for 24px; these links were 22px tall */
   color: var(--muted);
   font-size: var(--fs-md);
 }

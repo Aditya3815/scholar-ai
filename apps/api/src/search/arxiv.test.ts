@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { arxiv, arxivQuery, parseArxivFeed } from "./arxiv";
+import { arxiv, arxivQuery, mendBreaks, parseArxivFeed } from "./arxiv";
 
 const FEED = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
@@ -70,5 +70,14 @@ describe("arxiv provider", () => {
     vi.stubGlobal("fetch", f);
     expect(await arxiv.search("of the", 5, { store: undefined as never, CROSSREF_MAILTO: "x" }, new AbortController().signal)).toEqual([]);
     expect(f).not.toHaveBeenCalled();
+  });
+});
+
+describe("mendBreaks", () => {
+  it("takes out a question mark that sits inside a word", () => {
+    expect(mendBreaks("retrieval-augmented gener?ation (RAG) is not tied to a particu?lar format, be?fore it")).toBe("retrieval-augmented generation (RAG) is not tied to a particular format, before it");
+  });
+  it("leaves real questions, links and capitals alone", () => {
+    expect(mendBreaks("Does it work? Yes. See https://x.org/a?b and a?B and 5?6")).toBe("Does it work? Yes. See https://x.org/a?b and a?B and 5?6");
   });
 });
