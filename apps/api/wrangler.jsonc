@@ -66,10 +66,11 @@
   // "MCP": "beta" (9 Nov 2026, the owner's go): the MCP server runs only for the account ids in MCP_BETA_USERS, which is a Worker secret (`wrangler secret put MCP_BETA_USERS`), not a
   // var, so that an account id is not in this public repository. Its privacy sentence is on the page (legal-match.test.ts, FLAG_SENTENCES). Off at once: `flag:MCP off` in CACHE.
   // "CHAT_TOOLS": "on" (10 Nov 2026, the owner read its sentence on 9 Nov): tools run in the reply (docs/design/chat-tools.md). Off at once: `flag:CHAT_TOOLS off` in CACHE.
+  // "CHAT_THINK": "on" (27 Nov 2026, the owner asked for lines like a chat assistant's "thinking" instead of "Understood as"): the Thinking block is drawn for every reply. Off at once: `flag:CHAT_THINK off` in CACHE.
   // "READER", "SHARE", "LIVE": "on" (24 Nov 2026, the owner: "sara ka sara changes publically live karo"): the new Paper Reader with its notes, ink and agents, sharing a paper
   // (invitations by e-mail, links, comments) and live presence are for every account, no longer only the owner's (they were "dark" since 13, 19 and 20 Nov). Their privacy
   // sentences are on the page (draft-23). Off at once for everyone: `flag:READER off`, `flag:SHARE off` or `flag:LIVE off` in CACHE; "dark" puts one back to the beta lists.
-  "vars": { "EXPECT_CRON": "1", "TRENDING": "off", "MCP": "beta", "CHAT_TOOLS": "on", "READER": "on", "SHARE": "on", "LIVE": "on" },
+  "vars": { "EXPECT_CRON": "1", "TRENDING": "off", "MCP": "beta", "CHAT_TOOLS": "on", "CHAT_THINK": "on", "READER": "on", "SHARE": "on", "LIVE": "on" },
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "observability": { "enabled": true },
 

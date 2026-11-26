@@ -137,7 +137,7 @@ try {
     ok(await page.locator(".think-head").getAttribute("aria-expanded") === "true" && await page.locator(".think-lines").isVisible(), "a click opens it");
     ok((await page.locator(".think-lines li").count()) === 6, "six lines: understood, searched, found, reading, writing, checked");
     const first = page.locator(".think-lines li").first();
-    ok(/^I understood: you are looking for papers on “LoRA medical visual question answering”/.test((await first.innerText()).trim()), "the understood line is labelled 'I understood'");
+    ok(/^you are looking for papers on “LoRA medical visual question answering”/.test((await first.innerText()).trim()), "the understood line has no label");
     ok(await first.getByRole("button", { name: /Change/ }).count() === 1 && await first.getByRole("button", { name: "Use my exact words" }).count() === 1, "...with Change and Use my exact words");
     ok(await page.locator(".chat-turn").getByText(/I understood this as/).count() === 0 && await page.locator(".chat-turn").getByText(/^I searched for:/).count() === 0, "the line 'I understood this as' and 'I searched for' are not said twice");
     await first.getByRole("button", { name: /Change/ }).click();
@@ -175,7 +175,7 @@ try {
     const { ctx, page } = await signedIn(1280);
     await ask(page, "hy", GREETING);
     if ((await page.locator(".think-head").getAttribute("aria-expanded")) !== "true") await page.locator(".think-head").click();
-    ok(/I understood: a conversation, so nothing was searched/.test(await page.locator(".think-lines").innerText()), "the block says it was taken for conversation");
+    ok(/a conversation, so nothing was searched/.test(await page.locator(".think-lines").innerText()), "the block says it was taken for conversation");
     ok(await page.locator(".think-lines li").first().getByRole("button", { name: /Change/ }).count() === 1, "...with Change, so a search can still be asked for");
     ok((await page.locator(".think-head").innerText()).trim().startsWith("Thought for 1 s"), "its folded line has no search and no papers in it");
     for (const theme of ["light", "dark"]) { await setTheme(page, theme); await axe(`1280 ${theme}: a greeting's block`, page); }
