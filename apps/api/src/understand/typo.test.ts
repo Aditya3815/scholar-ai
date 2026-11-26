@@ -33,6 +33,9 @@ describe("mendTypos: the slips of a search, without a model", () => {
   it("does not touch text with letters of another script", () => {
     expect(mendTypos("मधुमेह lerning")).toBeNull();
   });
+  it("does not read a text that is longer than a search (300 characters)", () => {
+    expect(mendTypos("lerning ".repeat(60))).toBeNull();
+  });
   it("does not change a capitalised word (a name)", () => {
     expect(mendWord("Lerning")).toBeNull();
   });

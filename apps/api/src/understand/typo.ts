@@ -29,7 +29,8 @@ function build(): void {
 
 /** Edits to turn a into b (insert, delete, replace, or swap two neighbours), or max + 1 once it is clear it is more than max. */
 export function editDistance(a: string, b: string, max: number): number {
-  if (Math.abs(a.length - b.length) > max) return max + 1;
+  // words only: the cost is the product of the lengths, so a long string is "too far" without a look
+  if (a.length > 64 || b.length > 64 || Math.abs(a.length - b.length) > max) return max + 1;
   const prev2: number[] = [];
   let prev: number[] = Array.from({ length: b.length + 1 }, (_, j) => j);
   for (let i = 1; i <= a.length; i++) {
@@ -97,9 +98,12 @@ export function mendWord(word: string): string | null {
   return best?.w ?? null;
 }
 
+const MAX_CHARS = 300;
+
 /** The text with its slips mended, or null when nothing was changed. Only plain English: the caller does not give it Hindi, Hinglish or text with anything but letters, digits and ordinary punctuation. */
 export function mendTypos(text: string): string | null {
-  if (!/^[\x20-\x7e]+$/.test(text)) return null;
+  // a search is read to 300 characters; a long text is not a query, and each word costs a look through the list
+  if (text.length > MAX_CHARS || !/^[\x20-\x7e]+$/.test(text)) return null;
   let changed = false;
   const out = text.replace(/[A-Za-z]+/g, (token) => {
     const fixed = mendWord(token);
