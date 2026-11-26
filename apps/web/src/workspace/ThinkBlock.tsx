@@ -9,7 +9,7 @@ import "../styles/think.css";
  * server sends them only while CHAT_THINK is on). A reply that has none draws nothing here, and the page is what it was.
  * - Open while the reply is written, with the lines added and updated in place, and the steps as a thin bar inside it (the row of step names is not drawn for such a reply). Folded into one line when the
  *   reply is done ("Thought for 14 s · 1 search · 20 papers"); a button opens it again (Enter or Space, `aria-expanded`).
- * - Only the `understood` line can carry words a model wrote (a restated question): it is labelled "I understood", and its actions (Change, Use my exact words) are the page's own controls.
+ * - Only the `understood` line can carry words a model wrote (a restated question): it has no "I understood" label (the lines read as the steps of the work, as in a chat assistant), and its actions (Change, Use my exact words) are the page's own controls.
  * - A screen reader hears the stage when it changes, once (the conversation's one polite status line), never each line.
  */
 const STAGES: Partial<Record<ChatStep, string>> = { route: "Understanding", search: "Searching", read: "Reading the papers", write: "Writing", check: "Checking each claim", general: "Writing background" };
@@ -63,7 +63,6 @@ export function ThinkBlock({ msg, working, actions }: { msg: AssistantMsg; worki
       <ol id={id} className="think-lines" hidden={!open}>
         {lines.map((l) => (
           <li key={l.id} data-kind={l.kind}>
-            {l.kind === "understood" && <span className="think-label">I understood: </span>}
             <span {...textAttrs(l.text)}>{l.text}</span>
             {l.actions && l.actions.length > 0 && !working && actions(l)}
           </li>

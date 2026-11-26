@@ -500,7 +500,9 @@ const FLAG_SENTENCES: readonly (FlagSentence & { flag: SwitchName })[] = [
   },
 ];
 /** Flags that are on in the committed config and need no sentence on the page, each with the reason (nothing new is sent, kept or shown that the page does not already say). Empty until a release has one. */
-const FLAGS_WITHOUT_SENTENCE = {} as const satisfies { readonly [N in SwitchName]?: string };
+const FLAGS_WITHOUT_SENTENCE = {
+  CHAT_THINK: "the Thinking block only shows, line by line, what the server did for the message (counts of its own stages); no new data is read, kept or sent anywhere",
+} as const satisfies { readonly [N in SwitchName]?: string };
 /** Rows that have lost their flag after 14 clean days on: the sentence and the code that makes it true. Releases with no flag (R6b, T1) start here. */
 const ALWAYS_ON: readonly AlwaysOn[] = [];
 
