@@ -171,7 +171,7 @@
   border-radius: 0.6rem;
   background: transparent;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
 }
 .inkbar-tool > * {
@@ -297,7 +297,7 @@
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
 }
 .inkbar-status > svg {
@@ -523,12 +523,12 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   outline: none;
 }
 .ink-sticky-read {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -543,7 +543,7 @@
   border-radius: 999px;
   background: #fff;
   color: #1b1d22;
-  font-size: 0.8rem;
+  font-size: var(--fs-sm);
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
   pointer-events: auto;
 }

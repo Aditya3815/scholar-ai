@@ -37,7 +37,7 @@
   margin: 0;
   color: var(--accent);
   font-family: var(--font-ui);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -77,13 +77,13 @@
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
 .pv-venue {
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 560;
   overflow-wrap: anywhere;
 }
@@ -170,7 +170,7 @@
   padding: 0.6rem 1.1rem 0.8rem;
   border-top: 1px solid var(--border);
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .pv-hint kbd {
   padding: 0.05rem 0.35rem;
@@ -188,14 +188,14 @@
 .oa-turns { display: grid; gap: 1.4rem; margin: 0; padding: 0; list-style: none; }
 .oa-turn { display: grid; gap: 0.7rem; }
 .oa-q { justify-self: end; max-width: 90%; margin: 0; padding: 0.5rem 0.85rem; border-radius: 1rem 1rem 0.3rem 1rem; background: var(--accent); color: var(--accent-fg); overflow-wrap: anywhere; }
-.oa-basis { display: flex; gap: 0.5rem; align-items: flex-start; margin: 0; color: var(--muted); font-size: 0.85rem; }
+.oa-basis { display: flex; gap: 0.5rem; align-items: flex-start; margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .oa-basis svg { flex: none; margin-top: 0.15rem; }
 .oa-basis[data-kind="abstract"] { padding: 0.55rem 0.75rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-s); color: var(--text); }
 .oa-reading { display: grid; gap: 0.5rem; }
-.oa-reading p { margin: 0; color: var(--muted); font-size: 0.85rem; }
+.oa-reading p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .oa-bar { height: 6px; overflow: hidden; border-radius: 999px; background: var(--surface-2); }
 .oa-bar span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
-.oa-stage { margin: 0; color: var(--muted); font-size: 0.875rem; }
+.oa-stage { margin: 0; color: var(--muted); font-size: var(--fs-md); }
 .oa-source[data-flash] .oa-quote { border-color: var(--accent); background: var(--accent-soft); }
 .oa-quote { display: flex; gap: 0.6rem; width: 100%; padding: 0.5rem 0.65rem; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface-2); color: var(--text); text-align: left; cursor: default; }
 .oa-signin { display: grid; gap: 0.6rem; justify-items: start; }
@@ -208,4 +208,4 @@
 .shared-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.8rem; }
 .shared-open { flex: 1; min-width: 0; display: grid; gap: 0.1rem; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .shared-title { font-weight: 600; overflow-wrap: anywhere; }
-.shared-meta { font-size: 0.85rem; color: var(--muted); }
+.shared-meta { font-size: var(--fs-sm); color: var(--muted); }

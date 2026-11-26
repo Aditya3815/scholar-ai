@@ -1,5 +1,5 @@
 /* The Thinking block (ThinkBlock.tsx): in the lazy chunk of the conversation, not in the first-load style sheet. */
-.think { margin: 0 0 0.6rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font-size: 0.875rem; }
+.think { margin: 0 0 0.6rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font-size: var(--fs-md); }
 .think-head { display: flex; align-items: center; gap: 0.4rem; width: 100%; min-height: 32px; padding: 0.35rem 0.7rem; border: 0; border-radius: 12px; background: transparent; color: var(--muted); font: inherit; text-align: left; cursor: pointer; }
 .think-head:hover { color: var(--text); }
 .think-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

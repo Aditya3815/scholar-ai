@@ -5,7 +5,7 @@
  */
 
 /* The line where the topic changes: a name between two hairlines, no movement. On the message that came after "New topic", above its bubble; pending (the next message is not sent yet), at the end of the conversation. */
-.chat-topic { align-self: stretch; display: flex; align-items: center; gap: 0.75rem; margin: 0.5rem 0 1rem; color: var(--muted); font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.02em; }
+.chat-topic { align-self: stretch; display: flex; align-items: center; gap: 0.75rem; margin: 0.5rem 0 1rem; color: var(--muted); font-size: var(--fs-sm); font-weight: 600; letter-spacing: 0.02em; }
 .chat-topic::before, .chat-topic::after { content: ""; flex: 1 1 auto; height: 0; border-top: 1px solid var(--border-strong); }
 .chat-topic[data-pending="true"] { margin: 1.1rem 0 0.2rem; }
 
