@@ -100,6 +100,40 @@ export function buildChatPrompt(question: string, picked: readonly Picked[], ear
 const LABEL = String.raw`S\d{1,3}(?:\s*[-‐-―]\s*S?\d{1,3})?`;
 const LABELS = String.raw`${LABEL}(?:\s*(?:[,;&]|and)\s*${LABEL})*`;
 
+/**
+ * The answer as it is written, shown while it is written: the words that are finished, cleaned as the finished answer is (`normaliseMarks`), and not the half of a mark that has just begun ("[1] (S", "(evidence 2,"
+ * ). A mark is held back from its opening bracket, or from the label after a "]", until it is closed or has the next word after it. What was shown is never taken back: if a later piece would change it, the
+ * change waits for the finished answer, which replaces the text on the screen. Pure and per answer: make one for each.
+ */
+export class MarkStreamFilter {
+  private raw = "";
+  private shown = "";
+
+  push(piece: string): string {
+    this.raw += piece;
+    const cleaned = normaliseMarks(this.raw.slice(0, MarkStreamFilter.safeEnd(this.raw)));
+    if (!cleaned.startsWith(this.shown)) return "";
+    const out = cleaned.slice(this.shown.length);
+    this.shown = cleaned;
+    return out;
+  }
+
+  /** Where the finished words of `raw` end: before an opening bracket that is not closed (within 90 characters), or before a label that follows a mark and may still be growing. */
+  private static safeEnd(raw: string): number {
+    const tail = raw.length - 90;
+    let end = raw.length;
+    for (const open of ["(", "[", "【"]) {
+      const at = raw.lastIndexOf(open);
+      if (at < 0 || at < tail) continue;
+      const close = open === "(" ? ")" : open === "[" ? "]" : "】";
+      if (raw.indexOf(close, at) < 0) end = Math.min(end, at);
+    }
+    const label = /(\][^\p{L}\p{N}[\]]{0,6}S?\d{0,3}(?:\s*[-‐-―]\s*S?\d{0,3})?)$/u.exec(raw);
+    if (label && /[S\d]/.test(label[1]!.slice(1))) end = Math.min(end, label.index + 1);
+    return end;
+  }
+}
+
 export function normaliseMarks(raw: string): string {
   // what a model writes after a mark for the sentence: (2), (5-8), and pairs or lists of numbers, (6:1), (2,5) (seen in Hindi answers, 28 Oct 2026); a year (2019) has four digits and stays
   const side = String.raw`\(\s*\d{1,3}(?:\s*[-‐-―:,;]\s*\d{1,3})*\s*\)`;
@@ -205,6 +239,7 @@ export async function answerFromResults(args: { question: string; /** The suppor
   const withEarlier = !!args.earlierAnswer && plainAnswer(args.earlierAnswer) !== "";
   const marks = { addMissingMarks: !args.judge };
   const field = new AnswerFieldStreamer();
+  const shownMarks = new MarkStreamFilter();
   // hooks are synchronous callbacks: events are queued in order and awaited at the end
   let chain: Promise<void> = Promise.resolve();
   const send = (e: ChatEvent) => {
@@ -216,7 +251,7 @@ export async function answerFromResults(args: { question: string; /** The suppor
     { system: chatSystem(args.language, withEarlier, args.languageAsked), user: `${note ? `${note}\n\n` : ""}${buildChatPrompt(args.question, args.picked, withEarlier ? args.earlierAnswer : undefined)}`, schema: CHAT_SCHEMA as unknown as Record<string, unknown>, maxTokens: 3500, label: args.label ?? "chat_search" },
     {
       onContent: (piece) => {
-        const text = field.push(piece);
+        const text = shownMarks.push(field.push(piece));
         if (!text) return;
         if (!writing) {
           writing = true;

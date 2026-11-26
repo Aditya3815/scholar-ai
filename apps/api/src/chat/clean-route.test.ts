@@ -35,6 +35,7 @@ vi.mock("./testing/stub-route", async (importOriginal) => {
 });
 
 import { chatRoutes } from "./routes";
+import { mendTypos } from "../search/typo";
 import { withDeps } from "../app/deps";
 
 const TOKEN = "t".repeat(40);
@@ -163,8 +164,9 @@ describe("the three positions of the flag", () => {
     for (const env of [{}, { CHAT_CLEAN: "off" }, SHADOW, { CHAT_CLEAN: "ON" }, { CHAT_CLEAN: "true" }, { CHAT_CLEAN: "" }]) {
       calls.length = 0;
       const r = await post(auto(OWNER_MESSAGE), { env });
-      expect(searchesOf(), JSON.stringify(env)).toEqual([OWNER_MESSAGE]);
-      expect(r.understood.searchQuery, JSON.stringify(env)).toBeUndefined();
+      expect(searchesOf(), JSON.stringify(env)).toEqual([mendTypos(OWNER_MESSAGE) ?? OWNER_MESSAGE]);
+      // the typos of the message are mended with no model (search/typo.ts), and the page is told which words were searched
+      expect(r.understood.searchQuery, JSON.stringify(env)).toBe(mendTypos(OWNER_MESSAGE) ?? undefined);
       expect(r.understood.reading, JSON.stringify(env)).toBeUndefined();
       expect(r.text).not.toMatch(/"reading"/);
     }
@@ -256,6 +258,18 @@ describe("what the cleaner is never asked to touch", () => {
     expect(searchesOf()).toEqual(["effect of yoga on blood pressure"]);
   });
 
+  it("a slip in plain English is mended with no model, and the exact words stay on offer; a message that is right, or a search by hand, is not touched", async () => {
+    calls.length = 0;
+    await post(auto("machin lerning for crop disese detction"), { env: ON, used: 60_000 });
+    expect(searchesOf()).toEqual(["machine learning for crop disease detection"]);
+    calls.length = 0;
+    await post(auto("effect of yoga on blood pressure"), { env: ON, used: 60_000 });
+    expect(searchesOf()).toEqual(["effect of yoga on blood pressure"]);
+    calls.length = 0;
+    await post({ mode: "search", message: "machin lerning" } as never, { env: ON });
+    expect(searchesOf()).toEqual(["machin lerning"]);
+  });
+
   it("a day with no allowance for a model reading the turns searches the earlier question and the words as written, and cleans nothing", async () => {
     // the message leans on the turns (it is short), the day cannot pay for the model that would read them: nothing is read, so it is searched behind the last thing asked (carryOver), as written, and it is not a message the cleaner may read
     const r = await post(auto("please and in children?", { history: GLAUCOMA }), { env: ON, used: 60_000 });
@@ -319,13 +333,15 @@ describe("the notes and the line the page draws from them", () => {
       const r = await post(auto(text), { env: ON });
       const asked = searchesOf();
       expect(asked).toHaveLength(1);
-      const message = text.replace(/\s+/g, " ").trim();
+      const written = text.replace(/\s+/g, " ").trim();
+      // the message, with its slips mended (search/typo.ts): the words of it that were not mended are the ones the person wrote
+      const message = mendTypos(written) ?? written;
       // (1) what the indexes are asked is the reading's topic or the message
-      expect([r.understood.reading?.topic, message].includes(asked[0]), text).toBe(true);
+      expect([r.understood.reading?.topic, message, written].includes(asked[0]), text).toBe(true);
       // (2) the words shown on the answer ("I searched for") are the words asked
       expect(r.understood.searchQuery ?? message, text).toBe(asked[0]);
       // and every word of them is one the person wrote
-      for (const w of (asked[0] ?? "").split(/\s+/)) expect(message.includes(w), `${w} of ${text}`).toBe(true);
+      for (const w of (asked[0] ?? "").split(/\s+/)) expect(written.includes(w) || message.includes(w), `${w} of ${text}`).toBe(true);
       // (3) a Reading that is sent has passed the check
       if (r.understood.reading) expect(checkReading(r.understood.reading as Reading, text), text).toBe(true);
     }

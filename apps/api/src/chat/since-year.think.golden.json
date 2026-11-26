@@ -2731,15 +2731,16 @@
     {
      "id": "understood",
      "kind": "understood",
-     "text": "you are looking for papers on “Can you search about convoluton nueral netwrk all papers”",
+     "text": "you are looking for papers on “Can you search about convolution neural network all papers”",
      "actions": [
-      "change"
+      "change",
+      "exact_words"
      ]
     },
     {
      "id": "searched",
      "kind": "searched",
-     "text": "Searched for “Can you search about convoluton nueral netwrk all papers”",
+     "text": "Searched for “Can you search about convolution neural network all papers”",
      "counts": {
       "queries": 1
      }
@@ -2796,15 +2797,16 @@
     {
      "id": "understood",
      "kind": "understood",
-     "text": "you are looking for papers on “Can you search about convoluton nueral netwrk all papers”",
+     "text": "you are looking for papers on “Can you search about convolution neural network all papers”",
      "actions": [
-      "change"
+      "change",
+      "exact_words"
      ]
     },
     {
      "id": "searched",
      "kind": "searched",
-     "text": "Searched for “Can you search about convoluton nueral netwrk all papers”",
+     "text": "Searched for “Can you search about convolution neural network all papers”",
      "counts": {
       "queries": 1
      }
@@ -3684,15 +3686,16 @@
     {
      "id": "understood",
      "kind": "understood",
-     "text": "you are looking for papers on “CRISPR cas9 off targt efects”",
+     "text": "you are looking for papers on “CRISPR cas9 off target effects”",
      "actions": [
-      "change"
+      "change",
+      "exact_words"
      ]
     },
     {
      "id": "searched",
      "kind": "searched",
-     "text": "Searched for “CRISPR cas9 off targt efects”",
+     "text": "Searched for “CRISPR cas9 off target effects”",
      "counts": {
       "queries": 1
      }

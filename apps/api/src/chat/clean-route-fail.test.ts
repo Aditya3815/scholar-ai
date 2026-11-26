@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatEvent } from "@scholar/shared";
 import { OWNER_MESSAGE } from "./clean-cases";
+import { mendTypos } from "../search/typo";
+
+// without a cleaner, a plain English message is searched with its slips mended (search/typo.ts)
+const MENDED = mendTypos(OWNER_MESSAGE) ?? OWNER_MESSAGE;
 
 /**
  * R8, what happens when the cleaner itself fails (docs/design/intent-and-state.md, 4.0 and 8.4: "a throwing, hanging or huge-valued shadow function leaves the stream identical"). `readRequest` is made to throw, and
@@ -66,7 +70,7 @@ describe.each([["throw"], ["refuse"]] as const)("the cleaner %ss", (mode) => {
     const r = await stream(OWNER_MESSAGE, { CHAT_CLEAN: position, CHAT_COUNTERS: "on" });
     expect(r.status).toBe(200);
     expect(r.text).toBe(off.text);
-    expect(calls.searches).toEqual([OWNER_MESSAGE]);
+    expect(calls.searches).toEqual([MENDED]);
     expect(r.counted.filter((n) => n === "would_clean" || n === "clean_applied")).toEqual([]);
     expect(r.events.at(-1)).toMatchObject({ type: "done" });
   });
@@ -78,6 +82,6 @@ describe("with the cleaner healthy the same two requests do differ (the check ab
     expect(calls.searches).toEqual(["convoluton nueral netwrk"]);
     calls.searches.length = 0;
     await stream(OWNER_MESSAGE, { CHAT_CLEAN: "shadow" });
-    expect(calls.searches).toEqual([OWNER_MESSAGE]);
+    expect(calls.searches).toEqual([MENDED]);
   });
 });
