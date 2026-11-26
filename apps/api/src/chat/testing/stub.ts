@@ -106,6 +106,11 @@ export const stubChatStream: StreamComplete = async (req, hooks) => {
     else if (/cites/i.test(q)) json = { kind: "background", answer: "Smith et al. showed in 2019 that this is generally the case, and it is widely accepted by now." };
     else if (/marks/i.test(q)) json = { kind: "background", answer: "It is generally understood that this works well in practice [1]. Most experts would agree [2][3]." };
     else json = { kind: "background", answer: "In general terms this is a well studied question, and the usual answer depends on the setting, the people involved and how the outcome is measured." };
+  } else if (req.label === "chat_explain") {
+    // the explanation (intent answer): "gibberish" is a subject it does not recognise, "cites" tries to name a paper (the server must throw that away), anything else is an explanation
+    if (/gibberish/i.test(q)) json = { kind: "unsure", answer: "" };
+    else if (/cites/i.test(q)) json = { kind: "explanation", answer: "Smith et al. showed in 2019 that a confidence interval is a range that is built so that it usually holds the true value." };
+    else json = { kind: "explanation", answer: "A confidence interval is a range of values built from your data so that, if you repeated the study many times, about 95 of every 100 such ranges would hold the true value. Example: an average height of 165 cm with an interval of 163 to 167 cm." };
   } else if (/unanswerable/i.test(q) || !first) json = { coverage: "none", answer: "", evidence: [] };
   else if (/hallucinate/i.test(q)) json = { coverage: "full", answer: `A made-up claim [${first}].`, evidence: [{ n: Number(first), s: 99 }] };
   else if (/tighten(fail|quota)/i.test(q)) json = { coverage: "full", answer: `The first paper reports its main result (${/tighten\w+/i.exec(q)![0].toLowerCase()}) [${first}].`, evidence: [{ n: Number(first), s: 2 }] };

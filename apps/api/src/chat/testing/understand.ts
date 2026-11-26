@@ -63,6 +63,7 @@ export const stubUnderstand: Complete = async ({ user }) => {
   const status = (s: string) => ({ en: s, hinglish: s, hi: s })[language as "en"];
   const ledger = ledgerOf(record);
   if (/\bundclarify\b/.test(l)) return { model: "stub", json: { ...base, intent: "clarify", status: status("I need to check what you mean"), clarify: { question: "Which topic should I look for papers on?", choices: ["Machine learning in health", "Machine learning in farming"] }, confidence: 0.5 } };
+  if (/\bundexplain\b/.test(l)) return { model: "stub", json: { ...base, intent: "answer", status: status("A general question, answered without papers"), confidence: 0.9 } };
   if (/literature review|lit scan|literature scan|review chahiye/.test(l)) return { model: "stub", json: { ...base, intent: "offer_tool", tool: "litscan", status: status("You want a literature review"), confidence: 0.9 } };
   if (/reference|bibliograph/.test(l)) return { model: "stub", json: { ...base, intent: "offer_tool", tool: "verify", status: status("You want your references checked"), confidence: 0.9 } };
   if (/\b(?:idea|novel)\b/.test(l)) return { model: "stub", json: { ...base, intent: "offer_tool", tool: "idea", status: status("You want to know if your idea is new"), confidence: 0.9 } };

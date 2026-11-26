@@ -12,7 +12,7 @@ import { searchComplete } from "./complete";
 import { answerFromResults, pickEvidencePapers, type Picked } from "./answer";
 import { judgeAnswer, type JudgeReport } from "./support";
 import { MAX_TIGHTEN_BODY_BYTES, readTighten } from "./tighten";
-import { answerGeneral } from "./general";
+import { answerExplain, answerGeneral } from "./general";
 import { mendTypos } from "../understand/typo";
 import { askedOf, carryOver, contextInfo, ownQuestions, routeContextOf, routeFollowUp, routeMessage, routerCallFailed, type FollowUp, type RouterContext } from "./router";
 import { readHistory, type ChatHistory } from "./history";
@@ -625,6 +625,25 @@ chatRoutes.post("/", async (c) => {
         await think(understoodModel(u.status, ["change"]));
         await think(thinkAsking(route.language));
         return void (await done(false, "clarify"));
+      }
+      // intent answer: a general explanation, written with no search, under its own label and with no citation (general.ts). Only for a person who is signed in (the writer is a model call that is paid
+      // from their allowance). When the model is down, the allowance is used up, or it says nothing reliable, the message is searched instead: the safe default, which costs nothing.
+      if (u?.intent === "answer" && user) {
+        try {
+          await send({ type: "step", step: "general" });
+          await think(thinkWriting(route.language, true));
+          const g = await answerExplain({ question: (u.standalone || text).replace(/\s+/g, " ").slice(0, 300), language: route.language, stream: modelFor(deps, PROFILES.write, user.id, abort.signal), emit: send });
+          if (s.gone) return;
+          if (g.kind === "explanation" || g.kind === "not_research") {
+            await send({ type: "general", kind: g.kind, text: g.text });
+            outcome = g.kind === "explanation" ? "explained" : "small_talk";
+            return void (await done(g.kind === "explanation", g.kind === "explanation" ? undefined : "small_talk"));
+          }
+        } catch (e) {
+          if (s.gone) return;
+          if (!(e instanceof QuotaError || e instanceof NoRouteError || e instanceof AllProvidersFailedError)) throw e;
+        }
+        await send({ type: "general", kind: "unsure", text: "" }); // clears any words that were already shown, then the papers are searched
       }
       // M5: the literature scan has no mode of the box: it is offered as a card (`offer`), never started
       if (u?.intent === "offer_tool" && u.tool === "litscan") {
