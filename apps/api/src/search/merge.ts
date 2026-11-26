@@ -4,6 +4,16 @@ import { rerank } from "./rank";
 
 const RRF_K = 60;
 
+/** The family name of the first author, folded, or "" when there is none ("Liping Xiong" and "Xiong, Liping" both give "xiong"). */
+const surname = (authors: string[]): string => {
+  const a = (authors[0] ?? "").trim();
+  if (!a) return "";
+  const last = a.includes(",") ? a.split(",")[0]! : a.split(/\s+/).at(-1)!;
+  return last.toLowerCase().replace(/[^\p{L}]/gu, "");
+};
+/** A title long enough to be its own: a preprint and its journal version carry the same one, a short title ("Deep learning") belongs to many papers. */
+const LONG_TITLE_WORDS = 5;
+
 /**
  * DOI (phir PMID, phir title+year) se dedup, aur reciprocal rank fusion se ranking.
  * Field merge: khali fields bharo, lamba abstract rakho, max citation count, retracted = OR.
@@ -13,13 +23,23 @@ export function mergeAndRank(lists: Record<string, ProviderPaper[]>, limit: numb
   const byDoi = new Map<string, Paper>();
   const byPmid = new Map<string, Paper>();
   const byTitle = new Map<string, Paper>();
+  // the same paper as a preprint and as the journal version has two DOIs and two years: found again by its long title, a year at most two away, and the same first author (or none given)
+  const byLongTitle = new Map<string, Paper[]>();
+  const sameWork = (a: Paper, p: ProviderPaper): boolean => {
+    if (a.year != null && p.year != null && Math.abs(a.year - p.year) > 2) return false;
+    const x = surname(a.authors);
+    const y = surname(p.authors);
+    return !x || !y || x === y;
+  };
 
   for (const [source, list] of Object.entries(lists)) {
     list.forEach((p, i) => {
       const rr = 1 / (RRF_K + i + 1);
       const tk = titleKey(p.title, p.year);
+      const longKey = titleKey(p.title, null);
+      const isLong = p.title.trim().split(/\s+/).length >= LONG_TITLE_WORDS;
       let existing =
-        (p.doi && byDoi.get(p.doi)) || (p.pmid && byPmid.get(p.pmid)) || byTitle.get(tk) || undefined;
+        (p.doi && byDoi.get(p.doi)) || (p.pmid && byPmid.get(p.pmid)) || byTitle.get(tk) || (isLong ? byLongTitle.get(longKey)?.find((a) => sameWork(a, p)) : undefined) || undefined;
 
       if (!existing) {
         existing = {
@@ -63,6 +83,11 @@ export function mergeAndRank(lists: Record<string, ProviderPaper[]>, limit: numb
       if (existing.doi) byDoi.set(existing.doi, existing);
       if (existing.pmid) byPmid.set(existing.pmid, existing);
       byTitle.set(tk, existing);
+      if (isLong) {
+        const group = byLongTitle.get(longKey) ?? [];
+        if (!group.includes(existing)) group.push(existing);
+        byLongTitle.set(longKey, group);
+      }
     });
   }
 
