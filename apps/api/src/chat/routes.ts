@@ -73,9 +73,9 @@ const logJudged = (r: JudgeReport) =>
  */
 
 /** Is enough of the day's allowance left for a follow-up that a model reads with the earlier turns? Not being able to tell is not a reason to refuse. */
-async function canAfford(db: D1Database, subject: string): Promise<boolean> {
+async function canAfford(db: D1Database, subject: string, env?: { LLM_DAILY_TOKEN_QUOTA?: string }): Promise<boolean> {
   try {
-    return (await allowanceOf(db, subject)).left >= FOLLOW_UP_TOKENS_ESTIMATE;
+    return (await allowanceOf(db, subject, env)).left >= FOLLOW_UP_TOKENS_ESTIMATE;
   } catch {
     return true;
   }
@@ -483,7 +483,7 @@ chatRoutes.post("/", async (c) => {
       } else if (auto && !talk) {
         // a model is about to read the turns: it is not started for a day that cannot pay for the answer that follows (the quota is checked before each call and is not atomic). The words are then searched as
         // written, as for a visitor (the search is free), and the papers are shown with no answer: the line the screen says for this ("the papers are below") is true, which it was not when nothing was done.
-        if (ctx && user && needsContext(text) && !ruleRoute(text, rctx) && !(await canAfford(c.env.DB, user.id))) {
+        if (ctx && user && needsContext(text) && !ruleRoute(text, rctx) && !(await canAfford(c.env.DB, user.id, c.env))) {
           poor = true;
           carried = carryOver(text, ctx);
           route = { ...offlineRoute(text), language: languageWithContext(text, ownQuestions(ctx)) };

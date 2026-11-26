@@ -68,7 +68,7 @@ litscanRoutes.post("/plan", async (c) => {
   if (!topic) return deny(c, 400, "invalid_topic", "Describe the topic in a sentence or two", "Between 8 and 400 characters.");
   const language = resolveLanguage(body?.language, topic);
 
-  const allowance = await allowanceOf(c.env.DB, user.id);
+  const allowance = await allowanceOf(c.env.DB, user.id, c.env);
   try {
     const { items } = await planScan({ topic, language, complete: modelFor(depsOf(c), PROFILES.litscanPlan, user.id) });
     return c.json<{ plan: LitscanPlan }>({ plan: { topic, language, items, allowance: { limit: allowance.limit, used: allowance.used, estimate: estimateScanTokens(items.length) } } });
@@ -110,7 +110,7 @@ litscanRoutes.post("/", async (c) => {
   if (running) return deny(c, 409, "scan_running", "A scan is already running", "Wait for it to finish, or cancel it.", { id: running });
 
   const estimate = estimateScanTokens(items.length);
-  const { left } = await allowanceOf(c.env.DB, user.id);
+  const { left } = await allowanceOf(c.env.DB, user.id, c.env);
   if (left < estimate) {
     return deny(c, 429, "quota", "Today's AI allowance is not enough for this scan", `This scan is expected to use about ${estimate.toLocaleString("en")} tokens and you have ${Math.max(0, left).toLocaleString("en")} left. It comes back tomorrow; fewer sub-questions need less.`);
   }

@@ -161,6 +161,8 @@ type SecretsAndVariables = {
    * `LLM_REASONING` (low, medium, high) sets how long a gpt-oss model thinks. Neither exists in a deployed Worker.
    */
   LLM_QA_MODEL?: string;
+  /** The per-person daily AI allowance in tokens (a whole number above 0). Unset or invalid: the default of llm/config.ts. Raise it when a provider with room is added; it does not raise a provider's own limit. */
+  LLM_DAILY_TOKEN_QUOTA?: string;
   LLM_REASONING?: string;
   /** The same as LLM_QA_MODEL for the private `classify` task (the router of Auto mode: docs/design/p7-latency.md). */
   LLM_CLASSIFY_MODEL?: string;
