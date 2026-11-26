@@ -13,7 +13,7 @@ import { answerFromResults, pickEvidencePapers, type Picked } from "./answer";
 import { judgeAnswer, type JudgeReport } from "./support";
 import { MAX_TIGHTEN_BODY_BYTES, readTighten } from "./tighten";
 import { answerGeneral } from "./general";
-import { askedOf, contextInfo, ownQuestions, routeContextOf, routeFollowUp, routeMessage, routerCallFailed, type FollowUp, type RouterContext } from "./router";
+import { askedOf, carryOver, contextInfo, ownQuestions, routeContextOf, routeFollowUp, routeMessage, routerCallFailed, type FollowUp, type RouterContext } from "./router";
 import { readHistory, type ChatHistory } from "./history";
 import { attemptsForLog } from "../platform/llm/failure";
 import { FLOOR_OUTCOMES, FOLLOW_UP_OUTCOMES, UNREAD_OUTCOMES, askOutcome, countOutcome, countOutcomes } from "../outcomes";
@@ -230,6 +230,8 @@ chatRoutes.post("/", async (c) => {
     let follow: FollowUp | null = null;
     // the day cannot pay for a model to read the earlier turns: the message is searched as written and no answer is written
     let poor = false;
+    /** the search words of a follow-up that no model could read: the earlier question, then the message (router.ts carryOver) */
+    let carried: string | undefined;
     // R3: whether exactly one provider contributed a paper to the list (known only once the search has answered)
     let oneSource = false;
     // R9 (4.9): the name that is counted for what the relevance floor made of the list (`tier_none` and `tier_few` for what it did, `would_tier_*` for what it only read), null when it said nothing
@@ -483,6 +485,7 @@ chatRoutes.post("/", async (c) => {
         // written, as for a visitor (the search is free), and the papers are shown with no answer: the line the screen says for this ("the papers are below") is true, which it was not when nothing was done.
         if (ctx && user && needsContext(text) && !ruleRoute(text, rctx) && !(await canAfford(c.env.DB, user.id))) {
           poor = true;
+          carried = carryOver(text, ctx);
           route = { ...offlineRoute(text), language: languageWithContext(text, ownQuestions(ctx)) };
         } else {
           // the rules settle most messages without a model; only when they cannot, a step says so while the model looks
@@ -633,7 +636,7 @@ chatRoutes.post("/", async (c) => {
         return void (await done(false, "routed"));
       }
       // what the indexes are asked: the model's English words, or the message as written (at most 300 characters)
-      const query = route.searchQuery ?? text.replace(/\s+/g, " ");
+      const query = route.searchQuery ?? carried ?? text.replace(/\s+/g, " ");
       if (query.length > 300 && !preset) return void (await done(false, "too_long"));
       // M2: what is looked for (a follow-up's restated question, which a model may have written, else the words searched), with the page's own controls: Change, and the exact words when other words were searched
       if (route.how === "fallback") await think(thinkNotSure(route.language));
