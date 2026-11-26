@@ -1,0 +1,9 @@
+{
+  "name": "Sodhsetu",
+  "short_name": "Sodhsetu",
+  "description": "Research assistant for scholars: verified citations, paper Q&A, reference checks.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff"
+}

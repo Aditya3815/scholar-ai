@@ -652,6 +652,10 @@
 .pop {
   z-index: 60;
   width: min(26rem, 92vw);
+  /* never taller than the room Radix leaves on the side it chose (collisionPadding included): a short window scrolls the menu instead of cutting its top off */
+  max-height: var(--radix-popover-content-available-height, 80vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0.9rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);

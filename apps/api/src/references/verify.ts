@@ -103,12 +103,24 @@ const NO_AUTHORS = "A record with this title and year exists, but it lists no au
  * `dois` are the readings of the DOI the reference prints (a PDF may have wrapped it, and a wrapped DOI read as printed names another record: the proceedings, not the paper). The first
  * reading whose record is the cited paper decides. If none is, the answer is about the first record found; and the DOI "does not exist" only when none of its readings does.
  */
-async function viaDoi(text: string, spaced: string, dois: string[], env: LookupEnv): Promise<RefResult> {
+/**
+ * A reference that is only a DOI ("10.1038/...", "https://doi.org/...", "doi:..."): there is no title, author or year to compare, so the record cannot disagree with it. Such a line was called "a different
+ * paper" (nothing in the record matches a bare number) or refused as too short. What can be said is whether the DOI names a paper, and which.
+ */
+function isDoiOnly(text: string, dois: string[]): boolean {
+  if (dois.length === 0) return false;
+  let rest = text;
+  for (const d of dois) rest = rest.split(d).join(" ");
+  return tokenize(rest.replace(/https?:\/\/(?:dx\.)?doi\.org\/?/gi, " ").replace(/\bdoi\b/gi, " ")).length === 0;
+}
+
+async function viaDoi(text: string, spaced: string, dois: string[], env: LookupEnv, doiOnly = false): Promise<RefResult> {
   let first: { rec: Candidate; checks: MatchChecks; v: MatchVerdict } | null = null;
   for (const doi of dois) {
     const rec = (await crossrefByDoi(doi, env)) ?? (await openAlexByDoi(doi, env));
     if (!rec) continue;
     const checks = checkMatch(text, rec);
+    if (doiOnly) return withRetraction(result(text, "verified", `Only the DOI was given, so only that was checked: it names ${describe(rec)}. Compare the title and authors with your source.`, rec, checks), env);
     const v = verdict(rec, checks);
     if (v === "verified") return withRetraction(result(text, "verified", `Matches ${describe(rec)}.${note(text, rec, checks)}`, rec, checks), env);
     first ??= { rec, checks, v };
@@ -237,12 +249,14 @@ async function viaTitle(text: string, spaced: string, env: LookupEnv): Promise<R
 export async function verifyReference(raw: string, env: LookupEnv): Promise<RefResult> {
   const spaced = raw.replace(/\s+/g, " ").trim();
   const text = joinHyphenated(spaced);
-  if (text.length < 15 || tokenize(text).length < 3) {
+  const printed = doiCandidates(text);
+  const doiOnly = isDoiOnly(text, printed);
+  if (!doiOnly && (text.length < 15 || tokenize(text).length < 3)) {
     return result(raw, "unparsed", "This does not look like a full reference. Paste the whole entry (authors, title, journal, year).");
   }
   try {
-    const dois = doiCandidates(text);
-    if (dois.length > 0) return await viaDoi(text, spaced, dois, env);
+    const dois = printed;
+    if (dois.length > 0) return await viaDoi(text, spaced, dois, env, doiOnly);
     const arxiv = extractArxivId(text);
     return (arxiv && (await viaArxiv(text, spaced, arxiv, env))) || (await viaSearch(text, spaced, env));
   } catch (e) {

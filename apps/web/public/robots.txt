@@ -1,0 +1,12 @@
+User-agent: *
+Disallow: /api/
+Disallow: /oauth/
+Disallow: /mcp
+Disallow: /admin
+Disallow: /settings
+Disallow: /library
+Disallow: /papers
+Disallow: /s/
+Disallow: /literature-scan/shared/
+
+Sitemap: https://sodhsetu.in/sitemap.xml

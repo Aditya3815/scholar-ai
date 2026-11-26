@@ -1,0 +1,4 @@
+Contact: mailto:team@sodhsetu.in
+Expires: 2027-11-26T00:00:00.000Z
+Preferred-Languages: en, hi
+Canonical: https://sodhsetu.in/.well-known/security.txt
