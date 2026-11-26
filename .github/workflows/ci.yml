@@ -14,7 +14,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check:
+  # What decides whether the site goes live: the audit, types, the build and its size budget (about 2 minutes). The slow suites run beside it in `check` and no longer hold the deploy back;
+  # a failure there still turns this workflow red and opens the alert issue, so it is looked at, but the live site is not made to wait for it (25 Nov 2026, the owner's decision: ship, then test).
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -26,14 +28,6 @@ jobs:
       # committed wrangler.jsonc: a binding added, renamed or removed there without `npm run cf-typegen -w apps/api` fails here.
       - run: npm run cf-typegen -w apps/api && git diff --exit-code -- apps/api/worker-configuration.d.ts
       - run: npm run typecheck
-      - run: npm test
-      # The alert and watchdog scripts that run in the other workflows have tests of their own.
-      - run: npm run test:scripts
-      # Citation-accuracy gates (replays recorded API responses: offline, deterministic). Fails the build if a fabricated
-      # reference gets verified, a retracted paper is missed, or a DOI we return does not resolve.
-      - run: npm run eval
-      # Every text and background pair of every theme meets WCAG AA (apps/web/scripts/contrast.mjs reads the colours from src/styles/tokens.css).
-      - run: npm run contrast -w apps/web
       - run: npm run build
       # What a first visit downloads has a size budget (apps/web/scripts/budget.mjs, docs/design/w6.md): over it fails the build.
       - run: npm run budget -w apps/web
@@ -47,12 +41,28 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
+
+  # The slow suites. They run beside `build` and do not gate the deploy (see above).
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: npm test
+      # The alert and watchdog scripts that run in the other workflows have tests of their own.
+      - run: npm run test:scripts
+      # Citation-accuracy gates (replays recorded API responses: offline, deterministic). Fails the build if a fabricated
+      # reference gets verified, a retracted paper is missed, or a DOI we return does not resolve.
+      - run: npm run eval
+      # Every text and background pair of every theme meets WCAG AA (apps/web/scripts/contrast.mjs reads the colours from src/styles/tokens.css).
+      - run: npm run contrast -w apps/web
       # Real Worker + local D1 + fake identity provider: sign-in (PKCE, replay, CSRF), library sync, export and account deletion.
       # The default run has production's switch positions; trending-on, mcp-on and reader-on add the Trending list shown, MCP on and the new Paper Reader, which production does not have yet.
-      - run: npm run integration -w apps/api -- --run=default,trending-on,mcp-on
+      - run: npm run build && npm run integration -w apps/api -- --run=default,trending-on,mcp-on
 
   deploy:
-    needs: check
+    needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -65,7 +75,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      # The build the check job tested (decision 14 of docs/design/untangle.md), where wrangler.jsonc's `assets.directory` looks for it.
+      # The build the build job made and measured (decision 14 of docs/design/untangle.md), where wrangler.jsonc's `assets.directory` looks for it.
       - uses: actions/download-artifact@v7
         with:
           name: web-dist
@@ -85,7 +95,7 @@ jobs:
         run: curl --fail --silent --show-error --retry 6 --retry-delay 5 --retry-all-errors "${PRODUCTION_URL:?the repository variable PRODUCTION_URL is not set}/api/v1/health"
 
   alert:
-    needs: [check, deploy]
+    needs: [build, check, deploy]
     if: always()
     uses: ./.github/workflows/alert.yml
     permissions:
