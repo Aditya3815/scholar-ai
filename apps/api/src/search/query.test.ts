@@ -158,3 +158,9 @@ describe("a search that finds few papers is run again with the name written as w
     expect(snaps.at(-1)).toEqual(["Swin Yolo"]);
   });
 });
+
+describe("queryVariants for a citation-style search", () => {
+  it("also searches the title part without the surname and year", () => {
+    expect(queryVariants("Vaswani 2017 Attention is all")).toEqual(["Attention is all"]);
+  });
+});

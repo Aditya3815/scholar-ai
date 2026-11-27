@@ -1,5 +1,6 @@
 import { titleKey } from "@scholar/shared";
 import type { ProviderPaper } from "./types";
+import { citationHint } from "./rank";
 
 /**
  * A name written as one word ("SwinYolo", "SwinYOLO", "swin_yolo") is written as several in most papers ("Swin-YOLO", "Swin YOLO"), and the services match whole words:
@@ -26,6 +27,9 @@ const hasWord = (parts: string[]) => parts.filter((p) => /\p{L}{3}/u.test(p)).le
  * too small to mean anything. The original is never in the list.
  */
 export function queryVariants(q: string): string[] {
+  // "Vaswani 2017 Attention is all": the services match words, and neither the surname nor the year is in the title; the title part alone finds the paper
+  const cited = citationHint(q);
+  if (cited) return [cited.rest];
   const tokens = q.trim().split(/\s+/).filter(Boolean);
   if (tokens.length === 0 || q.length < 4) return [];
   let changed = false;
