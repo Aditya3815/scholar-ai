@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Paper } from "@scholar/shared";
-import { queryTerms, rerank } from "./rank";
+import { citationHint, queryTerms, rerank } from "./rank";
 import { mergeAndRank } from "./merge";
 
 const mk = (id: string, title: string, o: Partial<Paper> = {}): Paper => ({
@@ -58,5 +58,30 @@ describe("mergeAndRank with a query", () => {
     };
     expect(mergeAndRank(lists, 5)[0]!.title).toMatch(/Battery/);
     expect(mergeAndRank(lists, 5, "screen time myopia")[0]!.title).toMatch(/Screen/);
+  });
+});
+
+describe("known paper asked for by name", () => {
+  it("the paper whose title is exactly what was typed outranks a paper that only shares words", () => {
+    const near = mk("n", "Making Pre-trained Language Models Better Few-shot Learners", { score: 0.05, citationCount: 10 });
+    const exact = mk("e", "Language Models are Few-Shot Learners", { score: 0.02, citationCount: 30000 });
+    expect(rerank([near, exact], "Language models are few-shot learners", { thisYear: 2026 })[0]!.id).toBe("e");
+  });
+  it("a citation-style query ('Hochreiter 1997 Long short-term memory') is judged by the title words, the author and the year", () => {
+    const other = mk("o", "Time series model with long short-term memory", { score: 0.05, year: 2025, authors: ["A. Other"] });
+    const real = mk("r", "Long Short-Term Memory", { score: 0.02, year: 1997, authors: ["Sepp Hochreiter", "Jürgen Schmidhuber"] });
+    expect(rerank([other, real], "Hochreiter 1997 Long short-term memory", { thisYear: 2026 })[0]!.id).toBe("r");
+  });
+});
+
+describe("citationHint", () => {
+  it("reads surname, year and the rest", () => {
+    expect(citationHint("Vaswani 2017 Attention is all")).toEqual({ rest: "Attention is all", surname: "vaswani", year: 2017 });
+    expect(citationHint("Breiman (2001), Random forests")?.rest).toBe("Random forests");
+  });
+  it("leaves ordinary searches alone", () => {
+    for (const q of ["Attention is all you need", "diabetes 2019", "deep learning 2015 review"]) {
+      expect(citationHint(q)).toBeNull();
+    }
   });
 });

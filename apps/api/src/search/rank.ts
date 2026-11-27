@@ -67,12 +67,30 @@ export function matchScore(t: QueryTerms, paper: Pick<Paper, "title" | "abstract
   return Math.min(score, 1);
 }
 
+/**
+ * A search typed the way a citation starts: "Vaswani 2017 Attention is all", "Hochreiter 1997 Long short-term memory", "Breiman 2001, Random forests". The surname and the year are not words of the
+ * title, so they only made the title match worse; they are a different kind of evidence (who wrote it, when). Returns the rest of the query and the two hints, or null when the query is not that shape.
+ */
+export type CitationHint = { rest: string; surname: string; year: number };
+export function citationHint(query: string): CitationHint | null {
+  const m = /^\s*(\p{Lu}[\p{L}'’-]{1,24})(?:\s+(?:et\s+al\.?|and\s+\p{Lu}[\p{L}'’-]+))?[,\s]+\(?((?:19|20)\d{2})\)?[,.:\s]+(.{6,})$/u.exec(query);
+  if (!m) return null;
+  const rest = m[3]!.trim();
+  if (words(rest).filter((w) => w.length >= 2 && !STOP.has(w)).length < 1) return null;
+  return { rest, surname: m[1]!.toLowerCase(), year: Number(m[2]) };
+}
+
+const norm = (text: string) => words(text).join(" ");
+
 export type RankOptions = { thisYear?: number };
 
 /** The list in relevance order (a new array, the same papers; `score` is replaced by the combined score). Returns the list unchanged when the query cannot be judged. */
 export function rerank(papers: Paper[], query: string, opts: RankOptions = {}): Paper[] {
-  const t = queryTerms(query);
+  const hint = citationHint(query);
+  const t = queryTerms(hint ? hint.rest : query);
   if (!t || papers.length < 2) return papers;
+  const wanted = norm(hint ? hint.rest : query);
+  const wantedLong = wanted.split(" ").length >= 3;
   const thisYear = opts.thisYear ?? new Date().getUTCFullYear();
   const maxFusion = Math.max(...papers.map((p) => p.score), 1e-9);
   const maxCites = Math.max(...papers.map((p) => p.citationCount ?? 0), 0);
@@ -83,6 +101,14 @@ export function rerank(papers: Paper[], query: string, opts: RankOptions = {}): 
     const age = p.year ? Math.max(0, thisYear - p.year) : 20;
     const recent = Math.max(0, 1 - age / 15);
     let s = 0.4 * fusion + 0.5 * match + 0.07 * cites + 0.03 * recent;
+    // A title that is exactly what was typed (or starts with it, when it was a few words long) is the known paper being asked for by name: that outranks a paper that merely talks about the same words.
+    const title = norm(p.title);
+    if (title === wanted) s += 0.35;
+    else if (wantedLong && title.startsWith(wanted)) s += 0.15;
+    if (hint) {
+      if (p.year === hint.year) s += 0.1;
+      if (p.authors.some((a) => words(a).includes(hint.surname))) s += 0.15;
+    }
     if (match === 0) s *= 0.5;
     if (isStubRecord(p.title)) s *= 0.25;
     return { p, s, i };
