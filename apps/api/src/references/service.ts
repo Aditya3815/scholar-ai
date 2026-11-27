@@ -33,10 +33,11 @@ export function readReference(raw: unknown): { ok: true; text: string } | { ok: 
  */
 export async function verifyCached(store: CacheStore, text: string, env: LookupEnv): Promise<{ result: RefResult; cached: boolean }> {
   const clean = cleanReference(text);
+  // "refverify4" (27 Nov 2026): a DOI-only line with capitals in the DOI (CVPR, arXiv, N19-1423) was still answered "a different paper"; those answers are dropped.
   // "refverify3" (26 Nov 2026): a reference that is only a DOI was answered "a different paper" and kept that answer for a day; the verifier now checks it by the record the DOI names.
   // "refverify2": the answers kept under "refverify" (up to a day) were given before the verifier read titles, DOIs and years as it does now (2 Nov 2026); a reference that was wrongly called
   // "not found" or "different" would have kept that answer. Change the name again whenever the same text should get a new answer.
-  const key = await cacheKey("refverify3", clean.toLowerCase());
+  const key = await cacheKey("refverify4", clean.toLowerCase());
   try {
     const hit = await store.get(key);
     if (hit) return { result: { ...(JSON.parse(hit) as RefResult), input: clean }, cached: true };
