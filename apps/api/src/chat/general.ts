@@ -14,6 +14,7 @@ import { withMalformedRetry } from "../platform/llm/retry";
 export const GENERAL_SYSTEM = [
   "You give short background on a research question from general knowledge, because no paper found for it answers it.",
   "Say plainly what is generally understood, in at most about 120 words.",
+  "Write plain text only: no markdown, no asterisks, no headings, no backticks. Short paragraphs; a list only as plain lines starting with a dash.",
   "Do not mention any specific paper, author, journal, year, DOI, web address, number of studies or statistic: none of them can be checked here. Speak in general terms (\"generally\", \"commonly\", \"it is widely understood\").",
   "Never write citations or source marks such as [1].",
   "If you do not recognise the subject as a real research topic or question, or cannot say anything reliable about it, set kind to \"unsure\" and leave answer empty. Do not guess.",
@@ -124,11 +125,15 @@ export const explainSystem = (language: Lang = "en"): string =>
 
 const MAX_EXPLANATION_CHARS = 2200;
 
+/** The page shows this text as it is, so markdown marks a model adds out of habit are taken off: bold and italic stars, backticks, heading hashes, and a star bullet made a dash. */
+export const plainText = (t: string): string =>
+  t.replace(/\*\*(.+?)\*\*/gs, "$1").replace(/__(.+?)__/gs, "$1").replace(/`+([^`]*)`+/g, "$1").replace(/^#{1,6}\s+/gm, "").replace(/^\s*\*\s+/gm, "- ");
+
 /** The model's JSON as the explanation to show. Never throws; anything that does not fit (too short or long, or carrying a citation) is "unsure" with no text. */
 export function checkExplanation(raw: unknown): General {
   const o = (raw && typeof raw === "object" ? raw : {}) as { kind?: unknown; answer?: unknown };
   const kind = GENERAL_KINDS.find((k) => k === o.kind);
-  const text = typeof o.answer === "string" ? stripMarks(o.answer).replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim() : "";
+  const text = typeof o.answer === "string" ? plainText(stripMarks(o.answer)).replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim() : "";
   if (kind === "explanation") {
     if (text.length < 40 || text.length > MAX_EXPLANATION_CHARS) return { kind: "unsure", text: "" };
     if (CITES_SOMETHING.some((re) => re.test(text))) return { kind: "unsure", text: "" };
