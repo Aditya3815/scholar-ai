@@ -67,11 +67,12 @@
   // var, so that an account id is not in this public repository. Its privacy sentence is on the page (legal-match.test.ts, FLAG_SENTENCES). Off at once: `flag:MCP off` in CACHE.
   // "CHAT_TOOLS": "on" (10 Nov 2026, the owner read its sentence on 9 Nov): tools run in the reply (docs/design/chat-tools.md). Off at once: `flag:CHAT_TOOLS off` in CACHE.
   // "CHAT_THINK": "on" (27 Nov 2026, the owner asked for lines like a chat assistant's "thinking" instead of "Understood as"): the Thinking block is drawn for every reply. Off at once: `flag:CHAT_THINK off` in CACHE.
+  // "CHAT_UNDERSTAND": "on" (27 Nov 2026, found off in production on a live check, owner approved the privacy sentence and the version draft-24 the same day): a signed-in person's Auto message is read by the model, not only by the rules; visitors stay on the rules (CHAT_UNDERSTAND_VISITORS). Off at once: `flag:CHAT_UNDERSTAND off` in CACHE.
   // "CHAT_FLOOR": "writer" (27 Nov 2026, the first position of the relevance floor, as its design says): no written answer over a list with no strong paper; the order of the list and the notices are unchanged. Off at once: `flag:CHAT_FLOOR off` in CACHE.
   // "READER", "SHARE", "LIVE": "on" (24 Nov 2026, the owner: "sara ka sara changes publically live karo"): the new Paper Reader with its notes, ink and agents, sharing a paper
   // (invitations by e-mail, links, comments) and live presence are for every account, no longer only the owner's (they were "dark" since 13, 19 and 20 Nov). Their privacy
   // sentences are on the page (draft-23). Off at once for everyone: `flag:READER off`, `flag:SHARE off` or `flag:LIVE off` in CACHE; "dark" puts one back to the beta lists.
-  "vars": { "EXPECT_CRON": "1", "TRENDING": "off", "MCP": "beta", "CHAT_TOOLS": "on", "CHAT_THINK": "on", "CHAT_FLOOR": "writer", "READER": "on", "SHARE": "on", "LIVE": "on" },
+  "vars": { "EXPECT_CRON": "1", "TRENDING": "off", "MCP": "beta", "CHAT_TOOLS": "on", "CHAT_UNDERSTAND": "on", "CHAT_THINK": "on", "CHAT_FLOOR": "writer", "READER": "on", "SHARE": "on", "LIVE": "on" },
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "observability": { "enabled": true },
 
