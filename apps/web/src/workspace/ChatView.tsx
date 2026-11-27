@@ -1,3 +1,4 @@
+import { unmark } from "../lib/plain-written";
 import { AnimatePresence, m } from "motion/react";
 import { ArrowDown, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileStack, Info, Lightbulb, ListChecks, MessageCircle, Pencil, Plus, RefreshCw, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
@@ -243,7 +244,7 @@ function Background({ msg, question, onRefine }: { msg: AssistantMsg; question: 
   return (
     <section className="chat-general" aria-label={label}>
       <p className="chat-general-label"><Info size={15} aria-hidden="true" /> <b>{label}</b></p>
-      {written ? <p className="reading chat-text" {...textAttrs(g.text)}>{g.text}</p> : <LiveText text={live} writing />}
+      {written ? <p className="reading chat-text" {...textAttrs(unmark(g.text))}>{unmark(g.text)}</p> : <LiveText text={live} writing />}
       {written && (
         <p className="chat-general-note">
           No paper is cited here, so check it before you rely on it.{" "}
