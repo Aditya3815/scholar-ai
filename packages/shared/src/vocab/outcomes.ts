@@ -77,7 +77,7 @@ export const UNDERSTAND_COUNTER_NAMES = [
   "und_ms_lt500", "und_ms_lt1200", "und_ms_lt2500", "und_ms_lt5000", "und_ms_ge5000",
   "und_agree", "und_disagree",
   "und_fix_years_dropped", "und_fix_india_dropped", "und_fix_language_rules", "und_fix_status_template", "und_fix_refers_to_dropped", "und_fix_that_paper_resolved",
-  "und_fix_that_paper_clarify", "und_fix_no_results_to_ask", "und_fix_no_search_to_refine", "und_fix_low_confidence_clarify", "und_fix_chat_greeting_kept", "und_fix_answer_needs_papers", "und_fix_language_switch",
+  "und_fix_that_paper_clarify", "und_fix_no_results_to_ask", "und_fix_no_search_to_refine", "und_fix_low_confidence_clarify", "und_fix_chat_greeting_kept", "und_fix_answer_needs_papers", "und_fix_answer_without_ask", "und_fix_language_switch",
   "und_retry",
   "und_chat_leak",
 ] as const;
@@ -157,6 +157,7 @@ export const UNDERSTAND_LABELS: Record<UnderstandCounterName, string> = {
   und_fix_low_confidence_clarify: "Too unsure for a costly action: asked a question instead",
   und_fix_chat_greeting_kept: "The model asked a question about a greeting: answered as conversation",
   und_fix_answer_needs_papers: "The model chose a general answer, but the message asks for evidence: searched",
+  und_fix_answer_without_ask: "The model chose a general answer, but the message is a bare topic with no question: searched",
   und_fix_language_switch: "Messages like “Hindi mein batao”: the last answer again in that language",
   und_retry: "The model was asked a second time after an invalid reading",
   und_chat_leak: "A conversation reply that cited something was thrown away, and the message searched",
