@@ -121,6 +121,7 @@ export type Correction =
   | "low_confidence_clarify"
   | "chat_greeting_kept"
   | "answer_needs_papers"
+  | "answer_without_ask"
   | "language_switch";
 
 export type UnderstandDeps = {
@@ -138,6 +139,12 @@ export type UnderstandDeps = {
  * explanation never carries a statistic, a year or "studies show", so a message that asks for one must reach the papers. Roman Hindi cues included ("shodh", "adhyayan").
  */
 const WANTS_EVIDENCE = /\b(?:studies|study|trial|trials|paper|papers|research|evidence|survey|review|meta-?analysis|statistics?|prevalence|incidence|effective(?:ness)?|efficacy|outcomes?|results? of|latest|recent|recently|state of the art|sota|benchmark|how many|how much|percent(?:age)?|shodh|adhyayan|pramaan|nateeje|natije|haal ke|naye)\b|\b(?:19|20)\d{2}\b|\d+\s?%|शोध|अध्ययन|प्रमाण/i;
+
+/**
+ * What makes a message ask to be EXPLAINED: a question word, "explain", "define", "difference between", "kya hota hai", a question mark. A bare topic ("quantum computing algorithms", "diabetes and exercise") asks for nothing yet:
+ * in a research assistant it is the start of a search, so an `answer` reading of it is turned into one.
+ */
+export const ASKS_EXPLANATION = /\?|\b(?:what|whats|why|how|who|when|which|explain|explanation|define|definition|meaning|mean|means|difference|differences|differ|compare|comparison|versus|vs|describe|tell me|teach|intuition|eli5|simple terms|simply|kya|kyu|kyun|kyon|kaise|kaisa|kaun|kab|matlab|samjha\w*|samjh\w*|batao|bataiye|antar|farak|fark)\b|क्या|कैसे|क्यों|कौन|कब|मतलब|समझ\w*|बता\w*|अंतर|फर्क/i;
 
 const RELATIVE_TIME = /\b(?:last|past|recent|recently|latest|new|newest|current|this year|pichhle|pichle|pichhli|haal|naye|nayi|abhi|aaj kal|aajkal)\b|पिछले|हाल|नए|नवीनतम/i;
 const INDIA_WORDS = /\b(?:india|indian|bharat|bharatiya|desi|shodhganga|non-indian|international|global|foreign|videshi)\b|भारत|भारतीय|विदेशी/i;
@@ -216,6 +223,13 @@ export function checkReading(u: Understanding, input: UnderstandInput, scrub: Sc
     v = { ...v, intent: "search", refers_to: null, tool: null, clarify: null, search: { queries: [(v.standalone || message).slice(0, 120)].filter((q) => q && !/[ऀ-ॿ]/.test(q)), year_from: null, year_to: null, indian_sources: null } };
     if (v.search && v.search.queries.length === 0) v.search.queries = [message.slice(0, 120)];
     corrections.push("answer_needs_papers");
+  }
+
+  // a bare topic is not a request for an explanation: it is the start of a search
+  if (v.intent === "answer" && !ASKS_EXPLANATION.test(message)) {
+    v = { ...v, intent: "search", refers_to: null, tool: null, clarify: null, search: { queries: [(v.standalone || message).slice(0, 120)].filter((q) => q && !/[ऀ-ॿ]/.test(q)), year_from: null, year_to: null, indian_sources: null } };
+    if (v.search && v.search.queries.length === 0) v.search.queries = [message.slice(0, 120)];
+    corrections.push("answer_without_ask");
   }
 
   // refers_to must name a turn of this ledger and papers that turn listed

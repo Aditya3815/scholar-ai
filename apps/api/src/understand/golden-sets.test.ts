@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { checkReading, UNDERSTAND_SYSTEM } from "./understand";
+import { ASKS_EXPLANATION, checkReading, UNDERSTAND_SYSTEM } from "./understand";
 import type { Understanding } from "./understanding";
 
 /** The golden sets of docs/eval/golden: their shape, their counts, and the one thing that is measured offline, the guard around the intent "answer". */
@@ -60,5 +60,21 @@ describe("answer-intent.json: the guard around the model", () => {
     const leaked = wrong.filter((w) => a.find((x) => w.startsWith(x.id))?.expect === "search");
     expect(leaked).toEqual([]);
     expect(wrong.length).toBeLessThanOrEqual(3);
+  });
+});
+
+describe("the bare-topic guard keeps every golden explanation question", () => {
+  it("each golden 'answer' message still asks to be explained, so it is never turned into a search", () => {
+    const lost = load<A>("answer-intent.json").filter((i) => i.expect === "answer" && !ASKS_EXPLANATION.test(i.text));
+    expect(lost.map((i) => i.text)).toEqual([]);
+  });
+  it("an 'answer' reading of a bare topic becomes a search, and says so", () => {
+    const r = checkReading(reading({ standalone: "quantum computing algorithms" }), { message: "quantum computing algorithms", ledger: [], year: 2026 });
+    expect(r.value.intent).toBe("search");
+    expect(r.value.search?.queries).toEqual(["quantum computing algorithms"]);
+    expect(r.corrections).toContain("answer_without_ask");
+  });
+  it("a bare topic does not ask for an explanation", () => {
+    for (const t of ["quantum computing algorithms", "diabetes and exercise", "graph neural networks", "टीबी जांच में एआई"]) expect(ASKS_EXPLANATION.test(t), t).toBe(false);
   });
 });
