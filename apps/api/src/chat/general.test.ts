@@ -125,3 +125,10 @@ describe("checkExplanation", () => {
     expect(checkExplanation(null).kind).toBe("unsure");
   });
 });
+
+describe("plainText", () => {
+  it("takes markdown marks off what the page shows as it is", async () => {
+    const { plainText } = await import("./general");
+    expect(plainText("**Bias** is `error`.\n# Heading\n* one\n* two")).toBe("Bias is error.\nHeading\n- one\n- two");
+  });
+});
