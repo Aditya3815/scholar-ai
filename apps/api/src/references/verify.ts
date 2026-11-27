@@ -110,7 +110,8 @@ const NO_AUTHORS = "A record with this title and year exists, but it lists no au
 function isDoiOnly(text: string, dois: string[]): boolean {
   if (dois.length === 0) return false;
   let rest = text;
-  for (const d of dois) rest = rest.split(d).join(" ");
+  // doiCandidates() lower-cases what it finds ("10.1109/CVPR.2016.90" -> "10.1109/cvpr.2016.90"), so take the DOI out of the line without regard to case
+  for (const d of dois) rest = rest.replace(new RegExp(d.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), " ");
   return tokenize(rest.replace(/https?:\/\/(?:dx\.)?doi\.org\/?/gi, " ").replace(/\bdoi\b/gi, " ")).length === 0;
 }
 

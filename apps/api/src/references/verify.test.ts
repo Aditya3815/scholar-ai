@@ -49,6 +49,13 @@ describe("with a DOI", () => {
     }
   });
 
+  it("a DOI with capital letters in it (CVPR, arXiv, N19-1423) is still a DOI-only reference", async () => {
+    stub((u) => (u.toLowerCase().includes("/works/10.1109/cvpr.2016.90") ? json({ message: cr({ DOI: "10.1109/cvpr.2016.90" }) }) : undefined));
+    const r = await verifyReference("10.1109/CVPR.2016.90", env);
+    expect(r.status).toBe("verified");
+    expect(r.checks?.doiOnly).toBe(true);
+  });
+
   it("a DOI-only reference whose DOI does not resolve is still not found", async () => {
     stub();
     const r = await verifyReference("10.1000/does.not.exist", env);
