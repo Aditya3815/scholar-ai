@@ -145,6 +145,7 @@ describe("the privacy page after earlier messages are sent to the AI service", (
   it("says in 'Changes' that the chat does not ask first, and what changed", () => {
     expect(PAGE).toMatch(/before you upload a paper, check an idea or run a literature scan, and we will say here what changed/);
     expect(PAGE).toMatch(/The prompt box on Home does not ask first/);
+    // draft-24 (27 Nov, the record of earlier turns that goes to the model for the Understand step, owner approved 27 Nov) is the latest change;
     // draft-23 (21 Nov, the invitation e-mail with a first-page picture and the caret in a note, owner approved 21 Nov) is the latest change;
     // draft-22 (20 Nov, seeing each other on a shared paper, docs/design/paper-live.md 3) is the latest change; draft-21 (19 Nov, the reader's agents' answers kept in the notes,
     // docs/design/paper-reader.md 24), draft-20 (19 Nov, sharing a paper), draft-19 (18 Nov, pictures in the notes) and draft-18 (17 Nov, the Notebook) are the changes before it;
